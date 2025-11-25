@@ -209,8 +209,10 @@ async def get_prompt_by_image(
 
         message = None
         for candidate_url, scoped in search_candidates:
+            logger.info(f"[PROMPT] Ищем промпт: URL={candidate_url}, only_current_user={scoped}")
             message = await _find_prompt(candidate_url, scoped)
             if message:
+                logger.info(f"[PROMPT] Найден промпт по точному совпадению: URL={candidate_url}, message_id={message.id}, user_id={message.user_id}")
                 break
 
         if not message:
@@ -265,7 +267,7 @@ async def get_prompt_by_image(
             }
 
         # Дополнительная диагностика: проверяем, есть ли вообще записи для этого пользователя
-        debug_stmt = select(ChatHistory).where(ChatHistory.user_id == user_id).limit(5)
+        debug_stmt = select(ChatHistory).where(ChatHistory.user_id == user_id).order_by(ChatHistory.created_at.desc()).limit(10)
         debug_result = await db.execute(debug_stmt)
         debug_records = debug_result.scalars().all()
         logger.warning(
@@ -277,11 +279,18 @@ async def get_prompt_by_image(
             len(debug_records)
         )
         if debug_records:
+            example_urls = [(r.image_url, r.created_at, r.message_content[:50] if r.message_content else None) for r in debug_records[:5] if r.image_url]
             logger.warning(
-                "[PROMPT] Примеры URL из базы для user_id=%s: %s",
+                "[PROMPT] Последние 5 записей из базы для user_id=%s: %s",
                 user_id,
-                [r.image_url for r in debug_records[:3]]
+                example_urls,
             )
+            # Проверяем, есть ли запись с похожим URL
+            for record in debug_records:
+                if record.image_url and normalized_url in record.image_url:
+                    logger.warning(f"[PROMPT] НАЙДЕНА ПОХОЖАЯ ЗАПИСЬ! record.image_url={record.image_url}, normalized_url={normalized_url}, match={normalized_url in record.image_url}")
+                elif record.image_url and record.image_url in normalized_url:
+                    logger.warning(f"[PROMPT] НАЙДЕНА ПОХОЖАЯ ЗАПИСЬ (обратное)! record.image_url={record.image_url}, normalized_url={normalized_url}, match={record.image_url in normalized_url}")
         return {
             "success": False,
             "prompt": None,

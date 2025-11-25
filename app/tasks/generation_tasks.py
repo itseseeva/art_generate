@@ -218,7 +218,12 @@ def generate_image_task(
                         # Fallback на prompt из settings_dict, если original_user_prompt не передан
                         original_user_prompt = settings_dict.get("prompt", "")
                     logger.warning(f"[CELERY] Оригинальный промпт пользователя: {original_user_prompt[:100] if original_user_prompt else 'ПУСТО'}")
+                    logger.warning(f"[CELERY] settings_dict keys: {list(settings_dict.keys())}")
+                    logger.warning(f"[CELERY] original_user_prompt from dict: {settings_dict.get('original_user_prompt', 'NOT_FOUND')}")
                     if original_user_prompt:
+                        # Нормализуем URL для логирования
+                        normalized_url_for_log = cloud_url.split('?')[0].split('#')[0] if cloud_url else cloud_url
+                        logger.warning(f"[CELERY] Вызываем _save_prompt_to_history с URL: {normalized_url_for_log}")
                         loop.run_until_complete(
                             _save_prompt_to_history(
                                 user_id=user_id,
@@ -227,7 +232,7 @@ def generate_image_task(
                                 image_url=cloud_url
                             )
                         )
-                        logger.warning(f"[CELERY] Промпт сохранен в историю (task_id={task_id}, character={character_name}, image_url={cloud_url}, prompt_length={len(original_user_prompt)})")
+                        logger.warning(f"[CELERY] Промпт сохранен в историю (task_id={task_id}, character={character_name}, image_url={normalized_url_for_log}, prompt_length={len(original_user_prompt)})")
                     else:
                         logger.error(f"[CELERY] Промпт пустой, не сохраняем в историю!")
                 except Exception as e:
@@ -450,19 +455,32 @@ async def _save_prompt_to_history(
                 logger.warning(f"[CELERY] Создан новый промпт для image_url={normalized_url}, user_id={user_id}, prompt_length={len(prompt)}")
             
             await db.commit()
+            logger.warning(f"[CELERY] Commit выполнен для промпта (user_id={user_id}, image_url={normalized_url})")
             
             # Проверяем, что запись действительно сохранилась
-            verify_query = select(ChatHistory).where(
-                ChatHistory.user_id == user_id,
-                ChatHistory.image_url == normalized_url
-            ).limit(1)
-            verify_result = await db.execute(verify_query)
-            verify_record = verify_result.scalar_one_or_none()
-            
-            if verify_record:
-                logger.warning(f"[CELERY] Промпт успешно сохранен и проверен в ChatHistory (user_id={user_id}, character={character_name}, image_url={normalized_url}, message_content_length={len(verify_record.message_content)})")
-            else:
-                logger.error(f"[CELERY] ОШИБКА: Промпт не найден после сохранения! user_id={user_id}, image_url={normalized_url}")
+            # Используем новую сессию для проверки, чтобы убедиться, что данные видны извне
+            async_session_factory_verify = async_sessionmaker(
+                engine, expire_on_commit=False, class_=AsyncSession
+            )
+            async with async_session_factory_verify() as verify_db:
+                verify_query = select(ChatHistory).where(
+                    ChatHistory.user_id == user_id,
+                    ChatHistory.image_url == normalized_url
+                ).limit(1)
+                verify_result = await verify_db.execute(verify_query)
+                verify_record = verify_result.scalar_one_or_none()
+                
+                if verify_record:
+                    logger.warning(f"[CELERY] Промпт успешно сохранен и проверен в ChatHistory (user_id={user_id}, character={character_name}, image_url={normalized_url}, message_content_length={len(verify_record.message_content)}, message_content_preview={verify_record.message_content[:50]}...)")
+                else:
+                    logger.error(f"[CELERY] ОШИБКА: Промпт не найден после сохранения! user_id={user_id}, image_url={normalized_url}")
+                    # Пробуем найти любые записи для этого пользователя
+                    all_records_query = select(ChatHistory).where(
+                        ChatHistory.user_id == user_id
+                    ).order_by(ChatHistory.created_at.desc()).limit(3)
+                    all_records_result = await verify_db.execute(all_records_query)
+                    all_records = all_records_result.scalars().all()
+                    logger.error(f"[CELERY] Последние 3 записи для user_id={user_id}: {[(r.image_url, r.message_content[:30] if r.message_content else None) for r in all_records]}")
         except Exception as e:
             await db.rollback()
             logger.error(f"[CELERY] Ошибка сохранения промпта в ChatHistory: {e}")
