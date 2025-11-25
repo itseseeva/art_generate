@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from app.database.db_depends import get_db
 from app.auth.dependencies import get_current_user
 from app.models.user import Users
-from app.services.chat_history_service import ChatHistoryService
+from app.chat_history.services.chat_history_service import ChatHistoryService
 
 
 router = APIRouter()
@@ -109,7 +110,7 @@ async def get_characters_with_history(
     try:
         service = ChatHistoryService(db)
         
-        characters = await service.get_characters_with_history(current_user.id)
+        characters = await service.get_user_characters_with_history(current_user.id)
         
         return {
             "success": True,
@@ -160,3 +161,135 @@ async def get_history_stats(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка получения статистики: {str(e)}")
+
+
+@router.get("/prompt-by-image")
+async def get_prompt_by_image(
+    image_url: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """Получает промпт для изображения по его URL.
+
+    Приоритет: сначала ищем в истории текущего пользователя, затем среди всех пользователей.
+    """
+    try:
+        from app.models.chat_history import ChatHistory
+        import logging
+
+        logger = logging.getLogger(__name__)
+        user_id = current_user.id
+        logger.info(
+            "[PROMPT] Поиск промпта для изображения: %s (user_id=%s)",
+            image_url,
+            user_id
+        )
+
+        normalized_url = image_url.split('?')[0].split('#')[0]
+        search_candidates: List[Tuple[str, bool]] = []
+
+        search_candidates.append((image_url, True))
+        if normalized_url != image_url:
+            search_candidates.append((normalized_url, True))
+
+        search_candidates.append((image_url, False))
+        if normalized_url != image_url:
+            search_candidates.append((normalized_url, False))
+
+        async def _find_prompt(target_url: str, only_current_user: bool) -> Optional[ChatHistory]:
+            stmt = (
+                select(ChatHistory)
+                .where(ChatHistory.image_url == target_url)
+                .order_by(ChatHistory.created_at.desc())
+                .limit(1)
+            )
+            if only_current_user:
+                stmt = stmt.where(ChatHistory.user_id == user_id)
+            return (await db.execute(stmt)).scalar_one_or_none()
+
+        message = None
+        for candidate_url, scoped in search_candidates:
+            message = await _find_prompt(candidate_url, scoped)
+            if message:
+                break
+
+        if not message:
+            logger.info("[PROMPT] Пробуем поиск по частичному совпадению")
+            # Сначала ищем среди всех пользователей по частичному совпадению
+            stmt = (
+                select(ChatHistory)
+                .where(ChatHistory.image_url.ilike(f"%{normalized_url}%"))
+                .order_by(ChatHistory.created_at.desc())
+                .limit(1)
+            )
+            message = (await db.execute(stmt)).scalar_one_or_none()
+            
+            # Если не нашли, пробуем поиск только среди текущего пользователя
+            if not message:
+                logger.info(f"[PROMPT] Пробуем поиск по частичному совпадению для user_id={user_id}")
+                stmt = (
+                    select(ChatHistory)
+                    .where(
+                        ChatHistory.image_url.ilike(f"%{normalized_url}%"),
+                        ChatHistory.user_id == user_id
+                    )
+                    .order_by(ChatHistory.created_at.desc())
+                    .limit(1)
+                )
+                message = (await db.execute(stmt)).scalar_one_or_none()
+            
+            # Если все еще не нашли, пробуем поиск по имени файла из URL
+            if not message:
+                import os
+                filename = os.path.basename(normalized_url)
+                logger.info(f"[PROMPT] Пробуем поиск по имени файла: {filename}")
+                stmt = (
+                    select(ChatHistory)
+                    .where(ChatHistory.image_url.ilike(f"%{filename}%"))
+                    .order_by(ChatHistory.created_at.desc())
+                    .limit(1)
+                )
+                message = (await db.execute(stmt)).scalar_one_or_none()
+
+        if message:
+            logger.info(
+                "[PROMPT] Промпт найден: character_name=%s, user_id=%s, image_url=%s",
+                message.character_name,
+                message.user_id,
+                message.image_url,
+            )
+            return {
+                "success": True,
+                "prompt": message.message_content,
+                "character_name": message.character_name
+            }
+
+        # Дополнительная диагностика: проверяем, есть ли вообще записи для этого пользователя
+        debug_stmt = select(ChatHistory).where(ChatHistory.user_id == user_id).limit(5)
+        debug_result = await db.execute(debug_stmt)
+        debug_records = debug_result.scalars().all()
+        logger.warning(
+            "[PROMPT] Промпт не найден для изображения: %s (нормализованный: %s). "
+            "Всего записей для user_id=%s: %d",
+            image_url,
+            normalized_url,
+            user_id,
+            len(debug_records)
+        )
+        if debug_records:
+            logger.warning(
+                "[PROMPT] Примеры URL из базы для user_id=%s: %s",
+                user_id,
+                [r.image_url for r in debug_records[:3]]
+            )
+        return {
+            "success": False,
+            "prompt": None,
+            "message": "Промпт не найден для этого изображения"
+        }
+    except Exception as e:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.error(f"[PROMPT] Ошибка получения промпта: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Ошибка получения промпта: {str(e)}")

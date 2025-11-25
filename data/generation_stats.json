@@ -1,47 +1,47 @@
 {
-  "total_generations": 94,
+  "total_generations": 312,
   "total_time": {
-    "formatted": "1:03:14",
-    "total_seconds": 3794.8973500728607
+    "formatted": "3:14:58",
+    "total_seconds": 11698.423418521881
   },
   "average_time": {
-    "formatted": "0:00:40",
-    "total_seconds": 40.371248405030435
+    "formatted": "0:00:37",
+    "total_seconds": 37.4949468542368
   },
   "by_sampler": {
     "Euler": {
-      "count": 94,
+      "count": 312,
       "total_time": {
-        "formatted": "1:03:14",
-        "total_seconds": 3794.8973500728607
+        "formatted": "3:14:58",
+        "total_seconds": 11698.423418521881
       },
       "avg_time": {
-        "formatted": "0:00:40",
-        "total_seconds": 40.371248405030435
+        "formatted": "0:00:37",
+        "total_seconds": 37.4949468542368
       }
     }
   },
   "by_steps": {
     "20": {
-      "count": 92,
+      "count": 299,
       "total_time": {
-        "formatted": "1:01:55",
-        "total_seconds": 3715.9649846553802
+        "formatted": "3:00:26",
+        "total_seconds": 10826.876789808273
       },
       "avg_time": {
-        "formatted": "0:00:40",
-        "total_seconds": 40.39092374625413
+        "formatted": "0:00:36",
+        "total_seconds": 36.210290266917305
       }
     },
     "25": {
-      "count": 2,
+      "count": 13,
       "total_time": {
-        "formatted": "0:01:18",
-        "total_seconds": 78.93236541748047
+        "formatted": "0:14:31",
+        "total_seconds": 871.5466287136078
       },
       "avg_time": {
-        "formatted": "0:00:39",
-        "total_seconds": 39.466182708740234
+        "formatted": "0:01:07",
+        "total_seconds": 67.04204836258522
       }
     }
   },
@@ -69,25 +69,47 @@
       }
     },
     "512x768": {
-      "count": 82,
+      "count": 116,
       "total_time": {
-        "formatted": "0:54:24",
-        "total_seconds": 3264.8682160377502
+        "formatted": "1:07:22",
+        "total_seconds": 4042.2286944389343
       },
       "avg_time": {
-        "formatted": "0:00:39",
-        "total_seconds": 39.815466049240854
+        "formatted": "0:00:34",
+        "total_seconds": 34.84679908999081
       }
     },
     "512x512": {
-      "count": 2,
+      "count": 3,
       "total_time": {
-        "formatted": "0:01:12",
-        "total_seconds": 72.93597316741943
+        "formatted": "0:01:35",
+        "total_seconds": 95.87585735321045
       },
       "avg_time": {
-        "formatted": "0:00:36",
-        "total_seconds": 36.46798658370972
+        "formatted": "0:00:31",
+        "total_seconds": 31.958619117736816
+      }
+    },
+    "768x1344": {
+      "count": 17,
+      "total_time": {
+        "formatted": "0:23:07",
+        "total_seconds": 1387.5911948680878
+      },
+      "avg_time": {
+        "formatted": "0:01:21",
+        "total_seconds": 81.62301146282869
+      }
+    },
+    "552x966": {
+      "count": 166,
+      "total_time": {
+        "formatted": "1:35:15",
+        "total_seconds": 5715.6345109939575
+      },
+      "avg_time": {
+        "formatted": "0:00:34",
+        "total_seconds": 34.43153319875878
       }
     }
   },
@@ -115,226 +137,226 @@
       }
     },
     "5.0": {
-      "count": 2,
+      "count": 14,
       "total_time": {
-        "formatted": "0:01:18",
-        "total_seconds": 78.93236541748047
+        "formatted": "0:15:54",
+        "total_seconds": 954.0502002239227
       },
       "avg_time": {
-        "formatted": "0:00:39",
-        "total_seconds": 39.466182708740234
+        "formatted": "0:01:08",
+        "total_seconds": 68.14644287313733
       }
     },
     "4.0": {
-      "count": 55,
+      "count": 261,
       "total_time": {
-        "formatted": "0:35:09",
-        "total_seconds": 2109.429469347
+        "formatted": "2:32:17",
+        "total_seconds": 9137.837702989578
       },
       "avg_time": {
-        "formatted": "0:00:38",
-        "total_seconds": 38.35326307903637
+        "formatted": "0:00:35",
+        "total_seconds": 35.01087242524743
       }
     }
   },
   "recent_generations": [
     {
-      "timestamp": "2025-09-28T22:47:20.115676",
-      "time": "40.2s",
-      "prompt": "fs, fs, masterpiece, best quality, absurdres, amazing quality, 1girl, 1boy, huge breasts, thick thig...",
-      "steps": 20,
-      "sampler": "Euler",
-      "resolution": "512x768",
-      "cfg_scale": 4.0,
-      "service": "FaceRefinementService"
-    },
-    {
-      "timestamp": "2025-09-28T22:52:54.728383",
-      "time": "46.4s",
-      "prompt": "вф, выф, вф выф, 1girl, solo, full body, large expressive eyes, detailed eyes, clean lines, smooth s...",
-      "steps": 20,
-      "sampler": "Euler",
-      "resolution": "512x768",
-      "cfg_scale": 4.0,
-      "service": "FaceRefinementService"
-    },
-    {
-      "timestamp": "2025-09-28T22:54:40.299147",
-      "time": "37.7s",
+      "timestamp": "2025-11-18T11:35:26.251208",
+      "time": "53.9s",
       "prompt": "",
       "steps": 20,
       "sampler": "Euler",
-      "resolution": "512x768",
+      "resolution": "552x966",
       "cfg_scale": 4.0,
       "service": "FaceRefinementService"
     },
     {
-      "timestamp": "2025-09-28T22:58:45.630304",
-      "time": "41.5s",
+      "timestamp": "2025-11-18T11:36:35.592550",
+      "time": "36.3s",
       "prompt": "",
       "steps": 20,
       "sampler": "Euler",
-      "resolution": "512x768",
+      "resolution": "552x966",
       "cfg_scale": 4.0,
       "service": "FaceRefinementService"
     },
     {
-      "timestamp": "2025-09-28T23:02:45.222387",
-      "time": "30.5s",
-      "prompt": "",
-      "steps": 20,
-      "sampler": "Euler",
-      "resolution": "512x768",
-      "cfg_scale": 4.0,
-      "service": "FaceRefinementService"
-    },
-    {
-      "timestamp": "2025-09-28T23:04:12.568364",
+      "timestamp": "2025-11-18T11:59:02.968553",
       "time": "31.2s",
+      "prompt": "dfgdfgdf, gdfgdff, show ass, full body, large expressive eyes, detailed eyes, clean lines, smooth sk...",
+      "steps": 20,
+      "sampler": "Euler",
+      "resolution": "552x966",
+      "cfg_scale": 4.0,
+      "service": "FaceRefinementService"
+    },
+    {
+      "timestamp": "2025-11-18T12:00:01.863749",
+      "time": "35.2s",
+      "prompt": "full body, large expressive eyes, detailed eyes, clean lines, smooth skin, perfect hands, detailed r...",
+      "steps": 20,
+      "sampler": "Euler",
+      "resolution": "552x966",
+      "cfg_scale": 4.0,
+      "service": "FaceRefinementService"
+    },
+    {
+      "timestamp": "2025-11-18T12:00:42.670729",
+      "time": "28.6s",
+      "prompt": "full body, large expressive eyes, detailed eyes, clean lines, smooth skin, perfect hands, detailed r...",
+      "steps": 20,
+      "sampler": "Euler",
+      "resolution": "552x966",
+      "cfg_scale": 4.0,
+      "service": "FaceRefinementService"
+    },
+    {
+      "timestamp": "2025-11-18T12:16:03.502777",
+      "time": "55.0s",
       "prompt": "",
       "steps": 20,
       "sampler": "Euler",
-      "resolution": "512x768",
+      "resolution": "552x966",
       "cfg_scale": 4.0,
       "service": "FaceRefinementService"
     },
     {
-      "timestamp": "2025-09-28T23:05:49.548524",
-      "time": "35.8s",
+      "timestamp": "2025-11-18T12:17:16.115710",
+      "time": "29.1s",
       "prompt": "",
       "steps": 20,
       "sampler": "Euler",
-      "resolution": "512x768",
+      "resolution": "552x966",
       "cfg_scale": 4.0,
       "service": "FaceRefinementService"
     },
     {
-      "timestamp": "2025-09-28T23:06:57.430511",
-      "time": "37.0s",
-      "prompt": "2, 2, 2 2, 1girl, solo, full body, large expressive eyes, detailed eyes, clean lines, smooth skin, p...",
-      "steps": 20,
-      "sampler": "Euler",
-      "resolution": "512x768",
-      "cfg_scale": 4.0,
-      "service": "FaceRefinementService"
-    },
-    {
-      "timestamp": "2025-09-28T23:10:26.952169",
-      "time": "40.2s",
-      "prompt": "2, 2, 2 2, 1girl, solo, full body, large expressive eyes, detailed eyes, clean lines, smooth skin, p...",
-      "steps": 20,
-      "sampler": "Euler",
-      "resolution": "512x768",
-      "cfg_scale": 4.0,
-      "service": "FaceRefinementService"
-    },
-    {
-      "timestamp": "2025-09-28T23:17:57.355403",
-      "time": "44.9s",
+      "timestamp": "2025-11-18T12:17:45.286210",
+      "time": "22.4s",
       "prompt": "",
       "steps": 20,
       "sampler": "Euler",
-      "resolution": "512x768",
+      "resolution": "552x966",
       "cfg_scale": 4.0,
       "service": "FaceRefinementService"
     },
     {
-      "timestamp": "2025-09-28T23:20:02.746882",
+      "timestamp": "2025-11-18T12:18:24.954149",
+      "time": "21.9s",
+      "prompt": "",
+      "steps": 20,
+      "sampler": "Euler",
+      "resolution": "552x966",
+      "cfg_scale": 4.0,
+      "service": "FaceRefinementService"
+    },
+    {
+      "timestamp": "2025-11-18T13:11:41.040207",
+      "time": "29.5s",
+      "prompt": "asdasdas, dsadasd, 123, full body, large expressive eyes, detailed eyes, clean lines, smooth skin, p...",
+      "steps": 20,
+      "sampler": "Euler",
+      "resolution": "552x966",
+      "cfg_scale": 4.0,
+      "service": "FaceRefinementService"
+    },
+    {
+      "timestamp": "2025-11-18T13:21:11.297120",
+      "time": "22.7s",
+      "prompt": "full body, large expressive eyes, detailed eyes, clean lines, smooth skin, perfect hands, detailed r...",
+      "steps": 20,
+      "sampler": "Euler",
+      "resolution": "552x966",
+      "cfg_scale": 4.0,
+      "service": "FaceRefinementService"
+    },
+    {
+      "timestamp": "2025-11-18T13:24:10.133340",
+      "time": "29.9s",
+      "prompt": "full body, large expressive eyes, detailed eyes, clean lines, smooth skin, perfect hands, detailed r...",
+      "steps": 20,
+      "sampler": "Euler",
+      "resolution": "552x966",
+      "cfg_scale": 4.0,
+      "service": "FaceRefinementService"
+    },
+    {
+      "timestamp": "2025-11-18T13:29:48.647189",
+      "time": "30.7s",
+      "prompt": "full body, large expressive eyes, detailed eyes, clean lines, smooth skin, perfect hands, detailed r...",
+      "steps": 20,
+      "sampler": "Euler",
+      "resolution": "552x966",
+      "cfg_scale": 4.0,
+      "service": "FaceRefinementService"
+    },
+    {
+      "timestamp": "2025-11-18T13:34:38.777311",
+      "time": "30.3s",
+      "prompt": "full body, large expressive eyes, detailed eyes, clean lines, smooth skin, perfect hands, detailed r...",
+      "steps": 20,
+      "sampler": "Euler",
+      "resolution": "552x966",
+      "cfg_scale": 4.0,
+      "service": "FaceRefinementService"
+    },
+    {
+      "timestamp": "2025-11-21T12:35:01.692882",
       "time": "31.9s",
-      "prompt": "",
+      "prompt": "аывавы, авыаываыв, test_promt_001, full body, large expressive eyes, detailed eyes, clean lines, smo...",
       "steps": 20,
       "sampler": "Euler",
-      "resolution": "512x768",
+      "resolution": "552x966",
       "cfg_scale": 4.0,
       "service": "FaceRefinementService"
     },
     {
-      "timestamp": "2025-09-28T23:21:31.242557",
-      "time": "31.0s",
-      "prompt": "",
+      "timestamp": "2025-11-21T12:42:52.067418",
+      "time": "31.1s",
+      "prompt": "аывавы, авыаываыв, test_album_promt_001, full body, large expressive eyes, detailed eyes, clean line...",
       "steps": 20,
       "sampler": "Euler",
-      "resolution": "512x768",
+      "resolution": "552x966",
       "cfg_scale": 4.0,
       "service": "FaceRefinementService"
     },
     {
-      "timestamp": "2025-09-28T23:30:40.575529",
-      "time": "38.6s",
-      "prompt": "фывфы, фывыф, фывфы фывыф, 1girl, solo, full body, large expressive eyes, detailed eyes, clean lines...",
+      "timestamp": "2025-11-21T12:43:29.146869",
+      "time": "30.8s",
+      "prompt": "аывавы, авыаываыв, test_album_promt_001, full body, large expressive eyes, detailed eyes, clean line...",
       "steps": 20,
       "sampler": "Euler",
-      "resolution": "512x768",
+      "resolution": "552x966",
       "cfg_scale": 4.0,
       "service": "FaceRefinementService"
     },
     {
-      "timestamp": "2025-09-28T23:31:34.655414",
-      "time": "20.7s",
-      "prompt": "фывфы, фывыф, фывфы фывыф, 1girl, solo, full body, large expressive eyes, detailed eyes, clean lines...",
+      "timestamp": "2025-11-21T12:44:00.655817",
+      "time": "22.1s",
+      "prompt": "full body, large expressive eyes, detailed eyes, clean lines, smooth skin, perfect hands, detailed r...",
       "steps": 20,
       "sampler": "Euler",
-      "resolution": "512x768",
+      "resolution": "552x966",
       "cfg_scale": 4.0,
       "service": "FaceRefinementService"
     },
     {
-      "timestamp": "2025-09-28T23:32:17.382050",
-      "time": "38.8s",
-      "prompt": "фывфы, фывыф, фывфы фывыф, 1girl, solo, full body, large expressive eyes, detailed eyes, clean lines...",
+      "timestamp": "2025-11-21T13:12:40.547955",
+      "time": "35.5s",
+      "prompt": "full body, large expressive eyes, detailed eyes, clean lines, smooth skin, perfect hands, detailed r...",
       "steps": 20,
       "sampler": "Euler",
-      "resolution": "512x768",
+      "resolution": "552x966",
       "cfg_scale": 4.0,
       "service": "FaceRefinementService"
     },
     {
-      "timestamp": "2025-09-28T23:33:33.843578",
-      "time": "34.3s",
-      "prompt": "9, 9, 9 9, 1girl, solo, full body, large expressive eyes, detailed eyes, clean lines, smooth skin, p...",
+      "timestamp": "2025-11-21T13:14:25.242237",
+      "time": "23.3s",
+      "prompt": "аывавы, авыаываыв, test_paid_album_002, full body, large expressive eyes, detailed eyes, clean lines...",
       "steps": 20,
       "sampler": "Euler",
-      "resolution": "512x768",
-      "cfg_scale": 4.0,
-      "service": "FaceRefinementService"
-    },
-    {
-      "timestamp": "2025-09-28T23:34:13.686096",
-      "time": "38.7s",
-      "prompt": "9, 9, 9 9, 1girl, solo, full body, large expressive eyes, detailed eyes, clean lines, smooth skin, p...",
-      "steps": 20,
-      "sampler": "Euler",
-      "resolution": "512x768",
-      "cfg_scale": 4.0,
-      "service": "FaceRefinementService"
-    },
-    {
-      "timestamp": "2025-09-28T23:34:57.069076",
-      "time": "40.9s",
-      "prompt": "9, 9, 9 9, 1girl, solo, full body, large expressive eyes, detailed eyes, clean lines, smooth skin, p...",
-      "steps": 20,
-      "sampler": "Euler",
-      "resolution": "512x768",
-      "cfg_scale": 4.0,
-      "service": "FaceRefinementService"
-    },
-    {
-      "timestamp": "2025-09-28T23:43:48.213430",
-      "time": "44.1s",
-      "prompt": "вфы, фыв, вфы фыв, 1girl, solo, full body, large expressive eyes, detailed eyes, clean lines, smooth...",
-      "steps": 20,
-      "sampler": "Euler",
-      "resolution": "512x768",
-      "cfg_scale": 4.0,
-      "service": "FaceRefinementService"
-    },
-    {
-      "timestamp": "2025-09-28T23:45:51.255031",
-      "time": "41.2s",
-      "prompt": "с, с, с с, 1girl, solo, full body, large expressive eyes, detailed eyes, clean lines, smooth skin, p...",
-      "steps": 20,
-      "sampler": "Euler",
-      "resolution": "512x768",
+      "resolution": "552x966",
       "cfg_scale": 4.0,
       "service": "FaceRefinementService"
     }

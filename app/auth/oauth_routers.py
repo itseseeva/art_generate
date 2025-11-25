@@ -3,7 +3,7 @@ OAuth роутеры для аутентификации через внешни
 """
 
 from fastapi import APIRouter, HTTPException, Request, Depends
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi import status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.db_depends import get_db
@@ -14,13 +14,17 @@ from app.auth.oauth_utils import (
 from app.auth.utils import get_token_expiry
 from app.auth.rate_limiter import get_rate_limiter, RateLimiter
 from datetime import datetime
+from urllib.parse import urlparse
 import logging
+import json
+
+from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
 oauth_router = APIRouter()
 
-@oauth_router.get("/auth/google/")
+@oauth_router.get("/auth/google/", name="google_login")
 async def google_login(
     request: Request,
     rate_limiter: RateLimiter = Depends(get_rate_limiter)
@@ -34,6 +38,9 @@ async def google_login(
             detail="Too many requests. Please try again later."
         )
     
+    # Считываем режим (popup или redirect)
+    mode = request.query_params.get("mode", "redirect")
+    
     # Генерируем состояние для защиты от CSRF
     state = generate_state()
     
@@ -41,6 +48,7 @@ async def google_login(
     request.session["oauth_state"] = state
     request.session["oauth_ip"] = client_ip
     request.session["oauth_timestamp"] = datetime.now().isoformat()
+    request.session["oauth_mode"] = mode
     
     # Генерируем URL для редиректа на Google
     auth_url = generate_oauth_url("google", state)
@@ -48,7 +56,7 @@ async def google_login(
     return RedirectResponse(url=auth_url)
 
 
-@oauth_router.get("/auth/google/callback/")
+@oauth_router.get("/auth/google/callback/", name="google_callback")
 async def google_callback(
     request: Request,
     code: str = None,
@@ -84,6 +92,7 @@ async def google_callback(
     request.session.pop("oauth_state", None)
     request.session.pop("oauth_ip", None)
     request.session.pop("oauth_timestamp", None)
+    oauth_mode = request.session.pop("oauth_mode", "redirect")
     
     try:
         logger.info(f"Starting OAuth callback with code: {code[:10]}...")
@@ -125,14 +134,100 @@ async def google_callback(
         
         logger.info(f"Google OAuth login successful for user: {user.email}")
         
+        # Проверяем, есть ли username
+        needs_username = not user.username
+        
+        frontend_base = settings.FRONTEND_URL.rstrip("/")
+        
+        if oauth_mode == "popup":
+            parsed = urlparse(frontend_base)
+            target_origin = f"{parsed.scheme}://{parsed.netloc}"
+            logger.info(f"[OAUTH POPUP] Target origin: {target_origin}")
+            payload = {
+                "type": "oauth-success",
+                "accessToken": tokens["access_token"],
+                "refreshToken": tokens.get("refresh_token"),
+                "needsUsername": needs_username
+            }
+            logger.info(f"[OAUTH POPUP] Sending payload to popup opener")
+            html_content = f"""
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Авторизация...</title>
+  </head>
+  <body>
+    <script>
+      (function() {{
+        const payload = {json.dumps(payload)};
+        const targetOrigin = "{target_origin}";
+        console.log('[OAUTH POPUP] Sending message to:', targetOrigin);
+        console.log('[OAUTH POPUP] Payload:', payload);
+        if (window.opener) {{
+          try {{
+            window.opener.postMessage(payload, targetOrigin);
+            console.log('[OAUTH POPUP] Message sent successfully');
+            setTimeout(() => {{
+              window.close();
+            }}, 100);
+          }} catch (error) {{
+            console.error('[OAUTH POPUP] Error sending message:', error);
+            document.body.innerHTML = '<p>Ошибка отправки сообщения. Можно закрыть это окно.</p>';
+          }}
+        }} else {{
+          console.log('[OAUTH POPUP] No window.opener found');
+          document.body.innerHTML = '<p>Авторизация завершена. Можно закрыть это окно.</p>';
+        }}
+      }})();
+    </script>
+  </body>
+</html>
+"""
+            return HTMLResponse(content=html_content)
+        
         # Редиректим на фронтенд с токенами
-        frontend_url = "http://localhost:5175"
-        redirect_url = f"{frontend_url}?access_token={tokens['access_token']}&refresh_token={tokens['refresh_token']}"
+        redirect_url = f"{frontend_base}?access_token={tokens['access_token']}&refresh_token={tokens['refresh_token']}"
+        
+        if needs_username:
+            redirect_url += "&needs_username=true"
         
         return RedirectResponse(url=redirect_url)
         
     except Exception as e:
         logger.error(f"Google OAuth callback error: {e}")
+        if oauth_mode == "popup":
+            parsed = urlparse(settings.FRONTEND_URL.rstrip("/"))
+            target_origin = f"{parsed.scheme}://{parsed.netloc}"
+            payload = {
+                "type": "oauth-error",
+                "message": "OAuth authentication failed"
+            }
+            html_content = f"""
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Ошибка авторизации</title>
+  </head>
+  <body>
+    <script>
+      (function() {{
+        const payload = {json.dumps(payload)};
+        const targetOrigin = "{target_origin}";
+        if (window.opener && !window.opener.closed) {{
+          window.opener.postMessage(payload, targetOrigin);
+          window.close();
+        }} else {{
+          document.body.innerHTML = '<p>Произошла ошибка авторизации. Вы можете закрыть это окно.</p>';
+        }}
+      }})();
+    </script>
+  </body>
+</html>
+"""
+            return HTMLResponse(status_code=500, content=html_content)
+        
         raise HTTPException(
             status_code=500,
             detail="OAuth authentication failed"

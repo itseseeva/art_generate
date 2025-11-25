@@ -1,0 +1,72 @@
+// API конфигурация для фронтенда
+export const API_CONFIG = {
+  BASE_URL: 'http://localhost:8000',
+  
+  // Аутентификация
+  LOGIN: '/api/v1/auth/login/',
+  REGISTER: '/api/v1/auth/register/',
+  SET_USERNAME: '/api/v1/auth/set-username/',
+  GOOGLE_AUTH: '/auth/google/',
+  UNLOCK_USER_GALLERY: '/api/v1/auth/unlock-user-gallery/',
+  USER_GALLERY: '/api/v1/auth/user-gallery/',
+  ADD_PHOTO_TO_GALLERY: '/api/v1/auth/user-gallery/add/',
+  USER_GENERATED_PHOTOS: (userId: number) => `/api/v1/auth/user-generated-photos/${userId}/`,
+  
+  // Платный альбом
+  PAID_GALLERY_PHOTOS: (character: string) => `/api/v1/paid-gallery/${character}/photos`,
+  
+  // Персонажи
+  CHARACTERS: '/api/v1/characters/',
+  CHARACTER_CREATE: '/api/v1/characters/create/',
+  CHARACTER_EDIT: (name: string) => `/api/v1/characters/${name}/user-edit`,
+  CHARACTER_SET_PHOTOS: '/api/v1/characters/set-main-photos/',
+  CHARACTER_PHOTOS: (name: string) => `/api/v1/characters/${name}/photos/`,
+  CHARACTER_MAIN_PHOTOS: (name: string) => `/api/v1/characters/${name}/main-photos/`,
+  FAVORITES: '/api/v1/characters/favorites/',
+  ADD_FAVORITE: (characterId: number) => `/api/v1/characters/favorites/${characterId}`,
+  REMOVE_FAVORITE: (characterId: number) => `/api/v1/characters/favorites/${characterId}`,
+  CHECK_FAVORITE: (characterId: number) => `/api/v1/characters/favorites/check/${characterId}`,
+  
+  // Генерация изображений
+  GENERATE_IMAGE: '/api/v1/generate-image/',
+  FALLBACK_SETTINGS: '/api/v1/fallback-settings/',
+  
+  // Чат
+  CHAT: '/chat',
+  
+  // Делаем полные URL
+  get AUTH_LOGIN() { return this.BASE_URL + this.LOGIN; },
+  get AUTH_REGISTER() { return this.BASE_URL + this.REGISTER; },
+  get AUTH_GOOGLE() { return this.BASE_URL + this.GOOGLE_AUTH; },
+  get CHARACTERS_FULL() { return this.BASE_URL + this.CHARACTERS; },
+  get CHARACTER_CREATE_FULL() { return this.BASE_URL + this.CHARACTER_CREATE; },
+  CHARACTER_EDIT_FULL: (name: string) => API_CONFIG.BASE_URL + API_CONFIG.CHARACTER_EDIT(name),
+  get CHARACTER_SET_PHOTOS_FULL() { return this.BASE_URL + this.CHARACTER_SET_PHOTOS; },
+  CHARACTER_PHOTOS_FULL: (name: string) => API_CONFIG.BASE_URL + API_CONFIG.CHARACTER_PHOTOS(name),
+  CHARACTER_MAIN_PHOTOS_FULL: (name: string) => API_CONFIG.BASE_URL + API_CONFIG.CHARACTER_MAIN_PHOTOS(name),
+  get GENERATE_IMAGE_FULL() { return this.BASE_URL + this.GENERATE_IMAGE; },
+  get FALLBACK_SETTINGS_FULL() { return this.BASE_URL + this.FALLBACK_SETTINGS; },
+  get CHAT_FULL() { return this.BASE_URL + this.CHAT; },
+};
+
+// Вспомогательные функции для API запросов
+export const api = {
+  // Делает запрос к API с правильным базовым URL
+  request: async (endpoint: string, options: RequestInit = {}) => {
+    const url = endpoint.startsWith('http') ? endpoint : API_CONFIG.BASE_URL + endpoint;
+    return fetch(url, options);
+  },
+  
+  // Делает запрос с аутентификацией
+  requestWithAuth: async (endpoint: string, token: string, options: RequestInit = {}) => {
+    const url = endpoint.startsWith('http') ? endpoint : API_CONFIG.BASE_URL + endpoint;
+    return fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        ...(options.headers || {}),
+      },
+    });
+  },
+};

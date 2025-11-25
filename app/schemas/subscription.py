@@ -27,7 +27,7 @@ class SubscriptionStatsResponse(BaseModel):
 class SubscriptionActivateRequest(BaseModel):
     """Запрос на активацию подписки."""
     
-    subscription_type: str = Field(..., description="Тип подписки (base, standard, premium)")
+    subscription_type: str = Field(..., description="Тип подписки (standard, premium)")
 
 
 class SubscriptionActivateResponse(BaseModel):

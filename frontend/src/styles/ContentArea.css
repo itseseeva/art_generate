@@ -1,0 +1,16 @@
+/* Стили для content-area (заменяет styled-components класс sc-bRKDuR eWeBcB) */
+.content-area {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  background: transparent;
+  overflow: hidden;
+  padding: 0;
+  margin: 0;
+}
+
+/* Альтернативный вариант для вертикальной ориентации */
+.content-area.vertical {
+  flex-direction: column;
+}
+

@@ -18,42 +18,19 @@ const MessageContent = styled.div<{ $isUser: boolean }>`
     : `${theme.borderRadius.xl} ${theme.borderRadius.xl} ${theme.borderRadius.xl} ${theme.borderRadius.sm}`
   };
   background: ${props => props.$isUser 
-    ? theme.colors.gradients.button 
-    : theme.colors.gradients.message
+    ? 'rgba(80, 80, 80, 0.8)' 
+    : 'rgba(40, 40, 40, 0.5)'
   };
-  color: ${props => props.$isUser 
-    ? theme.colors.text.primary 
-    : theme.colors.text.primary
-  };
+  color: rgba(240, 240, 240, 1);
   border: 1px solid ${props => props.$isUser 
-    ? theme.colors.accent.primary 
-    : theme.colors.border.accent
+    ? 'rgba(150, 150, 150, 0.5)' 
+    : 'rgba(150, 150, 150, 0.3)'
   };
-  box-shadow: ${props => props.$isUser 
-    ? theme.colors.shadow.button 
-    : theme.colors.shadow.message
-  };
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   position: relative;
   word-wrap: break-word;
   white-space: pre-wrap;
   line-height: 1.6;
-  
-  /* Добавляем эффект свечения для сообщений пользователя */
-  ${props => props.$isUser && `
-    &::before {
-      content: '';
-      position: absolute;
-      top: -2px;
-      left: -2px;
-      right: -2px;
-      bottom: -2px;
-      background: ${theme.colors.gradients.button};
-      border-radius: inherit;
-      z-index: -1;
-      opacity: 0.3;
-      filter: blur(4px);
-    }
-  `}
 `;
 
 const MessageText = styled.div`
@@ -70,10 +47,7 @@ const MessageImage = styled.img`
 
 const MessageTime = styled.div<{ $isUser: boolean }>`
   font-size: ${theme.fontSize.xs};
-  color: ${props => props.$isUser 
-    ? 'rgba(255, 255, 255, 0.7)' 
-    : theme.colors.text.muted
-  };
+  color: rgba(160, 160, 160, 1);
   margin-top: ${theme.spacing.sm};
   text-align: ${props => props.$isUser ? 'right' : 'left'};
 `;
@@ -83,24 +57,20 @@ const Avatar = styled.div<{ $isUser: boolean }>`
   height: 40px;
   border-radius: ${theme.borderRadius.full};
   background: ${props => props.$isUser 
-    ? theme.colors.gradients.button 
-    : theme.colors.gradients.card
+    ? 'rgba(80, 80, 80, 0.8)' 
+    : 'rgba(60, 60, 60, 0.8)'
   };
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 600;
   font-size: ${theme.fontSize.lg};
-  color: ${theme.colors.text.primary};
+  color: rgba(240, 240, 240, 1);
   border: 2px solid ${props => props.$isUser 
-    ? theme.colors.accent.primary 
-    : theme.colors.border.accent
+    ? 'rgba(150, 150, 150, 0.5)' 
+    : 'rgba(150, 150, 150, 0.3)'
   };
   flex-shrink: 0;
-  
-  ${props => props.$isUser && `
-    box-shadow: ${theme.colors.shadow.glow};
-  `}
 `;
 
 interface MessageProps {

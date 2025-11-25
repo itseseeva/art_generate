@@ -5,7 +5,7 @@
 """
 from typing import Optional, List, Dict, Any
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, ConfigDict
 from dotenv import load_dotenv
 
 # Загружаем переменные окружения
@@ -132,51 +132,103 @@ class ChatConfig(BaseSettings):
         description="Загружать полную модель"
     )
 
-    # --- базовые параметры генерации (оптимизированы для MythoMax-L2-13B) ---
+    # --- базовые параметры генерации (оптимизированы для MythoMax L2 13B) ---
     DEFAULT_MAX_TOKENS: int = Field(
-        default=512, 
-        description="Увеличенный лимит токенов для развернутых ответов (было 300)"
+        default=200, 
+        description="Лимит токенов для MythoMax L2 13B - увеличен для завершенных ответов"
     )
     
     # Дополнительные лимиты для контроля
     HARD_MAX_TOKENS: int = Field(
-        default=512,
-        description="Жесткий лимит - модель НЕ МОЖЕТ превысить это значение (увеличено с 300)"
+        default=200,
+        description="Жесткий лимит для MythoMax L2 13B"
     )
     
     WARNING_THRESHOLD: int = Field(
-        default=250,
-        description="Порог предупреждения - начинаем завершать диалог (увеличено с 250)"
+        default=150,
+        description="Порог предупреждения - начинаем завершать диалог"
     )
     DEFAULT_TEMPERATURE: float = Field(
         default=0.7, 
-        description="MythoMax: увеличенная температура для лучшей креативности и сохранения контекста"
+        description="MythoMax L2 13B: оптимальная температура для ролевых игр и историй"
     )
     DEFAULT_TOP_P: float = Field(
         default=0.95, 
-        description="MythoMax: увеличенное значение для лучшего разнообразия и контекста"
+        description="MythoMax L2 13B: хорошее значение для разнообразия"
     )
     DEFAULT_MIN_P: float = Field(
         default=0.05, 
-        description="MythoMax: низкое значение для стабильности генерации"
+        description="MythoMax L2 13B: низкое значение для стабильности"
     )
     DEFAULT_TOP_K: int = Field(
-        default=40, 
-        description="Увеличено для MythoMax-L2-13B - лучший выбор токенов для контекста"
+        default=50, 
+        description="MythoMax L2 13B: оптимальное значение для качества"
     )
     DEFAULT_REPEAT_PENALTY: float = Field(
-        default=1.05, 
-        description="MythoMax: уменьшенный штраф для лучшего сохранения контекста"
+        default=1.1, 
+        description="MythoMax L2 13B: оптимальный rep penalty для ролевых игр"
     )
     DEFAULT_PRESENCE_PENALTY: float = Field(
         default=0.0, 
         description="Нейтральный для MythoMax - естественный flow"
     )
     
+    DEFAULT_FREQUENCY_PENALTY: float = Field(
+        default=0.0, 
+        description="Штраф за частоту токенов"
+    )
+    
+    # Параметры стриминга
+    # STREAMING_DELAY_MS: int = Field(
+    #     default=20, 
+    #     description="Задержка между токенами в миллисекундах для эффекта печатания"
+    # )
+    
+    # Параметры контроля генерации
+    AUTO_MAX_NEW_TOKENS: bool = Field(
+        default=False, 
+        description="Отключение авто-расширения лимита токенов"
+    )
+    
+    BAN_EOS_TOKEN: bool = Field(
+        default=True, 
+        description="Запретить EOS токен для соблюдения лимитов"
+    )
+    
+    SKIP_SPECIAL_TOKENS: bool = Field(
+        default=True, 
+        description="Пропускать специальные токены"
+    )
+    
+    ADD_BOS_TOKEN: bool = Field(
+        default=False, 
+        description="Добавлять BOS токен"
+    )
+    
+    STOP_AT_NEWLINE: bool = Field(
+        default=True, 
+        description="Останавливать генерацию на новой строке"
+    )
+    
+    STOP_AT_P: bool = Field(
+        default=True, 
+        description="Останавливать генерацию на точке"
+    )
+    
+    STOP_AT_EXCLAMATION: bool = Field(
+        default=True, 
+        description="Останавливать генерацию на восклицательном знаке"
+    )
+    
+    STOP_AT_QUESTION: bool = Field(
+        default=True, 
+        description="Останавливать генерацию на вопросительном знаке"
+    )
+    
     # --- Параметры для предотвращения обрывов ---
     IGNORE_EOS: bool = Field(
-        default=True,
-        description="Игнорировать EOS токен для предотвращения преждевременных остановок"
+        default=False,
+        description="НЕ игнорировать EOS токен для соблюдения лимитов токенов"
     )
     
     DRY_MULTIPLIER: float = Field(
@@ -301,19 +353,6 @@ class ChatConfig(BaseSettings):
         default=True, 
         description="Включить chain-of-thought для лучшего понимания контекста"
     )
-    FEW_SHOT_EXAMPLES: List[str] = Field(
-        default=[
-            "Example 1: User: How are you? Anna: I'm doing great, thank you! How about you?",
-            "Example 2: User: What's new? Anna: Lots of interesting things! I'd love to tell you more if you're interested.",
-            "Example 3: User: You look beautiful today. Anna: *blushes* Thank you so much! You always know how to make me feel special.",
-            "Example 4: User: I want to be close to you. Anna: *moves closer* I'd like that too... *looks into your eyes*",
-            "Example 5: User: Can I touch you? Anna: *nods softly* Of course... I trust you.",
-            "Example 6: User: You're so sexy. Anna: *smiles playfully* You think so? I like the way you look at me...",
-            "Example 7: User: I'm attracted to you. Anna: *bites lip* I feel the same way about you... *reaches for your hand*",
-            "Example 8: User: Show me more. Anna: *slowly and teasingly* What would you like to see? I'm all yours..."
-        ], 
-        description="Adult-friendly few-shot examples for intimate roleplay scenarios"
-    )
 
     # --- safety & nsfw ---
     ENABLE_CONTENT_FILTER: bool = Field(
@@ -358,12 +397,6 @@ class ChatConfig(BaseSettings):
         default=50, 
         description="Максимальный размер кэша"
     )
-
-    # --- настройки стриминга ---
-    STREAMING_DELAY_MS: int = Field(
-        default=5,
-        description="Задержка между чанками стриминга в мс (0 = без задержки)"
-    )
     
     # --- скрытые сообщения ---
     HIDDEN_USER_MESSAGE: str = Field(
@@ -393,10 +426,11 @@ class ChatConfig(BaseSettings):
         description="Тип квантизации модели"
     )
 
-    class Config:
-        env_prefix = "CHAT_"
-        case_sensitive = False
-        protected_namespaces = ()
+    model_config = ConfigDict(
+        env_prefix="CHAT_",
+        case_sensitive=False,
+        protected_namespaces=()
+    )
 
     # ----------------- helper utilities -----------------
     
@@ -424,7 +458,7 @@ class ChatConfig(BaseSettings):
             "use_beam": False,  # Отключаем для стабильности
             "seed": seed or self.SEED,
             "stop": [],  # ИСПРАВЛЕНО: Убираем ВСЕ стоп-токены для предотвращения обрывов
-            "ignore_eos": True,  # Игнорируем EOS токен
+            "ignore_eos": False,  # НЕ игнорируем EOS токен для соблюдения лимитов
         }
     
     def get_completion_aware_prompt(self, base_prompt: str, estimated_tokens: int = 0) -> str:

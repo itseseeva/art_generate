@@ -291,14 +291,12 @@ class FaceRefinementService:
             if k not in ['n_samples', 'batch_size', 'n_iter', 'save_grid']:
                 safe_settings[k] = v
         
-        # ИСПРАВЛЕНО: Обновляем только те параметры, которые есть в settings и не None
-        # НО НЕ ПЕРЕЗАПИСЫВАЕМ КРИТИЧЕСКИЕ ПАРАМЕТРЫ ИЗ КОНФИГУРАЦИИ
-        critical_params = ['steps', 'cfg_scale', 'sampler_name', 'scheduler']  # Критические параметры из конфигурации
+        # ИСПРАВЛЕНО: Обновляем параметры из settings, включая критические
+        # Теперь пользовательские настройки имеют приоритет над конфигурацией
         for k, v in safe_settings.items():
-            if k in critical_params:
-                # ИСПРАВЛЕНО: Не перезаписываем критические параметры из конфигурации
-                logger.info(f"🔒 ИГНОРИРУЕМ перезапись критического параметра {k}={v} (используем значение из конфигурации)")
-                continue
+            if v is not None:  # Обновляем только если значение не None
+                payload[k] = v
+                logger.info(f"✅ Обновляем параметр {k}={v}")
             elif k in payload:  # Обновляем только существующие параметры
                 payload[k] = v
             else:
@@ -492,14 +490,17 @@ class FaceRefinementService:
             
             # Обеспечиваем наличие ключей для статистики
             settings_dict["sampler_name"] = settings.sampler_name or info.get("sampler_name", "unknown")
-            settings_dict["steps"] = settings.steps or DEFAULT_GENERATION_PARAMS.get("steps", 10)
+            settings_dict["steps"] = settings.steps or DEFAULT_GENERATION_PARAMS.get("steps")
             settings_dict["width"] = settings.width or int(info.get("width", 0))
             settings_dict["height"] = settings.height or int(info.get("height", 0))
             settings_dict["cfg_scale"] = settings.cfg_scale or float(info.get("cfg_scale", 0))
             settings_dict["denoising_strength"] = settings.denoising_strength or float(info.get("denoising_strength", 0))
             
             # Добавляем информацию о количестве изображений
-            settings_dict["images_generated"] = len(result.get("images", []))
+            images_list = result.get("images") or []
+            if not isinstance(images_list, list):
+                images_list = []
+            settings_dict["images_generated"] = len(images_list)
             settings_dict["expected_images"] = 1
             
             logger.info(f"Сохраняем статистику: изображений получено {settings_dict['images_generated']}")
@@ -535,7 +536,7 @@ class FaceRefinementService:
                 prompt=settings.prompt,
                 negative_prompt=settings.negative_prompt,
                 use_default_prompts=True,
-                steps=settings.override_params.get("sampling_steps", default_params["steps"]),
+                steps=settings.override_params.get("steps", default_params["steps"]),
                 cfg_scale=settings.override_params.get("cfg_scale", default_params["cfg_scale"]),
                 width=settings.override_params.get("width", default_params["width"]),
                 height=settings.override_params.get("height", default_params["height"]),

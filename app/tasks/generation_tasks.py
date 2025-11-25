@@ -1,0 +1,527 @@
+"""
+Задачи Celery для генерации изображений.
+"""
+import asyncio
+import logging
+import json
+from typing import Dict, Any, Optional
+from datetime import datetime
+from celery import Task
+from app.celery_app import celery_app
+
+logger = logging.getLogger(__name__)
+
+
+class CallbackTask(Task):
+    """Базовый класс для задач с колбэками."""
+    
+    def on_success(self, retval, task_id, args, kwargs):
+        """Вызывается при успешном выполнении задачи."""
+        # Убираем логирование успешных задач для уменьшения логов
+        pass
+    
+    def on_failure(self, exc, task_id, args, kwargs, einfo):
+        """Вызывается при ошибке выполнения задачи."""
+        # Логируем только строковое представление исключения для избежания проблем с сериализацией
+        error_msg = str(exc) if exc else "Неизвестная ошибка"
+        logger.error(f"[CELERY] Задача {task_id} завершилась с ошибкой: {error_msg}")
+    
+    def on_retry(self, exc, task_id, args, kwargs, einfo):
+        """Вызывается при повторной попытке выполнения задачи."""
+        error_msg = str(exc) if exc else "Неизвестная ошибка"
+        logger.info(f"[CELERY] Повторная попытка задачи {task_id}: {error_msg}")
+
+
+@celery_app.task(
+    bind=True,
+    base=CallbackTask,
+    max_retries=3,
+    default_retry_delay=60,
+    name="app.tasks.generation_tasks.generate_image_task"
+)
+def generate_image_task(
+    self,
+    settings_dict: Dict[str, Any],
+    user_id: Optional[int] = None,
+    character_name: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Задача Celery для генерации изображения.
+    
+    Args:
+        self: Экземпляр задачи (bind=True)
+        settings_dict: Словарь с настройками генерации
+        user_id: ID пользователя (опционально)
+        character_name: Имя персонажа (опционально)
+        
+    Returns:
+        Dict с результатами генерации: {
+            "success": bool,
+            "image_url": str,
+            "cloud_url": str,
+            "filename": str,
+            "error": str (если была ошибка)
+        }
+    """
+    task_id = self.request.id
+    # Убираем детальное логирование начала задачи
+    
+    try:
+        # Ленивый импорт - импортируем только при выполнении задачи
+        from app.services.face_refinement import FaceRefinementService
+        from app.schemas.generation import GenerationSettings
+        from app.config.settings import settings
+        from app.services.yandex_storage import get_yandex_storage_service, transliterate_cyrillic_to_ascii
+        from app.database.db import async_session_maker
+        from app.models.chat_history import ChatHistory
+        from app.services.profit_activate import ProfitActivateService
+        from app.services.coins_service import CoinsService
+        
+        # Обновляем статус задачи
+        self.update_state(
+            state="PROGRESS",
+            meta={"status": "Подготовка параметров генерации", "progress": 10}
+        )
+        
+        # Создаем настройки генерации из словаря
+        generation_settings = GenerationSettings(**settings_dict)
+        
+        # Получаем настройки для логирования
+        full_settings_for_logging = settings_dict.copy()
+        
+        # Обновляем статус
+        self.update_state(
+            state="PROGRESS",
+            meta={"status": "Запуск генерации изображения", "progress": 30}
+        )
+        
+        # Создаем сервис для генерации
+        face_refinement_service = FaceRefinementService(settings.SD_API_URL)
+        
+        # Запускаем асинхронную генерацию в новом event loop
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            # Генерируем изображение
+            logger.warning(f"[CELERY] Начинаем генерацию изображения (task_id={task_id})")
+            result = loop.run_until_complete(
+                face_refinement_service.generate_image(generation_settings, full_settings_for_logging)
+            )
+            
+            logger.warning(f"[CELERY] Генерация завершена, проверяем результат (task_id={task_id})")
+            
+            if not result or not getattr(result, "image_data", None):
+                raise Exception("Сервис генерации не вернул изображение")
+            
+            if len(result.image_data) == 0 or result.image_data[0] is None:
+                raise Exception("Не удалось получить данные изображения от сервиса генерации")
+            
+            logger.warning(f"[CELERY] Изображение получено, начинаем загрузку в облако (task_id={task_id})")
+            
+            # Обновляем статус
+            self.update_state(
+                state="PROGRESS",
+                meta={"status": "Загрузка изображения в облако", "progress": 70}
+            )
+            
+            # Берем первое изображение
+            # GenerationResponse.from_api_response уже конвертирует base64 в bytes
+            if not result.image_data or len(result.image_data) == 0:
+                raise Exception("Сервис генерации не вернул данные изображения")
+            
+            image_data = result.image_data[0]
+            
+            # Проверяем тип данных и конвертируем в bytes если нужно
+            import base64
+            if isinstance(image_data, bytes):
+                image_bytes = image_data
+                logger.debug(f"[CELERY] Изображение уже в формате bytes, размер: {len(image_bytes)} байт")
+            elif isinstance(image_data, str):
+                # Если это base64 строка (на всякий случай), декодируем её
+                try:
+                    image_bytes = base64.b64decode(image_data)
+                    logger.debug(f"[CELERY] Декодировано base64 изображение, размер: {len(image_bytes)} байт")
+                except Exception as decode_error:
+                    logger.error(f"[CELERY] Ошибка декодирования base64: {decode_error}")
+                    raise ValueError(f"Не удалось декодировать base64 изображение: {decode_error}")
+            else:
+                # Если это PIL Image или другой формат, конвертируем в bytes
+                from io import BytesIO
+                from PIL import Image
+                if isinstance(image_data, Image.Image):
+                    buffer = BytesIO()
+                    image_data.save(buffer, format="PNG")
+                    image_bytes = buffer.getvalue()
+                    logger.debug(f"[CELERY] Конвертировано PIL Image в bytes, размер: {len(image_bytes)} байт")
+                else:
+                    raise ValueError(f"Неподдерживаемый тип данных изображения: {type(image_data)}")
+            
+            # Проверяем, что bytes не пустые
+            if not image_bytes or len(image_bytes) == 0:
+                raise ValueError("Получены пустые данные изображения")
+            
+            # Определяем имя персонажа и транслитерируем его для URL
+            character_name_ascii = transliterate_cyrillic_to_ascii(character_name or "character")
+            
+            # Формируем имя файла
+            import time
+            filename = f"generated_{int(time.time())}.png"
+            
+            # Загружаем в облако (передаем bytes, а не base64 строку)
+            service = get_yandex_storage_service()
+            object_key = f"generated_images/{character_name_ascii}/{filename}"
+            # Убираем детальное логирование загрузки
+            
+            # Загружаем изображение в облако с метаданными
+            logger.warning(f"[CELERY] Загружаем изображение в облако: {object_key} (task_id={task_id})")
+            cloud_url = loop.run_until_complete(
+                service.upload_file(
+                    file_data=image_bytes,
+                    object_key=object_key,
+                    content_type='image/png',
+                    metadata={
+                        "character_name": character_name_ascii,
+                        "generated_at": datetime.now().isoformat(),
+                        "source": "api_generation"
+                    }
+                )
+            )
+            
+            logger.warning(f"[CELERY] Изображение загружено в облако: {cloud_url} (task_id={task_id})")
+            
+            # Обновляем статус
+            self.update_state(
+                state="PROGRESS",
+                meta={"status": "Сохранение в базу данных", "progress": 90}
+            )
+            
+            # Тратим монеты и лимиты подписки за генерацию фото (если пользователь авторизован)
+            if user_id is not None:
+                try:
+                    logger.warning(f"[CELERY] Тратим ресурсы для пользователя {user_id} (task_id={task_id})")
+                    loop.run_until_complete(_spend_photo_resources(user_id))
+                    logger.warning(f"[CELERY] Ресурсы списаны для пользователя {user_id} (task_id={task_id})")
+                except Exception as e:
+                    logger.error(f"[CELERY] Ошибка при трате ресурсов для пользователя {user_id}: {e}")
+                    # Не прерываем выполнение задачи из-за ошибки траты ресурсов
+                    # Изображение уже загружено, пользователь должен получить результат
+            
+            # Сохраняем промпт в ChatHistory для возможности отображения
+            if user_id is not None and character_name:
+                try:
+                    logger.warning(f"[CELERY] Сохраняем промпт в историю (task_id={task_id}, character={character_name}, image_url={cloud_url})")
+                    # Используем оригинальный промпт пользователя (тот, что он ввел на фронтенде)
+                    # Это то, что пользователь написал в поле ввода, без данных персонажа и стандартных промптов
+                    original_user_prompt = settings_dict.get("original_user_prompt")
+                    if not original_user_prompt:
+                        # Fallback на prompt из settings_dict, если original_user_prompt не передан
+                        original_user_prompt = settings_dict.get("prompt", "")
+                    logger.warning(f"[CELERY] Оригинальный промпт пользователя: {original_user_prompt[:100] if original_user_prompt else 'ПУСТО'}")
+                    if original_user_prompt:
+                        loop.run_until_complete(
+                            _save_prompt_to_history(
+                                user_id=user_id,
+                                character_name=character_name,
+                                prompt=original_user_prompt,  # Только то, что пользователь ввел
+                                image_url=cloud_url
+                            )
+                        )
+                        logger.warning(f"[CELERY] Промпт сохранен в историю (task_id={task_id}, character={character_name}, image_url={cloud_url}, prompt_length={len(original_user_prompt)})")
+                    else:
+                        logger.error(f"[CELERY] Промпт пустой, не сохраняем в историю!")
+                except Exception as e:
+                    logger.error(f"[CELERY] Не удалось сохранить промпт в ChatHistory: {e}")
+                    import traceback
+                    logger.error(f"[CELERY] Трейсбек: {traceback.format_exc()}")
+            
+            result_dict = {
+                "success": True,
+                "image_url": cloud_url,
+                "cloud_url": cloud_url,
+                "filename": filename,
+                "character": character_name,
+                "task_id": task_id
+            }
+            
+            logger.warning(f"[CELERY] Задача завершена успешно (task_id={task_id}), возвращаем результат: {result_dict}")
+            
+            # НЕ обновляем статус через update_state, так как это перезапишет результат
+            # Просто возвращаем результат - Celery автоматически установит состояние SUCCESS
+            return result_dict
+            
+        finally:
+            loop.close()
+            
+    except Exception as exc:
+        error_message = str(exc)
+        exc_type = type(exc).__name__
+        logger.error(f"[CELERY] Ошибка генерации изображения (task_id={task_id}): {error_message} (тип: {exc_type})")
+        
+        # Не повторяем задачу для ошибок загрузки в облако, конфигурации и ошибок API - это постоянные ошибки
+        # Retry имеет смысл только для временных ошибок (сеть, таймауты)
+        from botocore.exceptions import ClientError
+        
+        # Проверяем тип исключения и его сообщение
+        is_permanent_error = False
+        
+        # Проверяем тип исключения
+        try:
+            from httpx import HTTPStatusError
+            if isinstance(exc, HTTPStatusError):
+                is_permanent_error = True
+                # Для HTTPStatusError проверяем код статуса
+                if hasattr(exc, 'response') and exc.response is not None:
+                    status_code = exc.response.status_code
+                    if status_code >= 400:  # 4xx и 5xx ошибки - постоянные
+                        is_permanent_error = True
+        except ImportError:
+            pass
+        
+        # Проверяем сообщение об ошибке
+        if not is_permanent_error:
+            is_permanent_error = (
+                isinstance(exc, ClientError) or
+                "BadRequest" in error_message or
+                "PutObject" in error_message or
+                "YANDEX-KEY" in error_message or
+                "недопустимое значение" in error_message or
+                "500 Internal Server Error" in error_message or
+                "Server error" in error_message or
+                "HTTPStatusError" in exc_type
+            )
+        
+        if is_permanent_error:
+            # Формируем понятное сообщение об ошибке для пользователя
+            user_friendly_error = error_message
+            if "500 Internal Server Error" in error_message or "Server error" in error_message:
+                user_friendly_error = "Ошибка сервера генерации изображений. Попробуйте позже."
+            elif "BadRequest" in error_message:
+                user_friendly_error = "Ошибка запроса к серверу генерации. Проверьте параметры."
+            
+            logger.error(f"[CELERY] Постоянная ошибка - не повторяем задачу. Ошибка: {error_message}")
+            # Возвращаем ошибку без retry
+            try:
+                self.update_state(
+                    state="FAILURE",
+                    meta={
+                        "status": f"Ошибка: {user_friendly_error}",
+                        "progress": 0,
+                        "error": user_friendly_error,
+                        "error_type": exc_type,
+                        "exc_type": exc_type,
+                        "exc_message": error_message
+                    }
+                )
+            except Exception as state_error:
+                logger.error(f"[CELERY] Не удалось обновить статус задачи {task_id}: {state_error}")
+            
+            return {
+                "success": False,
+                "error": user_friendly_error,
+                "error_type": exc_type,
+                "task_id": task_id
+            }
+        
+        # Для других ошибок (сеть, таймауты) - повторяем задачу
+        if self.request.retries < self.max_retries:
+            logger.warning(f"[CELERY] Повтор задачи {task_id} ({self.request.retries + 1}/{self.max_retries}): {error_message[:100]}")
+            # Используем retry с передачей исключения для правильной сериализации
+            raise self.retry(countdown=60, exc=exc)
+        else:
+            # Если превышен лимит попыток, обновляем состояние с ошибкой
+            logger.error(f"[CELERY] Превышен лимит попыток для задачи {task_id}")
+            try:
+                # Только при финальной ошибке обновляем состояние с правильным форматом
+                self.update_state(
+                    state="FAILURE",
+                    meta={
+                        "status": f"Ошибка: {error_message}",
+                        "progress": 0,
+                        "error": error_message,
+                        "error_type": exc_type,
+                        "exc_type": exc_type,  # Явно указываем exc_type для правильной десериализации
+                        "exc_message": error_message
+                    }
+                )
+            except Exception as state_error:
+                logger.error(f"[CELERY] Не удалось обновить статус задачи {task_id}: {state_error}")
+            
+            # Возвращаем ошибку в правильном формате
+            return {
+                "success": False,
+                "error": error_message,
+                "error_type": exc_type,
+                "task_id": task_id
+            }
+
+
+async def _spend_photo_resources(user_id: int) -> None:
+    """Списывает монеты и лимит подписки за генерацию фото."""
+    # Ленивый импорт
+    from app.database.db import engine
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+    
+    # Создаем новую сессию БД для текущего event loop
+    # Это необходимо, так как в Celery worker может быть другой event loop
+    async_session_factory = async_sessionmaker(
+        engine, expire_on_commit=False, class_=AsyncSession
+    )
+    
+    async with async_session_factory() as db_session:
+        # Ленивый импорт
+        from app.services.coins_service import CoinsService
+        from app.services.profit_activate import ProfitActivateService
+        
+        coins_service = CoinsService(db_session)
+        subscription_service = ProfitActivateService(db_session)
+        
+        try:
+            coins_spent = await coins_service.spend_coins(user_id, 30, commit=False)
+            if not coins_spent:
+                logger.error(f"[CELERY] Не удалось списать монеты для пользователя {user_id}")
+                return
+            
+            photo_spent = await subscription_service.use_photo_generation(user_id, commit=False)
+            if not photo_spent:
+                logger.error(f"[CELERY] Недостаточно лимита подписки для пользователя {user_id}")
+                await db_session.rollback()
+                return
+            
+            await db_session.commit()
+            
+            coins_left = await coins_service.get_user_coins(user_id)
+            # Убираем детальное логирование списания монет
+        except Exception as exc:
+            await db_session.rollback()
+            logger.error(f"[CELERY] Ошибка списания ресурсов за генерацию фото: {exc}")
+            raise
+
+
+async def _save_prompt_to_history(
+    user_id: int,
+    character_name: str,
+    prompt: str,
+    image_url: str
+) -> None:
+    """Сохраняет промпт в ChatHistory."""
+    # Ленивый импорт
+    from app.database.db import engine
+    from app.models.chat_history import ChatHistory
+    from sqlalchemy import select
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+    
+    # Создаем новую сессию БД для текущего event loop
+    # Это необходимо, так как в Celery worker может быть другой event loop
+    async_session_factory = async_sessionmaker(
+        engine, expire_on_commit=False, class_=AsyncSession
+    )
+    
+    async with async_session_factory() as db:
+        try:
+            # Нормализуем URL (убираем query параметры и фрагменты)
+            normalized_url = image_url.split('?')[0].split('#')[0] if image_url else image_url
+            
+            # Проверяем, не существует ли уже запись с таким URL
+            existing_query = select(ChatHistory).where(
+                ChatHistory.user_id == user_id,
+                ChatHistory.image_url == normalized_url
+            ).limit(1)
+            existing_result = await db.execute(existing_query)
+            existing = existing_result.scalar_one_or_none()
+            
+            if existing:
+                # Обновляем существующую запись
+                existing.message_content = prompt
+                existing.character_name = character_name
+                logger.warning(f"[CELERY] Обновлен существующий промпт для image_url={normalized_url}, user_id={user_id}")
+            else:
+                # Создаем новую запись
+                chat_message = ChatHistory(
+                    user_id=user_id,
+                    character_name=character_name,
+                    session_id="photo_generation",
+                    message_type="user",
+                    message_content=prompt,
+                    image_url=normalized_url,  # Сохраняем нормализованный URL
+                    image_filename=None
+                )
+                db.add(chat_message)
+                logger.warning(f"[CELERY] Создан новый промпт для image_url={normalized_url}, user_id={user_id}, prompt_length={len(prompt)}")
+            
+            await db.commit()
+            
+            # Проверяем, что запись действительно сохранилась
+            verify_query = select(ChatHistory).where(
+                ChatHistory.user_id == user_id,
+                ChatHistory.image_url == normalized_url
+            ).limit(1)
+            verify_result = await db.execute(verify_query)
+            verify_record = verify_result.scalar_one_or_none()
+            
+            if verify_record:
+                logger.warning(f"[CELERY] Промпт успешно сохранен и проверен в ChatHistory (user_id={user_id}, character={character_name}, image_url={normalized_url}, message_content_length={len(verify_record.message_content)})")
+            else:
+                logger.error(f"[CELERY] ОШИБКА: Промпт не найден после сохранения! user_id={user_id}, image_url={normalized_url}")
+        except Exception as e:
+            await db.rollback()
+            logger.error(f"[CELERY] Ошибка сохранения промпта в ChatHistory: {e}")
+            import traceback
+            logger.error(f"[CELERY] Трейсбек: {traceback.format_exc()}")
+            raise
+
+
+@celery_app.task(
+    bind=True,
+    base=CallbackTask,
+    name="app.tasks.generation_tasks.save_chat_history_task"
+)
+def save_chat_history_task(
+    self,
+    user_id: Optional[str],
+    character_data: Dict[str, Any],
+    message: str,
+    response: str,
+    image_url: Optional[str] = None,
+    image_filename: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Задача Celery для сохранения истории чата в фоне.
+    
+    Args:
+        self: Экземпляр задачи
+        user_id: ID пользователя
+        character_data: Данные персонажа
+        message: Сообщение пользователя
+        response: Ответ ассистента
+        image_url: URL изображения (опционально)
+        image_filename: Имя файла изображения (опционально)
+        
+    Returns:
+        Dict с результатом сохранения
+    """
+    try:
+        # Ленивый импорт - импортируем только при выполнении
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            from app.main import _write_chat_history
+            loop.run_until_complete(
+                _write_chat_history(
+                    user_id=user_id,
+                    character_data=character_data,
+                    message=message,
+                    response=response,
+                    image_url=image_url,
+                    image_filename=image_filename
+                )
+            )
+            return {"success": True, "message": "История чата сохранена"}
+        finally:
+            loop.close()
+    except Exception as exc:
+        logger.error(f"[CELERY] Ошибка сохранения истории чата: {exc}")
+        return {"success": False, "error": str(exc)}
+

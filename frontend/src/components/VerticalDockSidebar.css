@@ -1,0 +1,20 @@
+.vertical-dock-wrapper {
+  margin-top: auto;
+  margin-bottom: 2rem;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.vertical-dock-wrapper .dock-outer-vertical {
+  margin: 0;
+  width: 100%;
+}
+
+.vertical-dock-wrapper .dock-panel-vertical {
+  background: transparent;
+  border: none;
+  padding: 0.5rem 0;
+}
+

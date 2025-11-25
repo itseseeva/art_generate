@@ -4,8 +4,6 @@
 """
 
 DEFAULT_POSITIVE_PROMPTS = [
-    "1girl",
-    "solo",
     "full body",
     "large expressive eyes",
     "detailed eyes",
@@ -42,7 +40,12 @@ DEFAULT_POSITIVE_PROMPTS = [
     "lazypos",
     "raw",
     "((photorealistic))",
-    "((realistic shade))"
+    "((realistic shade))",
+    "very aesthetic",
+    "depth of field",
+    "highres",
+    "absurdres",
+    "newst-ai",
 ]
 
 DEFAULT_NEGATIVE_PROMPTS = [
@@ -69,8 +72,7 @@ DEFAULT_NEGATIVE_PROMPTS = [
     'multiple views',
     'displeasing',
     'messy composition',
-    'clones',
-    'one person',
+    'clones'
 ]
 # Дополнительные промпты для конкретных ситуаций
 

@@ -26,7 +26,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
     from app.database.db import Base
-    from app.chat_bot.models.models import CharacterDB, ChatMessageDB
+    from app.chat_bot.models.models import CharacterDB, ChatMessageDB, FavoriteCharacter
     from app.models.user import Users, RefreshToken, EmailVerificationCode
     target_metadata = Base.metadata
 except Exception as e:

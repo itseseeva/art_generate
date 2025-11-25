@@ -8,8 +8,8 @@ from typing import Dict, Any
 DEFAULT_GENERATION_PARAMS = {
     "sampler_name": "Euler",
     "steps": 20,
-    "width": 512,
-    "height": 768,
+    "width": 552,
+    "height": 966,
     "scheduler": "karras",
     "cfg_scale": 4,
     "restore_faces": False,
@@ -21,7 +21,7 @@ DEFAULT_GENERATION_PARAMS = {
     "denoising_strength": 0.4,
     "hr_scale": 1.5,
     "hr_upscaler": "SwinIR_4x",
-    "hr_second_pass_steps": 10,
+    "hr_second_pass_steps": 5,
     "hr_prompt": "",
     "hr_negative_prompt": "",
     # Флаг для быстрого включения/выключения ADetailer
@@ -56,7 +56,7 @@ DEFAULT_GENERATION_PARAMS = {
         },
         {
             "name": "EasyNegativeV2.safetensors",
-            "weight": 0.9,
+            "weight": 0.7,
             "enabled": True
         },
         {
@@ -93,7 +93,7 @@ DEFAULT_GENERATION_PARAMS = {
 # Параметры для ADetailer
 ADETAILER_FACE_PARAMS = {
     "ad_model": "face_yolov8n.pt",
-    "ad_steps": 15,
+    "ad_steps": 10,
     "ad_denoising_strength": 0.4,
     "ad_cfg_scale": 4,
     "ad_mask_blur": 3,
@@ -115,8 +115,8 @@ ADETAILER_FACE_PARAMS = {
 
 ADETAILER_HAND_PARAMS = {
     "ad_model": "hand_yolov9c.pt",
-    "ad_steps": 30,
-    "ad_denoising_strength": 0.3,
+    "ad_steps": 10,
+    "ad_denoising_strength": 0.4,
     "ad_cfg_scale": 4,
     "ad_mask_blur": 4,
     "ad_inpaint_only_masked": True,
@@ -181,11 +181,11 @@ def get_fallback_values() -> Dict[str, Any]:
     from app.config.default_prompts import get_default_negative_prompts
     
     return {
-        "steps": DEFAULT_GENERATION_PARAMS.get("steps", 100),
-        "width": DEFAULT_GENERATION_PARAMS.get("width", 512),
-        "height": DEFAULT_GENERATION_PARAMS.get("height", 853),
-        "cfg_scale": DEFAULT_GENERATION_PARAMS.get("cfg_scale", 5),
-        "sampler_name": DEFAULT_GENERATION_PARAMS.get("sampler_name", "Euler"),
+        "steps": DEFAULT_GENERATION_PARAMS["steps"],
+        "width": DEFAULT_GENERATION_PARAMS["width"],
+        "height": DEFAULT_GENERATION_PARAMS["height"],
+        "cfg_scale": DEFAULT_GENERATION_PARAMS["cfg_scale"],
+        "sampler_name": DEFAULT_GENERATION_PARAMS["sampler_name"],
         "negative_prompt": get_default_negative_prompts()
     }
 

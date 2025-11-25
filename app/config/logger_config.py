@@ -2,6 +2,7 @@
 Конфигурация логгера.
 """
 from pydantic_settings import BaseSettings
+from pydantic import ConfigDict
 from typing import Optional
 
 class LoggerConfig(BaseSettings):
@@ -34,7 +35,8 @@ class LoggerConfig(BaseSettings):
     app_host: Optional[str] = None
     app_port: Optional[str] = None
     
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "allow"  # Разрешаем дополнительные поля 
+    model_config = ConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="allow"  # Разрешаем дополнительные поля
+    ) 

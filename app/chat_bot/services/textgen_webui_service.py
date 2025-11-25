@@ -8,7 +8,7 @@ import asyncio
 import aiohttp
 import json
 import logging
-from typing import Dict, List, Optional, Any, AsyncGenerator
+from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, Field
 from app.chat_bot.config.chat_config import chat_config
 from app.utils.logger import logger
@@ -22,15 +22,20 @@ class TextGenWebUIService:
         self.base_url = chat_config.TEXTGEN_WEBUI_URL
         # ОПТИМИЗИРОВАННЫЕ таймауты для максимальной скорости
         self.timeout = aiohttp.ClientTimeout(
-            total=300,  # Увеличено до 5 минут для длинных ответов
-            connect=10,  # Больше времени на подключение
+            total=300,  # Увеличено до 5 минут для длинных генераций
+            connect=5,  # Быстрое подключение
             sock_read=120,  # Увеличено до 2 минут на чтение
-            sock_connect=10
+            sock_connect=5
         )
         self.model_name = chat_config.TEXTGEN_WEBUI_MODEL
         self._session: Optional[aiohttp.ClientSession] = None
         self._is_connected = False
         self._connector: Optional[aiohttp.TCPConnector] = None
+
+    @property
+    def is_connected(self) -> bool:
+        """Возвращает текущее состояние подключения к text-generation-webui."""
+        return self._is_connected
         
     async def __aenter__(self):
         """Асинхронный контекстный менеджер - вход."""
@@ -599,27 +604,26 @@ class TextGenWebUIService:
             )
             
             # ПРАВИЛЬНЫЙ API для text-generation-webui
-            # Используем n_predict для llama.cpp моделей
-            target_tokens = max_tokens or generation_params["max_tokens"]
+            # Используем параметры из chat_config.py
             openai_payload = {
                 "model": self.model_name,
                 "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": target_tokens,
-                "n_predict": target_tokens,  # Для llama.cpp моделей
-                "temperature": temperature or generation_params["temperature"],
-                "top_p": top_p or generation_params["top_p"],
-                "top_k": top_k or generation_params["top_k"],
-                "min_p": min_p or generation_params.get("min_p", 0.05),  # ДОБАВЛЕНО: min_p
+                "max_tokens": chat_config.DEFAULT_MAX_TOKENS,
+                "n_predict": chat_config.DEFAULT_MAX_TOKENS,
+                "temperature": chat_config.DEFAULT_TEMPERATURE,
+                "top_p": chat_config.DEFAULT_TOP_P,
+                "top_k": chat_config.DEFAULT_TOP_K,
+                "min_p": chat_config.DEFAULT_MIN_P,
                 "stream": False,
                 
                 # 🔧 ИСПРАВЛЕНИЕ ТОКЕНИЗАЦИИ: Добавляем параметры для правильной токенизации
-                "skip_special_tokens": True,  # Пропускаем специальные токены
-                "add_bos_token": False,  # Не добавляем BOS токен (уже в промпте)
+                "skip_special_tokens": chat_config.SKIP_SPECIAL_TOKENS,
+                "add_bos_token": chat_config.ADD_BOS_TOKEN,
                 
                 # ИСПРАВЛЕНО: Включаем penalty параметры с умеренными значениями
-                "repetition_penalty": repeat_penalty or generation_params.get("repeat_penalty", 1.05),
-                "frequency_penalty": 0.1,   # ИСПРАВЛЕНО: Включаем с умеренным значением
-                "presence_penalty": 0.1,    # ИСПРАВЛЕНО: Включаем с умеренным значением
+                "repetition_penalty": chat_config.DEFAULT_REPEAT_PENALTY,
+                "frequency_penalty": chat_config.DEFAULT_FREQUENCY_PENALTY,
+                "presence_penalty": chat_config.DEFAULT_PRESENCE_PENALTY,
                 "stop": self._get_enhanced_stop_tokens(generation_params.get("stop", []), chat_config)  # Используем из конфигурации + время
             }
             
@@ -634,7 +638,7 @@ class TextGenWebUIService:
             # ИСПРАВЛЕНО: НЕ передаем min_tokens - он может вызывать преждевременную остановку
             # if chat_config.ENFORCE_MIN_TOKENS and chat_config.MIN_NEW_TOKENS > 0:
             #     openai_payload["min_tokens"] = chat_config.MIN_NEW_TOKENS
-            # ИСПРАВЛЕНО: Отключаем ban_eos_token для естественного завершения
+            # ИСПРАВЛЕНО: Отключаем ban_eos_token для естественного завершения предложений
             openai_payload["ban_eos_token"] = False
             
             logger.info(f"🚀 БЫСТРЫЙ запрос на генерацию (промпт: {len(prompt)} символов)")
@@ -687,340 +691,7 @@ class TextGenWebUIService:
                     logger.warning(f"[WARNING] Ошибка при закрытии response в generate_text: {e}")
             
     # ============================================================================
-    # [WARNING]  КРИТИЧЕСКИ ВАЖНЫЙ КОД - НЕ ИЗМЕНЯТЬ! [WARNING]
-    # ============================================================================
-    # Этот метод отвечает за streaming генерацию текста через text-generation-webui API.
-    # Изменения здесь могут сломать всю систему streaming чата.
-    # 
-    # КРИТИЧЕСКИЕ ЭЛЕМЕНТЫ:
-    # - Сигнатура метода (параметры должны точно совпадать)
-    # - OpenAI-совместимый payload формат
-    # - Обработка streaming ответа
-    # - Парсинг JSON чанков
-    # - НЕ дублировать параметр "stream": True
-    # ============================================================================
-    
-    async def generate_text_stream(
-        self, 
-        prompt: str, 
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        top_k: Optional[int] = None,
-        repeat_penalty: Optional[float] = None,
-        presence_penalty: Optional[float] = None,
-        force_completion: bool = False
-    ) -> AsyncGenerator[str, None]:
-        """
-        Генерирует текст потоком через text-generation-webui API.
-        
-        Args:
-            prompt: Промпт для генерации
-            max_tokens: Максимальное количество токенов
-            temperature: Температура генерации
-            top_p: Top-p параметр
-            top_k: Top-k параметр
-            repeat_penalty: Штраф за повторения
-            presence_penalty: Presence penalty
-            
-        Yields:
-            Части сгенерированного текста
-        """
-        try:
-            if not self._session:
-                await self.connect()
-                
-            # Проверяем, что промпт не пустой
-            if not prompt or not prompt.strip():
-                logger.error("[ERROR] Пустой промпт для генерации")
-                return
-                
-            # Настройки будут использованы в OpenAI-совместимом API
-            
-            # Получаем параметры генерации с учетом режима завершения
-            generation_params = chat_config.sample_generation_params(
-                seed=chat_config.SEED,
-                force_completion=force_completion
-            )
-            
-            # Используем только OpenAI-совместимые параметры для стриминга
-            openai_payload = {
-                "model": self.model_name,
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": max_tokens or generation_params["max_tokens"],
-                "temperature": temperature or generation_params["temperature"],
-                "top_p": top_p or generation_params["top_p"],
-                "top_k": top_k or generation_params["top_k"],
-                "stop": generation_params.get("stop", []),  # Используем из конфигурации
-                "stream": True,
-                "seed": generation_params["seed"],  # Seed для генерации
-                
-                # КРИТИЧЕСКИ ВАЖНО: Отключаем auto_max_new_tokens
-                "auto_max_new_tokens": False,
-                
-                # 🔧 ИСПРАВЛЕНИЕ ТОКЕНИЗАЦИИ: Добавляем параметры для правильной токенизации
-                "skip_special_tokens": True,  # Пропускаем специальные токены
-                "add_bos_token": False,  # Не добавляем BOS токен (уже в промпте)
-                
-                # [OK] ДОПОЛНИТЕЛЬНЫЕ ПАРАМЕТРЫ ИЗ chat_config.py
-                "min_p": chat_config.DEFAULT_MIN_P,  # Минимальная вероятность
-                # ИСПРАВЛЕНО: НЕ передаем min_tokens в streaming - он может вызывать преждевременную остановку
-                # "min_tokens": chat_config.MIN_NEW_TOKENS if chat_config.ENFORCE_MIN_TOKENS else None,  # Минимальное количество токенов
-                
-                # [OK] ТОЛЬКО поддерживаемые параметры для text-generation-webui
-                # Аппаратные параметры должны быть установлены при запуске сервера через командную строку
-                # Кастомные параметры качества не поддерживаются text-generation-webui API
-            }
-            # ИСПРАВЛЕНО: Отключаем ban_eos_token для естественного завершения
-            openai_payload["ban_eos_token"] = False
-            
-            # Убираем None значения из payload
-            openai_payload = {k: v for k, v in openai_payload.items() if v is not None}
-            
-            # 🔍 ЛОГИРОВАНИЕ: Проверяем streaming payload
-            logger.info(f"🚀 STREAMING API Payload - max_tokens: {openai_payload.get('max_tokens', 'НЕТ')}")
-            if "stop" in openai_payload and openai_payload["stop"]:
-                logger.info(f"🔍 STREAMING API Payload - stop tokens: {openai_payload['stop']}")
-            else:
-                logger.info(f"🔍 STREAMING API Payload - stop tokens: НЕТ (это хорошо!)")
-            logger.info(f"🔍 STREAMING API Payload - min_tokens: {openai_payload.get('min_tokens', 'НЕТ')}")
-            logger.info(f"🔍 STREAMING API Payload - ban_eos_token: {openai_payload.get('ban_eos_token', False)}")
-            
-            logger.info(f"🚀 Отправляем запрос на генерацию текста (промпт: {len(prompt)} символов)")
-            
-            # Используем try-finally для гарантированного закрытия ресурсов
-            response = None
-            try:
-                response = await self._session.post(f"{self.base_url}/v1/chat/completions", json=openai_payload)
-                
-                if response.status == 200:
-                    logger.info("[OK] Получен ответ от text-generation-webui, начинаем обработку стрима")
-                    buffer = ""
-                    
-                    async for line in response.content:
-                        if line:
-                            try:
-                                # Декодируем и добавляем к буферу
-                                buffer += line.decode('utf-8')
-                                
-                                # Обрабатываем полные строки
-                                lines = buffer.split('\n')
-                                buffer = lines.pop() or ""  # Оставляем неполную строку в буфере
-                                
-                                for line_text in lines:
-                                    line_text = line_text.strip()
-                                    if not line_text or not line_text.startswith('data: '):
-                                        continue
-                                        
-                                    data_str = line_text[6:]  # Убираем 'data: '
-                                    if data_str == '[DONE]':
-                                        logger.info("🏁 Получен сигнал завершения стрима")
-                                        return
-                                        
-                                    try:
-                                        data = json.loads(data_str)
-                                        if 'choices' in data and len(data['choices']) > 0:
-                                            delta = data['choices'][0].get('delta', {})
-                                            if 'content' in delta and delta['content']:
-                                                # Очищаем каждый чанк от времени
-                                                original_chunk = delta['content']
-                                                cleaned_chunk = self._clean_generation_artifacts(delta['content'])
-                                                if original_chunk != cleaned_chunk:
-                                                    logger.info(f"🕒 STREAMING: Удалено время из '{original_chunk}' -> '{cleaned_chunk}'")
-                                                yield cleaned_chunk
-                                                
-                                    except json.JSONDecodeError as json_err:
-                                        logger.warning(f"[WARNING] Ошибка парсинга JSON в стриме: {json_err}, данные: {data_str}")
-                                        continue
-                                        
-                            except Exception as e:
-                                logger.warning(f"[WARNING] Ошибка обработки стрима: {e}")
-                                continue
-                else:
-                    error_text = await response.text()
-                    logger.error(f"[ERROR] HTTP ошибка при потоковой генерации: {response.status}, ответ: {error_text}")
-                    
-            finally:
-                # Гарантированно закрываем response
-                if response:
-                    try:
-                        response.close()
-                    except Exception as e:
-                        logger.warning(f"[WARNING] Ошибка при закрытии response: {e}")
-                        
-        except Exception as e:
-            logger.error(f"[ERROR] Ошибка потоковой генерации текста: {e}")
-            # Возвращаем сообщение об ошибке
-            yield f"Извините, произошла ошибка при генерации текста: {str(e)}"
-    
-    # ============================================================================
-    # [OK] КРИТИЧЕСКИ ВАЖНЫЙ КОД ЗАВЕРШЕН
-    # ============================================================================
-            
-    async def get_model_status(self) -> Dict[str, Any]:
-        """Получает статус текущей модели."""
-        response = None
-        try:
-            if not self._session:
-                await self.connect()
-                
-            response = await self._session.get(f"{self.base_url}/v1/model")
-            if response.status == 200:
-                return await response.json()
-            else:
-                logger.error(f"[ERROR] HTTP ошибка при получении статуса модели: {response.status}")
-                return {}
-                
-        except Exception as e:
-            logger.error(f"[ERROR] Ошибка получения статуса модели: {e}")
-            return {}
-        finally:
-            # Гарантированно закрываем response
-            if response:
-                try:
-                    response.close()
-                except Exception as e:
-                    logger.warning(f"[WARNING] Ошибка при закрытии response в get_model_status: {e}")
-            
-    @property
-    def is_connected(self) -> bool:
-        """Проверяет, установлено ли соединение."""
-        return self._is_connected
-        
-    @property
-    def is_available(self) -> bool:
-        """Проверяет доступность сервиса."""
-        return self._is_connected and self._session is not None
-    
-    def get_config_for_bat_file(self) -> Dict[str, Any]:
-        """
-        Возвращает настройки конфигурации для использования в bat-файлах при запуске text-generation-webui.
-        ТОЛЬКО аппаратные параметры, которые поддерживает text-generation-webui через командную строку.
-        """
-        return {
-            # [OK] Аппаратные параметры, поддерживаемые text-generation-webui через командную строку
-            "ctx_size": chat_config.N_CTX,              # --ctx-size
-            "gpu_layers": chat_config.N_GPU_LAYERS,     # --gpu-layers  
-            "threads": chat_config.N_THREADS,           # --threads
-            "threads_batch": chat_config.N_THREADS_BATCH, # --threads-batch
-            "batch_size": chat_config.N_BATCH,          # --batch-size
-            "f16_kv": chat_config.F16_KV,              # --f16-kv
-            "use_mmap": chat_config.USE_MMAP,          # --mmap
-            "use_mlock": chat_config.USE_MLOCK,        # --mlock
-            "verbose": chat_config.VERBOSE,            # --verbose
-            
-            # [ERROR] НЕ поддерживаемые параметры (убраны):
-            # - Кастомные параметры качества (smartness, dynamic_sampling и т.д.)
-            # - Параметры контекста и длины (обрабатываются на уровне приложения)  
-            # - Параметры безопасности и фильтрации (обрабатываются на уровне приложения)
-            # - mul_mat_q, offload_kqv, n_keep, n_draft и другие специфичные для llama.cpp параметры
-        }
-        
-    # ============================================================================
-    # [WARNING]  КРИТИЧЕСКИ ВАЖНЫЙ КОД - НЕ ИЗМЕНЯТЬ! [WARNING]
-    # ============================================================================
-    # Этот метод является алиасом для generate_text_stream.
-    # Изменения здесь могут сломать обратную совместимость.
-    # 
-    # КРИТИЧЕСКИЕ ЭЛЕМЕНТЫ:
-    # - Должен точно передавать все аргументы в generate_text_stream
-    # - НЕ изменять логику - только проксирование
-    # - Сохранять сигнатуру AsyncGenerator[str, None]
-    # ============================================================================
-    
-    async def generate_stream(self, *args, **kwargs) -> AsyncGenerator[str, None]:
-        """
-        Алиас для generate_text_stream для обратной совместимости.
-        
-        Args:
-            *args: Аргументы для generate_text_stream
-            **kwargs: Ключевые аргументы для generate_text_stream
-            
-        Yields:
-            Части сгенерированного текста
-        """
-        async for chunk in self.generate_text_stream(*args, **kwargs):
-            yield chunk
-    
-    def _fix_tokenization_artifacts(self, text: str) -> str:
-        """
-        Исправляет токенизационные артефакты - разрывные слова, которые возникают
-        при токенизации модели и стриминге.
-        
-        Args:
-            text: Текст с возможными токенизационными артефактами
-            
-        Returns:
-            Текст с исправленными артефактами
-        """
-        import re
-        
-        # 🔧 АГРЕССИВНОЕ ИСПРАВЛЕНИЕ ТОКЕНИЗАЦИОННЫХ АРТЕФАКТОВ
-        
-        # 1. ИСПРАВЛЯЕМ РАЗРЫВНЫЕ СЛОВА (основная проблема)
-        # Паттерн: "wal ks" -> "walks", "catch es" -> "catches"
-        # Убираем пробелы между частями слов, которые должны быть слитными
-        
-        # Более агрессивные паттерны для исправления разрывных слов
-        patterns = [
-            # Паттерн 1: "c rot ch" -> "crotch" (3+ части)
-            (r'\b([a-zA-Z])\s+([a-zA-Z])\s+([a-zA-Z]+)\b', r'\1\2\3'),
-            # Паттерн 2: "tou ch ing" -> "touching" (3 части)
-            (r'\b([a-zA-Z]+)\s+([a-zA-Z])\s+([a-zA-Z]+)\b', r'\1\2\3'),
-            # Паттерн 3: "tou ch" -> "touch" (2 части)
-            (r'\b([a-zA-Z]+)\s+([a-zA-Z]+)\b', r'\1\2'),
-            # Паттерн 4: "c rot" -> "crot" (2 части)
-            (r'\b([a-zA-Z])\s+([a-zA-Z]+)\b', r'\1\2'),
-            # Паттерн 5: "n aked" -> "naked" (специальный случай)
-            (r'\b([a-zA-Z])\s+([a-zA-Z]+)\b', r'\1\2'),
-            # Паттерн 6: "she er" -> "sheer" (специальный случай)
-            (r'\b([a-zA-Z]+)\s+([a-zA-Z]+)\b', r'\1\2'),
-            # Паттерн 7: "p ant ies" -> "panties" (3 части)
-            (r'\b([a-zA-Z])\s+([a-zA-Z]+)\s+([a-zA-Z]+)\b', r'\1\2\3'),
-            # Паттерн 8: "ob liv ious" -> "oblivious" (3 части)
-            (r'\b([a-zA-Z]+)\s+([a-zA-Z]+)\s+([a-zA-Z]+)\b', r'\1\2\3'),
-            # Паттерн 9: "reve aling" -> "revealing" (2 части)
-            (r'\b([a-zA-Z]+)\s+([a-zA-Z]+)\b', r'\1\2'),
-        ]
-        
-        # Применяем паттерны несколько раз для полного исправления
-        for _ in range(3):  # 3 итерации для полного исправления
-            for pattern, replacement in patterns:
-                text = re.sub(pattern, replacement, text)
-        
-        # 2. ИСПРАВЛЯЕМ СЛИТЫЕ СЛОВА (обратная проблема)
-        # Паттерн: "As Ibegantomeasure" -> "As I began to measure"
-        text = re.sub(r'\b([a-zA-Z]+)([A-Z][a-zA-Z]+)\b', r'\1 \2', text)
-        
-        # 3. ИСПРАВЛЯЕМ СПЕЦИАЛЬНЫЕ СЛУЧАИ
-        # Разделяем слитые слова, которые должны быть разделены
-        special_cases = [
-            (r'\b(coffee)(grounds)\b', r'\1 \2'),
-            (r'\b(black)(panties)\b', r'\1 \2'),
-            (r'\b(T)(shirt)\b', r'\1-\2'),
-            (r'\b(half)(naked)\b', r'\1 \2'),
-        ]
-        
-        for pattern, replacement in special_cases:
-            text = re.sub(pattern, replacement, text)
-        
-        # 4. ИСПРАВЛЯЕМ АПОСТРОФЫ И СОКРАЩЕНИЯ
-        # "I ' m" -> "I'm", "don ' t" -> "don't"
-        text = re.sub(r"(\w)\s+'\s+(\w)", r"\1'\2", text)
-        
-        # 5. ИСПРАВЛЯЕМ ПУНКТУАЦИЮ
-        # Убираем лишние пробелы перед знаками препинания
-        text = re.sub(r'\s+([,.!?;:])', r'\1', text)
-        
-        # 6. ФИНАЛЬНАЯ ОЧИСТКА ПРОБЕЛОВ
-        # Убираем множественные пробелы
-        text = re.sub(r'\s+', ' ', text)
-        text = text.strip()
-        
-        return text
-    
-    # ============================================================================
-    # [OK] КРИТИЧЕСКИ ВАЖНЫЙ КОД ЗАВЕРШЕН
+    # СТРИМИНГОВЫЕ МЕТОДЫ УДАЛЕНЫ - НЕ ИСПОЛЬЗУЮТСЯ
     # ============================================================================
 
 # Создаем глобальный экземпляр сервиса

@@ -128,14 +128,14 @@ async def get_or_create_oauth_user(
     await db.commit()
     await db.refresh(user)
     
-    # Активируем подписку Base для нового OAuth пользователя
+    # Активируем подписку Free для нового OAuth пользователя
     try:
-        print(f"🔍 DEBUG: Активация подписки Base для OAuth пользователя {user.id}")
+        print(f"🔍 DEBUG: Активация подписки Free для OAuth пользователя {user.id}")
         subscription_service = SubscriptionService(db)
-        await subscription_service.create_subscription(user.id, "base")
-        print(f"[OK] DEBUG: Подписка Base успешно активирована для OAuth пользователя {user.id}")
+        await subscription_service.create_subscription(user.id, "free")
+        print(f"[OK] DEBUG: Подписка Free успешно активирована для OAuth пользователя {user.id}")
     except Exception as e:
-        print(f"[ERROR] DEBUG: Ошибка активации подписки Base для OAuth пользователя {user.id}: {e}")
+        print(f"[ERROR] DEBUG: Ошибка активации подписки Free для OAuth пользователя {user.id}: {e}")
         # Не прерываем регистрацию из-за ошибки подписки
     
     return user
@@ -147,7 +147,7 @@ def create_oauth_tokens(user: Users) -> Dict:
     from datetime import timedelta
     
     # Создаем access token
-    access_token_expires = timedelta(minutes=30)
+    access_token_expires = timedelta(minutes=480)  # Увеличиваем до 8 часов
     access_token = create_jwt_token(
         data={"sub": user.email},
         expires_delta=access_token_expires

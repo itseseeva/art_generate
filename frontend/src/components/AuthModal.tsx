@@ -158,11 +158,13 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAuthSuccess: (token: string) => void;
+  mode?: 'login' | 'register';
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess }) => {
+export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess, mode = 'login' }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -174,21 +176,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
     setError(null);
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const endpoint = mode === 'register' ? '/api/auth/register' : '/api/auth/login';
+      const body = mode === 'register' 
+        ? { email, password, username: username || email }
+        : { email, password };
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || 'Ошибка авторизации');
+        throw new Error(errorData.detail || `Ошибка ${mode === 'register' ? 'регистрации' : 'авторизации'}`);
       }
 
       const data = await response.json();
-      onAuthSuccess(data.access_token);
+      onAuthSuccess(data.access_token || data.token);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Произошла ошибка');
     } finally {
@@ -205,11 +212,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
     <ModalOverlay onClick={onClose}>
       <ModalContent onClick={(e) => e.stopPropagation()}>
         <ModalHeader>
-          <h3>Вход в систему</h3>
-          <p>Войдите в свой аккаунт для продолжения</p>
+          <h3>{mode === 'register' ? 'Регистрация' : 'Вход в систему'}</h3>
+          <p>{mode === 'register' ? 'Создайте новый аккаунт' : 'Войдите в свой аккаунт для продолжения'}</p>
         </ModalHeader>
 
         <Form onSubmit={handleSubmit}>
+          {mode === 'register' && (
+            <FormGroup>
+              <label htmlFor="username">Имя пользователя:</label>
+              <input
+                type="text"
+                id="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Введите имя пользователя"
+                required
+                disabled={isLoading}
+              />
+            </FormGroup>
+          )}
           <FormGroup>
             <label htmlFor="email">Email:</label>
             <input
@@ -242,9 +263,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
             <Button
               type="submit"
               $variant="primary"
-              disabled={isLoading || !email || !password}
+              disabled={isLoading || !email || !password || (mode === 'register' && !username)}
             >
-              {isLoading ? <LoadingSpinner /> : 'Войти'}
+              {isLoading ? <LoadingSpinner /> : (mode === 'register' ? 'Зарегистрироваться' : 'Войти')}
             </Button>
             <Button
               type="button"
@@ -257,17 +278,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
           </ButtonGroup>
         </Form>
 
-        <div style={{ textAlign: 'center', marginTop: theme.spacing.lg }}>
-          <Button
-            type="button"
-            $variant="secondary"
-            onClick={handleGoogleAuth}
-            disabled={isLoading}
-            style={{ width: '100%' }}
-          >
-            Войти через Google
-          </Button>
-        </div>
+        {mode === 'login' && (
+          <div style={{ textAlign: 'center', marginTop: theme.spacing.lg }}>
+            <Button
+              type="button"
+              $variant="secondary"
+              onClick={handleGoogleAuth}
+              disabled={isLoading}
+              style={{ width: '100%' }}
+            >
+              Войти через Google
+            </Button>
+          </div>
+        )}
       </ModalContent>
     </ModalOverlay>
   );

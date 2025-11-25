@@ -1,29 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
-import { CompactSidebar } from './CompactSidebar';
+import { GlobalHeader } from './GlobalHeader';
+import '../styles/ContentArea.css';
+import { AuthModal } from './AuthModal';
+import { LoadingSpinner } from './LoadingSpinner';
 
 const MainContainer = styled.div`
   width: 100vw;
   height: 100vh;
   display: flex;
-  background: transparent; /* Используем глобальный фон */
   overflow: hidden;
 `;
 
-const ContentArea = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background: transparent; /* Используем глобальный фон */
-  overflow: hidden;
-`;
 
 const Header = styled.div`
-  background: rgba(102, 126, 234, 0.1);
+  background: rgba(40, 40, 40, 0.6);
   backdrop-filter: blur(3px);
   padding: ${theme.spacing.lg} ${theme.spacing.xl};
-  border-bottom: 1px solid ${theme.colors.border.primary};
+  border-bottom: 1px solid rgba(150, 150, 150, 0.3);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -55,68 +50,69 @@ const UserName = styled.span`
 `;
 
 const UserCoins = styled.span`
-  color: ${theme.colors.accent.primary};
+  color: rgba(200, 200, 200, 1);
   font-size: ${theme.fontSize.sm};
   font-weight: 600;
 `;
 
 const AuthButton = styled.button`
-  background: transparent;
-  border: 2px solid;
-  border-image: linear-gradient(45deg, #764ba2 50%, #4a0000 50%) 1;
+  background: rgba(60, 60, 60, 0.5);
+  border: 1px solid rgba(150, 150, 150, 0.5);
   color: #a8a8a8;
   padding: ${theme.spacing.sm} ${theme.spacing.md};
   border-radius: ${theme.borderRadius.lg};
   font-size: ${theme.fontSize.sm};
   font-weight: 600;
   cursor: pointer;
-  transition: transform ${theme.transition.fast};
+  transition: all ${theme.transition.fast};
   margin-left: ${theme.spacing.sm};
   
   &:hover {
-    transform: scale(1.05);
-    border-image: linear-gradient(45deg, #8b5cf6 50%, #7f1d1d 50%) 1;
-    color: ${theme.colors.text.primary};
+    background: rgba(80, 80, 80, 0.7);
+    border-color: rgba(180, 180, 180, 0.7);
+    color: #ffffff;
   }
   
   &:active {
     transform: scale(0.95);
+    background: rgba(50, 50, 50, 0.5);
   }
 `;
 
 const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
-  background: transparent;
-  border: 2px solid;
-  border-image: linear-gradient(45deg, #764ba2 50%, #4a0000 50%) 1;
+  background: ${props => props.variant === 'primary' ? 'rgba(80, 80, 80, 0.7)' : 'rgba(60, 60, 60, 0.5)'};
+  border: 1px solid rgba(150, 150, 150, 0.5);
   color: #a8a8a8;
   padding: ${theme.spacing.sm} ${theme.spacing.md};
   border-radius: ${theme.borderRadius.lg};
   font-size: ${theme.fontSize.sm};
   font-weight: 600;
   cursor: pointer;
-  transition: transform ${theme.transition.fast};
+  transition: all ${theme.transition.fast};
   
   &:hover {
-    transform: scale(1.05);
-    border-image: linear-gradient(45deg, #8b5cf6 50%, #7f1d1d 50%) 1;
-    color: ${theme.colors.text.primary};
+    background: ${props => props.variant === 'primary' ? 'rgba(100, 100, 100, 0.8)' : 'rgba(80, 80, 80, 0.7)'};
+    border-color: rgba(180, 180, 180, 0.7);
+    color: #ffffff;
   }
   
   &:active {
     transform: scale(0.95);
+    background: rgba(50, 50, 50, 0.5);
   }
   
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
     transform: none;
+    background: rgba(40, 40, 40, 0.3);
   }
 `;
 
 const PromptInput = styled.textarea`
-  background: rgba(22, 33, 62, 0.3);
+  background: rgba(40, 40, 40, 0.5);
   backdrop-filter: blur(5px);
-  border: 1px solid ${theme.colors.border.accent};
+  border: 1px solid rgba(150, 150, 150, 0.3);
   border-radius: ${theme.borderRadius.lg};
   padding: ${theme.spacing.md};
   color: ${theme.colors.text.primary};
@@ -127,13 +123,13 @@ const PromptInput = styled.textarea`
   width: 100%;
   
   &::placeholder {
-    color: ${theme.colors.text.secondary};
+    color: rgba(150, 150, 150, 0.7);
   }
   
   &:focus {
     outline: none;
-    border-color: ${theme.colors.accent.primary};
-    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+    border-color: rgba(180, 180, 180, 0.6);
+    box-shadow: 0 0 0 2px rgba(150, 150, 150, 0.2);
   }
 `;
 
@@ -145,11 +141,11 @@ const PromptSection = styled.div`
 
 const PromptContainer = styled.div`
   flex: 1;
-  background: rgba(22, 33, 62, 0.3);
+  background: rgba(40, 40, 40, 0.5);
   backdrop-filter: blur(5px);
   border-radius: ${theme.borderRadius.lg};
   padding: ${theme.spacing.lg};
-  border: 1px solid ${theme.colors.border.accent};
+  border: 1px solid rgba(150, 150, 150, 0.3);
 `;
 
 const PromptLabel = styled.label`
@@ -177,11 +173,11 @@ const MainContent = styled.div`
 `;
 
 const CharacterInfo = styled.div`
-  background: rgba(22, 33, 62, 0.3);
+  background: rgba(40, 40, 40, 0.5);
   backdrop-filter: blur(5px);
   border-radius: ${theme.borderRadius.lg};
   padding: ${theme.spacing.xl};
-  border: 1px solid ${theme.colors.border.accent};
+  border: 1px solid rgba(150, 150, 150, 0.3);
   text-align: center;
 `;
 
@@ -194,16 +190,16 @@ const CharacterName = styled.h2`
 
 const CharacterDescription = styled.p`
   color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.md};
+  font-size: ${theme.fontSize.base};
   margin: 0;
 `;
 
 const GenerationSection = styled.div`
-  background: rgba(22, 33, 62, 0.3);
+  background: rgba(40, 40, 40, 0.5);
   backdrop-filter: blur(5px);
   border-radius: ${theme.borderRadius.lg};
   padding: ${theme.spacing.xl};
-  border: 1px solid ${theme.colors.border.accent};
+  border: 1px solid rgba(150, 150, 150, 0.3);
 `;
 
 const SectionTitle = styled.h3`
@@ -215,27 +211,32 @@ const SectionTitle = styled.h3`
 
 const PhotosGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: ${theme.spacing.lg};
   margin-bottom: ${theme.spacing.xl};
+  
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const PhotoCard = styled.div<{ isSelected?: boolean; isMain?: boolean }>`
   position: relative;
-  background: rgba(22, 33, 62, 0.3);
+  background: rgba(40, 40, 40, 0.5);
   backdrop-filter: blur(5px);
   border-radius: ${theme.borderRadius.lg};
   padding: ${theme.spacing.md};
   border: 2px solid ${props => 
-    props.isMain ? theme.colors.accent.primary : 
-    props.isSelected ? theme.colors.accent.secondary : 
-    theme.colors.border.accent};
+    props.isMain ? 'rgba(200, 200, 200, 0.8)' : 
+    props.isSelected ? 'rgba(180, 180, 180, 0.7)' : 
+    'rgba(150, 150, 150, 0.3)'};
   cursor: pointer;
   transition: ${theme.transition.fast};
   
   &:hover {
     transform: translateY(-2px);
-    box-shadow: ${theme.colors.shadow.glow};
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    border-color: rgba(180, 180, 180, 0.6);
   }
 `;
 
@@ -256,27 +257,13 @@ const PhotoActions = styled.div`
 const PhotoStatus = styled.span<{ isMain?: boolean }>`
   font-size: ${theme.fontSize.sm};
   font-weight: 600;
-  color: ${props => props.isMain ? theme.colors.accent.primary : theme.colors.text.secondary};
+  color: ${props => props.isMain ? 'rgba(200, 200, 200, 1)' : 'rgba(150, 150, 150, 0.8)'};
 `;
 
 const ActionButtons = styled.div`
   display: flex;
   gap: ${theme.spacing.md};
   justify-content: center;
-`;
-
-const LoadingSpinner = styled.div`
-  display: inline-block;
-  width: 20px;
-  height: 20px;
-  border: 3px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  border-top-color: ${theme.colors.accent.primary};
-  animation: spin 1s ease-in-out infinite;
-  
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
 `;
 
 const ErrorMessage = styled.div`
@@ -319,22 +306,84 @@ interface PhotoGenerationPageProps {
   onBackToMain: () => void;
   onCreateCharacter: () => void;
   onShop: () => void;
+  onProfile?: () => void;
 }
 
 export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({
   character,
   onBackToMain,
   onCreateCharacter,
-  onShop
+  onShop,
+  onProfile
 }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userInfo, setUserInfo] = useState<{username: string, coins: number, id: number} | null>(null);
   const [generatedPhotos, setGeneratedPhotos] = useState<GeneratedPhoto[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [fakeProgress, setFakeProgress] = useState(0);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
   const [customPrompt, setCustomPrompt] = useState('');
+  const [generationSettings, setGenerationSettings] = useState<any>(null);
+  const fakeProgressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fakeProgressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const startFakeProgress = useCallback(() => {
+    if (fakeProgressIntervalRef.current) {
+      clearInterval(fakeProgressIntervalRef.current);
+      fakeProgressIntervalRef.current = null;
+    }
+    if (fakeProgressTimeoutRef.current) {
+      clearTimeout(fakeProgressTimeoutRef.current);
+      fakeProgressTimeoutRef.current = null;
+    }
+    setFakeProgress(0);
+    fakeProgressIntervalRef.current = setInterval(() => {
+      setFakeProgress(prev => (prev >= 99 ? 99 : prev + 1));
+    }, 300);
+  }, []);
+
+  const stopFakeProgress = useCallback((immediate: boolean) => {
+    if (fakeProgressIntervalRef.current) {
+      clearInterval(fakeProgressIntervalRef.current);
+      fakeProgressIntervalRef.current = null;
+    }
+    if (fakeProgressTimeoutRef.current) {
+      clearTimeout(fakeProgressTimeoutRef.current);
+      fakeProgressTimeoutRef.current = null;
+    }
+    if (immediate) {
+      setFakeProgress(0);
+      return;
+    }
+    setFakeProgress(100);
+    fakeProgressTimeoutRef.current = setTimeout(() => {
+      setFakeProgress(0);
+      fakeProgressTimeoutRef.current = null;
+    }, 500);
+  }, []);
+
+  // Загрузка настроек генерации
+  const loadGenerationSettings = async () => {
+    try {
+      const response = await fetch('/api/v1/fallback-settings/');
+      console.log('Response status:', response.status);
+      
+      if (response.ok) {
+        const settings = await response.json();
+        setGenerationSettings(settings);
+        console.log('Настройки генерации загружены:', settings);
+        console.log('Steps:', settings.steps, 'CFG:', settings.cfg_scale);
+      } else {
+        console.error('Ошибка загрузки настроек генерации:', response.status);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки настроек генерации:', error);
+    }
+  };
 
   // Проверка авторизации
   const checkAuth = async () => {
@@ -345,7 +394,7 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({
         return;
       }
 
-      const response = await fetch('/auth/me/', {
+      const response = await fetch('/api/v1/auth/me/', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -369,62 +418,96 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({
     }
   };
 
-  // Генерация фото
+  // Генерация 3 фото
   const generatePhoto = async () => {
-    if (!userInfo || userInfo.coins < 30) {
-      setError('Недостаточно монет! Нужно 30 монет для генерации фото.');
+    if (!userInfo || userInfo.coins < 90) {
+      setError('Недостаточно монет! Нужно 90 монет для генерации 3 фото (30 монет за фото).');
       return;
     }
 
     setIsGenerating(true);
     setError(null);
+    startFakeProgress();
+
+    let generationFailed = false;
+    const newPhotos: GeneratedPhoto[] = [];
 
     try {
       const token = localStorage.getItem('authToken');
       if (!token) throw new Error('Необходимо войти в систему');
 
       // Используем кастомный промпт или дефолтный
-      const prompt = customPrompt.trim() || `${character.character_appearance || ''} ${character.location || ''}`.trim() || 'portrait, high quality';
+      const basePrompt = customPrompt.trim() || `${character.character_appearance || ''} ${character.location || ''}`.trim() || 'portrait, high quality, detailed';
 
-      const response = await fetch('/api/v1/characters/generate-photo/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          character_name: character.name,
-          character_appearance: character.character_appearance || '',
-          location: character.location || '',
-          custom_prompt: prompt
-        })
-      });
+      // Генерируем 3 фото с разными вариациями промпта
+      const prompts = [
+        basePrompt,
+        `${basePrompt}, style 1`,
+        `${basePrompt}, style 2`
+      ];
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Ошибка генерации фото');
+      for (let i = 0; i < 3; i++) {
+        const requestBody: any = {
+          character: character.name,
+          prompt: prompts[i],
+          negative_prompt: generationSettings?.negative_prompt,
+          width: generationSettings?.width,
+          height: generationSettings?.height,
+          steps: generationSettings?.steps,
+          cfg_scale: generationSettings?.cfg_scale,
+          use_default_prompts: false
+        };
+        
+        // Добавляем user_id если пользователь авторизован
+        if (token && userInfo) {
+          requestBody.user_id = userInfo.id;
+        }
+
+        const response = await fetch('/api/v1/generate-image/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || `Ошибка генерации фото ${i + 1}`);
+        }
+
+        const result = await response.json();
+        
+        if (!result.image_url) {
+          throw new Error(`Не удалось получить изображение ${i + 1}`);
+        }
+
+        const newPhoto: GeneratedPhoto = {
+          id: result.image_id || `${Date.now()}-${i}`,
+          url: result.image_url,
+          isSelected: false,
+          isMain: false
+        };
+        
+        newPhotos.push(newPhoto);
       }
-
-      const result = await response.json();
       
-      // Добавляем новое фото в список
-      const newPhoto: GeneratedPhoto = {
-        id: result.photo_id || Date.now().toString(),
-        url: result.photo_url,
-        isSelected: false,
-        isMain: false
-      };
+      setGeneratedPhotos(prev => [...prev, ...newPhotos]);
+      setSuccess('3 фото успешно сгенерированы!');
       
-      setGeneratedPhotos(prev => [...prev, newPhoto]);
-      setSuccess('Фото успешно сгенерировано!');
-      
-      // Обновляем информацию о пользователе
       await checkAuth();
       
     } catch (err) {
+      generationFailed = true;
       setError(err instanceof Error ? err.message : 'Ошибка генерации фото');
+      // Если хотя бы одно фото сгенерировалось, добавляем его
+      if (newPhotos.length > 0) {
+        setGeneratedPhotos(prev => [...prev, ...newPhotos]);
+      }
     } finally {
       setIsGenerating(false);
+      stopFakeProgress(generationFailed);
     }
   };
 
@@ -488,16 +571,25 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({
   // Загрузка существующих фото персонажа
   const loadCharacterPhotos = async () => {
     try {
+      console.log(`Loading photos for character: ${character.name}`);
       const response = await fetch(`/api/v1/characters/${character.name}/photos/`);
+      console.log(`Response status: ${response.status}`);
+      
       if (response.ok) {
         const photos = await response.json();
+        console.log('Loaded photos:', photos);
+        
         const formattedPhotos: GeneratedPhoto[] = photos.map((photo: any, index: number) => ({
           id: photo.id || index.toString(),
           url: photo.url,
           isSelected: false,
           isMain: photo.is_main || false
         }));
+        
+        console.log('Formatted photos:', formattedPhotos);
         setGeneratedPhotos(formattedPhotos);
+      } else {
+        console.error('Failed to load photos:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Error loading character photos:', error);
@@ -518,56 +610,64 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({
   useEffect(() => {
     checkAuth();
     loadCharacterPhotos();
+    loadGenerationSettings();
   }, []);
+
+useEffect(() => {
+  return () => {
+    if (fakeProgressIntervalRef.current) {
+      clearInterval(fakeProgressIntervalRef.current);
+      fakeProgressIntervalRef.current = null;
+    }
+    if (fakeProgressTimeoutRef.current) {
+      clearTimeout(fakeProgressTimeoutRef.current);
+      fakeProgressTimeoutRef.current = null;
+    }
+  };
+}, []);
+
 
   if (!isAuthenticated) {
     return (
       <MainContainer>
-        <CompactSidebar 
-          onCreateCharacter={onCreateCharacter}
-          onShop={onShop}
-          onMyCharacters={onBackToMain}
-        />
-        <ContentArea>
-          <Header>
-            <Title>Генерация фото персонажа</Title>
-            <RightSection>
-              <AuthButton onClick={() => window.location.href = '/auth/login'}>
-                Войти
-              </AuthButton>
-            </RightSection>
-          </Header>
+        <div className="content-area vertical">
+          <GlobalHeader 
+            onShop={onShop}
+            leftContent={<Title>Генерация фото персонажа</Title>}
+          />
           <MainContent>
             <div style={{ textAlign: 'center', padding: '2rem' }}>
               <p>Необходимо войти в систему для генерации фото персонажа</p>
             </div>
           </MainContent>
-        </ContentArea>
+        </div>
       </MainContainer>
     );
   }
 
   return (
     <MainContainer>
-      <CompactSidebar 
-        onCreateCharacter={onCreateCharacter}
-        onShop={onShop}
-        onMyCharacters={onBackToMain}
-      />
       
-      <ContentArea>
-        <Header>
-          <Title>Генерация фото персонажа</Title>
-          <RightSection>
-            {userInfo && (
-              <UserInfo>
-                <UserName>{userInfo.username}</UserName>
-                <UserCoins>💰 {userInfo.coins}</UserCoins>
-              </UserInfo>
-            )}
-            <AuthButton onClick={handleLogout}>Выйти</AuthButton>
-          </RightSection>
-        </Header>
+      <div className="content-area vertical">
+        <GlobalHeader 
+          onShop={onShop}
+          onLogin={() => {
+            setAuthMode('login');
+            setIsAuthModalOpen(true);
+          }}
+          onRegister={() => {
+            setAuthMode('register');
+            setIsAuthModalOpen(true);
+          }}
+          onLogout={() => {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('refreshToken');
+            window.location.reload();
+          }}
+          onProfile={onProfile}
+          onBalance={() => alert('Баланс пользователя')}
+          leftContent={<Title>Генерация фото персонажа</Title>}
+        />
         
         <MainContent>
           <CharacterInfo>
@@ -576,7 +676,7 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({
           </CharacterInfo>
 
           <GenerationSection>
-            <SectionTitle>Генерация фото (30 монет за фото)</SectionTitle>
+            <SectionTitle>Генерация 3 фото для карточки персонажа (90 монет - 30 за каждое фото)</SectionTitle>
             
             <PromptSection>
               <PromptContainer>
@@ -590,18 +690,18 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({
               </PromptContainer>
               
               <GenerateSection>
-                <Button 
-                  onClick={generatePhoto} 
-                  disabled={isGenerating || !userInfo || userInfo.coins < 30}
-                >
-                  {isGenerating ? (
-                    <>
-                      <LoadingSpinner /> Генерация...
-                    </>
-                  ) : (
-                    'Сгенерировать фото'
-                  )}
-                </Button>
+              <Button 
+                onClick={generatePhoto} 
+                disabled={isGenerating || !userInfo || userInfo.coins < 90}
+              >
+                {isGenerating ? (
+                  <>
+                    <LoadingSpinner size="sm" /> Генерация 3 фото... {fakeProgress}%
+                  </>
+                ) : (
+                  'Сгенерировать'
+                )}
+              </Button>
               </GenerateSection>
             </PromptSection>
 
@@ -620,7 +720,14 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({
                       isMain={photo.isMain}
                       onClick={() => togglePhotoSelection(photo.id)}
                     >
-                      <PhotoImage src={photo.url} alt="Generated photo" />
+                      <PhotoImage 
+                        src={photo.url} 
+                        alt="Generated photo" 
+                        onError={(e) => {
+                          console.error('Error loading image:', photo.url);
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
                       <PhotoActions>
                         <PhotoStatus isMain={photo.isMain}>
                           {photo.isMain ? 'Главное фото' : 'Дополнительное'}
@@ -655,7 +762,29 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({
             )}
           </GenerationSection>
         </MainContent>
-      </ContentArea>
+      </div>
+
+      {isAuthModalOpen && (
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          mode={authMode}
+          onModeChange={setAuthMode}
+          onClose={() => {
+            setIsAuthModalOpen(false);
+            setAuthMode('login');
+          }}
+          onAuthSuccess={({ accessToken, refreshToken }) => {
+            localStorage.setItem('authToken', accessToken);
+            if (refreshToken) {
+              localStorage.setItem('refreshToken', refreshToken);
+            }
+            setIsAuthenticated(true);
+            setIsAuthModalOpen(false);
+            setAuthMode('login');
+            window.location.reload();
+          }}
+        />
+      )}
     </MainContainer>
   );
 };

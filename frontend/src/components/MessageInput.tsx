@@ -1,16 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
+import Dock from './Dock';
+import type { DockItemData } from './Dock';
+import { FiSend, FiImage, FiX } from 'react-icons/fi';
 
 const InputContainer = styled.div`
   padding: ${theme.spacing.lg};
-  background: ${theme.colors.gradients.card};
-  border-top: 1px solid ${theme.colors.border.accent};
+  background: rgba(30, 30, 30, 0.8);
+  border-top: 1px solid rgba(150, 150, 150, 0.3);
   position: relative;
 `;
 
 const InputWrapper = styled.div`
   display: flex;
+  flex-direction: row;
   gap: ${theme.spacing.md};
   align-items: flex-end;
   max-width: 100%;
@@ -21,88 +25,28 @@ const TextArea = styled.textarea<{ $isDisabled: boolean }>`
   min-height: 50px;
   max-height: 120px;
   padding: ${theme.spacing.md};
-  background: ${theme.colors.background.secondary};
-  border: 2px solid ${theme.colors.border.primary};
+  background: rgba(40, 40, 40, 0.5);
+  border: 2px solid rgba(150, 150, 150, 0.3);
   border-radius: ${theme.borderRadius.lg};
-  color: ${theme.colors.text.primary};
+  color: rgba(240, 240, 240, 1);
   font-size: ${theme.fontSize.base};
   font-family: inherit;
   resize: none;
-  transition: ${theme.transition.fast};
+  transition: all 0.3s ease;
   opacity: ${props => props.$isDisabled ? 0.6 : 1};
   
   &:focus {
-    border-color: ${theme.colors.accent.primary};
-    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+    border-color: rgba(180, 180, 180, 0.5);
+    box-shadow: 0 0 0 3px rgba(100, 100, 100, 0.1);
     outline: none;
   }
   
   &::placeholder {
-    color: ${theme.colors.text.muted};
+    color: rgba(160, 160, 160, 1);
   }
   
   &:disabled {
     cursor: not-allowed;
-  }
-`;
-
-const ButtonGroup = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${theme.spacing.sm};
-`;
-
-const SendButton = styled.button<{ $isDisabled: boolean }>`
-  padding: ${theme.spacing.md} ${theme.spacing.lg};
-  background: ${props => props.$isDisabled 
-    ? theme.colors.background.tertiary 
-    : theme.colors.gradients.button
-  };
-  color: ${theme.colors.text.primary};
-  border: none;
-  border-radius: ${theme.borderRadius.lg};
-  font-weight: 600;
-  font-size: ${theme.fontSize.base};
-  cursor: ${props => props.$isDisabled ? 'not-allowed' : 'pointer'};
-  transition: ${theme.transition.fast};
-  opacity: ${props => props.$isDisabled ? 0.6 : 1};
-  
-  &:hover:not(:disabled) {
-    background: ${theme.colors.gradients.buttonHover};
-    box-shadow: ${theme.colors.shadow.button};
-    transform: translateY(-2px);
-  }
-  
-  &:active:not(:disabled) {
-    transform: translateY(0);
-  }
-`;
-
-const ImageButton = styled.button<{ $isDisabled: boolean }>`
-  padding: ${theme.spacing.md};
-  background: ${props => props.$isDisabled 
-    ? theme.colors.background.tertiary 
-    : theme.colors.gradients.card
-  };
-  color: ${theme.colors.text.primary};
-  border: 2px solid ${props => props.$isDisabled 
-    ? theme.colors.border.primary 
-    : theme.colors.border.accent
-  };
-  border-radius: ${theme.borderRadius.lg};
-  font-size: ${theme.fontSize.lg};
-  cursor: ${props => props.$isDisabled ? 'not-allowed' : 'pointer'};
-  transition: ${theme.transition.fast};
-  opacity: ${props => props.$isDisabled ? 0.6 : 1};
-  
-  &:hover:not(:disabled) {
-    border-color: ${theme.colors.accent.primary};
-    background: ${theme.colors.background.tertiary};
-    transform: translateY(-2px);
-  }
-  
-  &:active:not(:disabled) {
-    transform: translateY(0);
   }
 `;
 
@@ -111,25 +55,42 @@ const CharacterIndicator = styled.div`
   top: ${theme.spacing.sm};
   left: ${theme.spacing.lg};
   font-size: ${theme.fontSize.sm};
-  color: ${theme.colors.text.muted};
-  background: ${theme.colors.background.secondary};
+  color: rgba(160, 160, 160, 1);
+  background: rgba(40, 40, 40, 0.5);
   padding: ${theme.spacing.xs} ${theme.spacing.sm};
   border-radius: ${theme.borderRadius.md};
-  border: 1px solid ${theme.colors.border.primary};
+  border: 1px solid rgba(150, 150, 150, 0.3);
+`;
+
+const DockWrapper = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: ${theme.spacing.sm} 0;
+  background: transparent !important;
+  opacity: 1;
 `;
 
 interface MessageInputProps {
   onSendMessage: (message: string) => void;
+  onGenerateImage?: (message: string) => void;
+  onClearChat?: () => void;
+  onTipCreator?: () => void;
   disabled?: boolean;
   placeholder?: string;
   currentCharacter?: string;
+  hasMessages?: boolean;
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
   onSendMessage,
+  onGenerateImage,
+  onClearChat,
+  onTipCreator,
   disabled = false,
   placeholder = "Введите сообщение...",
-  currentCharacter = "Anna"
+  currentCharacter = "Anna",
+  hasMessages = false
 }) => {
   const [message, setMessage] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -157,12 +118,51 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   };
 
-  const handleImageGeneration = () => {
+  const handleSend = () => {
     if (message.trim() && !disabled) {
-      // Здесь можно добавить специальную логику для генерации изображений
-      onSendMessage(`Генерирую изображение: ${message.trim()}`);
+      onSendMessage(message.trim());
+      setMessage('');
     }
   };
+
+  const handleImageGeneration = () => {
+    if (message.trim() && !disabled && onGenerateImage) {
+      onGenerateImage(message.trim());
+    }
+  };
+
+  const handleClear = () => {
+    if (onClearChat && hasMessages) {
+      onClearChat();
+    }
+  };
+
+  const dockItems: DockItemData[] = [
+    {
+      icon: <FiSend size={20} />,
+      label: 'Отправить',
+      onClick: handleSend,
+      className: disabled || !message.trim() ? 'disabled' : ''
+    },
+    {
+      icon: <FiImage size={20} />,
+      label: 'Генерировать изображение',
+      onClick: handleImageGeneration,
+      className: disabled || !message.trim() || !onGenerateImage ? 'disabled' : ''
+    },
+    ...(onClearChat && hasMessages ? [{
+      icon: <FiX size={20} />,
+      label: 'Очистить чат',
+      onClick: handleClear,
+      className: ''
+    }] : []),
+    ...(onTipCreator ? [{
+      icon: <span style={{ fontSize: '20px' }}>💝</span>,
+      label: 'Поблагодарить создателя',
+      onClick: onTipCreator,
+      className: ''
+    }] : [])
+  ];
 
   return (
     <InputContainer>
@@ -183,25 +183,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             rows={1}
           />
           
-          <ButtonGroup>
-            <SendButton
-              type="submit"
-              disabled={disabled || !message.trim()}
-              $isDisabled={disabled || !message.trim()}
-            >
-              Отправить
-            </SendButton>
-            
-            <ImageButton
-              type="button"
-              onClick={handleImageGeneration}
-              disabled={disabled || !message.trim()}
-              $isDisabled={disabled || !message.trim()}
-              title="Генерировать изображение"
-            >
-              IMG
-            </ImageButton>
-          </ButtonGroup>
+          <DockWrapper>
+            <Dock 
+              items={dockItems}
+              baseItemSize={48}
+              magnification={56}
+              distance={150}
+              panelHeight={60}
+              dockHeight={80}
+            />
+          </DockWrapper>
         </InputWrapper>
       </form>
     </InputContainer>

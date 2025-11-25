@@ -2,8 +2,10 @@
 Сервис для работы с подписками пользователей.
 """
 
+import logging
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload
@@ -11,6 +13,39 @@ from sqlalchemy.orm import selectinload
 from app.models.subscription import UserSubscription, SubscriptionType, SubscriptionStatus
 from app.models.user import Users
 from app.schemas.subscription import SubscriptionStatsResponse, SubscriptionInfoResponse
+from app.services.profit_activate import emit_profile_update
+from app.utils.redis_cache import (
+    cache_get, cache_set, cache_delete,
+    key_subscription, key_subscription_stats,
+    TTL_SUBSCRIPTION, TTL_SUBSCRIPTION_STATS
+)
+
+logger = logging.getLogger(__name__)
+
+
+FREE_ALIASES = {"free", "base"}
+
+
+def _normalize_subscription_type(subscription_type: str | SubscriptionType) -> SubscriptionType:
+    if isinstance(subscription_type, SubscriptionType):
+        if subscription_type == SubscriptionType.PRO:
+            raise ValueError("Тариф Pro временно недоступен.")
+        if subscription_type == SubscriptionType.FREE:
+            return SubscriptionType.FREE
+        return subscription_type
+
+    if isinstance(subscription_type, str):
+        try:
+            normalized = subscription_type.strip().lower()
+            if normalized in FREE_ALIASES:
+                return SubscriptionType.FREE
+            if normalized == "pro":
+                raise ValueError("Тариф Pro временно недоступен.")
+            return SubscriptionType(normalized)
+        except ValueError as exc:
+            raise ValueError(f"Неподдерживаемый тип подписки: {subscription_type}") from exc
+
+    raise ValueError(f"Некорректное значение типа подписки: {subscription_type}")
 
 
 class SubscriptionService:
@@ -20,27 +55,54 @@ class SubscriptionService:
         self.db = db
     
     async def get_user_subscription(self, user_id: int) -> Optional[UserSubscription]:
-        """Получает подписку пользователя."""
+        """Получает подписку пользователя с кэшированием."""
+        cache_key = key_subscription(user_id)
+        
+        # Пытаемся получить из кэша
+        cached_data = await cache_get(cache_key)
+        if cached_data is not None:
+            cached_id = cached_data.get("id")
+            if cached_id is None:
+                return None
+            subscription = await self.db.get(UserSubscription, cached_id)
+            if subscription:
+                return subscription
+        
+        # Если нет в кэше, загружаем из БД
         query = select(UserSubscription).where(UserSubscription.user_id == user_id)
         result = await self.db.execute(query)
-        return result.scalar_one_or_none()
+        subscription = result.scalar_one_or_none()
+        
+        # Сохраняем в кэш
+        if subscription:
+            await cache_set(cache_key, subscription.to_dict(), ttl_seconds=TTL_SUBSCRIPTION)
+        else:
+            await cache_set(cache_key, {"id": None}, ttl_seconds=TTL_SUBSCRIPTION)
+        
+        return subscription
     
     async def create_subscription(self, user_id: int, subscription_type: str) -> UserSubscription:
         """Создает подписку для пользователя."""
         print(f"🔍 DEBUG: Создание подписки для пользователя {user_id}, тип: {subscription_type}")
-        
-        # Определяем параметры подписки
-        if subscription_type.lower() == "base":
+
+        normalized_enum = _normalize_subscription_type(subscription_type)
+        normalized_type = normalized_enum.value
+        print(f"🔍 DEBUG: Нормализованный тип подписки: {normalized_type}")
+
+        if normalized_enum == SubscriptionType.FREE:
+            existing_subscription = await self.get_user_subscription(user_id)
+            if existing_subscription:
+                raise ValueError("Бесплатная подписка доступна только при регистрации и не может быть активирована повторно.")
             monthly_credits = 100
             monthly_photos = 10
             max_message_length = 100
-        elif subscription_type.lower() == "standard":
-            monthly_credits = 2000
-            monthly_photos = 0  # Убираем генерации фото
+        elif normalized_enum == SubscriptionType.STANDARD:
+            monthly_credits = 1000
+            monthly_photos = 100
             max_message_length = 200
-        elif subscription_type.lower() == "premium":
-            monthly_credits = 6000
-            monthly_photos = 50  # Добавляем генерации фото для Premium
+        elif normalized_enum == SubscriptionType.PREMIUM:
+            monthly_credits = 5000
+            monthly_photos = 300
             max_message_length = 300
         else:
             print(f"[ERROR] DEBUG: Неподдерживаемый тип подписки: {subscription_type}")
@@ -54,35 +116,54 @@ class SubscriptionService:
             print(f"🔍 DEBUG: Найдена существующая подписка: {existing_subscription.subscription_type.value}, активна: {existing_subscription.is_active}")
             
             # Если подписка активна и того же типа, возвращаем её
-            if existing_subscription.is_active and existing_subscription.subscription_type.value == subscription_type.lower():
+            if existing_subscription.is_active and existing_subscription.subscription_type == normalized_enum:
                 print(f"[OK] DEBUG: Подписка того же типа уже активна, возвращаем существующую")
                 return existing_subscription
             
-            # Обновляем существующую подписку (независимо от статуса)
-            print(f"🔄 DEBUG: Обновляем существующую подписку на {subscription_type}")
-            existing_subscription.subscription_type = SubscriptionType(subscription_type.lower())
+            # БЕЗОПАСНОСТЬ: Сохраняем остатки перед обновлением
+            old_credits_remaining = existing_subscription.credits_remaining
+            old_photos_remaining = existing_subscription.photos_remaining
+            
+            print(f"🔄 DEBUG: Обновляем подписку {existing_subscription.subscription_type.value} -> {subscription_type}")
+            print(f"💰 DEBUG: Сохраняем остатки: кредиты={old_credits_remaining}, фото={old_photos_remaining}")
+            
+            # Обновляем существующую подписку
+            existing_subscription.subscription_type = normalized_enum
             existing_subscription.status = SubscriptionStatus.ACTIVE
             existing_subscription.monthly_credits = monthly_credits
-            existing_subscription.monthly_photos = monthly_photos
+            
+            # ФОТО: СУММИРУЕМ старые остатки с новым лимитом
+            total_photos_available = monthly_photos + old_photos_remaining
+            existing_subscription.monthly_photos = total_photos_available
+            
             existing_subscription.max_message_length = max_message_length
-            existing_subscription.used_credits = 0
-            existing_subscription.used_photos = 0
+            existing_subscription.used_credits = 0  # Сбрасываем, т.к. остатки идут на баланс
+            existing_subscription.used_photos = 0  # Сбрасываем, получаем полный новый лимит + остатки
             existing_subscription.activated_at = datetime.utcnow()
             existing_subscription.expires_at = datetime.utcnow() + timedelta(days=30)
             existing_subscription.last_reset_at = datetime.utcnow()
             
             await self.db.commit()
-            await self.db.refresh(existing_subscription)
             
-            # Переводим средства на баланс пользователя
-            await self.add_credits_to_user_balance(user_id, monthly_credits)
+            # Инвалидируем кэш подписки
+            await cache_delete(key_subscription(user_id))
+            await cache_delete(key_subscription_stats(user_id))
+            
+            # БЕЗОПАСНОСТЬ: Переводим на баланс новые кредиты + старые остатки
+            total_credits_to_add = monthly_credits + old_credits_remaining
+            await self.add_credits_to_user_balance(user_id, total_credits_to_add)
+            
+            total_photos_available = monthly_photos + old_photos_remaining
+            
+            print(f"✅ [CREDITS] Переведено на баланс: {monthly_credits} (новая) + {old_credits_remaining} (остаток) = {total_credits_to_add}")
+            print(f"✅ [PHOTOS] Суммировано фото: {monthly_photos} (новая) + {old_photos_remaining} (остаток) = {total_photos_available}")
             
             return existing_subscription
         
         # Создаем новую подписку
         subscription = UserSubscription(
             user_id=user_id,
-            subscription_type=SubscriptionType(subscription_type.lower()),
+            subscription_type=normalized_enum,
             status=SubscriptionStatus.ACTIVE,
             monthly_credits=monthly_credits,
             monthly_photos=monthly_photos,
@@ -96,7 +177,10 @@ class SubscriptionService:
         
         self.db.add(subscription)
         await self.db.commit()
-        await self.db.refresh(subscription)
+        
+        # Инвалидируем кэш подписки
+        await cache_delete(key_subscription(user_id))
+        await cache_delete(key_subscription_stats(user_id))
         
         # Переводим средства на баланс пользователя
         await self.add_credits_to_user_balance(user_id, monthly_credits)
@@ -104,7 +188,7 @@ class SubscriptionService:
         return subscription
     
     async def add_credits_to_user_balance(self, user_id: int, credits: int) -> bool:
-        """Добавляет кредиты на баланс пользователя."""
+        """Добавляет кредиты на баланс пользователя с логированием для безопасности."""
         try:
             # Получаем пользователя
             user_query = select(Users).where(Users.id == user_id)
@@ -112,24 +196,45 @@ class SubscriptionService:
             user = result.scalar_one_or_none()
             
             if not user:
+                print(f"[ERROR] Пользователь {user_id} не найден!")
                 return False
+            
+            # БЕЗОПАСНОСТЬ: Логируем ДО изменения баланса
+            old_balance = user.coins
+            print(f"💰 [CREDITS ADD] Пользователь {user_id}: баланс ДО = {old_balance}")
+            print(f"💰 [CREDITS ADD] Добавляем: {credits} кредитов")
             
             # Обновляем баланс пользователя
             user.coins += credits
-            await self.db.commit()
-            await self.db.refresh(user)
             
+            # БЕЗОПАСНОСТЬ: Логируем ПОСЛЕ изменения баланса
+            print(f"💰 [CREDITS ADD] Баланс ПОСЛЕ = {user.coins} ({old_balance} + {credits})")
+            
+            await self.db.commit()
+            # БЕЗОПАСНОСТЬ: Финальная проверка
+            print(f"✅ [CREDITS ADD] Транзакция завершена! Финальный баланс: {user.coins}")
+            
+            await emit_profile_update(user_id, self.db)
             return True
         except Exception as e:
-            print(f"Ошибка добавления кредитов на баланс: {e}")
+            print(f"[ERROR] ❌ Ошибка добавления кредитов на баланс: {e}")
+            await self.db.rollback()
             return False
     
-    async def create_base_subscription(self, user_id: int) -> UserSubscription:
-        """Создает базовую подписку для пользователя (для обратной совместимости)."""
-        return await self.create_subscription(user_id, "base")
+    async def create_free_subscription(self, user_id: int) -> UserSubscription:
+        """Создает бесплатную подписку для пользователя."""
+        return await self.create_subscription(user_id, "free")
     
     async def get_subscription_stats(self, user_id: int) -> Dict[str, Any]:
-        """Получает статистику подписки пользователя."""
+        """Получает статистику подписки пользователя с кэшированием."""
+        cache_key = key_subscription_stats(user_id)
+        
+        # Пытаемся получить из кэша
+        cached_stats = await cache_get(cache_key)
+        if cached_stats is not None:
+            return cached_stats
+        
+        # Если нет в кэше, загружаем из БД
         subscription = await self.get_user_subscription(user_id)
         
         if not subscription:
@@ -154,8 +259,11 @@ class SubscriptionService:
             subscription.reset_monthly_limits()
             await self.db.commit()
             await self.db.refresh(subscription)
+            # Инвалидируем кэш при сбросе лимитов
+            await cache_delete(key_subscription(user_id))
+            await cache_delete(cache_key)
         
-        return {
+        stats = {
             "subscription_type": subscription.subscription_type.value,
             "status": subscription.status.value,
             "monthly_credits": subscription.monthly_credits,
@@ -166,9 +274,14 @@ class SubscriptionService:
             "photos_remaining": subscription.photos_remaining,
             "days_left": subscription.days_until_expiry,
             "is_active": subscription.is_active,
-            "expires_at": subscription.expires_at,
-            "last_reset_at": subscription.last_reset_at
+            "expires_at": subscription.expires_at.isoformat() if subscription.expires_at else None,
+            "last_reset_at": subscription.last_reset_at.isoformat() if subscription.last_reset_at else None
         }
+        
+        # Сохраняем в кэш
+        await cache_set(cache_key, stats, ttl_seconds=TTL_SUBSCRIPTION_STATS)
+        
+        return stats
     
     async def can_user_send_message(self, user_id: int, message_length: int = 0) -> bool:
         """Проверяет, может ли пользователь отправить сообщение."""
@@ -220,6 +333,9 @@ class SubscriptionService:
         if success:
             await self.db.commit()
             await self.db.refresh(subscription)
+            # Инвалидируем кэш подписки
+            await cache_delete(key_subscription(user_id))
+            await cache_delete(key_subscription_stats(user_id))
         
         return success
     
@@ -239,6 +355,9 @@ class SubscriptionService:
         if success:
             await self.db.commit()
             await self.db.refresh(subscription)
+            # Инвалидируем кэш подписки
+            await cache_delete(key_subscription(user_id))
+            await cache_delete(key_subscription_stats(user_id))
         
         return success
     

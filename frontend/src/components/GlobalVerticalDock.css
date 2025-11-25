@@ -1,0 +1,88 @@
+/* Стили для вертикальной панели Dock */
+.vertical-dock-panel.global-vertical-dock {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  height: 100vh;
+  width: 80px;
+  gap: 0.75rem;
+  border-radius: 1rem;
+  background-color: #060010;
+  border: 1px solid #222;
+  padding: 0.4rem;
+  margin-right: 1rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.vertical-dock-panel.global-vertical-dock .dock-panel {
+  flex-direction: column;
+  width: 100%;
+  height: auto;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  gap: 0.75rem;
+}
+
+.vertical-dock-panel.global-vertical-dock .dock-item {
+  width: 50px;
+  height: 50px;
+  border-radius: 10px;
+  background-color: rgba(6, 0, 16, 0.9);
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s ease-out;
+  will-change: transform;
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.vertical-dock-panel.global-vertical-dock .dock-item:hover {
+  transform: translateY(-8px) scale(1.05);
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.25), rgba(139, 92, 246, 0.25));
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.25);
+}
+
+.vertical-dock-panel.global-vertical-dock .dock-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.vertical-dock-panel.global-vertical-dock .dock-icon svg {
+  color: white;
+  fill: white;
+  stroke: white;
+}
+
+.vertical-dock-panel.global-vertical-dock .dock-label {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%) translateX(10px);
+  margin-left: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  background-color: rgba(0, 0, 0, 0.9);
+  color: white;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.2s ease;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.vertical-dock-panel.global-vertical-dock .dock-item:hover .dock-label {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+

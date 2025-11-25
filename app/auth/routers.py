@@ -3,15 +3,28 @@
 """
 
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, HTTPException, Request, Depends
-from sqlalchemy import select
+from fastapi import APIRouter, HTTPException, Request, Depends, UploadFile, File
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+import traceback
+import os
+from pathlib import Path
+import uuid
+import shutil
+import asyncio
 from app.schemas.auth import (
     UserCreate, UserLogin, UserResponse, 
-    TokenResponse, RefreshTokenRequest, Message
+    TokenResponse, RefreshTokenRequest, Message,
+    TipCreatorRequest, TipCreatorResponse, SetUsernameRequest,
+    UpdateUsernameRequest, RequestEmailChangeRequest, ConfirmEmailChangeRequest,
+    RequestPasswordChangeRequest, VerifyPasswordChangeCodeRequest, ConfirmPasswordChangeRequest,
+    UserPhotoResponse, UserGalleryResponse, AddPhotoToGalleryRequest, UnlockUserGalleryRequest
 )
 from app.database.db_depends import get_db
 from app.models.user import Users, RefreshToken, EmailVerificationCode
+from app.models.chat_history import ChatHistory
+from app.models.user_gallery import UserGallery
+from app.models.user_gallery_unlock import UserGalleryUnlock
 from app.auth.utils import (
     hash_password, verify_password, hash_token, 
     create_refresh_token, get_token_expiry, generate_verification_code, send_verification_email
@@ -19,16 +32,20 @@ from app.auth.utils import (
 from app.auth.rate_limiter import get_rate_limiter, RateLimiter
 from app.auth.dependencies import get_current_user
 from app.services.subscription_service import SubscriptionService
+from app.services.profit_activate import emit_profile_update
 import jwt
 import os
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 auth_router = APIRouter()
 
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-REFRESH_TOKEN_EXPIRE_DAYS = 7
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 часа
+REFRESH_TOKEN_EXPIRE_DAYS = 30  # Увеличиваем до 30 дней
 
 
 def create_jwt_token(data: dict, expires_delta: timedelta) -> str:
@@ -40,15 +57,16 @@ def create_jwt_token(data: dict, expires_delta: timedelta) -> str:
     return encoded_jwt
 
 
-async def activate_base_subscription(user_id: int, db: AsyncSession) -> None:
-    """Активирует подписку Base для нового пользователя."""
+async def activate_free_subscription(user_id: int, db: AsyncSession) -> None:
+    """Активирует бесплатную подписку Free для нового пользователя."""
     try:
-        print(f"[DEBUG] Активация подписки Base для пользователя {user_id}")
+        print(f"[DEBUG] Активация бесплатной подписки Free для пользователя {user_id}")
         subscription_service = SubscriptionService(db)
-        await subscription_service.create_subscription(user_id, "base")
-        print(f"[OK] Подписка Base успешно активирована для пользователя {user_id}")
+        await subscription_service.create_subscription(user_id, "free")
+        print(f"[OK] Подписка Free успешно активирована для пользователя {user_id}")
     except Exception as e:
-        print(f"[ERROR] Ошибка активации подписки Base для пользователя {user_id}: {e}")
+        print(f"[ERROR] Ошибка активации подписки Free для пользователя {user_id}: {e}")
+        await db.rollback()
         # Не прерываем регистрацию из-за ошибки подписки
 
 
@@ -75,12 +93,22 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
             detail="Email already registered"
         )
     
+    # Check if username already exists
+    username_result = await db.execute(select(Users).filter(Users.username == user.username))
+    existing_username = username_result.scalar_one_or_none()
+    if existing_username:
+        raise HTTPException(
+            status_code=400,
+            detail="Username already taken"
+        )
+    
     # Hash password
     hashed_password = hash_password(user.password)
     
     # Create new user
     db_user = Users(
         email=user.email,
+        username=user.username,
         password_hash=hashed_password,
         is_active=True,
         is_verified=False
@@ -90,8 +118,8 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(db_user)
     
-    # Активируем подписку Base для нового пользователя
-    await activate_base_subscription(db_user.id, db)
+    # Активируем бесплатную подписку Free для нового пользователя
+    await activate_free_subscription(db_user.id, db)
     
     # Generate verification code
     verification_code = generate_verification_code()
@@ -101,7 +129,8 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
     verification = EmailVerificationCode(
         user_id=db_user.id,
         code=verification_code,
-        expires_at=expires_at
+        expires_at=expires_at,
+        code_type="email_verification"
     )
     db.add(verification)
     await db.commit()
@@ -114,6 +143,8 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
     return UserResponse(
         id=db_user.id,
         email=db_user.email,
+        username=db_user.username,
+        avatar_url=db_user.avatar_url,
         is_active=db_user.is_active,
         created_at=db_user.created_at
     )
@@ -158,11 +189,18 @@ async def login_user(
             detail="Inactive user"
         )
     
+    if not user.is_verified and not user_credentials.verification_code:
+        raise HTTPException(
+            status_code=400,
+            detail="Подтвердите email: проверьте почту и введите код из письма"
+        )
+    
     # Check verification code if provided
     if user_credentials.verification_code:
         result = await db.execute(select(EmailVerificationCode).filter(
             EmailVerificationCode.user_id == user.id,
             EmailVerificationCode.code == user_credentials.verification_code,
+            EmailVerificationCode.code_type == "email_verification",
             EmailVerificationCode.is_used == False,
             EmailVerificationCode.expires_at > datetime.now(timezone.utc).replace(tzinfo=None)
         ))
@@ -199,14 +237,14 @@ async def login_user(
     db.add(db_refresh_token)
     await db.commit()
     
-    # Проверяем и активируем подписку Base, если её нет
+    # Проверяем и активируем бесплатную подписку Free, если её нет
     try:
         subscription_service = SubscriptionService(db)
         existing_subscription = await subscription_service.get_user_subscription(user.id)
         if not existing_subscription:
-            print(f"[DEBUG] У пользователя {user.email} нет подписки, активируем Base")
-            await subscription_service.create_subscription(user.id, "base")
-            print(f"[OK] Подписка Base активирована для пользователя {user.email}")
+            print(f"[DEBUG] У пользователя {user.email} нет подписки, активируем Free")
+            await subscription_service.create_subscription(user.id, "free")
+            print(f"[OK] Подписка Free активирована для пользователя {user.email}")
     except Exception as e:
         print(f"[ERROR] Ошибка проверки/активации подписки для пользователя {user.email}: {e}")
     
@@ -362,6 +400,8 @@ async def get_current_user_info(
         return UserResponse(
             id=current_user.id,
             email=current_user.email,
+            username=current_user.username,
+            avatar_url=current_user.avatar_url,
             is_active=current_user.is_active,
             is_admin=current_user.is_admin if current_user.is_admin is not None else False,
             coins=current_user.coins,
@@ -373,6 +413,8 @@ async def get_current_user_info(
         return UserResponse(
             id=current_user.id,
             email=current_user.email,
+            username=current_user.username,
+            avatar_url=current_user.avatar_url,
             is_active=current_user.is_active,
             is_admin=current_user.is_admin if current_user.is_admin is not None else False,
             coins=current_user.coins,
@@ -400,6 +442,7 @@ async def add_coins(
     current_user.coins += amount
     await db.commit()
     await db.refresh(current_user)
+    await emit_profile_update(current_user.id, db)
     
     return {"coins": current_user.coins, "added": amount}
 
@@ -420,5 +463,1024 @@ async def spend_coins(
     current_user.coins -= amount
     await db.commit()
     await db.refresh(current_user)
+    await emit_profile_update(current_user.id, db)
     
     return {"coins": current_user.coins, "spent": amount}
+
+
+@auth_router.post("/auth/coins/tip-creator/", response_model=TipCreatorResponse)
+async def tip_character_creator(
+    tip_request: TipCreatorRequest,
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Поблагодарить создателя персонажа, отправив ему кредиты.
+    
+    Проверки безопасности:
+    - Нельзя отправить кредиты себе
+    - Проверка баланса отправителя
+    - Лимит на количество кредитов (1-1000)
+    - Проверка существования персонажа и его создателя
+    """
+    # Валидация количества
+    if tip_request.amount <= 0:
+        raise HTTPException(status_code=400, detail="Количество кредитов должно быть положительным")
+    
+    if tip_request.amount > 1000:
+        raise HTTPException(status_code=400, detail="Максимум 1000 кредитов за один раз")
+    
+    # Проверка баланса отправителя
+    if current_user.coins < tip_request.amount:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Недостаточно кредитов. У вас: {current_user.coins}, требуется: {tip_request.amount}"
+        )
+    
+    # Найти персонажа
+    from app.chat_bot.models.models import CharacterDB
+    result = await db.execute(
+        select(CharacterDB).where(CharacterDB.name.ilike(tip_request.character_name))
+    )
+    character = result.scalar_one_or_none()
+    
+    if not character:
+        raise HTTPException(status_code=404, detail=f"Персонаж '{tip_request.character_name}' не найден")
+    
+    # Логирование для отладки
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"[DEBUG] Персонаж '{character.name}' имеет user_id: {character.user_id}")
+    
+    # Если персонаж системный (без user_id), кредиты уходят в систему (не возвращаем их)
+    creator = None
+    if character.user_id:
+        # Получить создателя персонажа
+        result = await db.execute(
+            select(Users).where(Users.id == character.user_id)
+        )
+        creator = result.scalar_one_or_none()
+        
+        logger.info(f"[DEBUG] Найден создатель: {creator.email if creator else 'НЕ НАЙДЕН'}")
+        
+        if not creator:
+            raise HTTPException(status_code=404, detail=f"Создатель персонажа не найден (user_id: {character.user_id})")
+        
+        # ЗАЩИТА: Нельзя отправить кредиты себе (кроме админов)
+        is_admin = getattr(current_user, 'is_admin', False)
+        logger.info(f"[DEBUG] Текущий пользователь: {current_user.email} (ID: {current_user.id})")
+        logger.info(f"[DEBUG] Создатель персонажа: {creator.email} (ID: {creator.id})")
+        logger.info(f"[DEBUG] Текущий пользователь admin: {is_admin}")
+        logger.info(f"[DEBUG] Проверка: creator.id ({creator.id}) == current_user.id ({current_user.id}): {creator.id == current_user.id}")
+        
+        if creator.id == current_user.id and not is_admin:
+            logger.warning(f"[BLOCKED] Пользователь {current_user.email} пытается отправить кредиты своему персонажу - ЗАБЛОКИРОВАНО")
+            raise HTTPException(
+                status_code=400, 
+                detail="Вы не можете отправить кредиты своему персонажу"
+            )
+        
+        if creator.id == current_user.id and is_admin:
+            logger.info(f"[DEBUG] Админ {current_user.email} отправляет кредиты себе - разрешено")
+        
+        logger.info(f"[DEBUG] Баланс создателя ДО: {creator.coins}")
+    
+    
+    # Выполнить транзакцию
+    try:
+        logger.info(f"[DEBUG] Баланс отправителя ДО: {current_user.coins}")
+        
+        # Снять кредиты у отправителя
+        current_user.coins -= tip_request.amount
+        logger.info(f"[DEBUG] Баланс отправителя ПОСЛЕ списания: {current_user.coins}")
+        
+        # Если есть создатель - добавить кредиты ему
+        if creator:
+            old_balance = creator.coins
+            creator.coins += tip_request.amount
+            logger.info(f"[DEBUG] Баланс создателя ПОСЛЕ начисления: {creator.coins} (было: {old_balance})")
+        else:
+            logger.info(f"[DEBUG] Системный персонаж - кредиты сгорают")
+        
+        # Сохранить изменения
+        await db.commit()
+        logger.info(f"[DEBUG] Транзакция закоммичена")
+        
+        await db.refresh(current_user)
+        logger.info(f"[DEBUG] current_user обновлен, баланс: {current_user.coins}")
+        
+        if creator:
+            await db.refresh(creator)
+            logger.info(f"[DEBUG] creator обновлен, баланс: {creator.coins}")
+        
+        await emit_profile_update(current_user.id, db)
+        if creator:
+            await emit_profile_update(creator.id, db)
+        
+        if creator:
+            # Проверяем, отправил ли админ кредиты себе
+            is_self_tip = creator.id == current_user.id
+            is_admin = getattr(current_user, 'is_admin', False)
+            
+            if is_self_tip and is_admin:
+                logger.info(
+                    f"[TIP ADMIN] Админ {current_user.email} (ID: {current_user.id}) "
+                    f"отправил себе {tip_request.amount} кредитов "
+                    f"за персонажа '{character.name}'. "
+                    f"Баланс теперь: {creator.coins}"
+                )
+                message = f"[ADMIN] Вы отправили себе {tip_request.amount} кредитов за персонажа '{character.display_name or character.name}'!"
+            else:
+                logger.info(
+                    f"[TIP] Пользователь {current_user.email} (ID: {current_user.id}) "
+                    f"отправил {tip_request.amount} кредитов "
+                    f"создателю {creator.email} (ID: {creator.id}) "
+                    f"за персонажа '{character.name}'. "
+                    f"Баланс создателя теперь: {creator.coins}"
+                )
+                message = f"Вы успешно отправили {tip_request.amount} кредитов создателю персонажа '{character.display_name or character.name}'!"
+        else:
+            logger.info(
+                f"[TIP] Пользователь {current_user.email} (ID: {current_user.id}) "
+                f"отправил {tip_request.amount} кредитов "
+                f"системе за персонажа '{character.name}' (системный персонаж)"
+            )
+            message = f"Спасибо за поддержку! Вы отправили {tip_request.amount} кредитов за персонажа '{character.display_name or character.name}'."
+        
+        return TipCreatorResponse(
+            success=True,
+            message=message,
+            sender_coins_remaining=current_user.coins,
+            receiver_coins_total=creator.coins if creator else 0,
+            creator_email=creator.email if creator else "Системный персонаж"
+        )
+        
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"[ERROR] Ошибка при отправке кредитов: {e}")
+        logger.error(f"[ERROR] Трейсбек: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500, 
+            detail="Произошла ошибка при отправке кредитов. Пожалуйста, попробуйте позже."
+        )
+
+
+@auth_router.post("/auth/avatar/")
+async def upload_avatar(
+    avatar: UploadFile = File(...),
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Загружает аватар пользователя в Yandex Cloud Storage."""
+    logger = logging.getLogger(__name__)
+    
+    # Проверяем тип файла
+    if not avatar.content_type or not avatar.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail="Файл должен быть изображением")
+    
+    try:
+        logger.info(f"[AVATAR] Начало загрузки аватара для пользователя {current_user.id} ({current_user.email})")
+        
+        # Читаем содержимое файла
+        content = await avatar.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="Пустой файл")
+        
+        logger.info(f"[AVATAR] Файл прочитан, размер: {len(content)} байт, тип: {avatar.content_type}")
+        
+        # Генерируем уникальное имя файла
+        file_extension = Path(avatar.filename).suffix if avatar.filename else '.jpg'
+        unique_filename = f"{current_user.id}_{uuid.uuid4().hex}{file_extension}"
+        object_key = f"user_avatars/{unique_filename}"
+        
+        logger.info(f"[AVATAR] Сгенерировано имя файла: {unique_filename}, object_key: {object_key}")
+        
+        # Удаляем старый аватар из облака, если есть
+        old_cloud_url = None
+        if current_user.avatar_url and current_user.avatar_url.startswith('http'):
+            # Если это URL облака, извлекаем object_key и удаляем
+            old_cloud_url = current_user.avatar_url
+            logger.info(f"[AVATAR] Найден старый аватар: {old_cloud_url}")
+            try:
+                from app.services.yandex_storage import get_yandex_storage_service
+                service = get_yandex_storage_service()
+                # Извлекаем object_key из URL
+                # Формат: https://bucket-name.storage.yandexcloud.net/path/to/file
+                if '.storage.yandexcloud.net/' in old_cloud_url:
+                    old_object_key = old_cloud_url.split('.storage.yandexcloud.net/')[-1]
+                    logger.info(f"[AVATAR] Удаление старого аватара из облака: {old_object_key}")
+                    deleted = await service.delete_file(old_object_key)
+                    if deleted:
+                        logger.info(f"[OK] Старый аватар удален из облака: {old_object_key}")
+                    else:
+                        logger.warning(f"[WARNING] Не удалось удалить старый аватар: {old_object_key}")
+            except Exception as e:
+                logger.warning(f"[WARNING] Не удалось удалить старый аватар из облака: {e}")
+        
+        # Загружаем файл в Yandex Cloud Storage
+        logger.info(f"[AVATAR] Начало загрузки в Yandex Cloud Storage...")
+        try:
+            from app.services.yandex_storage import get_yandex_storage_service
+            service = get_yandex_storage_service()
+            cloud_url = await service.upload_file(
+                file_data=content,
+                object_key=object_key,
+                content_type=avatar.content_type or "image/jpeg",
+                metadata={
+                    "user_id": str(current_user.id),
+                    "user_email": current_user.email,
+                    "uploaded_at": datetime.now(timezone.utc).isoformat(),
+                    "source": "user_avatar_upload",
+                },
+            )
+            logger.info(f"[OK] Аватар успешно загружен в облако: {cloud_url}")
+        except Exception as upload_error:
+            logger.error(f"[ERROR] Ошибка загрузки в облако: {upload_error}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Не удалось загрузить файл в облачное хранилище")
+        
+        # Обновляем URL аватара в БД используя UPDATE напрямую
+        logger.info(f"[AVATAR] Обновление URL аватара в БД...")
+        stmt = (
+            update(Users)
+            .where(Users.id == current_user.id)
+            .values(avatar_url=cloud_url)
+        )
+        await db.execute(stmt)
+        await db.commit()
+        logger.info(f"[OK] URL аватара обновлен в БД: {cloud_url}")
+        
+        # Инвалидируем кэш пользователя
+        from app.utils.redis_cache import cache_delete, key_user
+        await cache_delete(key_user(current_user.email))
+        logger.info(f"[OK] Кэш пользователя инвалидирован")
+        
+        # Отправляем обновление профиля через WebSocket
+        try:
+            await emit_profile_update(current_user.id, db)
+            logger.info(f"[OK] Обновление профиля отправлено через WebSocket")
+        except Exception as ws_error:
+            logger.warning(f"[WARNING] Не удалось отправить обновление через WebSocket: {ws_error}")
+        
+        logger.info(f"[OK] Аватар полностью загружен для пользователя {current_user.email}: {cloud_url}")
+        return {
+            "avatar_url": cloud_url,
+            "message": "Аватар успешно загружен"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"[ERROR] Ошибка при загрузке аватара: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Ошибка при загрузке аватара: {str(e)}")
+
+
+@auth_router.post("/auth/set-username/", response_model=UserResponse)
+async def set_username(
+    username_request: SetUsernameRequest,
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Устанавливает username для пользователя (используется после OAuth).
+    
+    Parameters:
+    - username_request: Данные с username.
+    
+    Returns:
+    - UserResponse: Обновленный пользователь.
+    """
+    # Проверяем, что у пользователя еще нет username
+    if current_user.username:
+        raise HTTPException(
+            status_code=400,
+            detail="Username already set"
+        )
+    
+    # Проверяем, не занят ли username
+    username_result = await db.execute(select(Users).filter(Users.username == username_request.username))
+    existing_username = username_result.scalar_one_or_none()
+    if existing_username:
+        raise HTTPException(
+            status_code=400,
+            detail="Username already taken"
+        )
+    
+    # Загружаем пользователя из текущей сессии для обновления
+    from sqlalchemy.orm import selectinload
+    user_result = await db.execute(
+        select(Users)
+        .options(selectinload(Users.subscription))
+        .filter(Users.id == current_user.id)
+    )
+    db_user = user_result.scalar_one_or_none()
+    if not db_user:
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+    
+    # Устанавливаем username
+    db_user.username = username_request.username
+    await db.commit()
+    await db.refresh(db_user)
+    
+    # Инвалидируем кэш пользователя
+    from app.utils.redis_cache import cache_delete, key_user
+    await cache_delete(key_user(db_user.email))
+    
+    # Отправляем обновление профиля через WebSocket
+    try:
+        await emit_profile_update(db_user.id, db)
+    except Exception as ws_error:
+        logger.warning(f"[WARNING] Не удалось отправить обновление через WebSocket: {ws_error}")
+    
+    # Получаем информацию о подписке
+    subscription_info = None
+    if db_user.subscription:
+        subscription_info = {
+            "subscription_type": db_user.subscription.subscription_type.value,
+            "status": db_user.subscription.status.value,
+        }
+    
+    return UserResponse(
+        id=db_user.id,
+        email=db_user.email,
+        username=db_user.username,
+        avatar_url=db_user.avatar_url,
+        is_active=db_user.is_active,
+        created_at=db_user.created_at,
+        subscription=subscription_info
+    )
+
+
+@auth_router.put("/auth/update-username/", response_model=UserResponse)
+async def update_username(
+    username_request: UpdateUsernameRequest,
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Обновляет username пользователя.
+    
+    Parameters:
+    - username_request: Новый username.
+    
+    Returns:
+    - UserResponse: Обновленный пользователь.
+    """
+    # Проверяем, не занят ли username
+    username_result = await db.execute(select(Users).filter(Users.username == username_request.username))
+    existing_username = username_result.scalar_one_or_none()
+    if existing_username and existing_username.id != current_user.id:
+        raise HTTPException(
+            status_code=400,
+            detail="Username already taken"
+        )
+    
+    # Обновляем username
+    await db.execute(
+        update(Users)
+        .where(Users.id == current_user.id)
+        .values(username=username_request.username)
+    )
+    await db.commit()
+    
+    # Перезагружаем пользователя из БД для получения актуальных данных
+    result = await db.execute(select(Users).filter(Users.id == current_user.id))
+    updated_user = result.scalar_one()
+    
+    # Инвалидируем кэш пользователя
+    from app.utils.redis_cache import cache_delete, key_user
+    await cache_delete(key_user(updated_user.email))
+    
+    # Отправляем обновление профиля через WebSocket
+    try:
+        await emit_profile_update(updated_user.id, db)
+    except Exception as ws_error:
+        logger.warning(f"[WARNING] Не удалось отправить обновление через WebSocket: {ws_error}")
+    
+    return UserResponse(
+        id=updated_user.id,
+        email=updated_user.email,
+        username=updated_user.username,
+        avatar_url=updated_user.avatar_url,
+        is_active=updated_user.is_active,
+        created_at=updated_user.created_at
+    )
+
+
+@auth_router.post("/auth/request-email-change/", response_model=Message)
+async def request_email_change(
+    email_request: RequestEmailChangeRequest,
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Запрашивает код верификации для смены email.
+    
+    Parameters:
+    - email_request: Новый email.
+    
+    Returns:
+    - Message: Подтверждение отправки кода.
+    """
+    # Проверяем, не занят ли новый email
+    result = await db.execute(select(Users).filter(Users.email == email_request.new_email))
+    existing_user = result.scalar_one_or_none()
+    if existing_user:
+        raise HTTPException(
+            status_code=400,
+            detail="Email already registered"
+        )
+    
+    # Генерируем код верификации
+    verification_code = generate_verification_code()
+    expires_at = get_token_expiry(days=1)  # Code expires in 1 day
+    
+    # Удаляем старые коды для смены email этого пользователя
+    await db.execute(
+        update(EmailVerificationCode)
+        .where(EmailVerificationCode.user_id == current_user.id)
+        .where(EmailVerificationCode.code_type == "email_change")
+        .values(is_used=True)
+    )
+    
+    # Сохраняем новый код верификации
+    verification = EmailVerificationCode(
+        user_id=current_user.id,
+        code=verification_code,
+        expires_at=expires_at,
+        code_type="email_change",
+        extra_data={"new_email": email_request.new_email}
+    )
+    db.add(verification)
+    await db.commit()
+    
+    # Отправляем код на новый email
+    await send_verification_email(email_request.new_email, verification_code)
+    
+    return Message(message="Verification code sent to new email")
+
+
+@auth_router.post("/auth/confirm-email-change/", response_model=UserResponse)
+async def confirm_email_change(
+    confirm_request: ConfirmEmailChangeRequest,
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Подтверждает смену email с помощью кода верификации.
+    
+    Parameters:
+    - confirm_request: Новый email и код верификации.
+    
+    Returns:
+    - UserResponse: Обновленный пользователь.
+    """
+    # Проверяем код верификации
+    result = await db.execute(
+        select(EmailVerificationCode)
+        .filter(
+            EmailVerificationCode.user_id == current_user.id,
+            EmailVerificationCode.code == confirm_request.verification_code,
+            EmailVerificationCode.code_type == "email_change",
+            EmailVerificationCode.is_used == False,
+            EmailVerificationCode.expires_at > datetime.now(timezone.utc).replace(tzinfo=None)
+        )
+    )
+    verification = result.scalar_one_or_none()
+    
+    if not verification:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired verification code"
+        )
+    
+    # Проверяем, что новый email совпадает с сохраненным в extra_data
+    extra_data = verification.extra_data or {}
+    if extra_data.get("new_email") != confirm_request.new_email:
+        raise HTTPException(
+            status_code=400,
+            detail="Email mismatch"
+        )
+    
+    # Проверяем, не занят ли новый email
+    email_result = await db.execute(select(Users).filter(Users.email == confirm_request.new_email))
+    existing_user = email_result.scalar_one_or_none()
+    if existing_user:
+        raise HTTPException(
+            status_code=400,
+            detail="Email already registered"
+        )
+    
+    # Обновляем email
+    old_email = current_user.email
+    current_user.email = confirm_request.new_email
+    current_user.is_verified = True  # Новый email считается верифицированным
+    verification.is_used = True
+    await db.commit()
+    await db.refresh(current_user)
+    
+    # Инвалидируем кэш старого и нового email
+    from app.utils.redis_cache import cache_delete, key_user
+    await cache_delete(key_user(old_email))
+    await cache_delete(key_user(current_user.email))
+    
+    # Отправляем обновление профиля через WebSocket
+    try:
+        await emit_profile_update(current_user.id, db)
+    except Exception as ws_error:
+        logger.warning(f"[WARNING] Не удалось отправить обновление через WebSocket: {ws_error}")
+    
+    return UserResponse(
+        id=current_user.id,
+        email=current_user.email,
+        username=current_user.username,
+        avatar_url=current_user.avatar_url,
+        is_active=current_user.is_active,
+        created_at=current_user.created_at
+    )
+
+
+@auth_router.post("/auth/request-password-change/", response_model=Message)
+async def request_password_change(
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Запрашивает код верификации для смены пароля.
+    
+    Returns:
+    - Message: Подтверждение отправки кода.
+    """
+    # Генерируем код верификации
+    verification_code = generate_verification_code()
+    expires_at = get_token_expiry(days=1)  # Code expires in 1 day
+    
+    # Удаляем старые коды для смены пароля этого пользователя
+    await db.execute(
+        update(EmailVerificationCode)
+        .where(EmailVerificationCode.user_id == current_user.id)
+        .where(EmailVerificationCode.code_type == "password_change")
+        .values(is_used=True)
+    )
+    
+    # Сохраняем новый код верификации
+    verification = EmailVerificationCode(
+        user_id=current_user.id,
+        code=verification_code,
+        expires_at=expires_at,
+        code_type="password_change"
+    )
+    db.add(verification)
+    await db.commit()
+    
+    # Отправляем код на текущий email
+    await send_verification_email(current_user.email, verification_code)
+    
+    return Message(message="Verification code sent to email")
+
+
+@auth_router.post("/auth/verify-password-change-code/", response_model=Message)
+async def verify_password_change_code(
+    verify_request: VerifyPasswordChangeCodeRequest,
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Проверяет код верификации для смены пароля.
+    
+    Parameters:
+    - verify_request: Код верификации.
+    
+    Returns:
+    - Message: Подтверждение проверки кода.
+    """
+    # Проверяем код верификации
+    result = await db.execute(
+        select(EmailVerificationCode)
+        .filter(
+            EmailVerificationCode.user_id == current_user.id,
+            EmailVerificationCode.code == verify_request.verification_code,
+            EmailVerificationCode.code_type == "password_change",
+            EmailVerificationCode.is_used == False,
+            EmailVerificationCode.expires_at > datetime.now(timezone.utc).replace(tzinfo=None)
+        )
+    )
+    verification = result.scalar_one_or_none()
+    
+    if not verification:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired verification code"
+        )
+    
+    # Помечаем код как проверенный (но еще не использованный)
+    if not verification.extra_data:
+        verification.extra_data = {}
+    verification.extra_data["verified"] = True
+    await db.commit()
+    
+    return Message(message="Verification code verified. You can now change your password.")
+
+
+@auth_router.post("/auth/confirm-password-change/", response_model=Message)
+async def confirm_password_change(
+    confirm_request: ConfirmPasswordChangeRequest,
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Подтверждает смену пароля (код уже проверен).
+    
+    Parameters:
+    - confirm_request: Новый пароль.
+    
+    Returns:
+    - Message: Подтверждение смены пароля.
+    """
+    # Ищем проверенный код верификации
+    result = await db.execute(
+        select(EmailVerificationCode)
+        .filter(
+            EmailVerificationCode.user_id == current_user.id,
+            EmailVerificationCode.code_type == "password_change",
+            EmailVerificationCode.is_used == False,
+            EmailVerificationCode.expires_at > datetime.now(timezone.utc).replace(tzinfo=None)
+        )
+    )
+    verification = result.scalar_one_or_none()
+    
+    if not verification:
+        raise HTTPException(
+            status_code=400,
+            detail="No verification code found. Please request a new code."
+        )
+    
+    # Проверяем, что код был проверен
+    extra_data = verification.extra_data or {}
+    if not extra_data.get("verified"):
+        raise HTTPException(
+            status_code=400,
+            detail="Verification code not verified. Please verify the code first."
+        )
+    
+    # Хешируем новый пароль
+    hashed_password = hash_password(confirm_request.new_password)
+    
+    # Обновляем пароль
+    current_user.password_hash = hashed_password
+    verification.is_used = True
+    await db.commit()
+    
+    # Инвалидируем кэш пользователя
+    from app.utils.redis_cache import cache_delete, key_user
+    await cache_delete(key_user(current_user.email))
+    
+    return Message(message="Password changed successfully")
+
+
+@auth_router.post("/auth/unlock-user-gallery/", response_model=Message)
+async def unlock_user_gallery(
+    request: UnlockUserGalleryRequest,
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Открывает доступ к галерее фото пользователя за 500 кредитов.
+    Доступно только для подписок STANDARD и PREMIUM.
+    
+    Parameters:
+    - request: Запрос с user_id пользователя, галерею которого нужно открыть
+    
+    Returns:
+    - Message: Подтверждение открытия галереи.
+    """
+    GALLERY_UNLOCK_COST = 500
+    target_user_id = request.user_id
+    
+    # Если открываем свою галерею - ничего не делаем (она уже доступна)
+    if target_user_id == current_user.id:
+        return Message(message="Ваша галерея уже доступна")
+    
+    # Проверяем подписку - только STANDARD и PREMIUM могут открывать галереи
+    from app.services.subscription_service import SubscriptionService
+    subscription_service = SubscriptionService(db)
+    subscription = await subscription_service.get_user_subscription(current_user.id)
+    
+    if not subscription:
+        raise HTTPException(
+            status_code=403,
+            detail="Для разблокировки галереи необходима подписка STANDARD или PREMIUM"
+        )
+    
+    subscription_type = subscription.subscription_type.value.lower()
+    if subscription_type not in ['standard', 'premium']:
+        raise HTTPException(
+            status_code=403,
+            detail="Для разблокировки галереи необходима подписка STANDARD или PREMIUM"
+        )
+    
+    # Проверяем баланс
+    from app.services.coins_service import CoinsService
+    coins_service = CoinsService(db)
+    
+    if not await coins_service.can_user_afford(current_user.id, GALLERY_UNLOCK_COST):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Недостаточно кредитов. Нужно {GALLERY_UNLOCK_COST} кредитов для открытия галереи."
+        )
+    
+    # Проверяем, не была ли галерея уже разблокирована
+    existing_unlock = await db.execute(
+        select(UserGalleryUnlock)
+        .filter(
+            UserGalleryUnlock.unlocker_id == current_user.id,
+            UserGalleryUnlock.target_user_id == target_user_id
+        )
+    )
+    if existing_unlock.scalar_one_or_none():
+        # Галерея уже разблокирована, не списываем кредиты
+        return Message(message="Галерея уже была разблокирована ранее")
+    
+    # Списываем кредиты
+    success = await coins_service.spend_coins(current_user.id, GALLERY_UNLOCK_COST, commit=False)
+    if not success:
+        raise HTTPException(
+            status_code=500,
+            detail="Не удалось списать кредиты"
+        )
+    
+    # Сохраняем информацию о разблокировке
+    unlock_record = UserGalleryUnlock(
+        unlocker_id=current_user.id,
+        target_user_id=target_user_id
+    )
+    db.add(unlock_record)
+    
+    await db.commit()
+    
+    # Инвалидируем кэш пользователя
+    from app.utils.redis_cache import cache_delete, key_user
+    await cache_delete(key_user(current_user.email))
+    
+    # Отправляем обновление профиля через WebSocket
+    try:
+        from app.auth.utils import emit_profile_update
+        await emit_profile_update(current_user.id, db)
+    except Exception as ws_error:
+        logger.warning(f"[WARNING] Не удалось отправить обновление через WebSocket: {ws_error}")
+    
+    logger.info(f"[GALLERY_UNLOCK] Пользователь {current_user.id} разблокировал галерею пользователя {target_user_id}")
+    return Message(message="Галерея успешно открыта")
+
+
+@auth_router.get("/auth/user-gallery/", response_model=UserGalleryResponse)
+async def get_user_gallery(
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Получает все фото из "Моей галереи" пользователя.
+    
+    Returns:
+    - UserGalleryResponse: Список всех фото из галереи пользователя.
+    """
+    try:
+        # Получаем все фото из галереи пользователя
+        result = await db.execute(
+            select(UserGallery)
+            .filter(UserGallery.user_id == current_user.id)
+            .order_by(UserGallery.created_at.desc())
+        )
+        gallery_photos = result.scalars().all()
+        
+        # Формируем список фото
+        photos = []
+        for photo in gallery_photos:
+            photos.append(UserPhotoResponse(
+                id=photo.id,
+                image_url=photo.image_url,
+                image_filename=photo.image_filename,
+                character_name=photo.character_name or "",
+                created_at=photo.created_at.isoformat() if photo.created_at else ""
+            ))
+        
+        return UserGalleryResponse(
+            photos=photos,
+            total=len(photos)
+        )
+    except Exception as e:
+        # Если таблица не существует или другая ошибка, возвращаем пустой список
+        logger.warning(f"[WARNING] Ошибка при получении галереи пользователя {current_user.id}: {e}")
+        return UserGalleryResponse(
+            photos=[],
+            total=0
+        )
+
+
+@auth_router.get("/auth/user-generated-photos/{user_id}/", response_model=UserGalleryResponse)
+async def get_user_generated_photos(
+    user_id: int,
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Получает все фото из галереи пользователя (UserGallery).
+    Используется для платной страницы "Открыть X сгенерированные фото".
+    
+    Если открываем свою галерею - возвращаем все фото.
+    Если открываем чужую галерею - возвращаем фото только если галерея разблокирована.
+    Разблокировка проверяется через localStorage на фронтенде, но здесь мы просто возвращаем фото.
+    
+    Returns:
+    - UserGalleryResponse: Список всех фото из галереи пользователя.
+    """
+    try:
+        logger.info(f"[USER_GALLERY] Запрос фото пользователя {user_id} от пользователя {current_user.id}")
+        
+        # Если открываем чужую галерею - проверяем разблокировку
+        if user_id != current_user.id:
+            unlock_check = await db.execute(
+                select(UserGalleryUnlock)
+                .filter(
+                    UserGalleryUnlock.unlocker_id == current_user.id,
+                    UserGalleryUnlock.target_user_id == user_id
+                )
+            )
+            is_unlocked = unlock_check.scalar_one_or_none() is not None
+            
+            if not is_unlocked:
+                logger.warning(f"[USER_GALLERY] Попытка доступа к незаблокированной галерее: пользователь {current_user.id} пытается открыть галерею {user_id}")
+                raise HTTPException(
+                    status_code=403,
+                    detail="Галерея не разблокирована. Сначала разблокируйте галерею за 500 кредитов."
+                )
+            logger.info(f"[USER_GALLERY] Галерея разблокирована, доступ разрешен")
+        
+        # Получаем фото из UserGallery для указанного пользователя
+        result = await db.execute(
+            select(UserGallery)
+            .filter(UserGallery.user_id == user_id)
+            .order_by(UserGallery.created_at.desc())
+        )
+        
+        gallery_photos = result.scalars().all()
+        logger.info(f"[USER_GALLERY] Найдено {len(gallery_photos)} фото для пользователя {user_id}")
+        
+        # Формируем список фото
+        photos = []
+        for photo in gallery_photos:
+            photos.append(UserPhotoResponse(
+                id=photo.id,
+                image_url=photo.image_url,
+                image_filename=photo.image_filename,
+                character_name=photo.character_name or "",
+                created_at=photo.created_at.isoformat() if photo.created_at else ""
+            ))
+        
+        logger.info(f"[USER_GALLERY] Возвращаем {len(photos)} фото для пользователя {user_id}")
+        return UserGalleryResponse(
+            photos=photos,
+            total=len(photos)
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"[WARNING] Ошибка при получении фото из галереи пользователя {user_id}: {e}")
+        return UserGalleryResponse(
+            photos=[],
+            total=0
+        )
+
+
+@auth_router.get("/auth/users/{user_id}/", response_model=UserResponse)
+async def get_user_by_id(
+    user_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Получает информацию о пользователе по ID.
+    
+    Parameters:
+    - user_id: ID пользователя
+    
+    Returns:
+    - UserResponse: Информация о пользователе
+    """
+    try:
+        from sqlalchemy.orm import selectinload
+        result = await db.execute(
+            select(Users)
+            .options(selectinload(Users.subscription))
+            .filter(Users.id == user_id)
+        )
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            raise HTTPException(
+                status_code=404,
+                detail="Пользователь не найден"
+            )
+        
+        logger.info(f"[GET_USER_BY_ID] User {user_id}: username={user.username}, email={user.email}")
+        
+        # Получаем информацию о подписке
+        subscription_info = None
+        if user.subscription:
+            subscription_info = {
+                "subscription_type": user.subscription.subscription_type.value,
+                "status": user.subscription.status.value,
+            }
+        
+        response = UserResponse(
+            id=user.id,
+            email=user.email,
+            username=user.username,
+            avatar_url=user.avatar_url,
+            is_active=user.is_active,
+            is_admin=user.is_admin,
+            coins=user.coins,
+            created_at=user.created_at,
+            subscription=subscription_info
+        )
+        
+        logger.info(f"[GET_USER_BY_ID] Response for user {user_id}: username={response.username}, email={response.email}")
+        
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка при получении пользователя {user_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка получения информации о пользователе: {str(e)}"
+        )
+
+
+@auth_router.post("/auth/user-gallery/add/", response_model=Message)
+async def add_photo_to_gallery(
+    request: AddPhotoToGalleryRequest,
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Добавляет фото в "Мою галерею" пользователя.
+    
+    Returns:
+    - Message: Подтверждение добавления фото.
+    """
+    try:
+        # Проверяем существование таблицы и обрабатываем ошибку если таблицы нет
+        try:
+            # Проверяем, нет ли уже этого фото в галереи
+            existing = await db.execute(
+                select(UserGallery)
+                .filter(
+                    UserGallery.user_id == current_user.id,
+                    UserGallery.image_url == request.image_url
+                )
+            )
+            if existing.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=400,
+                    detail="Это фото уже добавлено в вашу галерею"
+                )
+        except Exception as table_error:
+            # Если таблица не существует, возвращаем понятную ошибку
+            if 'user_gallery' in str(table_error).lower() or 'does not exist' in str(table_error).lower():
+                logger.error(f"[ERROR] Таблица user_gallery не существует. Нужно выполнить миграцию: {table_error}")
+                raise HTTPException(
+                    status_code=500,
+                    detail="Таблица галереи не создана. Выполните миграцию: python -m alembic upgrade head"
+                )
+            raise
+        
+        # Добавляем фото в галерею
+        gallery_photo = UserGallery(
+            user_id=current_user.id,
+            image_url=request.image_url,
+            character_name=request.character_name,
+            image_filename=None  # Можно добавить позже если нужно
+        )
+        db.add(gallery_photo)
+        await db.commit()
+        
+        # Инвалидируем кэш пользователя
+        from app.utils.redis_cache import cache_delete, key_user
+        await cache_delete(key_user(current_user.email))
+        
+        logger.info(f"[GALLERY] Фото добавлено в галерею пользователя {current_user.id}")
+        return Message(message="Фото успешно добавлено в галерею")
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"[ERROR] Ошибка при добавлении фото в галерею: {e}")
+        import traceback
+        logger.error(f"[ERROR] Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Не удалось добавить фото в галерею: {str(e)}"
+        )

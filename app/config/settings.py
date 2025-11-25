@@ -2,10 +2,11 @@
 Общие настройки приложения.
 """
 
+import os
 from pathlib import Path
 from typing import Optional
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, ConfigDict
 
 class Settings(BaseSettings):
     """Основные настройки приложения."""
@@ -57,6 +58,17 @@ class Settings(BaseSettings):
     ALGORITHM: str = Field(default="HS256", description="Алгоритм шифрования")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=60 * 24, description="Время жизни токена в минутах")
     
+    # --- Frontend ---
+    FRONTEND_URL: str = Field(
+        default_factory=lambda: os.getenv("FRONTEND_URL", "http://localhost:5175"),
+        description="Базовый URL фронтенда"
+    )
+    
+    # --- Google OAuth ---
+    GOOGLE_CLIENT_ID: str = Field(default_factory=lambda: os.getenv("GOOGLE_CLIENT_ID", ""), description="Google OAuth Client ID")
+    GOOGLE_CLIENT_SECRET: str = Field(default_factory=lambda: os.getenv("GOOGLE_CLIENT_SECRET", ""), description="Google OAuth Client Secret")
+    GOOGLE_REDIRECT_URI: str = Field(default_factory=lambda: os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/v1/auth/google/callback/"), description="Google OAuth Redirect URI")
+    
     # --- Hugging Face ---
     HUGGINGFACE_TOKEN: str = Field(default="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", description="Токен Hugging Face")
     
@@ -66,10 +78,11 @@ class Settings(BaseSettings):
     # --- LLAMA API ---
     LLAMA_API_URL: str = Field(default="http://localhost:8000", description="URL для LLAMA API")
     
-    class Config:
-        env_prefix = "APP_"
-        case_sensitive = False
-        protected_namespaces = ()
+    model_config = ConfigDict(
+        env_prefix="APP_",
+        case_sensitive=False,
+        protected_namespaces=()
+    )
 
 def get_settings() -> Settings:
     """Получить экземпляр настроек."""

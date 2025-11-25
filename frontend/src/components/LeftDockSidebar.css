@@ -1,0 +1,50 @@
+.left-dock-panel.dock-panel-vertical {
+  width: 78px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  gap: 2.34rem;
+  position: relative;
+  left: -30%;
+}
+
+.left-dock-panel .dock-item {
+  background: rgba(12, 12, 24, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  box-shadow:
+    0 10px 25px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.left-dock-panel .dock-item:focus,
+.left-dock-panel .dock-item:focus-visible,
+.left-dock-panel .dock-item:active {
+  outline: none !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow:
+    0 10px 25px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+}
+
+.left-dock-panel .dock-label,
+.left-dock-panel .dock-label-vertical {
+  background: rgba(5, 5, 10, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #f5f5f5;
+  top: -2rem;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  margin-left: 0;
+  margin-right: 0;
+  margin-bottom: 0.5rem;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.7rem;
+  padding: 0.25rem 0.5rem;
+  text-align: center;
+}
+

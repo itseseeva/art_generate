@@ -1,0 +1,5 @@
+"""
+YooKassa integration package.
+"""
+
+

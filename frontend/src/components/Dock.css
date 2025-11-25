@@ -1,0 +1,84 @@
+.dock-outer {
+  margin: 0 0.5rem;
+  display: flex;
+  max-width: 100%;
+  align-items: center;
+}
+
+.dock-outer-vertical {
+  flex-direction: column;
+  max-width: none;
+  max-height: 100%;
+  align-items: center;
+  justify-content: center;
+}
+
+.dock-panel {
+  position: relative;
+  bottom: auto;
+  left: auto;
+  transform: none;
+  display: flex;
+  align-items: flex-end;
+  width: fit-content;
+  gap: 1rem;
+  border-radius: 1rem;
+  background-color: transparent;
+  border: none;
+  padding: 0 0.5rem 0.5rem;
+}
+
+.dock-panel-vertical {
+  position: relative;
+  bottom: auto;
+  left: auto;
+  transform: none;
+  flex-direction: column;
+  align-items: center;
+  width: auto;
+  height: fit-content;
+  padding: 0.5rem 0;
+  gap: 1rem;
+}
+
+.dock-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+  cursor: pointer;
+  outline: none;
+}
+
+.dock-item:focus {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.dock-item:active {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.dock-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dock-label {
+  display: none;
+}
+
+.dock-label-vertical {
+  top: 50%;
+  left: 100%;
+  transform: translateY(-50%);
+  margin-left: 0.5rem;
+}

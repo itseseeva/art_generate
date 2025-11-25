@@ -21,7 +21,7 @@ from app.config.default_prompts import (
     get_default_positive_prompts
 )
 from app.utils.generation_stats import generation_stats
-from app.utils.image_saver import save_image
+from app.utils.image_saver import save_image, save_image_cloud_only
 from app.config.paths import IMAGES_DIR
 from app.config.cuda_config import optimize_memory, get_gpu_memory_info
 
@@ -125,6 +125,13 @@ class GenerationService:
             
             request_params["negative_prompt"] = negative_prompt
             self._log("INFO", f"Final params: steps={request_params.get('steps')}, cfg_scale={request_params.get('cfg_scale')}")
+            self._log("INFO", f"Hires.fix params: enable_hr={request_params.get('enable_hr')}, hr_second_pass_steps={request_params.get('hr_second_pass_steps')}, hr_upscaler={request_params.get('hr_upscaler')}")
+            self._log("INFO", f"Full request_params keys: {list(request_params.keys())}")
+            self._log("INFO", f"All hr_* params: {[(k, v) for k, v in request_params.items() if k.startswith('hr_')]}")
+            
+            # Используем hr_second_pass_steps из настроек
+            if request_params.get("hr_upscaler") == "SwinIR_4x":
+                self._log("INFO", f"Используем hr_second_pass_steps из настроек для SwinIR")
             
             # Обработка VAE настроек
             if settings.use_vae is not None:
@@ -152,11 +159,31 @@ class GenerationService:
             n_samples = request_params.get("n_samples", "NOT_SET")
             self._log("INFO", f"Используемый seed: {seed}, n_samples: {n_samples}")
             
+            # Фильтруем параметры - убираем те, которые могут вызывать ошибки
+            filtered_params = {}
+            safe_params = [
+                "prompt", "negative_prompt", "steps", "width", "height", "cfg_scale", 
+                "sampler_name", "scheduler", "seed", "batch_size", "n_iter", "n_samples",
+                "save_grid", "enable_hr", "denoising_strength", "hr_scale", "hr_upscaler",
+                "hr_prompt", "hr_negative_prompt", "restore_faces", "clip_skip",
+                "alwayson_scripts", "lora_models", "send_images", "save_images"
+            ]
+            
+            for key, value in request_params.items():
+                if key in safe_params:
+                    filtered_params[key] = value
+                else:
+                    self._log("WARNING", f"Пропускаем параметр {key}={value} (не поддерживается WebUI)")
+            
+            # Логируем полный запрос перед отправкой
+            self._log("INFO", f"Отправляем запрос в WebUI: {self.api_url}/sdapi/v1/txt2img")
+            self._log("INFO", f"Отфильтрованные параметры запроса: {json.dumps(filtered_params, indent=2)}")
+            
             # Отправляем запрос к API
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     f"{self.api_url}/sdapi/v1/txt2img",
-                    json=request_params,
+                    json=filtered_params,
                     timeout=300.0
                 )
                 response.raise_for_status()
@@ -177,15 +204,20 @@ class GenerationService:
                 except Exception:
                     actual_seed = -1
                 
-                # Сохраняем изображения в отдельном потоке
-                saved_paths = []
+                # Сохраняем изображения только в облако
+                cloud_urls = []
                 images = processed_result.get("images", [])
                 
-                def save_image_task(image_data, index):
+                async def save_image_task(image_data, index):
                     try:
                         prefix = f"gen_{actual_seed}_{index}"
-                        saved_path = save_image(image_data, prefix=prefix)
-                        return saved_path
+                        # Используем новую функцию только для облака
+                        result = await save_image_cloud_only(
+                            image_data=image_data, 
+                            prefix=prefix,
+                            character_name=getattr(settings, 'character', None)
+                        )
+                        return result
                     except Exception as e:
                         self._log("ERROR", f"Ошибка при сохранении изображения {index}: {str(e)}")
                         return None
@@ -199,13 +231,15 @@ class GenerationService:
                 
                 # Собираем результаты
                 for future in futures:
-                    path = future.result()
-                    if path:
-                        saved_paths.append(path)
+                    result = future.result()
+                    if result and result.get("success"):
+                        if result.get("cloud_url"):
+                            cloud_urls.append(result["cloud_url"])
                 
                 # Создаем ответ
                 generation_response = GenerationResponse.from_api_response(processed_result)
-                generation_response.saved_paths = saved_paths
+                generation_response.saved_paths = []  # Больше не сохраняем локально
+                generation_response.cloud_urls = cloud_urls
                 generation_response.seed = actual_seed
                 
                 # Обновляем статистику

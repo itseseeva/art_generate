@@ -3,11 +3,15 @@
 """
 from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func, or_
 from sqlalchemy.orm import selectinload
-from app.chat_history.models.chat_history import ChatHistory
+from app.models.chat_history import ChatHistory
 from app.models.subscription import SubscriptionType
 from app.services.subscription_service import SubscriptionService
+from app.utils.redis_cache import (
+    cache_get, cache_set, cache_delete,
+    key_chat_history, TTL_CHAT_HISTORY
+)
 
 
 class ChatHistoryService:
@@ -23,8 +27,8 @@ class ChatHistoryService:
         if not subscription:
             return False
         
-        # Только пользователи с подпиской выше Base могут сохранять историю
-        return subscription.subscription_type in [SubscriptionType.PREMIUM, SubscriptionType.PRO]
+        # История доступна только для подписок Standard и Premium
+        return subscription.subscription_type in [SubscriptionType.STANDARD, SubscriptionType.PREMIUM]
     
     async def save_message(self, user_id: int, character_name: str, session_id: str, 
                           message_type: str, message_content: str, 
@@ -48,6 +52,11 @@ class ChatHistoryService:
             self.db.add(chat_message)
             await self.db.commit()
             await self.db.refresh(chat_message)
+            
+            # Инвалидируем кэш истории чата
+            cache_key = key_chat_history(user_id, character_name, session_id)
+            await cache_delete(cache_key)
+            
             return True
             
         except Exception as e:
@@ -56,11 +65,16 @@ class ChatHistoryService:
             return False
     
     async def get_chat_history(self, user_id: int, character_name: str, session_id: str) -> List[Dict[str, Any]]:
-        """Получает историю чата для конкретного персонажа и сессии."""
+        """Получает историю чата для конкретного персонажа и сессии с кэшированием."""
         try:
             # Проверяем права на получение истории
             if not await self.can_save_history(user_id):
                 return []
+            
+            cache_key = key_chat_history(user_id, character_name, session_id)
+            cached_history = await cache_get(cache_key)
+            if cached_history is not None:
+                return cached_history
             
             result = await self.db.execute(
                 select(ChatHistory)
@@ -90,28 +104,105 @@ class ChatHistoryService:
                 
                 history.append(message_data)
             
+            # Сохраняем в кэш
+            await cache_set(cache_key, history, ttl_seconds=TTL_CHAT_HISTORY)
+            
             return history
             
         except Exception as e:
             print(f"[ERROR] Ошибка получения истории чата: {e}")
             return []
     
-    async def get_user_characters_with_history(self, user_id: int) -> List[str]:
-        """Получает список персонажей, с которыми у пользователя есть история чата."""
+    async def _get_last_image_url(self, user_id: int, character_name: str) -> Optional[str]:
+        stmt = (
+            select(ChatHistory.image_url)
+            .where(ChatHistory.user_id == user_id)
+            .where(ChatHistory.character_name == character_name)
+            .where(ChatHistory.image_url.isnot(None))
+            .order_by(ChatHistory.created_at.desc())
+            .limit(1)
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_user_characters_with_history(self, user_id: int) -> List[Dict[str, Any]]:
+        """Получает список персонажей, с которыми у пользователя есть история чата и метаданные по последнему сообщению."""
         try:
-            # Проверяем права на получение истории
-            if not await self.can_save_history(user_id):
-                return []
-            
-            result = await self.db.execute(
-                select(ChatHistory.character_name)
-                .where(ChatHistory.user_id == user_id)
-                .distinct()
+            from app.chat_bot.models.models import ChatSession, ChatMessageDB, CharacterDB
+            from app.models.user import Users
+
+            user_id_str = str(user_id).strip()
+            conditions = [
+                ChatSession.user_id == user_id_str,
+                func.trim(ChatSession.user_id) == user_id_str,
+            ]
+
+            user_result = await self.db.execute(
+                select(Users.username).where(Users.id == user_id)
             )
-            
-            characters = [row[0] for row in result.fetchall()]
-            return characters
-            
+            username = user_result.scalar_one_or_none()
+            if username:
+                normalized_username = username.strip().lower()
+                conditions.extend(
+                    [
+                        ChatSession.user_id == username,
+                        func.trim(ChatSession.user_id) == username,
+                        func.lower(func.trim(ChatSession.user_id)) == normalized_username,
+                    ]
+                )
+
+            session_result = await self.db.execute(
+                select(
+                    CharacterDB.name,
+                    func.max(ChatMessageDB.timestamp).label("last_message_at"),
+                )
+                .join(ChatSession, ChatSession.character_id == CharacterDB.id)
+                .join(ChatMessageDB, ChatMessageDB.session_id == ChatSession.id)
+                .where(or_(*conditions))
+                .group_by(CharacterDB.name)
+                .having(func.count(ChatMessageDB.id) > 0)
+                .order_by(func.max(ChatMessageDB.timestamp).desc())
+            )
+
+            rows = session_result.fetchall()
+            characters: Dict[str, Dict[str, Any]] = {}
+            for row in rows:
+                character_name = row[0]
+                last_message_at = row[1]
+                last_image_url = await self._get_last_image_url(user_id, character_name)
+                characters[character_name.lower()] = {
+                    "name": character_name,
+                    "last_message_at": last_message_at.isoformat() if last_message_at else None,
+                    "last_image_url": last_image_url,
+                }
+
+            # Дополнительно включаем персонажей из ChatHistory (старые записи или без character_id)
+            history_result = await self.db.execute(
+                select(
+                    ChatHistory.character_name,
+                    func.max(ChatHistory.created_at).label("last_message_at"),
+                )
+                .where(ChatHistory.user_id == user_id)
+                .group_by(ChatHistory.character_name)
+                .order_by(func.max(ChatHistory.created_at).desc())
+            )
+
+            for row in history_result.fetchall():
+                character_name = row[0]
+                if not character_name:
+                    continue
+                key = character_name.lower()
+                if key in characters:
+                    continue
+                last_message_at = row[1]
+                last_image_url = await self._get_last_image_url(user_id, character_name)
+                characters[key] = {
+                    "name": character_name,
+                    "last_message_at": last_message_at.isoformat() if last_message_at else None,
+                    "last_image_url": last_image_url,
+                }
+
+            return list(characters.values())
         except Exception as e:
             print(f"[ERROR] Ошибка получения списка персонажей: {e}")
             return []

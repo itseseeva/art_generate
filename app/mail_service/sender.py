@@ -15,6 +15,12 @@ class EmailSender:
     """Class for sending email via SMTP"""
     
     def __init__(self):
+        # Проверяем переменные только при создании экземпляра, а не при импорте
+        if not EMAIL_HOST_USER:
+            raise ValueError("EMAIL_HOST_USER not set in environment variables")
+        if not EMAIL_HOST_PASSWORD:
+            raise ValueError("EMAIL_HOST_PASSWORD not set in environment variables")
+        
         self.host = EMAIL_HOST
         self.port = EMAIL_PORT
         self.username = EMAIL_HOST_USER

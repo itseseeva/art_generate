@@ -11,20 +11,16 @@ env_path = os.path.join(project_root, '.env')
 # print(f"Looking for .env file at: {env_path}")  # Убрано для безопасности
 load_dotenv(env_path)
 
-# Email settings
+# Email settings (без проверки при импорте - проверка только при использовании)
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.mail.ru")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() == "true"
-EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
-EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL")
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "")
 
-# Проверяем обязательные переменные
-if not EMAIL_HOST_USER:
-    raise ValueError("EMAIL_HOST_USER not set in .env file")
-if not EMAIL_HOST_PASSWORD:
-    raise ValueError("EMAIL_HOST_PASSWORD not set in .env file")
-if not DEFAULT_FROM_EMAIL:
+# Устанавливаем DEFAULT_FROM_EMAIL если не задан
+if not DEFAULT_FROM_EMAIL and EMAIL_HOST_USER:
     DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 # Debug: print configuration (только в dev режиме)

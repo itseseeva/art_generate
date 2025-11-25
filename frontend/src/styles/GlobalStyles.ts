@@ -17,7 +17,7 @@ export const GlobalStyles = createGlobalStyle`
 
   body {
     font-family: 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-    background-image: url('/maxresdefault.jpg');
+    background-image: url('/background.png');
     background-size: cover;
     background-position: center;
     background-attachment: fixed;
@@ -39,24 +39,30 @@ export const GlobalStyles = createGlobalStyle`
     flex-direction: column;
   }
 
-  /* Стилизация скроллбара */
+  /* Стилизация скроллбара - черно-серый стиль */
   ::-webkit-scrollbar {
     width: 8px;
   }
 
   ::-webkit-scrollbar-track {
-    background: ${theme.colors.background.secondary};
+    background: rgba(30, 30, 30, 0.5);
     border-radius: ${theme.borderRadius.md};
   }
 
   ::-webkit-scrollbar-thumb {
-    background: ${theme.colors.gradients.button};
+    background: rgba(100, 100, 100, 0.5);
     border-radius: ${theme.borderRadius.md};
     transition: ${theme.transition.fast};
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: ${theme.colors.gradients.buttonHover};
+    background: rgba(120, 120, 120, 0.7);
+  }
+
+  /* Для Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100, 100, 100, 0.5) rgba(30, 30, 30, 0.5);
   }
 
   /* Стили для выделения текста */
@@ -228,5 +234,66 @@ export const GlobalStyles = createGlobalStyle`
     body {
       font-size: 13px;
     }
+  }
+
+  /* Удаление класса sc-hdBJTi iGWqch */
+  .sc-hdBJTi,
+  .iGWqch {
+    display: none !important;
+  }
+
+  /* Удаление класса sc-gahYZc cBMqJP */
+  .sc-gahYZc,
+  .cBMqJP {
+    display: none !important;
+  }
+
+  /* Ограничение кнопок боковой панели в контейнере sc-jLuyGO jDTrGv */
+  .sc-jLuyGO,
+  .jDTrGv {
+    overflow: hidden !important;
+    position: relative !important;
+  }
+
+  /* Удаление класса sc-vugip gseMbG */
+  .sc-vugip,
+  .gseMbG {
+    display: none !important;
+  }
+
+  /* Удаление класса sc-bjzMPS fzlyhQ */
+  .sc-bjzMPS,
+  .fzlyhQ {
+    display: none !important;
+  }
+
+  /* Удаление класса sc-jGvnpY jVDNcE */
+  .sc-jGvnpY,
+  .jVDNcE {
+    display: none !important;
+  }
+
+  /* Удаление класса sc-dRjvQj bTHvTZ */
+  .sc-dRjvQj,
+  .bTHvTZ {
+    display: none !important;
+  }
+
+  /* Удаление класса sc-gCBilh bJcQIz */
+  .sc-gCBilh,
+  .bJcQIz {
+    display: none !important;
+  }
+
+  /* Удаление класса sc-lcEZZw laKZCy */
+  .sc-lcEZZw,
+  .laKZCy {
+    display: none !important;
+  }
+
+  /* Удаление класса sc-cCueEX frqKB */
+  .sc-cCueEX,
+  .frqKB {
+    display: none !important;
   }
 `;

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, List, Dict, Any, Union
 import sys
 from pathlib import Path
@@ -93,7 +93,7 @@ class GenerationOverrideParams(BaseModel):
     hr_upscaler: Optional[str] = Field(default=None, description="Апскейлер для High-Res Fix")
     hr_second_pass_steps: Optional[int] = Field(default=None, ge=0, le=150, description="Шаги второго прохода High-Res Fix")
 
-    @validator('width', 'height')
+    @field_validator('width', 'height')
     @classmethod
     def validate_dimensions(cls, v: Optional[int]) -> Optional[int]:
         if v is not None and v % 8 != 0:
@@ -143,6 +143,7 @@ class GenerationResponse(BaseModel):
     info: str = Field(..., description="Информация о генерации")
     seed: int = Field(..., description="Использованный seed")
     saved_paths: List[str] = Field(default_factory=list, description="Пути к сохраненным изображениям")
+    cloud_urls: List[str] = Field(default_factory=list, description="URL изображений в облаке")
 
     @classmethod
     def from_api_response(cls, response: dict) -> "GenerationResponse":
@@ -180,5 +181,4 @@ class ModelInfo(BaseModel):
     filename: str = Field(..., description="Имя файла модели")
     config: Optional[str] = Field(default=None, description="Конфигурация модели")
     
-    class Config:
-        protected_namespaces = () 
+    model_config = ConfigDict(protected_namespaces=()) 

@@ -3,7 +3,7 @@
 """
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum
 
 
@@ -35,6 +35,10 @@ class SimpleChatRequest(BaseModel):
     message: str = Field(
         ..., 
         description="Сообщение пользователя для бота"
+    )
+    character: Optional[str] = Field(
+        default=None, 
+        description="Имя персонажа для диалога"
     )
     history: Optional[List[Dict[str, str]]] = Field(
         default=None, 
@@ -101,6 +105,7 @@ class SimpleChatRequest(BaseModel):
 class CharacterConfig(BaseModel):
     """Упрощенная конфигурация персонажа в формате Alpaca."""
     # Основные характеристики
+    id: int = Field(..., description="ID персонажа в базе данных")
     name: str = Field(..., description="Уникальное имя персонажа")
     
     # Единый промпт в формате Alpaca
@@ -123,8 +128,7 @@ class CharacterConfig(BaseModel):
     
     # face_image удален (IP-Adapter удален)
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CharacterCreate(CharacterConfig):
@@ -141,13 +145,12 @@ class UserCharacterCreate(BaseModel):
     style: Optional[str] = Field(None, description="Стиль ответа (необязательно)")
     appearance: Optional[str] = Field(None, description="Внешность персонажа для генерации фото")
     location: Optional[str] = Field(None, description="Локация персонажа для генерации фото")
+    is_nsfw: Optional[bool] = Field(
+        True,
+        description="Флаг контента 18+ (True = NSFW, False = SAVE)"
+    )
     
-    class Config:
-        from_attributes = True
-        # Настройки для правильной работы с Unicode
-        json_encoders = {
-            str: lambda v: v.encode('utf-8').decode('utf-8') if isinstance(v, str) else v
-        }
+    model_config = ConfigDict(from_attributes=True)
     
     def __init__(self, **data):
         """Инициализация с правильной обработкой Unicode."""
@@ -171,8 +174,7 @@ class CharacterUpdate(BaseModel):
     character_appearance: Optional[str] = Field(None, description="Описание внешности персонажа")
     location: Optional[str] = Field(None, description="Описание локации персонажа")
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CharacterInDB(CharacterConfig):
@@ -181,13 +183,28 @@ class CharacterInDB(CharacterConfig):
     user_id: Optional[int] = Field(None, description="ID пользователя, создавшего персонажа")
     created_at: Optional[datetime] = Field(None, description="Время создания персонажа")
     main_photos: Optional[str] = Field(None, description="JSON строка с ID главных фото")
+    is_nsfw: Optional[bool] = Field(
+        default=True,
+        description="Флаг контента 18+ (True = NSFW, False = SAVE)"
+    )
 
-    class Config:
-        from_attributes = True
-        json_encoders = {
-            str: lambda v: v.encode('utf-8').decode('utf-8'),
-            datetime: lambda v: v.isoformat() if v else None
-        }
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CreatorInfo(BaseModel):
+    """Информация о создателе персонажа."""
+    id: int = Field(..., description="ID создателя")
+    username: Optional[str] = Field(None, description="Имя пользователя создателя")
+    avatar_url: Optional[str] = Field(None, description="URL аватарки создателя")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CharacterWithCreator(CharacterInDB):
+    """Схема для персонажа с информацией о создателе."""
+    creator_info: Optional[CreatorInfo] = Field(None, description="Информация о создателе персонажа")
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ChatRequest(BaseModel):
@@ -215,10 +232,6 @@ class ChatRequest(BaseModel):
     repeat_penalty: Optional[float] = Field(
         default=1.1, 
         description="Штраф за повторения"
-    )
-    stream: Optional[bool] = Field(
-        False, 
-        description="Потоковая генерация ответа"
     )
 
 
@@ -252,8 +265,7 @@ class ChatResponse(BaseModel):
         description="Было ли сгенерировано изображение"
     )
     
-    class Config:
-        protected_namespaces = ()
+    model_config = ConfigDict(protected_namespaces=())
 
 
 class ChatError(BaseModel):
@@ -263,4 +275,5 @@ class ChatError(BaseModel):
     details: Optional[Dict[str, Any]] = Field(
         None, 
         description="Детали ошибки"
-    ) 
+    )
+

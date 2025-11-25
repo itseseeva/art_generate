@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: art_generation_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --save 60 1000
+      --save 300 100
+      --save 900 1
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    networks:
+      - app_network
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.celery
+    container_name: art_generation_celery_worker
+    restart: unless-stopped
+    command: celery -A app.celery_app worker --loglevel=warning --concurrency=2 --queues=high_priority,normal_priority,low_priority
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - APP_SD_API_URL=${APP_SD_API_URL:-http://host.docker.internal:7860}
+      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:///./sql_app.db}
+      - APP_DATABASE_URL=${APP_DATABASE_URL:-sqlite+aiosqlite:///./sql_app.db}
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      # Email настройки (опционально, если не используются задачи email)
+      - EMAIL_HOST=${EMAIL_HOST:-smtp.mail.ru}
+      - EMAIL_PORT=${EMAIL_PORT:-587}
+      - EMAIL_USE_TLS=${EMAIL_USE_TLS:-True}
+      - EMAIL_HOST_USER=${EMAIL_HOST_USER:-}
+      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD:-}
+      - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL:-}
+      # Yandex Cloud Storage настройки загружаются из .env через env_file
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.celery_app inspect ping -d celery@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  app_network:
+    driver: bridge
+

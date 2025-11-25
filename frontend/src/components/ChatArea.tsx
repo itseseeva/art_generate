@@ -8,14 +8,9 @@ const MessagesContainer = styled.div`
   padding: ${theme.spacing.lg};
   overflow-y: auto;
   overflow-x: hidden;
-  background: ${theme.colors.background.secondary};
+  background: rgba(20, 20, 20, 1);
   position: relative;
   min-height: 0; /* Важно для flex-элементов */
-  
-  /* Добавляем тонкую текстуру */
-  background-image: 
-    linear-gradient(45deg, transparent 40%, rgba(139, 92, 246, 0.02) 50%, transparent 60%);
-  background-size: 30px 30px;
 `;
 
 const MessagesList = styled.div`
@@ -37,11 +32,11 @@ const LoadingMessage = styled.div`
   align-items: center;
   gap: ${theme.spacing.md};
   padding: ${theme.spacing.lg};
-  background: ${theme.colors.gradients.message};
+  background: rgba(40, 40, 40, 0.5);
   border-radius: ${theme.borderRadius.xl};
-  border: 1px solid ${theme.colors.border.accent};
-  box-shadow: ${theme.colors.shadow.message};
-  color: ${theme.colors.text.secondary};
+  border: 1px solid rgba(150, 150, 150, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  color: rgba(160, 160, 160, 1);
   font-style: italic;
 `;
 
@@ -53,7 +48,7 @@ const LoadingDots = styled.div`
     width: 8px;
     height: 8px;
     border-radius: ${theme.borderRadius.full};
-    background: ${theme.colors.accent.primary};
+    background: rgba(150, 150, 150, 1);
     animation: pulse 1.4s ease-in-out infinite;
     
     &:nth-child(1) {
@@ -77,12 +72,12 @@ const EmptyState = styled.div`
   justify-content: center;
   min-height: 400px;
   text-align: center;
-  color: ${theme.colors.text.muted};
+  color: rgba(120, 120, 120, 1);
   
   h3 {
     font-size: ${theme.fontSize.xl};
     margin-bottom: ${theme.spacing.md};
-    color: ${theme.colors.text.secondary};
+    color: rgba(200, 200, 200, 1);
   }
   
   p {
@@ -103,9 +98,11 @@ interface Message {
 interface ChatAreaProps {
   messages: Message[];
   isLoading: boolean;
+  characterSituation?: string;
+  [key: string]: any; // Для других пропсов, которые могут передаваться
 }
 
-export const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading }) => {
+export const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, characterSituation }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Автоматическая прокрутка к последнему сообщению
@@ -118,11 +115,22 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading }) => {
       <MessagesList>
         {messages.length === 0 && !isLoading && (
           <EmptyState>
-            <h3>Добро пожаловать в чат!</h3>
-            <p>
-              Выберите персонажа в боковой панели и начните общение. 
-              Каждый персонаж имеет свой уникальный характер и стиль общения.
-            </p>
+            {characterSituation ? (
+              <>
+                <h3>Ролевая ситуация</h3>
+                <p style={{ whiteSpace: 'pre-wrap', textAlign: 'left', maxWidth: '100%' }}>
+                  {characterSituation}
+                </p>
+              </>
+            ) : (
+              <>
+                <h3>Добро пожаловать в чат!</h3>
+                <p>
+                  Выберите персонажа в боковой панели и начните общение. 
+                  Каждый персонаж имеет свой уникальный характер и стиль общения.
+                </p>
+              </>
+            )}
           </EmptyState>
         )}
         

@@ -53,12 +53,12 @@ async def activate_subscription(
         print(f"🔍 DEBUG: Получен запрос на активацию подписки: {request.subscription_type}")
         service = SubscriptionService(db)
         
-        # Поддерживаем base, standard и premium подписки
-        if request.subscription_type.lower() not in ["base", "standard", "premium"]:
+        # Поддерживаем только стандартную и премиальную подписки
+        if request.subscription_type.lower() not in ["standard", "premium"]:
             print(f"[ERROR] DEBUG: Неподдерживаемый тип подписки: {request.subscription_type}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Поддерживаются только подписки типа 'base', 'standard' и 'premium'"
+                detail="Поддерживаются только подписки типа 'standard' и 'premium'"
             )
         
         print(f"[OK] DEBUG: Тип подписки поддерживается: {request.subscription_type}")
@@ -66,12 +66,10 @@ async def activate_subscription(
         subscription = await service.create_subscription(current_user.id, request.subscription_type)
         
         # Формируем сообщение в зависимости от типа подписки
-        if request.subscription_type.lower() == "base":
-            message = "Подписка Base успешно активирована! Вы получили 100 кредитов и 10 генераций фото."
-        elif request.subscription_type.lower() == "standard":
-            message = "Подписка Standard успешно активирована! Вы получили 2000 кредитов."
+        if request.subscription_type.lower() == "standard":
+            message = "Подписка Standard успешно активирована! Вы получили 1000 кредитов и 100 генераций фото."
         else:  # premium
-            message = "Подписка Premium успешно активирована! Вы получили 6000 кредитов."
+            message = "Подписка Premium успешно активирована! Вы получили 5000 кредитов и 300 генераций фото."
         
         return SubscriptionActivateResponse(
             success=True,

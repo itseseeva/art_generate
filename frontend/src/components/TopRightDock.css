@@ -1,0 +1,84 @@
+.top-right-card-nav {
+  position: relative !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: auto !important;
+  transform: none !important;
+  width: 90% !important;
+  max-width: 800px !important;
+  z-index: 1001 !important;
+  box-sizing: border-box !important;
+  margin: 0 auto !important;
+}
+
+.top-right-card-nav .card-nav {
+  background: #000000 !important;
+  backdrop-filter: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.top-right-card-nav--hidden {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.top-right-card-nav .hamburger-menu {
+  color: #ffffff !important;
+}
+
+.top-right-card-nav .hamburger-menu .hamburger-line {
+  background-color: #ffffff !important;
+}
+
+.top-right-card-nav .card-nav-buttons {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.top-right-card-nav .card-nav-cta-button {
+  background-color: rgba(128, 128, 128, 0.6) !important;
+  color: #fff !important;
+  white-space: nowrap !important;
+}
+
+.top-right-card-nav .card-nav-cta-button:hover {
+  background-color: rgba(102, 126, 234, 0.7) !important;
+}
+
+.top-right-card-nav .card-nav-cta-button:focus {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.top-right-card-nav .hamburger-menu {
+  outline: none !important;
+  border: none !important;
+}
+
+.top-right-card-nav .hamburger-menu:focus {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.top-right-card-nav .hamburger-menu:active {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.top-right-card-nav .hamburger-menu:focus-visible {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 768px) {
+  .top-right-card-nav {
+    width: 90% !important;
+    top: 1.2em !important;
+  }
+}

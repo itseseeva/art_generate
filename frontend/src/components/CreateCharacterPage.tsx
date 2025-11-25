@@ -1,186 +1,89 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
-import { CompactSidebar } from './CompactSidebar';
+import '../styles/ContentArea.css';
 
 const MainContainer = styled.div`
   width: 100vw;
   height: 100vh;
   display: flex;
-  background: transparent;
+  background: linear-gradient(to bottom right, rgba(8, 8, 18, 1), rgba(8, 8, 18, 0.95), rgba(40, 40, 40, 0.1));
   overflow: visible;
   box-sizing: border-box;
-`;
-
-const ContentArea = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background: transparent;
-  overflow: visible;
-  width: calc(100vw - 80px);
-  min-width: 0;
-`;
-
-const Header = styled.div`
-  background: rgba(102, 126, 234, 0.1);
-  backdrop-filter: blur(3px);
-  padding: ${theme.spacing.lg} ${theme.spacing.xl};
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid ${theme.colors.border.accent};
-  z-index: 10;
-`;
-
-const BackButton = styled.button`
-  background: transparent;
-  border: none;
-  color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.md};
-  cursor: pointer;
-  transition: color ${theme.transition.fast};
-  
-  &:hover {
-    color: ${theme.colors.text.primary};
-  }
-`;
-
-const PageTitle = styled.h2`
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.xl};
-  margin: 0;
-`;
-
-const RightSection = styled.div`
-  display: flex;
-  align-items: center;
-  gap: ${theme.spacing.md};
-`;
-
-const UserInfo = styled.div`
-  display: flex;
-  align-items: center;
-  gap: ${theme.spacing.sm};
-  background: rgba(22, 33, 62, 0.3);
-  backdrop-filter: blur(5px);
-  border-radius: ${theme.borderRadius.lg};
-  padding: ${theme.spacing.sm} ${theme.spacing.md};
-  border: 1px solid ${theme.colors.border.accent};
-`;
-
-const UserName = styled.span`
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.sm};
-  font-weight: 600;
-`;
-
-const UserCoins = styled.span`
-  color: ${theme.colors.accent.primary};
-  font-size: ${theme.fontSize.sm};
-  font-weight: 600;
-`;
-
-const AuthButton = styled.button`
-  background: transparent;
-  border: 2px solid;
-  border-image: linear-gradient(45deg, #764ba2 50%, #4a0000 50%) 1;
-  color: #a8a8a8;
-  padding: ${theme.spacing.sm} ${theme.spacing.md};
-  border-radius: ${theme.borderRadius.lg};
-  font-size: ${theme.fontSize.sm};
-  font-weight: 600;
-  cursor: pointer;
-  transition: transform ${theme.transition.fast};
-  margin-left: ${theme.spacing.sm};
   position: relative;
   
-  /* Градиентный текст */
-  background: linear-gradient(135deg, #a8a8a8, #ffffff);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  &::before {
+    content: '';
+    position: absolute;
+    top: 80px;
+    left: 40px;
+    width: 288px;
+    height: 288px;
+    background: rgba(80, 80, 80, 0.15);
+    border-radius: 50%;
+    filter: blur(96px);
+    animation: float 6s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 0;
+  }
   
-  /* Светящаяся линия снизу */
   &::after {
     content: '';
     position: absolute;
-    bottom: -4px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 60%;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.8), transparent);
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    filter: blur(1px);
+    bottom: 80px;
+    right: 40px;
+    width: 384px;
+    height: 384px;
+    background: rgba(60, 60, 60, 0.15);
+    border-radius: 50%;
+    filter: blur(96px);
+    animation: float 8s ease-in-out infinite;
+    animation-delay: 1s;
+    pointer-events: none;
+    z-index: 0;
   }
   
-  &:hover {
-    transform: scale(1.05);
-    border-image: linear-gradient(45deg, #8b5cf6 50%, #7f1d1d 50%) 1;
-    
-    /* Более яркий градиент при hover */
-    background: linear-gradient(135deg, #ffffff, rgba(102, 126, 234, 0.9));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    
-    /* Показываем светящуюся линию */
-    &::after {
-      opacity: 1;
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-10px);
     }
   }
-  
-  &:active {
-    transform: scale(0.95);
-  }
 `;
+
+
 
 const MainContent = styled.div`
   flex: 1;
   padding: 0;
   overflow-y: auto;
-  display: flex;
-  gap: 0;
   width: 100%;
   height: 100%;
+  position: relative;
+  z-index: 10;
 `;
 
 const LeftColumn = styled.div`
-  flex: 1; /* Равная ширина с правым столбцом */
-  min-width: 0;
-  min-height: calc(150vh - 80px); /* Увеличиваем высоту столбцов */
-  background: rgba(22, 33, 62, 0.3);
-  backdrop-filter: blur(5px);
+  width: 100%;
+  min-height: calc(150vh - 80px);
+  background: transparent;
   border-radius: 0;
   padding: 0;
-  border: 1px solid ${theme.colors.border.accent};
-  box-shadow: ${theme.colors.shadow.message};
+  box-shadow: none;
   display: flex;
   flex-direction: column;
 `;
 
-const RightColumn = styled.div`
-  flex: 1; /* Равная ширина с левым столбцом */
-  min-width: 0;
-  min-height: calc(150vh - 80px); /* Увеличиваем высоту столбцов */
-  background: transparent; /* Убираем фон чтобы был виден основной фон */
-  backdrop-filter: none; /* Убираем размытие */
-  border-radius: 0;
-  padding: 0;
-  border: 1px solid ${theme.colors.border.accent};
-  box-shadow: none; /* Убираем тень */
-  display: flex;
-  flex-direction: column;
-`;
 
 const ThirdColumn = styled.div`
   display: none; /* Скрываем третий столбец */
 `;
 
 const Form = styled.form`
-  display: contents;
+  width: 100%;
+  height: 100%;
 `;
 
 const ColumnContent = styled.div`
@@ -192,150 +95,180 @@ const ColumnContent = styled.div`
 
 const FormGroup = styled.div`
   margin-bottom: ${theme.spacing.lg};
+  background: transparent;
+  border-radius: ${theme.borderRadius.xl};
+  padding: ${theme.spacing.lg};
+  border: 1px solid rgba(130, 130, 130, 0.4);
+  transition: border-color 0.3s ease;
+  animation: fadeIn 0.6s ease-out forwards;
+  opacity: 0;
+  
+  &:hover {
+    border-color: rgba(200, 200, 200, 0.5);
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  &:nth-child(1) {
+    animation-delay: 0.1s;
+  }
+  &:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+  &:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+  &:nth-child(4) {
+    animation-delay: 0.4s;
+  }
+  &:nth-child(5) {
+    animation-delay: 0.5s;
+  }
+  &:nth-child(6) {
+    animation-delay: 0.6s;
+  }
+  &:nth-child(7) {
+    animation-delay: 0.7s;
+  }
 `;
 
 const Label = styled.label`
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: ${theme.spacing.sm};
   color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.sm};
+  font-size: ${theme.fontSize.lg};
   font-weight: 600;
-  margin-bottom: 4px;
+  margin-bottom: ${theme.spacing.md};
+  
+  &::before {
+    content: attr(data-icon);
+    width: 32px;
+    height: 32px;
+    border: 1px solid rgba(180, 180, 180, 0.3);
+    border-radius: ${theme.borderRadius.lg};
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(230, 230, 230, 0.95);
+    transition: border-color 0.3s ease;
+  }
+  
+  ${FormGroup}:hover &::before {
+    border-color: rgba(255, 255, 255, 0.6);
+  }
 `;
 
 const Input = styled.input`
   width: 100%;
+  height: 48px;
   padding: ${theme.spacing.md};
-  border: none;
+  border: 1px solid rgba(140, 140, 140, 0.5);
   border-radius: ${theme.borderRadius.md};
-  background: rgba(22, 33, 62, 0.3);
-  backdrop-filter: blur(5px);
+  background: transparent;
   color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.sm};
+  font-size: ${theme.fontSize.base};
+  transition: border-color 0.3s ease;
   
   &::placeholder {
-    color: ${theme.colors.text.secondary};
+    color: rgba(200, 200, 200, 0.5);
   }
   
   &:focus {
     outline: none;
-    background: rgba(22, 33, 62, 0.5);
+    border-color: rgba(220, 220, 220, 0.8);
   }
 `;
 
 const Textarea = styled.textarea`
   width: 100%;
+  min-height: 128px;
   padding: ${theme.spacing.md};
-  border: 1px solid ${theme.colors.border.accent};
+  border: 1px solid rgba(140, 140, 140, 0.5);
   border-radius: ${theme.borderRadius.md};
-  background: rgba(22, 33, 62, 0.3);
-  backdrop-filter: blur(5px);
+  background: transparent;
   color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.sm};
+  font-size: ${theme.fontSize.base};
   font-family: inherit;
   resize: vertical;
+  line-height: 1.6;
+  transition: border-color 0.3s ease;
   
   &::placeholder {
-    color: ${theme.colors.text.secondary};
+    color: rgba(200, 200, 200, 0.5);
   }
   
   &:focus {
     outline: none;
-    border-color: ${theme.colors.accent.primary};
-    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+    border-color: rgba(220, 220, 220, 0.8);
   }
 `;
 
 const Button = styled.button<{ $variant?: 'primary' | 'secondary' }>`
-  background: transparent;
-  border: 2px solid;
-  border-image: linear-gradient(45deg, #764ba2 50%, #4a0000 50%) 1;
-  color: #a8a8a8;
-  padding: ${theme.spacing.md} ${theme.spacing.xl};
-  border-radius: ${theme.borderRadius.lg};
-  font-size: ${theme.fontSize.md};
+  flex: 1;
+  height: 56px;
+  padding: ${theme.spacing.md} ${theme.spacing.lg};
+  border-radius: ${theme.borderRadius.md};
+  font-size: ${theme.fontSize.base};
   font-weight: 600;
   cursor: pointer;
-  transition: transform ${theme.transition.fast};
-  position: relative;
-  
-  /* Градиентный текст */
-  background: linear-gradient(135deg, #a8a8a8, #ffffff);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  
-  /* Светящаяся линия снизу */
-  &::after {
-    content: '';
-    position: absolute;
-    bottom: -4px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 60%;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.8), transparent);
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    filter: blur(1px);
-  }
+  transition: transform 0.2s ease;
+  border: 1px solid rgba(170, 170, 170, 0.4);
+  background: ${props => props.$variant === 'primary' ? 'rgba(200, 200, 200, 0.15)' : 'transparent'};
+  color: ${theme.colors.text.primary};
   
   &:hover {
-    transform: scale(1.05);
-    border-image: linear-gradient(45deg, #8b5cf6 50%, #7f1d1d 50%) 1;
-    
-    /* Более яркий градиент при hover */
-    background: linear-gradient(135deg, #ffffff, rgba(102, 126, 234, 0.9));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    
-    /* Показываем светящуюся линию */
-    &::after {
-      opacity: 1;
-    }
+    transform: scale(1.02);
+    border-color: rgba(255, 255, 255, 0.6);
   }
   
   &:active {
-    transform: scale(0.95);
+    transform: scale(0.98);
   }
   
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
     transform: none;
-    
-    &::after {
-      opacity: 0;
-    }
   }
 `;
 
 const ButtonGroup = styled.div`
   display: flex;
   gap: ${theme.spacing.md};
-  justify-content: center;
+  padding-top: ${theme.spacing.xl};
+  animation: fadeIn 0.6s ease-out forwards;
+  animation-delay: 0.8s;
+  opacity: 0;
 `;
 
 const CoinsDisplay = styled.div`
-  background: rgba(22, 33, 62, 0.3);
-  backdrop-filter: blur(5px);
+  background: transparent;
   border-radius: ${theme.borderRadius.lg};
   padding: ${theme.spacing.md};
-  border: 1px solid ${theme.colors.border.accent};
+  border: 1px solid rgba(150, 150, 150, 0.4);
   margin-bottom: ${theme.spacing.lg};
   text-align: center;
 `;
 
 const CoinsText = styled.span`
-  color: ${theme.colors.accent.primary};
-  font-size: ${theme.fontSize.md};
+  color: rgba(150, 150, 150, 1);
+  font-size: ${theme.fontSize.base};
   font-weight: 600;
 `;
 
 const PhotoGenerationBox = styled.div`
-  background: rgba(22, 33, 62, 0.2);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(102, 126, 234, 0.3);
+  background: transparent;
+  border: 1px solid rgba(150, 150, 150, 0.3);
   border-radius: ${theme.borderRadius.lg};
   padding: ${theme.spacing.lg};
   margin: ${theme.spacing.lg} 0;
@@ -344,7 +277,7 @@ const PhotoGenerationBox = styled.div`
 
 const PhotoGenerationBoxTitle = styled.h3`
   color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.md};
+  font-size: ${theme.fontSize.base};
   font-weight: 600;
   margin: 0 0 ${theme.spacing.sm} 0;
 `;
@@ -357,13 +290,13 @@ const PhotoGenerationDescription = styled.p`
 `;
 
 const PhotoGenerationPlaceholder = styled.div`
-  background: rgba(22, 33, 62, 0.3);
-  border: 1px solid ${theme.colors.border.accent}; /* Сплошная обводка как у столбцов */
+  background: transparent;
+  border: 1px solid rgba(130, 130, 130, 0.3);
   border-radius: ${theme.borderRadius.md};
   padding: ${theme.spacing.xl};
   color: ${theme.colors.text.secondary};
   font-size: ${theme.fontSize.lg};
-  min-height: calc(120vh - 300px); /* Увеличиваем высоту области для фото */
+  min-height: calc(120vh - 300px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -395,7 +328,7 @@ const LoadingSpinner = styled.div`
   height: 20px;
   border: 3px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
-  border-top-color: ${theme.colors.accent.primary};
+  border-top-color: rgba(200, 200, 200, 0.8);
   animation: spin 1s ease-in-out infinite;
   
   @keyframes spin {
@@ -489,7 +422,7 @@ const SwiperButton = styled.button<{ direction: 'left' | 'right' }>`
   top: 50%;
   ${props => props.direction === 'left' ? 'left: -20px' : 'right: -20px'};
   transform: translateY(-50%);
-  background: rgba(102, 126, 234, 0.8);
+  background: rgba(150, 150, 150, 0.8);
   border: none;
   color: white;
   width: 40px;
@@ -503,7 +436,7 @@ const SwiperButton = styled.button<{ direction: 'left' | 'right' }>`
   z-index: 10;
   
   &:hover {
-    background: rgba(102, 126, 234, 1);
+    background: rgba(150, 150, 150, 1);
   }
   
   &:disabled {
@@ -523,7 +456,7 @@ const SliderButton = styled.button<{ direction: 'left' | 'right' }>`
   top: 50%;
   ${props => props.direction === 'left' ? 'left: -20px' : 'right: -20px'};
   transform: translateY(-50%);
-  background: rgba(102, 126, 234, 0.8);
+  background: rgba(150, 150, 150, 0.8);
   border: none;
   color: white;
   width: 50px;
@@ -539,7 +472,7 @@ const SliderButton = styled.button<{ direction: 'left' | 'right' }>`
   transition: all 0.3s ease;
   
   &:hover {
-    background: rgba(102, 126, 234, 1);
+    background: rgba(150, 150, 150, 1);
     transform: translateY(-50%) scale(1.1);
   }
   
@@ -579,13 +512,13 @@ const FullSizePhoto = styled.img`
   height: auto;
   max-height: 500px; /* Ограничиваем максимальную высоту */
   border-radius: ${theme.borderRadius.lg};
-  border: 2px solid ${theme.colors.border.accent};
+  border: 2px solid rgba(130, 130, 130, 0.5);
   transition: all 0.3s ease;
   object-fit: contain; /* Сохраняем пропорции */
   
   &:hover {
-    border-color: ${theme.colors.accent.primary};
-    box-shadow: 0 0 20px rgba(102, 126, 234, 0.3);
+    border-color: rgba(150, 150, 150, 1);
+    box-shadow: 0 0 20px rgba(150, 150, 150, 0.3);
     transform: scale(1.02);
   }
 `;
@@ -637,7 +570,7 @@ const SavePhotosButton = styled.button`
 `;
 
 const DescriptionNote = styled.p`
-  color: ${theme.colors.accent.primary};
+  color: rgba(150, 150, 150, 1);
   font-size: ${theme.fontSize.sm};
   font-weight: 500;
   margin: 0;
@@ -650,16 +583,16 @@ const CharacterCardPreview = styled.div`
   bottom: -200px;
   left: 0;
   right: 0;
-  background: rgba(22, 33, 62, 0.9);
-  backdrop-filter: blur(10px);
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: none;
   border-radius: ${theme.borderRadius.lg};
   padding: ${theme.spacing.md};
-  border: 1px solid ${theme.colors.border.accent};
+  border: 1px solid rgba(130, 130, 130, 0.4);
 `;
 
 const PreviewTitle = styled.h4`
   color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.md};
+  font-size: ${theme.fontSize.base};
   font-weight: 600;
   margin: 0 0 ${theme.spacing.md} 0;
   text-align: center;
@@ -671,11 +604,11 @@ const PreviewCardContainer = styled.div`
 `;
 
 const PreviewCard = styled.div`
-  background: rgba(22, 33, 62, 0.3);
-  backdrop-filter: blur(5px);
+  background: transparent;
+  backdrop-filter: none;
   border-radius: ${theme.borderRadius.lg};
-  border: 1px solid ${theme.colors.border.accent};
-  box-shadow: ${theme.colors.shadow.message};
+  border: 1px solid rgba(130, 130, 130, 0.4);
+  box-shadow: none;
   width: 200px;
   height: 150px;
   position: relative;
@@ -723,7 +656,7 @@ const PreviewPlaceholder = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(102, 126, 234, 0.1);
+    background: rgba(100, 100, 100, 0.1);
 `;
 
 const PreviewPlaceholderText = styled.span`
@@ -737,7 +670,7 @@ const PhotoGenerationSection = styled.div<{ $isExpanded: boolean }>`
   backdrop-filter: blur(10px);
   border-radius: ${theme.borderRadius.xl};
   padding: ${theme.spacing.lg};
-  border: 1px solid rgba(102, 126, 234, 0.3);
+  border: 1px solid rgba(150, 150, 150, 0.3);
   margin-top: ${theme.spacing.xl};
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(102, 126, 234, 0.1);
   max-height: ${props => props.$isExpanded ? '600px' : '0'};
@@ -753,7 +686,7 @@ const PhotoGenerationSection = styled.div<{ $isExpanded: boolean }>`
     left: 0;
     right: 0;
     height: 2px;
-    background: linear-gradient(90deg, transparent, ${theme.colors.accent.primary}, transparent);
+    background: linear-gradient(90deg, transparent, rgba(150, 150, 150, 1), transparent);
     opacity: ${props => props.$isExpanded ? '1' : '0'};
     transition: opacity 0.6s ease;
   }
@@ -765,7 +698,7 @@ const PhotoGenerationMainTitle = styled.h3`
   font-weight: 700;
   margin: 0 0 ${theme.spacing.xl} 0;
   text-align: center;
-  background: linear-gradient(135deg, ${theme.colors.text.primary}, ${theme.colors.accent.primary});
+  background: linear-gradient(135deg, ${theme.colors.text.primary}, rgba(150, 150, 150, 1));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -779,7 +712,7 @@ const PhotoGenerationMainTitle = styled.h3`
     transform: translateX(-50%);
     width: 60px;
     height: 2px;
-    background: linear-gradient(90deg, transparent, ${theme.colors.accent.primary}, transparent);
+    background: linear-gradient(90deg, transparent, rgba(150, 150, 150, 1), transparent);
   }
 `;
 
@@ -796,7 +729,7 @@ const PromptContainer = styled.div`
   backdrop-filter: blur(8px);
   border-radius: ${theme.borderRadius.xl};
   padding: ${theme.spacing.lg};
-  border: 1px solid rgba(102, 126, 234, 0.3);
+  border: 1px solid rgba(150, 150, 150, 0.3);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   position: relative;
   max-width: 400px;
@@ -805,7 +738,7 @@ const PromptContainer = styled.div`
 const PromptLabel = styled.label`
   display: block;
   color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.md};
+  font-size: ${theme.fontSize.base};
   font-weight: 600;
   margin-bottom: ${theme.spacing.md};
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
@@ -818,7 +751,7 @@ const PromptInput = styled.textarea`
   border-radius: ${theme.borderRadius.md};
   padding: ${theme.spacing.lg};
   color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.md};
+  font-size: ${theme.fontSize.base};
   font-family: inherit;
   resize: vertical;
   min-height: 120px;
@@ -833,7 +766,7 @@ const PromptInput = styled.textarea`
   
   &:focus {
     outline: none;
-    border-color: ${theme.colors.accent.primary};
+    border-color: rgba(150, 150, 150, 1);
     box-shadow: 
       inset 0 2px 4px rgba(0, 0, 0, 0.1),
       0 0 0 3px rgba(102, 126, 234, 0.2),
@@ -851,10 +784,10 @@ const GenerateSection = styled.div`
 `;
 
 const GenerateButton = styled.button`
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(139, 92, 246, 0.1));
+  background: linear-gradient(135deg, rgba(100, 100, 100, 0.1), rgba(80, 80, 80, 0.1));
   backdrop-filter: blur(8px);
   border: 2px solid;
-  border-image: linear-gradient(45deg, ${theme.colors.accent.primary}, ${theme.colors.accent.secondary}) 1;
+  border-image: linear-gradient(45deg, rgba(150, 150, 150, 1), rgba(100, 100, 100, 1)) 1;
   color: ${theme.colors.text.primary};
   padding: ${theme.spacing.md} ${theme.spacing.lg};
   border-radius: ${theme.borderRadius.lg};
@@ -862,7 +795,7 @@ const GenerateButton = styled.button`
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.2);
+  box-shadow: 0 4px 16px rgba(100, 100, 100, 0.2);
   position: relative;
   overflow: hidden;
   min-width: 160px;
@@ -881,9 +814,9 @@ const GenerateButton = styled.button`
   &:hover {
     transform: translateY(-2px) scale(1.02);
     box-shadow: 
-      0 8px 32px rgba(102, 126, 234, 0.3),
-      0 0 0 1px rgba(102, 126, 234, 0.3);
-    border-image: linear-gradient(45deg, ${theme.colors.accent.primary}, ${theme.colors.accent.secondary}) 1;
+      0 8px 32px rgba(100, 100, 100, 0.3),
+      0 0 0 1px rgba(100, 100, 100, 0.3);
+    border-image: linear-gradient(45deg, rgba(150, 150, 150, 1), rgba(100, 100, 100, 1)) 1;
     
     &::before {
       left: 100%;
@@ -907,7 +840,7 @@ const LargeTextInputArea = styled.div`
   backdrop-filter: blur(8px);
   border-radius: ${theme.borderRadius.xl};
   padding: ${theme.spacing.xl};
-  border: 1px solid rgba(102, 126, 234, 0.3);
+  border: 1px solid rgba(150, 150, 150, 0.3);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   margin-top: ${theme.spacing.xl};
   flex: 1;
@@ -920,11 +853,11 @@ const LargeTextInputArea = styled.div`
 const LargeTextInput = styled.textarea`
   background: rgba(22, 33, 62, 0.3);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(102, 126, 234, 0.4);
+  border: 1px solid rgba(150, 150, 150, 0.4);
   border-radius: ${theme.borderRadius.lg};
   padding: ${theme.spacing.lg};
   color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.md};
+  font-size: ${theme.fontSize.base};
   font-family: inherit;
   resize: vertical;
   flex: 1;
@@ -940,10 +873,10 @@ const LargeTextInput = styled.textarea`
   
   &:focus {
     outline: none;
-    border-color: ${theme.colors.accent.primary};
+    border-color: rgba(150, 150, 150, 1);
     box-shadow: 
       inset 0 2px 4px rgba(0, 0, 0, 0.1),
-      0 0 0 2px rgba(102, 126, 234, 0.2);
+      0 0 0 2px rgba(150, 150, 150, 0.2);
   }
 `;
 
@@ -953,7 +886,7 @@ const LargeTextLabel = styled.label`
   font-size: ${theme.fontSize.lg};
   font-weight: 600;
   margin-bottom: ${theme.spacing.md};
-  background: linear-gradient(135deg, ${theme.colors.accent.primary}, ${theme.colors.accent.secondary});
+  background: linear-gradient(135deg, rgba(150, 150, 150, 1), rgba(100, 100, 100, 1));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -966,8 +899,8 @@ const PhotoCard = styled.div<{ isSelected?: boolean }>`
   border-radius: ${theme.borderRadius.xl};
   padding: ${theme.spacing.lg};
   border: 2px solid ${props => 
-    props.isSelected ? theme.colors.accent.primary : 
-    'rgba(102, 126, 234, 0.2)'};
+    props.isSelected ? 'rgba(150, 150, 150, 1)' : 
+    'rgba(100, 100, 100, 0.2)'};
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
@@ -981,17 +914,17 @@ const PhotoCard = styled.div<{ isSelected?: boolean }>`
     right: 0;
     bottom: 0;
     background: ${props => props.isSelected 
-      ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.1), transparent)'
-      : 'linear-gradient(135deg, rgba(102, 126, 234, 0.05), transparent)'};
+      ? 'linear-gradient(135deg, rgba(100, 100, 100, 0.1), transparent)'
+      : 'linear-gradient(135deg, rgba(100, 100, 100, 0.05), transparent)'};
     opacity: ${props => props.isSelected ? '1' : '0'};
     transition: opacity 0.3s ease;
   }
   
   &:hover {
     transform: translateY(-4px) scale(1.02);
-    box-shadow: 0 8px 32px rgba(102, 126, 234, 0.2);
+    box-shadow: 0 8px 32px rgba(100, 100, 100, 0.2);
     border-color: ${props => props.isSelected 
-      ? theme.colors.accent.primary 
+      ? 'rgba(150, 150, 150, 1)' 
       : 'rgba(102, 126, 234, 0.4)'};
     
     &::before {
@@ -1029,11 +962,11 @@ const GeneratedPhotosGrid = styled.div`
 
 const SelectButton = styled.button<{ $isSelected: boolean }>`
   background: ${props => props.$isSelected 
-    ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' 
+    ? 'linear-gradient(135deg, #808080 0%, #606060 100%)' 
     : 'rgba(22, 33, 62, 0.3)'};
   border: 1px solid ${props => props.$isSelected 
-    ? 'rgba(102, 126, 234, 0.8)' 
-    : 'rgba(102, 126, 234, 0.4)'};
+      ? 'rgba(150, 150, 150, 0.8)' 
+    : 'rgba(100, 100, 100, 0.4)'};
   color: ${theme.colors.text.primary};
   padding: ${theme.spacing.sm} ${theme.spacing.md};
   border-radius: ${theme.borderRadius.md};
@@ -1045,9 +978,9 @@ const SelectButton = styled.button<{ $isSelected: boolean }>`
   
   &:hover {
     background: ${props => props.$isSelected 
-      ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' 
-      : 'rgba(102, 126, 234, 0.2)'};
-    border-color: ${theme.colors.accent.primary};
+      ? 'linear-gradient(135deg, #808080 0%, #606060 100%)' 
+      : 'rgba(100, 100, 100, 0.2)'};
+    border-color: rgba(150, 150, 150, 1);
     transform: translateY(-1px);
   }
 `;
@@ -1056,7 +989,7 @@ const PhotoStatus = styled.span<{ isSelected?: boolean }>`
   font-size: ${theme.fontSize.sm};
   font-weight: 600;
   color: ${props => props.isSelected 
-    ? theme.colors.accent.primary 
+    ? 'rgba(220, 220, 220, 0.95)' 
     : theme.colors.text.secondary};
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 `;
@@ -1070,14 +1003,18 @@ const ActionButtons = styled.div`
 
 interface CreateCharacterPageProps {
   onBackToMain: () => void;
-  onShop: () => void;
-  onMyCharacters: () => void;
+  onShop?: () => void;
+  onMyCharacters?: () => void;
+  onPhotoGeneration?: (character: any) => void;
+  contentMode?: 'safe' | 'nsfw';
 }
 
 export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   onBackToMain,
   onShop,
-  onMyCharacters
+  onMyCharacters,
+  onPhotoGeneration,
+  contentMode = 'safe'
 }) => {
   const [formData, setFormData] = useState({
     name: '',
@@ -1119,7 +1056,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         return;
       }
 
-      const response = await fetch('/auth/me/', {
+      const response = await fetch('/api/v1/auth/me/', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -1198,7 +1135,8 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         instructions: formData.instructions.trim(),
         style: formData.style?.trim() || null,
         appearance: formData.appearance?.trim() || null,
-        location: formData.location?.trim() || null
+        location: formData.location?.trim() || null,
+        is_nsfw: contentMode === 'nsfw'
       };
 
       // Проверяем обязательные поля
@@ -1228,14 +1166,29 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       setCreatedCharacterData(result);
       setIsCharacterCreated(true); // Устанавливаем состояние создания персонажа
       setSuccess('Персонаж успешно создан!');
-      
-      // Расширяем секцию генерации фото
-      setTimeout(() => {
-        setIsPhotoGenerationExpanded(true);
-      }, 1000);
 
       // Обновляем информацию о пользователе
       await checkAuth();
+      
+      // Даем время бэкенду сохранить персонажа в БД
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Отправляем событие для обновления персонажей на главной странице
+      // Делаем это после задержки, чтобы убедиться, что персонаж сохранен в БД
+      console.log('Отправляем событие character-created для обновления главной страницы');
+      const event = new CustomEvent('character-created', { 
+        detail: { character: result } 
+      });
+      window.dispatchEvent(event);
+      console.log('Событие отправлено. Персонаж должен появиться на главной странице.');
+      
+      // Даем время главной странице обновиться перед переходом
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Переход на страницу генерации фото
+      if (onPhotoGeneration && result) {
+        onPhotoGeneration(result);
+      }
       
     } catch (err) {
       console.error('Error creating character:', err); // Добавляем отладку
@@ -1437,7 +1390,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       console.log('Using steps:', generationSettings?.steps || 20);
       console.log('Using cfg_scale:', generationSettings?.cfg_scale || 4);
       
-      const requestBody = {
+      const requestBody: any = {
         character: createdCharacterData?.name || 'character',
         prompt: prompt,
         negative_prompt: generationSettings?.negative_prompt || 'blurry, low quality, distorted, bad anatomy',
@@ -1519,37 +1472,12 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
   return (
     <MainContainer>
-      <CompactSidebar 
-        onCreateCharacter={() => {}} // Уже на странице создания
-        onShop={onShop}
-        onMyCharacters={onMyCharacters}
-      />
-      
-      <ContentArea>
-        <Header>
-          <BackButton onClick={onBackToMain}>← Назад</BackButton>
-          <PageTitle>Создание персонажа</PageTitle>
-          <RightSection>
-            {userInfo && (
-              <UserInfo>
-                <UserName>{userInfo.username}</UserName>
-                <UserCoins>💰 {userInfo.coins}</UserCoins>
-              </UserInfo>
-            )}
-            {isAuthenticated ? (
-              <AuthButton onClick={handleLogout}>Выйти</AuthButton>
-            ) : (
-              <AuthButton onClick={() => window.location.href = '/auth/login'}>Войти</AuthButton>
-            )}
-          </RightSection>
-        </Header>
-        
         <MainContent>
           <Form onSubmit={isCharacterCreated ? handleEditCharacter : handleSubmit}>
             <LeftColumn>
               <ColumnContent>
                 <FormGroup>
-                <Label htmlFor="name">Имя персонажа:</Label>
+                <Label htmlFor="name" data-icon="👤">Имя персонажа:</Label>
                 <Input
                   type="text"
                   id="name"
@@ -1562,7 +1490,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
               </FormGroup>
               
               <FormGroup>
-                <Label htmlFor="personality">Личность и характер:</Label>
+                <Label htmlFor="personality" data-icon="🧠">Личность и характер:</Label>
                 <Textarea
                   id="personality"
                   name="personality"
@@ -1575,7 +1503,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
               </FormGroup>
               
               <FormGroup>
-                <Label htmlFor="situation">Ролевая ситуация:</Label>
+                <Label htmlFor="situation" data-icon="💬">Ролевая ситуация:</Label>
                 <Textarea
                   id="situation"
                   name="situation"
@@ -1588,7 +1516,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
               </FormGroup>
               
               <FormGroup>
-                <Label htmlFor="instructions">Инструкции для персонажа:</Label>
+                <Label htmlFor="instructions" data-icon="📋">Инструкции для персонажа:</Label>
                 <Textarea
                   id="instructions"
                   name="instructions"
@@ -1601,7 +1529,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
               </FormGroup>
 
               <FormGroup>
-                <Label htmlFor="style">Стиль ответа (необязательно):</Label>
+                <Label htmlFor="style" data-icon="✨">Стиль ответа (необязательно):</Label>
                 <Input
                   type="text"
                   id="style"
@@ -1613,7 +1541,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
               </FormGroup>
               
               <FormGroup>
-                <Label htmlFor="appearance">Внешность (для фото):</Label>
+                <Label htmlFor="appearance" data-icon="🎨">Внешность (для фото):</Label>
                 <Textarea
                   id="appearance"
                   name="appearance"
@@ -1625,7 +1553,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
               </FormGroup>
               
               <FormGroup>
-                <Label htmlFor="location">Локация (для фото):</Label>
+                <Label htmlFor="location" data-icon="📍">Локация (для фото):</Label>
                 <Textarea
                   id="location"
                   name="location"
@@ -1661,125 +1589,8 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
               </ButtonGroup>
               </ColumnContent>
             </LeftColumn>
-
-            <RightColumn>
-              <ColumnContent>
-                {/* Секция генерации фото */}
-                <PhotoGenerationBox>
-                  <PhotoGenerationBoxTitle>Генерация фото для персонажа (30 монет за фото)</PhotoGenerationBoxTitle>
-                  <PhotoGenerationDescription>
-                    {isCharacterCreated ? 'Генерируйте фото для вашего персонажа' : 'После создания персонажа здесь появится возможность генерировать фото'}
-                  </PhotoGenerationDescription>
-                  
-                  <GenerateSection>
-                    <GenerateButton 
-                      onClick={generatePhoto} 
-                      disabled={isGeneratingPhoto || !userInfo || userInfo.coins < 30 || !isCharacterCreated}
-                    >
-                      {isGeneratingPhoto ? (
-                        <>
-                          <LoadingSpinner /> Генерация...
-                        </>
-                      ) : (
-                        'Сгенерировать фото'
-                      )}
-                    </GenerateButton>
-                  </GenerateSection>
-
-                  <LargeTextLabel htmlFor="photo-prompt-unified">
-                    Промпт для генерации фото:
-                  </LargeTextLabel>
-                  <LargeTextInput
-                    id="photo-prompt-unified"
-                    value={customPrompt}
-                    onChange={(e) => setCustomPrompt(e.target.value)}
-                    placeholder={`${createdCharacterData?.character_appearance || ''} ${createdCharacterData?.location || ''}`.trim() || 'portrait, high quality, detailed'}
-                  />
-
-                  {/* Область для отображения сгенерированных фото */}
-                  {console.log('Generated photos count:', generatedPhotos.length)}
-                  {console.log('Generated photos:', generatedPhotos)}
-                  {generatedPhotos.length > 0 ? (
-                    <FullSizePhotoSlider>
-                      {/* Стрелки навигации */}
-                      {generatedPhotos.length > 1 && (
-                        <>
-                          <SliderButton 
-                            direction="left" 
-                            onClick={prevSwiperSlide}
-                            disabled={swiperTranslateX >= 0}
-                          >
-                            ‹
-                          </SliderButton>
-                          <SliderButton 
-                            direction="right" 
-                            onClick={nextSwiperSlide}
-                            disabled={swiperTranslateX <= -((generatedPhotos.length - 1) * 100)}
-                          >
-                            ›
-                          </SliderButton>
-                        </>
-                      )}
-                      
-                      {/* Контейнер слайдера */}
-                      <SliderContainer>
-                        <SliderWrapper translateX={swiperTranslateX}>
-                          {generatedPhotos.map((photo) => (
-                            <SliderSlide key={photo.id}>
-                              <FullSizePhoto 
-                                src={photo.url} 
-                                alt="Generated photo" 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  console.log('Photo clicked:', photo);
-                                  openPhotoModal(photo);
-                                }}
-                                style={{ cursor: 'pointer' }}
-                                onError={(e) => {
-                                  console.error('Ошибка загрузки изображения:', photo.url);
-                                  console.error('Error event:', e);
-                                }}
-                                onLoad={() => {
-                                  console.log('Изображение успешно загружено:', photo.url);
-                                }}
-                              />
-                              <PhotoActions>
-                                <SelectButton
-                                  onClick={() => togglePhotoSelection(photo.id)}
-                                  $isSelected={photo.isSelected}
-                                >
-                                  {photo.isSelected ? 'Выбрано' : 'Выбрать'}
-                                </SelectButton>
-                              </PhotoActions>
-                            </SliderSlide>
-                          ))}
-                        </SliderWrapper>
-                      </SliderContainer>
-                      
-                      {/* Описание под слайдером */}
-                      <SliderDescription>
-                        <DescriptionTitle>Карточка персонажа</DescriptionTitle>
-                        <DescriptionText>
-                          Вы можете выбрать до 3 фотографий для карточки персонажа. Выбранные фото будут отображаться на главном экране.
-                        </DescriptionText>
-                        {selectedPhotos.length > 0 && (
-                          <SavePhotosButton onClick={saveSelectedPhotos}>
-                            Сохранить выбранные фото ({selectedPhotos.length}/3)
-                          </SavePhotosButton>
-                        )}
-                      </SliderDescription>
-                    </FullSizePhotoSlider>
-                  ) : (
-                    <PhotoGenerationPlaceholder>
-                      Фотографии будут здесь
-                    </PhotoGenerationPlaceholder>
-                  )}
-                </PhotoGenerationBox>
-              </ColumnContent>
-            </RightColumn>
           </Form>
         </MainContent>
-      </ContentArea>
       
       {/* Модальное окно для просмотра фото в полный размер */}
       {selectedPhotoForView && (

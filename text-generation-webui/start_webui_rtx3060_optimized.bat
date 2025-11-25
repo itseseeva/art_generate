@@ -20,10 +20,10 @@ set PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:2048
 set CUDA_LAUNCH_BLOCKING=0
 
 echo Запуск с параметрами для RTX 3060:
-echo - 75 слоев на GPU (--gpu-layers 75) для 70%% GPU + 30%% CPU
+echo - 40 слоев на GPU (--gpu-layers 40) для оптимальной загрузки
 echo - Оптимальный батч для 12GB VRAM (--batch-size 512)
 echo - Минимум CPU потоков (--threads 1)
-echo - Оптимизированный контекст (--ctx-size 4096)
+echo - Оптимизированный контекст (--ctx-size 8000)
 
 python server.py ^
     --api ^
@@ -33,8 +33,8 @@ python server.py ^
     --model Gryphe-MythoMax-L2-13b.Q4_K_S.gguf ^
     --loader llama.cpp ^
     --model-dir models/main_models ^
-    --gpu-layers 70 ^
-    --ctx-size 4096 ^
+    --gpu-layers 50 ^
+    --ctx-size 8000 ^
     --batch-size 512 ^
     --threads 1 ^
     --threads-batch 1 ^
@@ -43,6 +43,6 @@ python server.py ^
     --verbose
 
 echo.
-echo Сервер запущен! Ожидаемая производительность: 70%% GPU + 30%% CPU
+echo Сервер запущен! Ожидаемая производительность: оптимальная GPU загрузка
 echo API: http://localhost:5000
 echo Web UI: http://localhost:7861

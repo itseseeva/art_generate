@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
-import { CompactSidebar } from './CompactSidebar';
 import { CharacterCard } from './CharacterCard';
 import { ShopModal } from './ShopModal';
 import { AuthModal } from './AuthModal';
 import { PhotoGenerationPage } from './PhotoGenerationPage';
+import { API_CONFIG } from '../config/api';
+import '../styles/ContentArea.css';
 
 const MainContainer = styled.div`
   width: 100vw;
@@ -15,49 +16,8 @@ const MainContainer = styled.div`
   overflow: hidden;
 `;
 
-const ContentArea = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background: transparent; /* Fully transparent */
-  overflow: hidden;
-`;
 
-const Header = styled.div`
-  background: rgba(102, 126, 234, 0.1); /* Very transparent */
-  backdrop-filter: blur(3px);
-  padding: ${theme.spacing.lg} ${theme.spacing.xl};
-  border-bottom: 1px solid ${theme.colors.border.accent};
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-`;
-
-const RightSection = styled.div`
-  display: flex;
-  align-items: center;
-  gap: ${theme.spacing.lg};
-`;
-
-const UserInfo = styled.div`
-  display: flex;
-  align-items: center;
-  gap: ${theme.spacing.sm};
-`;
-
-const UserName = styled.span`
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.sm};
-  font-weight: 600;
-`;
-
-const UserCoins = styled.span`
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.sm};
-  font-weight: 600;
-`;
-
-const PlanBadge = styled.button`
+const NavButton = styled.button`
   background: transparent;
   border: 2px solid;
   border-image: linear-gradient(45deg, #764ba2 50%, #4a0000 50%) 1;
@@ -68,62 +28,6 @@ const PlanBadge = styled.button`
   font-weight: 600;
   cursor: pointer;
   transition: transform ${theme.transition.fast};
-  position: relative;
-  
-  /* Градиентный текст */
-  background: linear-gradient(135deg, #a8a8a8, #ffffff);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  
-  /* Светящаяся линия снизу */
-  &::after {
-    content: '';
-    position: absolute;
-    bottom: -4px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 60%;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.8), transparent);
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    filter: blur(1px);
-  }
-  
-  &:hover {
-    transform: scale(1.05);
-    border-image: linear-gradient(45deg, #8b5cf6 50%, #7f1d1d 50%) 1;
-    
-    /* Более яркий градиент при hover */
-    background: linear-gradient(135deg, #ffffff, rgba(102, 126, 234, 0.9));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    
-    /* Показываем светящуюся линию */
-    &::after {
-      opacity: 1;
-    }
-  }
-  
-  &:active {
-    transform: scale(0.95);
-  }
-`;
-
-const AuthButton = styled.button`
-  background: transparent;
-  border: 2px solid;
-  border-image: linear-gradient(45deg, #764ba2 50%, #4a0000 50%) 1;
-  color: #a8a8a8;
-  padding: ${theme.spacing.sm} ${theme.spacing.md};
-  border-radius: ${theme.borderRadius.lg};
-  font-size: ${theme.fontSize.sm};
-  font-weight: 600;
-  cursor: pointer;
-  transition: transform ${theme.transition.fast};
-  margin-left: ${theme.spacing.sm};
   position: relative;
   
   /* Градиентный текст */
@@ -170,12 +74,22 @@ const AuthButton = styled.button`
 
 const CharactersGrid = styled.div`
   flex: 1;
-  padding: ${theme.spacing.lg};
+  padding: ${theme.spacing.xs} ${theme.spacing.sm};
   overflow-y: auto;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: ${theme.spacing.md};
+  gap: ${theme.spacing.sm};
   align-content: start;
+  width: 100%;
+  height: 100%;
+`;
+
+const ContentArea = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
 `;
 
 interface Character {
@@ -189,6 +103,7 @@ interface Character {
   likes: number;
   views: number;
   comments: number;
+  is_nsfw?: boolean;
 }
 
 // Mock character data - only originals
@@ -247,11 +162,36 @@ interface MainPageProps {
   onCharacterSelect?: (character: Character) => void;
   onMyCharacters?: () => void;
   onCreateCharacter?: () => void;
+  onShop?: () => void;
+  onProfile?: () => void;
+  onMessages?: () => void;
+  onPhotoGeneration?: (character: Character) => void;
+  onPaidAlbum?: (character: Character) => void;
+  onEditCharacters?: () => void;
+  onFavorites?: () => void;
+  onHistory?: () => void;
+  onHome?: () => void;
+  contentMode?: 'safe' | 'nsfw';
 }
 
-export const MainPage: React.FC<MainPageProps> = ({ onCharacterSelect, onMyCharacters, onCreateCharacter }) => {
+export const MainPage: React.FC<MainPageProps> = ({ 
+  onCharacterSelect, 
+  onMyCharacters, 
+  onCreateCharacter,
+  onShop,
+  onProfile,
+  onMessages,
+  onPhotoGeneration,
+  onPaidAlbum,
+  onEditCharacters,
+  onFavorites,
+  onHistory,
+  onHome,
+  contentMode = 'safe'
+}) => {
   const [isShopModalOpen, setIsShopModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
   const [isPhotoGenerationOpen, setIsPhotoGenerationOpen] = useState(false);
   const [createdCharacter, setCreatedCharacter] = useState<any>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -260,37 +200,105 @@ export const MainPage: React.FC<MainPageProps> = ({ onCharacterSelect, onMyChara
   const [characterPhotos, setCharacterPhotos] = useState<{[key: string]: string[]}>({});
   const [characters, setCharacters] = useState<Character[]>([]);
   const [isLoadingCharacters, setIsLoadingCharacters] = useState(true);
+  const [cachedRawCharacters, setCachedRawCharacters] = useState<any[]>([]);
+
+  const fetchCharactersFromApi = async (forceRefresh: boolean = false): Promise<any[]> => {
+    const endpoints = [
+      API_CONFIG.CHARACTERS, // Используем прокси через Vite
+      '/api/v1/characters/', // Правильный endpoint
+      '/api/characters/' // Fallback endpoint
+    ];
+
+    for (const endpoint of endpoints) {
+      try {
+        // Добавляем параметр для принудительного обновления (обход кэша)
+        const url = forceRefresh 
+          ? `${endpoint}?t=${Date.now()}&skip=0&limit=1000`
+          : `${endpoint}?skip=0&limit=1000`;
+        
+        const response = await fetch(url, {
+          cache: forceRefresh ? 'no-cache' : 'default',
+          headers: forceRefresh ? {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          } : {}
+        });
+        
+        if (!response.ok) {
+          console.warn(`Не удалось загрузить персонажей с ${endpoint}: ${response.status}`);
+          continue;
+        }
+        const payload = await response.json();
+        console.log(`Загружено персонажей с ${endpoint}:`, Array.isArray(payload) ? payload.length : payload?.characters?.length || 0);
+        
+        if (Array.isArray(payload)) {
+          return payload;
+        }
+        if (payload && Array.isArray(payload.characters)) {
+          return payload.characters;
+        }
+      } catch (error) {
+        console.error(`Ошибка запроса персонажей (${endpoint}):`, error);
+      }
+    }
+
+    return [];
+  };
 
   // Load characters from API
-  const loadCharacters = async () => {
+  const loadCharacters = async (forceRefresh: boolean = false) => {
     try {
       setIsLoadingCharacters(true);
-      const response = await fetch('/api/v1/characters/');
-      if (response.ok) {
-        const charactersData = await response.json();
-        // Преобразуем данные из API в формат Character
-        const formattedCharacters: Character[] = charactersData.map((char: any) => ({
-          id: char.id.toString(),
-          name: char.name,
-          description: char.character_appearance || 'No description available',
-          avatar: char.name.charAt(0).toUpperCase(),
-          photos: [], // Будет обновлено после загрузки фото
-          tags: ['User Created'],
-          author: char.user_id ? 'User' : 'System',
-          likes: 0,
-          views: 0,
-          comments: 0
-        }));
-        setCharacters(formattedCharacters);
-      } else {
-        console.error('Failed to load characters:', response.status);
-        // Fallback to mock characters if API fails
+      const charactersData = await fetchCharactersFromApi(forceRefresh);
+
+      if (!charactersData.length) {
+        console.error('Failed to load characters: пустой ответ');
         setCharacters(mockCharacters);
+        setCachedRawCharacters([]);
+        return;
       }
+
+      setCachedRawCharacters(charactersData);
+
+      const formattedCharacters: Character[] = charactersData
+        .map((char: any, index: number) => {
+        const rawName = char.name || char.display_name || `character-${index + 1}`;
+        const displayName = char.display_name || char.name || rawName;
+        const normalizedId = (char.id ?? rawName ?? index).toString();
+        const mapKey = rawName.toLowerCase();
+
+        return {
+          id: normalizedId,
+          name: displayName,
+          description: char.description || char.character_appearance || 'No description available',
+          avatar: displayName.charAt(0).toUpperCase(),
+          photos: characterPhotos[mapKey] || [],
+          tags: Array.isArray(char.tags) && char.tags.length
+            ? char.tags
+            : [char.user_id ? 'User Created' : 'System'],
+          author: char.user_id ? 'User' : 'System',
+          likes: Number(char.likes) || 0,
+          views: Number(char.views) || 0,
+            comments: Number(char.comments) || 0,
+            is_nsfw: char.is_nsfw === true // Явная проверка: только true считается NSFW
+        };
+        })
+        .filter((char: any) => {
+          // Фильтруем персонажей по режиму NSFW
+          // В режиме NSFW показываем только персонажей с is_nsfw === true
+          // В режиме SAFE показываем персонажей с is_nsfw !== true (включая null/undefined)
+          const isNsfw = char.is_nsfw === true;
+          const shouldShow = contentMode === 'nsfw' ? isNsfw : !isNsfw;
+          console.log(`Character ${char.name}: is_nsfw=${char.is_nsfw}, contentMode=${contentMode}, shouldShow=${shouldShow}`);
+          return shouldShow;
+      });
+
+      setCharacters(formattedCharacters);
     } catch (error) {
       console.error('Error loading characters:', error);
       // Fallback to mock characters if API fails
       setCharacters(mockCharacters);
+      setCachedRawCharacters([]);
     } finally {
       setIsLoadingCharacters(false);
     }
@@ -306,47 +314,90 @@ export const MainPage: React.FC<MainPageProps> = ({ onCharacterSelect, onMyChara
         setCharacterPhotos(photos);
       }
       
-      // Загружаем главные фото персонажей из API
-      const charactersResponse = await fetch('/api/v1/characters/');
-      if (charactersResponse.ok) {
-        const charactersData = await charactersResponse.json();
-        console.log('Characters data from API:', charactersData);
+      // Всегда загружаем свежие данные для получения актуальных фото
+      const charactersData = await fetchCharactersFromApi();
+
+      if (!charactersData.length) {
+        console.warn('Не удалось загрузить фотографии: нет данных персонажей');
+        return;
+      }
+
         const photosMap: {[key: string]: string[]} = {};
         
         for (const char of charactersData) {
-          console.log(`Character ${char.name}:`, char);
-          if (char.main_photos) {
-            try {
-              const mainPhotoIds = JSON.parse(char.main_photos);
-              console.log(`Main photo IDs for ${char.name}:`, mainPhotoIds);
-              const photoUrls = mainPhotoIds.map((id: string) => 
-                `/static/photos/${char.name.toLowerCase()}/${id}.png`
-              );
-              console.log(`Photo URLs for ${char.name}:`, photoUrls);
-              photosMap[char.name.toLowerCase()] = photoUrls;
+        if (!char || !char.main_photos) {
+          continue;
+        }
+
+        const canonicalName = (char.name || char.display_name);
+        if (!canonicalName) {
+          continue;
+        }
+
+        let parsedPhotos: any[] = [];
+
+        if (Array.isArray(char.main_photos)) {
+          parsedPhotos = char.main_photos;
+        } else if (typeof char.main_photos === 'string') {
+          try {
+            parsedPhotos = JSON.parse(char.main_photos);
             } catch (e) {
-              console.error('Error parsing main_photos for character:', char.name, e);
+            console.error('Error parsing main_photos for character:', canonicalName, e);
+            parsedPhotos = [];
             }
           } else {
-            console.log(`No main_photos for character: ${char.name}`);
-          }
+          parsedPhotos = [char.main_photos];
         }
-        
-        console.log('Final photos map:', photosMap);
-        
-        // Объединяем с существующими фото
+
+        const normalizedKey = canonicalName.toLowerCase();
+        const photoUrls = parsedPhotos
+          .map((photo: any) => {
+            if (!photo) {
+              return null;
+            }
+
+            if (typeof photo === 'string') {
+              return photo.startsWith('http')
+                ? photo
+                : `/static/photos/${normalizedKey}/${photo}.png`;
+          }
+
+            if (photo.url) {
+              return photo.url;
+            }
+
+            if (photo.id) {
+              return `/static/photos/${normalizedKey}/${photo.id}.png`;
+            }
+
+            return null;
+          })
+          .filter((url): url is string => Boolean(url));
+
+        if (photoUrls.length) {
+          photosMap[normalizedKey] = photoUrls;
+        }
+      }
+
+      if (!Object.keys(photosMap).length) {
+        return;
+      }
+
         setCharacterPhotos(prev => ({ ...prev, ...photosMap }));
         
-        // Обновляем фото в персонажах
-        setCharacters(prev => {
-          const updated = prev.map(char => ({
+      setCharacters(prev => prev
+        .map(char => {
+        const key = char.name.toLowerCase();
+        return {
             ...char,
-            photos: photosMap[char.name.toLowerCase()] || char.photos
+          photos: photosMap[key] || char.photos
+        };
+        })
+        .filter((char: any) => {
+          // Фильтруем персонажей по режиму NSFW
+          const isNsfw = char.is_nsfw === true; // Явная проверка: только true считается NSFW
+          return contentMode === 'nsfw' ? isNsfw : !isNsfw;
           }));
-          console.log('Updated characters with photos:', updated);
-          return updated;
-        });
-      }
     } catch (error) {
       console.error('Ошибка загрузки фотографий персонажей:', error);
     }
@@ -355,8 +406,8 @@ export const MainPage: React.FC<MainPageProps> = ({ onCharacterSelect, onMyChara
   // Автоматическое обновление фотографий каждые 30 секунд
   React.useEffect(() => {
     const loadData = async () => {
-      await loadCharacterPhotos(); // Сначала загружаем фото
-      await loadCharacters(); // Потом персонажей
+      await loadCharacters();
+      await loadCharacterPhotos();
     };
     
     loadData();
@@ -365,8 +416,32 @@ export const MainPage: React.FC<MainPageProps> = ({ onCharacterSelect, onMyChara
       loadCharacterPhotos();
     }, 30000); // Обновляем каждые 30 секунд
 
-    return () => clearInterval(interval);
-  }, []);
+    // Слушаем события обновления фото персонажа и создания персонажа
+    const handlePhotoUpdate = () => {
+      console.log('Получено событие обновления фото персонажа, перезагружаем...');
+      loadData();
+    };
+    
+    const handleCharacterCreated = async (event: Event) => {
+      const customEvent = event as CustomEvent;
+      console.log('Получено событие создания персонажа, перезагружаем...', customEvent?.detail);
+      // Даем время бэкенду сохранить персонажа и очистить кэш
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Принудительно перезагружаем персонажей из API, игнорируя кэш
+      await loadCharacters(true); // forceRefresh = true
+      await loadCharacterPhotos();
+      console.log('Персонажи перезагружены после создания');
+    };
+    
+    window.addEventListener('character-photos-updated', handlePhotoUpdate);
+    window.addEventListener('character-created', handleCharacterCreated);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('character-photos-updated', handlePhotoUpdate);
+      window.removeEventListener('character-created', handleCharacterCreated);
+    };
+  }, [contentMode]); // Перезагружаем при изменении режима
 
   // Проверка авторизации при загрузке
   React.useEffect(() => {
@@ -404,7 +479,7 @@ export const MainPage: React.FC<MainPageProps> = ({ onCharacterSelect, onMyChara
         return;
       }
 
-      const response = await fetch('/auth/me/', {
+      const response = await fetch('/api/v1/auth/me/', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -454,12 +529,19 @@ export const MainPage: React.FC<MainPageProps> = ({ onCharacterSelect, onMyChara
   };
 
   const handleLogin = () => {
+    setAuthModalMode('login');
+    setIsAuthModalOpen(true);
+  };
+
+  const handleRegister = () => {
+    setAuthModalMode('register');
     setIsAuthModalOpen(true);
   };
 
   const handleLogout = () => {
     // Удаляем токен из localStorage
     localStorage.removeItem('authToken');
+    localStorage.removeItem('refreshToken');
     // Перезагружаем страницу для обновления состояния
     window.location.reload();
   };
@@ -508,6 +590,7 @@ export const MainPage: React.FC<MainPageProps> = ({ onCharacterSelect, onMyChara
 
   return (
     <MainContainer>
+      <ContentArea>
       {isPhotoGenerationOpen && createdCharacter ? (
         <PhotoGenerationPage
           character={createdCharacter}
@@ -517,50 +600,25 @@ export const MainPage: React.FC<MainPageProps> = ({ onCharacterSelect, onMyChara
         />
       ) : (
         <>
-          <CompactSidebar 
-            onCreateCharacter={handleCreateCharacter}
-            onShop={handleShop}
-            onMyCharacters={onMyCharacters || (() => {})}
-          />
-          
-          <ContentArea>
-            <Header>
-              <div></div>
-              
-              <RightSection>
-                {isAuthenticated && userInfo && (
-                  <UserInfo>
-                    <UserName>{userInfo.username}</UserName>
-                            <UserCoins>Монеты: {userCoins}</UserCoins>
-                  </UserInfo>
-                )}
-                
-                <PlanBadge onClick={handleShop}>План Free</PlanBadge>
-                
-                {isAuthenticated ? (
-                  <AuthButton onClick={handleLogout}>Выйти</AuthButton>
+              <CharactersGrid>
+                {isLoadingCharacters ? (
+                  <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2rem', color: '#a8a8a8' }}>
+                    Loading characters...
+                  </div>
                 ) : (
-                  <AuthButton onClick={handleLogin}>Войти</AuthButton>
+                  charactersWithPhotos.map((character) => (
+                    <CharacterCard
+                      key={character.id}
+                      character={character}
+                      onClick={handleCharacterClick}
+                      isAuthenticated={isAuthenticated}
+                      onPhotoGeneration={onPhotoGeneration}
+                      onPaidAlbum={onPaidAlbum}
+                      showPromptButton={true}
+                    />
+                  ))
                 )}
-              </RightSection>
-            </Header>
-            
-                    <CharactersGrid>
-                      {isLoadingCharacters ? (
-                        <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2rem', color: '#a8a8a8' }}>
-                          Loading characters...
-                        </div>
-                      ) : (
-                        charactersWithPhotos.map((character) => (
-                          <CharacterCard
-                            key={character.id}
-                            character={character}
-                            onClick={handleCharacterClick}
-                          />
-                        ))
-                      )}
-                    </CharactersGrid>
-          </ContentArea>
+              </CharactersGrid>
           
           <ShopModal
             isOpen={isShopModalOpen}
@@ -574,10 +632,12 @@ export const MainPage: React.FC<MainPageProps> = ({ onCharacterSelect, onMyChara
               isOpen={isAuthModalOpen}
               onClose={() => setIsAuthModalOpen(false)}
               onAuthSuccess={handleAuthSuccess}
+              mode={authModalMode}
             />
           )}
         </>
       )}
+      </ContentArea>
     </MainContainer>
   );
 };

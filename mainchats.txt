@@ -1,2 +1,0 @@
-generate_text - обычная генерация
-generate_text_stream - стриминговая генерация 

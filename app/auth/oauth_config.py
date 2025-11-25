@@ -3,6 +3,7 @@
 """
 
 import os
+import json
 from dotenv import load_dotenv
 
 # Загружаем .env файл из корня проекта
@@ -10,16 +11,29 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 env_path = os.path.join(project_root, '.env')
 load_dotenv(env_path)
 
-# Google OAuth настройки
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/auth/google/callback")
+# Пытаемся загрузить настройки из client_secret.json
+def load_google_credentials():
+    """Загружает Google OAuth настройки из переменных окружения."""
+    # Используем настройки из переменных окружения (.env файл)
+    return {
+        'client_id': os.getenv("GOOGLE_CLIENT_ID"),
+        'client_secret': os.getenv("GOOGLE_CLIENT_SECRET"),
+        'redirect_uri': os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/v1/auth/google/callback/")
+    }
+
+# Загружаем настройки Google OAuth
+google_creds = load_google_credentials()
+GOOGLE_CLIENT_ID = google_creds['client_id']
+GOOGLE_CLIENT_SECRET = google_creds['client_secret']
+GOOGLE_REDIRECT_URI = google_creds['redirect_uri']
 
 # Проверяем обязательные переменные
 if not GOOGLE_CLIENT_ID:
-    raise ValueError("GOOGLE_CLIENT_ID not set in .env file")
+    print("[WARNING] GOOGLE_CLIENT_ID not set. Google OAuth will not work.")
+    print("[INFO] Set GOOGLE_CLIENT_ID in .env file or environment variables.")
 if not GOOGLE_CLIENT_SECRET:
-    raise ValueError("GOOGLE_CLIENT_SECRET not set in .env file")
+    print("[WARNING] GOOGLE_CLIENT_SECRET not set. Google OAuth will not work.")
+    print("[INFO] Set GOOGLE_CLIENT_SECRET in .env file or environment variables.")
 
 # OAuth провайдеры
 OAUTH_PROVIDERS = {

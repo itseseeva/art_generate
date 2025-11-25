@@ -12,25 +12,57 @@ POSTGRES_DB = os.getenv("POSTGRES_DB")
 DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT")
 
-# URL подключения к базе данных
-DATABASE_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{DB_HOST}:{DB_PORT}/{POSTGRES_DB}"
+def _build_database_url() -> str:
+    """Формирует корректный DATABASE_URL. Если порт не задан, не включаем его."""
+    # Приоритет готовому URL из окружения
+    env_url = os.getenv("DATABASE_URL") or os.getenv("ASYNC_DATABASE_URL")
+    if env_url:
+        return env_url
 
-engine = create_async_engine(
-    DATABASE_URL, 
-    echo=True,
-    # Настройки для правильной работы с Unicode
-    connect_args={
-        # Дополнительные настройки для asyncpg
-        "command_timeout": 60,
+    if not POSTGRES_USER or not POSTGRES_PASSWORD or not POSTGRES_DB or not DB_HOST:
+        raise RuntimeError(
+            "Отсутствуют переменные окружения для БД: "
+            "POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, DB_HOST (и опционально DB_PORT)"
+        )
+
+    host_part = DB_HOST
+    if DB_PORT and DB_PORT.isdigit():
+        host_part = f"{DB_HOST}:{DB_PORT}"
+    # Если DB_PORT отсутствует или некорректная — не добавляем
+
+    return f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{host_part}/{POSTGRES_DB}"
+
+# URL подключения к базе данных
+DATABASE_URL = _build_database_url()
+
+# Определяем тип БД для правильной настройки connect_args
+is_sqlite = DATABASE_URL.startswith("sqlite")
+is_postgres = DATABASE_URL.startswith("postgresql")
+
+# Настройки connect_args в зависимости от типа БД
+connect_args = {}
+if is_postgres:
+    # Дополнительные настройки для asyncpg (PostgreSQL)
+    connect_args = {
+        "command_timeout": 30,  # Уменьшаем таймаут команды
         "server_settings": {
             "jit": "off"
         }
-    },
-    # Дополнительные настройки для PostgreSQL
-    pool_pre_ping=True,
-    pool_recycle=300,
-    # Настройки для правильной работы с Unicode в SQLAlchemy
-    echo_pool=True
+    }
+# Для SQLite используем пустой словарь, так как он не поддерживает command_timeout
+
+engine = create_async_engine(
+    DATABASE_URL, 
+    echo=False,  # Отключаем echo для производительности
+    # Настройки пула соединений для предотвращения зависаний
+    pool_size=10 if not is_sqlite else 1,  # SQLite не поддерживает пул
+    max_overflow=20 if not is_sqlite else 0,  # SQLite не поддерживает overflow
+    pool_timeout=5,  # Таймаут ожидания соединения из пула (уменьшен для быстрого отказа)
+    pool_pre_ping=True,  # Проверяем соединения перед использованием
+    pool_recycle=300,  # Переиспользуем соединения каждые 5 минут
+    # Настройки для правильной работы с Unicode
+    # Всегда передаем словарь (пустой для SQLite, с настройками для PostgreSQL)
+    connect_args=connect_args
 )
 
 async_session_maker = async_sessionmaker(

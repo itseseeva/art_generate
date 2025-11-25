@@ -1,0 +1,86 @@
+/* Убираем фиолетовую обводку для всех кнопок навигационного меню */
+[data-slot="navigation-menu-trigger"],
+[data-slot="navigation-menu-link"],
+[data-radix-navigation-menu-trigger],
+[data-radix-navigation-menu-link] {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+[data-slot="navigation-menu-trigger"]:focus,
+[data-slot="navigation-menu-trigger"]:focus-visible,
+[data-slot="navigation-menu-trigger"]:active,
+[data-slot="navigation-menu-link"]:focus,
+[data-slot="navigation-menu-link"]:focus-visible,
+[data-slot="navigation-menu-link"]:active,
+[data-radix-navigation-menu-trigger]:focus,
+[data-radix-navigation-menu-trigger]:focus-visible,
+[data-radix-navigation-menu-trigger]:active,
+[data-radix-navigation-menu-link]:focus,
+[data-radix-navigation-menu-link]:focus-visible,
+[data-radix-navigation-menu-link]:active {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  ring: none !important;
+}
+
+/* Делаем текст кнопок белым по умолчанию */
+[data-slot="navigation-menu-trigger"],
+[data-radix-navigation-menu-trigger"],
+[data-slot="navigation-menu-link"],
+[data-radix-navigation-menu-link"] {
+  color: #f5f5f5 !important;
+}
+
+/* Убираем фиолетовый цвет и делаем весь текст белым/серым */
+[data-slot="navigation-menu-content"],
+[data-slot="navigation-menu-content"] *,
+[data-slot="navigation-menu-content"] a,
+[data-slot="navigation-menu-content"] div,
+[data-slot="navigation-menu-content"] p,
+[data-slot="navigation-menu-content"] h1,
+[data-slot="navigation-menu-content"] h2,
+[data-slot="navigation-menu-content"] h3,
+[data-slot="navigation-menu-content"] li,
+[data-slot="navigation-menu-content"] ul,
+[data-slot="navigation-menu-content"] .font-medium,
+[data-slot="navigation-menu-content"] .text-sm,
+[data-slot="navigation-menu-content"] .text-lg,
+[data-slot="navigation-menu-content"] .text-muted-foreground {
+  color: #ffffff !important;
+}
+
+/* Специально для заголовков и текста с классом font-medium */
+[data-slot="navigation-menu-content"] .font-medium,
+[data-slot="navigation-menu-content"] div.font-medium,
+[data-slot="navigation-menu-content"] div.text-sm.leading-none.font-medium {
+  color: #ffffff !important;
+}
+
+/* Для muted текста делаем светло-серым */
+[data-slot="navigation-menu-content"] .text-muted-foreground,
+[data-slot="navigation-menu-content"] p.text-muted-foreground,
+[data-slot="navigation-menu-content"] p.text-sm.text-muted-foreground {
+  color: #d1d5db !important;
+}
+
+/* Убираем фиолетовый цвет при hover и focus */
+[data-slot="navigation-menu-content"] a:hover,
+[data-slot="navigation-menu-content"] a:focus,
+[data-slot="navigation-menu-content"] a:active,
+[data-slot="navigation-menu-content"] *:hover,
+[data-slot="navigation-menu-content"] *:focus,
+[data-slot="navigation-menu-content"] *:active {
+  color: #ffffff !important;
+}
+
+/* Переопределяем все возможные Tailwind классы с цветом */
+[data-slot="navigation-menu-content"] .text-primary,
+[data-slot="navigation-menu-content"] .text-accent,
+[data-slot="navigation-menu-content"] .text-purple,
+[data-slot="navigation-menu-content"] .text-violet {
+  color: #ffffff !important;
+}
+

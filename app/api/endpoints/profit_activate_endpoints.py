@@ -51,20 +51,20 @@ async def activate_subscription(
     try:
         service = ProfitActivateService(db)
         
-        # Поддерживаем base и standard подписки
-        if request.subscription_type.lower() not in ["base", "standard"]:
+        # Поддерживаем только standard и premium подписки
+        if request.subscription_type.lower() not in ["standard", "premium"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Поддерживаются только подписки типа 'base' и 'standard'"
+                detail="Поддерживаются только подписки типа 'standard' и 'premium'"
             )
         
         subscription = await service.activate_subscription(current_user.id, request.subscription_type)
         
         # Формируем сообщение в зависимости от типа подписки
-        if request.subscription_type.lower() == "base":
-            message = "Подписка Base успешно активирована! Вы получили 100 кредитов и 10 генераций фото."
-        else:
-            message = "Подписка Standard успешно активирована! Вы получили 2000 кредитов"
+        if request.subscription_type.lower() == "standard":
+            message = "Подписка Standard активирована! 1000 кредитов, 100 генераций фото и возможность создавать персонажей!"
+        else:  # premium
+            message = "Подписка Premium активирована! 5000 кредитов, 300 генераций фото и приоритет в очереди!"
         
         return SubscriptionActivateResponse(
             success=True,

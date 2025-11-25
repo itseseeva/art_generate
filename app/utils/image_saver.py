@@ -98,6 +98,80 @@ def save_image(image_data: Union[str, bytes, Image.Image], prefix: str = "image"
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise
 
+async def save_image_cloud_only(
+    image_data: Union[str, bytes, Image.Image], 
+    prefix: str = "image",
+    character_name: Optional[str] = None
+) -> dict:
+    """
+    Сохраняет изображение только в Yandex Cloud Storage без локального сохранения.
+    
+    Args:
+        image_data: Изображение в формате base64 строки, bytes или PIL.Image
+        prefix: Префикс для имени файла
+        character_name: Имя персонажа для организации файлов
+        
+    Returns:
+        dict: Словарь с URL файла в облаке
+    """
+    try:
+        from app.services.yandex_storage import get_yandex_storage_service, transliterate_cyrillic_to_ascii
+        
+        # Получаем сервис с ленивой инициализацией
+        service = get_yandex_storage_service()
+        
+        # Определяем папку в облаке с транслитерацией
+        folder = "generated_images"
+        if character_name:
+            character_name_ascii = transliterate_cyrillic_to_ascii(character_name)
+            folder = f"generated_images/{character_name_ascii}"
+        
+        # Конвертируем входные данные в bytes если нужно
+        if isinstance(image_data, str):
+            import base64
+            image_bytes = base64.b64decode(image_data)
+        elif isinstance(image_data, Image.Image):
+            buffer = BytesIO()
+            image_data.save(buffer, format="PNG")
+            image_bytes = buffer.getvalue()
+        else:
+            image_bytes = image_data
+        
+        # Формируем имя файла
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{prefix}_{timestamp}.png"
+        
+        # Загружаем в облако
+        cloud_url = await service.upload_file(
+            file_data=image_bytes,
+            object_key=f"{folder}/{filename}",
+            content_type='image/png',
+            metadata={
+                "character_name": character_name_ascii if character_name else "unknown",  # Используем только ASCII
+                "character_original": character_name or "unknown",  # Оригинальное имя в метаданных
+                "prefix": prefix,
+                "generated_at": datetime.now().isoformat(),
+                "source": "stable_diffusion_generation"
+            }
+        )
+        
+        logger.info(f"Изображение загружено в облако: {cloud_url}")
+        
+        return {
+            "cloud_url": cloud_url,
+            "filename": filename,
+            "success": True
+        }
+        
+    except Exception as e:
+        logger.error(f"Ошибка при загрузке изображения в облако: {str(e)}")
+        return {
+            "cloud_url": None,
+            "filename": None,
+            "success": False,
+            "error": str(e)
+        }
+
 def save_base64_image(base64_string: str, prefix: str = "generated") -> str:
     """
     Сохраняет изображение из base64 строки.
