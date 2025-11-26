@@ -306,7 +306,7 @@ async def create_character(character: CharacterCreate, db: AsyncSession = Depend
         result = await db.execute(
             select(CharacterDB).where(CharacterDB.name == character.name)
         )
-        existing_char = result.scalar_one_or_none()
+        existing_char = result.scalars().first()
         
         if existing_char:
             raise HTTPException(
@@ -718,10 +718,11 @@ async def update_character(
         if character.name is not None:
             # Check that new name is not taken by another character
             if character.name != character_name:
-                existing_char = await db.execute(
+                existing_char_result = await db.execute(
                     select(CharacterDB).where(CharacterDB.name == character.name)
                 )
-                if existing_char.scalar_one_or_none():
+                existing_char = existing_char_result.scalars().first()
+                if existing_char:
                     raise HTTPException(
                         status_code=400, 
                         detail=f"Персонаж с именем '{character.name}' уже существует"
@@ -782,10 +783,11 @@ async def update_user_character(
         # Update name if changed
         if character.name != character_name:
             # Check that new name is not taken by another character
-            existing_char = await db.execute(
+            existing_char_result = await db.execute(
                 select(CharacterDB).where(CharacterDB.name == character.name)
             )
-            if existing_char.scalar_one_or_none():
+            existing_char = existing_char_result.scalars().first()
+            if existing_char:
                 raise HTTPException(
                     status_code=400, 
                     detail=f"Персонаж с именем '{character.name}' уже существует"
@@ -1004,7 +1006,7 @@ async def create_user_character(
         result = await db.execute(
             select(CharacterDB).where(CharacterDB.name == character.name)
         )
-        existing_char = result.scalar_one_or_none()
+        existing_char = result.scalars().first()
         
         if existing_char:
             raise HTTPException(
@@ -1619,7 +1621,7 @@ async def generate_image_with_sd(prompt: str, character_name: str) -> tuple[str,
             
     except Exception as e:
         logger.error(f"Stable Diffusion generation error: {e}")
-        raise e
+        raise e 
 
 
 @router.post("/favorites/{character_id}")
@@ -1637,13 +1639,14 @@ async def add_to_favorites(
             raise HTTPException(status_code=404, detail="Character not found")
         
         # Проверяем, не добавлен ли уже в избранное
-        existing = await db.execute(
+        existing_result = await db.execute(
             select(FavoriteCharacter).where(
                 FavoriteCharacter.user_id == current_user.id,
                 FavoriteCharacter.character_id == character_id
             )
         )
-        if existing.scalar_one_or_none():
+        existing = existing_result.scalars().first()
+        if existing:
             return {"success": True, "message": "Character already in favorites"}
         
         # Добавляем в избранное
@@ -1751,13 +1754,14 @@ async def add_to_favorites(
             raise HTTPException(status_code=404, detail="Character not found")
         
         # Проверяем, не добавлен ли уже в избранное
-        existing = await db.execute(
+        existing_result = await db.execute(
             select(FavoriteCharacter).where(
                 FavoriteCharacter.user_id == current_user.id,
                 FavoriteCharacter.character_id == character_id
             )
         )
-        if existing.scalar_one_or_none():
+        existing = existing_result.scalars().first()
+        if existing:
             return {"success": True, "message": "Character already in favorites"}
         
         # Добавляем в избранное

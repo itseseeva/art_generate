@@ -51,7 +51,7 @@ const ActionButtons = styled.div`
   transform: translateY(-10px); /* Возвращаем анимацию */
   transition: all ${theme.transition.fast};
   pointer-events: auto; /* Включаем клики для кнопок */
-  z-index: 10; /* Поверх всех элементов */
+  z-index: 100; /* Поверх всех элементов */
   
   ${CardContainer}:hover & {
     opacity: 1;
@@ -66,9 +66,9 @@ const FavoriteButton = styled.button<{ $isFavorite: boolean }>`
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: ${props => props.$isFavorite ? 'rgba(255, 107, 107, 0.9)' : 'rgba(0, 0, 0, 0.5)'};
-  border: 2px solid ${props => props.$isFavorite ? 'rgba(255, 107, 107, 1)' : 'rgba(255, 255, 255, 0.3)'};
-  color: ${props => props.$isFavorite ? '#ffffff' : 'rgba(255, 255, 255, 0.8)'};
+  background: rgba(0, 0, 0, 0.5);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.8);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -82,9 +82,9 @@ const FavoriteButton = styled.button<{ $isFavorite: boolean }>`
   
   &:hover {
     transform: scale(1.1);
-    background: ${props => props.$isFavorite ? 'rgba(255, 107, 107, 1)' : 'rgba(0, 0, 0, 0.7)'};
-    border-color: ${props => props.$isFavorite ? 'rgba(255, 107, 107, 1)' : 'rgba(255, 255, 255, 0.5)'};
-    box-shadow: 0 4px 12px ${props => props.$isFavorite ? 'rgba(255, 107, 107, 0.4)' : 'rgba(255, 255, 255, 0.2)'};
+    background: rgba(0, 0, 0, 0.7);
+    border-color: rgba(255, 255, 255, 0.5);
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
   }
   
   &:active {
@@ -255,11 +255,16 @@ const ContentOverlay = styled.div`
   right: 0;
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
   padding: ${theme.spacing.md};
-  z-index: 2;
+  z-index: 100;
+  pointer-events: none;
   height: 120px;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
+  
+  * {
+    pointer-events: auto;
+  }
 `;
 
 const SlideShowContainer = styled.div`
@@ -380,6 +385,8 @@ const ShowPromptButton = styled.button`
   color: rgba(255, 255, 255, 0.9);
   display: flex;
   align-items: center;
+  z-index: 100;
+  pointer-events: auto;
   justify-content: center;
   transition: all ${theme.transition.fast};
   cursor: pointer;
@@ -413,8 +420,9 @@ const ModalOverlay = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.95);
-  backdrop-filter: blur(20px);
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(70px);
+  -webkit-backdrop-filter: blur(70px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -606,8 +614,7 @@ const SlideShow: React.FC<{
     <>
       <PhotoBackground 
         $imageUrl={photos[currentSlide]} 
-        $clickable={!!onPhotoClick}
-        onClick={() => onPhotoClick?.(photos[currentSlide])}
+        $clickable={false}
       />
       {photos.length > 1 && (
         <SlideDots>
@@ -818,24 +825,21 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
   return (
     <>
-      <ElectricBorder
-        color="#555555"
-        speed={1}
-        chaos={0.3}
-        thickness={2}
-        style={{ borderRadius: 16 }}
-      >
+    <ElectricBorder
+      color="#555555"
+      speed={1}
+      chaos={0.3}
+      thickness={2}
+      style={{ borderRadius: 16 }}
+    >
         <CardContainer>
           <SlideShow 
             photos={character.photos || []} 
             characterName={character.name}
-            onPhotoClick={!showPromptButton ? (photoUrl) => {
-              const fakeEvent = { stopPropagation: () => {} } as React.MouseEvent;
-              handleOpenPhoto(fakeEvent, photoUrl);
-            } : undefined}
+            onPhotoClick={undefined}
             onCurrentPhotoChange={(photoUrl) => {
               setCurrentPhotoUrl(photoUrl);
-            }}
+                }}
           />
           
           {!isChecking && (
@@ -849,23 +853,23 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           )}
           
           <ActionButtons>
-            {onPaidAlbum && (
-              <ActionButtonWithTooltip>
+          {onPaidAlbum && (
+            <ActionButtonWithTooltip>
                 <AlbumButton 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onPaidAlbum(character);
-                  }}
-                >
-                  Альбом
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPaidAlbum(character);
+                }}
+              >
+                Альбом
                 </AlbumButton>
-                <Tooltip>Платный альбом (200 💎)</Tooltip>
-              </ActionButtonWithTooltip>
-            )}
-          </ActionButtons>
-          
-          <ContentOverlay>
-            <CharacterName>{character.name}</CharacterName>
+              <Tooltip>Платный альбом (200 💎)</Tooltip>
+            </ActionButtonWithTooltip>
+          )}
+        </ActionButtons>
+        
+        <ContentOverlay>
+          <CharacterName>{character.name}</CharacterName>
             {showPromptButton && character.photos && character.photos.length > 0 && (
               <ShowPromptButton
                 onClick={(e) => {
@@ -878,7 +882,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                 Show Prompt
               </ShowPromptButton>
             )}
-          </ContentOverlay>
+        </ContentOverlay>
           <div 
             onClick={() => onClick(character)}
             style={{ 
@@ -888,11 +892,12 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
               right: 0, 
               bottom: 0, 
               zIndex: 1,
-              pointerEvents: 'none'
+              pointerEvents: 'auto',
+              cursor: 'pointer'
             }}
           />
-        </CardContainer>
-      </ElectricBorder>
+      </CardContainer>
+    </ElectricBorder>
       {modalContent && createPortal(modalContent, document.body)}
     </>
   );

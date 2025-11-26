@@ -269,9 +269,9 @@ const PromptModal = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(70px);
+  -webkit-backdrop-filter: blur(70px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -461,12 +461,13 @@ const OverlayButton = styled.button<{ $variant?: 'primary' | 'danger' }>`
 const PreviewBackdrop = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.95);
+  background: rgba(0, 0, 0, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9999;
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(70px);
+  -webkit-backdrop-filter: blur(70px);
   padding: ${theme.spacing.xl};
 `;
 

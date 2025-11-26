@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
-from typing import Optional, List, Tuple
+from typing import Optional
 from app.database.db_depends import get_db
 from app.auth.dependencies import get_current_user
 from app.models.user import Users
@@ -185,73 +185,36 @@ async def get_prompt_by_image(
             user_id
         )
 
-        normalized_url = image_url.split('?')[0].split('#')[0]
-        search_candidates: List[Tuple[str, bool]] = []
-
-        search_candidates.append((image_url, True))
-        if normalized_url != image_url:
-            search_candidates.append((normalized_url, True))
-
-        search_candidates.append((image_url, False))
-        if normalized_url != image_url:
-            search_candidates.append((normalized_url, False))
-
-        async def _find_prompt(target_url: str, only_current_user: bool) -> Optional[ChatHistory]:
-            stmt = (
-                select(ChatHistory)
-                .where(ChatHistory.image_url == target_url)
-                .order_by(ChatHistory.created_at.desc())
-                .limit(1)
+        # Нормализуем URL точно так же, как при сохранении
+        normalized_url = image_url.split('?')[0].split('#')[0] if image_url else image_url
+        
+        logger.info(f"[PROMPT] Ищем промпт по точному совпадению: normalized_url={normalized_url}, user_id={user_id}")
+        
+        # Сначала ищем промпт у текущего пользователя (приоритет)
+        stmt = (
+            select(ChatHistory)
+            .where(
+                ChatHistory.image_url == normalized_url,
+                ChatHistory.user_id == user_id
             )
-            if only_current_user:
-                stmt = stmt.where(ChatHistory.user_id == user_id)
-            return (await db.execute(stmt)).scalar_one_or_none()
-
-        message = None
-        for candidate_url, scoped in search_candidates:
-            logger.info(f"[PROMPT] Ищем промпт: URL={candidate_url}, only_current_user={scoped}")
-            message = await _find_prompt(candidate_url, scoped)
-            if message:
-                logger.info(f"[PROMPT] Найден промпт по точному совпадению: URL={candidate_url}, message_id={message.id}, user_id={message.user_id}")
-                break
-
+            .order_by(ChatHistory.created_at.desc())
+            .limit(1)
+        )
+        message = (await db.execute(stmt)).scalars().first()
+        
+        # Если не найдено у текущего пользователя, ищем среди всех пользователей (fallback)
         if not message:
-            logger.info("[PROMPT] Пробуем поиск по частичному совпадению")
-            # Сначала ищем среди всех пользователей по частичному совпадению
+            logger.info(f"[PROMPT] Промпт не найден у текущего пользователя, ищем среди всех пользователей")
             stmt = (
                 select(ChatHistory)
-                .where(ChatHistory.image_url.ilike(f"%{normalized_url}%"))
+                .where(ChatHistory.image_url == normalized_url)
                 .order_by(ChatHistory.created_at.desc())
                 .limit(1)
             )
-            message = (await db.execute(stmt)).scalar_one_or_none()
-            
-            # Если не нашли, пробуем поиск только среди текущего пользователя
-            if not message:
-                logger.info(f"[PROMPT] Пробуем поиск по частичному совпадению для user_id={user_id}")
-                stmt = (
-                    select(ChatHistory)
-                    .where(
-                        ChatHistory.image_url.ilike(f"%{normalized_url}%"),
-                        ChatHistory.user_id == user_id
-                    )
-                    .order_by(ChatHistory.created_at.desc())
-                    .limit(1)
-                )
-                message = (await db.execute(stmt)).scalar_one_or_none()
-            
-            # Если все еще не нашли, пробуем поиск по имени файла из URL
-            if not message:
-                import os
-                filename = os.path.basename(normalized_url)
-                logger.info(f"[PROMPT] Пробуем поиск по имени файла: {filename}")
-                stmt = (
-                    select(ChatHistory)
-                    .where(ChatHistory.image_url.ilike(f"%{filename}%"))
-                    .order_by(ChatHistory.created_at.desc())
-                    .limit(1)
-                )
-                message = (await db.execute(stmt)).scalar_one_or_none()
+            message = (await db.execute(stmt)).scalars().first()
+        
+        if message:
+            logger.info(f"[PROMPT] Промпт найден: message_id={message.id}, image_url={message.image_url}, user_id={message.user_id}, prompt_length={len(message.message_content) if message.message_content else 0}")
 
         if message:
             logger.info(

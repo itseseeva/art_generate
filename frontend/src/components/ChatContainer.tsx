@@ -1319,7 +1319,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
   // Если персонаж не загружен, показываем только загрузку
   if (!currentCharacter) {
-    return (
+  return (
       <div style={{ 
         display: 'flex', 
         alignItems: 'center', 
@@ -1464,28 +1464,28 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   return (
                     <>
                       {isPaidAlbumUnlocked && (
-                        <PaidAlbumButton onClick={handleOpenPaidAlbumView}>
-                          <FiUnlock />
-                          Открыть альбом
-                        </PaidAlbumButton>
+                <PaidAlbumButton onClick={handleOpenPaidAlbumView}>
+                  <FiUnlock />
+                  Открыть альбом
+                </PaidAlbumButton>
                       )}
                       <PaidAlbumButton 
                         $variant={isPaidAlbumUnlocked ? "secondary" : undefined}
                         onClick={handleOpenPaidAlbumBuilderView}
                       >
-                        <FiImage />
-                        Расширить альбом
-                      </PaidAlbumButton>
+                    <FiImage />
+                    Расширить альбом
+                  </PaidAlbumButton>
                       {!isPaidAlbumUnlocked && (
-                        <PaidAlbumInfo>
+                <PaidAlbumInfo>
                           Вы создатель этого персонажа. Можете создать платный альбом и добавлять в него фотографии.
-                        </PaidAlbumInfo>
+                </PaidAlbumInfo>
                       )}
                       {isPaidAlbumUnlocked && (
-                        <PaidAlbumInfo>
+                  <PaidAlbumInfo>
                           Альбом разблокирован. Вы можете расширить коллекцию фотографий.
-                        </PaidAlbumInfo>
-                      )}
+                  </PaidAlbumInfo>
+                )}
                     </>
                   );
                 }
@@ -1527,8 +1527,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                         <>
                           <LoadingSpinner size="sm" />
                           Разблокируем...
-                        </>
-                      ) : (
+              </>
+            ) : (
                         <>
                           <FiLock />
                           Разблокировать
@@ -1556,23 +1556,23 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               // Обычный пользователь, альбом не разблокирован
               // Но если пользователь является создателем, показываем кнопку "Расширить альбом" ниже
               return (
-                <>
-                  <PaidAlbumButton
-                    onClick={handleUnlockPaidAlbum}
-                    disabled={isUnlockingAlbum || userCoins < PAID_ALBUM_COST}
-                  >
-                    {isUnlockingAlbum ? (
-                      <>
-                        <LoadingSpinner size="sm" />
-                        Разблокируем...
-                      </>
-                    ) : (
-                      <>
-                        <FiLock />
-                        Разблокировать
-                      </>
-                    )}
-                  </PaidAlbumButton>
+              <>
+                <PaidAlbumButton
+                  onClick={handleUnlockPaidAlbum}
+                  disabled={isUnlockingAlbum || userCoins < PAID_ALBUM_COST}
+                >
+                  {isUnlockingAlbum ? (
+                    <>
+                      <LoadingSpinner size="sm" />
+                      Разблокируем...
+                    </>
+                  ) : (
+                    <>
+                      <FiLock />
+                      Разблокировать
+                    </>
+                  )}
+                </PaidAlbumButton>
                   {/* Показываем кнопку "Расширить альбом" для создателя, даже если он не в блоке isOwner */}
                   {isOwner && (
                     <PaidAlbumButton
@@ -1589,16 +1589,16 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                       Расширить альбом
                     </PaidAlbumButton>
                   )}
-                  <PaidAlbumInfo>
-                    Доступно кредитов: {userCoins}. Не хватает? Пополните баланс или оформите подписку, чтобы получать больше монет.
-                  </PaidAlbumInfo>
+                <PaidAlbumInfo>
+                  Доступно кредитов: {userCoins}. Не хватает? Пополните баланс или оформите подписку, чтобы получать больше монет.
+                </PaidAlbumInfo>
                   {isOwner && !canCreatePaidAlbum && (
-                    <PaidAlbumInfo>
-                      Для создания платного альбома нужна подписка Standard или Premium.
-                    </PaidAlbumInfo>
-                  )}
-                  {paidAlbumError && <PaidAlbumError>{paidAlbumError}</PaidAlbumError>}
-                </>
+                  <PaidAlbumInfo>
+                    Для создания платного альбома нужна подписка Standard или Premium.
+                  </PaidAlbumInfo>
+                )}
+                {paidAlbumError && <PaidAlbumError>{paidAlbumError}</PaidAlbumError>}
+              </>
               );
             })()}
           </PaidAlbumPanel>

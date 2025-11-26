@@ -1863,6 +1863,24 @@ async def generate_image(
                 character_name=character_name
             )
             
+            # Сохраняем промпт сразу (БЕЗ Celery, БЕЗ Redis) с task_id (без image_url, обновим позже)
+            if user_id and character_name and request.prompt:
+                try:
+                    from app.utils.prompt_saver import save_prompt_to_history
+                    await save_prompt_to_history(
+                        db=db,
+                        user_id=user_id,
+                        character_name=character_name,
+                        prompt=request.prompt,
+                        image_url=None,  # Пока нет URL, обновим в get_generation_status
+                        task_id=task.id
+                    )
+                    logger.info(f"[PROMPT] ✓ Промпт сохранен с task_id={task.id}, обновим с image_url в get_generation_status")
+                except Exception as e:
+                    logger.error(f"[PROMPT] Ошибка сохранения промпта: {e}")
+                    import traceback
+                    logger.error(f"[PROMPT] Трейсбек: {traceback.format_exc()}")
+            
             logger.info(f"[CELERY] Задача генерации изображения создана: task_id={task.id}, user_id={user_id}")
             logger.info(f"[CELERY] Задача отправлена в очередь, состояние: {task.state}")
             
@@ -2033,7 +2051,10 @@ async def stream_generation_status(
 
 
 @app.get("/api/v1/generation-status/{task_id}")
-async def get_generation_status(task_id: str):
+async def get_generation_status(
+    task_id: str,
+    db: AsyncSession = Depends(get_db)
+):
     """
     Получить статус генерации изображения по task_id.
     
@@ -2079,6 +2100,11 @@ async def get_generation_status(task_id: str):
             # Логируем результат для диагностики
             logger.info(f"[CELERY STATUS] Результат задачи {task_id}: {result}")
             logger.info(f"[CELERY STATUS] Тип результата: {type(result)}")
+            if isinstance(result, dict):
+                logger.info(f"[CELERY STATUS] Ключи в результате: {list(result.keys())}")
+                logger.info(f"[CELERY STATUS] user_id в результате: {result.get('user_id')}")
+                logger.info(f"[CELERY STATUS] character_name в результате: {result.get('character_name')}")
+                logger.info(f"[CELERY STATUS] original_user_prompt в результате: {'present' if result.get('original_user_prompt') else 'missing'}")
             
             # Проверяем, что результат содержит image_url
             if isinstance(result, dict):
@@ -2086,6 +2112,42 @@ async def get_generation_status(task_id: str):
                     logger.info(f"[CELERY STATUS] URL изображения найден в результате")
                 else:
                     logger.warning(f"[CELERY STATUS] URL изображения НЕ найден в результате! Ключи: {list(result.keys())}")
+            
+            # Обновляем промпт с image_url (промпт уже сохранен в generate_image с task_id)
+            try:
+                if isinstance(result, dict):
+                    image_url = result.get("image_url") or result.get("cloud_url")
+                    
+                    if image_url:
+                        # Ищем запись по task_id и обновляем её с image_url
+                        from sqlalchemy import select
+                        from app.models.chat_history import ChatHistory
+                        
+                        logger.info(f"[PROMPT] Обновляем промпт с image_url: task_id={task_id}, image_url={image_url}")
+                        
+                        existing_query = select(ChatHistory).where(
+                            ChatHistory.session_id == f"task_{task_id}"
+                        ).order_by(ChatHistory.created_at.desc()).limit(1)
+                        existing_result = await db.execute(existing_query)
+                        existing = existing_result.scalars().first()
+                        
+                        if existing:
+                            normalized_url = image_url.split('?')[0].split('#')[0]
+                            existing.image_url = normalized_url
+                            await db.flush()
+                            await db.commit()
+                            logger.info(f"[PROMPT] ✓ Промпт обновлен с image_url: task_id={task_id}, image_url={normalized_url}")
+                        else:
+                            logger.warning(f"[PROMPT] Запись с task_id={task_id} не найдена для обновления")
+                    else:
+                        logger.warning(f"[PROMPT] image_url отсутствует в результате, пропускаем обновление")
+                else:
+                    logger.warning(f"[PROMPT] Результат не является словарем: {type(result)}")
+            except Exception as e:
+                logger.error(f"[PROMPT] Ошибка при обновлении промпта: {e}")
+                import traceback
+                logger.error(f"[PROMPT] Трейсбек: {traceback.format_exc()}")
+                # Не прерываем выполнение, промпт - дополнительная функция
             
             response = {
                 "task_id": task_id,

@@ -89,10 +89,16 @@ def generate_image_task(
         # Получаем настройки для логирования
         full_settings_for_logging = settings_dict.copy()
         
-        # Обновляем статус
+        # Обновляем статус и сохраняем метаданные для сохранения промпта
         self.update_state(
             state="PROGRESS",
-            meta={"status": "Запуск генерации изображения", "progress": 30}
+            meta={
+                "status": "Запуск генерации изображения",
+                "progress": 30,
+                "user_id": user_id,
+                "character_name": character_name,
+                "original_user_prompt": settings_dict.get("original_user_prompt", "")
+            }
         )
         
         # Создаем сервис для генерации
@@ -207,38 +213,8 @@ def generate_image_task(
                     # Не прерываем выполнение задачи из-за ошибки траты ресурсов
                     # Изображение уже загружено, пользователь должен получить результат
             
-            # Сохраняем промпт в ChatHistory для возможности отображения
-            if user_id is not None and character_name:
-                try:
-                    logger.warning(f"[CELERY] Сохраняем промпт в историю (task_id={task_id}, character={character_name}, image_url={cloud_url})")
-                    # Используем оригинальный промпт пользователя (тот, что он ввел на фронтенде)
-                    # Это то, что пользователь написал в поле ввода, без данных персонажа и стандартных промптов
-                    original_user_prompt = settings_dict.get("original_user_prompt")
-                    if not original_user_prompt:
-                        # Fallback на prompt из settings_dict, если original_user_prompt не передан
-                        original_user_prompt = settings_dict.get("prompt", "")
-                    logger.warning(f"[CELERY] Оригинальный промпт пользователя: {original_user_prompt[:100] if original_user_prompt else 'ПУСТО'}")
-                    logger.warning(f"[CELERY] settings_dict keys: {list(settings_dict.keys())}")
-                    logger.warning(f"[CELERY] original_user_prompt from dict: {settings_dict.get('original_user_prompt', 'NOT_FOUND')}")
-                    if original_user_prompt:
-                        # Нормализуем URL для логирования
-                        normalized_url_for_log = cloud_url.split('?')[0].split('#')[0] if cloud_url else cloud_url
-                        logger.warning(f"[CELERY] Вызываем _save_prompt_to_history с URL: {normalized_url_for_log}")
-                        loop.run_until_complete(
-                            _save_prompt_to_history(
-                                user_id=user_id,
-                                character_name=character_name,
-                                prompt=original_user_prompt,  # Только то, что пользователь ввел
-                                image_url=cloud_url
-                            )
-                        )
-                        logger.warning(f"[CELERY] Промпт сохранен в историю (task_id={task_id}, character={character_name}, image_url={normalized_url_for_log}, prompt_length={len(original_user_prompt)})")
-                    else:
-                        logger.error(f"[CELERY] Промпт пустой, не сохраняем в историю!")
-                except Exception as e:
-                    logger.error(f"[CELERY] Не удалось сохранить промпт в ChatHistory: {e}")
-                    import traceback
-                    logger.error(f"[CELERY] Трейсбек: {traceback.format_exc()}")
+            # Промпт теперь сохраняется сразу в generate_image эндпоинте, а не здесь
+            # В get_generation_status мы только обновляем запись с image_url по task_id
             
             result_dict = {
                 "success": True,
@@ -400,92 +376,6 @@ async def _spend_photo_resources(user_id: int) -> None:
         except Exception as exc:
             await db_session.rollback()
             logger.error(f"[CELERY] Ошибка списания ресурсов за генерацию фото: {exc}")
-            raise
-
-
-async def _save_prompt_to_history(
-    user_id: int,
-    character_name: str,
-    prompt: str,
-    image_url: str
-) -> None:
-    """Сохраняет промпт в ChatHistory."""
-    # Ленивый импорт
-    from app.database.db import engine
-    from app.models.chat_history import ChatHistory
-    from sqlalchemy import select
-    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-    
-    # Создаем новую сессию БД для текущего event loop
-    # Это необходимо, так как в Celery worker может быть другой event loop
-    async_session_factory = async_sessionmaker(
-        engine, expire_on_commit=False, class_=AsyncSession
-    )
-    
-    async with async_session_factory() as db:
-        try:
-            # Нормализуем URL (убираем query параметры и фрагменты)
-            normalized_url = image_url.split('?')[0].split('#')[0] if image_url else image_url
-            
-            # Проверяем, не существует ли уже запись с таким URL
-            existing_query = select(ChatHistory).where(
-                ChatHistory.user_id == user_id,
-                ChatHistory.image_url == normalized_url
-            ).limit(1)
-            existing_result = await db.execute(existing_query)
-            existing = existing_result.scalar_one_or_none()
-            
-            if existing:
-                # Обновляем существующую запись
-                existing.message_content = prompt
-                existing.character_name = character_name
-                logger.warning(f"[CELERY] Обновлен существующий промпт для image_url={normalized_url}, user_id={user_id}")
-            else:
-                # Создаем новую запись
-                chat_message = ChatHistory(
-                    user_id=user_id,
-                    character_name=character_name,
-                    session_id="photo_generation",
-                    message_type="user",
-                    message_content=prompt,
-                    image_url=normalized_url,  # Сохраняем нормализованный URL
-                    image_filename=None
-                )
-                db.add(chat_message)
-                logger.warning(f"[CELERY] Создан новый промпт для image_url={normalized_url}, user_id={user_id}, prompt_length={len(prompt)}")
-            
-            await db.commit()
-            logger.warning(f"[CELERY] Commit выполнен для промпта (user_id={user_id}, image_url={normalized_url})")
-            
-            # Проверяем, что запись действительно сохранилась
-            # Используем новую сессию для проверки, чтобы убедиться, что данные видны извне
-            async_session_factory_verify = async_sessionmaker(
-                engine, expire_on_commit=False, class_=AsyncSession
-            )
-            async with async_session_factory_verify() as verify_db:
-                verify_query = select(ChatHistory).where(
-                    ChatHistory.user_id == user_id,
-                    ChatHistory.image_url == normalized_url
-                ).limit(1)
-                verify_result = await verify_db.execute(verify_query)
-                verify_record = verify_result.scalar_one_or_none()
-                
-                if verify_record:
-                    logger.warning(f"[CELERY] Промпт успешно сохранен и проверен в ChatHistory (user_id={user_id}, character={character_name}, image_url={normalized_url}, message_content_length={len(verify_record.message_content)}, message_content_preview={verify_record.message_content[:50]}...)")
-                else:
-                    logger.error(f"[CELERY] ОШИБКА: Промпт не найден после сохранения! user_id={user_id}, image_url={normalized_url}")
-                    # Пробуем найти любые записи для этого пользователя
-                    all_records_query = select(ChatHistory).where(
-                        ChatHistory.user_id == user_id
-                    ).order_by(ChatHistory.created_at.desc()).limit(3)
-                    all_records_result = await verify_db.execute(all_records_query)
-                    all_records = all_records_result.scalars().all()
-                    logger.error(f"[CELERY] Последние 3 записи для user_id={user_id}: {[(r.image_url, r.message_content[:30] if r.message_content else None) for r in all_records]}")
-        except Exception as e:
-            await db.rollback()
-            logger.error(f"[CELERY] Ошибка сохранения промпта в ChatHistory: {e}")
-            import traceback
-            logger.error(f"[CELERY] Трейсбек: {traceback.format_exc()}")
             raise
 
 

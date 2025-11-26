@@ -93,7 +93,7 @@ async def collect_profile_snapshot(user_id: int, db: AsyncSession) -> ProfileUpd
         .where(Users.id == user_id)
     )
     result = await db.execute(stmt)
-    user = result.scalar_one_or_none()
+    user = result.scalars().first()
     if user is None:
         raise ValueError(f"Пользователь {user_id} не найден")
 
@@ -213,9 +213,10 @@ class ProfitActivateService:
                 return subscription
         
         # Если нет в кэше, загружаем из БД
-        query = select(UserSubscription).where(UserSubscription.user_id == user_id)
+        # Используем order_by для получения самой последней подписки, если их несколько
+        query = select(UserSubscription).where(UserSubscription.user_id == user_id).order_by(UserSubscription.activated_at.desc())
         result = await self.db.execute(query)
-        subscription = result.scalar_one_or_none()
+        subscription = result.scalars().first()
         
         # Сохраняем в кэш
         if subscription:
@@ -246,7 +247,7 @@ class ProfitActivateService:
         from app.models.user import Users
         user_query = select(Users).where(Users.id == user_id)
         user_result = await self.db.execute(user_query)
-        user = user_result.scalar_one_or_none()
+        user = user_result.scalars().first()
         
         if not user:
             raise ValueError(f"Пользователь {user_id} не найден")

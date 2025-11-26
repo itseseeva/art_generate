@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { Loader2 } from 'lucide-react';
+import { FiX as CloseIcon } from 'react-icons/fi';
 import { theme } from '../theme';
+import { fetchPromptByImage } from '../utils/prompt';
 
 const MainContainer = styled.div`
   width: 100vw;
@@ -43,6 +46,7 @@ const GridContainer = styled.div`
   grid-template-columns: 1fr 400px;
   gap: 2rem;
   width: 100%;
+  min-width: 0;
   
   @media (max-width: 1200px) {
     grid-template-columns: 1fr;
@@ -54,6 +58,9 @@ const ImagesSection = styled.div`
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  width: 100%;
+  min-width: 0;
+  flex: 1;
 `;
 
 const SectionTitle = styled.h2`
@@ -61,79 +68,6 @@ const SectionTitle = styled.h2`
   font-weight: 600;
   color: rgba(240, 240, 240, 1);
   margin: 0;
-`;
-
-const EmptyStateCard = styled.div`
-  display: flex;
-  min-height: 600px;
-  align-items: center;
-  justify-content: center;
-  border: 2px dashed rgba(100, 100, 100, 0.5);
-  border-radius: 0.75rem;
-  background: rgba(30, 30, 30, 0.5);
-  color: rgba(160, 160, 160, 1);
-  padding: 2rem;
-`;
-
-const LoadingGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-  
-  @media (max-width: 768px) {
-    grid-template-columns: 1fr;
-  }
-`;
-
-const ProgressBarContainer = styled.div`
-  width: 100%;
-  max-width: 300px;
-`;
-
-const ProgressBar = styled.div`
-  width: 100%;
-  height: 8px;
-  background: rgba(60, 60, 60, 0.5);
-  border-radius: 4px;
-  overflow: hidden;
-  position: relative;
-`;
-
-const ProgressFill = styled.div<{ $progress: number }>`
-  height: 100%;
-  width: ${props => props.$progress}%;
-  background: linear-gradient(90deg, rgba(150, 150, 150, 0.8), rgba(200, 200, 200, 0.9));
-  border-radius: 4px;
-  transition: width 0.3s ease;
-  position: relative;
-  
-  &::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-    animation: shimmer 2s infinite;
-  }
-  
-  @keyframes shimmer {
-    0% {
-      transform: translateX(-100%);
-    }
-    100% {
-      transform: translateX(100%);
-    }
-  }
-`;
-
-const ProgressText = styled.div`
-  color: rgba(200, 200, 200, 1);
-  font-size: 0.875rem;
-  font-weight: 600;
-  margin-top: 0.5rem;
-  text-align: center;
 `;
 
 const ImageModal = styled.div<{ $isOpen: boolean }>`
@@ -186,7 +120,9 @@ const CloseButton = styled.button`
 const ImagesGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 1.4rem; /* Увеличено на 40% от 1rem */
+  gap: ${theme.spacing.sm};
+  width: 100%;
+  align-content: start;
   
   @media (max-width: 768px) {
     grid-template-columns: 1fr;
@@ -205,6 +141,7 @@ const ImageCard = styled.div<{ $isSelected?: boolean }>`
   transition: ${theme.transition.fast};
   width: 100%;
   height: 300px; /* Фиксированная высота как на главной */
+  min-width: 0; /* Позволяет карточке сжиматься в grid */
   cursor: pointer;
   
   &:hover {
@@ -436,13 +373,144 @@ const TipsList = styled.ul`
 
 const ModalOverlay = styled.div`
   position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(6px);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(70px);
+  -webkit-backdrop-filter: blur(70px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10000;
+  z-index: 99999;
+  padding: ${theme.spacing.xl};
+`;
+
+const PromptModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(70px);
+  -webkit-backdrop-filter: blur(70px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  padding: ${theme.spacing.xl};
+`;
+
+const PromptModalContent = styled.div`
+  position: relative;
+  max-width: 95vw;
+  max-height: 95vh;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: ${theme.spacing.xl};
+  width: 100%;
+`;
+
+const PromptModalImageContainer = styled.div`
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  max-width: 70%;
+`;
+
+const PromptModalImage = styled.img`
+  max-width: 100%;
+  max-height: 95vh;
+  object-fit: contain;
+  border-radius: ${theme.borderRadius.lg};
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+`;
+
+const PromptPanel = styled.div`
+  width: 400px;
+  min-width: 350px;
+  max-width: 30%;
+  background: rgba(30, 30, 30, 0.95);
+  border: 2px solid rgba(150, 150, 150, 0.5);
+  border-radius: ${theme.borderRadius.xl};
+  padding: ${theme.spacing.xl};
+  overflow-y: auto;
+  max-height: 95vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+`;
+
+const PromptPanelHeader = styled.div`
+  margin-bottom: ${theme.spacing.lg};
+  padding-bottom: ${theme.spacing.md};
+  border-bottom: 1px solid rgba(150, 150, 150, 0.3);
+`;
+
+const PromptPanelTitle = styled.h3`
+  color: rgba(240, 240, 240, 1);
+  font-size: ${theme.fontSize.xl};
+  font-weight: 800;
+  margin: 0;
+`;
+
+const PromptPanelText = styled.div`
+  color: rgba(200, 200, 200, 1);
+  font-size: ${theme.fontSize.sm};
+  line-height: 1.8;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  padding: ${theme.spacing.md};
+  background: rgba(40, 40, 40, 0.5);
+  border-radius: ${theme.borderRadius.lg};
+  border: 1px solid rgba(150, 150, 150, 0.3);
+  font-family: 'Courier New', monospace;
+  flex: 1;
+`;
+
+const PromptLoading = styled.div`
+  color: rgba(200, 200, 200, 1);
+  font-size: ${theme.fontSize.sm};
+  text-align: center;
+  padding: ${theme.spacing.xl};
+`;
+
+const PromptError = styled.div`
+  color: rgba(255, 100, 100, 1);
+  font-size: ${theme.fontSize.sm};
+  text-align: center;
+  padding: ${theme.spacing.xl};
+`;
+
+const PromptCloseButton = styled.button`
+  position: absolute;
+  top: ${theme.spacing.lg};
+  right: ${theme.spacing.lg};
+  background: rgba(0, 0, 0, 0.7);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: rgba(240, 240, 240, 1);
+  font-size: ${theme.fontSize.xl};
+  transition: ${theme.transition.fast};
+  z-index: 10001;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.9);
+    border-color: rgba(200, 200, 200, 0.8);
+    transform: scale(1.1);
+  }
 `;
 
 const ModalContent = styled.div`
@@ -569,6 +637,10 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
   const [addedPhotos, setAddedPhotos] = useState<string[]>([]);
   const [showFreeSubscriptionModal, setShowFreeSubscriptionModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
+  const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
+  const [promptError, setPromptError] = useState<string | null>(null);
 
   // Загрузка настроек генерации
   useEffect(() => {
@@ -601,9 +673,15 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
 
         if (response.ok) {
           const userData = await response.json();
+          const subscriptionType = userData.subscription?.subscription_type || userData.subscription_type || 'free';
+          console.log('[PhotoGenerationPage3] Загружена информация о пользователе:', {
+            coins: userData.coins || 0,
+            subscriptionType,
+            subscription: userData.subscription
+          });
           setUserInfo({ 
             coins: userData.coins || 0,
-            subscription_type: userData.subscription?.subscription_type || userData.subscription_type || 'free'
+            subscription_type: subscriptionType
           });
         }
       } catch (error) {
@@ -963,19 +1041,53 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
   const handleContinue = () => {
     if (images.length === 0) return;
     
-    const subscriptionType = userInfo?.subscription_type?.toLowerCase() || 'free';
+    // Безопасно получаем subscription_type
+    const rawSubscriptionType = userInfo?.subscription_type;
+    let subscriptionType = 'free'; // По умолчанию free
     
-    if (subscriptionType === 'free') {
-      // Показываем модальное окно для Free подписки
-      setShowFreeSubscriptionModal(true);
-    } else if (subscriptionType === 'standard' || subscriptionType === 'premium') {
-      // Переходим на страницу создания платного альбома
-      if (onPaidAlbumBuilder) {
-        onPaidAlbumBuilder(character);
+    if (rawSubscriptionType) {
+      if (typeof rawSubscriptionType === 'string') {
+        subscriptionType = rawSubscriptionType.toLowerCase().trim();
       } else {
-        // Fallback: переход через URL
-        window.location.href = `/paid-album-builder?character=${character.id || character.name}`;
+        subscriptionType = String(rawSubscriptionType).toLowerCase().trim();
       }
+    }
+    
+    console.log('[PhotoGenerationPage3] handleContinue:', {
+      userInfo,
+      rawSubscriptionType,
+      subscriptionType,
+      imagesLength: images.length,
+      typeOfRaw: typeof rawSubscriptionType
+    });
+    
+    // Только STANDARD и PREMIUM могут перейти на создание платного альбома
+    // Проверяем явно только эти два типа, все остальное (FREE, BASE, undefined, null, '') показываем модальное окно
+    const allowedTypes = ['standard', 'premium', 'standart']; // standart - опечатка для совместимости
+    const isAllowed = allowedTypes.includes(subscriptionType);
+    
+    console.log('[PhotoGenerationPage3] Проверка подписки:', {
+      subscriptionType,
+      isAllowed,
+      allowedTypes,
+      willShowModal: !isAllowed
+    });
+    
+    // ВАЖНО: Если не STANDARD или PREMIUM - показываем модальное окно и НЕ переходим дальше
+    if (!isAllowed) {
+      console.log('[PhotoGenerationPage3] ✗ НЕ разрешено: показываем модальное окно для подписки:', subscriptionType);
+      setShowFreeSubscriptionModal(true);
+      return; // ОСТАНОВКА - не переходим дальше
+    }
+    
+    // Только если isAllowed === true
+    console.log('[PhotoGenerationPage3] ✓ Разрешено: переход на создание платного альбома');
+    // Переходим на страницу создания платного альбома
+    if (onPaidAlbumBuilder) {
+      onPaidAlbumBuilder(character);
+    } else {
+      // Fallback: переход через URL
+      window.location.href = `/paid-album-builder?character=${character.id || character.name}`;
     }
   };
 
@@ -1017,6 +1129,38 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
       window.location.href = '/shop';
     }
   };
+
+  const handleOpenPhoto = async (e: React.MouseEvent, imageUrl: string) => {
+    e.stopPropagation();
+    setSelectedPhoto(imageUrl);
+    setSelectedPrompt(null);
+    setPromptError(null);
+    setIsLoadingPrompt(true);
+
+    try {
+      const { prompt, errorMessage } = await fetchPromptByImage(imageUrl);
+      if (prompt) {
+        setSelectedPrompt(prompt);
+      } else {
+        setPromptError(errorMessage || 'Промпт недоступен для этого изображения');
+      }
+    } finally {
+      setIsLoadingPrompt(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectedPhoto) {
+        setSelectedPhoto(null);
+        setSelectedPrompt(null);
+        setPromptError(null);
+        setIsLoadingPrompt(false);
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [selectedPhoto]);
 
   // Добавление/удаление фото в карточку персонажа (toggle)
   const handleAddPhoto = async (photoId: string) => {
@@ -1134,38 +1278,6 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
           <ImagesSection>
             <SectionTitle>Сгенерированные фото</SectionTitle>
 
-            {images.length === 0 && !isGenerating && (
-              <EmptyStateCard>
-                <p>Здесь появятся ваши изображения</p>
-              </EmptyStateCard>
-            )}
-
-            {isGenerating && (
-              <LoadingGrid>
-                <div style={{ 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  gap: '1.5rem',
-                  padding: '1rem'
-                }}>
-                  <Loader2 size={32} style={{ color: 'rgba(160, 160, 160, 1)' }} />
-                  <ProgressBarContainer>
-                    <ProgressBar>
-                      <ProgressFill $progress={generationProgress} />
-                    </ProgressBar>
-                    <ProgressText>{Math.round(generationProgress)}%</ProgressText>
-                  </ProgressBarContainer>
-                  {generatingCount > 0 && (
-                    <div style={{ color: 'rgba(160, 160, 160, 1)', fontSize: '0.875rem' }}>
-                      Генерация фото...
-                    </div>
-                  )}
-                </div>
-              </LoadingGrid>
-            )}
-
             {images.length > 0 && (
               <ImagesGrid>
                 {images.map((image, index) => {
@@ -1174,7 +1286,10 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
                     <ImageCard 
                       key={image.id} 
                       $isSelected={!!image.isAdded}
-                      onClick={() => setSelectedImage(image.url)}
+                      onClick={(e) => {
+                        const fakeEvent = { stopPropagation: () => {} } as React.MouseEvent;
+                        handleOpenPhoto(fakeEvent, image.url);
+                      }}
                       style={{ cursor: 'pointer' }}
                     >
                       <Image
@@ -1246,7 +1361,7 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
                   {isGenerating ? (
                     <>
                       <Loader2 size={16} />
-                      Генерация...
+                      Генерация {Math.round(generationProgress)}%
                     </>
                   ) : (
                     "Сгенерировать"
@@ -1281,13 +1396,15 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
         </GridContainer>
       </ContentWrapper>
 
-      {/* Модальное окно для Free подписки */}
+      {/* Модальное окно для Free и BASE подписки */}
       {showFreeSubscriptionModal && (
         <ModalOverlay onClick={() => setShowFreeSubscriptionModal(false)}>
           <ModalContent onClick={(e) => e.stopPropagation()}>
             <ModalTitle>Создание платного альбома</ModalTitle>
             <ModalText>
-              Вы не можете создать платный Альбом так как у вас подписка Free
+              {userInfo?.subscription_type?.toLowerCase() === 'base' 
+                ? 'Создание платного альбома доступно только для подписок Standard и Premium. Оформите подписку, чтобы создавать платные альбомы и получать 15% от продаж.'
+                : 'Вы не можете создать платный Альбом так как у вас подписка Free. Оформите подписку Standard или Premium, чтобы создавать платные альбомы и получать 15% от продаж.'}
             </ModalText>
             <ModalButtons>
               <ModalButton $variant="secondary" onClick={handleFinishCreation}>
@@ -1320,6 +1437,42 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
           </>
         )}
       </ImageModal>
+      
+      {selectedPhoto && createPortal(
+        <PromptModalOverlay onClick={() => {
+          setSelectedPhoto(null);
+          setSelectedPrompt(null);
+          setPromptError(null);
+          setIsLoadingPrompt(false);
+        }}>
+          <PromptModalContent onClick={(e) => e.stopPropagation()}>
+            <PromptCloseButton onClick={() => {
+              setSelectedPhoto(null);
+              setSelectedPrompt(null);
+              setPromptError(null);
+              setIsLoadingPrompt(false);
+            }}>
+              <CloseIcon />
+            </PromptCloseButton>
+            <PromptModalImageContainer>
+              <PromptModalImage src={selectedPhoto} alt="Full size" />
+            </PromptModalImageContainer>
+            <PromptPanel>
+              <PromptPanelHeader>
+                <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+              </PromptPanelHeader>
+              {isLoadingPrompt ? (
+                <PromptLoading>Загрузка промпта...</PromptLoading>
+              ) : promptError ? (
+                <PromptError>{promptError}</PromptError>
+              ) : selectedPrompt ? (
+                <PromptPanelText>{selectedPrompt}</PromptPanelText>
+              ) : null}
+            </PromptPanel>
+          </PromptModalContent>
+        </PromptModalOverlay>,
+        document.body
+      )}
     </MainContainer>
   );
 };

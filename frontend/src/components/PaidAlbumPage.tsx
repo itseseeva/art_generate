@@ -258,12 +258,13 @@ const EmptyState = styled.div`
 const PreviewBackdrop = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.95);
+  background: rgba(0, 0, 0, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9999;
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(70px);
+  -webkit-backdrop-filter: blur(70px);
   padding: ${theme.spacing.xl};
 `;
 
@@ -299,8 +300,8 @@ const PromptPanel = styled.div`
   width: 400px;
   min-width: 350px;
   max-width: 30%;
-  background: linear-gradient(135deg, rgba(22, 33, 62, 0.98), rgba(15, 23, 42, 0.98));
-  border: 2px solid rgba(102, 126, 234, 0.6);
+  background: rgba(30, 30, 30, 0.95);
+  border: 2px solid rgba(150, 150, 150, 0.5);
   border-radius: ${theme.borderRadius.xl};
   padding: ${theme.spacing.xl};
   overflow-y: auto;
@@ -308,35 +309,32 @@ const PromptPanel = styled.div`
   display: flex;
   flex-direction: column;
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
 `;
 
 const PromptPanelHeader = styled.div`
   margin-bottom: ${theme.spacing.lg};
   padding-bottom: ${theme.spacing.md};
-  border-bottom: 1px solid rgba(102, 126, 234, 0.3);
+  border-bottom: 1px solid rgba(150, 150, 150, 0.3);
 `;
 
 const PromptPanelTitle = styled.h3`
-  color: ${theme.colors.text.primary};
+  color: rgba(240, 240, 240, 1);
   font-size: ${theme.fontSize.xl};
   font-weight: 800;
   margin: 0;
-  background: linear-gradient(135deg, #ffffff, #a8a8a8);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
 `;
 
 const PromptPanelText = styled.div`
-  color: ${theme.colors.text.secondary};
+  color: rgba(200, 200, 200, 1);
   font-size: ${theme.fontSize.sm};
   line-height: 1.8;
   white-space: pre-wrap;
   word-wrap: break-word;
   padding: ${theme.spacing.md};
-  background: rgba(102, 126, 234, 0.08);
+  background: rgba(40, 40, 40, 0.5);
   border-radius: ${theme.borderRadius.lg};
-  border: 1px solid rgba(102, 126, 234, 0.2);
+  border: 1px solid rgba(150, 150, 150, 0.3);
   font-family: 'Courier New', monospace;
   flex: 1;
 `;

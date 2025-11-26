@@ -57,7 +57,7 @@ class CoinsService:
         result = await self.db.execute(
             select(Users.coins).where(Users.id == user_id)
         )
-        coins = result.scalar_one_or_none()
+        coins = result.scalars().first()
         
         if coins is not None and use_cache:
             await cache_set(cache_key, coins, ttl_seconds=TTL_USER_COINS)
