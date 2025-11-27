@@ -3,7 +3,7 @@
 """
 from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, func, or_
+from sqlalchemy import select, delete, func, or_, and_
 from sqlalchemy.orm import selectinload
 from app.models.chat_history import ChatHistory
 from app.models.subscription import SubscriptionType
@@ -161,30 +161,61 @@ class ChatHistoryService:
                 )
 
             try:
-                # Получаем персонажей, у которых есть хотя бы одно сообщение от пользователя
+                # КРИТИЧЕСКИ ВАЖНО: используем простой и надежный подход
+                # INNER JOIN автоматически исключает все записи без сообщений
+                # Это гарантирует, что мы НЕ получим персонажей без реальных сообщений
                 session_result = await self.db.execute(
                     select(
                         CharacterDB.name,
                         func.max(ChatMessageDB.timestamp).label("last_message_at"),
-                        func.count(ChatMessageDB.id).label("message_count"),
+                        func.count(func.distinct(ChatMessageDB.id)).label("message_count"),
                     )
+                    .select_from(CharacterDB)
                     .join(ChatSession, ChatSession.character_id == CharacterDB.id)
                     .join(ChatMessageDB, ChatMessageDB.session_id == ChatSession.id)
-                    .where(or_(*conditions))
+                    .where(or_(*conditions))  # Фильтр по user_id
                     .where(ChatMessageDB.role == "user")  # Только сообщения от пользователя
+                    .where(ChatMessageDB.content.isnot(None))  # Содержимое не NULL
+                    .where(ChatMessageDB.content != "")  # Не пустое
+                    .where(func.trim(ChatMessageDB.content) != "")  # Не только пробелы
+                    .where(func.length(func.trim(ChatMessageDB.content)) >= 3)  # Минимум 3 символа
                     .group_by(CharacterDB.name)
-                    .having(func.count(ChatMessageDB.id) > 0)  # Должно быть хотя бы одно сообщение
+                    .having(func.count(func.distinct(ChatMessageDB.id)) > 0)  # Хотя бы одно сообщение
                     .order_by(func.max(ChatMessageDB.timestamp).desc())
                 )
 
                 rows = session_result.fetchall()
+                print(f"[DEBUG] Запрос вернул {len(rows)} строк из ChatSession для user_id={user_id}")
                 for row in rows:
                     character_name = row[0]
                     last_message_at = row[1]
                     message_count = row[2]
                     
-                    # Пропускаем, если нет сообщений от пользователя
+                    print(f"[DEBUG] Обрабатываем персонажа {character_name}: message_count={message_count}, last_message_at={last_message_at}")
+                    
+                    # КРИТИЧЕСКИ ВАЖНО: строгая проверка - пропускаем, если нет сообщений или нет времени
                     if message_count == 0:
+                        print(f"[DEBUG] ПРОПУСК: персонаж {character_name} - message_count=0")
+                        continue
+                    if last_message_at is None:
+                        print(f"[DEBUG] ПРОПУСК: персонаж {character_name} - last_message_at is None")
+                        continue
+                    
+                    # Дополнительная проверка: убеждаемся, что время сообщения валидно
+                    try:
+                        from datetime import datetime
+                        if isinstance(last_message_at, str):
+                            last_message_at = datetime.fromisoformat(last_message_at.replace('Z', '+00:00'))
+                        if not isinstance(last_message_at, datetime):
+                            print(f"[DEBUG] ПРОПУСК: персонаж {character_name} - last_message_at не является datetime: {type(last_message_at)}")
+                            continue
+                    except Exception as e:
+                        print(f"[DEBUG] ПРОПУСК: персонаж {character_name} - ошибка парсинга last_message_at: {e}")
+                        continue
+                    
+                    # Финальная проверка: убеждаемся, что у нас действительно есть сообщения
+                    if message_count <= 0:
+                        print(f"[DEBUG] ПРОПУСК: персонаж {character_name} - message_count <= 0")
                         continue
                     
                     key = character_name.lower()
@@ -194,26 +225,36 @@ class ChatHistoryService:
                         "last_message_at": last_message_at.isoformat() if last_message_at else None,
                         "last_image_url": last_image_url,
                     }
+                    print(f"[DEBUG] ДОБАВЛЕН персонаж {character_name} с историей: message_count={message_count}, last_message_at={last_message_at.isoformat() if last_message_at else None}")
             except Exception as e:
                 print(f"[WARNING] Ошибка получения персонажей из ChatSession: {e}")
                 import traceback
                 print(f"[WARNING] Traceback: {traceback.format_exc()}")
 
             # Дополнительно проверяем ChatHistory, но только если там есть реальные сообщения ОТ ПОЛЬЗОВАТЕЛЯ
-            # (не только фото, но и текстовые сообщения с message_type='user')
+            # КРИТИЧЕСКИ ВАЖНО: исключаем записи, созданные автоматически (при генерации фото, создании персонажа и т.д.)
             try:
+                # Исключаем записи, которые могут быть созданы автоматически:
+                # 1. session_id="photo_generation" - записи при генерации фото (старый способ)
+                # 2. session_id начинается с "task_" - записи при генерации фото (новый способ через prompt_saver)
+                # 3. Записи только с image_url без реального текстового сообщения
+                # 4. Записи с пустым или автоматически сгенерированным содержимым
                 history_result = await self.db.execute(
                     select(
                         ChatHistory.character_name,
                         func.max(ChatHistory.created_at).label("last_message_at"),
-                        func.count(ChatHistory.id).label("message_count"),
+                        func.count(func.distinct(ChatHistory.id)).label("message_count"),
                     )
                     .where(ChatHistory.user_id == user_id)
                     .where(ChatHistory.message_type == "user")  # Только сообщения от пользователя
+                    .where(ChatHistory.session_id != "photo_generation")  # Исключаем записи при генерации фото (старый способ)
+                    .where(~ChatHistory.session_id.like("task_%"))  # КРИТИЧЕСКИ ВАЖНО: исключаем записи с session_id="task_*" (генерация фото)
                     .where(ChatHistory.message_content.isnot(None))  # Должно быть текстовое сообщение
                     .where(ChatHistory.message_content != "")  # Не пустое сообщение
+                    .where(func.trim(ChatHistory.message_content) != "")  # Не только пробелы
+                    .where(func.length(func.trim(ChatHistory.message_content)) >= 3)  # Минимум 3 символа (реальное сообщение)
                     .group_by(ChatHistory.character_name)
-                    .having(func.count(ChatHistory.id) > 0)  # Должно быть хотя бы одно сообщение
+                    .having(func.count(func.distinct(ChatHistory.id)) > 0)  # Должно быть хотя бы одно сообщение
                     .order_by(func.max(ChatHistory.created_at).desc())
                 )
 
@@ -224,8 +265,18 @@ class ChatHistoryService:
                     last_message_at = row[1]
                     message_count = row[2]
                     
-                    # Пропускаем, если нет сообщений
-                    if message_count == 0:
+                    # Строгая проверка: пропускаем, если нет сообщений или нет времени последнего сообщения
+                    if message_count == 0 or last_message_at is None:
+                        print(f"[DEBUG] Пропускаем персонажа из ChatHistory {character_name}: message_count={message_count}, last_message_at={last_message_at}")
+                        continue
+                    
+                    # Дополнительная проверка: убеждаемся, что время сообщения валидно
+                    try:
+                        from datetime import datetime
+                        if isinstance(last_message_at, str):
+                            last_message_at = datetime.fromisoformat(last_message_at.replace('Z', '+00:00'))
+                    except:
+                        print(f"[DEBUG] Невалидное время сообщения из ChatHistory для {character_name}: {last_message_at}")
                         continue
                     
                     key = character_name.lower()
@@ -238,6 +289,7 @@ class ChatHistoryService:
                             "last_message_at": last_message_at.isoformat() if last_message_at else None,
                             "last_image_url": last_image_url,
                         }
+                        print(f"[DEBUG] Добавлен персонаж из ChatHistory {character_name} с историей: message_count={message_count}, last_message_at={last_message_at}")
                     elif last_message_at:
                         # Обновляем время последнего сообщения, если оно новее
                         existing_time = characters[key].get("last_message_at")
@@ -252,7 +304,28 @@ class ChatHistoryService:
             except Exception as e:
                 print(f"[WARNING] Ошибка получения персонажей из ChatHistory: {e}")
 
-            return list(characters.values())
+            # ФИНАЛЬНАЯ ПРОВЕРКА: убеждаемся, что у всех персонажей есть валидное last_message_at
+            final_result = []
+            for char in characters.values():
+                if not char.get('last_message_at'):
+                    print(f"[DEBUG] ФИНАЛЬНАЯ ФИЛЬТРАЦИЯ: Пропускаем персонажа {char['name']} - нет last_message_at")
+                    continue
+                # Проверяем, что last_message_at - это валидная дата
+                try:
+                    from datetime import datetime
+                    last_msg = char.get('last_message_at')
+                    if isinstance(last_msg, str):
+                        datetime.fromisoformat(last_msg.replace('Z', '+00:00'))
+                    final_result.append(char)
+                    print(f"[DEBUG] ФИНАЛЬНАЯ ФИЛЬТРАЦИЯ: Добавлен персонаж {char['name']} с last_message_at={last_msg}")
+                except:
+                    print(f"[DEBUG] ФИНАЛЬНАЯ ФИЛЬТРАЦИЯ: Пропускаем персонажа {char['name']} - невалидное last_message_at={char.get('last_message_at')}")
+                    continue
+            
+            print(f"[DEBUG] Итоговый список персонажей с историей для user_id={user_id}: {len(final_result)} персонажей")
+            for char in final_result:
+                print(f"[DEBUG]   - {char['name']}: last_message_at={char.get('last_message_at')}")
+            return final_result
         except Exception as e:
             print(f"[ERROR] Ошибка получения списка персонажей: {e}")
             import traceback

@@ -23,13 +23,13 @@ async def test_user(memory_session: AsyncSession):
     from app.models.subscription import UserSubscription, SubscriptionType
     from sqlalchemy import select
     from datetime import datetime, timedelta
-
+    
     # Проверяем, существует ли пользователь
     result = await memory_session.execute(
         select(Users).where(Users.email == "test_history@example.com")
     )
     user = result.scalars().first()
-
+    
     if not user:
         user = Users(
             email="test_history@example.com",
@@ -42,7 +42,7 @@ async def test_user(memory_session: AsyncSession):
         memory_session.add(user)
         await memory_session.commit()
         await memory_session.refresh(user)
-
+    
         # Создаем подписку для пользователя (нужна для работы с историей)
         subscription = UserSubscription(
             user_id=user.id,

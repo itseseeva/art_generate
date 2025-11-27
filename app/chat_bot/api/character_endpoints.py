@@ -347,8 +347,8 @@ async def read_characters(skip: int = 0, limit: int = 100, db: AsyncSession = De
         cache_key = f"{key_characters_list()}:{skip}:{limit}"
         
         # Пытаемся получить из кэша (cache_get уже имеет внутренний таймаут)
-        # Используем очень короткий таймаут, чтобы не блокировать запросы
-        cached_characters = await cache_get(cache_key, timeout=0.5)
+        # Используем разумный таймаут, чтобы не блокировать запросы слишком долго
+        cached_characters = await cache_get(cache_key, timeout=2.0)
         
         if cached_characters is not None:
             try:
@@ -387,7 +387,7 @@ async def read_characters(skip: int = 0, limit: int = 100, db: AsyncSession = De
         
         logger.info(f"Loading characters from DB (skip={skip}, limit={limit})")
         try:
-            # Добавляем таймаут для запроса к БД
+            # Добавляем таймаут для запроса к БД (увеличиваем до 30 секунд для больших запросов)
             result = await asyncio.wait_for(
                 db.execute(
                     select(CharacterDB)
@@ -395,7 +395,7 @@ async def read_characters(skip: int = 0, limit: int = 100, db: AsyncSession = De
                     .limit(limit)
                     .order_by(CharacterDB.name)
                 ),
-                timeout=10.0
+                timeout=30.0
             )
             characters = result.scalars().all()
             logger.info(f"Retrieved {len(characters)} characters from database")
@@ -428,7 +428,7 @@ async def read_characters(skip: int = 0, limit: int = 100, db: AsyncSession = De
                     cache_key,
                     characters_data,
                     ttl_seconds=TTL_CHARACTERS_LIST,
-                    timeout=1.0
+                    timeout=3.0
                 )
                 logger.info(f"Cached {len(characters_data)} characters")
             except Exception as cache_error:

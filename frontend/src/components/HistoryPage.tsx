@@ -369,12 +369,15 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
         const historyList: HistoryCharacter[] = Array.isArray(historyData?.characters)
           ? historyData.characters
               .filter((entry: any) => {
-                // Фильтруем только валидные записи
+                // Фильтруем только валидные записи с реальной историей
                 if (typeof entry === 'string') {
                   return entry.trim().length > 0;
                 }
                 if (entry && typeof entry === 'object') {
-                  return typeof entry.name === 'string' && entry.name.trim().length > 0;
+                  // Проверяем, что есть имя и есть время последнего сообщения (реальный диалог)
+                  const hasName = typeof entry.name === 'string' && entry.name.trim().length > 0;
+                  const hasLastMessage = entry.last_message_at && entry.last_message_at.trim().length > 0;
+                  return hasName && hasLastMessage;
                 }
                 return false;
               })
