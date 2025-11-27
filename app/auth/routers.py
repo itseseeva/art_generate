@@ -3,6 +3,7 @@
 """
 
 from datetime import datetime, timedelta, timezone
+from typing import List
 from fastapi import APIRouter, HTTPException, Request, Depends, UploadFile, File
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +16,7 @@ import asyncio
 from app.schemas.auth import (
     UserCreate, UserLogin, UserResponse, 
     TokenResponse, RefreshTokenRequest, Message,
-    TipCreatorRequest, TipCreatorResponse, SetUsernameRequest,
+    TipCreatorRequest, TipCreatorResponse, TipMessageResponse, SetUsernameRequest,
     UpdateUsernameRequest, RequestEmailChangeRequest, ConfirmEmailChangeRequest,
     RequestPasswordChangeRequest, VerifyPasswordChangeCodeRequest, ConfirmPasswordChangeRequest,
     UserPhotoResponse, UserGalleryResponse, AddPhotoToGalleryRequest, UnlockUserGalleryRequest
@@ -25,6 +26,7 @@ from app.models.user import Users, RefreshToken, EmailVerificationCode
 from app.models.chat_history import ChatHistory
 from app.models.user_gallery import UserGallery
 from app.models.user_gallery_unlock import UserGalleryUnlock
+from app.chat_bot.models.models import TipMessage
 from app.auth.utils import (
     hash_password, verify_password, hash_token, 
     create_refresh_token, get_token_expiry, generate_verification_code, send_verification_email
@@ -566,12 +568,34 @@ async def tip_character_creator(
         await db.commit()
         logger.info(f"[DEBUG] Транзакция закоммичена")
         
-        await db.refresh(current_user)
+        # Получаем объекты заново из сессии после commit
+        result = await db.execute(
+            select(Users).where(Users.id == current_user.id)
+        )
+        current_user = result.scalar_one()
         logger.info(f"[DEBUG] current_user обновлен, баланс: {current_user.coins}")
         
         if creator:
-            await db.refresh(creator)
+            result = await db.execute(
+                select(Users).where(Users.id == creator.id)
+            )
+            creator = result.scalar_one()
             logger.info(f"[DEBUG] creator обновлен, баланс: {creator.coins}")
+        
+        # Сохраняем сообщение благодарности в БД, если есть создатель
+        if creator:
+            tip_message = TipMessage(
+                sender_id=current_user.id,
+                receiver_id=creator.id,
+                character_id=character.id,
+                character_name=character.display_name or character.name,
+                amount=tip_request.amount,
+                message=tip_request.message if tip_request.message else None,
+                is_read=False
+            )
+            db.add(tip_message)
+            await db.commit()
+            logger.info(f"[TIP MESSAGE] Сообщение сохранено: от {current_user.email} к {creator.email}, сообщение: {tip_request.message if tip_request.message else '(пусто)'}")
         
         await emit_profile_update(current_user.id, db)
         if creator:
@@ -623,6 +647,77 @@ async def tip_character_creator(
             status_code=500, 
             detail="Произошла ошибка при отправке кредитов. Пожалуйста, попробуйте позже."
         )
+
+
+@auth_router.get("/auth/tip-messages/", response_model=List[TipMessageResponse])
+async def get_tip_messages(
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Получить все сообщения благодарности для текущего пользователя (создателя персонажей).
+    """
+    from app.chat_bot.models.models import TipMessage
+    from sqlalchemy import desc
+    
+    result = await db.execute(
+        select(TipMessage)
+        .where(TipMessage.receiver_id == current_user.id)
+        .order_by(desc(TipMessage.created_at))
+    )
+    tip_messages = result.scalars().all()
+    
+    messages = []
+    for tip_msg in tip_messages:
+        # Получаем информацию об отправителе
+        sender_result = await db.execute(
+            select(Users).where(Users.id == tip_msg.sender_id)
+        )
+        sender = sender_result.scalar_one_or_none()
+        
+        messages.append(TipMessageResponse(
+            id=tip_msg.id,
+            sender_id=tip_msg.sender_id,
+            sender_email=sender.email if sender else "Unknown",
+            sender_username=sender.username if sender else None,
+            sender_avatar_url=sender.avatar_url if sender else None,
+            character_id=tip_msg.character_id,
+            character_name=tip_msg.character_name,
+            amount=tip_msg.amount,
+            message=tip_msg.message,
+            is_read=tip_msg.is_read,
+            created_at=tip_msg.created_at
+        ))
+    
+    return messages
+
+
+@auth_router.post("/auth/tip-messages/{message_id}/read/")
+async def mark_tip_message_read(
+    message_id: int,
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Отметить сообщение благодарности как прочитанное.
+    """
+    from app.chat_bot.models.models import TipMessage
+    
+    result = await db.execute(
+        select(TipMessage).where(
+            TipMessage.id == message_id,
+            TipMessage.receiver_id == current_user.id
+        )
+    )
+    tip_message = result.scalar_one_or_none()
+    
+    if not tip_message:
+        raise HTTPException(status_code=404, detail="Сообщение не найдено")
+    
+    tip_message.is_read = True
+    await db.commit()
+    
+    return {"success": True, "message": "Сообщение отмечено как прочитанное"}
 
 
 @auth_router.post("/auth/avatar/")

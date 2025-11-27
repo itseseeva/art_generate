@@ -73,12 +73,34 @@
 }
 
 .dock-label {
-  display: none;
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(0, 0, 0, 0.8);
+  color: rgba(255, 255, 255, 0.9);
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 1000;
+}
+
+.dock-item:hover .dock-label {
+  opacity: 1;
 }
 
 .dock-label-vertical {
+  display: block;
+  position: absolute;
   top: 50%;
   left: 100%;
   transform: translateY(-50%);
   margin-left: 0.5rem;
+  white-space: nowrap;
+  pointer-events: none;
 }

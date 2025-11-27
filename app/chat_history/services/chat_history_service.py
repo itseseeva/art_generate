@@ -123,14 +123,22 @@ class ChatHistoryService:
             .limit(1)
         )
         result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
+        row = result.first()
+        return row[0] if row else None
 
     async def get_user_characters_with_history(self, user_id: int) -> List[Dict[str, Any]]:
-        """Получает список персонажей, с которыми у пользователя есть история чата и метаданные по последнему сообщению."""
+        """
+        Получает список персонажей, с которыми у пользователя есть НЕЗАКОНЧЕННЫЙ диалог.
+        Показывает только тех персонажей, с которыми пользователь реально общался (есть сообщения).
+        """
         try:
             from app.chat_bot.models.models import ChatSession, ChatMessageDB, CharacterDB
             from app.models.user import Users
 
+            characters: Dict[str, Dict[str, Any]] = {}
+
+            # Получаем персонажей из ChatSession и ChatMessageDB (новая система)
+            # Это основной источник - показывает только персонажей, с которыми есть реальные сообщения
             user_id_str = str(user_id).strip()
             conditions = [
                 ChatSession.user_id == user_id_str,
@@ -140,7 +148,8 @@ class ChatHistoryService:
             user_result = await self.db.execute(
                 select(Users.username).where(Users.id == user_id)
             )
-            username = user_result.scalar_one_or_none()
+            username_row = user_result.first()
+            username = username_row[0] if username_row else None
             if username:
                 normalized_username = username.strip().lower()
                 conditions.extend(
@@ -151,60 +160,103 @@ class ChatHistoryService:
                     ]
                 )
 
-            session_result = await self.db.execute(
-                select(
-                    CharacterDB.name,
-                    func.max(ChatMessageDB.timestamp).label("last_message_at"),
+            try:
+                # Получаем персонажей, у которых есть хотя бы одно сообщение от пользователя
+                session_result = await self.db.execute(
+                    select(
+                        CharacterDB.name,
+                        func.max(ChatMessageDB.timestamp).label("last_message_at"),
+                        func.count(ChatMessageDB.id).label("message_count"),
+                    )
+                    .join(ChatSession, ChatSession.character_id == CharacterDB.id)
+                    .join(ChatMessageDB, ChatMessageDB.session_id == ChatSession.id)
+                    .where(or_(*conditions))
+                    .where(ChatMessageDB.role == "user")  # Только сообщения от пользователя
+                    .group_by(CharacterDB.name)
+                    .having(func.count(ChatMessageDB.id) > 0)  # Должно быть хотя бы одно сообщение
+                    .order_by(func.max(ChatMessageDB.timestamp).desc())
                 )
-                .join(ChatSession, ChatSession.character_id == CharacterDB.id)
-                .join(ChatMessageDB, ChatMessageDB.session_id == ChatSession.id)
-                .where(or_(*conditions))
-                .group_by(CharacterDB.name)
-                .having(func.count(ChatMessageDB.id) > 0)
-                .order_by(func.max(ChatMessageDB.timestamp).desc())
-            )
 
-            rows = session_result.fetchall()
-            characters: Dict[str, Dict[str, Any]] = {}
-            for row in rows:
-                character_name = row[0]
-                last_message_at = row[1]
-                last_image_url = await self._get_last_image_url(user_id, character_name)
-                characters[character_name.lower()] = {
-                    "name": character_name,
-                    "last_message_at": last_message_at.isoformat() if last_message_at else None,
-                    "last_image_url": last_image_url,
-                }
+                rows = session_result.fetchall()
+                for row in rows:
+                    character_name = row[0]
+                    last_message_at = row[1]
+                    message_count = row[2]
+                    
+                    # Пропускаем, если нет сообщений от пользователя
+                    if message_count == 0:
+                        continue
+                    
+                    key = character_name.lower()
+                    last_image_url = await self._get_last_image_url(user_id, character_name)
+                    characters[key] = {
+                        "name": character_name,
+                        "last_message_at": last_message_at.isoformat() if last_message_at else None,
+                        "last_image_url": last_image_url,
+                    }
+            except Exception as e:
+                print(f"[WARNING] Ошибка получения персонажей из ChatSession: {e}")
+                import traceback
+                print(f"[WARNING] Traceback: {traceback.format_exc()}")
 
-            # Дополнительно включаем персонажей из ChatHistory (старые записи или без character_id)
-            history_result = await self.db.execute(
-                select(
-                    ChatHistory.character_name,
-                    func.max(ChatHistory.created_at).label("last_message_at"),
+            # Дополнительно проверяем ChatHistory, но только если там есть реальные сообщения ОТ ПОЛЬЗОВАТЕЛЯ
+            # (не только фото, но и текстовые сообщения с message_type='user')
+            try:
+                history_result = await self.db.execute(
+                    select(
+                        ChatHistory.character_name,
+                        func.max(ChatHistory.created_at).label("last_message_at"),
+                        func.count(ChatHistory.id).label("message_count"),
+                    )
+                    .where(ChatHistory.user_id == user_id)
+                    .where(ChatHistory.message_type == "user")  # Только сообщения от пользователя
+                    .where(ChatHistory.message_content.isnot(None))  # Должно быть текстовое сообщение
+                    .where(ChatHistory.message_content != "")  # Не пустое сообщение
+                    .group_by(ChatHistory.character_name)
+                    .having(func.count(ChatHistory.id) > 0)  # Должно быть хотя бы одно сообщение
+                    .order_by(func.max(ChatHistory.created_at).desc())
                 )
-                .where(ChatHistory.user_id == user_id)
-                .group_by(ChatHistory.character_name)
-                .order_by(func.max(ChatHistory.created_at).desc())
-            )
 
-            for row in history_result.fetchall():
-                character_name = row[0]
-                if not character_name:
-                    continue
-                key = character_name.lower()
-                if key in characters:
-                    continue
-                last_message_at = row[1]
-                last_image_url = await self._get_last_image_url(user_id, character_name)
-                characters[key] = {
-                    "name": character_name,
-                    "last_message_at": last_message_at.isoformat() if last_message_at else None,
-                    "last_image_url": last_image_url,
-                }
+                for row in history_result.fetchall():
+                    character_name = row[0]
+                    if not character_name:
+                        continue
+                    last_message_at = row[1]
+                    message_count = row[2]
+                    
+                    # Пропускаем, если нет сообщений
+                    if message_count == 0:
+                        continue
+                    
+                    key = character_name.lower()
+                    
+                    # Добавляем только если персонажа еще нет в списке
+                    if key not in characters:
+                        last_image_url = await self._get_last_image_url(user_id, character_name)
+                        characters[key] = {
+                            "name": character_name,
+                            "last_message_at": last_message_at.isoformat() if last_message_at else None,
+                            "last_image_url": last_image_url,
+                        }
+                    elif last_message_at:
+                        # Обновляем время последнего сообщения, если оно новее
+                        existing_time = characters[key].get("last_message_at")
+                        if existing_time and last_message_at:
+                            try:
+                                from datetime import datetime
+                                existing_dt = datetime.fromisoformat(existing_time.replace('Z', '+00:00'))
+                                if last_message_at > existing_dt:
+                                    characters[key]["last_message_at"] = last_message_at.isoformat()
+                            except:
+                                pass
+            except Exception as e:
+                print(f"[WARNING] Ошибка получения персонажей из ChatHistory: {e}")
 
             return list(characters.values())
         except Exception as e:
             print(f"[ERROR] Ошибка получения списка персонажей: {e}")
+            import traceback
+            print(f"[ERROR] Traceback: {traceback.format_exc()}")
             return []
     
     async def clear_chat_history(self, user_id: int, character_name: str, session_id: str) -> bool:
@@ -214,20 +266,79 @@ class ChatHistoryService:
             if not await self.can_save_history(user_id):
                 return False
             
+            from app.chat_bot.models.models import ChatSession, ChatMessageDB, CharacterDB
+            
+            # Удаляем из ChatHistory (старая система)
+            # Сначала находим персонажа по name или display_name
+            character_result = await self.db.execute(
+                select(CharacterDB).where(
+                    or_(
+                        CharacterDB.name == character_name,
+                        CharacterDB.display_name == character_name
+                    )
+                )
+            )
+            character = character_result.scalars().first()
+            
+            # Удаляем по character_name (как хранится в ChatHistory)
+            # Удаляем для всех session_id, так как при очистке истории нужно удалить все сессии
             await self.db.execute(
                 delete(ChatHistory)
                 .where(
                     ChatHistory.user_id == user_id,
-                    ChatHistory.character_name == character_name,
-                    ChatHistory.session_id == session_id
+                    ChatHistory.character_name == character_name
                 )
             )
+            
+            # Если нашли персонажа, также удаляем по его name и display_name
+            # Удаляем для всех session_id
+            if character:
+                await self.db.execute(
+                    delete(ChatHistory)
+                    .where(
+                        ChatHistory.user_id == user_id,
+                        or_(
+                            ChatHistory.character_name == character.name,
+                            ChatHistory.character_name == character.display_name
+                        )
+                    )
+                )
+            
+            # Удаляем из ChatSession и ChatMessageDB (новая система)
+            # Используем уже найденного персонажа, если он есть
+            if character:
+                # Находим сессии пользователя для этого персонажа
+                user_id_str = str(user_id).strip()
+                session_result = await self.db.execute(
+                    select(ChatSession)
+                    .where(ChatSession.character_id == character.id)
+                    .where(
+                        or_(
+                            ChatSession.user_id == user_id_str,
+                            func.trim(ChatSession.user_id) == user_id_str,
+                        )
+                    )
+                )
+                sessions = session_result.scalars().all()
+                
+                # Удаляем все сообщения из этих сессий и сами сессии
+                for session in sessions:
+                    # Удаляем все сообщения из сессии
+                    await self.db.execute(
+                        delete(ChatMessageDB).where(ChatMessageDB.session_id == session.id)
+                    )
+                    # Удаляем саму сессию
+                    await self.db.execute(
+                        delete(ChatSession).where(ChatSession.id == session.id)
+                    )
             
             await self.db.commit()
             return True
             
         except Exception as e:
             print(f"[ERROR] Ошибка очистки истории чата: {e}")
+            import traceback
+            print(f"[ERROR] Traceback: {traceback.format_exc()}")
             await self.db.rollback()
             return False
     

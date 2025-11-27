@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
-import { Button } from 'flowbite-react';
 import { FiHeart, FiX } from 'react-icons/fi';
 
 const ModalOverlay = styled.div`
@@ -10,8 +9,8 @@ const ModalOverlay = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(10px);
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(70px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -20,11 +19,12 @@ const ModalOverlay = styled.div`
 `;
 
 const ModalContent = styled.div`
-  background: ${theme.colors.gradients.card};
-  border-radius: ${theme.borderRadius.xl};
-  padding: ${theme.spacing.xxl};
-  box-shadow: ${theme.colors.shadow.card};
-  border: 1px solid ${theme.colors.border.accent};
+  background: linear-gradient(135deg, rgba(20, 20, 20, 0.95) 0%, rgba(15, 15, 15, 0.95) 100%);
+  border-radius: 20px;
+  padding: 2.5rem;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 
+              inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   max-width: 500px;
   width: 90vw;
   animation: slideIn 0.3s ease-out;
@@ -34,141 +34,166 @@ const ModalHeader = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: ${theme.spacing.xl};
+  margin-bottom: 2rem;
   
   h3 {
-    font-size: ${theme.fontSize['2xl']};
+    font-size: 1.75rem;
     font-weight: 700;
-    color: ${theme.colors.text.primary};
+    color: #ffffff;
     display: flex;
     align-items: center;
-    gap: ${theme.spacing.md};
+    gap: 0.75rem;
   }
 `;
 
 const CloseButton = styled.button`
-  background: none;
-  border: none;
-  color: ${theme.colors.text.muted};
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cccccc;
   cursor: pointer;
-  padding: ${theme.spacing.sm};
-  border-radius: ${theme.borderRadius.md};
-  transition: ${theme.transition.fast};
+  padding: 0.5rem;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   
   &:hover {
-    background: ${theme.colors.background.tertiary};
-    color: ${theme.colors.text.primary};
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.2);
   }
 `;
 
 const CharacterInfo = styled.div`
-  background: ${theme.colors.background.secondary};
-  border: 1px solid ${theme.colors.border.primary};
-  border-radius: ${theme.borderRadius.lg};
-  padding: ${theme.spacing.lg};
-  margin-bottom: ${theme.spacing.xl};
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
   
   p {
-    color: ${theme.colors.text.secondary};
-    margin: ${theme.spacing.sm} 0;
+    color: #d1d1d1;
+    margin: 0.5rem 0;
+    line-height: 1.6;
   }
   
   strong {
-    color: ${theme.colors.text.primary};
+    color: #ffffff;
+    font-weight: 600;
   }
 `;
 
 const AmountSelector = styled.div`
-  margin-bottom: ${theme.spacing.xl};
+  margin-bottom: 2rem;
   
   label {
     display: block;
     font-weight: 600;
-    color: ${theme.colors.text.secondary};
-    font-size: ${theme.fontSize.sm};
-    margin-bottom: ${theme.spacing.md};
+    color: #d1d1d1;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
   }
 `;
 
 const AmountButtons = styled.div`
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: ${theme.spacing.md};
-  margin-bottom: ${theme.spacing.md};
+  gap: 0.75rem;
+  margin-bottom: 1rem;
 `;
 
 const AmountButton = styled.button<{ selected: boolean }>`
-  padding: ${theme.spacing.md};
-  background: ${props => props.selected ? theme.colors.accent.primary : theme.colors.background.secondary};
-  border: 2px solid ${props => props.selected ? theme.colors.accent.primary : theme.colors.border.primary};
-  border-radius: ${theme.borderRadius.lg};
-  color: ${theme.colors.text.primary};
+  padding: 0.75rem;
+  background: ${props => props.selected 
+    ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.8) 0%, rgba(99, 102, 241, 0.8) 100%)' 
+    : 'rgba(255, 255, 255, 0.05)'};
+  border: 2px solid ${props => props.selected 
+    ? 'rgba(139, 92, 246, 0.5)' 
+    : 'rgba(255, 255, 255, 0.1)'};
+  border-radius: 12px;
+  color: #ffffff;
   font-weight: 600;
   cursor: pointer;
-  transition: ${theme.transition.fast};
+  transition: all 0.3s ease;
   
-  &:hover {
-    border-color: ${theme.colors.accent.primary};
-    background: ${props => props.selected ? theme.colors.accent.primary : theme.colors.background.tertiary};
+  &:hover:not(:disabled) {
+    border-color: rgba(139, 92, 246, 0.6);
+    background: ${props => props.selected 
+      ? 'linear-gradient(135deg, rgba(139, 92, 246, 1) 0%, rgba(99, 102, 241, 1) 100%)' 
+      : 'rgba(255, 255, 255, 0.1)'};
+    transform: translateY(-2px);
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 `;
 
 const CustomAmountInput = styled.input`
   width: 100%;
-  padding: ${theme.spacing.md};
-  background: ${theme.colors.background.secondary};
-  border: 2px solid ${theme.colors.border.primary};
-  border-radius: ${theme.borderRadius.lg};
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.base};
-  transition: ${theme.transition.fast};
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #ffffff;
+  font-size: 1rem;
+  transition: all 0.3s ease;
   
   &:focus {
-    border-color: ${theme.colors.accent.primary};
+    border-color: rgba(139, 92, 246, 0.5);
     box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
     outline: none;
+    background: rgba(255, 255, 255, 0.08);
+  }
+  
+  &::placeholder {
+    color: #888888;
   }
 `;
 
 const MessageInput = styled.textarea`
   width: 100%;
-  padding: ${theme.spacing.md};
-  background: ${theme.colors.background.secondary};
-  border: 2px solid ${theme.colors.border.primary};
-  border-radius: ${theme.borderRadius.lg};
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.base};
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #ffffff;
+  font-size: 1rem;
   resize: vertical;
   min-height: 80px;
-  margin-bottom: ${theme.spacing.xl};
-  transition: ${theme.transition.fast};
+  margin-bottom: 2rem;
+  transition: all 0.3s ease;
+  font-family: inherit;
   
   &:focus {
-    border-color: ${theme.colors.accent.primary};
+    border-color: rgba(139, 92, 246, 0.5);
     box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
     outline: none;
+    background: rgba(255, 255, 255, 0.08);
   }
   
   &::placeholder {
-    color: ${theme.colors.text.muted};
+    color: #888888;
   }
 `;
 
 const BalanceInfo = styled.div`
-  background: rgba(139, 92, 246, 0.1);
-  border: 1px solid rgba(139, 92, 246, 0.3);
-  border-radius: ${theme.borderRadius.lg};
-  padding: ${theme.spacing.md};
-  margin-bottom: ${theme.spacing.xl};
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(99, 102, 241, 0.05) 100%);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 2rem;
   text-align: center;
   
   p {
-    color: ${theme.colors.text.secondary};
+    color: #d1d1d1;
     margin: 0;
     
     strong {
-      color: ${theme.colors.accent.primary};
-      font-size: ${theme.fontSize.lg};
+      color: #a78bfa;
+      font-size: 1.25rem;
     }
   }
 `;
@@ -176,26 +201,78 @@ const BalanceInfo = styled.div`
 const ErrorMessage = styled.div`
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.3);
-  color: ${theme.colors.status.error};
-  padding: ${theme.spacing.md};
-  border-radius: ${theme.borderRadius.lg};
-  font-size: ${theme.fontSize.sm};
-  margin-bottom: ${theme.spacing.lg};
+  color: #f87171;
+  padding: 1rem;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
 `;
 
 const SuccessMessage = styled.div`
   background: rgba(34, 197, 94, 0.1);
   border: 1px solid rgba(34, 197, 94, 0.3);
-  color: ${theme.colors.status.success};
-  padding: ${theme.spacing.md};
-  border-radius: ${theme.borderRadius.lg};
-  font-size: ${theme.fontSize.sm};
-  margin-bottom: ${theme.spacing.lg};
+  color: #4ade80;
+  padding: 1rem;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
 `;
 
 const ButtonGroup = styled.div`
   display: flex;
-  gap: ${theme.spacing.md};
+  gap: 1rem;
+`;
+
+const SubmitButton = styled.button`
+  flex: 1;
+  padding: 1rem;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.8) 0%, rgba(99, 102, 241, 0.8) 100%);
+  border: 1px solid rgba(139, 92, 246, 0.5);
+  border-radius: 12px;
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+  
+  &:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 1) 0%, rgba(99, 102, 241, 1) 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+  }
+  
+  &:disabled {
+    background: rgba(60, 60, 60, 0.5);
+    border-color: rgba(100, 100, 100, 0.3);
+    color: #888888;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+`;
+
+const CancelButton = styled.button`
+  padding: 1rem 1.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #d1d1d1;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  
+  &:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 `;
 
 interface TipCreatorModalProps {
@@ -399,22 +476,18 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
         {success && <SuccessMessage>{success}</SuccessMessage>}
 
         <ButtonGroup>
-          <Button
+          <SubmitButton
             onClick={handleSubmit}
             disabled={isLoading || actualAmount <= 0 || actualAmount > userBalance}
-            color="purple"
-            style={{ flex: 1 }}
           >
             {isLoading ? 'Отправка...' : `Отправить ${actualAmount} кредитов`}
-          </Button>
-          <Button
+          </SubmitButton>
+          <CancelButton
             onClick={onClose}
             disabled={isLoading}
-            color="dark"
-            outline
           >
             Отмена
-          </Button>
+          </CancelButton>
         </ButtonGroup>
       </ModalContent>
     </ModalOverlay>

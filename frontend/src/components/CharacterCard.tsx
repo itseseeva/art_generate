@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import ElectricBorder from './ElectricBorder';
-import { FiHeart, FiX as CloseIcon } from 'react-icons/fi';
+import { FiHeart, FiX as CloseIcon, FiTrash2 } from 'react-icons/fi';
 import { authManager } from '../utils/auth';
 import { API_CONFIG } from '../config/api';
 import { fetchPromptByImage } from '../utils/prompt';
@@ -651,6 +651,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   );
 
   // Загружаем состояние избранного из API при монтировании
+  // ОТКЛЮЧЕНО для уменьшения нагрузки - статус будет обновляться только при клике
+  /*
   useEffect(() => {
     const checkFavorite = async () => {
       const token = authManager.getToken();
@@ -679,7 +681,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         const response = await authManager.fetchWithAuth(API_CONFIG.CHECK_FAVORITE(characterId));
         if (response.ok) {
           const data = await response.json();
-          setIsFavorite(data.is_favorite || false);
+          setIsFavorite(data?.is_favorite || false);
         }
       } catch (error) {
         console.error('Error checking favorite:', error);
@@ -690,6 +692,12 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
     checkFavorite();
   }, [character.id]);
+  */
+
+  // Просто отключаем проверку при загрузке
+  useEffect(() => {
+    setIsChecking(false);
+  }, []);
 
   // Функция для переключения избранного
   const toggleFavorite = async (e: React.MouseEvent) => {
@@ -853,6 +861,22 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           )}
           
           <ActionButtons>
+          {onDelete && (
+            <ActionButtonWithTooltip>
+              <ActionButton
+                variant="delete"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onDelete) {
+                    onDelete(character);
+                  }
+                }}
+              >
+                <FiTrash2 size={16} />
+              </ActionButton>
+              <Tooltip>Удалить историю</Tooltip>
+            </ActionButtonWithTooltip>
+          )}
           {onPaidAlbum && (
             <ActionButtonWithTooltip>
                 <AlbumButton 

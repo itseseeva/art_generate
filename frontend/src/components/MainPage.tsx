@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import { CharacterCard } from './CharacterCard';
@@ -69,6 +69,32 @@ const NavButton = styled.button`
   
   &:active {
     transform: scale(0.95);
+  }
+`;
+
+const HeaderLinks = styled.div<{ $isVisible: boolean }>`
+  display: ${props => props.$isVisible ? 'flex' : 'none'};
+  gap: 1.5rem;
+  padding: 1rem 2rem;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(10px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  width: 100%;
+  transition: all 0.3s ease-in-out;
+`;
+
+const HeaderLink = styled.a`
+  color: ${theme.colors.text.secondary};
+  text-decoration: none;
+  font-size: ${theme.fontSize.sm};
+  font-weight: 600;
+  transition: color ${theme.transition.fast};
+  
+  &:hover {
+    color: ${theme.colors.text.primary};
   }
 `;
 
@@ -171,6 +197,7 @@ interface MainPageProps {
   onFavorites?: () => void;
   onHistory?: () => void;
   onHome?: () => void;
+  onPaymentMethod?: (subscriptionType: string) => void;
   contentMode?: 'safe' | 'nsfw';
 }
 
@@ -187,6 +214,7 @@ export const MainPage: React.FC<MainPageProps> = ({
   onFavorites,
   onHistory,
   onHome,
+  onPaymentMethod,
   contentMode = 'safe'
 }) => {
   const [isShopModalOpen, setIsShopModalOpen] = useState(false);
@@ -201,6 +229,9 @@ export const MainPage: React.FC<MainPageProps> = ({
   const [characters, setCharacters] = useState<Character[]>([]);
   const [isLoadingCharacters, setIsLoadingCharacters] = useState(true);
   const [cachedRawCharacters, setCachedRawCharacters] = useState<any[]>([]);
+  const [isHeaderVisible, setIsHeaderVisible] = useState(true);
+  const lastScrollY = useRef(0);
+  const charactersGridRef = useRef<HTMLDivElement>(null);
 
   const fetchCharactersFromApi = async (forceRefresh: boolean = false): Promise<any[]> => {
     const endpoints = [
@@ -403,6 +434,45 @@ export const MainPage: React.FC<MainPageProps> = ({
     }
   };
 
+  // Отслеживание скролла для скрытия/показа панели
+  useEffect(() => {
+    const handleScroll = () => {
+      const charactersGrid = charactersGridRef.current;
+      if (!charactersGrid) return;
+      
+      const currentScrollY = charactersGrid.scrollTop;
+      
+      // ЕДИНСТВЕННОЕ условие для показа панели - доскроллили до самого верха (в пределах 10px)
+      if (currentScrollY <= 10) {
+        setIsHeaderVisible(true);
+      } 
+      // Если скроллим вниз и прошли больше 100px - скрываем панель
+      else if (currentScrollY > 100) {
+        setIsHeaderVisible(false);
+      }
+      // Во всех остальных случаях (скроллим вверх, но не дошли до верха, или скроллим вниз, но еще не прошли 100px) - НЕ меняем состояние
+      
+      lastScrollY.current = currentScrollY;
+    };
+
+    const charactersGrid = charactersGridRef.current;
+    if (charactersGrid) {
+      // Проверяем начальное состояние
+      const initialScrollY = charactersGrid.scrollTop;
+      if (initialScrollY <= 10) {
+        setIsHeaderVisible(true);
+      } else {
+        setIsHeaderVisible(false);
+      }
+      lastScrollY.current = initialScrollY;
+      
+      charactersGrid.addEventListener('scroll', handleScroll, { passive: true });
+      return () => {
+        charactersGrid.removeEventListener('scroll', handleScroll);
+      };
+    }
+  }, []);
+
   // Автоматическое обновление фотографий каждые 30 секунд
   React.useEffect(() => {
     const loadData = async () => {
@@ -487,12 +557,18 @@ export const MainPage: React.FC<MainPageProps> = ({
       
       if (response.ok) {
         const userData = await response.json();
-        setIsAuthenticated(true);
-        setUserCoins(userData.coins || 0);
-        setUserInfo({
-          username: userData.username || userData.email || 'Пользователь',
-          coins: userData.coins || 0
-        });
+        if (userData) {
+          setIsAuthenticated(true);
+          setUserCoins(userData.coins || 0);
+          setUserInfo({
+            username: userData.username || userData.email || 'Пользователь',
+            coins: userData.coins || 0
+          });
+        } else {
+          console.error('Auth check returned empty data');
+          setIsAuthenticated(false);
+          setUserInfo(null);
+        }
       } else {
         // Токен недействителен
         localStorage.removeItem('authToken');
@@ -591,6 +667,12 @@ export const MainPage: React.FC<MainPageProps> = ({
   return (
     <MainContainer>
       <ContentArea>
+      <HeaderLinks $isVisible={isHeaderVisible}>
+        <HeaderLink href="/how-it-works">Как это работает</HeaderLink>
+        <HeaderLink href="/about">О сервисе</HeaderLink>
+        <HeaderLink href="/tariffs">Тарифы</HeaderLink>
+        <HeaderLink href="/legal">Оферта / Реквизиты</HeaderLink>
+      </HeaderLinks>
       {isPhotoGenerationOpen && createdCharacter ? (
         <PhotoGenerationPage
           character={createdCharacter}
@@ -600,7 +682,7 @@ export const MainPage: React.FC<MainPageProps> = ({
         />
       ) : (
         <>
-              <CharactersGrid>
+          <CharactersGrid ref={charactersGridRef}>
                 {isLoadingCharacters ? (
                   <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2rem', color: '#a8a8a8' }}>
                     Loading characters...
@@ -624,7 +706,11 @@ export const MainPage: React.FC<MainPageProps> = ({
             isOpen={isShopModalOpen}
             onClose={() => setIsShopModalOpen(false)}
             isAuthenticated={isAuthenticated}
-            onActivateSubscription={handleActivateSubscription}
+            onActivateSubscription={onPaymentMethod ? async (type: string) => {
+              if (onPaymentMethod) {
+                onPaymentMethod(type);
+              }
+            } : handleActivateSubscription}
           />
           
           {isAuthModalOpen && (

@@ -9,6 +9,7 @@ import { CreateCharacterPage } from './components/CreateCharacterPage';
 import { ShopPage } from './components/ShopPage';
 import { ProfilePage } from './components/ProfilePage';
 import { MessagesPage } from './components/MessagesPage';
+import { HistoryPage } from './components/HistoryPage';
 import { UserGalleryPage } from './components/UserGalleryPage';
 import { PaidAlbumPage } from './components/PaidAlbumPage';
 import { PaidAlbumBuilderPage } from './components/PaidAlbumBuilderPage';
@@ -17,6 +18,12 @@ import { EditCharactersPage } from './components/EditCharactersPage';
 import { EditCharacterPage } from './components/EditCharacterPage';
 import { FavoritesPage } from './components/FavoritesPage';
 import { LeftDockSidebar } from './components/LeftDockSidebar';
+import { AuthModal } from './components/AuthModal';
+import { AgeVerificationModal } from './components/AgeVerificationModal';
+import { LegalPage } from './components/LegalPage';
+import { AboutPage } from './components/AboutPage';
+import { TariffsPage } from './components/TariffsPage';
+import { HowItWorksPage } from './components/HowItWorksPage';
 import { authManager } from './utils/auth';
 
 const AppContainer = styled.div`
@@ -51,12 +58,18 @@ type PageType =
   | 'photo-generation' 
   | 'edit-characters'
   | 'edit-character'
-  | 'favorites';
+  | 'favorites'
+  | 'history'
+  | 'legal'
+  | 'about'
+  | 'tariffs'
+  | 'how-it-works';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<PageType>('main');
   const [selectedCharacter, setSelectedCharacter] = useState<any>(null);
   const [contentMode, setContentMode] = useState<'safe' | 'nsfw'>('safe');
+  const [selectedSubscriptionType, setSelectedSubscriptionType] = useState<string>('');
 
   // Функция загрузки персонажа по ID
   const loadCharacterById = async (characterId: string | number): Promise<any | null> => {
@@ -123,6 +136,21 @@ function App() {
     } else if (path.includes('/favorites')) {
       setCurrentPage('favorites');
       window.history.replaceState({ page: 'favorites' }, '', path);
+    } else if (path.includes('/legal')) {
+      setCurrentPage('legal');
+      window.history.replaceState({ page: 'legal' }, '', path);
+    } else if (path.includes('/about')) {
+      setCurrentPage('about');
+      window.history.replaceState({ page: 'about' }, '', path);
+    } else if (path.includes('/tariffs')) {
+      setCurrentPage('tariffs');
+      window.history.replaceState({ page: 'tariffs' }, '', path);
+    } else if (path.includes('/how-it-works')) {
+      setCurrentPage('how-it-works');
+      window.history.replaceState({ page: 'how-it-works' }, '', path);
+    } else if (path.includes('/history')) {
+      setCurrentPage('history');
+      window.history.replaceState({ page: 'history' }, '', path);
     } else if (path.includes('/create-character')) {
       setCurrentPage('create-character');
       window.history.replaceState({ page: 'create-character' }, '', path);
@@ -313,7 +341,12 @@ function App() {
   };
 
   const handleHistory = () => {
-    setCurrentPage('messages');
+    setCurrentPage('history');
+    window.history.pushState({ page: 'history' }, '', '/history');
+  };
+
+  const handlePaymentMethod = (subscriptionType: string) => {
+    // Этот метод больше не используется, так как кнопки оплаты теперь на странице магазина
   };
 
   const renderPage = () => {
@@ -333,6 +366,7 @@ function App() {
             onFavorites={handleFavorites}
             onHistory={handleHistory}
             onHome={handleBackToMain}
+            onPaymentMethod={handlePaymentMethod}
             contentMode={contentMode}
           />
         );
@@ -393,6 +427,9 @@ function App() {
             onBackToMain={handleBackToMain}
             onCreateCharacter={handleCreateCharacter}
             onShop={handleShop}
+            onPaymentMethod={handlePaymentMethod}
+            isAuthenticated={isAuthenticated}
+            userInfo={userInfo}
           />
         );
       case 'profile':
@@ -415,6 +452,18 @@ function App() {
             onCreateCharacter={handleCreateCharacter}
             onEditCharacters={handleEditCharacters}
             onOpenChat={handleCharacterSelect}
+            onProfile={handleProfile}
+          />
+        );
+      case 'history':
+        return (
+          <HistoryPage
+            onBackToMain={handleBackToMain}
+            onShop={handleShop}
+            onCreateCharacter={handleCreateCharacter}
+            onEditCharacters={handleEditCharacters}
+            onOpenChat={handleCharacterSelect}
+            onProfile={handleProfile}
           />
         );
       case 'user-gallery':
@@ -491,6 +540,14 @@ function App() {
             onPaidAlbum={handlePaidAlbum}
           />
         );
+      case 'legal':
+        return <LegalPage />;
+      case 'about':
+        return <AboutPage />;
+      case 'tariffs':
+        return <TariffsPage />;
+      case 'how-it-works':
+        return <HowItWorksPage />;
       default:
         return (
           <MainPage 
@@ -508,7 +565,12 @@ function App() {
   };
 
   const [isAuthenticated, setIsAuthenticated] = React.useState(false);
-  const [userInfo, setUserInfo] = React.useState<{username: string, coins: number} | null>(null);
+  const [userInfo, setUserInfo] = React.useState<{username: string, coins: number, id?: number} | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [isAgeVerified, setIsAgeVerified] = useState(() => {
+    return localStorage.getItem('age_verified') === 'true';
+  });
 
   React.useEffect(() => {
     const checkAuth = async () => {
@@ -540,14 +602,35 @@ function App() {
         }
 
         const response = await authManager.fetchWithAuth('/api/v1/auth/me/');
+        console.log(`[APP] checkAuth response: status=${response.status}, statusText=${response.statusText}`);
+        
         if (response.ok) {
-          const userData = await response.json();
-          console.log('[APP] Auth check successful, user:', userData.username || userData.email);
-          setUserInfo({
-            username: userData.username || userData.email || 'Пользователь',
-            coins: userData.coins || 0
-          });
-          setIsAuthenticated(true);
+          const text = await response.text();
+          console.log('[APP] Auth response text:', text);
+          if (!text) {
+             console.error('[APP] Auth response is empty!');
+          }
+          
+          try {
+            const userData = text ? JSON.parse(text) : null;
+            if (userData) {
+              console.log('[APP] Auth check successful, user:', userData.username || userData.email);
+              setUserInfo({
+                username: userData.username || userData.email || 'Пользователь',
+                coins: userData.coins || 0,
+                id: userData.id
+              });
+              setIsAuthenticated(true);
+            } else {
+              console.error('[APP] Auth check returned empty data (parsed null)');
+              setIsAuthenticated(false);
+              setUserInfo(null);
+            }
+          } catch (e) {
+            console.error('[APP] Failed to parse auth response:', e);
+            setIsAuthenticated(false);
+            setUserInfo(null);
+          }
         } else {
           console.error('[APP] Auth check failed, status:', response.status);
           authManager.clearTokens();
@@ -574,7 +657,7 @@ function App() {
     };
   }, []);
 
-  const handleLogin = () => {
+  const handleGoogleLogin = () => {
     // Открываем popup окно для OAuth
     const width = 500;
     const height = 600;
@@ -667,10 +750,14 @@ function App() {
     }, 5 * 60 * 1000); // 5 минут таймаут
   };
 
+  const handleLogin = () => {
+    setAuthMode('login');
+    setIsAuthModalOpen(true);
+  };
+
   const handleRegister = () => {
-    // Регистрация через тот же OAuth (Google OAuth используется и для логина, и для регистрации)
-    console.log('Register button clicked');
-    handleLogin();
+    setAuthMode('register');
+    setIsAuthModalOpen(true);
   };
 
   const handleLogout = async () => {
@@ -683,6 +770,24 @@ function App() {
       console.error('Logout error:', error);
     }
   };
+
+  const handleAgeAccept = () => {
+    localStorage.setItem('age_verified', 'true');
+    setIsAgeVerified(true);
+  };
+
+  const handleAgeDecline = () => {
+    window.location.href = 'about:blank';
+  };
+
+  if (!isAgeVerified) {
+    return (
+      <>
+        <GlobalStyles />
+        <AgeVerificationModal onAccept={handleAgeAccept} onDecline={handleAgeDecline} />
+      </>
+    );
+  }
 
   return (
     <>
@@ -697,6 +802,7 @@ function App() {
           onFavorites={handleFavorites}
           onMyCharacters={handleMyCharacters}
           onHome={handleBackToMain}
+          onMessages={handleMessages}
           isAuthenticated={isAuthenticated}
           onLogin={handleLogin}
           onRegister={handleRegister}
@@ -708,6 +814,26 @@ function App() {
           {renderPage()}
         </PageContainer>
       </AppContainer>
+
+      {isAuthModalOpen && (
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          mode={authMode}
+          onClose={() => {
+            setIsAuthModalOpen(false);
+            setAuthMode('login');
+          }}
+          onAuthSuccess={(token) => {
+            localStorage.setItem('authToken', token);
+            setIsAuthenticated(true);
+            setIsAuthModalOpen(false);
+            setAuthMode('login');
+            // Обновляем данные пользователя без перезагрузки
+            checkAuth();
+          }}
+          onGoogleLogin={handleGoogleLogin}
+        />
+      )}
     </>
   );
 }

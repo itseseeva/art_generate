@@ -1,6 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
-import { FiUserPlus, FiEdit, FiClock, FiHeart, FiUsers, FiHome, FiLogIn, FiUser, FiLogOut, FiShoppingBag } from 'react-icons/fi';
+import { FiUserPlus, FiEdit, FiClock, FiHeart, FiUsers, FiHome, FiLogIn, FiUser, FiLogOut, FiShoppingBag, FiMessageSquare } from 'react-icons/fi';
 import Switcher4 from './Switcher4';
 
 import Dock from './Dock';
@@ -16,6 +16,7 @@ interface LeftDockSidebarProps {
   onHome?: () => void;
   onProfile?: () => void;
   onShop?: () => void;
+  onMessages?: () => void;
   isAuthenticated?: boolean;
   onLogin?: () => void;
   onRegister?: () => void;
@@ -39,18 +40,19 @@ const SidebarContainer = styled.aside`
   gap: 1.25rem;
   position: relative;
   z-index: 5;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 `;
 
 const HomeButton = styled.button`
-  width: 38px;
-  height: 38px;
-  border-radius: 9999px;
-  background: #050505;
-  color: #ffffff;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(12, 12, 24, 0.85);
+  color: rgba(240, 240, 240, 1);
   font-size: 1rem;
   font-weight: 600;
-  border: 2px solid #9ca3af;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -58,27 +60,34 @@ const HomeButton = styled.button`
   transition:
     transform 0.3s ease,
     border-color 0.3s ease,
-    box-shadow 0.3s ease;
-  box-shadow: none;
+    box-shadow 0.3s ease,
+    background 0.3s ease;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35),
+              inset 0 1px 0 rgba(255, 255, 255, 0.05);
   outline: none;
   margin: 0 auto;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
 
   &:hover {
-    transform: scale(1.1);
-    border-color: #d1d5db;
-    box-shadow: 0 15px 35px rgba(107, 114, 128, 0.35);
+    transform: scale(1.05);
+    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(20, 20, 35, 0.95);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
   }
 
   &:active {
-    transform: scale(0.95);
-    border-color: #4b5563;
+    transform: scale(0.98);
+    border-color: rgba(255, 255, 255, 0.1);
   }
 
   &:focus-visible {
     outline: none;
     box-shadow:
-      0 0 0 4px rgba(156, 163, 175, 0.5),
-      0 15px 35px rgba(107, 114, 128, 0.35);
+      0 0 0 2px rgba(255, 255, 255, 0.2),
+      0 15px 35px rgba(0, 0, 0, 0.4);
   }
 
   &:focus {
@@ -112,6 +121,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   onHome,
   onProfile,
   onShop,
+  onMessages,
   isAuthenticated = false,
   onLogin,
   onRegister,
@@ -172,6 +182,14 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
       }
     );
   } else {
+    // Для авторизованных пользователей добавляем Messages вместо Register
+    if (onMessages) {
+      dockItems.push({
+        icon: <FiMessageSquare size={22} />,
+        label: 'Messages',
+        onClick: () => onMessages?.(),
+      });
+    }
     dockItems.push({
       icon: <FiLogOut size={22} />,
       label: 'Logout',
@@ -182,7 +200,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   return (
     <SidebarContainer>
       <HomeButton onClick={onHome} title="Home">
-        <FiHome size={12} />
+        <FiHome size={20} />
       </HomeButton>
       <SwitcherContainer>
         <Switcher4

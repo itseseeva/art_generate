@@ -71,7 +71,7 @@ class SubscriptionService:
         # Если нет в кэше, загружаем из БД
         query = select(UserSubscription).where(UserSubscription.user_id == user_id)
         result = await self.db.execute(query)
-        subscription = result.scalar_one_or_none()
+        subscription = result.scalars().first()
         
         # Сохраняем в кэш
         if subscription:
@@ -193,7 +193,7 @@ class SubscriptionService:
             # Получаем пользователя
             user_query = select(Users).where(Users.id == user_id)
             result = await self.db.execute(user_query)
-            user = result.scalar_one_or_none()
+            user = result.scalars().first()
             
             if not user:
                 print(f"[ERROR] Пользователь {user_id} не найден!")

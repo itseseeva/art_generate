@@ -1271,6 +1271,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     }
 
     const data = await response.json();
+    if (!data) {
+        throw new Error('Пустой ответ от сервера');
+    }
     console.log('[PROFILE] User data loaded:', data);
     console.log('[PROFILE] User ID:', data.id);
     console.log('[PROFILE] Username:', data.username);
@@ -1335,7 +1338,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
       if (response.ok) {
         const data = await response.json();
-        setPhotosCount(data.total || 0);
+        setPhotosCount(data?.total || 0);
       }
     } catch (error) {
       // Игнорируем ошибки при загрузке количества фото
@@ -1803,7 +1806,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             <UserInfoSection>
               <AvatarContainer
                 title={isViewingOwnProfile ? 'Нажмите для загрузки фото' : undefined}
-                isReadOnly={!isViewingOwnProfile}
+                $isReadOnly={!isViewingOwnProfile}
               >
                 {userInfo?.avatar_url ? (
                   <AvatarImage src={userInfo.avatar_url} alt="Avatar" />

@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { theme } from '../theme';
 import Dock from './Dock';
 import type { DockItemData } from './Dock';
-import { FiSend, FiImage, FiX } from 'react-icons/fi';
+import { FiSend, FiImage, FiTrash2 } from 'react-icons/fi';
 
 const InputContainer = styled.div`
   padding: ${theme.spacing.lg};
@@ -151,8 +151,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       className: disabled || !message.trim() || !onGenerateImage ? 'disabled' : ''
     },
     ...(onClearChat && hasMessages ? [{
-      icon: <FiX size={20} />,
-      label: 'Очистить чат',
+      icon: <FiTrash2 size={20} />,
+      label: 'Очистить историю',
       onClick: handleClear,
       className: ''
     }] : []),

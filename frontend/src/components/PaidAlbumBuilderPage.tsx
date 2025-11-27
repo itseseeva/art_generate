@@ -480,6 +480,7 @@ const PreviewContent = styled.div`
   justify-content: center;
   gap: ${theme.spacing.xl};
   width: 100%;
+  min-width: 0;
 `;
 
 const PreviewImageContainer = styled.div`
@@ -488,7 +489,7 @@ const PreviewImageContainer = styled.div`
   align-items: center;
   justify-content: center;
   min-width: 0;
-  max-width: 70%;
+  max-width: 60%;
 `;
 
 const PreviewImage = styled.img`
@@ -502,9 +503,10 @@ const PreviewImage = styled.img`
 const PromptPanel = styled.div`
   width: 400px;
   min-width: 350px;
-  max-width: 30%;
-  background: rgba(40, 40, 40, 0.95);
-  border: 1px solid rgba(150, 150, 150, 0.3);
+  max-width: 35%;
+  flex-shrink: 0;
+  background: rgba(30, 30, 30, 0.95);
+  border: 2px solid rgba(150, 150, 150, 0.5);
   border-radius: 0.5rem;
   padding: 1.5rem;
   overflow-y: auto;
@@ -512,6 +514,8 @@ const PromptPanel = styled.div`
   display: flex;
   flex-direction: column;
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  z-index: 10001;
 `;
 
 const PromptPanelHeader = styled.div`
@@ -528,13 +532,13 @@ const PromptPanelTitle = styled.h3`
 `;
 
 const PromptPanelText = styled.div`
-  color: rgba(160, 160, 160, 1);
+  color: rgba(200, 200, 200, 1);
   font-size: 0.875rem;
   line-height: 1.8;
   white-space: pre-wrap;
   word-wrap: break-word;
   padding: 0.75rem;
-  background: rgba(30, 30, 30, 0.8);
+  background: rgba(40, 40, 40, 0.5);
   border-radius: 0.5rem;
   border: 1px solid rgba(150, 150, 150, 0.3);
   font-family: 'Courier New', monospace;
@@ -658,9 +662,25 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
       fakeProgressTimeoutRef.current = null;
     }
     setFakeProgress(0);
+    
+    // Моковый прогресс на 30 секунд
+    const duration = 30000; // 30 секунд
+    const interval = 300; // Обновление каждые 300ms
+    const steps = duration / interval; // 100 шагов
+    const increment = 100 / steps; // ~1% за шаг
+    
+    let currentProgress = 0;
     fakeProgressIntervalRef.current = setInterval(() => {
-      setFakeProgress(prev => (prev >= 99 ? 99 : prev + 1));
-    }, 300);
+      currentProgress += increment;
+      if (currentProgress >= 100) {
+        currentProgress = 100;
+        if (fakeProgressIntervalRef.current) {
+          clearInterval(fakeProgressIntervalRef.current);
+          fakeProgressIntervalRef.current = null;
+        }
+      }
+      setFakeProgress(Math.min(100, Math.round(currentProgress)));
+    }, interval);
   }, []);
 
   const stopFakeProgress = useCallback((immediate: boolean) => {
@@ -835,8 +855,17 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         // Асинхронная генерация через Celery
         console.log('Waiting for generation, task_id:', result.task_id);
         
-        // Ждем завершения генерации
-        const image = await waitForGeneration(result.task_id, token);
+        // Ждем завершения генерации (параллельно с прогрессом)
+        const photoPromise = waitForGeneration(result.task_id, token);
+        
+        // Ждем минимум 30 секунд для показа прогресса
+        const minWaitPromise = new Promise(resolve => setTimeout(resolve, 30000));
+        
+        // Ждем завершения обоих промисов
+        const [image] = await Promise.all([photoPromise, minWaitPromise]);
+        
+        // Завершаем прогресс
+        stopFakeProgress(false);
         
         if (image) {
           console.log('Photo generated:', image);
@@ -973,6 +1002,17 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
     setPromptError(null);
     setIsLoadingPrompt(false);
   };
+
+  // Обработка Escape для закрытия модального окна
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && previewPhoto) {
+        handleClosePreview();
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [previewPhoto]);
 
   return (
     <PageContainer>
@@ -1158,7 +1198,11 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                 <PromptError>{promptError}</PromptError>
               ) : selectedPrompt ? (
                 <PromptPanelText>{selectedPrompt}</PromptPanelText>
-              ) : null}
+              ) : (
+                <PromptPanelText style={{ color: 'rgba(160, 160, 160, 0.6)' }}>
+                  Промпт не найден для этого изображения
+                </PromptPanelText>
+              )}
             </PromptPanel>
           </PreviewContent>
         </PreviewBackdrop>

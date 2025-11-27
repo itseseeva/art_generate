@@ -167,10 +167,17 @@ export default function Switcher4({
             style={{
               transform: `translateX(${currentChecked ? 24 : 0}px)`,
               boxShadow: currentChecked ? theme.thumbShadow.on : theme.thumbShadow.off,
-              border: `2px solid ${currentChecked ? theme.thumbBorder.on : theme.thumbBorder.off}`
+              border: `2px solid ${currentChecked ? theme.thumbBorder.on : theme.thumbBorder.off}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
             }}
           >
-            {currentChecked && <span className="switcher4-thumb-label">NSFW</span>}
+            {currentChecked ? (
+              <span className="switcher4-thumb-label" style={{ fontSize: '10px', fontWeight: 'bold' }}>18+</span>
+            ) : (
+              <span className="switcher4-thumb-label" style={{ fontSize: '9px', color: '#64748b', fontWeight: 'bold' }}>Safe</span>
+            )}
           </div>
         </div>
       </label>

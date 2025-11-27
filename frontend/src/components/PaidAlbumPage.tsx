@@ -132,11 +132,13 @@ const ActionButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
 
 const GalleryGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: ${theme.spacing.lg};
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: ${theme.spacing.sm};
   flex: 1;
   padding-right: ${theme.spacing.lg};
   align-items: flex-start;
+  align-content: start;
+  width: 100%;
 `;
 
 const Card = styled.div`
@@ -148,8 +150,6 @@ const Card = styled.div`
   box-shadow: ${theme.colors.shadow.card};
   cursor: pointer;
   width: 100%;
-  max-width: 220px;
-  min-width: 180px;
   height: 300px;
   transition: ${theme.transition.fast};
 

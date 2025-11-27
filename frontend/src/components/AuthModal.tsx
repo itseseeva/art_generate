@@ -18,11 +18,13 @@ const ModalOverlay = styled.div`
 `;
 
 const ModalContent = styled.div`
-  background: ${theme.colors.gradients.card};
+  background: rgba(20, 20, 20, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-radius: ${theme.borderRadius.xl};
   padding: ${theme.spacing.xxl};
-  box-shadow: ${theme.colors.shadow.card};
-  border: 1px solid ${theme.colors.border.accent};
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   max-width: 400px;
   width: 90vw;
   animation: slideIn 0.3s ease-out;
@@ -54,31 +56,37 @@ const Form = styled.form`
 const FormGroup = styled.div`
   display: flex;
   flex-direction: column;
-  gap: ${theme.spacing.sm};
+  gap: 8px;
+  margin-bottom: 16px;
   
   label {
     font-weight: 600;
-    color: ${theme.colors.text.secondary};
-    font-size: ${theme.fontSize.sm};
+    color: #e2e8f0;
+    font-size: 14px;
+    display: block;
   }
   
   input {
-    padding: ${theme.spacing.md};
-    background: ${theme.colors.background.secondary};
-    border: 2px solid ${theme.colors.border.primary};
-    border-radius: ${theme.borderRadius.lg};
-    color: ${theme.colors.text.primary};
-    font-size: ${theme.fontSize.base};
-    transition: ${theme.transition.fast};
+    width: 100%;
+    padding: 12px;
+    background: #1a1a2e;
+    border: 2px solid #374151;
+    border-radius: 12px;
+    color: #ffffff;
+    font-size: 16px;
+    transition: all 0.2s;
+    display: block;
+    position: relative;
+    z-index: 1;
     
     &:focus {
-      border-color: ${theme.colors.accent.primary};
+      border-color: #8b5cf6;
       box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
       outline: none;
     }
     
     &::placeholder {
-      color: ${theme.colors.text.muted};
+      color: #64748b;
     }
   }
 `;
@@ -159,9 +167,10 @@ interface AuthModalProps {
   onClose: () => void;
   onAuthSuccess: (token: string) => void;
   mode?: 'login' | 'register';
+  onGoogleLogin?: () => void;
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess, mode = 'login' }) => {
+export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onGoogleLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
@@ -176,7 +185,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
     setError(null);
 
     try {
-      const endpoint = mode === 'register' ? '/api/auth/register' : '/api/auth/login';
+      const endpoint = mode === 'register' ? '/api/v1/auth/register/' : '/api/v1/auth/login/';
       const body = mode === 'register' 
         ? { email, password, username: username || email }
         : { email, password };
@@ -204,8 +213,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
   };
 
   const handleGoogleAuth = () => {
-    // Перенаправляем на Google OAuth
+    if (onGoogleLogin) {
+      onGoogleLogin();
+    } else {
+      // Перенаправляем на Google OAuth (fallback)
     window.location.href = '/auth/google';
+    }
   };
 
   return (
@@ -218,8 +231,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
 
         <Form onSubmit={handleSubmit}>
           {mode === 'register' && (
-            <FormGroup>
-              <label htmlFor="username">Имя пользователя:</label>
+            <div style={{ marginBottom: '16px' }}>
+              <label htmlFor="username" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#e2e8f0', fontSize: '14px' }}>Имя пользователя:</label>
               <input
                 type="text"
                 id="username"
@@ -228,34 +241,68 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                 placeholder="Введите имя пользователя"
                 required
                 disabled={isLoading}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  background: '#1a1a2e',
+                  border: '2px solid #374151',
+                  borderRadius: '12px',
+                  color: '#ffffff',
+                  fontSize: '16px',
+                  outline: 'none'
+                }}
               />
-            </FormGroup>
+            </div>
           )}
-          <FormGroup>
-            <label htmlFor="email">Email:</label>
+          <div style={{ marginBottom: '16px' }}>
+            <label htmlFor="user_email" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#e2e8f0', fontSize: '14px' }}>Email:</label>
             <input
               type="email"
-              id="email"
+              id="user_email"
+              name="user_email"
+              autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Введите ваш email"
               required
               disabled={isLoading}
+              style={{
+                width: '100%',
+                padding: '12px',
+                background: '#1a1a2e',
+                border: '2px solid #374151',
+                borderRadius: '12px',
+                color: '#ffffff',
+                fontSize: '16px',
+                outline: 'none'
+              }}
             />
-          </FormGroup>
+          </div>
 
-          <FormGroup>
-            <label htmlFor="password">Пароль:</label>
+          <div style={{ marginBottom: '16px' }}>
+            <label htmlFor="user_password" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#e2e8f0', fontSize: '14px' }}>Пароль:</label>
             <input
               type="password"
-              id="password"
+              id="user_password"
+              name="user_password"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Введите пароль"
               required
               disabled={isLoading}
+              style={{
+                width: '100%',
+                padding: '12px',
+                background: '#1a1a2e',
+                border: '2px solid #374151',
+                borderRadius: '12px',
+                color: '#ffffff',
+                fontSize: '16px',
+                outline: 'none'
+              }}
             />
-          </FormGroup>
+          </div>
 
           {error && <ErrorMessage>{error}</ErrorMessage>}
 

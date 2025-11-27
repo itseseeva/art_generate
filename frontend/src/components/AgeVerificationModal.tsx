@@ -1,0 +1,123 @@
+import React from 'react';
+import styled from 'styled-components';
+import { theme } from '../theme';
+
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.95);
+  backdrop-filter: blur(20px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: fadeIn 0.3s ease-out;
+`;
+
+const ModalContent = styled.div`
+  background: linear-gradient(145deg, #1a1a1a 0%, #0f0f0f 100%);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border-radius: 24px;
+  padding: 3rem 2.5rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  max-width: 500px;
+  width: 90vw;
+  text-align: center;
+`;
+
+const WarningIcon = styled.div`
+  font-size: 64px;
+  margin-bottom: 1.5rem;
+  color: #ff6b6b;
+`;
+
+const Title = styled.h2`
+  color: #ffffff;
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  letter-spacing: -0.5px;
+`;
+
+const Message = styled.p`
+  color: #aaaaaa;
+  font-size: 16px;
+  line-height: 1.6;
+  margin-bottom: 2rem;
+`;
+
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+`;
+
+const Button = styled.button<{ $variant?: 'primary' | 'secondary' }>`
+  flex: 1;
+  padding: 1rem 1.5rem;
+  border: none;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  
+  ${props => props.$variant === 'primary' ? `
+    background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
+    color: #ffffff;
+    
+    &:hover {
+      background: linear-gradient(135deg, #a855f7 0%, #c084fc 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(139, 92, 246, 0.4);
+    }
+  ` : `
+    background: transparent;
+    color: #888888;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    
+    &:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+      color: #aaaaaa;
+    }
+  `}
+  
+  &:active {
+    transform: translateY(0);
+  }
+`;
+
+interface AgeVerificationModalProps {
+  onAccept: () => void;
+  onDecline: () => void;
+}
+
+export const AgeVerificationModal: React.FC<AgeVerificationModalProps> = ({ onAccept, onDecline }) => {
+  return (
+    <ModalOverlay>
+      <ModalContent>
+        <WarningIcon>⚠️</WarningIcon>
+        <Title>Предупреждение о контенте 18+</Title>
+        <Message>
+          Этот сайт содержит контент для взрослых и предназначен только для лиц старше 18 лет.
+          <br /><br />
+          Продолжая, вы подтверждаете, что вам исполнилось 18 лет и вы согласны с условиями использования сайта.
+        </Message>
+        <ButtonGroup>
+          <Button $variant="primary" onClick={onAccept}>
+            Мне есть 18 лет
+          </Button>
+          <Button $variant="secondary" onClick={onDecline}>
+            Выход
+          </Button>
+        </ButtonGroup>
+      </ModalContent>
+    </ModalOverlay>
+  );
+};
+

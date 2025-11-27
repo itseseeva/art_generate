@@ -88,13 +88,18 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
 
         if (response.ok) {
           const userData = await response.json();
-          if (isMounted) {
+          if (isMounted && userData) {
             const newUserInfo = {
               username: userData.username || userData.email || 'Пользователь',
               coins: userData.coins || 0
             };
             setUserInfo(newUserInfo);
             setIsAuthenticated(true);
+          } else if (isMounted) {
+             // Обработка случая, когда userData is null
+             authManager.clearTokens();
+             setIsAuthenticated(false);
+             setUserInfo(null);
           }
         } else {
           if (isMounted) {

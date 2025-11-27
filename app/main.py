@@ -302,7 +302,7 @@ async def unicode_decode_handler(request: Request, exc: UnicodeDecodeError):
 
 # Статические файлы не нужны
 
-# Папка для изображений не нужна
+# Папка для изображений не нужны
 
 # Монтируем платную галерею как статику
 try:
@@ -612,15 +612,32 @@ except Exception as e:
 # Подключаем роутер истории чата
 try:
     logger.info("🔄 Подключаем роутер истории чата...")
-    from app.api.endpoints.chat_history import router as chat_history_router
-    app.include_router(chat_history_router, prefix="/api/v1/chat-history", tags=["chat-history"])
-    logger.info("[OK] chat_history_router подключен")
+    try:
+        from app.chat_history.api.endpoints import router as chat_history_router
+        logger.info(f"[DEBUG] Роутер импортирован: {chat_history_router}")
+        logger.info(f"[DEBUG] Роутер routes: {[r.path for r in chat_history_router.routes]}")
+        app.include_router(chat_history_router, prefix="/api/v1/chat-history", tags=["chat-history"])
+        logger.info("[OK] chat_history_router подключен из app.chat_history.api.endpoints")
+    except ImportError as e:
+        logger.warning(f"[WARNING] Не удалось импортировать из app.chat_history.api.endpoints: {e}")
+        # Fallback на старый путь
+        from app.api.endpoints.chat_history import router as chat_history_router
+        app.include_router(chat_history_router, prefix="/api/v1/chat-history", tags=["chat-history"])
+        logger.info("[OK] chat_history_router подключен из app.api.endpoints.chat_history (fallback)")
     
     logger.info("[OK] Роутер истории чата подключен")
 except Exception as e:
     logger.error(f"[ERROR] Ошибка подключения роутера истории чата: {e}")
     import traceback
     logger.error(f"Traceback: {traceback.format_exc()}")
+
+# Логируем все зарегистрированные роуты для отладки
+logger.info("=== Registered Routes ===")
+for route in app.routes:
+    path = getattr(route, "path", "unknown")
+    methods = ",".join(getattr(route, "methods", [])) if hasattr(route, "methods") else "no methods"
+    logger.info(f"Route: {path} [{methods}]")
+logger.info("========================")
 
 # Подключаем тестовый роутер для llama-cpp-python (если существует)
 try:
@@ -1114,11 +1131,11 @@ async def _write_chat_history(
         )
         db.add(assistant_record)
 
-        # Также сохраняем в ChatHistory для галереи пользователя
-        # Сохраняем только если есть фото (для галереи)
-        if user_id_int and (image_url or image_filename):
+        # Также сохраняем в ChatHistory для истории чата
+        # Сохраняем все сообщения (с фото и без)
+        if user_id_int:
             try:
-                # Сохраняем промпт пользователя с фото (для отображения промпта)
+                # Сохраняем промпт пользователя
                 user_chat_history = ChatHistory(
                     user_id=user_id_int,
                     character_name=character_name,
@@ -1130,7 +1147,7 @@ async def _write_chat_history(
                 )
                 db.add(user_chat_history)
                 
-                # Также сохраняем ответ ассистента с фото (для галереи)
+                # Также сохраняем ответ ассистента
                 assistant_chat_history = ChatHistory(
                     user_id=user_id_int,
                     character_name=character_name,
@@ -1142,17 +1159,19 @@ async def _write_chat_history(
                 )
                 db.add(assistant_chat_history)
                 
-                logger.info(
-                    "[HISTORY] Фото и промпт сохранены в ChatHistory (user_id=%s, character=%s, image_url=%s, prompt=%s)",
+                await db.commit()
+                
+                logger.debug(
+                    "[HISTORY] Сообщения сохранены в ChatHistory (user_id=%s, character=%s, has_image=%s)",
                     user_id_int,
                     character_name,
-                    image_url or image_filename,
-                    message[:50] + "..." if len(message) > 50 else message
+                    bool(image_url or image_filename)
                 )
             except Exception as chat_history_error:
-                logger.error(f"[HISTORY] Ошибка сохранения фото в ChatHistory: {chat_history_error}")
+                logger.error(f"[HISTORY] Ошибка сохранения в ChatHistory: {chat_history_error}")
                 import traceback
                 logger.error(f"[HISTORY] Трейсбек: {traceback.format_exc()}")
+                await db.rollback()
 
         await db.commit()
         logger.info(
@@ -1304,46 +1323,56 @@ async def chat_endpoint(
         coins_user_id = parse_int_user_id(user_id)
         character_data = None
         user_subscription_type: Optional[str] = None
+        use_credits = False  # Флаг: использовать кредиты подписки (True) или монеты (False)
         
         async with async_session_maker() as db:
-            # 1. Проверяем монеты пользователя (если авторизован)
+            # 1. Проверяем возможность отправки сообщения (если авторизован)
+            use_credits = False  # Флаг: использовать кредиты подписки или монеты
             if user_id:
-                logger.info(f"[DEBUG] Проверка монет для пользователя {user_id}")
+                logger.info(f"[DEBUG] Проверка ресурсов для пользователя {user_id}")
                 if coins_user_id is None:
                     raise HTTPException(status_code=400, detail="Некорректный идентификатор пользователя")
-                from app.services.coins_service import CoinsService
-                coins_service = CoinsService(db)
-                can_send_message = await coins_service.can_user_send_message(coins_user_id)
-                if not can_send_message:
-                    coins = await coins_service.get_user_coins(coins_user_id)
-                    logger.error(f"[ERROR] Недостаточно монет! У пользователя {user_id}: {coins} монет, нужно 2")
-                    raise HTTPException(
-                        status_code=403, 
-                        detail="Недостаточно монет для отправки сообщения! Нужно 2 монеты."
-                    )
-                logger.info(f"[OK] Пользователь {user_id} может отправить сообщение")
-
+                
                 subscription_service = ProfitActivateService(db)
                 subscription = await subscription_service.get_user_subscription(coins_user_id)
                 user_subscription_type = subscription.subscription_type.value if subscription else None
+                
+                # Сначала проверяем кредиты подписки (приоритет)
                 can_use_subscription_credits = await subscription_service.can_user_send_message(
                     coins_user_id,
                     len(message)
                 )
-                if not can_use_subscription_credits:
-                    logger.error(
-                        "[ERROR] Пользователь %s не может отправить сообщение: закончились кредиты или превышен лимит длины",
+                
+                if can_use_subscription_credits:
+                    use_credits = True  # Используем кредиты подписки
+                    logger.info(
+                        "[OK] Подписка пользователя %s позволяет отправить сообщение (тип: %s, кредиты: %s/%s)",
                         user_id,
+                        user_subscription_type or "неизвестно",
+                        subscription.used_credits if subscription else 0,
+                        subscription.monthly_credits if subscription else 0,
                     )
-                    raise HTTPException(
-                        status_code=403,
-                        detail="Недостаточно кредитов или превышен лимит длины сообщения",
-                    )
-                logger.info(
-                    "[OK] Подписка пользователя %s позволяет отправить сообщение (тип: %s)",
-                    user_id,
-                    user_subscription_type or "неизвестно",
-                )
+                else:
+                    # Если кредиты подписки закончились, проверяем монеты (fallback)
+                    from app.services.coins_service import CoinsService
+                    coins_service = CoinsService(db)
+                    can_send_message = await coins_service.can_user_send_message(coins_user_id)
+                    
+                    if not can_send_message:
+                        coins = await coins_service.get_user_coins(coins_user_id)
+                        logger.error(
+                            "[ERROR] Недостаточно ресурсов! У пользователя %s: %s монет (нужно 2), кредиты: %s/%s",
+                            user_id,
+                            coins or 0,
+                            subscription.used_credits if subscription else 0,
+                            subscription.monthly_credits if subscription else 0,
+                        )
+                        raise HTTPException(
+                            status_code=403, 
+                            detail="Недостаточно кредитов подписки или монет для отправки сообщения! Нужно 2 кредита или 2 монеты."
+                        )
+                    use_credits = False  # Используем монеты
+                    logger.info(f"[OK] Пользователь {user_id} может отправить сообщение за счет монет")
             else:
                 user_subscription_type = None
             
@@ -1433,33 +1462,46 @@ async def chat_endpoint(
         
         logger.info(f"[OK] /chat: Ответ сгенерирован ({len(response)} символов)")
         
-        # Списываем кредиты и обновляем статистику после успешной генерации ответа
+        # Списываем ресурсы после успешной генерации ответа
         if user_id and coins_user_id is not None:
             async with async_session_maker() as db:
-                from app.services.coins_service import CoinsService
-
-                coins_service = CoinsService(db)
-                coins_spent = await coins_service.spend_coins_for_message(coins_user_id)
-
-                subscription_service = ProfitActivateService(db)
-                credits_spent = await subscription_service.use_message_credits(coins_user_id)
-
-                if not coins_spent or not credits_spent:
-                    logger.error(
-                        "[ERROR] Не удалось списать кредиты за сообщение (coins_spent=%s, credits_spent=%s)",
-                        coins_spent,
-                        credits_spent,
+                if use_credits:
+                    # Списываем кредиты подписки
+                    subscription_service = ProfitActivateService(db)
+                    credits_spent = await subscription_service.use_message_credits(coins_user_id)
+                    
+                    if not credits_spent:
+                        logger.error(
+                            "[ERROR] Не удалось списать кредиты подписки за сообщение для пользователя %s",
+                            user_id,
+                        )
+                        raise HTTPException(
+                            status_code=500,
+                            detail="Не удалось списать кредиты подписки за сообщение. Повторите попытку.",
+                        )
+                    logger.info(
+                        "[OK] Списаны кредиты подписки за сообщение пользователя %s",
+                        user_id,
                     )
-                    raise HTTPException(
-                        status_code=500,
-                        detail="Не удалось списать кредиты за сообщение. Повторите попытку.",
+                else:
+                    # Списываем монеты (fallback)
+                    from app.services.coins_service import CoinsService
+                    coins_service = CoinsService(db)
+                    coins_spent = await coins_service.spend_coins_for_message(coins_user_id)
+                    
+                    if not coins_spent:
+                        logger.error(
+                            "[ERROR] Не удалось списать монеты за сообщение для пользователя %s",
+                            user_id,
+                        )
+                        raise HTTPException(
+                            status_code=500,
+                            detail="Не удалось списать монеты за сообщение. Повторите попытку.",
+                        )
+                    logger.info(
+                        "[OK] Списаны монеты за сообщение пользователя %s",
+                        user_id,
                     )
-                logger.info(
-                    "[OK] Списаны кредиты за сообщение пользователя %s (coins_spent=%s, credits_spent=%s)",
-                    user_id,
-                    coins_spent,
-                    credits_spent,
-                )
         
         # Проверяем, нужно ли генерировать изображение
         generate_image = request.get("generate_image", False)

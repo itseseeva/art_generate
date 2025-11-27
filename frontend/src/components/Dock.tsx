@@ -57,6 +57,7 @@ function DockItem({
 }: DockItemProps) {
   const ref = useRef<HTMLDivElement>(null);
   const isHovered = useMotionValue(0);
+  const [isLocalHovered, setIsLocalHovered] = useState(false);
 
   const mouseDistance = useTransform(
     vertical ? mouseY : mouseX,
@@ -84,10 +85,22 @@ function DockItem({
         width: size,
         height: size
       }}
-      onHoverStart={() => isHovered.set(1)}
-      onHoverEnd={() => isHovered.set(0)}
-      onFocus={() => isHovered.set(1)}
-      onBlur={() => isHovered.set(0)}
+      onHoverStart={() => {
+        isHovered.set(1);
+        setIsLocalHovered(true);
+      }}
+      onHoverEnd={() => {
+        isHovered.set(0);
+        setIsLocalHovered(false);
+      }}
+      onFocus={() => {
+        isHovered.set(1);
+        setIsLocalHovered(true);
+      }}
+      onBlur={() => {
+        isHovered.set(0);
+        setIsLocalHovered(false);
+      }}
       onClick={onClick}
       className={`dock-item ${className}`}
       tabIndex={0}
@@ -96,7 +109,11 @@ function DockItem({
     >
       {Children.map(children, child =>
         React.isValidElement(child)
-          ? cloneElement(child as React.ReactElement<{ isHovered?: MotionValue<number> }>, { isHovered })
+          ? cloneElement(child as React.ReactElement<{ isHovered?: MotionValue<number>; isLocalHovered?: boolean; vertical?: boolean }>, { 
+              isHovered,
+              isLocalHovered,
+              vertical
+            })
           : child
       )}
     </motion.div>
@@ -107,17 +124,19 @@ type DockLabelProps = {
   className?: string;
   children: React.ReactNode;
   isHovered?: MotionValue<number>;
+  isLocalHovered?: boolean;
   vertical?: boolean;
 };
 
-function DockLabel({ children, className = '', isHovered, vertical = false }: DockLabelProps) {
-  // Лейблы всегда видимы для боковой панели
-  const isVisible = true;
+function DockLabel({ children, className = '', isHovered, isLocalHovered = false, vertical = false }: DockLabelProps) {
+  // Для горизонтального dock показываем tooltip при наведении
+  // Для вертикального dock лейблы всегда видимы
+  const isVisible = vertical ? true : isLocalHovered;
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
+      animate={{ opacity: isVisible ? 1 : 0 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
       className={`dock-label ${vertical ? 'dock-label-vertical' : ''} ${className}`}

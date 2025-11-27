@@ -73,7 +73,7 @@ export const GlobalStyles = createGlobalStyle`
 
   /* Стили для фокуса */
   :focus {
-    outline: 2px solid ${theme.colors.accent.primary};
+    outline: 2px solid rgba(150, 150, 150, 0.5);
     outline-offset: 2px;
   }
 

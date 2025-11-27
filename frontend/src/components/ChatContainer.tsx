@@ -1267,17 +1267,26 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       
       console.log(`Clearing chat history for character: ${currentCharacter.name}`);
 
-      const headers: HeadersInit = {};
       const token = authManager.getToken();
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
+      if (!token) {
+        console.error('No token available');
+        return;
       }
       
-      // Очищаем историю в базе данных
-      const response = await fetch(`http://localhost:8000/api/v1/characters/${currentCharacter.name}/chat-history`, {
-        method: 'DELETE',
-        headers: Object.keys(headers).length ? headers : undefined
-      });
+      // Очищаем историю в базе данных через правильный endpoint
+      const response = await authManager.fetchWithAuth(
+        `/api/v1/chat-history/clear-history`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            character_name: currentCharacter.name,
+            session_id: 'default'
+          })
+        }
+      );
       
       if (response.ok) {
         const data = await response.json();
@@ -1286,6 +1295,14 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         // Очищаем локальное состояние
         setMessages([]);
         setError(null);
+        
+        // Диспатчим событие для обновления страницы истории
+        // Используем name (как возвращается из API истории), а не display_name
+        const characterName = currentCharacter.name;
+        console.log('[CHAT] Отправляем событие очистки истории для:', characterName, 'display_name:', currentCharacter.display_name);
+        window.dispatchEvent(new CustomEvent('chat-history-cleared', {
+          detail: { characterName: characterName }
+        }));
         
         console.log('Chat history cleared successfully');
       } else {

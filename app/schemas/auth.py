@@ -120,6 +120,21 @@ class TipCreatorResponse(BaseModel):
     creator_email: str
 
 
+class TipMessageResponse(BaseModel):
+    """Схема сообщения благодарности"""
+    id: int
+    sender_id: int
+    sender_email: str
+    sender_username: Optional[str]
+    sender_avatar_url: Optional[str] = None
+    character_id: int
+    character_name: str
+    amount: int
+    message: Optional[str]
+    is_read: bool
+    created_at: datetime
+
+
 class SetUsernameRequest(BaseModel):
     """Схема для установки username после OAuth"""
     username: str = Field(..., min_length=3, max_length=30)
