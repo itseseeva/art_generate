@@ -76,6 +76,12 @@ class UserLogin(BaseModel):
     verification_code: Optional[str] = None
 
 
+class ConfirmRegistrationRequest(BaseModel):
+    """Схема для подтверждения регистрации с кодом верификации"""
+    email: EmailStr
+    verification_code: str
+
+
 class Token(BaseModel):
     """Схема для токена"""
     access_token: str
@@ -209,6 +215,32 @@ class ConfirmPasswordChangeRequest(BaseModel):
         if not re.search(r'\d', v):
             raise ValueError('Пароль должен содержать хотя бы одну цифру')
         return v
+
+
+class RequestPasswordChangeWithOldPasswordRequest(BaseModel):
+    """Схема для запроса смены пароля с проверкой старого пароля"""
+    old_password: str
+    new_password: str = Field(..., min_length=8, max_length=100)
+    confirm_password: str
+    
+    @field_validator('new_password')
+    @classmethod
+    def validate_password(cls, v):
+        """Валидация пароля"""
+        if len(v) < 8:
+            raise ValueError('Пароль должен содержать минимум 8 символов')
+        if not re.search(r'[A-Z]', v):
+            raise ValueError('Пароль должен содержать хотя бы одну заглавную букву')
+        if not re.search(r'[a-z]', v):
+            raise ValueError('Пароль должен содержать хотя бы одну строчную букву')
+        if not re.search(r'\d', v):
+            raise ValueError('Пароль должен содержать хотя бы одну цифру')
+        return v
+
+
+class ConfirmPasswordChangeWithCodeRequest(BaseModel):
+    """Схема для подтверждения смены пароля с кодом верификации"""
+    verification_code: str
 
 
 class UserPhotoResponse(BaseModel):

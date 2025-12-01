@@ -383,8 +383,16 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
       console.log('[TIP SUCCESS] Кредиты успешно отправлены!');
       setSuccess(data.message);
       
-      // Диспатчим событие обновления баланса
-      window.dispatchEvent(new Event('balance-update'));
+      // Диспатчим событие обновления баланса с данными из ответа
+      if (data.sender_coins_remaining !== undefined) {
+        console.log('[TIP] Диспатчим событие balance-update с балансом:', data.sender_coins_remaining);
+        window.dispatchEvent(new CustomEvent('balance-update', { detail: { coins: data.sender_coins_remaining } }));
+      } else {
+        setTimeout(() => {
+          console.log('[TIP] Диспатчим событие balance-update после отправки чаевых');
+          window.dispatchEvent(new Event('balance-update'));
+        }, 100);
+      }
       
       // Сразу закрываем модалку и показываем toast
       onSuccess(data.sender_coins_remaining, amount);

@@ -112,6 +112,54 @@ const InsufficientCreditsNotification: React.FC<InsufficientCreditsNotificationP
   );
 };
 
+interface FreeSubscriptionWarningModalProps {
+  onClose: () => void;
+  onOpenShop?: () => void;
+}
+
+const FreeSubscriptionWarningModal: React.FC<FreeSubscriptionWarningModalProps> = ({
+  onClose,
+  onOpenShop
+}) => {
+  useEffect(() => {
+    console.log('[MODAL] Модальное окно для FREE подписки показано');
+  }, []);
+
+  const handleShopClick = () => {
+    if (onOpenShop) {
+      onOpenShop();
+    }
+    onClose();
+  };
+
+  return (
+    <>
+      <NotificationOverlay onClick={onClose} />
+      <NotificationContainer $isClosing={false}>
+        <NotificationContent $variant="warning">
+          <IconWrapper>
+            <AlertIcon />
+          </IconWrapper>
+          <NotificationTitle $variant="warning">Требуется подписка</NotificationTitle>
+          <NotificationMessage $variant="warning">
+            Для разблокировки галереи пользователя необходима подписка STANDARD или PREMIUM.
+            Перейдите в магазин, чтобы оформить подписку.
+          </NotificationMessage>
+          <NotificationButtonGroup>
+            <NotificationButton onClick={handleShopClick} $variant="warning">
+              <ShopIcon />
+              Магазин
+            </NotificationButton>
+            <NotificationCancelButton onClick={onClose} $variant="warning">
+              Отмена
+            </NotificationCancelButton>
+          </NotificationButtonGroup>
+        </NotificationContent>
+      </NotificationContainer>
+    </>
+  );
+};
+
 interface ProfilePageProps {
   onBackToMain: () => void;
   onShop?: () => void;
@@ -635,12 +683,18 @@ const NotificationContainer = styled.div<{ $isClosing: boolean }>`
   pointer-events: auto;
 `;
 
-const NotificationContent = styled.div`
-  background: linear-gradient(135deg, rgb(244, 63, 94), rgb(220, 38, 38));
-  border: 3px solid rgba(244, 63, 94, 0.7);
+const NotificationContent = styled.div<{ $variant?: 'error' | 'warning' }>`
+  background: ${props => props.$variant === 'warning' 
+    ? 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)'
+    : 'linear-gradient(135deg, rgb(244, 63, 94), rgb(220, 38, 38))'};
+  border: ${props => props.$variant === 'warning'
+    ? '2px solid rgba(150, 150, 150, 0.3)'
+    : '3px solid rgba(244, 63, 94, 0.7)'};
   border-radius: ${theme.borderRadius.xl};
   padding: ${theme.spacing.xxl};
-  box-shadow: 0 20px 60px rgba(244, 63, 94, 0.5), 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+  box-shadow: ${props => props.$variant === 'warning'
+    ? '0 20px 60px rgba(0, 0, 0, 0.8), 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05) inset'
+    : '0 20px 60px rgba(244, 63, 94, 0.5), 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.1) inset'};
   min-width: 450px;
   max-width: 550px;
   text-align: center;
@@ -654,7 +708,9 @@ const NotificationContent = styled.div`
     left: 0;
     right: 0;
     bottom: 0;
-    background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.1), transparent 70%);
+    background: ${props => props.$variant === 'warning'
+      ? 'radial-gradient(circle at top right, rgba(255, 255, 255, 0.05), transparent 70%)'
+      : 'radial-gradient(circle at top right, rgba(255, 255, 255, 0.1), transparent 70%)'};
     pointer-events: none;
   }
 `;
@@ -681,21 +737,25 @@ const IconWrapper = styled.div`
   }
 `;
 
-const NotificationTitle = styled.h3`
+const NotificationTitle = styled.h3<{ $variant?: 'error' | 'warning' }>`
   margin: 0 0 ${theme.spacing.md} 0;
   font-size: ${theme.fontSize['2xl']};
   font-weight: 800;
-  color: white;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  color: ${props => props.$variant === 'warning' ? '#ffffff' : 'white'};
+  text-shadow: ${props => props.$variant === 'warning' 
+    ? '0 2px 8px rgba(0, 0, 0, 0.6)'
+    : '0 2px 8px rgba(0, 0, 0, 0.4)'};
   position: relative;
   z-index: 1;
   letter-spacing: 0.5px;
 `;
 
-const NotificationMessage = styled.p`
+const NotificationMessage = styled.p<{ $variant?: 'error' | 'warning' }>`
   margin: 0 0 ${theme.spacing.xl} 0;
   font-size: ${theme.fontSize.lg};
-  color: rgba(255, 255, 255, 0.95);
+  color: ${props => props.$variant === 'warning' 
+    ? 'rgba(255, 255, 255, 0.9)'
+    : 'rgba(255, 255, 255, 0.95)'};
   line-height: 1.7;
   position: relative;
   z-index: 1;
@@ -747,14 +807,20 @@ const NotificationButtonGroup = styled.div`
   flex-wrap: wrap;
 `;
 
-const NotificationCancelButton = styled.button`
+const NotificationCancelButton = styled.button<{ $variant?: 'error' | 'warning' }>`
   display: inline-flex;
   align-items: center;
   gap: ${theme.spacing.md};
   padding: ${theme.spacing.lg} ${theme.spacing.xxl};
-  background: rgba(255, 255, 255, 0.15);
-  color: rgba(255, 255, 255, 0.9);
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: ${props => props.$variant === 'warning'
+    ? 'rgba(60, 60, 60, 0.6)'
+    : 'rgba(255, 255, 255, 0.15)'};
+  color: ${props => props.$variant === 'warning'
+    ? 'rgba(255, 255, 255, 0.9)'
+    : 'rgba(255, 255, 255, 0.9)'};
+  border: ${props => props.$variant === 'warning'
+    ? '1px solid rgba(150, 150, 150, 0.3)'
+    : '2px solid rgba(255, 255, 255, 0.3)'};
   border-radius: ${theme.borderRadius.lg};
   font-size: ${theme.fontSize.lg};
   font-weight: 600;
@@ -764,14 +830,22 @@ const NotificationCancelButton = styled.button`
   z-index: 1;
   text-transform: uppercase;
   letter-spacing: 1px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  box-shadow: ${props => props.$variant === 'warning'
+    ? '0 4px 15px rgba(0, 0, 0, 0.3)'
+    : '0 4px 15px rgba(0, 0, 0, 0.2)'};
   
   &:hover {
-    background: rgba(255, 255, 255, 0.25);
-    border-color: rgba(255, 255, 255, 0.5);
+    background: ${props => props.$variant === 'warning'
+      ? 'rgba(80, 80, 80, 0.8)'
+      : 'rgba(255, 255, 255, 0.25)'};
+    border-color: ${props => props.$variant === 'warning'
+      ? 'rgba(150, 150, 150, 0.5)'
+      : 'rgba(255, 255, 255, 0.5)'};
     color: white;
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+    box-shadow: ${props => props.$variant === 'warning'
+      ? '0 6px 20px rgba(0, 0, 0, 0.4)'
+      : '0 6px 20px rgba(0, 0, 0, 0.3)'};
   }
   
   &:active {
@@ -905,19 +979,17 @@ interface EditProfileFormProps {
 
 const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, authToken, onUpdate }) => {
   const [username, setUsername] = useState(userInfo?.username || '');
-  const [email, setEmail] = useState(userInfo?.email || '');
+  const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [emailVerificationCode, setEmailVerificationCode] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordVerificationCode, setPasswordVerificationCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
-  const [emailChangeStep, setEmailChangeStep] = useState<'request' | 'confirm'>('request');
-  const [passwordChangeStep, setPasswordChangeStep] = useState<'request' | 'verify' | 'confirm'>('request');
+  const [passwordChangeStep, setPasswordChangeStep] = useState<'form' | 'code'>('form');
 
   useEffect(() => {
     if (userInfo) {
       setUsername(userInfo.username || '');
-      setEmail(userInfo.email || '');
     }
   }, [userInfo]);
 
@@ -947,77 +1019,35 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, authToken, 
     }
   };
 
-  const handleRequestEmailChange = async () => {
-    if (!authToken || !email.trim()) return;
-    setIsLoading(true);
-    setMessage(null);
-    try {
-      const response = await fetch('http://localhost:8000/api/v1/auth/request-email-change/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`
-        },
-        body: JSON.stringify({ new_email: email.trim() })
-      });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Ошибка запроса смены email');
-      }
-      setEmailChangeStep('confirm');
-      setMessage({ text: 'Код верификации отправлен на новый email', error: false });
-    } catch (error: any) {
-      setMessage({ text: error.message || 'Ошибка запроса смены email', error: true });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleConfirmEmailChange = async () => {
-    if (!authToken || !email.trim() || !verificationCode.trim()) return;
-    setIsLoading(true);
-    setMessage(null);
-    try {
-      const response = await fetch('http://localhost:8000/api/v1/auth/confirm-email-change/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`
-        },
-        body: JSON.stringify({ new_email: email.trim(), verification_code: emailVerificationCode.trim() })
-      });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Ошибка подтверждения смены email');
-      }
-      setMessage({ text: 'Email успешно изменен', error: false });
-      setEmailChangeStep('request');
-      setEmailVerificationCode('');
-      onUpdate();
-    } catch (error: any) {
-      setMessage({ text: error.message || 'Ошибка подтверждения смены email', error: true });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleRequestPasswordChange = async () => {
-    if (!authToken) return;
+    if (!authToken || !oldPassword.trim() || !newPassword.trim() || !confirmPassword.trim()) return;
+    
+    // Проверяем, что новый пароль и повтор совпадают
+    if (newPassword !== confirmPassword) {
+      setMessage({ text: 'Новый пароль и повтор не совпадают', error: true });
+      return;
+    }
+    
     setIsLoading(true);
     setMessage(null);
     try {
-      const response = await fetch('http://localhost:8000/api/v1/auth/request-password-change/', {
+      const response = await fetch('http://localhost:8000/api/v1/auth/request-password-change-with-old/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${authToken}`
-        }
+        },
+        body: JSON.stringify({
+          old_password: oldPassword,
+          new_password: newPassword,
+          confirm_password: confirmPassword
+        })
       });
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.detail || 'Ошибка запроса смены пароля');
       }
-      setPasswordChangeStep('verify');
+      setPasswordChangeStep('code');
       setMessage({ text: 'Код верификации отправлен на email', error: false });
     } catch (error: any) {
       setMessage({ text: error.message || 'Ошибка запроса смены пароля', error: true });
@@ -1026,12 +1056,12 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, authToken, 
     }
   };
 
-  const handleVerifyPasswordChangeCode = async () => {
+  const handleConfirmPasswordChange = async () => {
     if (!authToken || !passwordVerificationCode.trim()) return;
     setIsLoading(true);
     setMessage(null);
     try {
-      const response = await fetch('http://localhost:8000/api/v1/auth/verify-password-change-code/', {
+      const response = await fetch('http://localhost:8000/api/v1/auth/confirm-password-change-with-code/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1041,37 +1071,13 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, authToken, 
       });
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.detail || 'Ошибка проверки кода');
-      }
-      setPasswordChangeStep('confirm');
-      setMessage({ text: 'Код подтвержден. Теперь введите новый пароль', error: false });
-    } catch (error: any) {
-      setMessage({ text: error.message || 'Ошибка проверки кода', error: true });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleConfirmPasswordChange = async () => {
-    if (!authToken || !newPassword.trim()) return;
-    setIsLoading(true);
-    setMessage(null);
-    try {
-      const response = await fetch('http://localhost:8000/api/v1/auth/confirm-password-change/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`
-        },
-        body: JSON.stringify({ new_password: newPassword })
-      });
-      if (!response.ok) {
-        const error = await response.json();
         throw new Error(error.detail || 'Ошибка подтверждения смены пароля');
       }
       setMessage({ text: 'Пароль успешно изменен', error: false });
-      setPasswordChangeStep('request');
+      setPasswordChangeStep('form');
+      setOldPassword('');
       setNewPassword('');
+      setConfirmPassword('');
       setPasswordVerificationCode('');
     } catch (error: any) {
       setMessage({ text: error.message || 'Ошибка подтверждения смены пароля', error: true });
@@ -1101,83 +1107,65 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, authToken, 
       </EditField>
 
       <EditField>
-        <EditLabel>Email</EditLabel>
-        <EditInput
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Введите новый email"
-          disabled={isLoading || emailChangeStep === 'confirm'}
-        />
-        {emailChangeStep === 'request' ? (
-          <EditButtonGroup>
-            <EditButton onClick={handleRequestEmailChange} disabled={isLoading || !email.trim()}>
-              Запросить код
-            </EditButton>
-          </EditButtonGroup>
-        ) : (
+        <EditLabel>Смена пароля</EditLabel>
+        {passwordChangeStep === 'form' ? (
           <>
             <EditInput
-              type="text"
-              value={emailVerificationCode}
-              onChange={(e) => setEmailVerificationCode(e.target.value)}
-              placeholder="Введите код из письма"
+              type="password"
+              value={oldPassword}
+              onChange={(e) => setOldPassword(e.target.value)}
+              placeholder="Старый пароль"
               disabled={isLoading}
             />
-            <EditButtonGroup>
-              <EditButton onClick={handleConfirmEmailChange} disabled={isLoading || !emailVerificationCode.trim()}>
-                Подтвердить
-              </EditButton>
-              <EditButton onClick={() => { setEmailChangeStep('request'); setEmailVerificationCode(''); }} disabled={isLoading}>
-                Отмена
-              </EditButton>
-            </EditButtonGroup>
-          </>
-        )}
-      </EditField>
-
-      <EditField>
-        <EditLabel>Новый пароль</EditLabel>
-        {passwordChangeStep === 'request' ? (
-          <EditButtonGroup>
-            <EditButton onClick={handleRequestPasswordChange} disabled={isLoading}>
-              Запросить код для смены пароля
-            </EditButton>
-          </EditButtonGroup>
-        ) : passwordChangeStep === 'verify' ? (
-          <>
-            <EditInput
-              type="text"
-              value={passwordVerificationCode}
-              onChange={(e) => setPasswordVerificationCode(e.target.value)}
-              placeholder="Введите код из письма"
-              disabled={isLoading}
-              autoFocus
-            />
-            <EditButtonGroup>
-              <EditButton onClick={handleVerifyPasswordChangeCode} disabled={isLoading || !passwordVerificationCode.trim()}>
-                Проверить код
-              </EditButton>
-              <EditButton onClick={() => { setPasswordChangeStep('request'); setPasswordVerificationCode(''); }} disabled={isLoading}>
-                Отмена
-              </EditButton>
-            </EditButtonGroup>
-          </>
-        ) : (
-          <>
             <EditInput
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Введите новый пароль"
+              placeholder="Новый пароль"
               disabled={isLoading}
-              autoFocus
+              style={{ marginTop: '12px' }}
             />
-            <EditButtonGroup>
-              <EditButton onClick={handleConfirmPasswordChange} disabled={isLoading || !newPassword.trim()}>
-                Изменить пароль
+            <EditInput
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Повтор нового пароля"
+              disabled={isLoading}
+              style={{ marginTop: '12px' }}
+            />
+            <EditButtonGroup style={{ marginTop: '12px' }}>
+              <EditButton onClick={handleRequestPasswordChange} disabled={isLoading || !oldPassword.trim() || !newPassword.trim() || !confirmPassword.trim()}>
+                Готово
               </EditButton>
-              <EditButton onClick={() => { setPasswordChangeStep('request'); setNewPassword(''); setPasswordVerificationCode(''); }} disabled={isLoading}>
+            </EditButtonGroup>
+          </>
+        ) : (
+          <>
+            <EditInput
+              type="text"
+              value={passwordVerificationCode}
+              onChange={(e) => setPasswordVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="000000"
+              disabled={isLoading}
+              maxLength={6}
+              style={{
+                textAlign: 'center',
+                letterSpacing: '12px',
+                fontSize: '20px',
+                fontWeight: 'bold'
+              }}
+            />
+            <EditButtonGroup style={{ marginTop: '12px' }}>
+              <EditButton onClick={handleConfirmPasswordChange} disabled={isLoading || !passwordVerificationCode.trim() || passwordVerificationCode.length !== 6}>
+                Подтвердить
+              </EditButton>
+              <EditButton onClick={() => { 
+                setPasswordChangeStep('form'); 
+                setPasswordVerificationCode('');
+                setOldPassword('');
+                setNewPassword('');
+                setConfirmPassword('');
+              }} disabled={isLoading}>
                 Отмена
               </EditButton>
             </EditButtonGroup>
@@ -1204,6 +1192,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [balanceRefreshTrigger, setBalanceRefreshTrigger] = useState(0);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isFreeSubscriptionModalOpen, setIsFreeSubscriptionModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authToken, setAuthToken] = useState<string | null>(() => localStorage.getItem('authToken'));
   const [photosCount, setPhotosCount] = useState<number>(0); // Количество фото в "Моей галерее" (UserGallery)
@@ -1215,7 +1204,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [showInsufficientCreditsNotification, setShowInsufficientCreditsNotification] = useState(false);
 
   const isViewingOwnProfile = !profileUserId || (currentUserId !== null && profileUserId === currentUserId);
-  const viewedUserName = userInfo?.username || userInfo?.email?.split('@')[0] || (userInfo?.id ? `user_${userInfo.id}` : 'Пользователь');
+  const viewedUserName = userInfo?.username || userInfo?.email?.split('@')[0] || 'Пользователь';
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
@@ -1488,18 +1477,62 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       return;
     }
 
-    // Проверяем подписку перед разблокировкой
-    const subscriptionTypeRaw = stats?.subscription_type || userInfo?.subscription?.subscription_type || '';
-    const currentSubscription = subscriptionTypeRaw ? subscriptionTypeRaw.toLowerCase() : '';
-    console.log('[PROFILE] Проверка подписки:', { subscriptionTypeRaw, currentSubscription, stats, userInfo });
-    // Проверяем, что подписка есть и она STANDARD или PREMIUM
-    // subscription_type может быть 'PREMIUM', 'STANDARD' (верхний регистр) или 'premium', 'standard' (нижний)
-    const allowedSubscriptions = ['standard', 'premium', 'standart'];
-    if (!currentSubscription || !allowedSubscriptions.includes(currentSubscription)) {
-      alert('Для разблокировки галереи необходима подписка STANDARD или PREMIUM');
-      if (onShop) {
-        onShop();
+    // Загружаем актуальные данные подписки ТЕКУЩЕГО пользователя перед проверкой
+    // ВАЖНО: используем /api/v1/auth/me/ для получения данных текущего пользователя,
+    // а не fetchUserInfo, который может загружать данные чужого пользователя
+    let currentStats = stats;
+    let currentUserInfo = userInfo;
+    
+    if (!currentStats) {
+      console.log('[PROFILE] stats отсутствует, загружаем для текущего пользователя...');
+      try {
+        currentStats = await fetchSubscriptionStats(authToken);
+      } catch (error) {
+        console.error('[PROFILE] Ошибка загрузки stats:', error);
       }
+    }
+    
+    // Всегда загружаем данные текущего пользователя через /api/v1/auth/me/
+    // чтобы получить правильную информацию о подписке
+    if (!currentUserInfo?.subscription?.subscription_type || currentUserInfo?.id !== currentUserId) {
+      console.log('[PROFILE] Загружаем данные текущего пользователя для проверки подписки...');
+      try {
+        const response = await fetch('http://localhost:8000/api/v1/auth/me/', {
+          headers: {
+            Authorization: `Bearer ${authToken}`
+          }
+        });
+        if (response.ok) {
+          const meData = await response.json();
+          currentUserInfo = meData;
+          console.log('[PROFILE] Данные текущего пользователя загружены:', {
+            id: meData.id,
+            subscription_type: meData.subscription?.subscription_type
+          });
+        }
+      } catch (error) {
+        console.error('[PROFILE] Ошибка загрузки данных текущего пользователя:', error);
+      }
+    }
+
+    // Проверяем подписку перед разблокировкой
+    const subscriptionTypeRaw = currentStats?.subscription_type || currentUserInfo?.subscription?.subscription_type || '';
+    const currentSubscription = subscriptionTypeRaw ? subscriptionTypeRaw.toLowerCase() : '';
+    console.log('[PROFILE] Проверка подписки:', { 
+      subscriptionTypeRaw, 
+      currentSubscription, 
+      stats: currentStats, 
+      userInfo: currentUserInfo,
+      statsSubscriptionType: currentStats?.subscription_type,
+      userInfoSubscriptionType: currentUserInfo?.subscription?.subscription_type
+    });
+    
+    // Проверяем, что подписка есть и она STANDARD или PREMIUM
+    const allowedSubscriptions = ['standard', 'premium'];
+    if (!currentSubscription || !allowedSubscriptions.includes(currentSubscription)) {
+      // Показываем модальное окно ТОЛЬКО для FREE пользователей
+      console.log('[PROFILE] Подписка не позволяет разблокировать галерею:', currentSubscription);
+      setIsFreeSubscriptionModalOpen(true);
       return;
     }
 
@@ -1521,12 +1554,20 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     try {
       // Вызываем разблокировку - бэкенд проверит баланс, подписку и списал кредиты
       await unlockUserGallery(authToken, profileUserId);
-      await fetchCurrentUserProfile();
+      const updatedProfile = await fetchCurrentUserProfile();
       rememberUnlockedUserGallery(profileUserId);
       setHasUnlockedGallery(true);
       
-      // Диспатчим событие обновления баланса
-      window.dispatchEvent(new Event('balance-update'));
+      // Диспатчим событие обновления баланса с данными
+      if (updatedProfile && updatedProfile.coins !== undefined) {
+        console.log('[PROFILE] Диспатчим событие balance-update с балансом:', updatedProfile.coins);
+        window.dispatchEvent(new CustomEvent('balance-update', { detail: { coins: updatedProfile.coins } }));
+      } else {
+        setTimeout(() => {
+          console.log('[PROFILE] Диспатчим событие balance-update после разблокировки галереи');
+          window.dispatchEvent(new Event('balance-update'));
+        }, 100);
+      }
 
       if (onOpenUserGallery) {
         // Передаем profileUserId чтобы открыть галерею именно этого пользователя
@@ -1554,16 +1595,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         ));
       
       if (isSubscriptionError) {
-        alert(error.message || 'Для разблокировки галереи необходима подписка STANDARD или PREMIUM');
-        if (onShop) {
-          onShop();
-        }
+        // Показываем модальное окно для ошибок подписки
+        setIsFreeSubscriptionModalOpen(true);
       } else if (isInsufficientCredits) {
         console.log('[PROFILE] Обнаружена ошибка недостатка кредитов, показываем уведомление');
         setShowInsufficientCreditsNotification(true);
       } else {
-        // Для других ошибок показываем alert
-        alert(error.message || 'Ошибка при открытии альбома пользователя');
+        // Для других ошибок показываем уведомление о недостатке кредитов
+        console.log('[PROFILE] Обнаружена другая ошибка, показываем уведомление');
+        setShowInsufficientCreditsNotification(true);
       }
     } finally {
       setIsLoadingGallery(false);
@@ -1618,7 +1658,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
     const results = await Promise.allSettled([
       fetchUserInfo(authToken),
-      profileUserId ? Promise.resolve(null) : fetchSubscriptionStats(authToken), // Статистика только для своего профиля
+      fetchSubscriptionStats(authToken), // Всегда загружаем статистику текущего пользователя (нужна для проверки подписки при разблокировке галереи)
       profileUserId ? Promise.resolve(null) : loadPhotosCount(authToken) // Фото только для своего профиля
     ]);
 
@@ -1779,11 +1819,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     }
 
     if (isLoading) {
-      return (
-        <ErrorBanner>
-          Загрузка данных профиля...
-        </ErrorBanner>
-      );
+      return null;
     }
 
     const recentActivities = [
@@ -1902,35 +1938,45 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     </GalleryButtonContainer>
                   )}
                   {/* Если это чужой профиль - показываем кнопку для открытия альбома за 500 кредитов */}
-                  {profileUserId && currentUserId && profileUserId !== currentUserId && (
-                    <GalleryButtonContainer style={{ marginBottom: '1rem' }}>
-                      <ActionButton 
-                        onClick={(e) => {
-                          console.log('[PROFILE] Кнопка "Купить доступ к галерее" нажата');
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleOpenUserGallery();
-                        }} 
-                        disabled={isLoadingGallery}
-                        style={!hasUnlockedGallery ? { background: 'rgba(80, 80, 80, 0.9)' } : undefined}
-                      >
-                        <ImageIcon />
-                        {hasUnlockedGallery
-                          ? 'Открыть галерею'
-                          : `Купить доступ к галерее за 500 кредитов`}
-                      </ActionButton>
-                      {!hasUnlockedGallery && (
-                        <GalleryButtonPrice>
-                          Стоимость открытия: 500 кредитов
-                        </GalleryButtonPrice>
-                      )}
-                      <GalleryButtonDescription>
-                        {hasUnlockedGallery
-                          ? 'Галерея уже разблокирована. Нажмите, чтобы открыть.'
-                          : `Вы откроете доступ ко всем ${generatedPhotosCount} сгенерированным фото пользователя. После покупки галерея будет доступна всегда.`}
-                      </GalleryButtonDescription>
-                    </GalleryButtonContainer>
-                  )}
+                  {profileUserId && currentUserId && profileUserId !== currentUserId && (() => {
+                    const subscriptionTypeRaw = stats?.subscription_type || userInfo?.subscription?.subscription_type || '';
+                    const currentSubscription = subscriptionTypeRaw ? subscriptionTypeRaw.toLowerCase() : '';
+                    const isPremium = currentSubscription === 'premium';
+                    
+                    return (
+                      <GalleryButtonContainer style={{ marginBottom: '1rem' }}>
+                        <ActionButton 
+                          onClick={(e) => {
+                            console.log('[PROFILE] Кнопка "Купить доступ к галерее" нажата');
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleOpenUserGallery();
+                          }} 
+                          disabled={isLoadingGallery}
+                          style={!hasUnlockedGallery && !isPremium ? { background: 'rgba(80, 80, 80, 0.9)' } : undefined}
+                        >
+                          {isPremium ? <AwardIcon /> : <ImageIcon />}
+                          {hasUnlockedGallery
+                            ? 'Открыть галерею'
+                            : isPremium
+                            ? 'Открыть!'
+                            : `Купить доступ к галерее за 500 кредитов`}
+                        </ActionButton>
+                        {!hasUnlockedGallery && !isPremium && (
+                          <GalleryButtonPrice>
+                            Стоимость открытия: 500 кредитов
+                          </GalleryButtonPrice>
+                        )}
+                        <GalleryButtonDescription>
+                          {hasUnlockedGallery
+                            ? 'Галерея уже разблокирована. Нажмите, чтобы открыть.'
+                            : isPremium
+                            ? 'Вы премиум пользователь у вас доступ ко всем галереям пользователей!'
+                            : `Вы откроете доступ ко всем ${generatedPhotosCount} сгенерированным фото пользователя. После покупки галерея будет доступна всегда.`}
+                        </GalleryButtonDescription>
+                      </GalleryButtonContainer>
+                    );
+                  })()}
                 </>
               )}
             </HeaderActions>
@@ -2005,10 +2051,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 <InfoCard>
                   <InfoLabel>Email</InfoLabel>
                   <InfoValue>{userInfo.email ?? '—'}</InfoValue>
-                </InfoCard>
-                <InfoCard>
-                  <InfoLabel>ID</InfoLabel>
-                  <InfoValue>#{userInfo.id}</InfoValue>
                 </InfoCard>
                 <InfoCard>
                   <InfoLabel>Статус</InfoLabel>
@@ -2097,6 +2139,18 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             hasShopButton={!!onShop}
           />
         </>
+      )}
+      {isFreeSubscriptionModalOpen && (
+        <FreeSubscriptionWarningModal
+          onClose={() => {
+            setIsFreeSubscriptionModalOpen(false);
+          }}
+          onOpenShop={() => {
+            if (onShop) {
+              onShop();
+            }
+          }}
+        />
       )}
     </MainContainer>
   );

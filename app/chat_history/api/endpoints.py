@@ -155,6 +155,28 @@ async def clear_chat_history(
         raise HTTPException(status_code=500, detail=f"Ошибка очистки истории: {str(e)}")
 
 
+@router.post("/clear-history-for-free")
+async def clear_chat_history_for_free(
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Очищает всю историю чата для пользователей с FREE подпиской. Вызывается при выходе из чата или обновлении страницы."""
+    try:
+        # Импортируем сервис только здесь, чтобы избежать циклических импортов
+        from app.chat_history.services.chat_history_service import ChatHistoryService
+        history_service = ChatHistoryService(db)
+        
+        success = await history_service.clear_chat_history_for_free_users(current_user.id)
+        
+        if success:
+            return {"success": True, "message": "История чата очищена для FREE подписки"}
+        else:
+            return {"success": False, "message": "Очистка истории доступна только для FREE подписки"}
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка очистки истории: {str(e)}")
+
+
 @router.get("/stats")
 async def get_history_stats(
     current_user: Users = Depends(get_current_user),

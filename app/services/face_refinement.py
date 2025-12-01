@@ -352,17 +352,21 @@ class FaceRefinementService:
             import sys
             from pathlib import Path
             webui_path = Path(__file__).parent.parent.parent / "stable-diffusion-webui"
-            sys.path.insert(0, str(webui_path))
-            from model_config import get_model_info
-            model_info = get_model_info()
-            if model_info:
-                logger.info(f"🤖 Используемая модель: {model_info['name']} ({model_info['size_mb']} MB)")
-                if model_info["vae_name"]:
-                    logger.info(f"🎨 VAE: {model_info['vae_name']}")
+            if webui_path.exists():
+                sys.path.insert(0, str(webui_path))
+                from model_config import get_model_info
+                model_info = get_model_info()
+                if model_info:
+                    logger.info(f"🤖 Используемая модель: {model_info['name']} ({model_info['size_mb']} MB)")
+                    if model_info["vae_name"]:
+                        logger.info(f"🎨 VAE: {model_info['vae_name']}")
+                    else:
+                        logger.info("🎨 VAE: Встроенный")
                 else:
-                    logger.info("🎨 VAE: Встроенный")
-            else:
-                logger.warning("[WARNING] Информация о модели недоступна")
+                    logger.warning("[WARNING] Информация о модели недоступна")
+        except ImportError:
+            # Модуль model_config не найден - это нормально
+            pass
         except Exception as e:
             logger.warning(f"[WARNING] Не удалось получить информацию о модели: {e}")
         

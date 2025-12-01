@@ -66,6 +66,12 @@
   box-shadow: none !important;
 }
 
+.dock-item.disabled {
+  cursor: not-allowed !important;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 .dock-icon {
   display: flex;
   align-items: center;

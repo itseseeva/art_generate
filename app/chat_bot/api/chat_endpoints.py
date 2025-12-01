@@ -145,33 +145,62 @@ async def chat_with_character(
         )
         
         # Сохраняем диалог в базу данных
+        # КРИТИЧЕСКИ ВАЖНО: для FREE подписки не сохраняем ChatSession/ChatMessageDB
         try:
-            if not chat_session:
-                chat_session = ChatSession(
-                    character_id=character_config.id,
-                    user_id=user_id,
-                    started_at=datetime.now()
+            can_save_session = False
+            if current_user:
+                from app.models.subscription import UserSubscription, SubscriptionType, SubscriptionStatus
+                from sqlalchemy import select
+                import logging
+                logger = logging.getLogger(__name__)
+                
+                # Получаем самую новую активную подписку (если есть несколько записей)
+                subscription_query = await db.execute(
+                    select(UserSubscription)
+                    .where(UserSubscription.user_id == current_user.id)
+                    .where(UserSubscription.status == SubscriptionStatus.ACTIVE)
+                    .order_by(UserSubscription.activated_at.desc())
+                    .limit(1)
                 )
-                db.add(chat_session)
-                await db.flush()
+                subscription = subscription_query.scalar_one_or_none()
+                if subscription and subscription.is_active:
+                    # КРИТИЧЕСКИ ВАЖНО: сохраняем историю для STANDARD и PREMIUM подписок одинаково
+                    # PREMIUM должен работать так же, как STANDARD
+                    can_save_session = subscription.subscription_type in [SubscriptionType.STANDARD, SubscriptionType.PREMIUM]
+                    logger.info(f"[CHAT] Пользователь {current_user.id}: подписка={subscription.subscription_type.value}, is_active={subscription.is_active}, can_save_session={can_save_session}")
+                else:
+                    logger.warning(f"[CHAT] Пользователь {current_user.id}: подписка отсутствует или неактивна (subscription={subscription})")
             
-            user_message = ChatMessageDB(
-                session_id=chat_session.id,
-                role="user",
-                content=request.message,
-                timestamp=datetime.now()
-            )
-            db.add(user_message)
-            
-            assistant_message = ChatMessageDB(
-                session_id=chat_session.id,
-                role="assistant",
-                content=response_text,
-                timestamp=datetime.now()
-            )
-            db.add(assistant_message)
-            
-            await db.commit()
+            if can_save_session:
+                if not chat_session:
+                    chat_session = ChatSession(
+                        character_id=character_config.id,
+                        user_id=user_id,
+                        started_at=datetime.now()
+                    )
+                    db.add(chat_session)
+                    await db.flush()
+                
+                user_message = ChatMessageDB(
+                    session_id=chat_session.id,
+                    role="user",
+                    content=request.message,
+                    timestamp=datetime.now()
+                )
+                db.add(user_message)
+                
+                assistant_message = ChatMessageDB(
+                    session_id=chat_session.id,
+                    role="assistant",
+                    content=response_text,
+                    timestamp=datetime.now()
+                )
+                db.add(assistant_message)
+                
+                # КРИТИЧЕСКИ ВАЖНО: коммитим ChatMessageDB сразу, чтобы они сохранились
+                await db.commit()
+            else:
+                logger.debug(f"[CHAT] Пропуск сохранения ChatSession/ChatMessageDB: подписка FREE или отсутствует (user_id={current_user.id if current_user else None})")
         except Exception as e:
             logger.error(f"Ошибка сохранения диалога: {e}")
         

@@ -576,6 +576,8 @@ interface CharacterCardProps {
   onPhotoGeneration?: (character: Character) => void; // Генерация фото
   onPaidAlbum?: (character: Character) => void; // Платный альбом
   showPromptButton?: boolean; // Показывать кнопку "Show Prompt" только на главной странице
+  isFavorite?: boolean; // Если true, персонаж считается в избранном (для страницы favorites)
+  onFavoriteToggle?: () => void; // Callback при изменении статуса избранного
 }
 
 // Компонент слайд-шоу
@@ -638,10 +640,24 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   onAddPhoto, // New prop
   onPhotoGeneration,
   onPaidAlbum,
-  showPromptButton = false // По умолчанию не показываем кнопку
+  showPromptButton = false, // По умолчанию не показываем кнопку
+  isFavorite: isFavoriteProp = false, // Проп для установки начального состояния избранного
+  onFavoriteToggle // Callback при изменении статуса избранного
 }) => {
-  const [isFavorite, setIsFavorite] = useState(false);
-  const [isChecking, setIsChecking] = useState(true);
+  // КРИТИЧЕСКИ ВАЖНО: если isFavoriteProp не передан, начинаем с false
+  // Это нужно для главной страницы, где проверка выполняется через API
+  const [isFavorite, setIsFavorite] = useState(isFavoriteProp ?? false);
+  // Если передан isFavoriteProp, сразу отключаем проверку (персонаж уже в избранном)
+  const [isChecking, setIsChecking] = useState(isFavoriteProp === undefined);
+  
+  // Обновляем состояние избранного при изменении пропа
+  // КРИТИЧЕСКИ ВАЖНО: если передан isFavoriteProp, используем его значение и отключаем проверку через API
+  useEffect(() => {
+    if (isFavoriteProp !== undefined) {
+      setIsFavorite(isFavoriteProp);
+      setIsChecking(false); // Отключаем проверку, так как значение уже известно
+    }
+  }, [isFavoriteProp]);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
@@ -651,13 +667,46 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   );
 
   // Загружаем состояние избранного из API при монтировании
-  // ОТКЛЮЧЕНО для уменьшения нагрузки - статус будет обновляться только при клике
-  /*
+  // КРИТИЧЕСКИ ВАЖНО: проверяем избранное только если isFavoriteProp не передан
+  // Если isFavoriteProp передан (например, на главной странице или странице favorites), используем его значение
   useEffect(() => {
-    const checkFavorite = async () => {
+    // Если передан isFavoriteProp, используем его и не проверяем через API
+    if (isFavoriteProp !== undefined) {
+      setIsFavorite(isFavoriteProp);
+      setIsChecking(false);
+      return;
+    }
+
+    // Если isFavoriteProp не передан, проверяем через API (для главной страницы)
+    let isMounted = true;
+    let retryTimeout: NodeJS.Timeout | null = null;
+
+    const checkFavorite = async (retryCount = 0) => {
+      // Проверяем, что компонент еще смонтирован
+      if (!isMounted) {
+        return;
+      }
+
+      // Ждем немного перед первой попыткой, чтобы токен успел загрузиться
+      if (retryCount === 0) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
       const token = authManager.getToken();
       if (!token) {
-        setIsChecking(false);
+        // Если токен еще не доступен, пробуем еще раз (максимум 15 попыток)
+        if (retryCount < 15) {
+          const delay = Math.min(200 * (retryCount + 1), 1500); // Увеличиваем задержку до 1.5 секунды
+          retryTimeout = setTimeout(() => {
+            if (isMounted) {
+              checkFavorite(retryCount + 1);
+            }
+          }, delay);
+          return;
+        }
+        if (isMounted) {
+          setIsChecking(false);
+        }
         return;
       }
 
@@ -669,35 +718,44 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         } else if (typeof character.id === 'string') {
           characterId = parseInt(character.id, 10);
           if (isNaN(characterId)) {
-            // Если не удалось преобразовать, пробуем найти персонажа по имени
-            setIsChecking(false);
+            if (isMounted) {
+              setIsChecking(false);
+            }
             return;
           }
         } else {
-          setIsChecking(false);
+          if (isMounted) {
+            setIsChecking(false);
+          }
           return;
         }
 
         const response = await authManager.fetchWithAuth(API_CONFIG.CHECK_FAVORITE(characterId));
         if (response.ok) {
           const data = await response.json();
-          setIsFavorite(data?.is_favorite || false);
+          if (isMounted) {
+            setIsFavorite(data?.is_favorite || false);
+          }
         }
       } catch (error) {
         console.error('Error checking favorite:', error);
       } finally {
-        setIsChecking(false);
+        if (isMounted) {
+          setIsChecking(false);
+        }
       }
     };
 
     checkFavorite();
-  }, [character.id]);
-  */
 
-  // Просто отключаем проверку при загрузке
-  useEffect(() => {
-    setIsChecking(false);
-  }, []);
+    // Cleanup функция для отмены повторных попыток при размонтировании
+    return () => {
+      isMounted = false;
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
+    };
+  }, [character.id, isFavoriteProp]);
 
   // Функция для переключения избранного
   const toggleFavorite = async (e: React.MouseEvent) => {
@@ -733,6 +791,10 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         );
         if (response.ok) {
           setIsFavorite(false);
+          // Вызываем callback, если он передан (для обновления списка на странице favorites)
+          if (onFavoriteToggle) {
+            onFavoriteToggle();
+          }
         } else {
           const errorData = await response.json().catch(() => ({}));
           console.error('Error removing from favorites:', errorData);
@@ -745,6 +807,10 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         );
         if (response.ok) {
           setIsFavorite(true);
+          // Вызываем callback, если он передан
+          if (onFavoriteToggle) {
+            onFavoriteToggle();
+          }
         } else {
           const errorData = await response.json().catch(() => ({}));
           console.error('Error adding to favorites:', errorData);

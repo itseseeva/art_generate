@@ -146,7 +146,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     },
     {
       icon: <FiImage size={20} />,
-      label: 'Генерировать изображение',
+      label: 'Сгенерировать изображение',
       onClick: handleImageGeneration,
       className: disabled || !message.trim() || !onGenerateImage ? 'disabled' : ''
     },

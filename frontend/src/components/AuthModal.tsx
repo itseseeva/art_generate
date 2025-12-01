@@ -8,8 +8,8 @@ const ModalOverlay = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(10px);
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(15px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -18,16 +18,17 @@ const ModalOverlay = styled.div`
 `;
 
 const ModalContent = styled.div`
-  background: rgba(20, 20, 20, 0.7);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-radius: ${theme.borderRadius.xl};
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  border-radius: 20px;
   padding: ${theme.spacing.xxl};
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  max-width: 400px;
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  max-width: 420px;
   width: 90vw;
   animation: slideIn 0.3s ease-out;
+  border: 1px solid rgba(100, 100, 100, 0.2);
 `;
 
 const ModalHeader = styled.div`
@@ -37,12 +38,13 @@ const ModalHeader = styled.div`
   h3 {
     font-size: ${theme.fontSize['2xl']};
     font-weight: 700;
-    color: ${theme.colors.text.primary};
+    color: #ffffff;
     margin-bottom: ${theme.spacing.sm};
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
   }
   
   p {
-    color: ${theme.colors.text.muted};
+    color: #b0b0b0;
     font-size: ${theme.fontSize.sm};
   }
 `;
@@ -68,25 +70,34 @@ const FormGroup = styled.div`
   
   input {
     width: 100%;
-    padding: 12px;
-    background: #1a1a2e;
-    border: 2px solid #374151;
-    border-radius: 12px;
+    padding: 14px 16px;
+    background: rgba(30, 30, 30, 0.8);
+    border: 2px solid rgba(80, 80, 80, 0.5);
+    border-radius: 10px;
     color: #ffffff;
-    font-size: 16px;
-    transition: all 0.2s;
+    font-size: 15px;
+    transition: all 0.3s ease;
     display: block;
     position: relative;
     z-index: 1;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
     
     &:focus {
-      border-color: #8b5cf6;
-      box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+      border-color: rgba(150, 150, 150, 0.8);
+      box-shadow: 
+        0 0 0 3px rgba(150, 150, 150, 0.2),
+        inset 0 2px 4px rgba(0, 0, 0, 0.3);
       outline: none;
+      background: rgba(35, 35, 35, 0.9);
     }
     
     &::placeholder {
-      color: #64748b;
+      color: #666666;
+    }
+    
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
     }
   }
 `;
@@ -99,53 +110,98 @@ const ButtonGroup = styled.div`
 
 const Button = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   flex: 1;
-  padding: ${theme.spacing.md} ${theme.spacing.lg};
+  padding: 14px 24px;
   border: none;
-  border-radius: ${theme.borderRadius.lg};
-  font-weight: 600;
+  border-radius: 12px;
+  font-weight: 700;
   font-size: ${theme.fontSize.base};
   cursor: pointer;
-  transition: ${theme.transition.fast};
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  position: relative;
+  overflow: hidden;
   
   ${props => props.$variant === 'primary' ? `
-    background: ${theme.colors.gradients.button};
-    color: ${theme.colors.text.primary};
+    background: linear-gradient(135deg, #3a3a3a 0%, #2a2a2a 100%);
+    color: #ffffff;
+    box-shadow: 
+      0 4px 15px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+      transition: left 0.5s;
+    }
     
     &:hover {
-      background: ${theme.colors.gradients.buttonHover};
-      box-shadow: ${theme.colors.shadow.button};
+      background: linear-gradient(135deg, #4a4a4a 0%, #3a3a3a 100%);
+      box-shadow: 
+        0 6px 20px rgba(0, 0, 0, 0.6),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15);
       transform: translateY(-2px);
+      
+      &::before {
+        left: 100%;
+      }
+    }
+    
+    &:active {
+      transform: translateY(0);
+      box-shadow: 
+        0 2px 10px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
     }
   ` : `
-    background: transparent;
-    color: ${theme.colors.text.secondary};
-    border: 2px solid ${theme.colors.border.primary};
+    background: rgba(40, 40, 40, 0.8);
+    color: #d0d0d0;
+    border: 2px solid rgba(100, 100, 100, 0.4);
+    box-shadow: 
+      0 4px 15px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
     
     &:hover {
-      border-color: ${theme.colors.accent.primary};
-      color: ${theme.colors.text.primary};
+      background: rgba(50, 50, 50, 0.9);
+      border-color: rgba(150, 150, 150, 0.6);
+      color: #ffffff;
+      box-shadow: 
+        0 6px 20px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      transform: translateY(-2px);
+    }
+    
+    &:active {
+      transform: translateY(0);
+      box-shadow: 
+        0 2px 10px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
     }
   `}
   
-  &:active {
-    transform: translateY(0);
-  }
-  
   &:disabled {
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: not-allowed;
     transform: none !important;
+    box-shadow: none !important;
   }
 `;
 
 const ErrorMessage = styled.div`
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: ${theme.colors.status.error};
+  background: rgba(200, 50, 50, 0.2);
+  border: 1px solid rgba(200, 50, 50, 0.4);
+  color: #ff6b6b;
   padding: ${theme.spacing.md};
-  border-radius: ${theme.borderRadius.lg};
+  border-radius: 10px;
   font-size: ${theme.fontSize.sm};
   text-align: center;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
 `;
 
 const LoadingSpinner = styled.div`
@@ -162,6 +218,41 @@ const LoadingSpinner = styled.div`
   }
 `;
 
+const GoogleButton = styled.button`
+  width: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  background: transparent;
+  
+  &:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    transform: translateY(-1px);
+  }
+  
+  &:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+  }
+`;
+
+const GoogleButtonImage = styled.img`
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain;
+`;
+
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -176,6 +267,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
   const [username, setUsername] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showVerificationCode, setShowVerificationCode] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
 
   if (!isOpen) return null;
 
@@ -204,7 +297,54 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
       }
 
       const data = await response.json();
-      onAuthSuccess(data.access_token || data.token);
+      
+      // Если это регистрация, показываем окно для ввода кода верификации
+      if (mode === 'register') {
+        // Очищаем предыдущий код при повторной регистрации
+        setVerificationCode('');
+        setError(null);
+        setShowVerificationCode(true);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Если это логин, сохраняем токен
+      if (data.access_token || data.token) {
+        onAuthSuccess(data.access_token || data.token);
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Произошла ошибка');
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Подтверждаем регистрацию с кодом верификации
+      const response = await fetch('/api/v1/auth/confirm-registration/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          verification_code: verificationCode
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Неверный код верификации');
+      }
+
+      const data = await response.json();
+      if (data.access_token || data.token) {
+        onAuthSuccess(data.access_token || data.token);
+      }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Произошла ошибка');
     } finally {
@@ -222,14 +362,99 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
   };
 
   return (
-    <ModalOverlay onClick={onClose}>
-      <ModalContent onClick={(e) => e.stopPropagation()}>
+    <ModalOverlay>
+      <ModalContent>
         <ModalHeader>
           <h3>{mode === 'register' ? 'Регистрация' : 'Вход в систему'}</h3>
-          <p>{mode === 'register' ? 'Создайте новый аккаунт' : 'Войдите в свой аккаунт для продолжения'}</p>
+          <p>
+            {showVerificationCode 
+              ? `Мы отправили код верификации на ${email}. Введите код из письма:`
+              : mode === 'register' 
+                ? 'Создайте новый аккаунт' 
+                : 'Войдите в свой аккаунт для продолжения'
+            }
+          </p>
         </ModalHeader>
 
-        <Form onSubmit={handleSubmit}>
+        {showVerificationCode ? (
+          <Form onSubmit={handleVerifyCode}>
+            <div style={{ marginBottom: '20px' }}>
+              <label 
+                htmlFor="verification_code" 
+                style={{ 
+                  display: 'block', 
+                  marginBottom: '12px', 
+                  fontWeight: 600, 
+                  color: '#e2e8f0', 
+                  fontSize: '14px' 
+                }}
+              >
+                Код верификации:
+              </label>
+              <input
+                type="text"
+                id="verification_code"
+                name="verification_code"
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="000000"
+                required
+                disabled={isLoading}
+                maxLength={6}
+                style={{
+                  width: '100%',
+                  padding: '16px',
+                  background: 'rgba(30, 30, 30, 0.8)',
+                  border: '2px solid rgba(80, 80, 80, 0.5)',
+                  borderRadius: '10px',
+                  color: '#ffffff',
+                  fontSize: '24px',
+                  fontWeight: 'bold',
+                  textAlign: 'center',
+                  letterSpacing: '12px',
+                  outline: 'none',
+                  boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.3)',
+                  transition: 'all 0.3s ease',
+                  display: 'block',
+                  boxSizing: 'border-box'
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = 'rgba(150, 150, 150, 0.8)';
+                  e.target.style.background = 'rgba(35, 35, 35, 0.9)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = 'rgba(80, 80, 80, 0.5)';
+                  e.target.style.background = 'rgba(30, 30, 30, 0.8)';
+                }}
+              />
+            </div>
+
+            {error && <ErrorMessage>{error}</ErrorMessage>}
+
+            <ButtonGroup>
+              <Button
+                type="submit"
+                $variant="primary"
+                disabled={isLoading || !verificationCode || verificationCode.length !== 6}
+              >
+                {isLoading ? <LoadingSpinner /> : 'Подтвердить'}
+              </Button>
+              <Button
+                type="button"
+                $variant="secondary"
+                onClick={() => {
+                  setShowVerificationCode(false);
+                  setVerificationCode('');
+                  setError(null);
+                }}
+                disabled={isLoading}
+              >
+                Отмена
+              </Button>
+            </ButtonGroup>
+          </Form>
+        ) : (
+          <Form onSubmit={handleSubmit}>
           {mode === 'register' && (
             <div style={{ marginBottom: '16px' }}>
               <label htmlFor="username" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#e2e8f0', fontSize: '14px' }}>Имя пользователя:</label>
@@ -243,13 +468,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                 disabled={isLoading}
                 style={{
                   width: '100%',
-                  padding: '12px',
-                  background: '#1a1a2e',
-                  border: '2px solid #374151',
-                  borderRadius: '12px',
+                  padding: '14px 16px',
+                  background: 'rgba(30, 30, 30, 0.8)',
+                  border: '2px solid rgba(80, 80, 80, 0.5)',
+                  borderRadius: '10px',
                   color: '#ffffff',
-                  fontSize: '16px',
-                  outline: 'none'
+                  fontSize: '15px',
+                  outline: 'none',
+                  boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.3)'
                 }}
               />
             </div>
@@ -312,7 +538,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
               $variant="primary"
               disabled={isLoading || !email || !password || (mode === 'register' && !username)}
             >
-              {isLoading ? <LoadingSpinner /> : (mode === 'register' ? 'Зарегистрироваться' : 'Войти')}
+              {isLoading ? <LoadingSpinner /> : (mode === 'register' ? 'Готово' : 'Войти')}
             </Button>
             <Button
               type="button"
@@ -324,18 +550,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
             </Button>
           </ButtonGroup>
         </Form>
+        )}
 
-        {mode === 'login' && (
+        {!showVerificationCode && (
           <div style={{ textAlign: 'center', marginTop: theme.spacing.lg }}>
-            <Button
+            <GoogleButton
               type="button"
-              $variant="secondary"
               onClick={handleGoogleAuth}
               disabled={isLoading}
-              style={{ width: '100%' }}
             >
-              Войти через Google
-            </Button>
+              <GoogleButtonImage 
+                src="/photo_2025-11-28_03-16-03.jpg" 
+                alt="Sign in with Google"
+              />
+            </GoogleButton>
           </div>
         )}
       </ModalContent>

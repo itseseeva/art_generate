@@ -99,10 +99,24 @@ interface ChatAreaProps {
   messages: Message[];
   isLoading: boolean;
   characterSituation?: string;
+  characterName?: string;
+  isAuthenticated?: boolean;
+  isCharacterOwner?: boolean;
+  onAddToGallery?: (imageUrl: string, characterName: string) => Promise<void>;
+  onAddToPaidAlbum?: (imageUrl: string, characterName: string) => Promise<void>;
   [key: string]: any; // Для других пропсов, которые могут передаваться
 }
 
-export const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, characterSituation }) => {
+export const ChatArea: React.FC<ChatAreaProps> = ({ 
+  messages, 
+  isLoading, 
+  characterSituation,
+  characterName,
+  isAuthenticated,
+  isCharacterOwner,
+  onAddToGallery,
+  onAddToPaidAlbum
+}) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Автоматическая прокрутка к последнему сообщению
@@ -135,7 +149,15 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, charact
         )}
         
         {messages.map((message) => (
-          <Message key={message.id} message={message} />
+          <Message 
+            key={message.id} 
+            message={message}
+            characterName={characterName}
+            isAuthenticated={isAuthenticated}
+            isCharacterOwner={isCharacterOwner}
+            onAddToGallery={onAddToGallery}
+            onAddToPaidAlbum={onAddToPaidAlbum}
+          />
         ))}
         
         {isLoading && (

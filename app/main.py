@@ -11,6 +11,7 @@ from datetime import datetime
 import time
 import logging
 import traceback
+import json
 from contextlib import asynccontextmanager
 
 # Устанавливаем правильную кодировку для работы с Unicode
@@ -153,7 +154,7 @@ async def lifespan(app: FastAPI):
                 return
             
             webui_path = Path(__file__).parent.parent / "stable-diffusion-webui"
-            if webui_path and webui_path.exists():
+            if webui_path.exists():
                 sys.path.insert(0, str(webui_path))
                 from model_config import get_model_info, check_model_files
                 model_info = get_model_info()
@@ -730,10 +731,18 @@ async def health():
             import sys
             from pathlib import Path
             webui_path = Path(__file__).parent.parent / "stable-diffusion-webui"
-            sys.path.insert(0, str(webui_path))
-            from model_config import get_model_info, check_model_files
-            model_info = get_model_info()
-            model_available = check_model_files()
+            if webui_path.exists():
+                sys.path.insert(0, str(webui_path))
+                from model_config import get_model_info, check_model_files
+                model_info = get_model_info()
+                model_available = check_model_files()
+            else:
+                model_info = None
+                model_available = False
+        except ImportError:
+            # Модуль model_config не найден - это нормально, если stable-diffusion-webui не установлен
+            model_info = None
+            model_available = False
         except Exception as e:
             logger.warning(f"Не удалось получить информацию о модели: {e}")
             model_info = None
@@ -1078,6 +1087,31 @@ async def _write_chat_history(
             logger.warning(f"[HISTORY] Не удалось преобразовать user_id в int: {user_id}, ошибка: {e}")
             user_id_int = None
 
+        # КРИТИЧЕСКИ ВАЖНО: проверяем подписку - для FREE не сохраняем ChatSession/ChatMessageDB
+        can_save_session = False
+        if user_id_int:
+            from app.models.subscription import UserSubscription, SubscriptionType, SubscriptionStatus
+            # Получаем самую новую активную подписку (если есть несколько записей)
+            subscription_query = await db.execute(
+                select(UserSubscription)
+                .where(UserSubscription.user_id == user_id_int)
+                .where(UserSubscription.status == SubscriptionStatus.ACTIVE)
+                .order_by(UserSubscription.activated_at.desc())
+                .limit(1)
+            )
+            subscription = subscription_query.scalar_one_or_none()
+            if subscription and subscription.is_active:
+                # КРИТИЧЕСКИ ВАЖНО: сохраняем историю для STANDARD и PREMIUM подписок одинаково
+                # PREMIUM должен работать так же, как STANDARD - никаких различий в обработке
+                can_save_session = subscription.subscription_type in [SubscriptionType.STANDARD, SubscriptionType.PREMIUM]
+                logger.info(f"[HISTORY] Пользователь {user_id_int}: подписка={subscription.subscription_type.value}, is_active={subscription.is_active}, can_save_session={can_save_session}")
+                if subscription.subscription_type == SubscriptionType.PREMIUM:
+                    logger.info(f"[HISTORY] PREMIUM подписка обнаружена для user_id={user_id_int} - история должна сохраняться так же, как для STANDARD")
+            else:
+                logger.warning(f"[HISTORY] Пользователь {user_id_int}: подписка отсутствует или неактивна (subscription={subscription})")
+        else:
+            logger.warning(f"[HISTORY] user_id_int отсутствует (user_id={user_id})")
+        
         # Если character_id отсутствует, пробуем найти его по имени в БД
         if not resolved_character_id:
             character_result = await db.execute(
@@ -1088,52 +1122,62 @@ async def _write_chat_history(
                 logger.debug("[HISTORY] Пропуск сохранения: character '%s' не найден в БД", character_name)
                 return
 
-        session_query = await db.execute(
-            select(ChatSession)
-            .where(
-                ChatSession.character_id == resolved_character_id,
-                ChatSession.user_id == db_user_id,
+        # Сохраняем ChatSession и ChatMessageDB только если подписка позволяет
+        chat_session = None
+        if can_save_session:
+            session_query = await db.execute(
+                select(ChatSession)
+                .where(
+                    ChatSession.character_id == resolved_character_id,
+                    ChatSession.user_id == db_user_id,
+                )
+                .order_by(ChatSession.started_at.desc())
+                .limit(1)
             )
-            .order_by(ChatSession.started_at.desc())
-            .limit(1)
-        )
-        chat_session = session_query.scalar_one_or_none()
+            chat_session = session_query.scalar_one_or_none()
 
-        if not chat_session:
-            chat_session = ChatSession(
-                character_id=resolved_character_id,
-                user_id=db_user_id,
-                started_at=datetime.now(),
+            if not chat_session:
+                chat_session = ChatSession(
+                    character_id=resolved_character_id,
+                    user_id=db_user_id,
+                    started_at=datetime.now(),
+                )
+                db.add(chat_session)
+                await db.commit()
+                await db.refresh(chat_session)
+
+            user_record = ChatMessageDB(
+                session_id=chat_session.id,
+                role="user",
+                content=message,
+                timestamp=datetime.now(),
             )
-            db.add(chat_session)
+            db.add(user_record)
+
+            assistant_content = response
+            if image_url:
+                assistant_content = f"{assistant_content}\n\n[image:{image_url}]"
+            elif image_filename:
+                assistant_content = f"{assistant_content}\n\n[image:{image_filename}]"
+
+            assistant_record = ChatMessageDB(
+                session_id=chat_session.id,
+                role="assistant",
+                content=assistant_content,
+                timestamp=datetime.now(),
+            )
+            db.add(assistant_record)
+            
+            # КРИТИЧЕСКИ ВАЖНО: коммитим ChatMessageDB сразу, чтобы они сохранились
             await db.commit()
-            await db.refresh(chat_session)
-
-        user_record = ChatMessageDB(
-            session_id=chat_session.id,
-            role="user",
-            content=message,
-            timestamp=datetime.now(),
-        )
-        db.add(user_record)
-
-        assistant_content = response
-        if image_url:
-            assistant_content = f"{assistant_content}\n\n[image:{image_url}]"
-        elif image_filename:
-            assistant_content = f"{assistant_content}\n\n[image:{image_filename}]"
-
-        assistant_record = ChatMessageDB(
-            session_id=chat_session.id,
-            role="assistant",
-            content=assistant_content,
-            timestamp=datetime.now(),
-        )
-        db.add(assistant_record)
+            logger.info(f"[HISTORY] ChatSession и ChatMessageDB сохранены для user_id={user_id_int}, character={character_name}, session_id={chat_session.id}")
+        else:
+            logger.warning(f"[HISTORY] Пропуск сохранения ChatSession/ChatMessageDB: подписка FREE или отсутствует (user_id={user_id_int}, can_save_session={can_save_session})")
 
         # Также сохраняем в ChatHistory для истории чата
-        # Сохраняем все сообщения (с фото и без)
-        if user_id_int:
+        # КРИТИЧЕСКИ ВАЖНО: сохраняем для STANDARD и PREMIUM подписок одинаково
+        # PREMIUM должен работать так же, как STANDARD - никаких различий в обработке
+        if user_id_int and can_save_session and chat_session:
             try:
                 # Сохраняем промпт пользователя
                 user_chat_history = ChatHistory(
@@ -1161,24 +1205,26 @@ async def _write_chat_history(
                 
                 await db.commit()
                 
-                logger.debug(
-                    "[HISTORY] Сообщения сохранены в ChatHistory (user_id=%s, character=%s, has_image=%s)",
+                logger.info(
+                    "[HISTORY] Сообщения сохранены в ChatHistory (user_id=%s, character=%s, session_id=%s, has_image=%s)",
                     user_id_int,
                     character_name,
+                    str(chat_session.id),
                     bool(image_url or image_filename)
                 )
             except Exception as chat_history_error:
                 logger.error(f"[HISTORY] Ошибка сохранения в ChatHistory: {chat_history_error}")
                 import traceback
                 logger.error(f"[HISTORY] Трейсбек: {traceback.format_exc()}")
-                await db.rollback()
-
-        await db.commit()
-        logger.info(
-            "[HISTORY] Сообщения сохранены (session_id=%s, user_id=%s)",
-            chat_session.id,
-            db_user_id,
-        )
+                # НЕ делаем rollback, так как ChatMessageDB уже сохранены
+        
+        # Логируем только если chat_session был создан
+        if chat_session:
+            logger.info(
+                "[HISTORY] Сообщения сохранены (session_id=%s, user_id=%s)",
+                chat_session.id,
+                db_user_id,
+            )
 
 
 async def process_chat_history_storage(
@@ -1191,6 +1237,7 @@ async def process_chat_history_storage(
     image_filename: Optional[str]
 ) -> None:
     """Определяет, нужно ли сохранять историю чата, и выполняет сохранение."""
+    logger.info(f"[HISTORY] process_chat_history_storage вызван: user_id={user_id}, subscription_type={subscription_type}, character={character_data.get('name') if character_data else None}")
     try:
         await _write_chat_history(
             user_id=user_id,
@@ -1202,6 +1249,8 @@ async def process_chat_history_storage(
         )
     except Exception as history_error:
         logger.error(f"[ERROR] Не удалось сохранить историю чата: {history_error}")
+        import traceback
+        logger.error(f"[ERROR] Трейсбек: {traceback.format_exc()}")
 
 
 async def spend_photo_resources(user_id: int) -> None:
@@ -1637,16 +1686,31 @@ async def generate_image(
     current_user: Users = Depends(get_current_user_optional)
 ):
     """
-    Генерация изображения для чата через Celery.
-    Возвращает task_id для отслеживания статуса генерации.
+    Генерация изображения для чата (синхронная генерация).
+    Возвращает image_url и cloud_url сразу после генерации.
 
     Args:
         request (ImageGenerationRequest): Запрос с параметрами генерации.
         current_user: Текущий пользователь (опционально).
 
     Returns:
-        dict: Результат с task_id для отслеживания статуса.
+        dict: Результат с image_url и cloud_url.
     """
+    import traceback
+    # КРИТИЧЕСКАЯ ПРОВЕРКА: Если вы видите этот лог, значит новый код выполняется
+    logger.info(f"[GENERATE] =========================================")
+    logger.info(f"[GENERATE] =========================================")
+    logger.info(f"[GENERATE] =========================================")
+    logger.info(f"[GENERATE] НОВЫЙ КОД ВЫПОЛНЯЕТСЯ! Версия: 2024-11-28-SYNC")
+    logger.info(f"[GENERATE] =========================================")
+    logger.info(f"[GENERATE] =========================================")
+    logger.info(f"[GENERATE] =========================================")
+    logger.info(f"[GENERATE] === НАЧАЛО ГЕНЕРАЦИИ ИЗОБРАЖЕНИЯ ===")
+    logger.info(f"[GENERATE] Endpoint вызван: /api/v1/generate-image/")
+    logger.info(f"[GENERATE] Запрос получен: character={request.character}, user_id={current_user.id if current_user else None}")
+    logger.info(f"[GENERATE] Prompt: {request.prompt[:100] if request.prompt else 'None'}...")
+    logger.info(f"[GENERATE] =========================================")
+    
     # ВРЕМЕННАЯ ЗАГЛУШКА ДЛЯ ПРОВЕРКИ ФРОНТЕНДА
     # Можно включить через переменную окружения для тестирования
     USE_MOCK_GENERATION = os.getenv("USE_MOCK_GENERATION", "false").lower() == "true"
@@ -1699,20 +1763,15 @@ async def generate_image(
         try:
             import sys
             from pathlib import Path
-            
-            # Проверяем, что __file__ существует
-            if not __file__:
-                logger.warning("[WARNING] Не удалось определить путь к модулю")
-            else:
-                webui_path = Path(__file__).parent.parent / "stable-diffusion-webui"
-                if webui_path and webui_path.exists():
-                    sys.path.insert(0, str(webui_path))
-                    from model_config import get_model_info
-                    model_info = get_model_info()
-                    if model_info:
-                        logger.info(f"[TARGET] Генерация изображения с моделью: {model_info['name']} ({model_info['size_mb']} MB)")
-                    else:
-                        logger.warning("[WARNING] Информация о модели недоступна")
+            webui_path = Path(__file__).parent.parent / "stable-diffusion-webui"
+            if webui_path.exists():
+                sys.path.insert(0, str(webui_path))
+                from model_config import get_model_info
+                model_info = get_model_info()
+                if model_info:
+                    logger.info(f"[TARGET] Генерация изображения с моделью: {model_info['name']} ({model_info['size_mb']} MB)")
+                else:
+                    logger.warning("[WARNING] Информация о модели недоступна")
         except ImportError:
             # Модуль model_config не найден - это нормально
             pass
@@ -1877,86 +1936,78 @@ async def generate_image(
         full_settings_for_logging["prompt"] = enhanced_prompt
         full_settings_for_logging["default_positive_prompts"] = default_positive_prompts
         
-        # Запускаем задачу Celery для генерации изображения
-        from app.tasks.generation_tasks import generate_image_task
-        from app.celery_app import celery_app
+        # Для чата используем синхронную генерацию через GenerationService (как на странице photo-generation)
+        # Это обеспечивает немедленный возврат image_url без опроса статуса
+        logger.info(f"[GENERATE] =========================================")
+        logger.info(f"[GENERATE] === ИСПОЛЬЗУЕМ СИНХРОННУЮ ГЕНЕРАЦИЮ ===")
+        logger.info(f"[GENERATE] Начинаем синхронную генерацию изображения для чата (user_id={user_id})")
+        logger.info(f"[GENERATE] КРИТИЧЕСКАЯ ПРОВЕРКА: Код дошел до синхронной генерации!")
+        logger.info(f"[GENERATE] Если вы видите этот лог, значит старый код с Celery НЕ должен выполняться")
+        logger.info(f"[GENERATE] =========================================")
         
-        # Преобразуем настройки в словарь для сериализации
-        settings_dict = generation_settings.dict()
-        # Сохраняем оригинальный промпт пользователя (тот, что он ввел) для отображения
-        settings_dict["original_user_prompt"] = request.prompt
-        
-        # Проверяем подключение к Celery
+        # КРИТИЧЕСКАЯ ПРОВЕРКА: Если код дошел сюда, значит старый код с Celery НЕ должен выполняться
+        # Если где-то возвращается task_id, значит код не дошел до этого места
         try:
-            # Проверяем, что Celery подключен к Redis
-            logger.info(f"[CELERY] Проверяем подключение к Redis...")
-            try:
-                celery_app.control.inspect().ping()
-                logger.info(f"[CELERY] Подключение к Celery worker подтверждено")
-            except Exception as ping_error:
-                logger.warning(f"[CELERY] Не удалось проверить подключение к worker: {ping_error}")
-                # Продолжаем выполнение, так как задача может быть отправлена в очередь
+            # Используем GenerationService для генерации (сохраняет в облако автоматически)
+            from app.services.generation import GenerationService
+            from app.config.settings import settings as app_settings
             
-            # Запускаем задачу асинхронно
-            logger.info(f"[CELERY] Отправляем задачу в очередь high_priority (user_id={user_id})")
-            task = generate_image_task.delay(
-                settings_dict=settings_dict,
-                user_id=user_id,
-                character_name=character_name
-            )
+            logger.info(f"[GENERATE] Создаем GenerationService с API URL: {app_settings.SD_API_URL}")
+            generation_service = GenerationService(api_url=app_settings.SD_API_URL)
+            logger.info(f"[GENERATE] Вызываем generation_service.generate()")
+            result = await generation_service.generate(generation_settings)
+            logger.info(f"[GENERATE] Генерация завершена, получен результат")
             
-            # Сохраняем промпт сразу (БЕЗ Celery, БЕЗ Redis) с task_id (без image_url, обновим позже)
-            if user_id and character_name and request.prompt:
-                try:
-                    from app.utils.prompt_saver import save_prompt_to_history
-                    await save_prompt_to_history(
-                        db=db,
-                        user_id=user_id,
-                        character_name=character_name,
-                        prompt=request.prompt,
-                        image_url=None,  # Пока нет URL, обновим в get_generation_status
-                        task_id=task.id
-                    )
-                    logger.info(f"[PROMPT] ✓ Промпт сохранен с task_id={task.id}, обновим с image_url в get_generation_status")
-                except Exception as e:
-                    logger.error(f"[PROMPT] Ошибка сохранения промпта: {e}")
-                    import traceback
-                    logger.error(f"[PROMPT] Трейсбек: {traceback.format_exc()}")
+            # Получаем URL изображения из cloud_urls
+            cloud_url = None
+            if result.cloud_urls and len(result.cloud_urls) > 0:
+                cloud_url = result.cloud_urls[0]  # Берем первое изображение
+            elif hasattr(result, 'image_url') and result.image_url:
+                cloud_url = result.image_url
             
-            logger.info(f"[CELERY] Задача генерации изображения создана: task_id={task.id}, user_id={user_id}")
-            logger.info(f"[CELERY] Задача отправлена в очередь, состояние: {task.state}")
+            if not cloud_url:
+                logger.error(f"[GENERATE] Не удалось получить URL изображения. cloud_urls: {result.cloud_urls if hasattr(result, 'cloud_urls') else 'N/A'}")
+                raise Exception("Не удалось получить URL изображения после генерации")
             
-            # Проверяем, что задача действительно отправлена
-            if not task.id:
-                raise Exception("Задача не получила ID - возможно, не отправлена в очередь")
+            logger.info(f"[GENERATE] Изображение успешно сгенерировано: {cloud_url}")
             
-            # Логируем ответ, который будет отправлен фронтенду
+            # Тратим монеты за генерацию фото (если пользователь авторизован)
+            if user_id and cloud_url:
+                from app.services.coins_service import CoinsService
+                from app.database.db import async_session_maker
+                from app.chat_bot.api.character_endpoints import PHOTO_GENERATION_COST
+                
+                async with async_session_maker() as db:
+                    coins_service = CoinsService(db)
+                    await coins_service.spend_coins(user_id, PHOTO_GENERATION_COST)
+                    logger.info(f"[COINS] Списано {PHOTO_GENERATION_COST} монет за генерацию фото для user_id={user_id}")
+            
+            # Возвращаем результат с URL изображения (как на странице photo-generation)
             response_data = {
-                "task_id": task.id,
-                "status": "PENDING",
-                "message": "Задача генерации изображения создана. Используйте /api/v1/generation-status/{task_id} для проверки статуса.",
-                "status_url": f"/api/v1/generation-status/{task.id}"
+                "image_url": cloud_url,
+                "cloud_url": cloud_url,  # Для совместимости
+                "success": True,
+                "message": "Изображение успешно сгенерировано"
             }
-            logger.info(f"[CELERY] Отправляем ответ фронтенду: {response_data}")
+            logger.info(f"[GENERATE] =========================================")
+            logger.info(f"[GENERATE] УСПЕШНО: Возвращаем результат фронтенду")
+            logger.info(f"[GENERATE] image_url: {response_data.get('image_url')}")
+            logger.info(f"[GENERATE] cloud_url: {response_data.get('cloud_url')}")
+            logger.info(f"[GENERATE] success: {response_data.get('success')}")
+            logger.info(f"[GENERATE] Полный ответ: {json.dumps(response_data, indent=2)}")
+            logger.info(f"[GENERATE] =========================================")
+            return response_data
                 
         except Exception as e:
-            logger.error(f"[CELERY] Ошибка при создании задачи: {e}")
+            logger.error(f"[GENERATE] =========================================")
+            logger.error(f"[GENERATE] ОШИБКА в синхронной генерации: {e}")
             import traceback
-            logger.error(f"[CELERY] Трейсбек: {traceback.format_exc()}")
+            logger.error(f"[GENERATE] Трейсбек: {traceback.format_exc()}")
+            logger.error(f"[GENERATE] =========================================")
             raise HTTPException(
                 status_code=500,
-                detail=f"Ошибка при создании задачи генерации: {str(e)}"
+                detail=f"Ошибка генерации изображения: {str(e)}"
             )
-        
-        # Возвращаем task_id для отслеживания статуса
-        response_data = {
-            "task_id": task.id,
-            "status": "PENDING",
-            "message": "Задача генерации изображения создана. Используйте /api/v1/generation-status/{task_id} для проверки статуса.",
-            "status_url": f"/api/v1/generation-status/{task.id}"
-        }
-        logger.info(f"[CELERY] Возвращаем ответ фронтенду с task_id: {response_data}")
-        return response_data
         
     except HTTPStatusError as exc:
         status_code = exc.response.status_code if exc.response else 502
@@ -1966,7 +2017,11 @@ async def generate_image(
     except HTTPException as exc:
         raise exc
     except Exception as e:
-        logger.error(f"[ERROR] Ошибка генерации изображения: {e}")
+        logger.error(f"[GENERATE] =========================================")
+        logger.error(f"[GENERATE] КРИТИЧЕСКАЯ ОШИБКА в endpoint: {e}")
+        import traceback
+        logger.error(f"[GENERATE] Трейсбек: {traceback.format_exc()}")
+        logger.error(f"[GENERATE] =========================================")
         raise HTTPException(status_code=500, detail=f"Ошибка генерации изображения: {str(e)}")
 
 

@@ -248,6 +248,8 @@ export const FavoritesPage: React.FC<FavoritesPageProps> = ({
                 isAuthenticated={isAuthenticated}
                 onPhotoGeneration={onPhotoGeneration}
                 onPaidAlbum={onPaidAlbum}
+                isFavorite={true}
+                onFavoriteToggle={loadFavorites}
               />
             ))
           )}

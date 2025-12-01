@@ -31,6 +31,8 @@ async def get_current_user(
     import logging
     logger = logging.getLogger(__name__)
     
+    logger.info(f"[GET_CURRENT_USER] Called with credentials: {credentials is not None}")
+    
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -38,15 +40,21 @@ async def get_current_user(
     )
     
     try:
+        if not credentials or not credentials.credentials:
+            logger.error("[GET_CURRENT_USER] No credentials provided")
+            raise credentials_exception
+        
+        logger.info(f"[GET_CURRENT_USER] Decoding token: {credentials.credentials[:20]}...")
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
+        logger.info(f"[GET_CURRENT_USER] Token decoded, email: {email}")
         if email is None:
-            logger.warning("Email not found in token")
+            logger.warning("[GET_CURRENT_USER] Email not found in token")
             raise credentials_exception
         token_data = TokenData(email=email)
-        logger.debug(f"Token valid for user: {email}")
+        logger.info(f"[GET_CURRENT_USER] Token valid for user: {email}")
     except jwt.PyJWTError as e:
-        logger.warning(f"Token decoding error: {e}")
+        logger.error(f"[GET_CURRENT_USER] Token decoding error: {e}")
         raise credentials_exception
     
     try:
@@ -71,11 +79,13 @@ async def get_current_user(
             logger.debug(f"User found in cache: {user.id}")
             return user
         
+        logger.info(f"[GET_CURRENT_USER] Searching for user with email: {token_data.email}")
         result = await db.execute(select(Users).filter(Users.email == token_data.email))
         user = result.scalar_one_or_none()
         if user is None:
-            logger.warning(f"User not found: {email}")
+            logger.error(f"[GET_CURRENT_USER] User not found in database: {email}")
             raise credentials_exception
+        logger.info(f"[GET_CURRENT_USER] User found: id={user.id}, email={user.email}, username={user.username}")
         
         # Сохраняем в кэш актуальные данные (cache_set уже имеет внутренний таймаут)
         try:

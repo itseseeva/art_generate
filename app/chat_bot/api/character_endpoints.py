@@ -522,8 +522,8 @@ async def read_character_with_creator(character_name: str, db: AsyncSession = De
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error loading character with creator {character_name}: {e}")
-        raise HTTPException(status_code=500, detail="Error loading character")
+        logger.error(f"Error loading character with creator {character_name}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error loading character: {str(e)}")
 
 
 @router.delete("/{character_name}/chat-history")
@@ -684,7 +684,7 @@ async def get_character_chat_history(
         await db.rollback()
         raise exc
     except Exception as e:
-        logger.error(f"Error loading chat history for {character_name}: {e}")
+        logger.error(f"Error loading chat history for {character_name}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error loading chat history: {str(e)}")
 
 

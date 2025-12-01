@@ -103,7 +103,7 @@ function DockItem({
       }}
       onClick={onClick}
       className={`dock-item ${className}`}
-      tabIndex={0}
+      tabIndex={className?.includes('disabled') ? -1 : 0}
       role="button"
       aria-haspopup="true"
     >

@@ -232,6 +232,7 @@ export const MainPage: React.FC<MainPageProps> = ({
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const lastScrollY = useRef(0);
   const charactersGridRef = useRef<HTMLDivElement>(null);
+  const [favoriteCharacterIds, setFavoriteCharacterIds] = useState<Set<number>>(new Set());
 
   const fetchCharactersFromApi = async (forceRefresh: boolean = false): Promise<any[]> => {
     const endpoints = [
@@ -291,6 +292,9 @@ export const MainPage: React.FC<MainPageProps> = ({
 
       setCachedRawCharacters(charactersData);
 
+      // КРИТИЧЕСКИ ВАЖНО: Все персонажи показываются на главной странице независимо от наличия истории чата
+      // История чата - это дополнительная информация, которая не влияет на отображение персонажей на главной странице
+      // Персонажи с историей должны оставаться на главной странице так же, как и персонажи без истории
       const formattedCharacters: Character[] = charactersData
         .map((char: any, index: number) => {
         const rawName = char.name || char.display_name || `character-${index + 1}`;
@@ -315,7 +319,8 @@ export const MainPage: React.FC<MainPageProps> = ({
         };
         })
         .filter((char: any) => {
-          // Фильтруем персонажей по режиму NSFW
+          // Фильтруем персонажей ТОЛЬКО по режиму NSFW
+          // НЕ фильтруем по наличию истории - все персонажи должны показываться независимо от истории
           // В режиме NSFW показываем только персонажей с is_nsfw === true
           // В режиме SAFE показываем персонажей с is_nsfw !== true (включая null/undefined)
           const isNsfw = char.is_nsfw === true;
@@ -539,6 +544,40 @@ export const MainPage: React.FC<MainPageProps> = ({
     loadCharacterPhotos();
   }, []);
 
+  // Загружаем список избранных персонажей
+  const loadFavorites = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        setFavoriteCharacterIds(new Set());
+        return;
+      }
+
+      const response = await fetch(API_CONFIG.FAVORITES, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const favorites = await response.json();
+        // Извлекаем ID избранных персонажей
+        const favoriteIds = new Set<number>(
+          favorites.map((char: any) => {
+            const id = typeof char.id === 'number' ? char.id : parseInt(char.id, 10);
+            return isNaN(id) ? null : id;
+          }).filter((id: number | null): id is number => id !== null)
+        );
+        setFavoriteCharacterIds(favoriteIds);
+      } else {
+        setFavoriteCharacterIds(new Set());
+      }
+    } catch (error) {
+      console.error('Error loading favorites:', error);
+      setFavoriteCharacterIds(new Set());
+    }
+  };
+
   const checkAuth = async () => {
     try {
       const token = localStorage.getItem('authToken');
@@ -546,6 +585,7 @@ export const MainPage: React.FC<MainPageProps> = ({
         // Нет токена - пользователь не авторизован
         setIsAuthenticated(false);
         setUserInfo(null);
+        setFavoriteCharacterIds(new Set());
         return;
       }
 
@@ -564,10 +604,13 @@ export const MainPage: React.FC<MainPageProps> = ({
             username: userData.username || userData.email || 'Пользователь',
             coins: userData.coins || 0
           });
+          // Загружаем избранные после успешной авторизации
+          await loadFavorites();
         } else {
           console.error('Auth check returned empty data');
           setIsAuthenticated(false);
           setUserInfo(null);
+          setFavoriteCharacterIds(new Set());
         }
       } else {
         // Токен недействителен
@@ -575,6 +618,7 @@ export const MainPage: React.FC<MainPageProps> = ({
         localStorage.removeItem('refreshToken');
         setIsAuthenticated(false);
         setUserInfo(null);
+        setFavoriteCharacterIds(new Set());
       }
     } catch (error) {
       // Только логируем ошибку, не показываем в консоли для неавторизованных пользователей
@@ -583,6 +627,7 @@ export const MainPage: React.FC<MainPageProps> = ({
       }
       setIsAuthenticated(false);
       setUserInfo(null);
+      setFavoriteCharacterIds(new Set());
     }
   };
 
@@ -688,17 +733,27 @@ export const MainPage: React.FC<MainPageProps> = ({
                     Loading characters...
                   </div>
                 ) : (
-                  charactersWithPhotos.map((character) => (
-                    <CharacterCard
-                      key={character.id}
-                      character={character}
-                      onClick={handleCharacterClick}
-                      isAuthenticated={isAuthenticated}
-                      onPhotoGeneration={onPhotoGeneration}
-                      onPaidAlbum={onPaidAlbum}
-                      showPromptButton={true}
-                    />
-                  ))
+                  charactersWithPhotos.map((character) => {
+                    // Проверяем, находится ли персонаж в избранном
+                    const characterId = typeof character.id === 'number' 
+                      ? character.id 
+                      : parseInt(character.id, 10);
+                    const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
+                    
+                    return (
+                      <CharacterCard
+                        key={character.id}
+                        character={character}
+                        onClick={handleCharacterClick}
+                        isAuthenticated={isAuthenticated}
+                        onPhotoGeneration={onPhotoGeneration}
+                        onPaidAlbum={onPaidAlbum}
+                        showPromptButton={true}
+                        isFavorite={isFavorite}
+                        onFavoriteToggle={loadFavorites}
+                      />
+                    );
+                  })
                 )}
               </CharactersGrid>
           

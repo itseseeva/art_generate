@@ -13,6 +13,7 @@ from app.auth.oauth_utils import (
 )
 from app.auth.utils import get_token_expiry
 from app.auth.rate_limiter import get_rate_limiter, RateLimiter
+from app.utils.redis_cache import cache_set, cache_get, cache_delete
 from datetime import datetime
 from urllib.parse import urlparse
 import logging
@@ -44,11 +45,24 @@ async def google_login(
     # Генерируем состояние для защиты от CSRF
     state = generate_state()
     
-    # Сохраняем state в сессии
-    request.session["oauth_state"] = state
-    request.session["oauth_ip"] = client_ip
-    request.session["oauth_timestamp"] = datetime.now().isoformat()
-    request.session["oauth_mode"] = mode
+    # КРИТИЧЕСКИ ВАЖНО: для popup режима сохраняем state в Redis,
+    # так как сессия не сохраняется между окнами popup
+    if mode == "popup":
+        # Сохраняем state в Redis с TTL 10 минут
+        state_data = {
+            "state": state,
+            "ip": client_ip,
+            "timestamp": datetime.now().isoformat(),
+            "mode": mode
+        }
+        await cache_set(f"oauth_state:{state}", json.dumps(state_data), ttl_seconds=600)
+        logger.info(f"[OAUTH POPUP] State saved to Redis: {state[:10]}...")
+    else:
+        # Для redirect режима используем сессию
+        request.session["oauth_state"] = state
+        request.session["oauth_ip"] = client_ip
+        request.session["oauth_timestamp"] = datetime.now().isoformat()
+        request.session["oauth_mode"] = mode
     
     # Генерируем URL для редиректа на Google
     auth_url = generate_oauth_url("google", state)
@@ -79,20 +93,46 @@ async def google_callback(
             detail="Missing authorization code or state"
         )
     
-    # Проверяем состояние из сессии
-    session_state = request.session.get("oauth_state")
+    # КРИТИЧЕСКИ ВАЖНО: проверяем state из Redis (для popup) или сессии (для redirect)
+    session_state = None
+    oauth_mode = "redirect"
+    
+    # Сначала проверяем Redis (для popup режима)
+    redis_state_data = await cache_get(f"oauth_state:{state}", timeout=1.0)
+    if redis_state_data:
+        try:
+            # cache_get уже возвращает распарсенный JSON, но может вернуть строку
+            if isinstance(redis_state_data, str):
+                state_data = json.loads(redis_state_data)
+            else:
+                state_data = redis_state_data
+            session_state = state_data.get("state")
+            oauth_mode = state_data.get("mode", "redirect")
+            logger.info(f"[OAUTH POPUP] State found in Redis: {state[:10]}..., mode={oauth_mode}")
+            # Удаляем использованное состояние из Redis
+            await cache_delete(f"oauth_state:{state}")
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            logger.warning(f"[OAUTH] Error parsing Redis state data: {e}, type={type(redis_state_data)}")
+            redis_state_data = None
+    
+    # Если не нашли в Redis, проверяем сессию (для redirect режима)
+    if not session_state:
+        session_state = request.session.get("oauth_state")
+        if session_state:
+            oauth_mode = request.session.get("oauth_mode", "redirect")
+            # Удаляем использованное состояние из сессии
+            request.session.pop("oauth_state", None)
+            request.session.pop("oauth_ip", None)
+            request.session.pop("oauth_timestamp", None)
+            request.session.pop("oauth_mode", None)
+    
+    # Проверяем валидность state
     if not session_state or session_state != state:
         logger.error(f"[ERROR] Invalid state: session={session_state}, received={state}")
         raise HTTPException(
             status_code=400,
             detail="Invalid state parameter"
         )
-    
-    # Удаляем использованное состояние из сессии
-    request.session.pop("oauth_state", None)
-    request.session.pop("oauth_ip", None)
-    request.session.pop("oauth_timestamp", None)
-    oauth_mode = request.session.pop("oauth_mode", "redirect")
     
     try:
         logger.info(f"Starting OAuth callback with code: {code[:10]}...")
@@ -113,9 +153,16 @@ async def google_callback(
         
         # Создаем или получаем пользователя
         user = await get_or_create_oauth_user("google", user_info, db)
+        logger.info(f"[OAUTH] User created/retrieved: id={user.id}, email={user.email}, username={user.username}")
+        
+        # Убеждаемся, что пользователь сохранен в БД
+        await db.commit()
+        await db.refresh(user)
+        logger.info(f"[OAUTH] User committed to DB: id={user.id}, email={user.email}")
         
         # Создаем токены для нашего API
         tokens = create_oauth_tokens(user)
+        logger.info(f"[OAUTH] Tokens created for user: {user.email}")
         
         # Сохраняем refresh token в базе
         from app.models.user import RefreshToken
@@ -131,6 +178,7 @@ async def google_callback(
         )
         db.add(db_refresh_token)
         await db.commit()
+        logger.info(f"[OAUTH] Refresh token saved for user: {user.email}")
         
         logger.info(f"Google OAuth login successful for user: {user.email}")
         

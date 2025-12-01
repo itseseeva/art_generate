@@ -24,6 +24,7 @@ import { LegalPage } from './components/LegalPage';
 import { AboutPage } from './components/AboutPage';
 import { TariffsPage } from './components/TariffsPage';
 import { HowItWorksPage } from './components/HowItWorksPage';
+import { PaidAlbumPurchaseModal } from './components/PaidAlbumPurchaseModal';
 import { authManager } from './utils/auth';
 
 const AppContainer = styled.div`
@@ -235,8 +236,8 @@ function App() {
         console.log('User needs to set username');
       }
 
-      // Перезагружаем страницу для обновления состояния авторизации
-      window.location.reload();
+      // Переходим на главную страницу после OAuth авторизации
+      window.location.href = '/';
     }
   }, []);
 
@@ -310,14 +311,89 @@ function App() {
     }
   };
 
-  const handlePaidAlbum = (character: any) => {
-    setSelectedCharacter(character);
-    setCurrentPage('paid-album');
-    if (character?.id) {
-      localStorage.setItem(`character_${character.id}`, JSON.stringify(character));
-      window.history.pushState({ page: 'paid-album', character: character.id }, '', `/paid-album?character=${character.id}`);
-    } else {
-      window.history.pushState({ page: 'paid-album' }, '', '/paid-album');
+  const handlePaidAlbum = async (character: any) => {
+    if (!isAuthenticated) {
+      setIsAuthModalOpen(true);
+      setAuthMode('login');
+      return;
+    }
+
+    // Загружаем актуальную информацию о подписке
+    let currentSubscriptionType = subscriptionStats?.subscription_type || userInfo?.subscription?.subscription_type || 'free';
+    
+    // Если статистика не загружена, загружаем её
+    if (!subscriptionStats) {
+      try {
+        const statsResponse = await authManager.fetchWithAuth('/api/v1/profit/stats/');
+        if (statsResponse.ok) {
+          const statsData = await statsResponse.json();
+          setSubscriptionStats(statsData);
+          currentSubscriptionType = statsData.subscription_type || 'free';
+        }
+      } catch (error) {
+        console.error('[APP] Ошибка загрузки статистики подписки:', error);
+      }
+    }
+
+    const normalizedSubscriptionType = currentSubscriptionType.toLowerCase();
+    
+    // Для PREMIUM - сразу открываем альбом (все альбомы бесплатны)
+    if (normalizedSubscriptionType === 'premium') {
+      setSelectedCharacter(character);
+      setCurrentPage('paid-album');
+      if (character?.id) {
+        localStorage.setItem(`character_${character.id}`, JSON.stringify(character));
+        window.history.pushState({ page: 'paid-album', character: character.id }, '', `/paid-album?character=${character.id}`);
+      } else {
+        window.history.pushState({ page: 'paid-album' }, '', '/paid-album');
+      }
+      return;
+    }
+
+    // Для FREE и STANDARD - показываем модальное окно
+    setSelectedAlbumCharacter(character);
+    setIsPaidAlbumModalOpen(true);
+  };
+
+  const handlePurchaseAlbum = async () => {
+    if (!selectedAlbumCharacter) return;
+
+    try {
+      const response = await authManager.fetchWithAuth('/api/v1/paid-gallery/unlock/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ character_name: selectedAlbumCharacter.name })
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const message = (data && (data.detail || data.message)) || 'Не удалось разблокировать альбом';
+        throw new Error(message);
+      }
+
+      // Обновляем баланс
+      if (data.coins !== undefined && typeof data.coins === 'number') {
+        window.dispatchEvent(new CustomEvent('balance-update', { detail: { coins: data.coins } }));
+      } else {
+        window.dispatchEvent(new Event('balance-update'));
+      }
+
+      // Закрываем модальное окно и открываем альбом
+      setIsPaidAlbumModalOpen(false);
+      setSelectedCharacter(selectedAlbumCharacter);
+      setCurrentPage('paid-album');
+      if (selectedAlbumCharacter?.id) {
+        localStorage.setItem(`character_${selectedAlbumCharacter.id}`, JSON.stringify(selectedAlbumCharacter));
+        window.history.pushState({ page: 'paid-album', character: selectedAlbumCharacter.id }, '', `/paid-album?character=${selectedAlbumCharacter.id}`);
+      } else {
+        window.history.pushState({ page: 'paid-album' }, '', '/paid-album');
+      }
+    } catch (error) {
+      console.error('[APP] Ошибка покупки альбома:', error);
+      throw error;
     }
   };
 
@@ -565,12 +641,15 @@ function App() {
   };
 
   const [isAuthenticated, setIsAuthenticated] = React.useState(false);
-  const [userInfo, setUserInfo] = React.useState<{username: string, coins: number, id?: number} | null>(null);
+  const [userInfo, setUserInfo] = React.useState<{username: string, coins: number, id?: number, subscription?: {subscription_type: string}} | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [isAgeVerified, setIsAgeVerified] = useState(() => {
     return localStorage.getItem('age_verified') === 'true';
   });
+  const [isPaidAlbumModalOpen, setIsPaidAlbumModalOpen] = useState(false);
+  const [selectedAlbumCharacter, setSelectedAlbumCharacter] = useState<any>(null);
+  const [subscriptionStats, setSubscriptionStats] = useState<{subscription_type?: string} | null>(null);
 
   React.useEffect(() => {
     const checkAuth = async () => {
@@ -618,9 +697,23 @@ function App() {
               setUserInfo({
                 username: userData.username || userData.email || 'Пользователь',
                 coins: userData.coins || 0,
-                id: userData.id
+                id: userData.id,
+                subscription: userData.subscription
               });
               setIsAuthenticated(true);
+              
+              // Загружаем статистику подписки
+              if (userData.id) {
+                try {
+                  const statsResponse = await authManager.fetchWithAuth('/api/v1/profit/stats/');
+                  if (statsResponse.ok) {
+                    const statsData = await statsResponse.json();
+                    setSubscriptionStats(statsData);
+                  }
+                } catch (error) {
+                  console.error('[APP] Ошибка загрузки статистики подписки:', error);
+                }
+              }
             } else {
               console.error('[APP] Auth check returned empty data (parsed null)');
               setIsAuthenticated(false);
@@ -646,6 +739,81 @@ function App() {
 
     checkAuth();
   }, []);
+
+  // Слушаем события обновления баланса и обновляем userInfo
+  React.useEffect(() => {
+    const handleBalanceUpdate = async (event: Event) => {
+      const customEvent = event as CustomEvent;
+      
+      // Если в событии есть данные о балансе - обновляем сразу
+      if (customEvent.detail && customEvent.detail.coins !== undefined) {
+        const newCoins = customEvent.detail.coins;
+        console.log('[APP] Обновление баланса из события:', newCoins);
+        if (userInfo) {
+          setUserInfo({
+            ...userInfo,
+            coins: newCoins
+          });
+        }
+        return;
+      }
+
+      // Если данных нет, загружаем из API
+      try {
+        const response = await authManager.fetchWithAuth('/api/v1/auth/me/');
+        if (response.ok) {
+          const userData = await response.json();
+          if (userData && userData.coins !== undefined) {
+            console.log('[APP] Обновление баланса из API:', userData.coins);
+            setUserInfo({
+              username: userData.username || userData.email || 'Пользователь',
+              coins: userData.coins || 0,
+              id: userData.id
+            });
+          }
+        }
+      } catch (error) {
+        console.error('[APP] Ошибка обновления баланса:', error);
+      }
+    };
+
+    const handleSubscriptionUpdate = async () => {
+      console.log('[APP] Событие subscription-update получено');
+      // Загружаем баланс и статистику подписки из API при обновлении подписки
+      try {
+        const response = await authManager.fetchWithAuth('/api/v1/auth/me/');
+        if (response.ok) {
+          const userData = await response.json();
+          if (userData && userData.coins !== undefined) {
+            console.log('[APP] Обновление баланса после subscription-update:', userData.coins);
+            setUserInfo({
+              username: userData.username || userData.email || 'Пользователь',
+              coins: userData.coins || 0,
+              id: userData.id,
+              subscription: userData.subscription
+            });
+          }
+        }
+        
+        // Загружаем статистику подписки
+        const statsResponse = await authManager.fetchWithAuth('/api/v1/profit/stats/');
+        if (statsResponse.ok) {
+          const statsData = await statsResponse.json();
+          setSubscriptionStats(statsData);
+        }
+      } catch (error) {
+        console.error('[APP] Ошибка обновления баланса после subscription-update:', error);
+      }
+    };
+
+    window.addEventListener('balance-update', handleBalanceUpdate);
+    window.addEventListener('subscription-update', handleSubscriptionUpdate);
+
+    return () => {
+      window.removeEventListener('balance-update', handleBalanceUpdate);
+      window.removeEventListener('subscription-update', handleSubscriptionUpdate);
+    };
+  }, [userInfo]);
 
   // Применяем темную тему
   useEffect(() => {
@@ -716,12 +884,31 @@ function App() {
           clearTimeout(timeoutId);
         }
 
-        // Небольшая задержка перед перезагрузкой, чтобы токены точно сохранились
-        setTimeout(() => {
-          console.log('Reloading page after OAuth success...');
-          // Обновляем состояние авторизации
-          window.location.reload();
-        }, 200);
+        // Небольшая задержка перед проверкой авторизации, чтобы токены точно сохранились
+        setTimeout(async () => {
+          console.log('Checking auth after OAuth success...');
+          // Проверяем авторизацию без перезагрузки страницы
+          try {
+            const authResult = await authManager.checkAuth();
+            console.log('Auth check result:', authResult);
+            if (authResult.isAuthenticated && authResult.userInfo) {
+              setIsAuthenticated(true);
+              setUserInfo({
+                username: authResult.userInfo.username || authResult.userInfo.email || 'Пользователь',
+                coins: authResult.userInfo.coins || 0,
+                id: authResult.userInfo.id
+              });
+              setIsAuthModalOpen(false); // Закрываем модальное окно авторизации
+              setAuthMode('login'); // Сбрасываем режим на login
+              setCurrentPage('main');
+              window.history.pushState({ page: 'main' }, '', '/');
+            }
+          } catch (error) {
+            console.error('Error checking auth after OAuth:', error);
+            // В случае ошибки все равно перезагружаем страницу
+            window.location.reload();
+          }
+        }, 300);
       } else if (event.data && event.data.type === 'oauth-error') {
         console.error('OAuth error:', event.data.error);
         try {
@@ -815,6 +1002,36 @@ function App() {
         </PageContainer>
       </AppContainer>
 
+      {isPaidAlbumModalOpen && selectedAlbumCharacter && (
+        <PaidAlbumPurchaseModal
+          isOpen={isPaidAlbumModalOpen}
+          onClose={() => {
+            setIsPaidAlbumModalOpen(false);
+            setSelectedAlbumCharacter(null);
+          }}
+          onPurchase={handlePurchaseAlbum}
+          onOpenShop={handleShop}
+          characterName={selectedAlbumCharacter.name || selectedAlbumCharacter.id || 'Персонаж'}
+          subscriptionType={subscriptionStats?.subscription_type || userInfo?.subscription?.subscription_type || 'free'}
+          userCoins={userInfo?.coins || 0}
+        />
+      )}
+
+      {isPaidAlbumModalOpen && selectedAlbumCharacter && (
+        <PaidAlbumPurchaseModal
+          isOpen={isPaidAlbumModalOpen}
+          onClose={() => {
+            setIsPaidAlbumModalOpen(false);
+            setSelectedAlbumCharacter(null);
+          }}
+          onPurchase={handlePurchaseAlbum}
+          onOpenShop={handleShop}
+          characterName={selectedAlbumCharacter.name || selectedAlbumCharacter.id || 'Персонаж'}
+          subscriptionType={subscriptionStats?.subscription_type || userInfo?.subscription?.subscription_type || 'free'}
+          userCoins={userInfo?.coins || 0}
+        />
+      )}
+
       {isAuthModalOpen && (
         <AuthModal
           isOpen={isAuthModalOpen}
@@ -828,6 +1045,9 @@ function App() {
             setIsAuthenticated(true);
             setIsAuthModalOpen(false);
             setAuthMode('login');
+            // Переходим на главную страницу после авторизации
+            setCurrentPage('main');
+            window.history.pushState({ page: 'main' }, '', '/');
             // Обновляем данные пользователя без перезагрузки
             checkAuth();
           }}

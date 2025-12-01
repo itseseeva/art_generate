@@ -968,14 +968,14 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
 
         const status = await response.json();
         
-        // Всегда логируем статус для отладки
-        console.log(`[${attempt}] Generation status:`, {
-          status: status.status,
-          task_id: status.task_id,
-          message: status.message,
-          hasResult: !!status.result,
-          resultKeys: status.result ? Object.keys(status.result) : null
-        });
+        // Логируем только важные статусы
+        if (status.status === 'SUCCESS' || status.status === 'FAILURE') {
+          console.log(`[${attempt}] Generation status:`, {
+            status: status.status,
+            task_id: status.task_id,
+            message: status.message
+          });
+        }
 
         // Бэкенд возвращает результат в поле "result", а не "data"
         const resultData = status.result || status.data;
@@ -1281,7 +1281,6 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
             {images.length > 0 && (
               <ImagesGrid>
                 {images.map((image, index) => {
-                  console.log('Rendering image:', image);
                   return (
                     <ImageCard 
                       key={image.id} 

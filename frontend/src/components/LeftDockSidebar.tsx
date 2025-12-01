@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { FiUserPlus, FiEdit, FiClock, FiHeart, FiUsers, FiHome, FiLogIn, FiUser, FiLogOut, FiShoppingBag, FiMessageSquare } from 'react-icons/fi';
 import Switcher4 from './Switcher4';

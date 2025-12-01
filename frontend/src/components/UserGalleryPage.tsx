@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import { GlobalHeader } from './GlobalHeader';
-import { FiX as CloseIcon } from 'react-icons/fi';
+import { FiX as CloseIcon, FiPlus as PlusIcon } from 'react-icons/fi';
 import { fetchPromptByImage } from '../utils/prompt';
 
 const MainContainer = styled.div`
@@ -70,6 +70,51 @@ const GalleryImage = styled.div`
     height: 100%;
     object-fit: cover;
     display: block;
+  }
+`;
+
+const AddToGalleryButton = styled.button`
+  position: absolute;
+  bottom: ${theme.spacing.sm};
+  left: 50%;
+  transform: translateX(-50%);
+  padding: ${theme.spacing.sm} ${theme.spacing.md};
+  border-radius: ${theme.borderRadius.md};
+  background: rgba(0, 0, 0, 0.8);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: ${theme.fontSize.sm};
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: ${theme.spacing.xs};
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 10;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  white-space: nowrap;
+  
+  &:hover {
+    background: rgba(0, 0, 0, 0.95);
+    border-color: rgba(255, 255, 255, 0.6);
+    transform: translateX(-50%) translateY(-2px);
+  }
+  
+  &:active {
+    transform: translateX(-50%) translateY(0);
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: translateX(-50%);
+  }
+  
+  svg {
+    width: 16px;
+    height: 16px;
   }
 `;
 
@@ -249,6 +294,9 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [addingPhotoIds, setAddingPhotoIds] = useState<Set<number>>(new Set());
+  const [addedPhotoIds, setAddedPhotoIds] = useState<Set<number>>(new Set());
   const authToken = localStorage.getItem('authToken');
 
   const handleOpenPhoto = async (imageUrl: string) => {
@@ -268,6 +316,127 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
       setIsLoadingPrompt(false);
     }
   };
+
+  const handleAddToGallery = async (e: React.MouseEvent, photo: UserPhoto) => {
+    e.stopPropagation();
+    
+    if (!authToken) {
+      setError('Необходима авторизация');
+      return;
+    }
+
+    const imageUrl = photo.image_url || (photo.image_filename ? `http://localhost:8000/paid_gallery/${photo.image_filename}` : null);
+    if (!imageUrl) {
+      setError('Не удалось определить URL изображения');
+      return;
+    }
+
+    setAddingPhotoIds(prev => new Set(prev).add(photo.id));
+
+    try {
+      const response = await fetch('http://localhost:8000/api/v1/auth/user-gallery/add/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({
+          image_url: imageUrl,
+          character_name: photo.character_name || null
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.detail || errorData.message || 'Не удалось добавить фото в галерею';
+        throw new Error(errorMessage);
+      }
+
+      // Показываем успешное сообщение и скрываем кнопку
+      console.log('[USER_GALLERY] Фото успешно добавлено в галерею');
+      setAddedPhotoIds(prev => new Set(prev).add(photo.id));
+    } catch (error) {
+      console.error('[USER_GALLERY] Ошибка добавления фото в галерею:', error);
+      setError(error instanceof Error ? error.message : 'Не удалось добавить фото в галерею');
+    } finally {
+      setAddingPhotoIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(photo.id);
+        return newSet;
+      });
+    }
+  };
+
+  // Загружаем ID текущего пользователя
+  useEffect(() => {
+    const loadCurrentUserId = async () => {
+      if (!authToken) return;
+      
+      try {
+        const response = await fetch('http://localhost:8000/api/v1/auth/me/', {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        if (response.ok) {
+          const userData = await response.json();
+          setCurrentUserId(userData.id);
+        }
+      } catch (error) {
+        console.error('[USER_GALLERY] Ошибка загрузки ID текущего пользователя:', error);
+      }
+    };
+    
+    loadCurrentUserId();
+  }, [authToken]);
+
+  // Проверяем, какие фото уже есть в галерее текущего пользователя
+  useEffect(() => {
+    const checkExistingPhotos = async () => {
+      if (!authToken || !currentUserId || !userId || userId === currentUserId || photos.length === 0) {
+        return;
+      }
+
+      try {
+        const galleryResponse = await fetch('http://localhost:8000/api/v1/auth/user-gallery/', {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        
+        if (galleryResponse.ok) {
+          const galleryData = await galleryResponse.json();
+          const myGalleryPhotos = galleryData.photos || [];
+          const myGalleryUrls = new Set(
+            myGalleryPhotos
+              .map((photo: any) => photo.image_url)
+              .filter((url: any): url is string => Boolean(url))
+          );
+          
+          // Добавляем в addedPhotoIds те фото, которые уже есть в нашей галерее
+          const alreadyAddedIds = new Set<number>();
+          photos.forEach(photo => {
+            const photoUrl = photo.image_url || (photo.image_filename ? `http://localhost:8000/paid_gallery/${photo.image_filename}` : null);
+            if (photoUrl && myGalleryUrls.has(photoUrl)) {
+              alreadyAddedIds.add(photo.id);
+            }
+          });
+          
+          if (alreadyAddedIds.size > 0) {
+            setAddedPhotoIds(prev => {
+              const newSet = new Set(prev);
+              alreadyAddedIds.forEach(id => newSet.add(id));
+              return newSet;
+            });
+          }
+        }
+      } catch (error) {
+        console.error('[USER_GALLERY] Ошибка проверки своей галереи:', error);
+      }
+    };
+    
+    checkExistingPhotos();
+  }, [authToken, currentUserId, userId, photos]);
 
   const loadGallery = useCallback(async () => {
     if (!authToken) {
@@ -384,9 +553,24 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
                 const imageUrl = photo.image_url || (photo.image_filename ? `http://localhost:8000/paid_gallery/${photo.image_filename}` : null);
                 if (!imageUrl) return null;
                 
+                // Показываем кнопку "Добавить в галерею" только для чужих пользователей и если фото еще не добавлено
+                const isOtherUserGallery = userId && currentUserId && userId !== currentUserId;
+                const isAdding = addingPhotoIds.has(photo.id);
+                const isAdded = addedPhotoIds.has(photo.id);
+                
                 return (
                   <GalleryImage key={photo.id} onClick={() => handleOpenPhoto(imageUrl)}>
                     <img src={imageUrl} alt={photo.character_name} />
+                    {isOtherUserGallery && !isAdded && (
+                      <AddToGalleryButton
+                        onClick={(e) => handleAddToGallery(e, photo)}
+                        disabled={isAdding}
+                        title="Добавить в мою галерею"
+                      >
+                        <PlusIcon />
+                        {isAdding ? 'Добавление...' : 'Добавить в галерею'}
+                      </AddToGalleryButton>
+                    )}
                   </GalleryImage>
                 );
               })}

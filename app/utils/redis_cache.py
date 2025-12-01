@@ -297,6 +297,75 @@ def key_characters_list() -> str:
     return "characters:list"
 
 
+def key_registration_data(email: str) -> str:
+    """Генерирует ключ для временных данных регистрации."""
+    return f"registration:data:{email}"
+
+
+def key_password_change_data(user_id: int) -> str:
+    """Генерирует ключ для временных данных смены пароля."""
+    return f"password_change:data:{user_id}"
+
+
+async def cache_set_json(
+    key: str,
+    value: Any,
+    ttl_seconds: Optional[int] = None,
+    timeout: float = 1.0
+) -> bool:
+    """
+    Сохраняет JSON объект в кэш.
+    
+    Args:
+        key: Ключ кэша
+        value: Значение для сохранения (будет сериализовано в JSON)
+        ttl_seconds: TTL в секундах
+        timeout: Таймаут в секундах
+        
+    Returns:
+        True если успешно, False иначе
+    """
+    try:
+        serialized_value = json.dumps(value, ensure_ascii=False, default=str)
+        return await cache_set(key, serialized_value, ttl_seconds=ttl_seconds, timeout=timeout)
+    except Exception as e:
+        logger.error(f"[ERROR] Ошибка сохранения JSON в кэш {key}: {e}")
+        return False
+
+
+async def cache_get_json(
+    key: str,
+    timeout: float = 1.0
+) -> Optional[Any]:
+    """
+    Получает JSON объект из кэша.
+    
+    Args:
+        key: Ключ кэша
+        timeout: Таймаут в секундах
+        
+    Returns:
+        Распарсенный JSON объект или None
+    """
+    try:
+        value = await cache_get(key, timeout=timeout)
+        if value is None:
+            return None
+        
+        # Если уже dict/list, возвращаем как есть
+        if isinstance(value, (dict, list)):
+            return value
+        
+        # Пытаемся распарсить JSON
+        try:
+            return json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            return value
+    except Exception as e:
+        logger.error(f"[ERROR] Ошибка получения JSON из кэша {key}: {e}")
+        return None
+
+
 def key_character(name: str) -> str:
     """Генерирует ключ для данных персонажа."""
     return f"character:{name.lower()}"

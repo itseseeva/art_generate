@@ -5,6 +5,7 @@
 import httpx
 import secrets
 import hashlib
+import re
 from urllib.parse import urlencode, parse_qs
 from typing import Dict, Optional
 from app.auth.oauth_config import OAUTH_PROVIDERS
@@ -91,6 +92,20 @@ async def get_user_info(provider: str, access_token: str) -> Dict:
             raise
 
 
+def generate_username_from_email(email: str, attempt: int = 0) -> str:
+    """Генерирует username на основе email (часть до @)."""
+    base_username = email.split("@")[0]
+    
+    # Очищаем username от недопустимых символов (оставляем только буквы, цифры и подчеркивания)
+    base_username = re.sub(r'[^a-zA-Z0-9_]', '_', base_username)
+    
+    # Если это не первая попытка, добавляем суффикс
+    if attempt > 0:
+        return f"{base_username}_{attempt}"
+    
+    return base_username
+
+
 async def get_or_create_oauth_user(
     provider: str, 
     user_info: Dict, 
@@ -106,7 +121,29 @@ async def get_or_create_oauth_user(
     user = result.scalar_one_or_none()
     
     if user:
-        # Пользователь существует, обновляем статус верификации
+        # Пользователь существует, проверяем и устанавливаем username если его нет
+        if not user.username:
+            # Генерируем уникальный username на основе email
+            max_attempts = 100
+            for attempt in range(max_attempts):
+                new_username = generate_username_from_email(email, attempt)
+                # Проверяем уникальность
+                username_check = await db.execute(
+                    select(Users).filter(Users.username == new_username)
+                )
+                if username_check.scalar_one_or_none() is None:
+                    user.username = new_username
+                    await db.commit()
+                    await db.refresh(user)
+                    break
+            else:
+                # Если не удалось сгенерировать уникальный username, используем email + случайные символы
+                base_username = email.split("@")[0]
+                user.username = base_username + "_" + secrets.token_urlsafe(6)[:8]
+                await db.commit()
+                await db.refresh(user)
+        
+        # Обновляем статус верификации
         if not user.is_verified:
             user.is_verified = True
             await db.commit()
@@ -117,8 +154,27 @@ async def get_or_create_oauth_user(
     random_password = secrets.token_urlsafe(32)
     password_hash = hash_password(random_password)
     
+    # Генерируем уникальный username на основе email
+    max_attempts = 100
+    username = None
+    for attempt in range(max_attempts):
+        new_username = generate_username_from_email(email, attempt)
+        # Проверяем уникальность
+        username_check = await db.execute(
+            select(Users).filter(Users.username == new_username)
+        )
+        if username_check.scalar_one_or_none() is None:
+            username = new_username
+            break
+    
+    # Если не удалось сгенерировать уникальный username, используем email + случайные символы
+    if not username:
+        base_username = email.split("@")[0]
+        username = base_username + "_" + secrets.token_urlsafe(6)[:8]
+    
     user = Users(
         email=email,
+        username=username,
         password_hash=password_hash,
         is_active=True,
         is_verified=True  # OAuth пользователи автоматически верифицированы

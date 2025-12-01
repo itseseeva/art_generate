@@ -699,12 +699,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         setCharacterSituation(situation);
         // Сохраняем информацию о создателе
         if (characterData.creator_info) {
-          console.log('[CHAT] Creator info loaded:', JSON.stringify(characterData.creator_info, null, 2));
-          console.log('[CHAT] Username value:', characterData.creator_info.username);
-          console.log('[CHAT] Username type:', typeof characterData.creator_info.username);
-          console.log('[CHAT] Username is null?', characterData.creator_info.username === null);
-          console.log('[CHAT] Username is undefined?', characterData.creator_info.username === undefined);
-          console.log('[CHAT] User ID:', characterData.creator_info.id);
           
           // Сохраняем информацию о создателе, даже если username null
           // (пользователь может еще не установить username после OAuth входа)
@@ -728,6 +722,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const handleGenerateImage = async (prompt: string) => {
     const trimmedPrompt = prompt.trim();
     if (!trimmedPrompt) {
+      return;
+    }
+
+    // Защита от дублирования запросов
+    if (isGeneratingImage) {
       return;
     }
 
@@ -783,9 +782,79 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       }
 
       const data = await response.json();
-      const generatedImageUrl = data.cloud_url || data.image_url;
+      console.log('[CHAT] Ответ от API генерации:', data);
+      console.log('[CHAT] Доступные ключи в ответе:', Object.keys(data));
+      
+      // Проверяем, пришел ли синхронный ответ с URL или асинхронный с task_id
+      let generatedImageUrl = data.cloud_url || data.image_url;
+      
+      // Если пришел task_id, опрашиваем статус до получения изображения
+      if (!generatedImageUrl && data.task_id) {
+        console.log('[CHAT] Получен task_id, начинаем опрос статуса:', data.task_id);
+        const statusUrl = data.status_url || `/api/v1/generation-status/${data.task_id}`;
+        
+        // Опрашиваем статус с интервалом
+        const maxAttempts = 120; // Максимум 2 минуты (120 * 1 секунда)
+        let attempts = 0;
+        
+        while (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Ждем 1 секунду
+          
+          try {
+            const statusResponse = await fetch(statusUrl, {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            
+            if (!statusResponse.ok) {
+              throw new Error('Ошибка проверки статуса генерации');
+            }
+            
+            const statusData = await statusResponse.json();
+            console.log('[CHAT] Статус генерации:', statusData.status);
+            console.log('[CHAT] Полный ответ статуса:', JSON.stringify(statusData, null, 2));
+            
+            if (statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED') {
+              // URL может быть в result.image_url, result.cloud_url или напрямую в statusData
+              const result = statusData.result || {};
+              generatedImageUrl = result.image_url || result.cloud_url || statusData.image_url || statusData.cloud_url;
+              
+              console.log('[CHAT] Извлеченный URL из result:', result.image_url || result.cloud_url);
+              console.log('[CHAT] Извлеченный URL из statusData:', statusData.image_url || statusData.cloud_url);
+              console.log('[CHAT] Финальный URL:', generatedImageUrl);
+              
+              if (generatedImageUrl) {
+                console.log('[CHAT] Изображение готово:', generatedImageUrl);
+                break;
+              } else {
+                console.warn('[CHAT] URL не найден в ответе, продолжаем опрос...');
+              }
+            } else if (statusData.status === 'FAILURE' || statusData.status === 'ERROR') {
+              throw new Error(statusData.message || statusData.error || 'Ошибка генерации изображения');
+            }
+            
+            // Обновляем прогресс на основе статуса
+            if (statusData.progress !== undefined) {
+              const progressValue = Math.min(statusData.progress, 99);
+              updateMessageProgressContent(assistantMessageId, progressValue);
+            }
+            
+            attempts++;
+          } catch (error) {
+            console.error('[CHAT] Ошибка при проверке статуса:', error);
+            throw error;
+          }
+        }
+        
+        if (!generatedImageUrl) {
+          throw new Error('Превышено время ожидания генерации изображения');
+        }
+      }
 
       if (!generatedImageUrl) {
+        console.error('[CHAT] ОШИБКА: URL изображения не найден в ответе!');
+        console.error('[CHAT] Полный ответ:', JSON.stringify(data, null, 2));
         throw new Error('Не удалось получить изображение');
       }
 
@@ -1089,10 +1158,21 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         throw new Error(message);
       }
 
-      await refreshUserStats();
+      // Если в ответе есть обновленный баланс, используем его для немедленного обновления
+      if (data.coins !== undefined && typeof data.coins === 'number') {
+        console.log('[CHAT] Получен обновленный баланс из ответа:', data.coins);
+        // Диспатчим событие с новым балансом для немедленного обновления
+        window.dispatchEvent(new CustomEvent('balance-update', { detail: { coins: data.coins } }));
+        // Не отправляем второе событие, так как баланс уже обновлен
+      } else {
+        // Если баланса нет в ответе, обновляем через API
+        await refreshUserStats();
+        setTimeout(() => {
+          window.dispatchEvent(new Event('balance-update'));
+        }, 200);
+      }
+      
       await fetchPaidAlbumStatus(currentCharacter.name);
-      // Диспатчим событие обновления баланса
-      window.dispatchEvent(new Event('balance-update'));
       handleOpenPaidAlbumView();
     } catch (error) {
       console.error('Ошибка разблокировки платного альбома:', error);
@@ -1304,7 +1384,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           detail: { characterName: characterName }
         }));
         
-        console.log('Chat history cleared successfully');
       } else {
         console.error('Failed to clear chat history:', response.status);
         // Все равно очищаем локальное состояние
@@ -1327,6 +1406,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     }
 
     if (paidAlbumStatus?.is_owner && normalizedSubscriptionType !== 'free') {
+      return true;
+    }
+
+    // Для PREMIUM пользователей альбомы всегда открыты
+    if (normalizedSubscriptionType === 'premium') {
       return true;
     }
 
@@ -1413,7 +1497,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   setIsTipModalOpen(true);
                 }
               }}
-              disabled={isLoading}
+              disabled={isLoading || isGeneratingImage}
               placeholder={`Напишите сообщение ${currentCharacter.name}...`}
               currentCharacter={currentCharacter.name}
               hasMessages={messages.length > 0}
@@ -1451,10 +1535,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                     e.preventDefault();
                     console.log('[CHAT] Opening profile for creator:', creatorInfo.id);
                     if (onProfile) {
-                      console.log('[CHAT] Calling onProfile with userId:', creatorInfo.id);
                       onProfile(creatorInfo.id);
                     } else {
-                      console.log('[CHAT] Using navigate-to-profile event');
                       window.dispatchEvent(new CustomEvent('navigate-to-profile', { 
                         detail: { userId: creatorInfo.id } 
                       }));
@@ -1512,12 +1594,21 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 if (normalizedSubscriptionType === 'base') {
                   return (
                     <>
-                      <PaidAlbumButton
-                        onClick={handleUnlockPaidAlbum}
-                      >
-                        <FiLock />
-                        Разблокировать
-                      </PaidAlbumButton>
+                      {isPaidAlbumUnlocked ? (
+                        <PaidAlbumButton
+                          onClick={handleOpenPaidAlbumView}
+                        >
+                          <FiUnlock />
+                          Открыть
+                        </PaidAlbumButton>
+                      ) : (
+                        <PaidAlbumButton
+                          onClick={handleUnlockPaidAlbum}
+                        >
+                          <FiLock />
+                          Разблокировать
+                        </PaidAlbumButton>
+                      )}
                       <PaidAlbumButton
                         $variant="secondary"
                         onClick={() => setIsUpgradeModalOpen(true)}
@@ -1534,24 +1625,34 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 }
                 
                 // Для FREE подписки показываем обычную кнопку разблокировки и ниже "Расширить альбом"
+                // Для PREMIUM показываем "Открыть" вместо "Разблокировать"
                 return (
                   <>
-                    <PaidAlbumButton
-                      onClick={handleUnlockPaidAlbum}
-                      disabled={isUnlockingAlbum || userCoins < PAID_ALBUM_COST}
-                    >
-                      {isUnlockingAlbum ? (
-                        <>
-                          <LoadingSpinner size="sm" />
-                          Разблокируем...
-              </>
-            ) : (
-                        <>
-                          <FiLock />
-                          Разблокировать
-                        </>
-                      )}
-                    </PaidAlbumButton>
+                    {isPaidAlbumUnlocked || normalizedSubscriptionType === 'premium' ? (
+                      <PaidAlbumButton
+                        onClick={handleOpenPaidAlbumView}
+                      >
+                        <FiUnlock />
+                        Открыть
+                      </PaidAlbumButton>
+                    ) : (
+                      <PaidAlbumButton
+                        onClick={handleUnlockPaidAlbum}
+                        disabled={isUnlockingAlbum || userCoins < PAID_ALBUM_COST}
+                      >
+                        {isUnlockingAlbum ? (
+                          <>
+                            <LoadingSpinner size="sm" />
+                            Разблокируем...
+                          </>
+                        ) : (
+                          <>
+                            <FiLock />
+                            Разблокировать
+                          </>
+                        )}
+                      </PaidAlbumButton>
+                    )}
                     <PaidAlbumButton
                       $variant="secondary"
                       onClick={() => setIsUpgradeModalOpen(true)}
@@ -1572,24 +1673,34 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               
               // Обычный пользователь, альбом не разблокирован
               // Но если пользователь является создателем, показываем кнопку "Расширить альбом" ниже
+              // Для PREMIUM показываем "Открыть" вместо "Разблокировать"
               return (
               <>
-                <PaidAlbumButton
-                  onClick={handleUnlockPaidAlbum}
-                  disabled={isUnlockingAlbum || userCoins < PAID_ALBUM_COST}
-                >
-                  {isUnlockingAlbum ? (
-                    <>
-                      <LoadingSpinner size="sm" />
-                      Разблокируем...
-                    </>
-                  ) : (
-                    <>
-                      <FiLock />
-                      Разблокировать
-                    </>
-                  )}
-                </PaidAlbumButton>
+                {isPaidAlbumUnlocked || normalizedSubscriptionType === 'premium' ? (
+                  <PaidAlbumButton
+                    onClick={handleOpenPaidAlbumView}
+                  >
+                    <FiUnlock />
+                    Открыть
+                  </PaidAlbumButton>
+                ) : (
+                  <PaidAlbumButton
+                    onClick={handleUnlockPaidAlbum}
+                    disabled={isUnlockingAlbum || userCoins < PAID_ALBUM_COST}
+                  >
+                    {isUnlockingAlbum ? (
+                      <>
+                        <LoadingSpinner size="sm" />
+                        Разблокируем...
+                      </>
+                    ) : (
+                      <>
+                        <FiLock />
+                        Разблокировать
+                      </>
+                    )}
+                  </PaidAlbumButton>
+                )}
                   {/* Показываем кнопку "Расширить альбом" для создателя, даже если он не в блоке isOwner */}
                   {isOwner && (
                     <PaidAlbumButton

@@ -183,6 +183,38 @@ async def unlock_paid_gallery(
             coins=coins_balance,
         )
 
+    # Проверяем подписку PREMIUM - для них альбомы бесплатны
+    from app.services.subscription_service import SubscriptionService
+    subscription_service = SubscriptionService(db)
+    subscription = await subscription_service.get_user_subscription(current_user.id)
+    
+    is_premium = False
+    if subscription and subscription.is_active:
+        subscription_type = subscription.subscription_type.value.lower()
+        if subscription_type == 'premium':
+            is_premium = True
+    
+    # Для PREMIUM подписки альбомы бесплатны
+    if is_premium:
+        existed = await _is_album_unlocked(db, current_user.id, slug)
+        if not existed:
+            db.add(
+                PaidAlbumUnlock(
+                    user_id=current_user.id,
+                    character_name=character_db.name,
+                    character_slug=slug,
+                )
+            )
+            await db.commit()
+        
+        coins_service = CoinsService(db)
+        coins_balance = await coins_service.get_user_coins(current_user.id) or 0
+        return PaidAlbumUnlockResponse(
+            unlocked=True,
+            character=character_db.name,
+            coins=coins_balance,
+        )
+
     coins_service = CoinsService(db)
     
     # Получаем актуальный баланс напрямую из БД
@@ -320,6 +352,14 @@ async def unlock_paid_gallery(
     
     # Коммитим все изменения (списание у покупателя, начисление создателю, запись о разблокировке)
     await db.commit()
+    
+    # Инвалидируем кэш пользователя
+    from app.utils.redis_cache import cache_delete, key_user_coins
+    await cache_delete(key_user_coins(current_user.id))
+    
+    # Отправляем событие обновления профиля
+    from app.services.profit_activate import emit_profile_update
+    await emit_profile_update(current_user.id, db)
     
     # Получаем финальный баланс после коммита
     final_balance = await coins_service.get_user_coins(current_user.id) or 0

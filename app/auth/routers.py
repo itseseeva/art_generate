@@ -19,7 +19,9 @@ from app.schemas.auth import (
     TipCreatorRequest, TipCreatorResponse, TipMessageResponse, SetUsernameRequest,
     UpdateUsernameRequest, RequestEmailChangeRequest, ConfirmEmailChangeRequest,
     RequestPasswordChangeRequest, VerifyPasswordChangeCodeRequest, ConfirmPasswordChangeRequest,
-    UserPhotoResponse, UserGalleryResponse, AddPhotoToGalleryRequest, UnlockUserGalleryRequest
+    RequestPasswordChangeWithOldPasswordRequest, ConfirmPasswordChangeWithCodeRequest,
+    UserPhotoResponse, UserGalleryResponse, AddPhotoToGalleryRequest, UnlockUserGalleryRequest,
+    ConfirmRegistrationRequest
 )
 from app.database.db_depends import get_db
 from app.models.user import Users, RefreshToken, EmailVerificationCode
@@ -47,6 +49,12 @@ auth_router = APIRouter()
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 часа
+
+# Импорты для работы с Redis кэшем
+from app.utils.redis_cache import (
+    cache_set_json, cache_get_json, cache_delete,
+    key_registration_data, key_password_change_data
+)
 REFRESH_TOKEN_EXPIRE_DAYS = 30  # Увеличиваем до 30 дней
 
 
@@ -72,16 +80,18 @@ async def activate_free_subscription(user_id: int, db: AsyncSession) -> None:
         # Не прерываем регистрацию из-за ошибки подписки
 
 
-@auth_router.post("/auth/register/", response_model=UserResponse)
+@auth_router.post("/auth/register/", response_model=Message)
 async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
     """
-    Registers a new user.
+    Начинает регистрацию нового пользователя. Сохраняет данные во временное хранилище
+    и отправляет код верификации на email. Пользователь будет создан только после
+    подтверждения кода через /auth/confirm-registration/.
 
     Parameters:
     - user: Data for registering a new user.
 
     Returns:
-    - UserResponse: Registered user.
+    - Message: Сообщение об успешной отправке кода.
     """
     # Log registration start
     print(f"Starting registration for email: {user.email}")
@@ -107,13 +117,99 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
     # Hash password
     hashed_password = hash_password(user.password)
     
-    # Create new user
+    # Generate new verification code (всегда новый код при повторной регистрации)
+    verification_code = generate_verification_code()
+    
+    # Сохраняем данные регистрации во временное хранилище (Redis)
+    # Если данные уже есть - они будут перезаписаны новым кодом
+    registration_data = {
+        "email": user.email,
+        "username": user.username,
+        "password_hash": hashed_password,
+        "verification_code": verification_code
+    }
+    
+    # Сохраняем в Redis на 1 час (3600 секунд)
+    # Если данные уже есть - они будут обновлены с новым кодом
+    cache_key = key_registration_data(user.email)
+    await cache_set_json(cache_key, registration_data, ttl_seconds=3600)
+    
+    # Send verification email (отправляем новый код)
+    await send_verification_email(user.email, verification_code)
+    
+    print(f"Verification code sent to {user.email} (new code generated)")
+    
+    return Message(message="Verification code sent to email")
+
+
+@auth_router.post("/auth/confirm-registration/", response_model=TokenResponse)
+async def confirm_registration(
+    confirm_data: ConfirmRegistrationRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Подтверждает регистрацию пользователя с помощью кода верификации.
+    Создает пользователя в базе данных только после успешной проверки кода.
+
+    Parameters:
+    - confirm_data: Email и код верификации.
+
+    Returns:
+    - TokenResponse: Access и refresh токены.
+    """
+    # Получаем данные регистрации из временного хранилища
+    cache_key = key_registration_data(confirm_data.email)
+    registration_data = await cache_get_json(cache_key)
+    
+    if not registration_data:
+        raise HTTPException(
+            status_code=400,
+            detail="Registration data not found or expired. Please register again."
+        )
+    
+    # Проверяем код верификации
+    if registration_data.get("verification_code") != confirm_data.verification_code:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid verification code"
+        )
+    
+    # Проверяем, не создан ли уже пользователь (на случай параллельных запросов)
+    result = await db.execute(select(Users).filter(Users.email == confirm_data.email))
+    existing_user = result.scalar_one_or_none()
+    if existing_user:
+        # Пользователь уже создан, удаляем временные данные и выполняем логин
+        await cache_delete(cache_key)
+        # Создаем токены для существующего пользователя
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_jwt_token(
+            data={"sub": existing_user.email},
+            expires_delta=access_token_expires
+        )
+        refresh_token = create_refresh_token()
+        
+        # Сохраняем refresh token
+        db_refresh_token = RefreshToken(
+            user_id=existing_user.id,
+            token_hash=hash_token(refresh_token),
+            expires_at=get_token_expiry(days=REFRESH_TOKEN_EXPIRE_DAYS)
+        )
+        db.add(db_refresh_token)
+        await db.commit()
+        
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer"
+        )
+    
+    # Создаем нового пользователя
     db_user = Users(
-        email=user.email,
-        username=user.username,
-        password_hash=hashed_password,
+        email=registration_data["email"],
+        username=registration_data["username"],
+        password_hash=registration_data["password_hash"],
         is_active=True,
-        is_verified=False
+        is_verified=True  # Пользователь верифицирован после подтверждения кода
     )
     
     db.add(db_user)
@@ -123,32 +219,32 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
     # Активируем бесплатную подписку Free для нового пользователя
     await activate_free_subscription(db_user.id, db)
     
-    # Generate verification code
-    verification_code = generate_verification_code()
-    expires_at = get_token_expiry(days=1)  # Code expires in 1 day
+    # Удаляем временные данные из Redis
+    await cache_delete(cache_key)
     
-    # Save verification code
-    verification = EmailVerificationCode(
-        user_id=db_user.id,
-        code=verification_code,
-        expires_at=expires_at,
-        code_type="email_verification"
+    # Создаем токены
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_jwt_token(
+        data={"sub": db_user.email},
+        expires_delta=access_token_expires
     )
-    db.add(verification)
+    refresh_token = create_refresh_token()
+    
+    # Сохраняем refresh token
+    db_refresh_token = RefreshToken(
+        user_id=db_user.id,
+        token_hash=hash_token(refresh_token),
+        expires_at=get_token_expiry(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    )
+    db.add(db_refresh_token)
     await db.commit()
     
-    # Send verification email
-    await send_verification_email(user.email, verification_code)
+    print(f"User {db_user.email} registered and verified successfully")
     
-    print(f"User {user.email} registered successfully")
-    
-    return UserResponse(
-        id=db_user.id,
-        email=db_user.email,
-        username=db_user.username,
-        avatar_url=db_user.avatar_url,
-        is_active=db_user.is_active,
-        created_at=db_user.created_at
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer"
     )
 
 
@@ -362,6 +458,7 @@ async def logout_user(
 
 @auth_router.get("/auth/me/", response_model=UserResponse)
 async def get_current_user_info(
+    request: Request,
     current_user: Users = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -375,7 +472,14 @@ async def get_current_user_info(
     Returns:
     - UserResponse: Current user information.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"[AUTH/ME] Endpoint called, authorization header: {request.headers.get('authorization', 'NOT FOUND')[:50]}...")
+    
     try:
+        logger.info(f"[AUTH/ME] Request from user: {current_user.email}, id: {current_user.id}")
+        
         # Загружаем пользователя с подпиской явно
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
@@ -398,6 +502,13 @@ async def get_current_user_info(
                 "activated_at": user_with_subscription.subscription.activated_at,
                 "expires_at": user_with_subscription.subscription.expires_at
             }
+            
+            # КРИТИЧЕСКИ ВАЖНО: обновляем кэш подписки, чтобы изменения из БД сразу отображались
+            from app.utils.redis_cache import cache_set, cache_delete, key_subscription, key_subscription_stats, TTL_SUBSCRIPTION
+            cache_key = key_subscription(current_user.id)
+            await cache_set(cache_key, user_with_subscription.subscription.to_dict(), ttl_seconds=TTL_SUBSCRIPTION)
+            # Также инвалидируем кэш статистики подписки
+            await cache_delete(key_subscription_stats(current_user.id))
         
         return UserResponse(
             id=current_user.id,
@@ -1180,6 +1291,124 @@ async def verify_password_change_code(
     return Message(message="Verification code verified. You can now change your password.")
 
 
+@auth_router.post("/auth/request-password-change-with-old/", response_model=Message)
+async def request_password_change_with_old(
+    request: RequestPasswordChangeWithOldPasswordRequest,
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Запрашивает смену пароля с проверкой старого пароля.
+    Проверяет старый пароль, новый пароль и повтор, затем отправляет код на email.
+    
+    Parameters:
+    - request: Старый пароль, новый пароль и повтор нового пароля.
+    
+    Returns:
+    - Message: Подтверждение отправки кода.
+    """
+    # Проверяем старый пароль
+    if not verify_password(request.old_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=400,
+            detail="Incorrect old password"
+        )
+    
+    # Проверяем, что новый пароль и повтор совпадают
+    if request.new_password != request.confirm_password:
+        raise HTTPException(
+            status_code=400,
+            detail="New password and confirmation do not match"
+        )
+    
+    # Проверяем, что новый пароль отличается от старого
+    if verify_password(request.new_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=400,
+            detail="New password must be different from old password"
+        )
+    
+    # Генерируем код верификации
+    verification_code = generate_verification_code()
+    
+    # Хешируем новый пароль
+    new_password_hash = hash_password(request.new_password)
+    
+    # Сохраняем данные во временное хранилище (Redis)
+    password_change_data = {
+        "user_id": current_user.id,
+        "new_password_hash": new_password_hash,
+        "verification_code": verification_code
+    }
+    
+    # Сохраняем в Redis на 1 час (3600 секунд)
+    cache_key = key_password_change_data(current_user.id)
+    await cache_set_json(cache_key, password_change_data, ttl_seconds=3600)
+    
+    # Отправляем код на email
+    await send_verification_email(current_user.email, verification_code)
+    
+    return Message(message="Verification code sent to email")
+
+
+@auth_router.post("/auth/confirm-password-change-with-code/", response_model=Message)
+async def confirm_password_change_with_code(
+    confirm_request: ConfirmPasswordChangeWithCodeRequest,
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Подтверждает смену пароля с помощью кода верификации.
+    
+    Parameters:
+    - confirm_request: Код верификации.
+    
+    Returns:
+    - Message: Подтверждение смены пароля.
+    """
+    # Получаем данные из временного хранилища
+    cache_key = key_password_change_data(current_user.id)
+    password_change_data = await cache_get_json(cache_key)
+    
+    if not password_change_data:
+        raise HTTPException(
+            status_code=400,
+            detail="Password change data not found or expired. Please request password change again."
+        )
+    
+    # Проверяем код верификации
+    if password_change_data.get("verification_code") != confirm_request.verification_code:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid verification code"
+        )
+    
+    # Перезагружаем пользователя из базы данных в текущей сессии
+    result = await db.execute(select(Users).filter(Users.id == current_user.id))
+    db_user = result.scalar_one_or_none()
+    
+    if not db_user:
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+    
+    # Обновляем пароль
+    db_user.password_hash = password_change_data["new_password_hash"]
+    await db.commit()
+    
+    # Удаляем временные данные из Redis
+    await cache_delete(cache_key)
+    
+    # Инвалидируем кэш пользователя
+    from app.utils.redis_cache import key_user
+    await cache_delete(key_user(current_user.email))
+    
+    print(f"Password changed successfully for user {db_user.id} ({db_user.email})")
+    
+    return Message(message="Password changed successfully")
+
+
 @auth_router.post("/auth/confirm-password-change/", response_model=Message)
 async def confirm_password_change(
     confirm_request: ConfirmPasswordChangeRequest,
@@ -1265,26 +1494,27 @@ async def unlock_user_gallery(
     subscription = await subscription_service.get_user_subscription(current_user.id)
     
     if not subscription:
+        logger.warning(f"[GALLERY] Пользователь {current_user.id} не имеет подписки")
         raise HTTPException(
             status_code=403,
             detail="Для разблокировки галереи необходима подписка STANDARD или PREMIUM"
         )
     
-    subscription_type = subscription.subscription_type.value.lower()
-    if subscription_type not in ['standard', 'premium']:
+    if not subscription.is_active:
+        logger.warning(f"[GALLERY] Подписка пользователя {current_user.id} неактивна: {subscription.status}")
+        raise HTTPException(
+            status_code=403,
+            detail="Для разблокировки галереи необходима активная подписка STANDARD или PREMIUM"
+        )
+    
+    # Получаем тип подписки - subscription_type это enum SubscriptionType, его value уже в нижнем регистре
+    subscription_type_str = subscription.subscription_type.value
+    logger.info(f"[GALLERY] Проверка подписки пользователя {current_user.id}: type={subscription_type_str}, active={subscription.is_active}, status={subscription.status}")
+    if subscription_type_str not in ['standard', 'premium']:
+        logger.warning(f"[GALLERY] Неподдерживаемый тип подписки: {subscription_type_str}")
         raise HTTPException(
             status_code=403,
             detail="Для разблокировки галереи необходима подписка STANDARD или PREMIUM"
-        )
-    
-    # Проверяем баланс
-    from app.services.coins_service import CoinsService
-    coins_service = CoinsService(db)
-    
-    if not await coins_service.can_user_afford(current_user.id, GALLERY_UNLOCK_COST):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Недостаточно кредитов. Нужно {GALLERY_UNLOCK_COST} кредитов для открытия галереи."
         )
     
     # Проверяем, не была ли галерея уже разблокирована
@@ -1299,13 +1529,27 @@ async def unlock_user_gallery(
         # Галерея уже разблокирована, не списываем кредиты
         return Message(message="Галерея уже была разблокирована ранее")
     
-    # Списываем кредиты
-    success = await coins_service.spend_coins(current_user.id, GALLERY_UNLOCK_COST, commit=False)
-    if not success:
-        raise HTTPException(
-            status_code=500,
-            detail="Не удалось списать кредиты"
-        )
+    # Для PREMIUM подписки галереи бесплатны
+    is_premium = subscription_type_str == 'premium'
+    
+    if not is_premium:
+        # Для STANDARD проверяем баланс и списываем кредиты
+        from app.services.coins_service import CoinsService
+        coins_service = CoinsService(db)
+        
+        if not await coins_service.can_user_afford(current_user.id, GALLERY_UNLOCK_COST):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Недостаточно кредитов. Нужно {GALLERY_UNLOCK_COST} кредитов для открытия галереи."
+            )
+        
+        # Списываем кредиты
+        success = await coins_service.spend_coins(current_user.id, GALLERY_UNLOCK_COST, commit=False)
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail="Не удалось списать кредиты"
+            )
     
     # Сохраняем информацию о разблокировке
     unlock_record = UserGalleryUnlock(
@@ -1316,19 +1560,27 @@ async def unlock_user_gallery(
     
     await db.commit()
     
-    # Инвалидируем кэш пользователя
-    from app.utils.redis_cache import cache_delete, key_user
+    # Инвалидируем кэш пользователя и баланс
+    from app.utils.redis_cache import cache_delete, key_user, key_user_coins
     await cache_delete(key_user(current_user.email))
+    await cache_delete(key_user_coins(current_user.id))
     
-    # Отправляем обновление профиля через WebSocket
+    # Отправляем событие обновления профиля
+    from app.services.profit_activate import emit_profile_update
     try:
-        from app.auth.utils import emit_profile_update
         await emit_profile_update(current_user.id, db)
     except Exception as ws_error:
         logger.warning(f"[WARNING] Не удалось отправить обновление через WebSocket: {ws_error}")
     
-    logger.info(f"[GALLERY_UNLOCK] Пользователь {current_user.id} разблокировал галерею пользователя {target_user_id}")
-    return Message(message="Галерея успешно открыта")
+    # Получаем финальный баланс после коммита
+    from app.services.coins_service import CoinsService
+    coins_service = CoinsService(db)
+    final_balance = await coins_service.get_user_coins(current_user.id) or 0
+    
+    logger.info(f"[GALLERY_UNLOCK] Пользователь {current_user.id} разблокировал галерею пользователя {target_user_id}, баланс: {final_balance}")
+    
+    # Возвращаем сообщение с балансом в detail для совместимости
+    return Message(message=f"Галерея успешно открыта. Баланс: {final_balance}")
 
 
 @auth_router.get("/auth/user-gallery/", response_model=UserGalleryResponse)

@@ -22,13 +22,20 @@ class ChatHistoryService:
         self.subscription_service = SubscriptionService(db)
     
     async def can_save_history(self, user_id: int) -> bool:
-        """Проверяет, может ли пользователь сохранять историю чата."""
+        """
+        Проверяет, может ли пользователь сохранять историю чата.
+        КРИТИЧЕСКИ ВАЖНО: PREMIUM обрабатывается так же, как STANDARD - никаких различий.
+        """
         subscription = await self.subscription_service.get_user_subscription(user_id)
         if not subscription:
             return False
         
-        # История доступна только для подписок Standard и Premium
-        return subscription.subscription_type in [SubscriptionType.STANDARD, SubscriptionType.PREMIUM]
+        # КРИТИЧЕСКИ ВАЖНО: История доступна для STANDARD и PREMIUM подписок одинаково
+        # PREMIUM должен работать так же, как STANDARD
+        can_save = subscription.subscription_type in [SubscriptionType.STANDARD, SubscriptionType.PREMIUM]
+        if subscription.subscription_type == SubscriptionType.PREMIUM:
+            print(f"[DEBUG] PREMIUM подписка обнаружена для user_id={user_id} - can_save_history={can_save}")
+        return can_save
     
     async def save_message(self, user_id: int, character_name: str, session_id: str, 
                           message_type: str, message_content: str, 
@@ -130,10 +137,17 @@ class ChatHistoryService:
         """
         Получает список персонажей, с которыми у пользователя есть НЕЗАКОНЧЕННЫЙ диалог.
         Показывает только тех персонажей, с которыми пользователь реально общался (есть сообщения).
+        КРИТИЧЕСКИ ВАЖНО: для FREE подписки возвращает пустой список.
         """
         try:
             from app.chat_bot.models.models import ChatSession, ChatMessageDB, CharacterDB
             from app.models.user import Users
+
+            # КРИТИЧЕСКИ ВАЖНО: для FREE подписки не возвращаем персонажей
+            subscription = await self.subscription_service.get_user_subscription(user_id)
+            if not subscription or subscription.subscription_type == SubscriptionType.FREE:
+                print(f"[DEBUG] Пользователь {user_id} имеет FREE подписку или подписка отсутствует - возвращаем пустой список")
+                return []
 
             characters: Dict[str, Dict[str, Any]] = {}
 
@@ -159,11 +173,13 @@ class ChatHistoryService:
                         func.lower(func.trim(ChatSession.user_id)) == normalized_username,
                     ]
                 )
+            
+            print(f"[DEBUG] Фильтрация по user_id={user_id} (user_id_str='{user_id_str}', username='{username}')")
 
             try:
-                # КРИТИЧЕСКИ ВАЖНО: используем простой и надежный подход
-                # INNER JOIN автоматически исключает все записи без сообщений
-                # Это гарантирует, что мы НЕ получим персонажей без реальных сообщений
+                # КРИТИЧЕСКИ ВАЖНО: используем INNER JOIN с условиями фильтрации в самом JOIN
+                # Это гарантирует, что мы НЕ получим персонажей без сообщений
+                # Условия фильтрации по user_id должны быть в JOIN, а не в WHERE
                 session_result = await self.db.execute(
                     select(
                         CharacterDB.name,
@@ -171,14 +187,22 @@ class ChatHistoryService:
                         func.count(func.distinct(ChatMessageDB.id)).label("message_count"),
                     )
                     .select_from(CharacterDB)
-                    .join(ChatSession, ChatSession.character_id == CharacterDB.id)
-                    .join(ChatMessageDB, ChatMessageDB.session_id == ChatSession.id)
-                    .where(or_(*conditions))  # Фильтр по user_id
-                    .where(ChatMessageDB.role == "user")  # Только сообщения от пользователя
-                    .where(ChatMessageDB.content.isnot(None))  # Содержимое не NULL
-                    .where(ChatMessageDB.content != "")  # Не пустое
-                    .where(func.trim(ChatMessageDB.content) != "")  # Не только пробелы
-                    .where(func.length(func.trim(ChatMessageDB.content)) >= 3)  # Минимум 3 символа
+                    .join(ChatSession,
+                          and_(
+                              ChatSession.character_id == CharacterDB.id,
+                              or_(*conditions)  # Фильтр по user_id в JOIN
+                          )
+                    )
+                    .join(ChatMessageDB,
+                          and_(
+                              ChatMessageDB.session_id == ChatSession.id,
+                              ChatMessageDB.role == "user",  # Только сообщения от пользователя
+                              ChatMessageDB.content.isnot(None),  # Содержимое не NULL
+                              ChatMessageDB.content != "",  # Не пустое
+                              func.trim(ChatMessageDB.content) != "",  # Не только пробелы
+                              func.length(func.trim(ChatMessageDB.content)) >= 3  # Минимум 3 символа
+                          )
+                    )
                     .group_by(CharacterDB.name)
                     .having(func.count(func.distinct(ChatMessageDB.id)) > 0)  # Хотя бы одно сообщение
                     .order_by(func.max(ChatMessageDB.timestamp).desc())
@@ -186,6 +210,7 @@ class ChatHistoryService:
 
                 rows = session_result.fetchall()
                 print(f"[DEBUG] Запрос вернул {len(rows)} строк из ChatSession для user_id={user_id}")
+                print(f"[DEBUG] Условия фильтрации user_id: {conditions}")
                 for row in rows:
                     character_name = row[0]
                     last_message_at = row[1]
@@ -331,6 +356,73 @@ class ChatHistoryService:
             import traceback
             print(f"[ERROR] Traceback: {traceback.format_exc()}")
             return []
+    
+    async def clear_chat_history_for_free_users(self, user_id: int) -> bool:
+        """
+        Очищает всю историю чата для пользователей с FREE подпиской.
+        Вызывается при выходе из чата или обновлении страницы.
+        """
+        try:
+            from app.chat_bot.models.models import ChatSession, ChatMessageDB
+            from sqlalchemy import delete
+            
+            subscription = await self.subscription_service.get_user_subscription(user_id)
+            if not subscription:
+                return False
+            
+            # Очищаем только для FREE подписки
+            if subscription.subscription_type != SubscriptionType.FREE:
+                return False
+            
+            user_id_str = str(user_id)
+            
+            # Находим все сессии пользователя
+            sessions_query = await self.db.execute(
+                select(ChatSession).where(ChatSession.user_id == user_id_str)
+            )
+            sessions = sessions_query.scalars().all()
+            
+            deleted_messages = 0
+            deleted_sessions = 0
+            
+            for session in sessions:
+                # Подсчитываем количество сообщений перед удалением
+                messages_count_query = await self.db.execute(
+                    select(func.count(ChatMessageDB.id)).where(ChatMessageDB.session_id == session.id)
+                )
+                messages_count = messages_count_query.scalar_one_or_none() or 0
+                
+                # Удаляем все сообщения в сессии
+                await self.db.execute(
+                    delete(ChatMessageDB).where(ChatMessageDB.session_id == session.id)
+                )
+                deleted_messages += messages_count
+                
+                # Удаляем саму сессию
+                await self.db.execute(
+                    delete(ChatSession).where(ChatSession.id == session.id)
+                )
+                deleted_sessions += 1
+            
+            # Также удаляем записи из ChatHistory
+            chat_history_count_query = await self.db.execute(
+                select(func.count(ChatHistory.id)).where(ChatHistory.user_id == user_id)
+            )
+            chat_history_count = chat_history_count_query.scalar_one_or_none() or 0
+            
+            await self.db.execute(
+                delete(ChatHistory).where(ChatHistory.user_id == user_id)
+            )
+            
+            await self.db.commit()
+            
+            print(f"[DEBUG] Очищена история для FREE пользователя {user_id}: {deleted_messages} сообщений, {deleted_sessions} сессий, {chat_history_count} записей ChatHistory")
+            return True
+            
+        except Exception as e:
+            await self.db.rollback()
+            print(f"[ERROR] Ошибка очистки истории для FREE пользователя {user_id}: {e}")
+            return False
     
     async def clear_chat_history(self, user_id: int, character_name: str, session_id: str) -> bool:
         """Очищает историю чата для конкретного персонажа и сессии."""

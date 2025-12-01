@@ -5,6 +5,7 @@ import time
 import traceback
 import threading
 import queue
+import asyncio
 from typing import Any, Dict
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
@@ -222,19 +223,21 @@ class GenerationService:
                         self._log("ERROR", f"Ошибка при сохранении изображения {index}: {str(e)}")
                         return None
                 
-                # Запускаем сохранение в пуле потоков
-                futures = []
+                # Запускаем сохранение асинхронно
+                save_tasks = []
                 for i, image_base64 in enumerate(images):
                     if image_base64:
-                        future = self.save_executor.submit(save_image_task, image_base64, i)
-                        futures.append(future)
+                        save_tasks.append(save_image_task(image_base64, i))
                 
                 # Собираем результаты
-                for future in futures:
-                    result = future.result()
-                    if result and result.get("success"):
-                        if result.get("cloud_url"):
-                            cloud_urls.append(result["cloud_url"])
+                if save_tasks:
+                    results = await asyncio.gather(*save_tasks, return_exceptions=True)
+                    for result in results:
+                        if isinstance(result, Exception):
+                            self._log("ERROR", f"Ошибка при сохранении изображения: {str(result)}")
+                        elif result and result.get("success"):
+                            if result.get("cloud_url"):
+                                cloud_urls.append(result["cloud_url"])
                 
                 # Создаем ответ
                 generation_response = GenerationResponse.from_api_response(processed_result)

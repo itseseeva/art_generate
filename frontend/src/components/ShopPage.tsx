@@ -411,6 +411,8 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       console.log('[SHOP] Получено событие обновления подписки');
       loadSubscriptionStats();
       checkAuth();
+      // Диспатчим событие обновления баланса
+      window.dispatchEvent(new Event('balance-update'));
     };
 
     window.addEventListener('subscription-update', handleUpdate);
@@ -545,7 +547,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
 
     try {
       const receiverWallet = '4100119070489003';
-      const amount = subscriptionType === 'premium' ? 999 : 599;
+      const amount = subscriptionType === 'premium' ? 1399 : 599;
       const label = `plan:${subscriptionType};uid:${currentUserId}`;
       const successURL = `${window.location.origin}/frontend/payment/success/`;
       const quickPayUrl =
@@ -649,6 +651,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                 <PlanFeature>Сохранение истории сообщений</PlanFeature>
                 <PlanFeature>Возможность создавать платные альбомы</PlanFeature>
                 <PlanFeature>Доступ ко всем платным альбомам</PlanFeature>
+                <PlanFeature>Доступ ко всем галереям пользователей</PlanFeature>
               </PlanFeatures>
               <ActivateButton 
                 onClick={() => handleActivateSubscription('premium')}
