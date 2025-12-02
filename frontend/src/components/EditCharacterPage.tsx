@@ -851,6 +851,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   type SelectedPhoto = { id: string; url: string };
   const [generatedPhotos, setGeneratedPhotos] = useState<any[]>([]);
   const [isGeneratingPhoto, setIsGeneratingPhoto] = useState(false);
+  const [isLoadingPhotos, setIsLoadingPhotos] = useState(true);
   const [generationSettings, setGenerationSettings] = useState<any>(null);
   const [selectedPhotos, setSelectedPhotos] = useState<SelectedPhoto[]>([]);
   const [selectedPhotoForView, setSelectedPhotoForView] = useState<any>(null);
@@ -919,9 +920,13 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const fetchCharacterPhotos = useCallback(async (targetName?: string) => {
     const effectiveName = (targetName ?? characterIdentifier)?.trim();
     if (!effectiveName) {
+      console.warn('fetchCharacterPhotos: No character name provided');
+      setIsLoadingPhotos(false);
       return;
     }
     try {
+      setIsLoadingPhotos(true);
+      console.log('Fetching character photos for:', effectiveName);
       const response = await authManager.fetchWithAuth(API_CONFIG.CHARACTER_PHOTOS_FULL(effectiveName), {
         method: 'GET',
         headers: {
@@ -930,31 +935,62 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       });
 
       if (!response.ok) {
-        console.error('Failed to load character photos:', response.status);
+        console.error('Failed to load character photos:', response.status, response.statusText);
+        setError(`Не удалось загрузить фотографии: ${response.status}`);
+        setIsLoadingPhotos(false);
         return;
       }
 
       const photos = await response.json();
+      console.log('Raw photos from API:', photos);
+      
       if (!Array.isArray(photos)) {
+        console.error('Photos is not an array:', typeof photos, photos);
+        setIsLoadingPhotos(false);
         return;
       }
 
-      const formattedPhotos = photos.map((photo: any) => ({
-        id: photo.id?.toString() ?? String(Date.now()),
-        url: photo.url,
-        isSelected: Boolean(photo.is_main),
-        created_at: photo.created_at ?? null
-      }));
+      if (photos.length === 0) {
+        console.warn('No photos returned from API');
+        setGeneratedPhotos([]);
+        setSelectedPhotos([]);
+        setIsLoadingPhotos(false);
+        return;
+      }
+
+      const formattedPhotos = photos.map((photo: any, index: number) => {
+        const photoId = photo.id?.toString() ?? (photo.url ? `photo_${index}_${Date.now()}` : String(Date.now()));
+        const photoUrl = photo.url;
+        
+        if (!photoUrl) {
+          console.warn('Photo without URL:', photo);
+        }
+        
+        return {
+          id: photoId,
+          url: photoUrl,
+          isSelected: Boolean(photo.is_main),
+          created_at: photo.created_at ?? null
+        };
+      }).filter(photo => photo.url); // Фильтруем фотографии без URL
+
+      console.log('Formatted photos:', formattedPhotos);
+      console.log('Main photos (isSelected=true):', formattedPhotos.filter(p => p.isSelected));
 
       setGeneratedPhotos(formattedPhotos);
-      setSelectedPhotos(
-        formattedPhotos
-          .filter(photo => photo.isSelected)
-          .slice(0, 3)
-          .map(photo => ({ id: photo.id, url: photo.url }))
-      );
+      
+      const selected = formattedPhotos
+        .filter(photo => photo.isSelected)
+        .slice(0, 3)
+        .map(photo => ({ id: photo.id, url: photo.url }));
+      
+      console.log('Selected photos:', selected);
+      setSelectedPhotos(selected);
+      setIsLoadingPhotos(false);
     } catch (error) {
       console.error('Error loading character photos:', error);
+      setError(`Ошибка загрузки фотографий: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+      setIsLoadingPhotos(false);
     }
   }, [characterIdentifier]);
 
@@ -1634,9 +1670,19 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                         </DescriptionText>
                       </SliderDescription>
                     </FullSizePhotoSlider>
+                  ) : isLoadingPhotos ? (
+                    <PhotoGenerationPlaceholder>
+                      <LoadingSpinner size="md" />
+                      <div style={{ marginTop: theme.spacing.md, color: theme.colors.text.muted }}>
+                        Загрузка фотографий...
+                      </div>
+                    </PhotoGenerationPlaceholder>
                   ) : (
                     <PhotoGenerationPlaceholder>
                       Фотографии будут здесь
+                      <div style={{ marginTop: theme.spacing.sm, fontSize: theme.fontSize.sm, color: theme.colors.text.muted }}>
+                        Сгенерируйте фото для персонажа или добавьте существующие
+                      </div>
                     </PhotoGenerationPlaceholder>
                   )}
               </ColumnContent>

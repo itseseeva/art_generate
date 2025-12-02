@@ -1,36 +1,36 @@
 {
-  "total_generations": 312,
+  "total_generations": 313,
   "total_time": {
-    "formatted": "3:14:58",
-    "total_seconds": 11698.423418521881
+    "formatted": "3:15:32",
+    "total_seconds": 11732.499893665314
   },
   "average_time": {
     "formatted": "0:00:37",
-    "total_seconds": 37.4949468542368
+    "total_seconds": 37.484025219378
   },
   "by_sampler": {
     "Euler": {
-      "count": 312,
+      "count": 313,
       "total_time": {
-        "formatted": "3:14:58",
-        "total_seconds": 11698.423418521881
+        "formatted": "3:15:32",
+        "total_seconds": 11732.499893665314
       },
       "avg_time": {
         "formatted": "0:00:37",
-        "total_seconds": 37.4949468542368
+        "total_seconds": 37.484025219378
       }
     }
   },
   "by_steps": {
     "20": {
-      "count": 299,
+      "count": 300,
       "total_time": {
-        "formatted": "3:00:26",
-        "total_seconds": 10826.876789808273
+        "formatted": "3:01:00",
+        "total_seconds": 10860.953264951706
       },
       "avg_time": {
         "formatted": "0:00:36",
-        "total_seconds": 36.210290266917305
+        "total_seconds": 36.20317754983902
       }
     },
     "25": {
@@ -111,6 +111,17 @@
         "formatted": "0:00:34",
         "total_seconds": 34.43153319875878
       }
+    },
+    "400x600": {
+      "count": 1,
+      "total_time": {
+        "formatted": "0:00:34",
+        "total_seconds": 34.07647514343262
+      },
+      "avg_time": {
+        "formatted": "0:00:34",
+        "total_seconds": 34.07647514343262
+      }
     }
   },
   "by_cfg_scale": {
@@ -148,28 +159,18 @@
       }
     },
     "4.0": {
-      "count": 261,
+      "count": 262,
       "total_time": {
-        "formatted": "2:32:17",
-        "total_seconds": 9137.837702989578
+        "formatted": "2:32:51",
+        "total_seconds": 9171.91417813301
       },
       "avg_time": {
         "formatted": "0:00:35",
-        "total_seconds": 35.01087242524743
+        "total_seconds": 35.00730602340844
       }
     }
   },
   "recent_generations": [
-    {
-      "timestamp": "2025-11-18T11:35:26.251208",
-      "time": "53.9s",
-      "prompt": "",
-      "steps": 20,
-      "sampler": "Euler",
-      "resolution": "552x966",
-      "cfg_scale": 4.0,
-      "service": "FaceRefinementService"
-    },
     {
       "timestamp": "2025-11-18T11:36:35.592550",
       "time": "36.3s",
@@ -359,6 +360,16 @@
       "resolution": "552x966",
       "cfg_scale": 4.0,
       "service": "FaceRefinementService"
+    },
+    {
+      "timestamp": "2025-12-02T10:57:14.888385",
+      "time": "34.1s",
+      "prompt": "sdf, sdfsdfsd, suck dick, Clean lines, Smooth skin, Perfect hands, Detailed realistic hair, Detailed...",
+      "steps": 20,
+      "sampler": "Euler",
+      "resolution": "400x600",
+      "cfg_scale": 4.0,
+      "service": "GenerationService"
     }
   ]
 }

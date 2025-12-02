@@ -66,8 +66,8 @@ const FavoriteButton = styled.button<{ $isFavorite: boolean }>`
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.5);
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: ${props => props.$isFavorite ? 'rgba(255, 59, 48, 0.9)' : 'rgba(0, 0, 0, 0.5)'};
+  border: 2px solid ${props => props.$isFavorite ? 'rgba(255, 59, 48, 1)' : 'rgba(255, 255, 255, 0.3)'};
   color: rgba(255, 255, 255, 0.8);
   display: flex;
   align-items: center;
@@ -78,19 +78,18 @@ const FavoriteButton = styled.button<{ $isFavorite: boolean }>`
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   outline: none !important;
-  box-shadow: none;
+  box-shadow: ${props => props.$isFavorite ? '0 0 12px rgba(255, 59, 48, 0.6)' : 'none'};
   
   &:hover {
     transform: scale(1.1);
-    background: rgba(0, 0, 0, 0.7);
-    border-color: rgba(255, 255, 255, 0.5);
-    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
+    background: ${props => props.$isFavorite ? 'rgba(255, 59, 48, 1)' : 'rgba(0, 0, 0, 0.7)'};
+    border-color: ${props => props.$isFavorite ? 'rgba(255, 59, 48, 1)' : 'rgba(255, 255, 255, 0.5)'};
+    box-shadow: ${props => props.$isFavorite ? '0 0 16px rgba(255, 59, 48, 0.8)' : '0 4px 12px rgba(255, 255, 255, 0.2)'};
   }
   
   &:active {
     transform: scale(0.95);
     outline: none !important;
-    box-shadow: none;
   }
   
   &:focus {
@@ -106,9 +105,9 @@ const FavoriteButton = styled.button<{ $isFavorite: boolean }>`
   svg {
     width: 20px;
     height: 20px;
-    fill: ${props => props.$isFavorite ? '#ff6b6b' : 'none'};
-    stroke: ${props => props.$isFavorite ? '#ff6b6b' : 'rgba(255, 255, 255, 0.8)'};
-    stroke-width: 2;
+    fill: ${props => props.$isFavorite ? '#ffffff' : 'none'};
+    stroke: ${props => props.$isFavorite ? '#ffffff' : 'rgba(255, 255, 255, 0.8)'};
+    stroke-width: ${props => props.$isFavorite ? '2.5' : '2'};
     transition: all ${theme.transition.fast};
   }
 `;

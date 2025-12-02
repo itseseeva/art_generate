@@ -134,14 +134,14 @@ class ChatConfig(BaseSettings):
 
     # --- базовые параметры генерации (оптимизированы для MythoMax L2 13B) ---
     DEFAULT_MAX_TOKENS: int = Field(
-        default=200, 
-        description="Лимит токенов для MythoMax L2 13B - увеличен для завершенных ответов"
+        default=400, 
+        description="Увеличен лимит токенов для MythoMax L2 13B - обеспечивает завершение предложений"
     )
     
     # Дополнительные лимиты для контроля
     HARD_MAX_TOKENS: int = Field(
-        default=200,
-        description="Жесткий лимит для MythoMax L2 13B"
+        default=400,
+        description="Жесткий лимит для MythoMax L2 13B - увеличен для завершения предложений"
     )
     
     WARNING_THRESHOLD: int = Field(
@@ -191,8 +191,8 @@ class ChatConfig(BaseSettings):
     )
     
     BAN_EOS_TOKEN: bool = Field(
-        default=True, 
-        description="Запретить EOS токен для соблюдения лимитов"
+        default=False, 
+        description="ОТКЛЮЧЕНО - разрешаем модели естественно завершать предложения"
     )
     
     SKIP_SPECIAL_TOKENS: bool = Field(
@@ -206,23 +206,23 @@ class ChatConfig(BaseSettings):
     )
     
     STOP_AT_NEWLINE: bool = Field(
-        default=True, 
-        description="Останавливать генерацию на новой строке"
+        default=False, 
+        description="ОТКЛЮЧЕНО - не останавливать генерацию на новой строке для завершения предложений"
     )
     
     STOP_AT_P: bool = Field(
-        default=True, 
-        description="Останавливать генерацию на точке"
+        default=False, 
+        description="ОТКЛЮЧЕНО - не останавливать генерацию на точке для завершения предложений"
     )
     
     STOP_AT_EXCLAMATION: bool = Field(
-        default=True, 
-        description="Останавливать генерацию на восклицательном знаке"
+        default=False, 
+        description="ОТКЛЮЧЕНО - не останавливать генерацию на восклицательном знаке"
     )
     
     STOP_AT_QUESTION: bool = Field(
-        default=True, 
-        description="Останавливать генерацию на вопросительном знаке"
+        default=False, 
+        description="ОТКЛЮЧЕНО - не останавливать генерацию на вопросительном знаке"
     )
     
     # --- Параметры для предотвращения обрывов ---
@@ -272,11 +272,10 @@ class ChatConfig(BaseSettings):
     
     DEFAULT_STOP_TOKENS: List[str] = Field(
         default=[
-            # ТОЛЬКО EOS-токен - убираем все агрессивные стоп-токены
-            "</s>",              # EOS-токен, сигнализирует конец последовательности
-            # УБРАЛИ все остальные - они прерывают генерацию на середине предложений
+            # ПУСТОЙ СПИСОК - позволяем модели естественно завершать предложения
+            # EOS токен будет обрабатываться автоматически через ignore_eos=False
         ],
-        description="Только EOS-токен для предотвращения прерывания генерации"
+        description="Пустой список стоп-токенов для естественного завершения предложений"
     )
     
     # Стоп-токены для завершения диалога при приближении к лимиту
@@ -310,16 +309,12 @@ class ChatConfig(BaseSettings):
 
     # --- минимальная длина ответа (оптимизировано для NSFW_13B_sft) ---
     ENFORCE_MIN_TOKENS: bool = Field(
-        default=False, 
-        description="ОТКЛЮЧЕНО - может вызывать преждевременную остановку"
+        default=True, 
+        description="ВКЛЮЧЕНО - гарантирует минимальную длину ответа для завершения предложений"
     )
     MIN_NEW_TOKENS: int = Field(
-        default=150, 
-        description="Увеличено для MythoMax-L2-13B - обеспечивает минимальную развернутость ответов (было 50)"
-    )
-    BAN_EOS_TOKEN: bool = Field(
-        default=False, 
-        description="ОТКЛЮЧЕНО - разрешаем модели естественно завершать предложения"
+        default=100, 
+        description="Минимальное количество токенов для MythoMax-L2-13B - гарантирует минимальную длину ответа"
     )
 
     # --- очистка вывода ---

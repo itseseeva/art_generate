@@ -76,11 +76,13 @@ def optimize_memory():
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             
-        # Очищаем кэш операционной системы
-        if os.name == 'nt':  # Windows
-            os.system('powershell -Command "Clear-RecycleBin -Force"')
-        else:  # Linux/Mac
-            os.system('sync; echo 3 > /proc/sys/vm/drop_caches')
+        # Очищаем кэш операционной системы (только для Linux/Mac)
+        # Windows: Clear-RecycleBin не нужен для оптимизации памяти и вызывает предупреждения
+        if os.name != 'nt':  # Linux/Mac
+            try:
+                os.system('sync; echo 3 > /proc/sys/vm/drop_caches')
+            except Exception:
+                pass  # Игнорируем ошибки очистки системного кэша
             
     except Exception as e:
         logger.error(f"Ошибка при оптимизации памяти: {str(e)}")

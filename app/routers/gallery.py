@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 from typing import List
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -20,7 +21,8 @@ from app.chat_bot.models.models import CharacterDB, PaidAlbumUnlock
 from app.database.db_depends import get_db
 from app.models.user import Users
 from app.services.coins_service import CoinsService
-import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["paid_gallery"])
 
@@ -128,7 +130,20 @@ async def get_paid_album_status(
     is_owner = bool(character_db.user_id) and character_db.user_id == current_user.id
     is_unlocked = await _is_album_unlocked(db, current_user.id, slug)
     is_admin = bool(current_user.is_admin) if current_user.is_admin is not None else False
-    unlocked = bool(is_unlocked or is_owner or is_admin)
+    
+    # Проверяем подписку PREMIUM - для них все альбомы доступны
+    is_premium = False
+    from app.services.subscription_service import SubscriptionService
+    subscription_service = SubscriptionService(db)
+    subscription = await subscription_service.get_user_subscription(current_user.id)
+    
+    if subscription and subscription.is_active:
+        subscription_type = subscription.subscription_type.value.lower()
+        if subscription_type == 'premium':
+            is_premium = True
+            logger.info(f"[PAID_ALBUM STATUS] Пользователь {current_user.id} имеет PREMIUM подписку - доступ к альбому {character_db.name}")
+    
+    unlocked = bool(is_unlocked or is_owner or is_admin or is_premium)
 
     return PaidAlbumStatusResponse(
         character=character_db.name,
@@ -390,8 +405,25 @@ async def save_paid_gallery_photos(
     if not character_db:
         raise HTTPException(status_code=404, detail="Персонаж не найден")
 
-    if not current_user.is_admin and character_db.user_id != current_user.id:
+    is_owner = bool(character_db.user_id) and character_db.user_id == current_user.id
+    
+    if not current_user.is_admin and not is_owner:
         raise HTTPException(status_code=403, detail="Изменять платный альбом может только создатель персонажа")
+    
+    # Проверяем подписку - только STANDARD и PREMIUM могут создавать платные альбомы
+    from app.services.subscription_service import SubscriptionService
+    subscription_service = SubscriptionService(db)
+    subscription = await subscription_service.get_user_subscription(current_user.id)
+    
+    can_create_album = False
+    if subscription and subscription.is_active:
+        subscription_type = subscription.subscription_type.value.lower()
+        if subscription_type in ['standard', 'premium']:
+            can_create_album = True
+    
+    if not can_create_album and not current_user.is_admin:
+        logger.warning(f"[PAID_ALBUM] Пользователь {current_user.id} не имеет подписки STANDARD/PREMIUM для создания альбома {character_db.name}")
+        raise HTTPException(status_code=403, detail="Для создания платного альбома нужна подписка Standard или Premium")
 
     normalized = _normalize_main_photos(
         character_db.name,
@@ -438,8 +470,22 @@ async def list_paid_gallery(
     slug = _character_slug(character_db.name)
     is_owner = bool(character_db.user_id) and character_db.user_id == current_user.id
     unlocked = await _is_album_unlocked(db, current_user.id, slug)
-
+    
+    # Проверяем подписку PREMIUM - для них все альбомы доступны бесплатно
+    is_premium = False
     if not (unlocked or is_owner or current_user.is_admin):
+        from app.services.subscription_service import SubscriptionService
+        subscription_service = SubscriptionService(db)
+        subscription = await subscription_service.get_user_subscription(current_user.id)
+        
+        if subscription and subscription.is_active:
+            subscription_type = subscription.subscription_type.value.lower()
+            if subscription_type == 'premium':
+                is_premium = True
+                logger.info(f"[PAID_ALBUM] Пользователь {current_user.id} имеет PREMIUM подписку - доступ к альбому {character_db.name} разрешен")
+
+    if not (unlocked or is_owner or current_user.is_admin or is_premium):
+        logger.warning(f"[PAID_ALBUM] Пользователь {current_user.id} не имеет доступа к альбому {character_db.name}")
         raise HTTPException(status_code=403, detail="Сначала разблокируйте платный альбом персонажа")
 
     metadata_photos = _load_photo_metadata(character_db.name)

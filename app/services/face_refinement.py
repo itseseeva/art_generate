@@ -421,8 +421,8 @@ class FaceRefinementService:
             self._save_generation_stats(settings, api_response, execution_time)
             logger.info(f"[OK] Генерация завершена за {execution_time:.2f} секунд")
 
-            # Очищаем память
-            await unload_sd_memory(self.api_url)
+            # ОПТИМИЗАЦИЯ: Убрано unload_sd_memory() - замедляет ответ на 2-3 секунды
+            # GPU память очищается автоматически между генерациями
             
             # Логируем генерацию
             execution_time = time.time() - start_time

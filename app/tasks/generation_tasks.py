@@ -4,7 +4,9 @@
 import asyncio
 import logging
 import json
-from typing import Dict, Any, Optional
+import time
+import base64
+from typing import Dict, Any, Optional, List
 from datetime import datetime
 from celery import Task
 from app.celery_app import celery_app
@@ -64,10 +66,16 @@ def generate_image_task(
         }
     """
     task_id = self.request.id
-    # Убираем детальное логирование начала задачи
+    
+    logger.info(f"[CELERY TASK] ========================================")
+    logger.info(f"[CELERY TASK] Начало выполнения задачи генерации")
+    logger.info(f"[CELERY TASK] Task ID: {task_id}")
+    logger.info(f"[CELERY TASK] User ID: {user_id}, Character: {character_name}")
+    logger.info(f"[CELERY TASK] ========================================")
     
     try:
         # Ленивый импорт - импортируем только при выполнении задачи
+        logger.debug(f"[CELERY TASK] Импортируем зависимости...")
         from app.services.face_refinement import FaceRefinementService
         from app.schemas.generation import GenerationSettings
         from app.config.settings import settings
@@ -76,20 +84,25 @@ def generate_image_task(
         from app.models.chat_history import ChatHistory
         from app.services.profit_activate import ProfitActivateService
         from app.services.coins_service import CoinsService
+        logger.debug(f"[CELERY TASK] ✓ Зависимости импортированы")
         
         # Обновляем статус задачи
+        logger.info(f"[CELERY TASK] Обновляем статус: PROGRESS (10%)")
         self.update_state(
             state="PROGRESS",
             meta={"status": "Подготовка параметров генерации", "progress": 10}
         )
         
         # Создаем настройки генерации из словаря
+        logger.debug(f"[CELERY TASK] Создаем GenerationSettings из словаря...")
         generation_settings = GenerationSettings(**settings_dict)
+        logger.info(f"[CELERY TASK] ✓ Настройки созданы: steps={generation_settings.steps}, cfg={generation_settings.cfg_scale}")
         
         # Получаем настройки для логирования
         full_settings_for_logging = settings_dict.copy()
         
         # Обновляем статус и сохраняем метаданные для сохранения промпта
+        logger.info(f"[CELERY TASK] Обновляем статус: PROGRESS (30%)")
         self.update_state(
             state="PROGRESS",
             meta={
@@ -100,6 +113,7 @@ def generate_image_task(
                 "original_user_prompt": settings_dict.get("original_user_prompt", "")
             }
         )
+        logger.debug(f"[CELERY TASK] Промпт (первые 100 символов): {settings_dict.get('prompt', '')[:100]}...")
         
         # Создаем сервис для генерации
         face_refinement_service = FaceRefinementService(settings.SD_API_URL)
@@ -110,12 +124,21 @@ def generate_image_task(
         
         try:
             # Генерируем изображение
-            logger.warning(f"[CELERY] Начинаем генерацию изображения (task_id={task_id})")
+            logger.info(f"[CELERY TASK] ========================================")
+            logger.info(f"[CELERY TASK] Запуск генерации через Stable Diffusion WebUI")
+            logger.info(f"[CELERY TASK] ========================================")
+            
+            generation_start = time.time()
             result = loop.run_until_complete(
                 face_refinement_service.generate_image(generation_settings, full_settings_for_logging)
             )
+            generation_time = time.time() - generation_start
             
-            logger.warning(f"[CELERY] Генерация завершена, проверяем результат (task_id={task_id})")
+            logger.info(f"[CELERY TASK] ========================================")
+            logger.info(f"[CELERY TASK] ✓ Генерация завершена за {generation_time:.2f}с")
+            logger.info(f"[CELERY TASK] ========================================")
+            
+            logger.debug(f"[CELERY TASK] Проверяем результат генерации...")
             
             if not result or not getattr(result, "image_data", None):
                 raise Exception("Сервис генерации не вернул изображение")
@@ -180,7 +203,13 @@ def generate_image_task(
             # Убираем детальное логирование загрузки
             
             # Загружаем изображение в облако с метаданными
-            logger.warning(f"[CELERY] Загружаем изображение в облако: {object_key} (task_id={task_id})")
+            logger.info(f"[CELERY TASK] ========================================")
+            logger.info(f"[CELERY TASK] Загрузка в Yandex Cloud Storage")
+            logger.info(f"[CELERY TASK] Object key: {object_key}")
+            logger.info(f"[CELERY TASK] Размер: {len(image_bytes)} байт")
+            logger.info(f"[CELERY TASK] ========================================")
+            
+            upload_start = time.time()
             cloud_url = loop.run_until_complete(
                 service.upload_file(
                     file_data=image_bytes,
@@ -189,12 +218,17 @@ def generate_image_task(
                     metadata={
                         "character_name": character_name_ascii,
                         "generated_at": datetime.now().isoformat(),
-                        "source": "api_generation"
+                        "source": "api_generation",
+                        "task_id": task_id
                     }
                 )
             )
+            upload_time = time.time() - upload_start
             
-            logger.warning(f"[CELERY] Изображение загружено в облако: {cloud_url} (task_id={task_id})")
+            logger.info(f"[CELERY TASK] ========================================")
+            logger.info(f"[CELERY TASK] ✓ Изображение загружено за {upload_time:.2f}с")
+            logger.info(f"[CELERY TASK] Cloud URL: {cloud_url}")
+            logger.info(f"[CELERY TASK] ========================================")
             
             # Обновляем статус
             self.update_state(
@@ -432,4 +466,104 @@ def save_chat_history_task(
     except Exception as exc:
         logger.error(f"[CELERY] Ошибка сохранения истории чата: {exc}")
         return {"success": False, "error": str(exc)}
+
+
+@celery_app.task(
+    bind=True,
+    base=CallbackTask,
+    max_retries=3,
+    default_retry_delay=10,
+    name="app.tasks.generation_tasks.save_images_to_cloud_task"
+)
+def save_images_to_cloud_task(
+    self,
+    images_base64: List[str],
+    seed: int = -1,
+    character_name: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Фоновая задача для сохранения изображений в облако.
+    Не блокирует основной процесс генерации.
+    
+    Args:
+        images_base64: Список изображений в формате base64
+        seed: Seed для генерации (для имени файла)
+        character_name: Имя персонажа
+    
+    Returns:
+        Dict с результатами сохранения
+    """
+    task_id = self.request.id
+    logger.info(f"[CLOUD SAVE] Начинаем фоновое сохранение {len(images_base64)} изображений (task_id={task_id})")
+    
+    try:
+        from app.services.yandex_storage import get_yandex_storage_service, transliterate_cyrillic_to_ascii
+        
+        # Получаем сервис
+        service = get_yandex_storage_service()
+        
+        # Определяем папку
+        folder = "generated_images"
+        if character_name:
+            character_name_ascii = transliterate_cyrillic_to_ascii(character_name)
+            folder = f"generated_images/{character_name_ascii}"
+        
+        # Создаем event loop для асинхронных операций
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            cloud_urls = []
+            
+            for i, image_base64 in enumerate(images_base64):
+                try:
+                    # Декодируем base64
+                    image_bytes = base64.b64decode(image_base64)
+                    
+                    # Формируем имя файла
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    filename = f"gen_{seed}_{i}_{timestamp}.png"
+                    object_key = f"{folder}/{filename}"
+                    
+                    # Загружаем в облако асинхронно
+                    cloud_url = loop.run_until_complete(
+                        service.upload_file(
+                            file_data=image_bytes,
+                            object_key=object_key,
+                            content_type='image/png',
+                            metadata={
+                                "character_name": character_name_ascii if character_name else "unknown",
+                                "character_original": character_name or "unknown",
+                                "seed": str(seed),
+                                "index": str(i),
+                                "generated_at": datetime.now().isoformat(),
+                                "source": "background_save"
+                            }
+                        )
+                    )
+                    
+                    cloud_urls.append(cloud_url)
+                    logger.info(f"[CLOUD SAVE] Изображение {i} сохранено: {cloud_url}")
+                    
+                except Exception as img_error:
+                    logger.error(f"[CLOUD SAVE] Ошибка сохранения изображения {i}: {img_error}")
+                    cloud_urls.append(None)
+            
+            logger.info(f"[CLOUD SAVE] Завершено. Успешно сохранено: {len([u for u in cloud_urls if u])}/{len(images_base64)}")
+            
+            return {
+                "success": True,
+                "cloud_urls": cloud_urls,
+                "total": len(images_base64),
+                "saved": len([u for u in cloud_urls if u])
+            }
+            
+        finally:
+            loop.close()
+            
+    except Exception as exc:
+        logger.error(f"[CLOUD SAVE] Критическая ошибка: {exc}")
+        import traceback
+        logger.error(f"[CLOUD SAVE] Traceback: {traceback.format_exc()}")
+        raise self.retry(exc=exc, countdown=10)
 

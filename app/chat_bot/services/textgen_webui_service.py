@@ -8,6 +8,8 @@ import asyncio
 import aiohttp
 import json
 import logging
+import re
+import time
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, Field
 from app.chat_bot.config.chat_config import chat_config
@@ -20,13 +22,11 @@ class TextGenWebUIService:
     def __init__(self):
         """Инициализация сервиса."""
         self.base_url = chat_config.TEXTGEN_WEBUI_URL
-        # ОПТИМИЗИРОВАННЫЕ таймауты для максимальной скорости
-        self.timeout = aiohttp.ClientTimeout(
-            total=300,  # Увеличено до 5 минут для длинных генераций
-            connect=5,  # Быстрое подключение
-            sock_read=120,  # Увеличено до 2 минут на чтение
-            sock_connect=5
-        )
+        # Таймауты будут созданы при создании сессии
+        self.timeout_total = 300  # 5 минут для длинных генераций
+        self.timeout_connect = 5  # Быстрое подключение
+        self.timeout_read = 120  # 2 минуты на чтение
+        self.timeout_connect_sock = 5
         self.model_name = chat_config.TEXTGEN_WEBUI_MODEL
         self._session: Optional[aiohttp.ClientSession] = None
         self._is_connected = False
@@ -59,9 +59,17 @@ class TextGenWebUIService:
                 force_close=True  # Принудительное закрытие (без keepalive_timeout!)
             )
             
+            # Создаем таймаут внутри асинхронного контекста
+            timeout = aiohttp.ClientTimeout(
+                total=self.timeout_total,
+                connect=self.timeout_connect,
+                sock_read=self.timeout_read,
+                sock_connect=self.timeout_connect_sock
+            )
+            
             # Создаем сессию с улучшенными настройками
             self._session = aiohttp.ClientSession(
-                timeout=self.timeout,
+                timeout=timeout,
                 connector=self._connector,
                 connector_owner=True  # автоматически закрывать коннектор при закрытии сессии
             )
@@ -252,6 +260,45 @@ class TextGenWebUIService:
             # Возвращаем простой fallback промпт в случае ошибки
             return f"{system_message}\n\n### Instruction:\n{user_message}\n\n### Response:\n"
 
+    def _optimize_character_prompt(self, character_prompt: str) -> str:
+        """
+        Оптимизирует промпт персонажа, убирая дублирование инструкций.
+        Не меняет параметры модели, только упрощает промпт для ускорения.
+        """
+        if not character_prompt:
+            return character_prompt
+        
+        # Удаляем дублирование "Always end your answers"
+        character_prompt = re.sub(
+            (r'IMPORTANT: Always end your answers with the correct '
+             r'punctuation.*?Never leave sentences unfinished\.'),
+            'IMPORTANT: Always end answers with correct punctuation.',
+            character_prompt,
+            flags=re.DOTALL
+        )
+        
+        # Удаляем дублирование "Always answer in complete sentences"
+        character_prompt = re.sub(
+            (r'- Always answer in complete sentences\. Always finish '
+             r'your thoughts\. Never leave a sentence or idea '
+             r'unfinished\.'),
+            '- Always answer in complete sentences.',
+            character_prompt
+        )
+        
+        # Упрощаем инструкции, убирая повторения
+        character_prompt = re.sub(
+            r'ALWAYS answer in FIRST PERSON \(I, me, mine\)\.',
+            '- Answer in FIRST PERSON (I, me, mine).',
+            character_prompt
+        )
+        
+        # Убираем лишние пробелы и переносы строк
+        character_prompt = re.sub(r'\n{3,}', '\n\n', character_prompt)
+        character_prompt = re.sub(r' {2,}', ' ', character_prompt)
+        
+        return character_prompt.strip()
+
     def build_character_prompt(
         self,
         character_data: Dict[str, Any],
@@ -270,6 +317,9 @@ class TextGenWebUIService:
         character_prompt = character_data.get("prompt", "")
         if not character_prompt:
             return self._build_fallback_prompt(user_message, chat_config)
+        
+        # Оптимизируем промпт персонажа (убираем дублирование без изменения параметров)
+        character_prompt = self._optimize_character_prompt(character_prompt)
         
         # Проверяем, содержит ли промпт placeholder для сообщения
         if "{user_message}" in character_prompt:
@@ -586,9 +636,18 @@ class TextGenWebUIService:
             Сгенерированный текст или None при ошибке
         """
         response = None
+        
+        logger.info(f"[TEXT GENERATION] ========================================")
+        logger.info(f"[TEXT GENERATION] Начало генерации текста")
+        logger.info(f"[TEXT GENERATION] Параметры: max_tokens={max_tokens}, temperature={temperature}, top_p={top_p}")
+        logger.info(f"[TEXT GENERATION] Промпт (длина: {len(prompt)} символов, первые 150): {prompt[:150]}...")
+        logger.info(f"[TEXT GENERATION] ========================================")
+        
         try:
             if not self._session:
+                logger.info(f"[TEXT GENERATION] Подключаемся к text-generation-webui API...")
                 await self.connect()
+                logger.info(f"[TEXT GENERATION] ✓ Подключение установлено")
                 
             # Проверяем, что промпт не пустой
             if not prompt or not prompt.strip():
@@ -635,11 +694,13 @@ class TextGenWebUIService:
                 logger.info(f"🔍 API Payload - stop tokens: НЕТ (это хорошо!)")
             logger.info(f"🔍 API Payload - min_tokens: {openai_payload.get('min_tokens', 'НЕТ')}")
             logger.info(f"🔍 API Payload - ban_eos_token: {openai_payload.get('ban_eos_token', False)}")
-            # ИСПРАВЛЕНО: НЕ передаем min_tokens - он может вызывать преждевременную остановку
-            # if chat_config.ENFORCE_MIN_TOKENS and chat_config.MIN_NEW_TOKENS > 0:
-            #     openai_payload["min_tokens"] = chat_config.MIN_NEW_TOKENS
+            # ИСПРАВЛЕНО: Добавляем min_tokens для гарантии минимальной длины ответа
+            if chat_config.ENFORCE_MIN_TOKENS and chat_config.MIN_NEW_TOKENS > 0:
+                openai_payload["min_tokens"] = chat_config.MIN_NEW_TOKENS
             # ИСПРАВЛЕНО: Отключаем ban_eos_token для естественного завершения предложений
-            openai_payload["ban_eos_token"] = False
+            openai_payload["ban_eos_token"] = chat_config.BAN_EOS_TOKEN
+            # ИСПРАВЛЕНО: Устанавливаем ignore_eos для правильной обработки EOS токена
+            openai_payload["ignore_eos"] = chat_config.IGNORE_EOS
             
             logger.info(f"🚀 БЫСТРЫЙ запрос на генерацию (промпт: {len(prompt)} символов)")
             

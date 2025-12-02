@@ -663,13 +663,25 @@ async def get_character_chat_history(
         messages = messages.scalars().all()
         
         # Форматируем сообщения для фронтенда (в хронологическом порядке)
+        import re
         formatted_messages = []
         for msg in reversed(messages):  # Разворачиваем для правильного порядка
+            # Извлекаем image_url из content если он там есть
+            content = msg.content or ""
+            image_url = None
+            
+            # Проверяем формат [image:url] в content
+            if isinstance(content, str):
+                image_match = re.search(r'\[image:(.*?)\]', content)
+                if image_match:
+                    image_url = image_match.group(1).strip()
+            
             formatted_messages.append({
                 "id": msg.id,
                 "type": msg.role,  # 'user' или 'assistant'
-                "content": msg.content,
-                "timestamp": msg.timestamp.isoformat()
+                "content": content,
+                "timestamp": msg.timestamp.isoformat(),
+                "image_url": image_url  # Добавляем image_url если найден
             })
         
         user_type = "authenticated" if current_user else "guest"

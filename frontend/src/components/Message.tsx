@@ -11,23 +11,28 @@ const MessageContainer = styled.div<{ $isUser: boolean }>`
   margin-bottom: ${theme.spacing.lg};
 `;
 
-const MessageContent = styled.div<{ $isUser: boolean }>`
+const MessageContent = styled.div<{ $isUser: boolean; $imageOnly?: boolean }>`
   max-width: 70%;
-  padding: ${theme.spacing.lg};
+  padding: ${props => props.$imageOnly ? '0' : theme.spacing.lg};
   border-radius: ${props => props.$isUser 
     ? `${theme.borderRadius.xl} ${theme.borderRadius.xl} ${theme.borderRadius.sm} ${theme.borderRadius.xl}`
     : `${theme.borderRadius.xl} ${theme.borderRadius.xl} ${theme.borderRadius.xl} ${theme.borderRadius.sm}`
   };
-  background: ${props => props.$isUser 
-    ? 'rgba(80, 80, 80, 0.8)' 
-    : 'rgba(40, 40, 40, 0.5)'
+  background: ${props => props.$imageOnly 
+    ? 'transparent' 
+    : props.$isUser 
+      ? 'rgba(80, 80, 80, 0.8)' 
+      : 'rgba(40, 40, 40, 0.5)'
   };
   color: rgba(240, 240, 240, 1);
-  border: 1px solid ${props => props.$isUser 
-    ? 'rgba(150, 150, 150, 0.5)' 
-    : 'rgba(150, 150, 150, 0.3)'
+  border: ${props => props.$imageOnly 
+    ? 'none' 
+    : `1px solid ${props.$isUser 
+      ? 'rgba(150, 150, 150, 0.5)' 
+      : 'rgba(150, 150, 150, 0.3)'
+    }`
   };
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: ${props => props.$imageOnly ? 'none' : '0 4px 12px rgba(0, 0, 0, 0.3)'};
   position: relative;
   word-wrap: break-word;
   white-space: pre-wrap;
@@ -37,26 +42,37 @@ const MessageContent = styled.div<{ $isUser: boolean }>`
 const MessageText = styled.div`
   font-size: ${theme.fontSize.base};
   line-height: 1.6;
+  margin-bottom: ${theme.spacing.md};
 `;
 
 const ImageContainer = styled.div`
   position: relative;
-  margin-top: ${theme.spacing.md};
+  margin-top: 0;
   border-radius: ${theme.borderRadius.lg};
   overflow: hidden;
-  cursor: pointer;
   transition: transform 0.2s ease;
   
   &:hover {
-    transform: scale(1.02);
+    transform: scale(1.01);
   }
 `;
 
 const MessageImage = styled.img`
   max-width: 100%;
+  max-height: 400px; /* Ограничиваем высоту для комфортного отображения в чате */
+  width: auto;
+  height: auto;
   display: block;
   border-radius: ${theme.borderRadius.lg};
   box-shadow: ${theme.colors.shadow.message};
+  object-fit: contain; /* Сохраняем пропорции */
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  
+  &:hover {
+    transform: scale(1.01);
+    opacity: 0.95;
+  }
 `;
 
 const ImageButtons = styled.div`
@@ -65,11 +81,12 @@ const ImageButtons = styled.div`
   left: 0;
   right: 0;
   display: flex;
-  gap: ${theme.spacing.xs};
-  padding: ${theme.spacing.sm};
+  gap: 4px;
+  padding: 6px;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.4), transparent);
   opacity: 0;
   transition: opacity 0.2s ease;
+  pointer-events: auto;
   
   ${ImageContainer}:hover & {
     opacity: 1;
@@ -81,22 +98,23 @@ const ImageButton = styled.button`
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: ${theme.spacing.xs};
-  padding: ${theme.spacing.xs} ${theme.spacing.sm};
+  gap: 4px;
+  padding: 4px 8px;
   background: rgba(60, 60, 60, 0.9);
   border: 1px solid rgba(150, 150, 150, 0.3);
-  border-radius: ${theme.borderRadius.md};
+  border-radius: ${theme.borderRadius.sm};
   color: rgba(240, 240, 240, 1);
-  font-size: ${theme.fontSize.sm};
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
   backdrop-filter: blur(10px);
+  min-height: 28px;
   
   &:hover {
     background: rgba(80, 80, 80, 0.95);
     border-color: rgba(180, 180, 180, 0.5);
-    transform: translateY(-2px);
+    transform: translateY(-1px);
   }
   
   &:active {
@@ -107,6 +125,11 @@ const ImageButton = styled.button`
     opacity: 0.5;
     cursor: not-allowed;
   }
+  
+  svg {
+    width: 12px;
+    height: 12px;
+  }
 `;
 
 const MessageTime = styled.div<{ $isUser: boolean }>`
@@ -116,14 +139,18 @@ const MessageTime = styled.div<{ $isUser: boolean }>`
   text-align: ${props => props.$isUser ? 'right' : 'left'};
 `;
 
-const Avatar = styled.div<{ $isUser: boolean }>`
+const Avatar = styled.div<{ $isUser: boolean; $avatarUrl?: string }>`
   width: 40px;
   height: 40px;
   border-radius: ${theme.borderRadius.full};
-  background: ${props => props.$isUser 
-    ? 'rgba(80, 80, 80, 0.8)' 
-    : 'rgba(60, 60, 60, 0.8)'
-  };
+  background: ${props => {
+    if (props.$avatarUrl) {
+      return 'transparent';
+    }
+    return props.$isUser 
+      ? 'rgba(80, 80, 80, 0.8)' 
+      : 'rgba(60, 60, 60, 0.8)';
+  }};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -135,6 +162,14 @@ const Avatar = styled.div<{ $isUser: boolean }>`
     : 'rgba(150, 150, 150, 0.3)'
   };
   flex-shrink: 0;
+  overflow: hidden;
+`;
+
+const AvatarImage = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: ${theme.borderRadius.full};
 `;
 
 const FullscreenOverlay = styled.div`
@@ -191,6 +226,7 @@ interface MessageProps {
     imageUrl?: string;
   };
   characterName?: string;
+  characterAvatar?: string;
   isAuthenticated?: boolean;
   isCharacterOwner?: boolean;
   onAddToGallery?: (imageUrl: string, characterName: string) => Promise<void>;
@@ -200,6 +236,7 @@ interface MessageProps {
 export const Message: React.FC<MessageProps> = ({ 
   message, 
   characterName,
+  characterAvatar,
   isAuthenticated,
   isCharacterOwner,
   onAddToGallery,
@@ -265,13 +302,17 @@ export const Message: React.FC<MessageProps> = ({
     <>
       <MessageContainer $isUser={isUser}>
         {!isUser && (
-          <Avatar $isUser={false}>
-            AI
+          <Avatar $isUser={false} $avatarUrl={characterAvatar}>
+            {characterAvatar ? (
+              <AvatarImage src={characterAvatar} alt={characterName || 'Character'} />
+            ) : (
+              'AI'
+            )}
           </Avatar>
         )}
         
-        <MessageContent $isUser={isUser}>
-          <MessageText>{message.content}</MessageText>
+        <MessageContent $isUser={isUser} $imageOnly={!message.content && !!message.imageUrl}>
+          {message.content && <MessageText>{message.content}</MessageText>}
           
           {message.imageUrl && (
             <ImageContainer onClick={handleImageClick}>
@@ -283,24 +324,24 @@ export const Message: React.FC<MessageProps> = ({
                 }}
               />
               {isAuthenticated && characterName && (
-                <ImageButtons>
+                <ImageButtons onClick={(e) => e.stopPropagation()}>
                   {onAddToGallery && !isAddedToGallery && (
                     <ImageButton
                       onClick={handleAddToGalleryClick}
                       disabled={isAddingToGallery}
                       title="Добавить в галерею"
                     >
-                      <FiImage size={16} />
+                      <FiImage size={12} />
                       {isAddingToGallery ? 'Добавление...' : 'В галерею'}
                     </ImageButton>
                   )}
-                  {onAddToPaidAlbum && isCharacterOwner && (
+                  {onAddToPaidAlbum && (
                     <ImageButton
                       onClick={handleAddToPaidAlbumClick}
                       disabled={isAddingToPaidAlbum}
                       title="Добавить в платный альбом"
                     >
-                      <FiFolder size={16} />
+                      <FiFolder size={12} />
                       {isAddingToPaidAlbum ? 'Добавление...' : 'В альбом'}
                     </ImageButton>
                   )}

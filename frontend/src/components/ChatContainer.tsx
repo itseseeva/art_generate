@@ -12,6 +12,8 @@ import { GlobalHeader } from './GlobalHeader';
 import { extractRolePlayingSituation } from '../utils/characterUtils';
 import { authManager } from '../utils/auth';
 import { FiUnlock, FiLock, FiImage } from 'react-icons/fi';
+import { CharacterCard } from './CharacterCard';
+import { API_CONFIG } from '../config/api';
 
 const PAID_ALBUM_COST = 200;
 
@@ -195,6 +197,22 @@ const ChatContentWrapper = styled.div`
 
   @media (max-width: 1280px) {
     flex-direction: column;
+  }
+`;
+
+const CharacterCardWrapper = styled.div`
+  width: 100%;
+  margin-top: ${theme.spacing.xl};
+  padding-top: ${theme.spacing.xl};
+  border-top: 1px solid rgba(150, 150, 150, 0.2);
+  display: flex;
+  justify-content: center;
+  
+  /* Ограничиваем ширину карточки как на главной странице (minmax(200px, 1fr)) */
+  > * {
+    width: 200px;
+    max-width: 200px;
+    min-width: 200px;
   }
 `;
 
@@ -445,6 +463,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const messageProgressValues = useRef<Record<string, number>>({});
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [fetchedSubscriptionType, setFetchedSubscriptionType] = useState<string>('free');
+  const [characterPhotos, setCharacterPhotos] = useState<string[]>([]);
+  const [isCharacterFavorite, setIsCharacterFavorite] = useState<boolean>(false);
 
   // Загружаем тип подписки из API
   useEffect(() => {
@@ -626,6 +646,59 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     }
   }, [currentCharacter?.name, isAuthenticated, fetchPaidAlbumStatus, balanceRefreshTrigger]);
 
+  // Загружаем состояние избранного при изменении персонажа или авторизации
+  useEffect(() => {
+    const loadFavoriteStatus = async () => {
+      if (!currentCharacter?.id || !isAuthenticated) {
+        console.log('[FAVORITE] Skipping favorite check - no character id or not authenticated', {
+          hasId: !!currentCharacter?.id,
+          isAuthenticated,
+          characterId: currentCharacter?.id
+        });
+        setIsCharacterFavorite(false);
+        return;
+      }
+
+      try {
+        // Преобразуем id в число для API
+        let characterId: number;
+        if (typeof currentCharacter.id === 'number') {
+          characterId = currentCharacter.id;
+        } else if (typeof currentCharacter.id === 'string') {
+          characterId = parseInt(currentCharacter.id, 10);
+          if (isNaN(characterId)) {
+            console.warn('[FAVORITE] Invalid character id format:', currentCharacter.id);
+            setIsCharacterFavorite(false);
+            return;
+          }
+        } else {
+          console.warn('[FAVORITE] Unknown character id type:', typeof currentCharacter.id);
+          setIsCharacterFavorite(false);
+          return;
+        }
+        
+        console.log('[FAVORITE] Checking favorite status for character id:', characterId);
+        const favoriteResponse = await authManager.fetchWithAuth(
+          API_CONFIG.CHECK_FAVORITE(characterId)
+        );
+        if (favoriteResponse.ok) {
+          const favoriteData = await favoriteResponse.json();
+          const isFavorite = favoriteData?.is_favorite || false;
+          console.log('[FAVORITE] Favorite status loaded:', isFavorite);
+          setIsCharacterFavorite(isFavorite);
+        } else {
+          console.warn('[FAVORITE] Failed to check favorite status:', favoriteResponse.status);
+          setIsCharacterFavorite(false);
+        }
+      } catch (error) {
+        console.error('[FAVORITE] Error checking favorite status:', error);
+        setIsCharacterFavorite(false);
+      }
+    };
+
+    loadFavoriteStatus();
+  }, [currentCharacter?.id, isAuthenticated]);
+
   useEffect(() => {
     return () => {
       Object.values(messageProgressIntervals.current).forEach(clearInterval);
@@ -697,6 +770,66 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         const characterData = await response.json();
         const situation = extractRolePlayingSituation(characterData.prompt || '');
         setCharacterSituation(situation);
+        
+        // Обновляем currentCharacter с полными данными, включая id
+        // Преобразуем id в строку, если он число (для совместимости с интерфейсом Character)
+        const characterId = characterData.id 
+          ? (typeof characterData.id === 'number' ? characterData.id.toString() : characterData.id)
+          : currentCharacter?.id;
+        
+        console.log('[LOAD_CHARACTER_DATA] Updating currentCharacter with id:', characterData.id, 'converted to:', characterId);
+        
+        if (currentCharacter) {
+          const updatedCharacter = {
+            ...currentCharacter,
+            id: characterId || currentCharacter.id,
+            name: characterData.name || currentCharacter.name,
+            display_name: characterData.display_name || characterData.name || currentCharacter.display_name,
+            description: characterData.description || currentCharacter.description,
+            avatar: characterData.avatar || currentCharacter.avatar,
+            user_id: characterData.user_id || (currentCharacter as any).user_id
+          };
+          console.log('[LOAD_CHARACTER_DATA] Setting currentCharacter with id:', updatedCharacter.id);
+          setCurrentCharacter(updatedCharacter);
+        }
+        
+        // Загружаем состояние избранного сразу после получения id
+        if (characterData.id && isAuthenticated) {
+          try {
+            const favoriteCharacterId = typeof characterData.id === 'number' 
+              ? characterData.id 
+              : parseInt(characterData.id, 10);
+            
+            if (!isNaN(favoriteCharacterId)) {
+              console.log('[LOAD_CHARACTER_DATA] Loading favorite status for id:', favoriteCharacterId);
+              const favoriteResponse = await authManager.fetchWithAuth(
+                API_CONFIG.CHECK_FAVORITE(favoriteCharacterId)
+              );
+              if (favoriteResponse.ok) {
+                const favoriteData = await favoriteResponse.json();
+                const isFavorite = favoriteData?.is_favorite || false;
+                console.log('[LOAD_CHARACTER_DATA] Favorite status loaded:', isFavorite);
+                setIsCharacterFavorite(isFavorite);
+              } else {
+                console.warn('[LOAD_CHARACTER_DATA] Failed to load favorite status:', favoriteResponse.status);
+                setIsCharacterFavorite(false);
+              }
+            } else {
+              console.warn('[LOAD_CHARACTER_DATA] Invalid character id for favorite check:', characterData.id);
+              setIsCharacterFavorite(false);
+            }
+          } catch (error) {
+            console.error('[LOAD_CHARACTER_DATA] Error checking favorite status:', error);
+            setIsCharacterFavorite(false);
+          }
+        } else {
+          console.log('[LOAD_CHARACTER_DATA] Skipping favorite check - no id or not authenticated', {
+            hasId: !!characterData.id,
+            isAuthenticated
+          });
+          setIsCharacterFavorite(false);
+        }
+        
         // Сохраняем информацию о создателе
         if (characterData.creator_info) {
           
@@ -707,15 +840,48 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           console.log('[CHAT] No creator info in response');
           setCreatorInfo(null);
         }
+        
+        // Загружаем главные фото персонажа
+        if (characterData.main_photos) {
+          let parsedPhotos: any[] = [];
+          if (Array.isArray(characterData.main_photos)) {
+            parsedPhotos = characterData.main_photos;
+          } else if (typeof characterData.main_photos === 'string') {
+            try {
+              parsedPhotos = JSON.parse(characterData.main_photos);
+            } catch (e) {
+              console.error('Error parsing main_photos:', e);
+              parsedPhotos = [];
+            }
+          }
+          
+          const photoUrls = parsedPhotos
+            .map((photo: any) => {
+              if (!photo) return null;
+              if (typeof photo === 'string') {
+                return photo.startsWith('http') ? photo : `/static/photos/${characterIdentifier.toLowerCase()}/${photo}.png`;
+              }
+              if (photo.url) return photo.url;
+              if (photo.id) return `/static/photos/${characterIdentifier.toLowerCase()}/${photo.id}.png`;
+              return null;
+            })
+            .filter((url): url is string => Boolean(url));
+          
+          setCharacterPhotos(photoUrls);
+        } else {
+          setCharacterPhotos([]);
+        }
       } else {
         console.warn(`Не удалось загрузить данные персонажа ${characterIdentifier}`);
         setCharacterSituation(null);
         setCreatorInfo(null);
+        setCharacterPhotos([]);
       }
     } catch (error) {
       console.error('Ошибка загрузки данных персонажа:', error);
       setCharacterSituation(null);
       setCreatorInfo(null);
+      setCharacterPhotos([]);
     }
   };
 
@@ -765,6 +931,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         character: currentCharacter.name,
         use_default_prompts: true,
         user_id: userInfo?.id
+        // Размеры берутся из generation_defaults.py (768x1344)
       };
 
       const response = await fetch('/api/v1/generate-image/', {
@@ -905,7 +1072,14 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   };
 
   const sendChatMessage = async (message: string, generateImage: boolean = false) => {
-    if (!message.trim()) return;
+    // Разрешаем пустое сообщение, если запрашивается генерация фото
+    // Фото = текст для истории чата
+    if (!message.trim() && !generateImage) return;
+
+    // Убеждаемся, что characterPhotos загружены перед отправкой сообщения
+    if (currentCharacter && (!characterPhotos || characterPhotos.length === 0)) {
+      await loadCharacterData(currentCharacter.name);
+    }
 
     let effectiveUserId = userInfo?.id;
     if (!effectiveUserId) {
@@ -917,10 +1091,13 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       }
     }
 
+    // Если сообщение пустое, но запрашивается генерация фото, создаем сообщение с промптом
+    const messageContent = message.trim() || (generateImage ? 'Генерация изображения' : '');
+    
     const userMessage: Message = {
       id: Date.now().toString(),
       type: 'user',
-      content: message,
+      content: messageContent,
       timestamp: new Date()
     };
 
@@ -1016,15 +1193,29 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           // Преобразуем сообщения в формат, ожидаемый компонентом
           const formattedMessages: Message[] = data.messages.map((msg: any) => {
             const rawContent = typeof msg.content === 'string' ? msg.content : '';
-            const imageMatch = rawContent.match(/\[image:(.*)\]$/);
-            const cleanedContent = rawContent.replace(/\n?\[image:.*\]$/, '').trim();
+            // Проверяем image_url из API ответа (приоритет) или из content
+            let imageUrl = msg.image_url;
+            
+            // Если image_url нет в ответе, пытаемся извлечь из content
+            if (!imageUrl) {
+              const imageMatch = rawContent.match(/\[image:(.*?)\]/);
+              if (imageMatch) {
+                imageUrl = imageMatch[1].trim();
+              }
+            }
+            
+            // Очищаем content от [image:url] если он там есть
+            const cleanedContent = rawContent.replace(/\n?\[image:.*?\]/g, '').trim();
+            
+            // Если content пустой, но есть imageUrl, оставляем пустой content (фото = текст)
+            const finalContent = cleanedContent || (imageUrl ? '' : rawContent);
 
             return {
               id: msg.id.toString(),
               type: msg.type === 'assistant' ? 'assistant' : 'user',
-              content: cleanedContent,
+              content: finalContent,
               timestamp: new Date(msg.timestamp),
-              imageUrl: imageMatch ? imageMatch[1].trim() : undefined
+              imageUrl: imageUrl
             };
           });
           
@@ -1466,6 +1657,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               isGeneratingImage={isGeneratingImage}
               characterSituation={characterSituation ?? undefined}
               characterName={currentCharacter?.name}
+              characterAvatar={characterPhotos && characterPhotos.length > 0 ? characterPhotos[0] : undefined}
               isCharacterOwner={paidAlbumStatus?.is_owner ?? false}
               isAuthenticated={isAuthenticated}
               onAddToPaidAlbum={handleAddToPaidAlbum}
@@ -1499,7 +1691,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               }}
               disabled={isLoading || isGeneratingImage}
               placeholder={`Напишите сообщение ${currentCharacter.name}...`}
-              currentCharacter={currentCharacter.name}
               hasMessages={messages.length > 0}
             />
           </ChatMessagesArea>
@@ -1729,6 +1920,68 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               </>
               );
             })()}
+            
+            {/* Карточка персонажа внизу панели */}
+            {currentCharacter && (
+              <CharacterCardWrapper>
+                <CharacterCard
+                  character={{
+                    id: currentCharacter.id,
+                    name: currentCharacter.name,
+                    display_name: currentCharacter.display_name || currentCharacter.name,
+                    description: currentCharacter.description || '',
+                    avatar: currentCharacter.avatar || currentCharacter.name.charAt(0).toUpperCase(),
+                    photos: characterPhotos,
+                    tags: [],
+                    author: creatorInfo?.username || 'Unknown',
+                    likes: 0,
+                    views: 0,
+                    comments: 0
+                  }}
+                  onClick={() => {}}
+                  isAuthenticated={isAuthenticated}
+                  isFavorite={isCharacterFavorite}
+                  onFavoriteToggle={async () => {
+                    // Обновляем состояние избранного после переключения, загружая актуальное состояние с сервера
+                    if (currentCharacter?.id) {
+                      try {
+                        const characterId = typeof currentCharacter.id === 'number' 
+                          ? currentCharacter.id 
+                          : parseInt(currentCharacter.id, 10);
+                        
+                        if (!isNaN(characterId)) {
+                          const favoriteResponse = await authManager.fetchWithAuth(
+                            API_CONFIG.CHECK_FAVORITE(characterId)
+                          );
+                          if (favoriteResponse.ok) {
+                            const favoriteData = await favoriteResponse.json();
+                            setIsCharacterFavorite(favoriteData?.is_favorite || false);
+                          }
+                        }
+                      } catch (error) {
+                        console.error('Error updating favorite status:', error);
+                        // В случае ошибки просто переключаем состояние локально
+                        setIsCharacterFavorite(!isCharacterFavorite);
+                      }
+                    } else {
+                      setIsCharacterFavorite(!isCharacterFavorite);
+                    }
+                  }}
+                  onPhotoGeneration={() => {
+                    if (onOpenPaidAlbumBuilder && currentCharacter) {
+                      onOpenPaidAlbumBuilder(currentCharacter);
+                    }
+                  }}
+                  onPaidAlbum={() => {
+                    if (onOpenPaidAlbum && currentCharacter) {
+                      onOpenPaidAlbum(currentCharacter);
+                    } else {
+                      handleOpenPaidAlbumView();
+                    }
+                  }}
+                />
+              </CharacterCardWrapper>
+            )}
           </PaidAlbumPanel>
         </ChatContentWrapper>
       </MainContent>

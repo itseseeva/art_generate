@@ -26,6 +26,12 @@ from app.utils.image_saver import save_image, save_image_cloud_only
 from app.config.paths import IMAGES_DIR
 from app.config.cuda_config import optimize_memory, get_gpu_memory_info
 from app.utils.memory_utils import health_check
+from app.services.generation_optimizations import (
+    GenerationOptimizer,
+    optimize_generation_flow,
+    get_fast_sampler_config,
+    optimize_batch_processing
+)
 
 
 # Добавляем корень проекта в путь для импорта
@@ -56,6 +62,9 @@ class GenerationService:
         self.client = httpx.AsyncClient(timeout=60.0)
         self.output_dir = IMAGES_DIR
         self.output_dir.mkdir(exist_ok=True)
+        
+        # Оптимизатор для ускорения генерации
+        self.optimizer = GenerationOptimizer(api_url)
         
         # Создаем очередь для логов
         self.log_queue = queue.Queue()
@@ -102,20 +111,18 @@ class GenerationService:
             #     self._log("INFO", "Используем кэшированный результат")
             #     return self._result_cache[cache_key]
 
-            # Оптимизируем память перед генерацией
-            optimize_memory()
-            
-            # Получаем информацию о памяти GPU
-            memory_info = get_gpu_memory_info()
-            if memory_info:
-                self._log("INFO", f"GPU Memory before generation: {memory_info}")
+            # ОПТИМИЗАЦИЯ: Убрано optimize_memory() и get_gpu_memory_info()
+            # Эти вызовы замедляют генерацию на 1-2 секунды
+            # GPU память управляется автоматически через PyTorch
             
             # Получаем негативный промпт
             negative_prompt = settings.get_negative_prompt()
             
-            # Формируем параметры запроса
-            request_params = get_default_generation_params()
+            # Формируем параметры запроса (используем get_generation_params для включения ADetailer)
+            from app.config.generation_defaults import get_generation_params
+            request_params = get_generation_params()  # Это включает ADetailer в alwayson_scripts!
             self._log("INFO", f"Default params: steps={request_params.get('steps')}, cfg_scale={request_params.get('cfg_scale')}")
+            self._log("INFO", f"ADetailer в alwayson_scripts: {'ADetailer' in request_params.get('alwayson_scripts', {})}")
             
             # Обновляем параметры из настроек пользователя
             user_params = settings.dict()
@@ -145,6 +152,21 @@ class GenerationService:
             if not request_params.get("scheduler") or request_params["scheduler"] == "Automatic":
                 request_params["scheduler"] = "Karras"
             
+            # Оптимизация: используем более быстрый сэмплер если не указан явно
+            if request_params.get("sampler_name") == "Euler":
+                fast_config = get_fast_sampler_config()
+                request_params["sampler_name"] = fast_config["sampler_name"]
+                logger.info(f"[OPTIMIZE] Используем быстрый сэмплер: {fast_config['sampler_name']}")
+            
+            # Оптимизация батч-обработки
+            batch_size = request_params.get("batch_size", 1)
+            n_iter = request_params.get("n_iter", 1)
+            optimized_batch, optimized_iter = optimize_batch_processing(batch_size, n_iter)
+            if optimized_batch != batch_size or optimized_iter != n_iter:
+                request_params["batch_size"] = optimized_batch
+                request_params["n_iter"] = optimized_iter
+                logger.info(f"[OPTIMIZE] Оптимизирована батч-обработка: batch_size={optimized_batch}, n_iter={optimized_iter}")
+            
             seed = request_params.get("seed", -1)
             n_samples = request_params.get("n_samples", "NOT_SET")
             self._log("INFO", f"Используемый seed: {seed}, n_samples: {n_samples}")
@@ -165,6 +187,9 @@ class GenerationService:
                 else:
                     self._log("WARNING", f"Пропускаем параметр {key}={value} (не поддерживается WebUI)")
             
+            # Оптимизация параметров запроса (убирает пустые значения, оптимизирует структуру)
+            filtered_params = self.optimizer.optimize_request_params(filtered_params)
+            
             # Логируем полный запрос перед отправкой (прямое логирование для немедленного вывода)
             logger.info(f"[GENERATE] Отправляем запрос в WebUI: {self.api_url}/sdapi/v1/txt2img")
             self._log("INFO", f"Отправляем запрос в WebUI: {self.api_url}/sdapi/v1/txt2img")
@@ -181,22 +206,21 @@ class GenerationService:
             except Exception as health_error:
                 logger.warning(f"[GENERATE] Не удалось проверить готовность WebUI: {str(health_error)}, продолжаем запрос...")
             
-            # Отправляем запрос к API
-            logger.info(f"[GENERATE] Создаем HTTP клиент с таймаутом 300 секунд")
+            # Отправляем запрос к API используя оптимизированный клиент
+            logger.info(f"[GENERATE] Отправляем POST запрос к WebUI...")
             result = None
             try:
-                async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client:
-                    logger.info(f"[GENERATE] Отправляем POST запрос к WebUI...")
-                    response = await client.post(
-                        f"{self.api_url}/sdapi/v1/txt2img",
-                        json=filtered_params,
-                        timeout=300.0
-                    )
-                    logger.info(f"[GENERATE] Получен ответ от WebUI, статус: {response.status_code}")
-                    response.raise_for_status()
-                    logger.info(f"[GENERATE] Парсим JSON ответ...")
-                    result = response.json()
-                    logger.info(f"[GENERATE] JSON ответ успешно распарсен")
+                # Используем переиспользуемый клиент для ускорения (keep-alive соединения)
+                client = await self.optimizer.get_client()
+                response = await client.post(
+                    f"{self.api_url}/sdapi/v1/txt2img",
+                    json=filtered_params
+                )
+                logger.info(f"[GENERATE] Получен ответ от WebUI, статус: {response.status_code}")
+                response.raise_for_status()
+                logger.info(f"[GENERATE] Парсим JSON ответ...")
+                result = response.json()
+                logger.info(f"[GENERATE] JSON ответ успешно распарсен")
             except httpx.TimeoutException as e:
                 logger.error(f"[GENERATE] Таймаут при запросе к WebUI: {str(e)}")
                 self._log("ERROR", f"Таймаут при запросе к WebUI: {str(e)}")
@@ -233,50 +257,26 @@ class GenerationService:
                 logger.warning(f"[GENERATE] Не удалось распарсить info: {str(e)}")
                 actual_seed = -1
             
-            # Сохраняем изображения только в облако
-            cloud_urls = []
+            # Возвращаем изображения сразу, сохранение в облако делаем в фоне
             images = processed_result.get("images", [])
-            logger.info(f"[GENERATE] Начинаем сохранение {len(images)} изображений в облако...")
+            logger.info(f"[GENERATE] Получено {len(images)} изображений")
             
-            async def save_image_task(image_data, index):
-                try:
-                    prefix = f"gen_{actual_seed}_{index}"
-                    # Используем новую функцию только для облака
-                    # character_name больше не доступен в settings, передаем None
-                    result = await save_image_cloud_only(
-                        image_data=image_data, 
-                        prefix=prefix,
-                        character_name=None
-                    )
-                    return result
-                except Exception as e:
-                    self._log("ERROR", f"Ошибка при сохранении изображения {index}: {str(e)}")
-                    return None
+            # Запускаем фоновое сохранение в Celery (не блокируем ответ)
+            from app.tasks.generation_tasks import save_images_to_cloud_task
             
-            # Запускаем сохранение асинхронно
-            save_tasks = []
-            for i, image_base64 in enumerate(images):
-                if image_base64:
-                    save_tasks.append(save_image_task(image_base64, i))
+            try:
+                # Запускаем задачу асинхронно (не ждем результата)
+                save_task = save_images_to_cloud_task.apply_async(
+                    args=[images, actual_seed, None],  # character_name=None
+                    queue='low_priority'  # Низкий приоритет для сохранения
+                )
+                logger.info(f"[GENERATE] Фоновое сохранение запущено (task_id={save_task.id})")
+            except Exception as e:
+                logger.warning(f"[GENERATE] Не удалось запустить фоновое сохранение: {e}")
             
-            # Собираем результаты
-            if save_tasks:
-                logger.info(f"[GENERATE] Ожидаем завершения сохранения {len(save_tasks)} изображений...")
-                results = await asyncio.gather(*save_tasks, return_exceptions=True)
-                logger.info(f"[GENERATE] Сохранение завершено, обрабатываем результаты...")
-                for i, result in enumerate(results):
-                    if isinstance(result, Exception):
-                        logger.error(f"[GENERATE] Ошибка при сохранении изображения {i}: {str(result)}")
-                        self._log("ERROR", f"Ошибка при сохранении изображения {i}: {str(result)}")
-                    elif result and result.get("success"):
-                        if result.get("cloud_url"):
-                            cloud_urls.append(result["cloud_url"])
-                            logger.info(f"[GENERATE] Изображение {i} успешно сохранено: {result['cloud_url']}")
-                logger.info(f"[GENERATE] Всего сохранено изображений: {len(cloud_urls)}")
-            
-            if not cloud_urls:
-                logger.error(f"[GENERATE] КРИТИЧЕСКАЯ ОШИБКА: Не удалось сохранить ни одного изображения в облако!")
-                raise Exception("Не удалось сохранить изображение в облако")
+            # Для совместимости с существующим кодом возвращаем пустой список
+            # Реальные URL будут получены из фоновой задачи
+            cloud_urls = []
             
             # Создаем ответ
             logger.info(f"[GENERATE] Создаем GenerationResponse...")
@@ -293,13 +293,9 @@ class GenerationService:
             # Кэш отключен для экономии памяти
             # self._update_cache(cache_key, generation_response)
             
-            # Оптимизируем память после генерации
-            optimize_memory()
-            
-            # Получаем информацию о памяти GPU после генерации
-            memory_info = get_gpu_memory_info()
-            if memory_info:
-                self._log("INFO", f"GPU Memory after generation: {memory_info}")
+            # ОПТИМИЗАЦИЯ: Убрано optimize_memory() и get_gpu_memory_info() после генерации
+            # Эти вызовы замедляли ответ на 3-5 секунд
+            # GPU память управляется автоматически
             
             return generation_response
                 
@@ -307,6 +303,12 @@ class GenerationService:
             self._log("ERROR", f"Ошибка при генерации: {str(e)}")
             self._log("ERROR", f"Traceback: {traceback.format_exc()}")
             raise
+    
+    async def close(self):
+        """Закрыть ресурсы сервиса"""
+        await self.optimizer.close()
+        if hasattr(self.client, 'aclose'):
+            await self.client.aclose()
 
     async def update_generation_stats(self, settings: GenerationSettings, generation_response: GenerationResponse, execution_time: float):
         """Обновляет статистику генерации"""

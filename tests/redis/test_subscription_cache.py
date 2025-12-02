@@ -158,8 +158,11 @@ async def test_get_user_subscription_from_db(redis_client, mock_db, sample_subsc
 
     db_subscription = MockSubscription(**sample_subscription)
 
+    # SubscriptionService использует .scalars().first(), а не .scalar_one_or_none()
+    mock_scalars = MagicMock()
+    mock_scalars.first = MagicMock(return_value=db_subscription)
     mock_result = MagicMock()
-    mock_result.scalar_one_or_none = MagicMock(return_value=db_subscription)
+    mock_result.scalars = MagicMock(return_value=mock_scalars)
     mock_db.execute = AsyncMock(return_value=mock_result)
     mock_db.get = AsyncMock(return_value=None)  # В кэше нет, поэтому get вернет None
 

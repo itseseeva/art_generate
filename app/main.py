@@ -59,7 +59,7 @@ sys.path.insert(0, str(app_root))
 # Проверяем и исправляем импорты
 try:
     import pydantic
-    print(f"[OK] Pydantic version: {pydantic.__version__}")
+    # Убрано логирование версии Pydantic
 except ImportError as e:
     print(f"[ERROR] Pydantic import error: {e}")
     sys.exit(1)
@@ -311,7 +311,7 @@ try:
     paid_gallery_dir = repo_root / "paid_gallery"
     if paid_gallery_dir.exists():
         app.mount("/paid_gallery", StaticFiles(directory=str(paid_gallery_dir), html=True), name="paid_gallery")
-        logger.info(f"[OK] Смонтирована платная галерея: {paid_gallery_dir}")
+        # Убрано логирование монтирования
     else:
         logger.warning(f"Папка платной галереи не найдена: {paid_gallery_dir}")
     
@@ -320,7 +320,7 @@ try:
         avatars_dir = project_root / "avatars"
         avatars_dir.mkdir(exist_ok=True)
         app.mount("/avatars", StaticFiles(directory=str(avatars_dir), html=False), name="avatars")
-        logger.info(f"[OK] Смонтирована папка аватаров: {avatars_dir}")
+        # Убрано логирование монтирования
     except Exception as e:
         logger.warning(f"[WARNING] Не удалось смонтировать папку аватаров: {e}")
 except Exception as e:
@@ -329,15 +329,8 @@ except Exception as e:
 # Подключаем роутеры аутентификации
 try:
     from app.auth.routers import auth_router
-    logger.info(f"[DEBUG] auth_router импортирован, routes: {len(auth_router.routes)}")
     app.include_router(auth_router, prefix="/api/v1", tags=["auth"])
-    logger.info("[OK] auth_router подключен")
-    # Проверяем, что /auth/me/ подключен
-    me_routes = [r for r in app.routes if hasattr(r, 'path') and '/auth/me' in str(r.path)]
-    if me_routes:
-        logger.info(f"[DEBUG] /auth/me/ найден: {[r.path for r in me_routes]}")
-    else:
-        logger.warning(f"[WARNING] /auth/me/ НЕ найден в app routes!")
+    # Убрано логирование подключения роутеров
 except Exception as e:
     logger.error(f"[ERROR] Ошибка подключения auth_router: {e}")
     import traceback
@@ -347,7 +340,7 @@ except Exception as e:
 try:
     from app.auth.oauth_routers import oauth_router
     app.include_router(oauth_router, tags=["oauth"])
-    logger.info("[OK] oauth_router подключен")
+    # Убрано логирование подключения
 except Exception as e:
     logger.error(f"[ERROR] Ошибка подключения oauth_router: {e}")
     import traceback
@@ -356,37 +349,12 @@ except Exception as e:
 # Роутер generation удален - используется только /api/v1/generate-image/ в main.py
 
 try:
-    logger.info("🔄 Импортируем chat_router...")
     from app.chat_bot.api.chat_endpoints import router as chat_router
-    logger.info("[OK] chat_router импортирован успешно")
-    
-    logger.info("🔄 Импортируем character_router...")
     from app.chat_bot.api.character_endpoints import router as character_router
-    logger.info("[OK] character_router импортирован успешно")
     
-    logger.info("🔄 Подключаем chat_router...")
     app.include_router(chat_router, prefix="/api/v1/chat", tags=["chat"])
-    logger.info("[OK] chat_router подключен")
-    
-    logger.info("🔄 Подключаем character_router...")
     app.include_router(character_router, prefix="/api/v1/characters", tags=["characters"])
-    logger.info("[OK] character_router подключен")
-    
-    # Подключаем новые роутеры для системы персонажей
-    # logger.info("🔄 Импортируем новые роутеры персонажей...")
-    # from app.chat_bot.add_character import character_router as new_character_router
-    # from app.chat_bot.add_character import universal_chat_router
-    # logger.info("[OK] Новые роутеры импортированы")
-    
-    # logger.info("🔄 Подключаем new_character_router...")
-    # app.include_router(new_character_router)
-    # logger.info("[OK] new_character_router подключен")
-    
-    # logger.info("🔄 Подключаем universal_chat_router...")
-    # app.include_router(universal_chat_router)
-    # logger.info("[OK] universal_chat_router подключен")
-    
-    logger.info("[OK] Роутеры chat и character подключены")
+    # Убрано логирование подключения роутеров
 
 except Exception as e:
     logger.error(f"[ERROR] Ошибка подключения роутеров chat/character: {e}")
@@ -396,15 +364,9 @@ except Exception as e:
 
 # Подключаем роутер подписок (исправленная версия)
 try:
-    logger.info("🔄 Импортируем profit_activate_router...")
     from app.api.endpoints.profit_activate_endpoints import router as profit_activate_router
-    logger.info("[OK] profit_activate_router импортирован успешно")
-    
-    logger.info("🔄 Подключаем profit_activate_router...")
     app.include_router(profit_activate_router, prefix="/api/v1/profit", tags=["profit"])
-    logger.info("[OK] profit_activate_router подключен")
-    
-    logger.info("[OK] Роутер подписок (исправленный) подключен")
+    # Убрано логирование подключения
 except Exception as e:
     logger.error(f"[ERROR] Ошибка подключения роутера подписок: {e}")
     import traceback
@@ -412,15 +374,9 @@ except Exception as e:
 
 # Подключаем старый роутер подписок для обратной совместимости
 try:
-    logger.info("🔄 Импортируем subscription_router...")
     from app.api.endpoints.subscription_endpoints import router as subscription_router
-    logger.info("[OK] subscription_router импортирован успешно")
-    
-    logger.info("🔄 Подключаем subscription_router...")
     app.include_router(subscription_router, prefix="/api/v1/subscription", tags=["subscription"])
-    logger.info("[OK] subscription_router подключен")
-    
-    logger.info("[OK] Роутер подписок (старый) подключен")
+    # Убрано логирование подключения
 except Exception as e:
     logger.error(f"[ERROR] Ошибка подключения старого роутера подписок: {e}")
     import traceback
@@ -574,7 +530,7 @@ async def profile_updates_ws(websocket: WebSocket):
 try:
     from app.routers.gallery import router as gallery_router
     app.include_router(gallery_router)
-    logger.info("[OK] Роутер paid-gallery подключен")
+    # Убрано логирование подключения
 except Exception as e:
     logger.error(f"[ERROR] Ошибка подключения роутера gallery: {e}")
     import traceback
@@ -584,7 +540,7 @@ except Exception as e:
 try:
     from app.api.endpoints.photos_endpoints import router as photos_router
     app.include_router(photos_router)
-    logger.info("[OK] Роутер фотографий персонажей подключен")
+    # Убрано логирование подключения
 except Exception as e:
     logger.error(f"[ERROR] Ошибка подключения роутера фотографий: {e}")
     import traceback
@@ -594,7 +550,7 @@ except Exception as e:
 try:
     from app.youmoney.router import router as youmoney_router  # type: ignore
     app.include_router(youmoney_router)
-    logger.info("[OK] Роутер YouMoney подключен")
+    # Убрано логирование подключения
 except Exception as e:
     logger.error(f"[ERROR] Ошибка подключения роутера YouMoney: {e}")
     import traceback
@@ -604,7 +560,7 @@ except Exception as e:
 try:
     from app.youkassa.router import router as yookassa_router  # type: ignore
     app.include_router(yookassa_router)
-    logger.info("[OK] Роутер YooKassa подключен")
+    # Убрано логирование подключения
 except Exception as e:
     logger.error(f"[ERROR] Ошибка подключения роутера YooKassa: {e}")
     import traceback
@@ -612,33 +568,20 @@ except Exception as e:
 
 # Подключаем роутер истории чата
 try:
-    logger.info("🔄 Подключаем роутер истории чата...")
     try:
         from app.chat_history.api.endpoints import router as chat_history_router
-        logger.info(f"[DEBUG] Роутер импортирован: {chat_history_router}")
-        logger.info(f"[DEBUG] Роутер routes: {[r.path for r in chat_history_router.routes]}")
         app.include_router(chat_history_router, prefix="/api/v1/chat-history", tags=["chat-history"])
-        logger.info("[OK] chat_history_router подключен из app.chat_history.api.endpoints")
     except ImportError as e:
-        logger.warning(f"[WARNING] Не удалось импортировать из app.chat_history.api.endpoints: {e}")
         # Fallback на старый путь
         from app.api.endpoints.chat_history import router as chat_history_router
         app.include_router(chat_history_router, prefix="/api/v1/chat-history", tags=["chat-history"])
-        logger.info("[OK] chat_history_router подключен из app.api.endpoints.chat_history (fallback)")
-    
-    logger.info("[OK] Роутер истории чата подключен")
+    # Убрано логирование подключения
 except Exception as e:
     logger.error(f"[ERROR] Ошибка подключения роутера истории чата: {e}")
     import traceback
     logger.error(f"Traceback: {traceback.format_exc()}")
 
-# Логируем все зарегистрированные роуты для отладки
-logger.info("=== Registered Routes ===")
-for route in app.routes:
-    path = getattr(route, "path", "unknown")
-    methods = ",".join(getattr(route, "methods", [])) if hasattr(route, "methods") else "no methods"
-    logger.info(f"Route: {path} [{methods}]")
-logger.info("========================")
+# Убрано логирование всех зарегистрированных роутов
 
 # Подключаем тестовый роутер для llama-cpp-python (если существует)
 try:
@@ -1146,19 +1089,37 @@ async def _write_chat_history(
                 await db.commit()
                 await db.refresh(chat_session)
 
+            # Сохраняем сообщение пользователя (даже если оно пустое, но есть фото)
+            # Фото = текст для истории чата
+            user_content = message if message else ""
+            if image_url and not user_content:
+                # Если есть только фото без текста, создаем сообщение с фото
+                user_content = f"[image:{image_url}]"
+            elif image_filename and not user_content:
+                user_content = f"[image:{image_filename}]"
+            
             user_record = ChatMessageDB(
                 session_id=chat_session.id,
                 role="user",
-                content=message,
+                content=user_content,
                 timestamp=datetime.now(),
             )
             db.add(user_record)
 
-            assistant_content = response
+            # Если есть только фото без текста, создаем сообщение с фото
+            assistant_content = response if response else ""
             if image_url:
-                assistant_content = f"{assistant_content}\n\n[image:{image_url}]"
+                if assistant_content:
+                    assistant_content = f"{assistant_content}\n\n[image:{image_url}]"
+                else:
+                    # Если нет текста, создаем сообщение только с фото
+                    assistant_content = f"[image:{image_url}]"
             elif image_filename:
-                assistant_content = f"{assistant_content}\n\n[image:{image_filename}]"
+                if assistant_content:
+                    assistant_content = f"{assistant_content}\n\n[image:{image_filename}]"
+                else:
+                    # Если нет текста, создаем сообщение только с фото
+                    assistant_content = f"[image:{image_filename}]"
 
             assistant_record = ChatMessageDB(
                 session_id=chat_session.id,
@@ -1179,25 +1140,40 @@ async def _write_chat_history(
         # PREMIUM должен работать так же, как STANDARD - никаких различий в обработке
         if user_id_int and can_save_session and chat_session:
             try:
-                # Сохраняем промпт пользователя
+                # Сохраняем промпт пользователя (даже если он пустой, но есть фото)
+                # Фото = текст для истории чата
+                user_message_content = message if message else ""
+                if image_url and not user_message_content:
+                    # Если есть только фото без текста, создаем сообщение с фото
+                    user_message_content = f"[image:{image_url}]"
+                elif image_filename and not user_message_content:
+                    user_message_content = f"[image:{image_filename}]"
+                
                 user_chat_history = ChatHistory(
                     user_id=user_id_int,
                     character_name=character_name,
                     session_id=str(chat_session.id),
                     message_type="user",
-                    message_content=message,  # Промпт пользователя
+                    message_content=user_message_content,
                     image_url=image_url,
                     image_filename=image_filename
                 )
                 db.add(user_chat_history)
                 
-                # Также сохраняем ответ ассистента
+                # Также сохраняем ответ ассистента (даже если он пустой, но есть фото)
+                assistant_message_content = response if response else ""
+                if image_url and not assistant_message_content:
+                    # Если есть только фото без текста, создаем сообщение с фото
+                    assistant_message_content = f"[image:{image_url}]"
+                elif image_filename and not assistant_message_content:
+                    assistant_message_content = f"[image:{image_filename}]"
+                
                 assistant_chat_history = ChatHistory(
                     user_id=user_id_int,
                     character_name=character_name,
                     session_id=str(chat_session.id),
                     message_type="assistant",
-                    message_content=response,
+                    message_content=assistant_message_content,
                     image_url=image_url,
                     image_filename=image_filename
                 )
@@ -1314,6 +1290,14 @@ async def chat_endpoint(
     """
     Простой эндпоинт для чата - прямой ответ от модели без пост-обработки.
     """
+    logger.info(f"[ENDPOINT CHAT] ========================================")
+    logger.info(f"[ENDPOINT CHAT] POST /chat")
+    logger.info(f"[ENDPOINT CHAT] User: {current_user.email if current_user else 'Anonymous'} (ID: {current_user.id if current_user else 'N/A'})")
+    logger.info(f"[ENDPOINT CHAT] Character: {request.get('character', 'N/A')}")
+    logger.info(f"[ENDPOINT CHAT] Generate image: {request.get('generate_image', False)}")
+    logger.info(f"[ENDPOINT CHAT] Message (первые 100 символов): {request.get('message', '')[:100]}...")
+    logger.info(f"[ENDPOINT CHAT] ========================================")
+    
     try:
         logger.info("[NOTE] /chat: Простой режим - прямой ответ от модели")
         
@@ -1347,7 +1331,12 @@ async def chat_endpoint(
                 detail=f"Некорректное имя персонажа: {error_message}"
             )
         
-        if not message:
+        # Проверяем, нужно ли генерировать изображение
+        generate_image = request.get("generate_image", False)
+        
+        # Разрешаем пустое сообщение, если запрашивается генерация фото
+        # Фото = текст для истории чата
+        if not message and not generate_image:
             raise HTTPException(status_code=400, detail="Сообщение не может быть пустым")
         
         history = request.get("history", [])
@@ -1552,8 +1541,16 @@ async def chat_endpoint(
                         user_id,
                     )
         
-        # Проверяем, нужно ли генерировать изображение
-        generate_image = request.get("generate_image", False)
+        # Если сообщение пустое, но запрашивается генерация фото, используем промпт для генерации
+        if not message and generate_image:
+            image_prompt = request.get("image_prompt", "")
+            # Если есть image_prompt, используем его как сообщение для истории
+            if image_prompt:
+                message = image_prompt
+            else:
+                # Если нет промпта, создаем пустое сообщение - фото будет сохранено в историю
+                message = ""
+        
         image_url = None
         image_filename = None
         cloud_url = None
@@ -1659,12 +1656,24 @@ async def chat_endpoint(
             logger.warning(f"[WARNING] DEBUG: image_url пустой, изображение не добавлено в ответ")
 
         # Сохраняем историю чата через ChatSession / ChatMessageDB
+        # КРИТИЧЕСКИ ВАЖНО: сохраняем историю даже если message пустой, но есть фото
+        # Фото = текст для истории чата
+        history_message = message if message else ""
+        history_response = response if response else ""
+        
+        # Если есть только фото без текста, используем промпт для генерации как сообщение
+        if not history_message and (cloud_url or image_url):
+            image_prompt = request.get("image_prompt", "")
+            if image_prompt:
+                history_message = image_prompt
+            # Если нет промпта, оставляем пустым - фото будет сохранено в историю
+        
         await process_chat_history_storage(
             subscription_type=user_subscription_type,
             user_id=user_id,
             character_data=character_data,
-            message=message,
-            response=response,
+            message=history_message,
+            response=history_response,
             image_url=cloud_url or image_url,
             image_filename=image_filename,
         )
@@ -1698,18 +1707,13 @@ async def generate_image(
     """
     import traceback
     # КРИТИЧЕСКАЯ ПРОВЕРКА: Если вы видите этот лог, значит новый код выполняется
-    logger.info(f"[GENERATE] =========================================")
-    logger.info(f"[GENERATE] =========================================")
-    logger.info(f"[GENERATE] =========================================")
-    logger.info(f"[GENERATE] НОВЫЙ КОД ВЫПОЛНЯЕТСЯ! Версия: 2024-11-28-SYNC")
-    logger.info(f"[GENERATE] =========================================")
-    logger.info(f"[GENERATE] =========================================")
-    logger.info(f"[GENERATE] =========================================")
-    logger.info(f"[GENERATE] === НАЧАЛО ГЕНЕРАЦИИ ИЗОБРАЖЕНИЯ ===")
-    logger.info(f"[GENERATE] Endpoint вызван: /api/v1/generate-image/")
-    logger.info(f"[GENERATE] Запрос получен: character={request.character}, user_id={current_user.id if current_user else None}")
-    logger.info(f"[GENERATE] Prompt: {request.prompt[:100] if request.prompt else 'None'}...")
-    logger.info(f"[GENERATE] =========================================")
+    logger.info(f"[ENDPOINT IMG] ========================================")
+    logger.info(f"[ENDPOINT IMG] POST /api/v1/generate-image/")
+    logger.info(f"[ENDPOINT IMG] User: {current_user.email if current_user else 'Anonymous'} (ID: {current_user.id if current_user else 'N/A'})")
+    logger.info(f"[ENDPOINT IMG] Character: {request.character}")
+    logger.info(f"[ENDPOINT IMG] Steps: {request.steps}, CFG: {request.cfg_scale}, Size: {request.width}x{request.height}")
+    logger.info(f"[ENDPOINT IMG] Промпт (первые 100 символов): {request.prompt[:100] if request.prompt else 'None'}...")
+    logger.info(f"[ENDPOINT IMG] ========================================")
     
     # ВРЕМЕННАЯ ЗАГЛУШКА ДЛЯ ПРОВЕРКИ ФРОНТЕНДА
     # Можно включить через переменную окружения для тестирования
@@ -1788,6 +1792,9 @@ async def generate_image(
         # Получаем данные персонажа для внешности
         character_name = request.character or "anna"
         
+        # Сохраняем данные персонажа для сохранения истории
+        character_data_for_history = None
+        
         # Сначала пытаемся получить данные из базы данных
         character_appearance = None
         character_location = None
@@ -1807,6 +1814,12 @@ async def generate_image(
                 if db_character:
                     character_appearance = db_character.character_appearance
                     character_location = db_character.location
+                    # Сохраняем данные персонажа для истории
+                    character_data_for_history = {
+                        "name": db_character.name,
+                        "prompt": db_character.prompt,
+                        "id": db_character.id
+                    }
                     logger.info(f"[OK] Данные персонажа '{character_name}' получены из БД")
                 else:
                     # Если в БД нет, пытаемся получить из файлов
@@ -1814,6 +1827,12 @@ async def generate_image(
                     if character_data:
                         character_appearance = character_data.get("character_appearance")
                         character_location = character_data.get("location")
+                        # Сохраняем данные персонажа для истории
+                        character_data_for_history = {
+                            "name": character_name,
+                            "prompt": character_data.get("prompt", ""),
+                            "id": None
+                        }
                         logger.info(f"[OK] Данные персонажа '{character_name}' получены из файлов")
                     else:
                         logger.error(f"[ERROR] Персонаж '{character_name}' не найден ни в БД, ни в файлах")
@@ -1826,6 +1845,12 @@ async def generate_image(
             if character_data:
                 character_appearance = character_data.get("character_appearance")
                 character_location = character_data.get("location")
+                # Сохраняем данные персонажа для истории
+                character_data_for_history = {
+                    "name": character_name,
+                    "prompt": character_data.get("prompt", ""),
+                    "id": None
+                }
                 logger.info(f"[OK] Fallback: данные персонажа '{character_name}' получены из файлов")
             else:
                 logger.error(f"[ERROR] Персонаж '{character_name}' не найден")
@@ -1962,18 +1987,36 @@ async def generate_image(
                 logger.error(f"[GENERATE] Трейсбек ошибки генерации: {traceback.format_exc()}")
                 raise
             
-            # Получаем URL изображения из cloud_urls
+            # Сохраняем изображение в облако синхронно (быстро)
             cloud_url = None
-            if result.cloud_urls and len(result.cloud_urls) > 0:
-                cloud_url = result.cloud_urls[0]  # Берем первое изображение
-            elif hasattr(result, 'image_url') and result.image_url:
-                cloud_url = result.image_url
+            if result.images and len(result.images) > 0:
+                logger.info(f"[GENERATE] Сохраняем изображение в облако...")
+                from app.utils.image_saver import save_image_cloud_only
+                
+                try:
+                    save_result = await save_image_cloud_only(
+                        image_data=result.images[0],  # base64 строка
+                        prefix=f"gen_{result.seed}_0",
+                        character_name=character_name
+                    )
+                    
+                    if save_result and save_result.get("success"):
+                        cloud_url = save_result.get("cloud_url")
+                        logger.info(f"[GENERATE] Изображение сохранено в облако: {cloud_url}")
+                    else:
+                        logger.error(f"[GENERATE] Ошибка сохранения в облако: {save_result.get('error', 'Unknown error')}")
+                        raise Exception("Не удалось сохранить изображение в облако")
+                        
+                except Exception as save_error:
+                    logger.error(f"[GENERATE] Критическая ошибка сохранения: {save_error}")
+                    raise
+            else:
+                logger.error(f"[GENERATE] Нет данных изображения для сохранения")
+                raise Exception("Генерация не вернула данные изображения")
             
             if not cloud_url:
-                logger.error(f"[GENERATE] Не удалось получить URL изображения. cloud_urls: {result.cloud_urls if hasattr(result, 'cloud_urls') else 'N/A'}")
+                logger.error(f"[GENERATE] Не удалось получить URL изображения после сохранения")
                 raise Exception("Не удалось получить URL изображения после генерации")
-            
-            logger.info(f"[GENERATE] Изображение успешно сгенерировано: {cloud_url}")
             
             # Тратим монеты за генерацию фото (если пользователь авторизован)
             if user_id and cloud_url:
@@ -1985,6 +2028,45 @@ async def generate_image(
                     coins_service = CoinsService(db)
                     await coins_service.spend_coins(user_id, PHOTO_GENERATION_COST)
                     logger.info(f"[COINS] Списано {PHOTO_GENERATION_COST} монет за генерацию фото для user_id={user_id}")
+            
+            # Сохраняем историю чата после успешной генерации изображения
+            # КРИТИЧЕСКИ ВАЖНО: сохраняем историю даже если нет текстового ответа
+            # Фото = текст для истории чата
+            if user_id and cloud_url and character_data_for_history:
+                try:
+                    # Получаем тип подписки для проверки прав на сохранение истории
+                    user_subscription_type = None
+                    try:
+                        from app.services.profit_activate import ProfitActivateService
+                        from app.database.db import async_session_maker
+                        
+                        async with async_session_maker() as db:
+                            subscription_service = ProfitActivateService(db)
+                            subscription = await subscription_service.get_user_subscription(user_id)
+                            user_subscription_type = subscription.subscription_type.value if subscription else None
+                    except Exception as e:
+                        logger.warning(f"[HISTORY] Не удалось получить тип подписки: {e}")
+                    
+                    # Используем промпт как сообщение пользователя для истории
+                    history_message = request.prompt if request.prompt else ""
+                    
+                    # Сохраняем историю чата
+                    logger.info(f"[HISTORY] Сохраняем историю для генерации фото: user_id={user_id}, character={character_name}, prompt={history_message[:50]}...")
+                    await process_chat_history_storage(
+                        subscription_type=user_subscription_type,
+                        user_id=str(user_id),
+                        character_data=character_data_for_history,
+                        message=history_message,
+                        response="",  # Пустой ответ, так как генерируется только фото
+                        image_url=cloud_url,
+                        image_filename=None,
+                    )
+                    logger.info(f"[HISTORY] История успешно сохранена для генерации фото")
+                except Exception as history_error:
+                    # Не прерываем выполнение, если не удалось сохранить историю
+                    logger.error(f"[HISTORY] Ошибка сохранения истории при генерации фото: {history_error}")
+                    import traceback
+                    logger.error(f"[HISTORY] Трейсбек: {traceback.format_exc()}")
             
             # Возвращаем результат с URL изображения (как на странице photo-generation)
             response_data = {
@@ -2302,6 +2384,60 @@ async def get_generation_status(
         raise HTTPException(
             status_code=500,
             detail=f"Ошибка получения статуса задачи: {str(e)}"
+        )
+
+
+@app.get("/api/v1/cloud-save-status/{task_id}")
+async def get_cloud_save_status(task_id: str):
+    """
+    Получить статус фоновой задачи сохранения в облако.
+    
+    Args:
+        task_id: ID задачи Celery
+    
+    Returns:
+        Статус задачи и URL сохраненных изображений
+    """
+    try:
+        from app.celery_app import celery_app
+        
+        task = celery_app.AsyncResult(task_id)
+        
+        if task.state == 'PENDING':
+            return {
+                "status": "pending",
+                "message": "Задача в очереди"
+            }
+        elif task.state == 'STARTED':
+            return {
+                "status": "processing",
+                "message": "Сохранение в облако..."
+            }
+        elif task.state == 'SUCCESS':
+            result = task.result
+            return {
+                "status": "completed",
+                "cloud_urls": result.get("cloud_urls", []),
+                "total": result.get("total", 0),
+                "saved": result.get("saved", 0)
+            }
+        elif task.state == 'FAILURE':
+            return {
+                "status": "failed",
+                "message": "Ошибка сохранения в облако",
+                "error": str(task.info)
+            }
+        else:
+            return {
+                "status": task.state.lower(),
+                "message": f"Статус: {task.state}"
+            }
+            
+    except Exception as e:
+        logger.error(f"[ERROR] Ошибка получения статуса задачи {task_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка получения статуса: {str(e)}"
         )
 
 

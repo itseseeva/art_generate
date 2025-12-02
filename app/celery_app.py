@@ -47,12 +47,14 @@ class SafeRedisBackend(RedisBackend):
             raise
 
 
-# Создаем экземпляр Celery
+# Создаем экземпляр Celery с оптимизированной конфигурацией
 celery_app = Celery(
     "art_generation",
     broker=redis_url,
     backend=redis_url,
-    include=["app.tasks.generation_tasks", "app.tasks.email_tasks", "app.tasks.storage_tasks"]
+    include=["app.tasks.generation_tasks", "app.tasks.email_tasks", "app.tasks.storage_tasks"],
+    # Оптимизация импортов для ускорения запуска
+    autodiscover_tasks=False,  # Отключаем автодискавери для ускорения
 )
 
 # Устанавливаем кастомный backend
@@ -60,26 +62,53 @@ celery_app = Celery(
 backend_instance = SafeRedisBackend(app=celery_app, url=redis_url)
 celery_app._backend = backend_instance
 
-# Конфигурация Celery
+# Конфигурация Celery (оптимизирована согласно best practices)
 celery_app.conf.update(
-    # Настройки брокера
+    # Настройки брокера (Redis)
     broker_connection_retry_on_startup=True,
     broker_connection_retry=True,
     broker_connection_max_retries=10,
+    broker_pool_limit=10,  # Пул соединений для брокера
+    broker_connection_timeout=30,  # Таймаут подключения к брокеру
+    broker_transport_options={
+        'master_name': 'mymaster',  # Для Redis Sentinel (если используется)
+        'visibility_timeout': 3600,  # Видимость задачи (1 час)
+        'retry_policy': {
+            'timeout': 5.0  # Таймаут для retry операций
+        },
+        'health_check_interval': 30,  # Проверка здоровья соединения
+        'socket_keepalive': True,  # Keep-alive для соединений
+        'socket_keepalive_options': {},
+        'socket_connect_timeout': 5,
+        'socket_timeout': 5,
+    },
     
-    # Настройки результатов
-    # result_backend устанавливается через кастомный SafeRedisBackend (строка 64)
+    # Настройки результатов (Redis Backend)
     result_expires=3600,  # Результаты хранятся 1 час
     result_serializer="json",
     accept_content=["json"],
     task_serializer="json",
+    result_backend_transport_options={
+        'master_name': 'mymaster',  # Для Redis Sentinel (если используется)
+        'visibility_timeout': 3600,
+        'retry_policy': {
+            'timeout': 5.0
+        },
+        'health_check_interval': 30,
+        'socket_keepalive': True,
+        'socket_connect_timeout': 5,
+        'socket_timeout': 5,
+    },
     
     # Настройки задач
     task_track_started=True,  # Отслеживание начала выполнения
     task_time_limit=600,  # Максимальное время выполнения задачи (10 минут)
     task_soft_time_limit=540,  # Мягкий лимит (9 минут)
-    task_acks_late=True,  # Подтверждение после выполнения
-    worker_prefetch_multiplier=1,  # Берем по одной задаче за раз
+    task_acks_late=True,  # Подтверждение после выполнения (best practice)
+    task_reject_on_worker_lost=True,  # Отклонять задачи при потере воркера
+    worker_prefetch_multiplier=1,  # Берем по одной задаче за раз (best practice для долгих задач)
+    task_always_eager=False,  # Не выполнять синхронно (для production)
+    task_eager_propagates=True,  # Пробрасывать исключения при eager режиме
     
     # Настройки очередей
     task_routes={
@@ -93,14 +122,27 @@ celery_app.conf.update(
     # Настройки retry
     task_default_retry_delay=60,  # Задержка перед повтором (60 секунд)
     task_max_retries=3,  # Максимальное количество повторов
+    task_autoretry_for=(Exception,),  # Автоматический retry для всех исключений
+    task_acks_on_failure_or_timeout=True,  # Подтверждать даже при ошибках
     
     # Настройки воркеров
-    worker_max_tasks_per_child=50,  # Перезапуск воркера после 50 задач
+    worker_max_tasks_per_child=50,  # Перезапуск воркера после 50 задач (предотвращение утечек памяти)
     worker_disable_rate_limits=False,
+    worker_send_task_events=True,  # Отправлять события задач (для мониторинга)
+    task_send_sent_event=True,  # Отправлять событие отправки задачи
+    
+    # Оптимизация производительности
+    worker_direct=True,  # Прямая отправка задач воркерам (быстрее)
+    task_ignore_result=False,  # Сохранять результаты (для отслеживания)
+    task_store_eager_result=True,  # Сохранять результаты даже в eager режиме
     
     # Часовой пояс
     timezone="UTC",
     enable_utc=True,
+    
+    # Мониторинг и логирование
+    worker_log_format='[%(asctime)s: %(levelname)s/%(processName)s] %(message)s',
+    worker_task_log_format='[%(asctime)s: %(levelname)s/%(processName)s][%(task_name)s(%(task_id)s)] %(message)s',
 )
 
 # Именование очередей

@@ -9,7 +9,8 @@ const InputContainer = styled.div`
   padding: ${theme.spacing.lg};
   background: rgba(30, 30, 30, 0.8);
   border-top: 1px solid rgba(150, 150, 150, 0.3);
-  position: relative;
+  display: flex;
+  flex-direction: column;
 `;
 
 const InputWrapper = styled.div`
@@ -22,44 +23,55 @@ const InputWrapper = styled.div`
 
 const TextArea = styled.textarea<{ $isDisabled: boolean }>`
   flex: 1;
-  min-height: 50px;
-  max-height: 120px;
-  padding: ${theme.spacing.md};
-  background: rgba(40, 40, 40, 0.5);
-  border: 2px solid rgba(150, 150, 150, 0.3);
-  border-radius: ${theme.borderRadius.lg};
+  min-height: 80px; /* Увеличена минимальная высота */
+  max-height: 200px; /* Увеличена максимальная высота */
+  padding: ${theme.spacing.lg}; /* Увеличен padding */
+  background: rgba(35, 35, 35, 0.8); /* Более темный фон */
+  border: 2px solid rgba(150, 150, 150, 0.4);
+  border-radius: ${theme.borderRadius.xl}; /* Более скругленные углы */
   color: rgba(240, 240, 240, 1);
   font-size: ${theme.fontSize.base};
   font-family: inherit;
   resize: none;
   transition: all 0.3s ease;
   opacity: ${props => props.$isDisabled ? 0.6 : 1};
+  backdrop-filter: blur(10px); /* Эффект размытия */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); /* Тень для глубины */
   
   &:focus {
-    border-color: rgba(180, 180, 180, 0.5);
-    box-shadow: 0 0 0 3px rgba(100, 100, 100, 0.1);
+    border-color: rgba(200, 200, 200, 0.6);
+    box-shadow: 0 0 0 4px rgba(150, 150, 150, 0.2), 0 4px 12px rgba(0, 0, 0, 0.4);
     outline: none;
+    background: rgba(40, 40, 40, 0.9); /* Немного светлее при фокусе */
   }
   
   &::placeholder {
-    color: rgba(160, 160, 160, 1);
+    color: rgba(160, 160, 160, 0.8);
+    font-style: italic;
   }
   
   &:disabled {
     cursor: not-allowed;
   }
-`;
-
-const CharacterIndicator = styled.div`
-  position: absolute;
-  top: ${theme.spacing.sm};
-  left: ${theme.spacing.lg};
-  font-size: ${theme.fontSize.sm};
-  color: rgba(160, 160, 160, 1);
-  background: rgba(40, 40, 40, 0.5);
-  padding: ${theme.spacing.xs} ${theme.spacing.sm};
-  border-radius: ${theme.borderRadius.md};
-  border: 1px solid rgba(150, 150, 150, 0.3);
+  
+  /* Улучшенная прокрутка */
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: rgba(30, 30, 30, 0.5);
+    border-radius: ${theme.borderRadius.md};
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(150, 150, 150, 0.5);
+    border-radius: ${theme.borderRadius.md};
+    
+    &:hover {
+      background: rgba(180, 180, 180, 0.6);
+    }
+  }
 `;
 
 const DockWrapper = styled.div`
@@ -78,7 +90,6 @@ interface MessageInputProps {
   onTipCreator?: () => void;
   disabled?: boolean;
   placeholder?: string;
-  currentCharacter?: string;
   hasMessages?: boolean;
 }
 
@@ -89,7 +100,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onTipCreator,
   disabled = false,
   placeholder = "Введите сообщение...",
-  currentCharacter = "Anna",
   hasMessages = false
 }) => {
   const [message, setMessage] = useState('');
@@ -166,10 +176,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   return (
     <InputContainer>
-      <CharacterIndicator>
-        Чат с {currentCharacter}
-      </CharacterIndicator>
-      
       <form onSubmit={handleSubmit}>
         <InputWrapper>
           <TextArea

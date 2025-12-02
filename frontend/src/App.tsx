@@ -337,6 +337,34 @@ function App() {
 
     const normalizedSubscriptionType = currentSubscriptionType.toLowerCase();
     
+    // Проверяем статус альбома перед показом модального окна
+    try {
+      const statusResponse = await authManager.fetchWithAuth(
+        `/api/v1/paid-gallery/${character.name}/status/`
+      );
+      
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json();
+        console.log('[APP] Статус платного альбома:', statusData);
+        
+        // Если альбом уже разблокирован (куплен, Premium, или владелец) - сразу открываем
+        if (statusData.unlocked) {
+          console.log('[APP] Альбом уже разблокирован, открываем напрямую');
+          setSelectedCharacter(character);
+          setCurrentPage('paid-album');
+          if (character?.id) {
+            localStorage.setItem(`character_${character.id}`, JSON.stringify(character));
+            window.history.pushState({ page: 'paid-album', character: character.id }, '', `/paid-album?character=${character.id}`);
+          } else {
+            window.history.pushState({ page: 'paid-album' }, '', '/paid-album');
+          }
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('[APP] Ошибка проверки статуса альбома:', error);
+    }
+    
     // Для PREMIUM - сразу открываем альбом (все альбомы бесплатны)
     if (normalizedSubscriptionType === 'premium') {
       setSelectedCharacter(character);
@@ -350,7 +378,7 @@ function App() {
       return;
     }
 
-    // Для FREE и STANDARD - показываем модальное окно
+    // Для FREE и STANDARD - показываем модальное окно только если альбом не разблокирован
     setSelectedAlbumCharacter(character);
     setIsPaidAlbumModalOpen(true);
   };

@@ -46,8 +46,11 @@ async def test_get_user_coins_from_db(redis_client, mock_db):
     user_id = 123
     db_coins = 500
 
+    # CoinsService использует .scalars().first(), а не .scalar_one_or_none()
+    mock_scalars = MagicMock()
+    mock_scalars.first = MagicMock(return_value=db_coins)
     mock_result = MagicMock()
-    mock_result.scalar_one_or_none = MagicMock(return_value=db_coins)
+    mock_result.scalars = MagicMock(return_value=mock_scalars)
     mock_db.execute.return_value = mock_result
 
     coins = await service.get_user_coins(user_id)

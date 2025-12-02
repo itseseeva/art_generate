@@ -100,6 +100,7 @@ interface ChatAreaProps {
   isLoading: boolean;
   characterSituation?: string;
   characterName?: string;
+  characterAvatar?: string;
   isAuthenticated?: boolean;
   isCharacterOwner?: boolean;
   onAddToGallery?: (imageUrl: string, characterName: string) => Promise<void>;
@@ -112,6 +113,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   isLoading, 
   characterSituation,
   characterName,
+  characterAvatar,
   isAuthenticated,
   isCharacterOwner,
   onAddToGallery,
@@ -153,6 +155,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             key={message.id} 
             message={message}
             characterName={characterName}
+            characterAvatar={characterAvatar}
             isAuthenticated={isAuthenticated}
             isCharacterOwner={isCharacterOwner}
             onAddToGallery={onAddToGallery}

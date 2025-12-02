@@ -60,13 +60,15 @@ async def test_get_current_user_from_cache(redis_client, mock_db, sample_user):
 @pytest.mark.asyncio
 async def test_get_current_user_from_db(redis_client, mock_db, sample_user):
     """Тест получения пользователя из БД и сохранения в кэш."""
-    db_user = SimpleNamespace(**sample_user)
+    # Добавляем username в sample_user для совместимости с get_current_user
+    db_user = SimpleNamespace(**{**sample_user, "username": "testuser"})
 
     # Мокаем JWT токен
     mock_credentials = MagicMock()
     mock_credentials.credentials = "valid_token"
     
     with patch('app.auth.dependencies.jwt.decode', return_value={"sub": sample_user["email"]}):
+        # get_current_user использует .scalar_one_or_none()
         mock_result = MagicMock()
         mock_result.scalar_one_or_none = MagicMock(return_value=db_user)
         mock_db.execute.return_value = mock_result

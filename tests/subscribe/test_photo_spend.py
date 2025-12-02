@@ -255,6 +255,10 @@ class _DummyExecuteResult:
 
     def scalar_one_or_none(self) -> Any:
         return self._value
+    
+    def scalar_one(self) -> Any:
+        """Возвращает значение, как scalar_one_or_none, но без проверки на None."""
+        return self._value
 
 
 class _DummyAsyncDB:
@@ -263,6 +267,7 @@ class _DummyAsyncDB:
         self.committed = False
         self.rolled_back = False
         self.refreshed: List[Any] = []
+        self.added: List[Any] = []
 
     async def execute(self, *_args: Any, **_kwargs: Any) -> _DummyExecuteResult:
         value = self._responses.pop(0)
@@ -276,6 +281,10 @@ class _DummyAsyncDB:
 
     async def refresh(self, obj: Any) -> None:
         self.refreshed.append(obj)
+    
+    def add(self, obj: Any) -> None:
+        """Добавляет объект в список добавленных (для TipMessage и других)."""
+        self.added.append(obj)
 
 
 @pytest.mark.asyncio
@@ -283,8 +292,11 @@ async def test_tip_character_success(monkeypatch: pytest.MonkeyPatch) -> None:
     """Донат успешен: списываем у отправителя, зачисляем создателю, коммитим."""
     sender = SimpleNamespace(id=1, coins=200, email="sender@test.dev", is_admin=False)
     creator = SimpleNamespace(id=2, coins=50, email="creator@test.dev")
-    character = SimpleNamespace(name="hero", display_name="Hero", user_id=2)
-    db = _DummyAsyncDB([character, creator])
+    character = SimpleNamespace(id=100, name="hero", display_name="Hero", user_id=2)
+
+    # После commit код делает два дополнительных execute для получения обновленных данных
+    # Добавляем sender и creator в конец списка responses
+    db = _DummyAsyncDB([character, creator, sender, creator])
 
     async def dummy_emit(user_id: int, _db: Any) -> None:
         pass
@@ -298,7 +310,6 @@ async def test_tip_character_success(monkeypatch: pytest.MonkeyPatch) -> None:
     assert sender.coins == 100
     assert creator.coins == 150
     assert db.committed is True
-    assert db.refreshed == [sender, creator]
     assert db.rolled_back is False
 
 
