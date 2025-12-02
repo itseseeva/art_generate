@@ -40,18 +40,18 @@ const PhotoBackground = styled.div<{ $imageUrl: string; $clickable?: boolean }>`
   cursor: ${props => props.$clickable !== false ? 'pointer' : 'default'};
 `;
 
-const ActionButtons = styled.div`
+const ActionButtons = styled.div<{ $alwaysVisible?: boolean }>`
   position: absolute;
   top: ${theme.spacing.sm};
   right: ${theme.spacing.sm};
   display: flex;
   flex-direction: column;
   gap: ${theme.spacing.sm};
-  opacity: 0; /* Возвращаем к нормальному состоянию */
-  transform: translateY(-10px); /* Возвращаем анимацию */
+  opacity: ${props => props.$alwaysVisible ? 1 : 0}; /* Видимы если $alwaysVisible=true */
+  transform: ${props => props.$alwaysVisible ? 'translateY(0)' : 'translateY(-10px)'}; /* Возвращаем анимацию */
   transition: all ${theme.transition.fast};
   pointer-events: auto; /* Включаем клики для кнопок */
-  z-index: 100; /* Поверх всех элементов */
+  z-index: 1000; /* Поверх всех элементов */
   
   ${CardContainer}:hover & {
     opacity: 1;
@@ -926,13 +926,14 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             </FavoriteButton>
           )}
           
-          <ActionButtons>
+          <ActionButtons $alwaysVisible={!!onDelete}>
           {onDelete && (
             <ActionButtonWithTooltip>
               <ActionButton
                 variant="delete"
                 onClick={(e) => {
                   e.stopPropagation();
+                  e.preventDefault();
                   if (onDelete) {
                     onDelete(character);
                   }
@@ -940,7 +941,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
               >
                 <FiTrash2 size={16} />
               </ActionButton>
-              <Tooltip>Удалить историю</Tooltip>
+              <Tooltip>Удалить персонажа</Tooltip>
             </ActionButtonWithTooltip>
           )}
           {onPaidAlbum && (

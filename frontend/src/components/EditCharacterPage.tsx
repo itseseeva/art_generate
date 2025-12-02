@@ -11,7 +11,7 @@ const MainContainer = styled.div`
   width: 100vw;
   min-height: 100vh;
   display: flex;
-  background: linear-gradient(to bottom right, rgba(8, 8, 18, 1), rgba(8, 8, 18, 0.95), rgba(100, 100, 100, 0.05));
+  background: linear-gradient(to bottom right, rgba(20, 20, 20, 1), rgba(30, 30, 30, 0.95), rgba(50, 50, 50, 0.1));
   overflow: visible;
   box-sizing: border-box;
   position: relative;
@@ -23,7 +23,7 @@ const MainContainer = styled.div`
     left: 40px;
     width: 288px;
     height: 288px;
-    background: rgba(100, 100, 100, 0.1);
+    background: rgba(60, 60, 60, 0.15);
     border-radius: 50%;
     filter: blur(96px);
     animation: float 6s ease-in-out infinite;
@@ -38,7 +38,7 @@ const MainContainer = styled.div`
     right: 40px;
     width: 384px;
     height: 384px;
-    background: rgba(80, 80, 80, 0.1);
+    background: rgba(50, 50, 50, 0.15);
     border-radius: 50%;
     filter: blur(96px);
     animation: float 8s ease-in-out infinite;
@@ -59,17 +59,17 @@ const MainContainer = styled.div`
 
 
 const Header = styled.div`
-  background: rgba(22, 33, 62, 0.4);
+  background: rgba(30, 30, 30, 0.6);
   backdrop-filter: blur(32px);
   padding: ${theme.spacing.lg} ${theme.spacing.xl};
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid rgba(150, 150, 150, 0.5);
+  border-bottom: 1px solid rgba(120, 120, 120, 0.5);
   position: sticky;
   top: 0;
   z-index: 50;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
   
   &::after {
     content: '';
@@ -78,7 +78,7 @@ const Header = styled.div`
     left: 0;
     right: 0;
     height: 1px;
-    background: linear-gradient(to right, transparent, rgba(150, 150, 150, 0.5), transparent);
+    background: linear-gradient(to right, transparent, rgba(120, 120, 120, 0.5), transparent);
   }
 `;
 
@@ -107,7 +107,7 @@ const BackButton = styled.button`
 `;
 
 const PageTitle = styled.h2`
-  background: linear-gradient(to right, rgba(150, 150, 150, 1), rgba(100, 100, 100, 1), rgba(80, 80, 80, 0.8));
+  background: linear-gradient(to right, rgba(200, 200, 200, 1), rgba(150, 150, 150, 1), rgba(120, 120, 120, 0.9));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -119,7 +119,7 @@ const PageTitle = styled.h2`
   gap: ${theme.spacing.sm};
   
   &::before {
-    content: '✨';
+    content: '';
     font-size: ${theme.fontSize.lg};
     animation: pulse 2s ease-in-out infinite;
   }
@@ -412,9 +412,9 @@ const CoinsText = styled.span`
 `;
 
 const ErrorMessage = styled.div`
-  color: #ff6b6b;
-  background: rgba(255, 107, 107, 0.1);
-  border: 1px solid rgba(255, 107, 107, 0.3);
+  color: rgba(200, 200, 200, 0.9);
+  background: rgba(60, 60, 60, 0.3);
+  border: 1px solid rgba(120, 120, 120, 0.5);
   border-radius: ${theme.borderRadius.md};
   padding: ${theme.spacing.md};
   margin: ${theme.spacing.md} 0;
@@ -422,9 +422,9 @@ const ErrorMessage = styled.div`
 `;
 
 const SuccessMessage = styled.div`
-  color: #51cf66;
-  background: rgba(81, 207, 102, 0.1);
-  border: 1px solid rgba(81, 207, 102, 0.3);
+  color: rgba(200, 200, 200, 0.9);
+  background: rgba(60, 60, 60, 0.3);
+  border: 1px solid rgba(150, 150, 150, 0.5);
   border-radius: ${theme.borderRadius.md};
   padding: ${theme.spacing.md};
   margin: ${theme.spacing.md} 0;
@@ -464,13 +464,18 @@ const PhotoModal = styled.div`
 
 const PhotoModalContent = styled.div`
   position: relative;
-  max-width: 90vw;
-  max-height: 90vh;
+  max-width: 85vw;
+  max-height: 85vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 `;
 
 const PhotoModalImage = styled.img`
-  width: 100%;
-  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
   object-fit: contain;
   border-radius: ${theme.borderRadius.lg};
 `;
@@ -510,11 +515,11 @@ const FullSizePhotoSlider = styled.div`
   position: relative;
   width: 100%;
   min-height: 420px;
-  background: rgba(17, 24, 39, 0.75);
+  background: rgba(30, 30, 30, 0.8);
   border-radius: ${theme.borderRadius.xl};
-  border: 1px solid rgba(148, 163, 184, 0.18);
+  border: 1px solid rgba(120, 120, 120, 0.3);
   padding: ${theme.spacing.xl};
-  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.45);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
   gap: ${theme.spacing.md};
@@ -543,10 +548,10 @@ const PhotosCounter = styled.div<{ $limitReached: boolean }>`
   font-size: ${theme.fontSize.sm};
   font-weight: 600;
   color: ${({ $limitReached }) =>
-    $limitReached ? theme.colors.status.warning : theme.colors.text.secondary};
-  background: rgba(15, 23, 42, 0.6);
+    $limitReached ? 'rgba(180, 180, 180, 0.9)' : theme.colors.text.secondary};
+  background: rgba(40, 40, 40, 0.6);
   border: 1px solid ${({ $limitReached }) =>
-    $limitReached ? 'rgba(250, 204, 21, 0.35)' : 'rgba(148, 163, 184, 0.2)'};
+    $limitReached ? 'rgba(150, 150, 150, 0.5)' : 'rgba(120, 120, 120, 0.3)'};
 `;
 
 const PhotoList = styled.div`
@@ -577,14 +582,14 @@ const PhotoTile = styled.div`
   position: relative;
   border-radius: ${theme.borderRadius.lg};
   overflow: hidden;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  box-shadow: ${theme.colors.shadow.card};
-  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(120, 120, 120, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  background: rgba(40, 40, 40, 0.7);
   transition: ${theme.transition.fast};
 
   &:hover {
     transform: translateY(-4px);
-    box-shadow: 0 18px 36px rgba(15, 23, 42, 0.45);
+    box-shadow: 0 18px 36px rgba(0, 0, 0, 0.6);
   }
 `;
 
@@ -617,23 +622,23 @@ const OverlayActions = styled.div`
 const OverlayButton = styled.button<{ $variant: 'primary' | 'danger' }>`
   padding: ${theme.spacing.xs} ${theme.spacing.sm};
   border-radius: ${theme.borderRadius.sm};
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(150, 150, 150, 0.4);
   font-size: ${theme.fontSize.xs};
   font-weight: 600;
   cursor: pointer;
   transition: ${theme.transition.fast};
   background: ${({ $variant }) =>
     $variant === 'primary'
-      ? 'rgba(129, 140, 248, 0.88)'
-      : 'rgba(244, 63, 94, 0.88)'};
+      ? 'rgba(100, 100, 100, 0.6)'
+      : 'rgba(80, 80, 80, 0.6)'};
   color: ${theme.colors.text.primary};
 
   &:hover {
     background: ${({ $variant }) =>
       $variant === 'primary'
-        ? 'rgba(99, 102, 241, 0.95)'
-        : 'rgba(225, 29, 72, 0.95)'};
-    border-color: rgba(255, 255, 255, 0.28);
+        ? 'rgba(120, 120, 120, 0.7)'
+        : 'rgba(100, 100, 100, 0.7)'};
+    border-color: rgba(180, 180, 180, 0.5);
   }
 
   &:disabled {
@@ -646,7 +651,7 @@ const SliderDescription = styled.div`
   margin-top: ${theme.spacing.lg};
   text-align: center;
   padding: ${theme.spacing.lg};
-  background: rgba(22, 33, 62, 0.2);
+  background: rgba(40, 40, 40, 0.3);
   border-radius: ${theme.borderRadius.lg};
 `;
 
@@ -672,14 +677,14 @@ const GenerateSection = styled.div`
 `;
 
 const PhotoGenerationBox = styled.div`
-  background: rgba(17, 24, 39, 0.6);
+  background: rgba(30, 30, 30, 0.7);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  border: 1px solid rgba(120, 120, 120, 0.3);
   border-radius: ${theme.borderRadius.xl};
   padding: ${theme.spacing.xl};
   margin: ${theme.spacing.lg} 0;
   text-align: center;
-  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.45);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.5);
 `;
 
 const PhotoGenerationBoxTitle = styled.h3`
@@ -697,8 +702,8 @@ const PhotoGenerationDescription = styled.p`
 `;
 
 const GenerateButton = styled.button`
-  background: linear-gradient(135deg, rgba(31, 41, 55, 0.9), rgba(17, 24, 39, 0.9));
-  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: linear-gradient(135deg, rgba(50, 50, 50, 0.9), rgba(40, 40, 40, 0.9));
+  border: 1px solid rgba(120, 120, 120, 0.4);
   color: ${theme.colors.text.primary};
   padding: ${theme.spacing.md} ${theme.spacing.lg};
   border-radius: ${theme.borderRadius.lg};
@@ -707,7 +712,7 @@ const GenerateButton = styled.button`
   cursor: pointer;
   transition: all 0.3s ease;
   backdrop-filter: blur(6px);
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.45);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
   position: relative;
   overflow: hidden;
 
@@ -718,14 +723,14 @@ const GenerateButton = styled.button`
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+    background: linear-gradient(90deg, transparent, rgba(200, 200, 200, 0.15), transparent);
     transition: left 0.5s ease;
   }
 
   &:hover {
     transform: translateY(-2px);
-    border-color: rgba(226, 232, 240, 0.35);
-    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.55);
+    border-color: rgba(150, 150, 150, 0.5);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6);
 
     &::before {
       left: 100%;
@@ -736,14 +741,14 @@ const GenerateButton = styled.button`
     opacity: 0.45;
     cursor: not-allowed;
     transform: none;
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.3);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   }
 `;
 
 const LargeTextInput = styled.textarea`
-  background: rgba(15, 23, 42, 0.55);
+  background: rgba(40, 40, 40, 0.6);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(148, 163, 184, 0.22);
+  border: 1px solid rgba(120, 120, 120, 0.3);
   border-radius: ${theme.borderRadius.lg};
   padding: ${theme.spacing.lg};
   color: ${theme.colors.text.primary};
@@ -754,7 +759,7 @@ const LargeTextInput = styled.textarea`
   width: 100%;
   min-height: 200px;
   transition: all 0.3s ease;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.25);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
   
   &::placeholder {
     color: ${theme.colors.text.secondary};
@@ -763,8 +768,8 @@ const LargeTextInput = styled.textarea`
   
   &:focus {
     outline: none;
-    border-color: rgba(226, 232, 240, 0.35);
-    box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.25), inset 0 2px 6px rgba(0, 0, 0, 0.25);
+    border-color: rgba(150, 150, 150, 0.5);
+    box-shadow: 0 0 0 2px rgba(120, 120, 120, 0.3), inset 0 2px 6px rgba(0, 0, 0, 0.4);
   }
 `;
 
@@ -991,7 +996,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     setSuccess(null);
 
     try {
-      await authManager.fetchWithAuth(API_CONFIG.CHARACTER_SET_PHOTOS_FULL, {
+      const response = await authManager.fetchWithAuth(API_CONFIG.CHARACTER_SET_PHOTOS_FULL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -1001,7 +1006,23 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           photos: updatedSelection
         })
       });
-      setSuccess('Фотографии для карточки обновлены');
+      
+      if (!response.ok) {
+        throw new Error('Ошибка при обновлении главных фото');
+      }
+      
+      const responseData = await response.json();
+      console.log('Main photos updated successfully:', responseData);
+      setSuccess('Фотографии для карточки обновлены!');
+      
+      // НЕ вызываем fetchCharacterPhotos() сразу, чтобы не потерять фото
+      // Локальное состояние уже обновлено выше через setGeneratedPhotos и setSelectedPhotos
+      // Фото останется в списке, просто изменится его статус isSelected
+      
+      // Отправляем событие для обновления главной страницы
+      window.dispatchEvent(new CustomEvent('character-photos-updated', {
+        detail: { character_name: characterIdentifier }
+      }));
     } catch (err) {
       console.error('Error updating main photos:', err);
       setGeneratedPhotos(previousGenerated);
@@ -1274,10 +1295,12 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       const result = await response.json();
       console.log('API Response:', result);
       console.log('Image URL:', result.image_url);
+      console.log('Cloud URL:', result.cloud_url);
       console.log('Image filename:', result.filename);
       
-      // Проверяем URL изображения
-      if (!result.image_url) {
+      // Проверяем URL изображения (может быть image_url или cloud_url)
+      const imageUrl = result.cloud_url || result.image_url;
+      if (!imageUrl) {
         throw new Error('URL изображения не получен от сервера');
       }
       
@@ -1287,18 +1310,33 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       
       const newPhoto = {
         id: photoId,
-        url: result.image_url,
+        url: imageUrl,
         isSelected: false
       };
       
       console.log('New photo object:', newPhoto);
       console.log('Photo URL for display:', newPhoto.url);
       
-      setGeneratedPhotos(prev => [...prev, newPhoto]);
+      // Добавляем новое фото в начало списка
+      setGeneratedPhotos(prev => {
+        // Проверяем, нет ли уже такого фото (по URL)
+        const exists = prev.some(p => p.url === imageUrl);
+        if (exists) {
+          console.log('Photo already exists in list, skipping');
+          return prev;
+        }
+        const updated = [newPhoto, ...prev];
+        console.log('Updated photos list:', updated);
+        console.log('Total photos now:', updated.length);
+        return updated;
+      });
       setSuccess('Фото успешно сгенерировано!');
 
       // Обновляем информацию о пользователе
       await checkAuth();
+      
+      // НЕ вызываем fetchCharacterPhotos() сразу, так как новое фото еще не сохранено в БД
+      // Оно появится после следующей загрузки страницы или после сохранения
       
     } catch (err) {
       generationFailed = true;
@@ -1545,8 +1583,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                       <PhotoList>
                         {generatedPhotos.map((photo) => {
                           const isSelected = Boolean(photo.isSelected);
-                          const addDisabled = isSelected || isLimitReached;
-                          const removeDisabled = !isSelected;
                           const statusLabel = isSelected
                             ? 'Добавлено в карточку'
                             : isLimitReached
@@ -1571,14 +1607,14 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                 <OverlayActions>
                                   <OverlayButton
                                     $variant="primary"
-                                    disabled={addDisabled}
+                                    disabled={isSelected || isLimitReached}
                                     onClick={() => handleAddPhoto(photo.id)}
                                   >
                                     Добавить
                                   </OverlayButton>
                                   <OverlayButton
                                     $variant="danger"
-                                    disabled={removeDisabled}
+                                    disabled={!isSelected}
                                     onClick={() => handleRemovePhoto(photo.id)}
                                   >
                                     Удалить

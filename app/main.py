@@ -1842,8 +1842,6 @@ async def generate_image(
         generation_settings = GenerationSettings(
             prompt=request.prompt,
             negative_prompt=request.negative_prompt,
-            use_default_prompts=request.use_default_prompts,
-            character=character_name,
             seed=request.seed or default_params.get("seed"),
             steps=request.steps or default_params.get("steps"),  # Используем steps из запроса или дефолтное значение
             width=request.width or default_params.get("width"),
@@ -1853,12 +1851,10 @@ async def generate_image(
             batch_size=default_params.get("batch_size"),
             n_iter=default_params.get("n_iter"),
             save_grid=default_params.get("save_grid", False),
-            use_adetailer=default_params.get("use_adetailer", False),
             enable_hr=default_params.get("enable_hr", True),
             denoising_strength=default_params.get("denoising_strength"),
             hr_scale=default_params.get("hr_scale"),
             hr_upscaler=default_params.get("hr_upscaler"),
-            hr_second_pass_steps=default_params.get("hr_second_pass_steps"),
             hr_prompt=default_params.get("hr_prompt", ""),
             hr_negative_prompt=default_params.get("hr_negative_prompt", ""),
             restore_faces=default_params.get("restore_faces", False),
@@ -1954,9 +1950,17 @@ async def generate_image(
             
             logger.info(f"[GENERATE] Создаем GenerationService с API URL: {app_settings.SD_API_URL}")
             generation_service = GenerationService(api_url=app_settings.SD_API_URL)
-            logger.info(f"[GENERATE] Вызываем generation_service.generate()")
-            result = await generation_service.generate(generation_settings)
-            logger.info(f"[GENERATE] Генерация завершена, получен результат")
+            logger.info(f"[GENERATE] Вызываем generation_service.generate() с настройками: character={character_name}, steps={generation_settings.steps}")
+            try:
+                result = await generation_service.generate(generation_settings)
+                logger.info(f"[GENERATE] Генерация завершена, получен результат")
+                logger.info(f"[GENERATE] Результат содержит cloud_urls: {len(result.cloud_urls) if hasattr(result, 'cloud_urls') and result.cloud_urls else 0}")
+            except Exception as gen_error:
+                logger.error(f"[GENERATE] Ошибка в generation_service.generate(): {str(gen_error)}")
+                logger.error(f"[GENERATE] Тип ошибки: {type(gen_error).__name__}")
+                import traceback
+                logger.error(f"[GENERATE] Трейсбек ошибки генерации: {traceback.format_exc()}")
+                raise
             
             # Получаем URL изображения из cloud_urls
             cloud_url = None

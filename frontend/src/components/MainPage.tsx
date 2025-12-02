@@ -492,9 +492,13 @@ export const MainPage: React.FC<MainPageProps> = ({
     }, 30000); // Обновляем каждые 30 секунд
 
     // Слушаем события обновления фото персонажа и создания персонажа
-    const handlePhotoUpdate = () => {
+    const handlePhotoUpdate = async () => {
       console.log('Получено событие обновления фото персонажа, перезагружаем...');
-      loadData();
+      // Даем время бэкенду сохранить изменения и очистить кэш
+      await new Promise(resolve => setTimeout(resolve, 500));
+      // Принудительно перезагружаем данные, игнорируя кэш
+      await loadCharacters(true); // forceRefresh = true
+      await loadCharacterPhotos();
     };
     
     const handleCharacterCreated = async (event: Event) => {

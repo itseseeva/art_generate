@@ -25,6 +25,7 @@ from app.utils.generation_stats import generation_stats
 from app.utils.image_saver import save_image, save_image_cloud_only
 from app.config.paths import IMAGES_DIR
 from app.config.cuda_config import optimize_memory, get_gpu_memory_info
+from app.utils.memory_utils import health_check
 
 
 # Добавляем корень проекта в путь для импорта
@@ -126,32 +127,20 @@ class GenerationService:
             
             request_params["negative_prompt"] = negative_prompt
             self._log("INFO", f"Final params: steps={request_params.get('steps')}, cfg_scale={request_params.get('cfg_scale')}")
-            self._log("INFO", f"Hires.fix params: enable_hr={request_params.get('enable_hr')}, hr_second_pass_steps={request_params.get('hr_second_pass_steps')}, hr_upscaler={request_params.get('hr_upscaler')}")
+            self._log("INFO", f"Hires.fix params: enable_hr={request_params.get('enable_hr')}, hr_upscaler={request_params.get('hr_upscaler')}")
             self._log("INFO", f"Full request_params keys: {list(request_params.keys())}")
             self._log("INFO", f"All hr_* params: {[(k, v) for k, v in request_params.items() if k.startswith('hr_')]}")
             
-            # Используем hr_second_pass_steps из настроек
-            if request_params.get("hr_upscaler") == "SwinIR_4x":
-                self._log("INFO", f"Используем hr_second_pass_steps из настроек для SwinIR")
-            
-            # Обработка VAE настроек
-            if settings.use_vae is not None:
-                # Пользователь хочет контролировать VAE
-                if settings.use_vae:
-                    # Включить VAE
-                    vae_model = settings.vae_model or VAE_SETTINGS["model"]
-                    if "override_settings" not in request_params:
-                        request_params["override_settings"] = {}
-                    request_params["override_settings"]["sd_vae"] = vae_model
-                    request_params["override_settings"]["sd_vae_overrides_per_model_preferences"] = True
-                else:
-                    # Отключить VAE
-                    if "override_settings" not in request_params:
-                        request_params["override_settings"] = {}
-                    request_params["override_settings"]["sd_vae"] = None
-                    request_params["override_settings"]["sd_vae_overrides_per_model_preferences"] = False
-            
-
+            # Удаляем параметры, которые не поддерживаются WebUI
+            request_params.pop("hr_second_pass_steps", None)
+            request_params.pop("use_adetailer", None)
+            request_params.pop("override_settings", None)
+            request_params.pop("override_settings_restore_afterwards", None)
+            request_params.pop("script_args", None)
+            request_params.pop("use_default_prompts", None)
+            request_params.pop("character", None)
+            request_params.pop("use_vae", None)
+            request_params.pop("vae_model", None)
             
             if not request_params.get("scheduler") or request_params["scheduler"] == "Automatic":
                 request_params["scheduler"] = "Karras"
@@ -176,91 +165,143 @@ class GenerationService:
                 else:
                     self._log("WARNING", f"Пропускаем параметр {key}={value} (не поддерживается WebUI)")
             
-            # Логируем полный запрос перед отправкой
+            # Логируем полный запрос перед отправкой (прямое логирование для немедленного вывода)
+            logger.info(f"[GENERATE] Отправляем запрос в WebUI: {self.api_url}/sdapi/v1/txt2img")
             self._log("INFO", f"Отправляем запрос в WebUI: {self.api_url}/sdapi/v1/txt2img")
             self._log("INFO", f"Отфильтрованные параметры запроса: {json.dumps(filtered_params, indent=2)}")
             
+            # Проверяем готовность WebUI перед запросом (быстрая проверка)
+            logger.info(f"[GENERATE] Проверяем готовность WebUI...")
+            try:
+                is_ready = await health_check(self.api_url)
+                if not is_ready:
+                    logger.warning(f"[GENERATE] WebUI может быть не готов, но продолжаем запрос...")
+                else:
+                    logger.info(f"[GENERATE] WebUI готов к работе")
+            except Exception as health_error:
+                logger.warning(f"[GENERATE] Не удалось проверить готовность WebUI: {str(health_error)}, продолжаем запрос...")
+            
             # Отправляем запрос к API
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"{self.api_url}/sdapi/v1/txt2img",
-                    json=filtered_params,
-                    timeout=300.0
-                )
-                response.raise_for_status()
-                result = response.json()
-                
-                # Синхронизируем CUDA перед сохранением
-                if torch.cuda.is_available():
-                    torch.cuda.synchronize()
-                
-                # Используем результат как есть
-                processed_result = result
-                
-                # Получаем информацию о сиде
-                info = processed_result.get("info", "{}")
+            logger.info(f"[GENERATE] Создаем HTTP клиент с таймаутом 300 секунд")
+            result = None
+            try:
+                async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client:
+                    logger.info(f"[GENERATE] Отправляем POST запрос к WebUI...")
+                    response = await client.post(
+                        f"{self.api_url}/sdapi/v1/txt2img",
+                        json=filtered_params,
+                        timeout=300.0
+                    )
+                    logger.info(f"[GENERATE] Получен ответ от WebUI, статус: {response.status_code}")
+                    response.raise_for_status()
+                    logger.info(f"[GENERATE] Парсим JSON ответ...")
+                    result = response.json()
+                    logger.info(f"[GENERATE] JSON ответ успешно распарсен")
+            except httpx.TimeoutException as e:
+                logger.error(f"[GENERATE] Таймаут при запросе к WebUI: {str(e)}")
+                self._log("ERROR", f"Таймаут при запросе к WebUI: {str(e)}")
+                raise Exception(f"Таймаут при генерации изображения. WebUI не ответил за 300 секунд. Возможно, сервис еще не готов или перегружен.")
+            except httpx.ConnectError as e:
+                logger.error(f"[GENERATE] Ошибка подключения к WebUI: {str(e)}")
+                self._log("ERROR", f"Ошибка подключения к WebUI: {str(e)}")
+                raise Exception(f"Не удалось подключиться к WebUI по адресу {self.api_url}. Убедитесь, что сервис запущен и доступен.")
+            except httpx.HTTPStatusError as e:
+                logger.error(f"[GENERATE] HTTP ошибка от WebUI: {e.response.status_code} - {e.response.text[:200]}")
+                self._log("ERROR", f"HTTP ошибка от WebUI: {e.response.status_code}")
+                raise Exception(f"WebUI вернул ошибку {e.response.status_code}: {e.response.text[:200]}")
+            
+            # Проверяем, что result был получен
+            if result is None:
+                logger.error(f"[GENERATE] КРИТИЧЕСКАЯ ОШИБКА: result равен None после запроса к WebUI")
+                raise Exception("Не удалось получить результат от WebUI")
+            
+            # Синхронизируем CUDA перед сохранением
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+            
+            # Используем результат как есть
+            processed_result = result
+            logger.info(f"[GENERATE] Получен результат от WebUI, количество изображений: {len(processed_result.get('images', []))}")
+            
+            # Получаем информацию о сиде
+            info = processed_result.get("info", "{}")
+            try:
+                info_dict = json.loads(info)
+                actual_seed = info_dict.get("seed", -1)
+                logger.info(f"[GENERATE] Seed из результата: {actual_seed}")
+            except Exception as e:
+                logger.warning(f"[GENERATE] Не удалось распарсить info: {str(e)}")
+                actual_seed = -1
+            
+            # Сохраняем изображения только в облако
+            cloud_urls = []
+            images = processed_result.get("images", [])
+            logger.info(f"[GENERATE] Начинаем сохранение {len(images)} изображений в облако...")
+            
+            async def save_image_task(image_data, index):
                 try:
-                    info_dict = json.loads(info)
-                    actual_seed = info_dict.get("seed", -1)
-                except Exception:
-                    actual_seed = -1
-                
-                # Сохраняем изображения только в облако
-                cloud_urls = []
-                images = processed_result.get("images", [])
-                
-                async def save_image_task(image_data, index):
-                    try:
-                        prefix = f"gen_{actual_seed}_{index}"
-                        # Используем новую функцию только для облака
-                        result = await save_image_cloud_only(
-                            image_data=image_data, 
-                            prefix=prefix,
-                            character_name=getattr(settings, 'character', None)
-                        )
-                        return result
-                    except Exception as e:
-                        self._log("ERROR", f"Ошибка при сохранении изображения {index}: {str(e)}")
-                        return None
-                
-                # Запускаем сохранение асинхронно
-                save_tasks = []
-                for i, image_base64 in enumerate(images):
-                    if image_base64:
-                        save_tasks.append(save_image_task(image_base64, i))
-                
-                # Собираем результаты
-                if save_tasks:
-                    results = await asyncio.gather(*save_tasks, return_exceptions=True)
-                    for result in results:
-                        if isinstance(result, Exception):
-                            self._log("ERROR", f"Ошибка при сохранении изображения: {str(result)}")
-                        elif result and result.get("success"):
-                            if result.get("cloud_url"):
-                                cloud_urls.append(result["cloud_url"])
-                
-                # Создаем ответ
-                generation_response = GenerationResponse.from_api_response(processed_result)
-                generation_response.saved_paths = []  # Больше не сохраняем локально
-                generation_response.cloud_urls = cloud_urls
-                generation_response.seed = actual_seed
-                
-                # Обновляем статистику
-                execution_time = time.time() - start_time
-                await self.update_generation_stats(settings, generation_response, execution_time)
-                
-                # Кэш отключен для экономии памяти
-                # self._update_cache(cache_key, generation_response)
-                
-                # Оптимизируем память после генерации
-                optimize_memory()
-                
-                # Получаем информацию о памяти GPU после генерации
-                memory_info = get_gpu_memory_info()
-                if memory_info:
-                    self._log("INFO", f"GPU Memory after generation: {memory_info}")
-                
-                return generation_response
+                    prefix = f"gen_{actual_seed}_{index}"
+                    # Используем новую функцию только для облака
+                    # character_name больше не доступен в settings, передаем None
+                    result = await save_image_cloud_only(
+                        image_data=image_data, 
+                        prefix=prefix,
+                        character_name=None
+                    )
+                    return result
+                except Exception as e:
+                    self._log("ERROR", f"Ошибка при сохранении изображения {index}: {str(e)}")
+                    return None
+            
+            # Запускаем сохранение асинхронно
+            save_tasks = []
+            for i, image_base64 in enumerate(images):
+                if image_base64:
+                    save_tasks.append(save_image_task(image_base64, i))
+            
+            # Собираем результаты
+            if save_tasks:
+                logger.info(f"[GENERATE] Ожидаем завершения сохранения {len(save_tasks)} изображений...")
+                results = await asyncio.gather(*save_tasks, return_exceptions=True)
+                logger.info(f"[GENERATE] Сохранение завершено, обрабатываем результаты...")
+                for i, result in enumerate(results):
+                    if isinstance(result, Exception):
+                        logger.error(f"[GENERATE] Ошибка при сохранении изображения {i}: {str(result)}")
+                        self._log("ERROR", f"Ошибка при сохранении изображения {i}: {str(result)}")
+                    elif result and result.get("success"):
+                        if result.get("cloud_url"):
+                            cloud_urls.append(result["cloud_url"])
+                            logger.info(f"[GENERATE] Изображение {i} успешно сохранено: {result['cloud_url']}")
+                logger.info(f"[GENERATE] Всего сохранено изображений: {len(cloud_urls)}")
+            
+            if not cloud_urls:
+                logger.error(f"[GENERATE] КРИТИЧЕСКАЯ ОШИБКА: Не удалось сохранить ни одного изображения в облако!")
+                raise Exception("Не удалось сохранить изображение в облако")
+            
+            # Создаем ответ
+            logger.info(f"[GENERATE] Создаем GenerationResponse...")
+            generation_response = GenerationResponse.from_api_response(processed_result)
+            generation_response.saved_paths = []  # Больше не сохраняем локально
+            generation_response.cloud_urls = cloud_urls
+            generation_response.seed = actual_seed
+            logger.info(f"[GENERATE] GenerationResponse создан успешно")
+            
+            # Обновляем статистику
+            execution_time = time.time() - start_time
+            await self.update_generation_stats(settings, generation_response, execution_time)
+            
+            # Кэш отключен для экономии памяти
+            # self._update_cache(cache_key, generation_response)
+            
+            # Оптимизируем память после генерации
+            optimize_memory()
+            
+            # Получаем информацию о памяти GPU после генерации
+            memory_info = get_gpu_memory_info()
+            if memory_info:
+                self._log("INFO", f"GPU Memory after generation: {memory_info}")
+            
+            return generation_response
                 
         except Exception as e:
             self._log("ERROR", f"Ошибка при генерации: {str(e)}")

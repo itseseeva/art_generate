@@ -36,8 +36,6 @@ class GenerationSettings(BaseModel):
     )
     prompt: str = Field(..., description="Промпт для генерации")
     negative_prompt: Optional[str] = Field(None, description="Негативный промпт")
-    use_default_prompts: bool = Field(True, description="Использовать дефолтные промпты")
-    character: Optional[str] = Field(None, description="Имя персонажа")
     seed: Optional[int] = Field(None, description="Seed для генерации")
     steps: int = Field(default=DEFAULT_GENERATION_PARAMS.get("steps"), description="Количество шагов")
     
@@ -55,24 +53,18 @@ class GenerationSettings(BaseModel):
     enable_hr: bool = Field(default=DEFAULT_GENERATION_PARAMS.get("enable_hr"), description="Включить high-res fix")
     hr_scale: float = Field(default=DEFAULT_GENERATION_PARAMS.get("hr_scale"), description="Масштаб high-res fix")
     hr_upscaler: str = Field(default=DEFAULT_GENERATION_PARAMS.get("hr_upscaler"), description="Апскейлер для high-res fix")
-    hr_second_pass_steps: int = Field(default=DEFAULT_GENERATION_PARAMS.get("hr_second_pass_steps"), description="Количество шагов для второго прохода")
     denoising_strength: float = Field(default=DEFAULT_GENERATION_PARAMS.get("denoising_strength"), description="Сила денойзинга")
     restore_faces: bool = Field(default=DEFAULT_GENERATION_PARAMS.get("restore_faces"), description="Восстановление лиц")
     batch_size: int = Field(default=DEFAULT_GENERATION_PARAMS.get("batch_size"), description="Размер батча")
     n_iter: int = Field(default=DEFAULT_GENERATION_PARAMS.get("n_iter"), description="Количество итераций")
     clip_skip: Optional[int] = Field(None, description="Clip Skip")
-    use_adetailer: Optional[bool] = Field(None, description="Использовать ADetailer")
     save_grid: Optional[bool] = Field(None, description="Сохранять сетку изображений")
-    use_vae: Optional[bool] = Field(None, description="Использовать VAE")
-    vae_model: Optional[str] = Field(None, description="Название VAE модели")
     
     # IP-Adapter удален
     
     def get_negative_prompt(self) -> str:
         """Получает негативный промпт с дефолтными значениями"""
-        if not self.use_default_prompts:
-            return self.negative_prompt or ""
-            
+        # Всегда используем дефолтные промпты, так как use_default_prompts удален
         default_negative = get_default_negative_prompts()
         if not self.negative_prompt:
             return default_negative

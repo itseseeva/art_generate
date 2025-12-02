@@ -1488,10 +1488,13 @@ async def set_main_photos(
 
         await db.commit()
         
-        # Инвалидируем кэш персонажа и фотографий
+        # Инвалидируем кэш персонажа, фотографий и списка персонажей
         await cache_delete(key_character(character_name))
         from app.utils.redis_cache import key_character_main_photos
         await cache_delete(key_character_main_photos(character.id))
+        # Инвалидируем кэш списка персонажей, чтобы главная страница обновилась
+        await cache_delete(key_characters_list())
+        await cache_delete_pattern("characters:list:*")
         
         logger.info(f"Set main photos for character {character_name}: {unique_photos}")
         

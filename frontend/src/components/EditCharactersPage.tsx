@@ -459,7 +459,7 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
                   key={character.id}
                   character={character}
                   onClick={handleCharacterClick}
-                  showEditButton={false} // Не показываем кнопки редактирования, так как клик по карточке уже ведет к редактированию
+                  showEditButton={false}
                 />
               ))}
             </CharactersGrid>
