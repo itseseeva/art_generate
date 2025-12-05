@@ -671,8 +671,11 @@ export const MainPage: React.FC<MainPageProps> = ({
     window.location.reload();
   };
 
-  const handleAuthSuccess = (token: string) => {
-    localStorage.setItem('authToken', token);
+  const handleAuthSuccess = (accessToken: string, refreshToken?: string) => {
+    localStorage.setItem('authToken', accessToken);
+    if (refreshToken) {
+      localStorage.setItem('refreshToken', refreshToken);
+    }
     setIsAuthenticated(true);
     setIsAuthModalOpen(false);
     checkAuth(); // Обновляем информацию о пользователе

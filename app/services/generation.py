@@ -115,6 +115,31 @@ class GenerationService:
             # Эти вызовы замедляют генерацию на 1-2 секунды
             # GPU память управляется автоматически через PyTorch
             
+            # Очищаем промпт от переносов строк и несуществующих LoRA
+            from app.config.default_prompts import clean_prompt, remove_missing_loras
+            settings.prompt = clean_prompt(settings.prompt)
+            settings.prompt = remove_missing_loras(settings.prompt)
+            if settings.negative_prompt:
+                settings.negative_prompt = clean_prompt(settings.negative_prompt)
+            
+            # Добавляем дефолтные промпты ПЕРЕД формированием параметров
+            original_prompt = settings.prompt
+            original_negative_prompt = settings.negative_prompt
+            
+            if settings.use_default_prompts:
+                self._log("INFO", "Добавляем дефолтные промпты к пользовательским")
+                from app.config.default_prompts import get_enhanced_prompts
+                
+                enhanced_positive, enhanced_negative = get_enhanced_prompts(
+                    settings.prompt, 
+                    use_defaults=True
+                )
+                settings.prompt = enhanced_positive
+                settings.negative_prompt = enhanced_negative
+                
+                self._log("INFO", f"Промпт ДО: {original_prompt[:100]}...")
+                self._log("INFO", f"Промпт ПОСЛЕ: {settings.prompt[:100]}...")
+            
             # Получаем негативный промпт
             negative_prompt = settings.get_negative_prompt()
             
@@ -190,6 +215,29 @@ class GenerationService:
             # Оптимизация параметров запроса (убирает пустые значения, оптимизирует структуру)
             filtered_params = self.optimizer.optimize_request_params(filtered_params)
             
+            # ДЕТАЛЬНОЕ логирование ADetailer конфигурации
+            if "alwayson_scripts" in filtered_params and "ADetailer" in filtered_params["alwayson_scripts"]:
+                adetailer_config = filtered_params["alwayson_scripts"]["ADetailer"]
+                adetailer_args = adetailer_config.get("args", [])
+                logger.info(f"[GENERATE] ========== ADETAILER КОНФИГУРАЦИЯ ==========")
+                logger.info(f"[GENERATE] Количество элементов в args: {len(adetailer_args)}")
+                for i, arg in enumerate(adetailer_args):
+                    if isinstance(arg, bool):
+                        logger.info(f"[GENERATE] args[{i}]: {arg} (bool)")
+                    elif isinstance(arg, dict):
+                        logger.info(f"[GENERATE] args[{i}] (словарь конфига):")
+                        logger.info(f"[GENERATE]   >>> МОДЕЛЬ: {arg.get('ad_model')} <<<")
+                        logger.info(f"[GENERATE]   - ad_steps: {arg.get('ad_steps')}")
+                        logger.info(f"[GENERATE]   - ad_use_steps: {arg.get('ad_use_steps')}")
+                        logger.info(f"[GENERATE]   - ad_cfg_scale: {arg.get('ad_cfg_scale')}")
+                        logger.info(f"[GENERATE]   - ad_use_cfg_scale: {arg.get('ad_use_cfg_scale')}")
+                        logger.info(f"[GENERATE]   - ad_denoising_strength: {arg.get('ad_denoising_strength')}")
+                        logger.info(f"[GENERATE]   - ad_prompt: {arg.get('ad_prompt', '')[:50]}...")
+                        logger.info(f"[GENERATE]   - is_api: {arg.get('is_api')}")
+                    else:
+                        logger.info(f"[GENERATE] args[{i}]: {arg} ({type(arg).__name__})")
+                logger.info(f"[GENERATE] =============================================")
+            
             # Логируем полный запрос перед отправкой (прямое логирование для немедленного вывода)
             logger.info(f"[GENERATE] Отправляем запрос в WebUI: {self.api_url}/sdapi/v1/txt2img")
             self._log("INFO", f"Отправляем запрос в WebUI: {self.api_url}/sdapi/v1/txt2img")
@@ -239,10 +287,6 @@ class GenerationService:
                 logger.error(f"[GENERATE] КРИТИЧЕСКАЯ ОШИБКА: result равен None после запроса к WebUI")
                 raise Exception("Не удалось получить результат от WebUI")
             
-            # Синхронизируем CUDA перед сохранением
-            if torch.cuda.is_available():
-                torch.cuda.synchronize()
-            
             # Используем результат как есть
             processed_result = result
             logger.info(f"[GENERATE] Получен результат от WebUI, количество изображений: {len(processed_result.get('images', []))}")
@@ -262,6 +306,9 @@ class GenerationService:
             logger.info(f"[GENERATE] Получено {len(images)} изображений")
             
             # Запускаем фоновое сохранение в Celery (не блокируем ответ)
+            # ОТКЛЮЧЕНО для локальной разработки - Redis недоступен
+            # Раскомментируй когда Redis будет работать
+            """
             from app.tasks.generation_tasks import save_images_to_cloud_task
             
             try:
@@ -273,6 +320,8 @@ class GenerationService:
                 logger.info(f"[GENERATE] Фоновое сохранение запущено (task_id={save_task.id})")
             except Exception as e:
                 logger.warning(f"[GENERATE] Не удалось запустить фоновое сохранение: {e}")
+            """
+            self._log("INFO", "[GENERATE] Фоновое сохранение отключено (Redis недоступен)")
             
             # Для совместимости с существующим кодом возвращаем пустой список
             # Реальные URL будут получены из фоновой задачи
@@ -298,7 +347,7 @@ class GenerationService:
             # GPU память управляется автоматически
             
             return generation_response
-                
+            
         except Exception as e:
             self._log("ERROR", f"Ошибка при генерации: {str(e)}")
             self._log("ERROR", f"Traceback: {traceback.format_exc()}")
@@ -356,8 +405,8 @@ class GenerationService:
             result = {
                 "seed": generation_response.seed,
                 "info": generation_response.info,
-                "width": generation_response.width,
-                "height": generation_response.height,
+                "width": settings.width or int(info_dict.get("width", 0)),
+                "height": settings.height or int(info_dict.get("height", 0)),
                 "sampler_name": info_dict.get("sampler_name", ""),
                 "cfg_scale": info_dict.get("cfg_scale", 0),
                 "steps": DEFAULT_GENERATION_PARAMS.get("steps", 10),

@@ -25,13 +25,13 @@ const slideOut = keyframes`
   }
 `;
 
-const ToastContainer = styled.div<{ isClosing: boolean }>`
+const ToastContainer = styled.div<{ $isClosing: boolean }>`
   position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 10000;
-  animation: ${props => props.isClosing ? slideOut : slideIn} 0.4s ease-out forwards;
+  animation: ${props => props.$isClosing ? slideOut : slideIn} 0.4s ease-out forwards;
 `;
 
 const ToastContent = styled.div`
@@ -110,7 +110,7 @@ export const SuccessToast: React.FC<SuccessToastProps> = ({
   }, [duration, onClose]);
 
   return (
-    <ToastContainer isClosing={isClosing}>
+      <ToastContainer $isClosing={isClosing}>
       <ToastContent>
         <IconWrapper>
           <FiHeart size={24} />

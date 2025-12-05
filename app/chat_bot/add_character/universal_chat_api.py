@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
 from .character_registry import get_character_data
-from app.chat_bot.services.textgen_webui_service import textgen_webui_service
+from app.chat_bot.services.openrouter_service import openrouter_service
 from app.chat_bot.config.chat_config import chat_config
 
 logger = logging.getLogger(__name__)
@@ -47,11 +47,11 @@ async def universal_chat(request: Dict[str, Any]):
         
         logger.info(f"[CHAT] Чат с {character_data['name']}: {message[:50]}...")
         
-        # Проверяем подключение к text-generation-webui
-        if not await textgen_webui_service.check_connection():
+        # Проверяем подключение к OpenRouter
+        if not await openrouter_service.check_connection():
             raise HTTPException(
                 status_code=503, 
-                detail="text-generation-webui недоступен. Запустите сервер text-generation-webui."
+                detail="OpenRouter API недоступен. Проверьте настройки OPENROUTER_KEY."
             )
         
         # Специальная обработка для "continue the story"
@@ -62,36 +62,88 @@ async def universal_chat(request: Dict[str, Any]):
         else:
             logger.info(f"[GENERATE] Генерируем ответ для: {message[:50]}...")
         
-        # Строим простой промпт в формате Alpaca
+        # Импортируем утилиты для работы с контекстом
+        from app.chat_bot.utils.context_manager import (
+            get_context_limit, get_max_tokens, trim_messages_to_token_limit
+        )
+        from app.models.subscription import SubscriptionType
+        
+        # Определяем лимит контекста (для universal_chat используем дефолтный лимит 10)
+        # В будущем можно добавить проверку подписки пользователя
+        context_limit = 10  # Дефолтный лимит для universal_chat
+        # Для universal_chat используем минимальное значение max_tokens (150)
+        max_tokens = get_max_tokens(None)
+        
+        # Формируем массив messages для OpenAI API
+        openai_messages = []
+        
+        # 1. Системное сообщение с описанием персонажа (всегда первое)
+        openai_messages.append({
+            "role": "system",
+            "content": character_data["prompt"]
+        })
+        
+        # Импортируем фильтр сообщений
+        from app.chat_bot.utils.message_filter import should_include_message_in_context
+        
+        # 2. История диалога (с учетом лимита)
         if history:
-            # Строим историю в формате Alpaca
-            history_text = ""
-            for msg in history[-10:]:  # Последние 10 сообщений
-                if msg.get('role') == 'user':
-                    user_content = msg.get('content', '')
-                    history_text += f"### Instruction:\n{user_content}\n\n### Response:\n"
-                elif msg.get('role') == 'assistant':
-                    history_text += f"{msg.get('content', '')}\n\n"
-            
-            # Строим промпт
-            full_prompt = character_data["prompt"] + "\n\n" + history_text
+            for msg in history[-context_limit:]:
+                role = msg.get('role', 'user')
+                content = msg.get('content', '')
+                
+                # Фильтруем промпты от фото и другие нерелевантные сообщения
+                if not should_include_message_in_context(content, role):
+                    logger.debug(f"[CONTEXT] Пропущено сообщение {role} из history: {content[:50] if content else 'empty'}...")
+                    continue
+                
+                if role == 'user':
+                    openai_messages.append({
+                        "role": "user",
+                        "content": content
+                    })
+                elif role == 'assistant':
+                    openai_messages.append({
+                        "role": "assistant",
+                        "content": content
+                    })
+        
+        # 3. Текущее сообщение пользователя (всегда последнее)
+        # НЕ фильтруем текущее сообщение - у пользователя есть отдельная кнопка для генерации изображений
+        # Все сообщения в чате предназначены для текстовой модели
+        if is_continue_story:
+            openai_messages.append({
+                "role": "user",
+                "content": "continue the story briefly"
+            })
         else:
-            # Если истории нет
-            if is_continue_story:
-                full_prompt = character_data["prompt"] + f"\n\n### Instruction:\ncontinue the story briefly.\n\n### Response:\n"
-            else:
-                full_prompt = character_data["prompt"] + f"\n\n### Instruction:\n{message}\n\n### Response:\n"
+            # Всегда добавляем текущее сообщение пользователя без фильтрации
+            openai_messages.append({
+                "role": "user",
+                "content": message
+            })
+        
+        # 4. Проверяем и обрезаем по лимиту токенов (4096)
+        openai_messages = trim_messages_to_token_limit(openai_messages, max_tokens=4096, system_message_index=0)
+        
+        logger.info(f"[UNIVERSAL CHAT] Формируем запрос: system prompt length={len(character_data['prompt'])}, history messages={len(openai_messages) - 2}, total messages={len(openai_messages)}")
         
         # Генерируем ответ напрямую от модели
-        response = await textgen_webui_service.generate_text(
-            prompt=full_prompt,
-            max_tokens=chat_config.HARD_MAX_TOKENS,
+        # Для universal_chat используем минимальное значение max_tokens (150)
+        response = await openrouter_service.generate_text(
+            messages=openai_messages,
+            max_tokens=max_tokens,
             temperature=chat_config.DEFAULT_TEMPERATURE,
             top_p=chat_config.DEFAULT_TOP_P,
-            top_k=chat_config.DEFAULT_TOP_K,
-            min_p=chat_config.DEFAULT_MIN_P,
             repeat_penalty=chat_config.DEFAULT_REPEAT_PENALTY,
             presence_penalty=chat_config.DEFAULT_PRESENCE_PENALTY
+        )
+        
+        # Проверяем ошибку подключения к сервису генерации
+        if response == "__CONNECTION_ERROR__":
+            raise HTTPException(
+                status_code=503,
+                detail="Сервис генерации текста недоступен. Проверьте настройки OpenRouter API."
         )
         
         if not response:

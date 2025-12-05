@@ -1,0 +1,97 @@
+# Dockerfile для Stable Diffusion WebUI Forge с GPU поддержкой
+FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
+
+WORKDIR /app
+
+# Устанавливаем системные зависимости
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3-pip \
+    python3-venv \
+    git \
+    wget \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Создаём симлинк для python
+RUN ln -s /usr/bin/python3 /usr/bin/python
+
+# Клонируем WebUI Forge из GitHub
+WORKDIR /app
+RUN git clone https://github.com/lllyasviel/stable-diffusion-webui-forge.git webui
+
+WORKDIR /app/webui
+
+# Устанавливаем Python зависимости
+RUN pip install --no-cache-dir \
+    torch==2.1.2 \
+    torchvision \
+    xformers==0.0.23.post1 \
+    --index-url https://download.pytorch.org/whl/cu121
+
+# Устанавливаем зависимости WebUI
+RUN pip install --no-cache-dir \
+    -r requirements.txt || pip install --no-cache-dir \
+    fastapi \
+    uvicorn \
+    gradio \
+    pillow \
+    numpy \
+    opencv-python \
+    accelerate \
+    transformers \
+    safetensors \
+    omegaconf \
+    einops
+
+# Устанавливаем ADetailer
+RUN cd extensions && \
+    git clone https://github.com/Bing-su/adetailer.git sd-webui-adetailer && \
+    cd sd-webui-adetailer && \
+    pip install -r requirements.txt || true
+
+# Создаём папки для моделей
+RUN mkdir -p models/Stable-diffusion models/Lora models/adetailer
+
+# Скачиваем основную модель Stable Diffusion (~6.6 GB)
+RUN wget -O models/Stable-diffusion/oneObsession_v18.safetensors \
+    "https://civitai.com/api/download/models/319927" || \
+    echo "ВНИМАНИЕ: Не удалось скачать модель. Загрузите вручную!"
+
+# Скачиваем LoRA модели
+RUN wget -O models/Lora/Semi-realism_illustrious.safetensors \
+    "https://civitai.com/api/download/models/819534" || true && \
+    wget -O models/Lora/kms_in_the_dark_IL-000003.safetensors \
+    "https://civitai.com/api/download/models/748821" || true
+
+# Скачиваем ADetailer модель для определения лиц
+RUN wget -O models/adetailer/face_yolov8n.pt \
+    "https://huggingface.co/Bingsu/adetailer/resolve/main/face_yolov8n.pt" || true
+
+# Создаём базовые конфиги (если не примонтированы volume'ы)
+RUN echo '{}' > /app/webui/config.json && \
+    echo '{}' > /app/webui/ui-config.json
+
+# Expose порты
+EXPOSE 7860
+
+# Переменные окружения
+ENV PYTORCH_CUDA_ALLOC_CONF=garbage_collection_threshold:0.6,max_split_size_mb:512
+ENV CUDA_VISIBLE_DEVICES=0
+
+# Команда запуска (WebUI монтируется через volume в /app/webui)
+CMD ["python", "/app/webui/launch.py", \
+     "--api", \
+     "--listen", \
+     "--xformers", \
+     "--cuda-malloc", \
+     "--pin-shared-memory", \
+     "--skip-python-version-check", \
+     "--skip-torch-cuda-test", \
+     "--ckpt", "/app/webui/models/Stable-diffusion/oneObsession_v18.safetensors"]
+

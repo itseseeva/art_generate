@@ -256,7 +256,7 @@ const GoogleButtonImage = styled.img`
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAuthSuccess: (token: string) => void;
+  onAuthSuccess: (accessToken: string, refreshToken?: string) => void;
   mode?: 'login' | 'register';
   onGoogleLogin?: () => void;
 }
@@ -308,9 +308,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
         return;
       }
       
-      // Если это логин, сохраняем токен
-      if (data.access_token || data.token) {
-        onAuthSuccess(data.access_token || data.token);
+      // Если это логин, сохраняем токены
+      const accessToken = data.access_token || data.token;
+      const refreshToken = data.refresh_token;
+      if (accessToken) {
+        onAuthSuccess(accessToken, refreshToken);
       }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Произошла ошибка');
@@ -342,8 +344,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
       }
 
       const data = await response.json();
-      if (data.access_token || data.token) {
-        onAuthSuccess(data.access_token || data.token);
+      const accessToken = data.access_token || data.token;
+      const refreshToken = data.refresh_token;
+      if (accessToken) {
+        onAuthSuccess(accessToken, refreshToken);
       }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Произошла ошибка');

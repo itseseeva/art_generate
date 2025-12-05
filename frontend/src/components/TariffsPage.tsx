@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
 
 import { Footer } from './Footer';
+import { AuthModal } from './AuthModal';
 
 const Container = styled.div`
   padding: 4rem 2rem;
@@ -228,7 +229,242 @@ const InfoText = styled.p`
   font-size: 1.05rem;
 `;
 
+const ActivateButton = styled.button`
+  width: 100%;
+  padding: 1rem 1.5rem;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.8) 0%, rgba(99, 102, 241, 0.8) 100%);
+  color: #ffffff;
+  border: 1px solid rgba(139, 92, 246, 0.5);
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 1.05rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+  margin-top: auto;
+  
+  &:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 1) 0%, rgba(99, 102, 241, 1) 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+  }
+  
+  &:disabled {
+    background: rgba(60, 60, 60, 0.5);
+    border-color: rgba(100, 100, 100, 0.3);
+    color: #888888;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+`;
+
+const PaymentButtonsContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  animation: fadeIn 0.3s ease;
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+`;
+
+const PaymentButton = styled.button`
+  width: 100%;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  color: white;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  
+  &:hover {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.1) 100%);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  }
+`;
+
+const PaymentLogo = styled.img`
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  background: white;
+  border-radius: 4px;
+  padding: 2px;
+`;
+
+interface SubscriptionStats {
+  subscription_type: string;
+  monthly_credits: number;
+  monthly_photos: number;
+  used_credits: number;
+  used_photos: number;
+  credits_remaining: number;
+  photos_remaining: number;
+  days_left: number;
+  is_active: boolean;
+}
+
 export const TariffsPage: React.FC = () => {
+  const [stats, setStats] = useState<SubscriptionStats | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userInfo, setUserInfo] = useState<{username: string, coins: number, id?: number} | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [selectedPlanForPayment, setSelectedPlanForPayment] = useState<string | null>(null);
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadSubscriptionStats();
+    }
+  }, [isAuthenticated]);
+
+  const checkAuth = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        setIsAuthenticated(false);
+        setUserInfo(null);
+        return;
+      }
+
+      const response = await fetch('http://localhost:8000/api/v1/auth/me/', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const userData = await response.json();
+        if (userData) {
+          setUserInfo({
+            username: userData.email,
+            coins: userData.coins || 0,
+            id: userData.id
+          });
+          setIsAuthenticated(true);
+        } else {
+          setIsAuthenticated(false);
+          setUserInfo(null);
+        }
+      } else {
+        setIsAuthenticated(false);
+        setUserInfo(null);
+      }
+    } catch (error) {
+      console.error('Auth check error:', error);
+      setIsAuthenticated(false);
+    }
+  };
+
+  const loadSubscriptionStats = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await fetch('http://localhost:8000/api/v1/profit/stats/', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const statsData = await response.json();
+        setStats(statsData);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки статистики подписки:', error);
+    }
+  };
+
+  const handleActivateSubscription = async (subscriptionType: string) => {
+    const token = localStorage.getItem('authToken');
+    
+    if (!token) {
+      setAuthMode('login');
+      setIsAuthModalOpen(true);
+      return;
+    }
+    
+    let currentUserId = userInfo?.id;
+    if (!currentUserId) {
+      try {
+        const response = await fetch('http://localhost:8000/api/v1/auth/me/', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (response.ok) {
+          const userData = await response.json();
+          currentUserId = userData.id;
+          setUserInfo({
+            username: userData.email,
+            coins: userData.coins || 0,
+            id: userData.id
+          });
+          setIsAuthenticated(true);
+        }
+      } catch (e) {
+        console.error('Failed to fetch user info:', e);
+      }
+    }
+
+    if (!currentUserId) {
+      console.error('Не удалось определить пользователя для оплаты.');
+      return;
+    }
+    
+    setSelectedPlanForPayment(selectedPlanForPayment === subscriptionType ? null : subscriptionType);
+  };
+
+  const handleYoumoneyPayment = (subscriptionType: string) => {
+    const currentUserId = userInfo?.id;
+    if (!currentUserId) return;
+
+    try {
+      const receiverWallet = '4100119070489003';
+      const amount = subscriptionType === 'premium' ? 1499 : 699;
+      const label = `plan:${subscriptionType};uid:${currentUserId}`;
+      const successURL = `${window.location.origin}/frontend/payment/success/`;
+      const quickPayUrl =
+        `https://yoomoney.ru/quickpay/confirm.xml` +
+        `?receiver=${encodeURIComponent(receiverWallet)}` +
+        `&quickpay-form=shop` +
+        `&targets=${encodeURIComponent(
+          subscriptionType === 'premium'
+            ? 'Оплата подписки PREMIUM на 30 дней'
+            : 'Оплата подписки STANDARD на 30 дней'
+        )}` +
+        `&formcomment=${encodeURIComponent('Оплата подписки Spicychat')}` +
+        `&short-dest=${encodeURIComponent('Подписка Spicychat')}` +
+        `&sum=${encodeURIComponent(amount.toFixed(2))}` +
+        `&label=${encodeURIComponent(label)}` +
+        `&successURL=${encodeURIComponent(successURL)}`;
+
+      window.location.href = quickPayUrl;
+    } catch (err) {
+      console.error('Ошибка формирования ссылки QuickPay:', err);
+    }
+  };
+
   return (
     <Container>
       <Content>
@@ -237,38 +473,73 @@ export const TariffsPage: React.FC = () => {
 
         <Grid>
           <Card>
-            <PlanName>Базовый</PlanName>
-            <Price>299₽ <span>/ месяц</span></Price>
+            <PlanName>Free</PlanName>
+            <Price>Бесплатно</Price>
             <FeatureList>
-              <Feature>100 кредитов</Feature>
+              <Feature>100 кредитов в месяц</Feature>
               <Feature>10 генераций фото</Feature>
-              <Feature>Доступ к базовым персонажам</Feature>
-              <Feature>Стандартная скорость генерации</Feature>
+              <Feature>Доступ ко всем персонажам</Feature>
+              <Feature>Возможность создать своих персонажей</Feature>
             </FeatureList>
+            <ActivateButton disabled>
+              Доступна при регистрации
+            </ActivateButton>
           </Card>
 
           <Card $highlight>
-            <PlanName>Премиум</PlanName>
-            <Price>599₽ <span>/ месяц</span></Price>
-            <FeatureList>
-              <Feature>500 кредитов</Feature>
-              <Feature>50 генераций фото</Feature>
-              <Feature>Доступ ко всем персонажам</Feature>
-              <Feature>Высокая скорость генерации</Feature>
-              <Feature>Приоритетная поддержка</Feature>
-            </FeatureList>
-          </Card>
-
-          <Card>
-            <PlanName>VIP</PlanName>
-            <Price>999₽ <span>/ месяц</span></Price>
+            <PlanName>Стандарт</PlanName>
+            <Price>699₽ <span>/ месяц</span></Price>
             <FeatureList>
               <Feature>1000 кредитов</Feature>
               <Feature>100 генераций фото</Feature>
-              <Feature>Эксклюзивные персонажи</Feature>
-              <Feature>Максимальная скорость</Feature>
-              <Feature>Персональный менеджер</Feature>
+              <Feature>Доступ ко всем персонажам</Feature>
+              <Feature>Сохранение истории сообщений</Feature>
+              <Feature>Создание платных альбомов</Feature>
             </FeatureList>
+            <ActivateButton 
+              onClick={() => handleActivateSubscription('standard')}
+              disabled={isLoading || (stats?.subscription_type === 'standard')}
+            >
+              {stats?.subscription_type === 'standard' ? 'Активна' : (selectedPlanForPayment === 'standard' ? 'Скрыть способы оплаты' : 'Активировать')}
+            </ActivateButton>
+            
+            {selectedPlanForPayment === 'standard' && (
+              <PaymentButtonsContainer>
+                <PaymentButton onClick={() => handleYoumoneyPayment('standard')}>
+                  <PaymentLogo src="/logo/yoomoneyIcon.svg" alt="YooMoney" />
+                  Банковская карта (РФ)
+                </PaymentButton>
+              </PaymentButtonsContainer>
+            )}
+          </Card>
+
+          <Card>
+            <PlanName>Премиум</PlanName>
+            <Price>1499₽ <span>/ месяц</span></Price>
+            <FeatureList>
+              <Feature>5000 кредитов</Feature>
+              <Feature>300 генераций фото</Feature>
+              <Feature>Доступ ко всем персонажам</Feature>
+              <Feature>Сохранение истории сообщений</Feature>
+              <Feature>Создание платных альбомов</Feature>
+              <Feature>Доступ ко всем платным альбомам</Feature>
+              <Feature>Доступ ко всем галереям пользователей</Feature>
+            </FeatureList>
+            <ActivateButton 
+              onClick={() => handleActivateSubscription('premium')}
+              disabled={isLoading || (stats?.subscription_type === 'premium')}
+            >
+              {stats?.subscription_type === 'premium' ? 'Активна' : (selectedPlanForPayment === 'premium' ? 'Скрыть способы оплаты' : 'Активировать')}
+            </ActivateButton>
+
+            {selectedPlanForPayment === 'premium' && (
+              <PaymentButtonsContainer>
+                <PaymentButton onClick={() => handleYoumoneyPayment('premium')}>
+                  <PaymentLogo src="/logo/yoomoneyIcon.svg" alt="YooMoney" />
+                  Банковская карта (РФ)
+                </PaymentButton>
+              </PaymentButtonsContainer>
+            )}
           </Card>
         </Grid>
 
@@ -281,6 +552,27 @@ export const TariffsPage: React.FC = () => {
         </InfoBlock>
       </Content>
       <Footer />
+
+      {isAuthModalOpen && (
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          mode={authMode}
+          onClose={() => {
+            setIsAuthModalOpen(false);
+            setAuthMode('login');
+          }}
+          onAuthSuccess={(accessToken, refreshToken) => {
+            localStorage.setItem('authToken', accessToken);
+            if (refreshToken) {
+              localStorage.setItem('refreshToken', refreshToken);
+            }
+            setIsAuthenticated(true);
+            setIsAuthModalOpen(false);
+            setAuthMode('login');
+            checkAuth();
+          }}
+        />
+      )}
     </Container>
   );
 };

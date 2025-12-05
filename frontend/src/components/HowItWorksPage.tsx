@@ -133,6 +133,56 @@ const StepDescription = styled.p`
   line-height: 1.6;
 `;
 
+const DetailedSection = styled.div`
+  background: rgba(139, 92, 246, 0.05);
+  padding: 2.5rem;
+  border-radius: 16px;
+  border: 1px solid rgba(139, 92, 246, 0.15);
+  margin-top: 2rem;
+`;
+
+const DetailedTitle = styled.h2`
+  font-size: 2rem;
+  margin-bottom: 1.5rem;
+  color: ${theme.colors.text.primary};
+  font-weight: 600;
+`;
+
+const DetailedText = styled.p`
+  font-size: 1.1rem;
+  color: #d1d1d1;
+  line-height: 1.8;
+  margin-bottom: 1.5rem;
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
+`;
+
+const FeatureList = styled.ul`
+  list-style: none;
+  padding: 0;
+  margin: 1.5rem 0;
+  
+  li {
+    padding: 0.75rem 0;
+    padding-left: 2rem;
+    position: relative;
+    color: #d1d1d1;
+    font-size: 1.1rem;
+    line-height: 1.6;
+    
+    &::before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      color: #8b5cf6;
+      font-weight: bold;
+      font-size: 1.2rem;
+    }
+  }
+`;
+
 export const HowItWorksPage: React.FC = () => {
   return (
     <Container>
@@ -142,20 +192,50 @@ export const HowItWorksPage: React.FC = () => {
         <HowItWorksSection>
           <Step>
             <StepNumber>1</StepNumber>
-            <StepTitle>Заливаете запрос</StepTitle>
-            <StepDescription>Опишите желаемое изображение или выберите персонажа для общения</StepDescription>
+            <StepTitle>Создайте персонажа</StepTitle>
+            <StepDescription>Опишите внешность, характер и личность вашего персонажа. Пропишите его уникальные черты и особенности</StepDescription>
           </Step>
           <Step>
             <StepNumber>2</StepNumber>
-            <StepTitle>ИИ генерирует</StepTitle>
-            <StepDescription>Генерируйте изображение по вашему описанию или общайтесь с виртуальным персонажем</StepDescription>
+            <StepTitle>Общайтесь</StepTitle>
+            <StepDescription>Ведите диалог с персонажем. ИИ будет отвечать в соответствии с заданным характером и личностью</StepDescription>
           </Step>
           <Step>
             <StepNumber>3</StepNumber>
-            <StepTitle>Получаете результат</StepTitle>
-            <StepDescription>Готовый арт в высоком качестве или результат общения с персонажем</StepDescription>
+            <StepTitle>Генерируйте фото</StepTitle>
+            <StepDescription>Создавайте фотореалистичные изображения вашего персонажа в любых позах и ситуациях. ИИ использует описанную внешность</StepDescription>
           </Step>
         </HowItWorksSection>
+        
+        <DetailedSection>
+          <DetailedTitle>Создание уникального персонажа</DetailedTitle>
+          <DetailedText>
+            Вы сами создаете своего персонажа с нуля. Опишите каждую деталь: цвет волос и глаз, черты лица, 
+            телосложение, стиль одежды. Определите характер: будет ли он застенчивым или уверенным, 
+            романтичным или игривым, серьезным или веселым.
+          </DetailedText>
+          
+          <FeatureList>
+            <li>Детальное описание внешности: волосы, глаза, фигура, особенности</li>
+            <li>Характер и личность: темперамент, манера общения, привычки</li>
+            <li>Предпочтения и интересы: хобби, любимые места, стиль жизни</li>
+            <li>Уникальные черты: татуировки, пирсинг, родинки, шрамы</li>
+          </FeatureList>
+          
+          <DetailedTitle>Интерактивное общение</DetailedTitle>
+          <DetailedText>
+            После создания персонажа вы можете общаться с ним в режиме реального времени. 
+            ИИ анализирует заданный вами характер и отвечает соответствующим образом, создавая 
+            естественный и живой диалог.
+          </DetailedText>
+          
+          <DetailedTitle>Генерация фотореалистичных изображений</DetailedTitle>
+          <DetailedText>
+            На основе описанной внешности ИИ генерирует фотореалистичные изображения вашего персонажа. 
+            Вы можете запросить любую позу, локацию или ситуацию. Технология использует мощные 
+            нейросети для создания детализированных и реалистичных изображений с идеальными лицами и глазами.
+          </DetailedText>
+        </DetailedSection>
       </Content>
       <Footer />
     </Container>

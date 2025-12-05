@@ -33,9 +33,11 @@ async def test_get_redis_client_success(redis_client):
 async def test_get_redis_client_failure(monkeypatch):
     """Тест обработки ошибки подключения к Redis без моков."""
     from app.utils import redis_cache
+    import asyncio
     
     bad_url = "redis://127.0.0.1:6390/15"
     original_url = os.getenv("REDIS_URL", "")
+    original_local = os.getenv("REDIS_LOCAL", "")
     
     # Закрываем и сбрасываем существующий клиент
     try:
@@ -46,14 +48,23 @@ async def test_get_redis_client_failure(monkeypatch):
     # Сбрасываем глобальную переменную
     redis_cache._redis_client = None
     
-    # Устанавливаем плохой URL
+    # Устанавливаем плохой URL (приоритет REDIS_LOCAL)
+    monkeypatch.setenv("REDIS_LOCAL", bad_url)
     monkeypatch.setenv("REDIS_URL", bad_url)
     
-    # Пытаемся подключиться - должно вернуть None из-за таймаута
+    # Пытаемся подключиться - должно вернуть None из-за таймаута при ping()
+    # aioredis.from_url создает клиент, но ping() должен упасть с таймаутом
     client = await redis_cache.get_redis_client()
-    assert client is None, "Клиент должен быть None при недоступном Redis"
+    
+    # Клиент должен быть None после неудачного ping()
+    assert client is None, f"Клиент должен быть None при недоступном Redis, но получили: {client}"
 
-    # Возвращаем корректный URL для последующих тестов
+    # Возвращаем корректные URL для последующих тестов
+    if original_local:
+        monkeypatch.setenv("REDIS_LOCAL", original_local)
+    else:
+        monkeypatch.delenv("REDIS_LOCAL", raising=False)
+    
     if original_url:
         monkeypatch.setenv("REDIS_URL", original_url)
     else:

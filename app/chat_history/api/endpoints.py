@@ -107,19 +107,39 @@ async def get_characters_with_history(
 ):
     """Получает список персонажей с историей чата."""
     try:
+        import logging
+        logger = logging.getLogger(__name__)
+        
         # Импортируем сервис только здесь, чтобы избежать циклических импортов
         from app.chat_history.services.chat_history_service import ChatHistoryService
         history_service = ChatHistoryService(db)
         
+        # Проверяем подписку пользователя
+        can_save = await history_service.can_save_history(current_user.id)
+        logger.info(f"[HISTORY API] Пользователь {current_user.id}: can_save_history={can_save}")
+        
+        # Если нет прав на сохранение истории, все равно пытаемся получить персонажей
+        # (может быть, история была сохранена до изменения подписки)
         characters = await history_service.get_user_characters_with_history(current_user.id)
+        
+        logger.info(f"[HISTORY API] Возвращаем {len(characters)} персонажей с историей для пользователя {current_user.id}")
+        if len(characters) == 0:
+            logger.warning(f"[HISTORY API] Пустой список персонажей для user_id={current_user.id}, can_save_history={can_save}")
+        for char in characters:
+            logger.info(f"[HISTORY API]   - {char.get('name')}: last_message_at={char.get('last_message_at')}")
         
         return {
             "success": True,
             "characters": characters,
-            "can_save_history": await history_service.can_save_history(current_user.id)
+            "can_save_history": can_save
         }
         
     except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"[HISTORY API] Ошибка получения списка персонажей: {e}")
+        import traceback
+        logger.error(f"[HISTORY API] Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Ошибка получения списка персонажей: {str(e)}")
 
 

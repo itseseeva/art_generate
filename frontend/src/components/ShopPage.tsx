@@ -547,7 +547,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
 
     try {
       const receiverWallet = '4100119070489003';
-      const amount = subscriptionType === 'premium' ? 1399 : 599;
+      const amount = subscriptionType === 'premium' ? 1499 : 699;
       const label = `plan:${subscriptionType};uid:${currentUserId}`;
       const successURL = `${window.location.origin}/frontend/payment/success/`;
       const quickPayUrl =
@@ -616,13 +616,15 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             
             <PlanCard $isPopular>
               <PlanName>Standard</PlanName>
-              <PlanPrice>599₽</PlanPrice>
+              <PlanPrice>699₽</PlanPrice>
               <PlanFeatures>
                 <PlanFeature>1000 кредитов в месяц</PlanFeature>
                 <PlanFeature>100 генераций фото</PlanFeature>
                 <PlanFeature>Возможность создать своих персонажей</PlanFeature>
                 <PlanFeature>Возможность создавать платные альбомы</PlanFeature>
                 <PlanFeature>Сохранение истории сообщений</PlanFeature>
+                <PlanFeature>Память: Последние 20 сообщений в контексте</PlanFeature>
+                <PlanFeature>Максимум токенов: 200 токенов на ответ</PlanFeature>
               </PlanFeatures>
               <ActivateButton 
                 onClick={() => handleActivateSubscription('standard')}
@@ -643,7 +645,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             
             <PlanCard>
               <PlanName>Premium</PlanName>
-              <PlanPrice>999₽</PlanPrice>
+              <PlanPrice>1499₽</PlanPrice>
               <PlanFeatures>
                 <PlanFeature>5000 кредитов в месяц</PlanFeature>
                 <PlanFeature>300 генераций фото</PlanFeature>
@@ -652,6 +654,8 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                 <PlanFeature>Возможность создавать платные альбомы</PlanFeature>
                 <PlanFeature>Доступ ко всем платным альбомам</PlanFeature>
                 <PlanFeature>Доступ ко всем галереям пользователей</PlanFeature>
+                <PlanFeature>Расширенная память: Последние 40 сообщений в контексте</PlanFeature>
+                <PlanFeature>Максимум токенов: 450 токенов на ответ</PlanFeature>
               </PlanFeatures>
               <ActivateButton 
                 onClick={() => handleActivateSubscription('premium')}
@@ -684,8 +688,11 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             setIsAuthModalOpen(false);
             setAuthMode('login');
           }}
-          onAuthSuccess={(token) => {
-            localStorage.setItem('authToken', token);
+          onAuthSuccess={(accessToken, refreshToken) => {
+            localStorage.setItem('authToken', accessToken);
+            if (refreshToken) {
+              localStorage.setItem('refreshToken', refreshToken);
+            }
             setIsAuthenticated(true);
             setIsAuthModalOpen(false);
             setAuthMode('login');

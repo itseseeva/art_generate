@@ -62,21 +62,18 @@ yarn-error.log*
 *.sqlite
 *.sqlite3
 sql_app.db
+app.db
 
-# Stable Diffusion
-stable-diffusion-webui/models/
-stable-diffusion-webui/outputs/
-stable-diffusion-webui/logs/
-stable-diffusion-webui/extensions/
-stable-diffusion-webui/venv/
-stable-diffusion-webui/__pycache__/
+# Stable Diffusion WebUI Forge (НЕ пушим весь форк, только конфиги)
+stable-diffusion-webui-forge-main/
+!stable-diffusion-webui-forge-main/config.json
+!stable-diffusion-webui-forge-main/ui-config.json
 
-# Text Generation WebUI
-text-generation-webui/models/
-text-generation-webui/logs/
-text-generation-webui/extensions/
-text-generation-webui/venv/
-text-generation-webui/__pycache__/
+# Старый SD WebUI (удалён)
+stable-diffusion-webui/
+
+# Text Generation WebUI (НЕ пушим весь репо)
+text-generation-webui/
 
 # Project specific
 outputs/
@@ -85,6 +82,15 @@ cache/
 models/
 reports/
 *.egg-info/
+avatars/
+data/
+
+# Тестовые файлы и скрипты
+tests/generation_test/
+check_*.py
+deploy.sh
+start-vps.sh
+install-webui-vps.sh
 
 # OS
 .DS_Store

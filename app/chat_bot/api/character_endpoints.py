@@ -338,7 +338,7 @@ async def create_character(character: CharacterCreate, db: AsyncSession = Depend
 
 
 @router.get("/", response_model=List[CharacterInDB])
-async def read_characters(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
+async def read_characters(skip: int = 0, limit: int = 1000, db: AsyncSession = Depends(get_db)):
     """Получает список персонажей из базы данных с кэшированием."""
     import logging
     logger = logging.getLogger(__name__)
@@ -374,7 +374,7 @@ async def read_characters(skip: int = 0, limit: int = 100, db: AsyncSession = De
                         continue
                 
                 if result:
-                    logger.info(f"Retrieved {len(result)} characters from cache")
+                    logger.debug(f"Retrieved {len(result)} characters from cache")
                     return result
                 else:
                     logger.warning("No valid characters restored from cache, loading from DB")
@@ -398,7 +398,7 @@ async def read_characters(skip: int = 0, limit: int = 100, db: AsyncSession = De
                 timeout=30.0
             )
             characters = result.scalars().all()
-            logger.info(f"Retrieved {len(characters)} characters from database")
+            logger.debug(f"Retrieved {len(characters)} characters from database")
         except asyncio.TimeoutError:
             logger.error("Таймаут загрузки персонажей из БД")
             return []  # Возвращаем пустой список вместо зависания
@@ -651,7 +651,39 @@ async def get_character_chat_history(
         
         chat_session = chat_session.scalar_one_or_none()
         
+        # Если нет ChatSession, проверяем ChatHistory (для фото из генерации)
         if not chat_session:
+            if current_user:
+                from app.models.chat_history import ChatHistory
+                # Ищем сообщения в ChatHistory
+                history_messages = await db.execute(
+                    select(ChatHistory)
+                    .where(ChatHistory.user_id == current_user.id)
+                    .where(ChatHistory.character_name == character_name)
+                    .order_by(ChatHistory.created_at.desc())
+                    .limit(20)
+                )
+                history_list = history_messages.scalars().all()
+                
+                if history_list:
+                    # Форматируем сообщения из ChatHistory
+                    formatted_messages = []
+                    for msg in reversed(history_list):
+                        formatted_messages.append({
+                            "id": msg.id,
+                            "type": msg.message_type,  # 'user' или 'assistant'
+                            "content": msg.message_content or "",
+                            "timestamp": msg.created_at.isoformat(),
+                            "image_url": msg.image_url
+                        })
+                    
+                    return {
+                        "messages": formatted_messages,
+                        "session_id": None,
+                        "character_name": character.name,
+                        "user_type": "authenticated"
+                    }
+            
             return {"messages": [], "session_id": None}
         
         # Получаем все сообщения из этой сессии (ограничиваем до 20 последних)
@@ -1194,10 +1226,15 @@ async def upload_character_photo(
 
         await db.commit()
         await db.refresh(current_user)
-        await emit_profile_update(current_user.id, db)
 
         photo_id = Path(filename).stem
         _append_photo_metadata(character_name, photo_id, cloud_url)
+        
+        # КРИТИЧЕСКИ ВАЖНО: Инвалидируем кэш фото персонажа
+        await cache_delete(key_character_photos(character.id))
+        logger.info(f"[CACHE] Инвалидирован кэш фото персонажа {character_name} после загрузки")
+        
+        await emit_profile_update(current_user.id, db)
         
         logger.info(f"Photo uploaded successfully for character {character_name}: {filename}")
         
@@ -1260,11 +1297,20 @@ async def generate_character_photo(
         else:
             prompt_parts = []
             if character_appearance:
-                prompt_parts.append(character_appearance)
+                # Очищаем от переносов строк
+                clean_appearance = character_appearance.replace('\n', ', ')
+                prompt_parts.append(clean_appearance)
             if location:
-                prompt_parts.append(f"in {location}")
+                # Очищаем от переносов строк
+                clean_location = location.replace('\n', ', ')
+                prompt_parts.append(f"in {clean_location}")
             
             prompt = ", ".join(prompt_parts) if prompt_parts else "portrait, high quality"
+        
+        # Очищаем финальный промпт от переносов строк
+        prompt = prompt.replace('\n', ', ')
+        # Убираем множественные запятые
+        prompt = ', '.join([p.strip() for p in prompt.split(',') if p.strip()])
         
         await charge_for_photo_generation(current_user.id, db)
         
@@ -1280,26 +1326,39 @@ async def generate_character_photo(
                 detail="Error generating image with Stable Diffusion"
             )
         
-        # Сохраняем промпт в ChatHistory для возможности отображения
+        # Сохраняем промпт для ГАЛЕРЕИ (не для чата!)
+        # Используем специальный session_id чтобы не показывался в истории чата
         try:
             from app.models.chat_history import ChatHistory
+            
+            # Специальный session_id для промптов галереи
+            gallery_session_id = f"gallery_generation_{character_name}"
+            
+            # Нормализуем URL
+            normalized_url = photo_url.split('?')[0].split('#')[0]
+            
             chat_message = ChatHistory(
                 user_id=current_user.id,
                 character_name=character_name,
-                session_id="photo_generation",
+                session_id=gallery_session_id,  # НЕ обычный чат!
                 message_type="user",
-                message_content=prompt,
-                image_url=photo_url,
+                message_content=prompt,  # Сохраняем промпт для "show prompt"
+                image_url=normalized_url,
                 image_filename=None
             )
             db.add(chat_message)
-            logger.info(f"[PHOTO_GEN] Промпт сохранен в ChatHistory для фото: {photo_url}")
+            logger.info(f"[GALLERY] Промпт сохранён для галереи (не для чата): {photo_url}")
         except Exception as e:
             # Не критично, если не удалось сохранить промпт
-            logger.warning(f"[PHOTO_GEN] Не удалось сохранить промпт в ChatHistory: {e}")
+            logger.warning(f"[GALLERY] Не удалось сохранить промпт для галереи: {e}")
         
         await db.commit()
         await db.refresh(current_user)
+        
+        # КРИТИЧЕСКИ ВАЖНО: Инвалидируем кэш фото персонажа
+        await cache_delete(key_character_photos(character.id))
+        logger.info(f"[CACHE] Инвалидирован кэш фото персонажа {character_name}")
+        
         await emit_profile_update(current_user.id, db)
         
         logger.info(f"Photo generated successfully for character {character_name}")
@@ -1470,17 +1529,8 @@ async def set_main_photos(
                 detail="Maximum 3 photos can be set as main"
             )
 
-        metadata_photos = _load_photo_metadata(character_name)
-        if metadata_photos:
-            main_ids = {entry.get("id") for entry in unique_photos if entry.get("id")}
-            main_urls = {entry.get("url") for entry in unique_photos if entry.get("url")}
-            filtered_metadata = [
-                photo
-                for photo in metadata_photos
-                if photo.get("id") not in main_ids and photo.get("url") not in main_urls
-            ]
-            if len(filtered_metadata) != len(metadata_photos):
-                _save_photo_metadata(character_name, filtered_metadata)
+        # НЕ удаляем фото из метаданных!
+        # Главные фото должны оставаться в альбоме персонажа
 
         await db.execute(
             delete(CharacterMainPhoto).where(CharacterMainPhoto.character_id == character.id)

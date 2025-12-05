@@ -121,6 +121,10 @@ class ChatHistoryService:
             return []
     
     async def _get_last_image_url(self, user_id: int, character_name: str) -> Optional[str]:
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Сначала проверяем ChatHistory
         stmt = (
             select(ChatHistory.image_url)
             .where(ChatHistory.user_id == user_id)
@@ -131,29 +135,89 @@ class ChatHistoryService:
         )
         result = await self.db.execute(stmt)
         row = result.first()
-        return row[0] if row else None
+        if row and row[0]:
+            logger.info(f"[HISTORY PHOTO] Найдено фото в ChatHistory для {character_name}: {row[0][:50]}...")
+            return row[0]
+        
+        # Если в ChatHistory нет, проверяем UserGallery
+        try:
+            from app.models.user_gallery import UserGallery
+            gallery_stmt = (
+                select(UserGallery.image_url)
+                .where(UserGallery.user_id == user_id)
+                .where(UserGallery.character_name == character_name)
+                .order_by(UserGallery.created_at.desc())
+                .limit(1)
+            )
+            gallery_result = await self.db.execute(gallery_stmt)
+            gallery_row = gallery_result.first()
+            if gallery_row and gallery_row[0]:
+                logger.info(f"[HISTORY PHOTO] Найдено фото в UserGallery для {character_name}: {gallery_row[0][:50]}...")
+                return gallery_row[0]
+            else:
+                logger.warning(f"[HISTORY PHOTO] Фото не найдено ни в ChatHistory, ни в UserGallery для user_id={user_id}, character={character_name}")
+                return None
+        except Exception as e:
+            logger.error(f"[HISTORY PHOTO] Ошибка поиска в UserGallery: {e}")
+            return None
 
     async def get_user_characters_with_history(self, user_id: int) -> List[Dict[str, Any]]:
         """
         Получает список персонажей, с которыми у пользователя есть НЕЗАКОНЧЕННЫЙ диалог.
         Показывает только тех персонажей, с которыми пользователь реально общался (есть сообщения).
-        КРИТИЧЕСКИ ВАЖНО: для FREE подписки возвращает пустой список.
+        Для STANDARD и PREMIUM подписок возвращает персонажей с незаконченными диалогами.
         """
         try:
             from app.chat_bot.models.models import ChatSession, ChatMessageDB, CharacterDB
             from app.models.user import Users
 
-            # КРИТИЧЕСКИ ВАЖНО: для FREE подписки не возвращаем персонажей
+            # Проверяем подписку пользователя
             subscription = await self.subscription_service.get_user_subscription(user_id)
-            if not subscription or subscription.subscription_type == SubscriptionType.FREE:
-                print(f"[DEBUG] Пользователь {user_id} имеет FREE подписку или подписка отсутствует - возвращаем пустой список")
+            subscription_type_value = subscription.subscription_type.value if subscription and subscription.subscription_type else "unknown"
+            is_active = subscription.is_active if subscription else False
+            
+            print(f"[DEBUG] Пользователь {user_id}: подписка={subscription_type_value}, is_active={is_active}")
+            
+            # КРИТИЧЕСКИ ВАЖНО: для FREE подписки не возвращаем персонажей
+            # Для STANDARD и PREMIUM подписок возвращаем персонажей с незаконченными диалогами
+            if not subscription:
+                print(f"[DEBUG] Пользователь {user_id}: подписка отсутствует - возвращаем пустой список")
                 return []
+            
+            if subscription.subscription_type == SubscriptionType.FREE:
+                print(f"[DEBUG] Пользователь {user_id} имеет FREE подписку - возвращаем пустой список")
+                return []
+            
+            if not subscription.is_active:
+                print(f"[DEBUG] Пользователь {user_id} имеет неактивную подписку {subscription_type_value} - возвращаем пустой список")
+                return []
+            
+            print(f"[DEBUG] Пользователь {user_id} имеет активную подписку {subscription_type_value} - получаем персонажей с историей")
 
             characters: Dict[str, Dict[str, Any]] = {}
 
             # Получаем персонажей из ChatSession и ChatMessageDB (новая система)
             # Это основной источник - показывает только персонажей, с которыми есть реальные сообщения
             user_id_str = str(user_id).strip()
+            
+            # Сначала проверим, есть ли вообще ChatSession для этого пользователя
+            test_session_query = await self.db.execute(
+                select(ChatSession).where(
+                    or_(
+                        ChatSession.user_id == user_id_str,
+                        func.trim(ChatSession.user_id) == user_id_str
+                    )
+                ).limit(10)
+            )
+            test_sessions = test_session_query.scalars().all()
+            print(f"[DEBUG] Найдено ChatSession для user_id={user_id}: {len(test_sessions)} сессий")
+            for sess in test_sessions:
+                # Получаем количество сообщений в этой сессии
+                msg_count_query = await self.db.execute(
+                    select(func.count(ChatMessageDB.id)).where(ChatMessageDB.session_id == sess.id)
+                )
+                msg_count = msg_count_query.scalar() or 0
+                print(f"[DEBUG]   - session_id={sess.id}, character_id={sess.character_id}, user_id='{sess.user_id}', messages={msg_count}")
             conditions = [
                 ChatSession.user_id == user_id_str,
                 func.trim(ChatSession.user_id) == user_id_str,
@@ -200,7 +264,9 @@ class ChatHistoryService:
                               ChatMessageDB.content.isnot(None),  # Содержимое не NULL
                               ChatMessageDB.content != "",  # Не пустое
                               func.trim(ChatMessageDB.content) != "",  # Не только пробелы
-                              func.length(func.trim(ChatMessageDB.content)) >= 3  # Минимум 3 символа
+                              func.length(func.trim(ChatMessageDB.content)) >= 3,  # Минимум 3 символа
+                              # Исключаем очень длинные сообщения (вероятно промпты для фото)
+                              func.length(func.trim(ChatMessageDB.content)) < 1000  # Максимум 1000 символов
                           )
                     )
                     .group_by(CharacterDB.name)
@@ -210,7 +276,28 @@ class ChatHistoryService:
 
                 rows = session_result.fetchall()
                 print(f"[DEBUG] Запрос вернул {len(rows)} строк из ChatSession для user_id={user_id}")
-                print(f"[DEBUG] Условия фильтрации user_id: {conditions}")
+                print(f"[DEBUG] Условия фильтрации user_id: {len(conditions)} условий")
+                if len(rows) == 0:
+                    print(f"[DEBUG] Нет результатов из ChatSession. Проверяем, есть ли вообще ChatSession для user_id={user_id}")
+                    # Проверяем все ChatSession для этого user_id
+                    all_sessions_query = await self.db.execute(
+                        select(ChatSession).where(
+                            or_(
+                                ChatSession.user_id == user_id_str,
+                                func.trim(ChatSession.user_id) == user_id_str
+                            )
+                        ).limit(10)
+                    )
+                    all_sessions = all_sessions_query.scalars().all()
+                    print(f"[DEBUG] Всего ChatSession для user_id={user_id}: {len(all_sessions)}")
+                    for sess in all_sessions:
+                        # Проверяем сообщения в этой сессии
+                        msg_query = await self.db.execute(
+                            select(func.count(ChatMessageDB.id)).where(ChatMessageDB.session_id == sess.id)
+                        )
+                        msg_count = msg_query.scalar() or 0
+                        print(f"[DEBUG]   - session_id={sess.id}, character_id={sess.character_id}, user_id='{sess.user_id}', messages={msg_count}")
+                
                 for row in rows:
                     character_name = row[0]
                     last_message_at = row[1]

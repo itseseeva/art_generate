@@ -475,10 +475,7 @@ async def get_current_user_info(
     import logging
     logger = logging.getLogger(__name__)
     
-    logger.info(f"[AUTH/ME] Endpoint called, authorization header: {request.headers.get('authorization', 'NOT FOUND')[:50]}...")
-    
     try:
-        logger.info(f"[AUTH/ME] Request from user: {current_user.email}, id: {current_user.id}")
         
         # Загружаем пользователя с подпиской явно
         from sqlalchemy import select
@@ -661,43 +658,39 @@ async def tip_character_creator(
     
     # Выполнить транзакцию
     try:
-        logger.info(f"[DEBUG] Баланс отправителя ДО: {current_user.coins}")
+        from sqlalchemy import update as sqlalchemy_update
         
-        # Снять кредиты у отправителя
-        current_user.coins -= tip_request.amount
-        logger.info(f"[DEBUG] Баланс отправителя ПОСЛЕ списания: {current_user.coins}")
+        logger.info(f"[TIP] Баланс отправителя ДО: {current_user.coins}")
+        logger.info(f"[TIP] СПИСЫВАЕМ {tip_request.amount} кредитов у отправителя {current_user.email} (ID: {current_user.id})")
+        
+        # Сохраняем ID для использования в транзакции
+        sender_id = current_user.id
+        creator_id = creator.id if creator else None
+        
+        # Обновляем баланс отправителя через UPDATE
+        await db.execute(
+            sqlalchemy_update(Users)
+            .where(Users.id == sender_id)
+            .values(coins=Users.coins - tip_request.amount)
+        )
+        logger.info(f"[TIP] Баланс отправителя обновлен (списано {tip_request.amount})")
         
         # Если есть создатель - добавить кредиты ему
-        if creator:
-            old_balance = creator.coins
-            creator.coins += tip_request.amount
-            logger.info(f"[DEBUG] Баланс создателя ПОСЛЕ начисления: {creator.coins} (было: {old_balance})")
-        else:
-            logger.info(f"[DEBUG] Системный персонаж - кредиты сгорают")
-        
-        # Сохранить изменения
-        await db.commit()
-        logger.info(f"[DEBUG] Транзакция закоммичена")
-        
-        # Получаем объекты заново из сессии после commit
-        result = await db.execute(
-            select(Users).where(Users.id == current_user.id)
-        )
-        current_user = result.scalar_one()
-        logger.info(f"[DEBUG] current_user обновлен, баланс: {current_user.coins}")
-        
-        if creator:
-            result = await db.execute(
-                select(Users).where(Users.id == creator.id)
+        if creator_id:
+            await db.execute(
+                sqlalchemy_update(Users)
+                .where(Users.id == creator_id)
+                .values(coins=Users.coins + tip_request.amount)
             )
-            creator = result.scalar_one()
-            logger.info(f"[DEBUG] creator обновлен, баланс: {creator.coins}")
+            logger.info(f"[TIP] Баланс создателя обновлен (начислено {tip_request.amount})")
+        else:
+            logger.info(f"[TIP] Системный персонаж - кредиты сгорают")
         
-        # Сохраняем сообщение благодарности в БД, если есть создатель
+        # Сохраняем сообщение благодарности в той же транзакции
         if creator:
             tip_message = TipMessage(
-                sender_id=current_user.id,
-                receiver_id=creator.id,
+                sender_id=sender_id,
+                receiver_id=creator_id,
                 character_id=character.id,
                 character_name=character.display_name or character.name,
                 amount=tip_request.amount,
@@ -705,50 +698,78 @@ async def tip_character_creator(
                 is_read=False
             )
             db.add(tip_message)
+            logger.info(f"[TIP MESSAGE] Сообщение добавлено в транзакцию")
+        
+        # Один commit для всей транзакции
             await db.commit()
-            logger.info(f"[TIP MESSAGE] Сообщение сохранено: от {current_user.email} к {creator.email}, сообщение: {tip_request.message if tip_request.message else '(пусто)'}")
+        logger.info(f"[TIP] Транзакция закоммичена")
         
-        await emit_profile_update(current_user.id, db)
-        if creator:
-            await emit_profile_update(creator.id, db)
+        # Получаем обновлённые данные из БД ПОСЛЕ commit
+        result = await db.execute(
+            select(Users).where(Users.id == sender_id)
+        )
+        updated_sender = result.scalar_one()
+        logger.info(f"[TIP] Отправитель обновлен из БД, баланс: {updated_sender.coins}")
         
-        if creator:
+        updated_creator = None
+        if creator_id:
+            result = await db.execute(
+                select(Users).where(Users.id == creator_id)
+            )
+            updated_creator = result.scalar_one()
+            logger.info(f"[TIP] Создатель обновлен из БД, баланс: {updated_creator.coins}")
+        
+        # Инвалидируем кэш пользователей
+        from app.utils.redis_cache import cache_delete, key_user, key_user_coins
+        await cache_delete(key_user(updated_sender.email))
+        await cache_delete(key_user_coins(updated_sender.id))
+        if updated_creator:
+            await cache_delete(key_user(updated_creator.email))
+            await cache_delete(key_user_coins(updated_creator.id))
+        
+        await emit_profile_update(updated_sender.id, db)
+        if updated_creator:
+            await emit_profile_update(updated_creator.id, db)
+        
+        if updated_creator:
             # Проверяем, отправил ли админ кредиты себе
-            is_self_tip = creator.id == current_user.id
-            is_admin = getattr(current_user, 'is_admin', False)
+            is_self_tip = updated_creator.id == sender_id
+            is_admin = getattr(updated_sender, 'is_admin', False)
             
             if is_self_tip and is_admin:
                 logger.info(
-                    f"[TIP ADMIN] Админ {current_user.email} (ID: {current_user.id}) "
+                    f"[TIP ADMIN] Админ {updated_sender.email} (ID: {updated_sender.id}) "
                     f"отправил себе {tip_request.amount} кредитов "
                     f"за персонажа '{character.name}'. "
-                    f"Баланс теперь: {creator.coins}"
+                    f"Баланс теперь: {updated_creator.coins}"
                 )
                 message = f"[ADMIN] Вы отправили себе {tip_request.amount} кредитов за персонажа '{character.display_name or character.name}'!"
             else:
                 logger.info(
-                    f"[TIP] Пользователь {current_user.email} (ID: {current_user.id}) "
+                    f"[TIP] Пользователь {updated_sender.email} (ID: {updated_sender.id}) "
                     f"отправил {tip_request.amount} кредитов "
-                    f"создателю {creator.email} (ID: {creator.id}) "
+                    f"создателю {updated_creator.email} (ID: {updated_creator.id}) "
                     f"за персонажа '{character.name}'. "
-                    f"Баланс создателя теперь: {creator.coins}"
+                    f"Баланс создателя теперь: {updated_creator.coins}"
                 )
                 message = f"Вы успешно отправили {tip_request.amount} кредитов создателю персонажа '{character.display_name or character.name}'!"
         else:
             logger.info(
-                f"[TIP] Пользователь {current_user.email} (ID: {current_user.id}) "
+                f"[TIP] Пользователь {updated_sender.email} (ID: {updated_sender.id}) "
                 f"отправил {tip_request.amount} кредитов "
                 f"системе за персонажа '{character.name}' (системный персонаж)"
             )
             message = f"Спасибо за поддержку! Вы отправили {tip_request.amount} кредитов за персонажа '{character.display_name or character.name}'."
         
-        return TipCreatorResponse(
+        response_data = TipCreatorResponse(
             success=True,
             message=message,
-            sender_coins_remaining=current_user.coins,
-            receiver_coins_total=creator.coins if creator else 0,
-            creator_email=creator.email if creator else "Системный персонаж"
+            sender_coins_remaining=updated_sender.coins,
+            receiver_coins_total=updated_creator.coins if updated_creator else 0,
+            creator_email=updated_creator.email if updated_creator else "Системный персонаж"
         )
+        logger.info(f"[TIP] Возвращаем ответ: sender_coins_remaining={updated_sender.coins}, receiver_coins_total={updated_creator.coins if updated_creator else 0}")
+        return response_data
         
     except Exception as e:
         await db.rollback()

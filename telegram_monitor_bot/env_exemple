@@ -1,8 +1,0 @@
-# Обязательные параметры
-BOT_TOKEN=7479789035:AAFdN20yZozatV2e0auO6xGDTluukyt8giY
-USER_ID=6799341105
-API_ID=29760616
-API_HASH=d94b2c6317ce7ca91e4725430a8edde2
-
-# Путь к основному проекту (используем абсолютный путь)
-MAIN_PROJECT_PATH=E:/project_A

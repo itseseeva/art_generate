@@ -470,7 +470,7 @@ async def list_paid_gallery(
     slug = _character_slug(character_db.name)
     is_owner = bool(character_db.user_id) and character_db.user_id == current_user.id
     unlocked = await _is_album_unlocked(db, current_user.id, slug)
-    
+
     # Проверяем подписку PREMIUM - для них все альбомы доступны бесплатно
     is_premium = False
     if not (unlocked or is_owner or current_user.is_admin):

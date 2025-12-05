@@ -270,6 +270,17 @@ class _DummyAsyncDB:
         self.added: List[Any] = []
 
     async def execute(self, *_args: Any, **_kwargs: Any) -> _DummyExecuteResult:
+        # Проверяем тип запроса
+        from sqlalchemy.sql import Update, Select
+        
+        # Для UPDATE запросов не нужно возвращать результат, но execute все равно вызывается
+        if _args and isinstance(_args[0], Update):
+            # UPDATE не требует ответа из списка
+            return _DummyExecuteResult(None)
+        
+        # Для SELECT запросов нужен ответ из списка
+        if not self._responses:
+            raise IndexError("No more responses in _DummyAsyncDB for SELECT query")
         value = self._responses.pop(0)
         return _DummyExecuteResult(value)
 
@@ -293,10 +304,19 @@ async def test_tip_character_success(monkeypatch: pytest.MonkeyPatch) -> None:
     sender = SimpleNamespace(id=1, coins=200, email="sender@test.dev", is_admin=False)
     creator = SimpleNamespace(id=2, coins=50, email="creator@test.dev")
     character = SimpleNamespace(id=100, name="hero", display_name="Hero", user_id=2)
+    
+    # Создаем обновленные объекты после транзакции
+    updated_sender = SimpleNamespace(id=1, coins=100, email="sender@test.dev", is_admin=False)  # 200 - 100 = 100
+    updated_creator = SimpleNamespace(id=2, coins=150, email="creator@test.dev")  # 50 + 100 = 150
 
-    # После commit код делает два дополнительных execute для получения обновленных данных
-    # Добавляем sender и creator в конец списка responses
-    db = _DummyAsyncDB([character, creator, sender, creator])
+    # Порядок execute в tip_character_creator:
+    # 1. SELECT character
+    # 2. SELECT creator
+    # 3. UPDATE sender (не возвращает результат)
+    # 4. UPDATE creator (не возвращает результат)
+    # 5. SELECT updated_sender (после commit)
+    # 6. SELECT updated_creator (после commit)
+    db = _DummyAsyncDB([character, creator, updated_sender, updated_creator])
 
     async def dummy_emit(user_id: int, _db: Any) -> None:
         pass
@@ -307,8 +327,9 @@ async def test_tip_character_success(monkeypatch: pytest.MonkeyPatch) -> None:
     response = await tip_character_creator(request, current_user=sender, db=db)  # type: ignore[arg-type]
 
     assert response.success is True
-    assert sender.coins == 100
-    assert creator.coins == 150
+    # Проверяем значения из ответа, а не исходные объекты (они не изменяются)
+    assert response.sender_coins_remaining == 100, f"Ожидалось 100, получено {response.sender_coins_remaining}"
+    assert response.receiver_coins_total == 150, f"Ожидалось 150, получено {response.receiver_coins_total}"
     assert db.committed is True
     assert db.rolled_back is False
 

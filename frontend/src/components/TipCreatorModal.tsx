@@ -381,6 +381,9 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
 
       const data = await response.json();
       console.log('[TIP SUCCESS] Кредиты успешно отправлены!');
+      console.log('[TIP SUCCESS] Полный ответ от API:', JSON.stringify(data, null, 2));
+      console.log('[TIP SUCCESS] sender_coins_remaining из ответа:', data.sender_coins_remaining);
+      console.log('[TIP SUCCESS] Тип sender_coins_remaining:', typeof data.sender_coins_remaining);
       setSuccess(data.message);
       
       // Диспатчим событие обновления баланса с данными из ответа
@@ -388,6 +391,7 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
         console.log('[TIP] Диспатчим событие balance-update с балансом:', data.sender_coins_remaining);
         window.dispatchEvent(new CustomEvent('balance-update', { detail: { coins: data.sender_coins_remaining } }));
       } else {
+        console.warn('[TIP] sender_coins_remaining === undefined, диспатчим событие без данных');
         setTimeout(() => {
           console.log('[TIP] Диспатчим событие balance-update после отправки чаевых');
           window.dispatchEvent(new Event('balance-update'));

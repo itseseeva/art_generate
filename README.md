@@ -1,45 +1,178 @@
-# Stable Diffusion API + Chat Bot
+# Art Generation Platform
 
-API для генерации изображений на Stable Diffusion и чат-бот с кастомными персонажами на MythoMax L2 13B.
-Проект представляет собой развлекательный NFST контент где пользователь общаеться с заранее прописаным персонажем(модель для Role PLay - Gryphe-MythoMax-L2-13b.Q4_K_S) и может запрашивать фото с этим персонажем через Stable Diffusion
+Платформа для создания ИИ-персонажей, общения с ними и генерации фотореалистичных изображений.
 
-## Основные фичи
+## Возможности
 
-### Генерация изображений
-- Stable Diffusion с Face Detailer, LoRA, add_detail, realisticVisionV60B1_v51HyperVAE
-- text-generation-webui-Gryphe-MythoMax-L2-13b.Q4_K_S
-- Параметры: шаги, CFG scale, seed, negative prompt
-- Batch генерация и оптимизированные сэмплеры
-- LoRA адаптации - загрузка и применение кастомных стилей
-- add_detail - автоматическое добавление деталей
-- Batch processing - генерация нескольких изображений одновременно
-
-### Чат-бот с персонажами
-- **Role Play система** - полноценные диалоги с кастомными персонажами
-- **Alpaca формат** - оптимизированные промпты для MythoMax
-- **Context memory** - сохранение истории и контекста диалогов
-- **Streaming responses** - потоковые ответы в реальном времени
-- **Character switching** - переключение между персонажами
-- **Image generation in chat** - генерация изображений прямо в чате
-
-# основные промты для Stable Diffusion в файлах app\config\generation_defaults.py, app\config\default_prompts.py
-# Настройки для text-generation-webui в папке app\chat_bot\config\chat_config\
-
-
-### Система
-- Асинхронный FastAPI backend с Uvicorn
-- JWT аутентификация
-- PostgreSQL с SQLAlchemy 2.0 и Alembic миграциями
-- CI/CD, Docker, логирование, мониторинг
+- 🎨 **Генерация изображений** через Stable Diffusion WebUI Forge
+- 💬 **Чат с ИИ персонажами** через Text Generation WebUI
+- 👤 **Создание персонажей** с уникальной внешностью и характером
+- 📸 **Фотореалистичные изображения** с автоматическим улучшением лиц (ADetailer)
+- 💰 **Система монет и подписок**
+- 🖼️ **Платные альбомы** с приватными фото
 
 ## Технологии
 
-- **Python 3.13, FastAPI, Uvicorn, Pydantic v2**
-- **Stable Diffusion WebUI-realisticVisionV60B1_v51HyperVAE, text-generation-webui-Gryphe-MythoMax-L2-13b.Q4_K_S**
-- **PostgreSQL + asyncpg, SQLAlchemy 2.0**
-- **JWT, bcrypt, python-jose**
-- **Pillow, NumPy, Face Detailer, LoRA**
-- **Loguru, psutil, GPUtil, tenacity**
-- **Pytest, black, mypy**
+**Backend:**
+- FastAPI (Python 3.10)
+- PostgreSQL / SQLite
+- Redis (кэширование)
+- Celery (фоновые задачи)
+- SQLAlchemy 2.0
 
+**Frontend:**
+- React + TypeScript
+- Vite
+- Styled Components
+- Nginx (production)
 
+**AI/ML:**
+- Stable Diffusion WebUI Forge (SDXL)
+- Text Generation WebUI
+- ADetailer (улучшение лиц)
+- PyTorch + CUDA
+
+## Быстрый старт (Development)
+
+### 1. Backend
+
+```bash
+python -m venv venv
+source venv/Scripts/activate  # Windows
+pip install -r requirements.txt
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### 2. Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev -- --port 5175
+```
+
+### 3. Stable Diffusion WebUI
+
+```bash
+cd stable-diffusion-webui-forge-main
+./webui-forge-sdxl.bat  # Windows
+```
+
+### 4. OpenRouter API
+
+Настройте переменную окружения `OPENROUTER_KEY` в файле `.env`:
+
+```bash
+OPENROUTER_KEY=your_api_key_here
+```
+
+## Production Deploy (Docker)
+
+### Требования
+
+- **NVIDIA GPU** (минимум 8 GB VRAM, рекомендуется 12+ GB)
+- **NVIDIA Docker** (nvidia-docker2)
+- **60+ GB** дискового пространства
+- **16+ GB RAM**
+
+### Установка
+
+```bash
+# 1. Установите NVIDIA Docker
+# См. DEPLOY.md для инструкций
+
+# 2. Настройте .env файл
+cp .env.example .env
+# Отредактируйте .env (API ключи, пароли и т.д.)
+
+# 3. Проверка готовности
+python check_deploy.py
+
+# 4. Запуск (первая сборка ~30-60 минут!)
+docker-compose build
+docker-compose up -d
+
+# 5. Проверка статуса
+docker-compose ps
+docker-compose logs -f
+```
+
+### После запуска
+
+- **Frontend**: http://localhost
+- **Backend API**: http://localhost:8000/docs
+- **SD WebUI**: http://localhost:7860
+
+⏱️ **Время запуска**: ~3-7 минут (загрузка моделей в GPU)
+
+## Тестирование
+
+### Тест генерации 10 изображений
+
+```bash
+python tests/generation_test/test_generate_10_images.py
+```
+
+Фото сохранятся в `tests/generation_test/`
+
+## Структура проекта
+
+```
+project_A/
+├── app/                           # Backend (FastAPI)
+│   ├── main.py                    # Главный файл API
+│   ├── config/                    # Конфигурация
+│   ├── services/                  # Бизнес-логика
+│   ├── routers/                   # API роуты
+│   └── database/                  # БД модели
+├── frontend/                      # Frontend (React)
+│   ├── src/
+│   │   ├── components/            # React компоненты
+│   │   └── App.tsx                # Главный компонент
+│   └── package.json
+├── stable-diffusion-webui-forge-main/  # SD WebUI
+│   └── models/                    # Модели (не в Git)
+├── tests/                         # Тесты
+├── docker-compose.yml             # Docker оркестрация
+├── Dockerfile                     # Backend образ
+├── Dockerfile.frontend            # Frontend образ
+├── Dockerfile.sd-webui            # SD WebUI образ
+└── DEPLOY.md                      # Подробный гайд по деплою
+```
+
+## Документация
+
+- **DEPLOY.md** - Полное руководство по деплою
+- **API Docs** - http://localhost:8000/docs (после запуска)
+
+## Мониторинг
+
+```bash
+# Статус контейнеров
+docker-compose ps
+
+# Логи всех сервисов
+docker-compose logs -f
+
+# Логи конкретного сервиса
+docker-compose logs -f backend
+docker-compose logs -f sd-webui
+docker-compose logs -f text-webui
+
+# Использование ресурсов
+docker stats
+```
+
+## Остановка
+
+```bash
+# Остановка всех сервисов
+docker-compose down
+
+# Остановка с удалением volumes
+docker-compose down -v
+```
+
+## Лицензия
+
+Proprietary

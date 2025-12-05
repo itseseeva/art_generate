@@ -5,12 +5,31 @@ import { Message } from './Message';
 
 const MessagesContainer = styled.div`
   flex: 1;
-  padding: ${theme.spacing.lg};
+  padding: ${theme.spacing.xl} ${theme.spacing.lg};
   overflow-y: auto;
   overflow-x: hidden;
-  background: rgba(20, 20, 20, 1);
+  background: transparent;
   position: relative;
   min-height: 0; /* Важно для flex-элементов */
+  
+  /* Стилизация скроллбара */
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: rgba(20, 20, 20, 0.3);
+    border-radius: ${theme.borderRadius.md};
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(120, 120, 120, 0.5) 0%, rgba(100, 100, 100, 0.5) 100%);
+    border-radius: ${theme.borderRadius.md};
+    
+    &:hover {
+      background: linear-gradient(180deg, rgba(140, 140, 140, 0.7) 0%, rgba(120, 120, 120, 0.7) 100%);
+    }
+  }
 `;
 
 const MessagesList = styled.div`
@@ -32,11 +51,13 @@ const LoadingMessage = styled.div`
   align-items: center;
   gap: ${theme.spacing.md};
   padding: ${theme.spacing.lg};
-  background: rgba(40, 40, 40, 0.5);
+  background: linear-gradient(135deg, rgba(50, 50, 50, 0.4) 0%, rgba(40, 40, 40, 0.3) 100%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border-radius: ${theme.borderRadius.xl};
-  border: 1px solid rgba(150, 150, 150, 0.3);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  color: rgba(160, 160, 160, 1);
+  border: 1px solid rgba(120, 120, 120, 0.2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2);
+  color: rgba(200, 200, 200, 1);
   font-style: italic;
 `;
 
@@ -72,18 +93,20 @@ const EmptyState = styled.div`
   justify-content: center;
   min-height: 400px;
   text-align: center;
-  color: rgba(120, 120, 120, 1);
+  color: rgba(160, 160, 160, 1);
   
   h3 {
     font-size: ${theme.fontSize.xl};
     margin-bottom: ${theme.spacing.md};
-    color: rgba(200, 200, 200, 1);
+    color: rgba(220, 220, 220, 1);
+    font-weight: 600;
   }
   
   p {
     font-size: ${theme.fontSize.base};
-    line-height: 1.6;
-    max-width: 400px;
+    line-height: 1.7;
+    max-width: 500px;
+    color: rgba(140, 140, 140, 0.9);
   }
 `;
 

@@ -371,6 +371,13 @@ class FaceRefinementService:
             logger.warning(f"[WARNING] Не удалось получить информацию о модели: {e}")
         
         try:
+            # Очищаем промпт от переносов строк и несуществующих LoRA
+            from app.config.default_prompts import clean_prompt, remove_missing_loras
+            settings.prompt = clean_prompt(settings.prompt)
+            settings.prompt = remove_missing_loras(settings.prompt)
+            if settings.negative_prompt:
+                settings.negative_prompt = clean_prompt(settings.negative_prompt)
+            
             # Сохраняем оригинальные промпты пользователя для логирования
             original_prompt = settings.prompt
             original_negative_prompt = settings.negative_prompt

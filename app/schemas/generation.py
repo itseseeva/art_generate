@@ -59,12 +59,15 @@ class GenerationSettings(BaseModel):
     n_iter: int = Field(default=DEFAULT_GENERATION_PARAMS.get("n_iter"), description="Количество итераций")
     clip_skip: Optional[int] = Field(None, description="Clip Skip")
     save_grid: Optional[bool] = Field(None, description="Сохранять сетку изображений")
+    use_default_prompts: bool = Field(default=True, description="Использовать дефолтные промпты для улучшения качества")
     
     # IP-Adapter удален
     
     def get_negative_prompt(self) -> str:
         """Получает негативный промпт с дефолтными значениями"""
-        # Всегда используем дефолтные промпты, так как use_default_prompts удален
+        if not self.use_default_prompts:
+            return self.negative_prompt or ""
+            
         default_negative = get_default_negative_prompts()
         if not self.negative_prompt:
             return default_negative

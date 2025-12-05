@@ -23,7 +23,8 @@ const Container = styled.div`
   display: flex;
   position: relative;
   overflow: hidden;
-  background: rgba(20, 20, 20, 1);
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #151515 100%);
+  background-attachment: fixed;
 
   /* Адаптивность для мобильных устройств */
   @media (max-width: 1024px) {
@@ -38,7 +39,7 @@ const MainContent = styled.div`
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: rgba(20, 20, 20, 1);
+  background: transparent;
   border: none;
   border-radius: 0;
   margin-left: 0;
@@ -57,7 +58,9 @@ const MainContent = styled.div`
 `;
 
 const ChatHeader = styled.div`
-  background: rgba(30, 30, 30, 0.8);
+  background: linear-gradient(180deg, rgba(30, 30, 30, 0.95) 0%, rgba(25, 25, 25, 0.9) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   color: rgba(240, 240, 240, 1);
   padding: ${theme.spacing.lg} ${theme.spacing.xl};
   text-align: center;
@@ -65,8 +68,9 @@ const ChatHeader = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid rgba(150, 150, 150, 0.3);
-  box-shadow: none;
+  border-bottom: 1px solid rgba(100, 100, 100, 0.2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 10;
 `;
 
 const HeaderContent = styled.div`
@@ -76,12 +80,12 @@ const HeaderContent = styled.div`
 
 const Title = styled.h1`
   font-size: ${theme.fontSize['2xl']};
-  font-weight: 600;
+  font-weight: 700;
   margin-bottom: ${theme.spacing.sm};
   color: rgba(240, 240, 240, 1);
   text-shadow: none;
   font-family: inherit;
-  letter-spacing: 0;
+  letter-spacing: -0.5px;
   text-transform: none;
 `;
 
@@ -144,38 +148,40 @@ const CreatorLink = styled.a`
 
 const ClearChatButton = styled.button`
   padding: ${theme.spacing.sm} ${theme.spacing.md};
-  background: rgba(22, 33, 62, 0.2);
-  backdrop-filter: blur(5px);
-  color: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: linear-gradient(135deg, rgba(60, 60, 60, 0.4) 0%, rgba(50, 50, 50, 0.3) 100%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: rgba(220, 220, 220, 0.95);
+  border: 1px solid rgba(120, 120, 120, 0.3);
   border-radius: ${theme.borderRadius.lg};
   font-size: ${theme.fontSize.sm};
   font-weight: 600;
-  font-family: 'Courier New', monospace;
+  font-family: inherit;
   cursor: pointer;
   transition: all 0.3s ease;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  box-shadow: none;
+  text-transform: none;
+  letter-spacing: 0.3px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   
   &:hover {
-    background: rgba(22, 33, 62, 0.3);
-    border-color: rgba(255, 255, 255, 0.4);
-    box-shadow: none;
-    transform: translateY(-1px);
+    background: linear-gradient(135deg, rgba(80, 80, 80, 0.5) 0%, rgba(70, 70, 70, 0.4) 100%);
+    border-color: rgba(150, 150, 150, 0.5);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transform: translateY(-2px);
     color: rgba(255, 255, 255, 1);
   }
   
   &:active {
     transform: translateY(0);
-    box-shadow: none;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
   }
   
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-    background: rgba(22, 33, 62, 0.1);
-    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(40, 40, 40, 0.2);
+    border-color: rgba(80, 80, 80, 0.2);
+    transform: none;
   }
 `;
 
@@ -185,7 +191,7 @@ const ChatMessagesArea = styled.div`
   flex-direction: column;
   overflow: hidden;
   min-height: 0; /* Важно для flex-элементов */
-  background: rgba(20, 20, 20, 1);
+  background: transparent;
   position: relative;
 `;
 
@@ -787,7 +793,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             display_name: characterData.display_name || characterData.name || currentCharacter.display_name,
             description: characterData.description || currentCharacter.description,
             avatar: characterData.avatar || currentCharacter.avatar,
-            user_id: characterData.user_id || (currentCharacter as any).user_id
+            user_id: characterData.user_id || (currentCharacter as any).user_id,
+            character_appearance: characterData.character_appearance || '',
+            location: characterData.location || ''
           };
           console.log('[LOAD_CHARACTER_DATA] Setting currentCharacter with id:', updatedCharacter.id);
           setCurrentCharacter(updatedCharacter);
@@ -885,8 +893,22 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     }
   };
 
-  const handleGenerateImage = async (prompt: string) => {
-    const trimmedPrompt = prompt.trim();
+  const [isImagePromptModalOpen, setIsImagePromptModalOpen] = useState(false);
+  const [imagePromptInput, setImagePromptInput] = useState('');
+
+  const handleGenerateImage = async (userPrompt?: string) => {
+    // Если промпт не передан - открываем модалку
+    if (!userPrompt) {
+      // Предзаполняем промпт из базы
+      const appearance = (currentCharacter as any)?.character_appearance || '';
+      const location = (currentCharacter as any)?.location || '';
+      const defaultPrompt = `${appearance} ${location}`.trim() || 'portrait, high quality, detailed';
+      setImagePromptInput(defaultPrompt);
+      setIsImagePromptModalOpen(true);
+      return;
+    }
+    
+    const trimmedPrompt = userPrompt.trim();
     if (!trimmedPrompt) {
       return;
     }
@@ -1039,6 +1061,30 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         )
       );
 
+      // КРИТИЧЕСКИ ВАЖНО: Добавляем фото в галерею пользователя
+      try {
+        const token = authManager.getToken();
+        if (token) {
+          const addToGalleryResponse = await fetch('/api/v1/auth/user-gallery/add/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              image_url: generatedImageUrl,
+              character_name: currentCharacter.name
+            })
+          });
+          
+          if (addToGalleryResponse.ok) {
+            console.log('[CHAT] Фото добавлено в галерею пользователя и будет видно в /history');
+          }
+        }
+      } catch (galleryError) {
+        console.warn('[CHAT] Не удалось добавить фото в галерею:', galleryError);
+      }
+
       if (isAuthenticated) {
         await refreshUserStats();
       }
@@ -1060,15 +1106,67 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const handleSendMessage = async (message: string) => {
     if (!message.trim()) return;
 
-    // Проверяем авторизацию
-    if (!isAuthenticated) {
+    // Проверяем авторизацию - сначала проверяем токен, потом состояние
+    const token = authManager.getToken();
+    if (!token) {
       setAuthMode('login');
       setIsAuthModalOpen(true);
       return;
     }
 
+    // Если токен есть, но состояние не обновлено, обновляем его
+    if (!isAuthenticated) {
+      const userInfo = await checkAuth();
+      if (!userInfo) {
+        setAuthMode('login');
+        setIsAuthModalOpen(true);
+        return;
+      }
+    }
+
     // Отправляем обычное сообщение без изображения
     await sendChatMessage(message, false);
+  };
+
+  // Функция перевода текста с русского на английский
+  const translateToEnglish = async (text: string): Promise<string> => {
+    if (!text || text.trim().length === 0) {
+      return text;
+    }
+
+    // Проверяем, содержит ли текст русские буквы
+    const hasRussian = /[а-яА-ЯёЁ]/.test(text);
+    if (!hasRussian) {
+      // Если нет русских букв, возвращаем как есть
+      return text;
+    }
+
+    try {
+      // Используем бесплатный API перевода (MyMemory Translation API)
+      const response = await fetch(
+        `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=ru|en`
+      );
+      
+      if (!response.ok) {
+        console.warn('[TRANSLATE] Ошибка перевода, используем оригинальный текст');
+        return text;
+      }
+      
+      const data = await response.json();
+      
+      if (data.responseStatus === 200 && data.responseData && data.responseData.translatedText) {
+        const translated = data.responseData.translatedText;
+        console.log('[TRANSLATE] Переведено:', text.substring(0, 50), '->', translated.substring(0, 50));
+        return translated;
+      } else {
+        console.warn('[TRANSLATE] Перевод не получен, используем оригинальный текст');
+        return text;
+      }
+    } catch (error) {
+      console.error('[TRANSLATE] Ошибка перевода:', error);
+      // В случае ошибки возвращаем оригинальный текст
+      return text;
+    }
   };
 
   const sendChatMessage = async (message: string, generateImage: boolean = false) => {
@@ -1092,12 +1190,13 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     }
 
     // Если сообщение пустое, но запрашивается генерация фото, создаем сообщение с промптом
-    const messageContent = message.trim() || (generateImage ? 'Генерация изображения' : '');
-    
+    const originalMessage = message.trim() || (generateImage ? 'Генерация изображения' : '');
+
+    // Сохраняем оригинальное сообщение для отображения пользователю
     const userMessage: Message = {
       id: Date.now().toString(),
       type: 'user',
-      content: messageContent,
+      content: originalMessage, // Показываем оригинальный текст пользователю
       timestamp: new Date()
     };
 
@@ -1117,6 +1216,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     setMessages(prev => [...prev, assistantMessage]);
 
     try {
+      // Переводим сообщение с русского на английский перед отправкой модели
+      const translatedMessage = await translateToEnglish(originalMessage);
+      console.log('[CHAT] Оригинальное сообщение:', originalMessage.substring(0, 100));
+      console.log('[CHAT] Переведенное сообщение:', translatedMessage.substring(0, 100));
+
       // Используем /chat эндпоинт который поддерживает генерацию изображений
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
@@ -1131,11 +1235,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         method: 'POST',
         headers,
         body: JSON.stringify({
-          message: message,
+          message: translatedMessage, // Отправляем переведенное сообщение модели
           character: currentCharacter.name,
           generate_image: generateImage,
           user_id: effectiveUserId,
-          image_prompt: generateImage ? message : undefined
+          image_prompt: generateImage ? translatedMessage : undefined // Используем переведенный промпт для генерации изображения
         })
       });
 
@@ -1205,10 +1309,22 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             }
             
             // Очищаем content от [image:url] если он там есть
-            const cleanedContent = rawContent.replace(/\n?\[image:.*?\]/g, '').trim();
+            let cleanedContent = rawContent.replace(/\n?\[image:.*?\]/g, '').trim();
             
-            // Если content пустой, но есть imageUrl, оставляем пустой content (фото = текст)
-            const finalContent = cleanedContent || (imageUrl ? '' : rawContent);
+            // Если есть imageUrl, content должен быть полностью пустым (скрываем промпт)
+            // Если imageUrl нет, используем очищенный content
+            const finalContent = imageUrl ? '' : cleanedContent;
+
+            // Логируем для отладки
+            if (imageUrl) {
+              console.log('[HISTORY] Сообщение с фото:', {
+                id: msg.id,
+                hasImageUrl: !!imageUrl,
+                originalContent: rawContent.substring(0, 100),
+                finalContent: finalContent,
+                willRenderImageOnly: !finalContent || finalContent.trim() === ''
+              });
+            }
 
             return {
               id: msg.id.toString(),
@@ -1255,14 +1371,28 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     }
   }, [initialCharacter?.name, fetchPaidAlbumStatus]);
 
-  const handleAuthSuccess = ({ accessToken, refreshToken }: { accessToken: string; refreshToken?: string }) => {
+  const handleAuthSuccess = async (accessToken: string, refreshToken?: string) => {
+    // Сохраняем токены
     authManager.setTokens(accessToken, refreshToken);
-    setIsAuthenticated(true);
     setIsAuthModalOpen(false);
     setAuthMode('login');
-    refreshUserStats(); // Обновляем информацию о пользователе
-    if (currentCharacter?.name) {
-      fetchPaidAlbumStatus(currentCharacter.name);
+    
+    // Небольшая задержка, чтобы токены успели сохраниться в localStorage
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Обновляем состояние аутентификации через checkAuth для надежности
+    const userInfo = await checkAuth();
+    if (userInfo) {
+      setIsAuthenticated(true);
+      setUserInfo(userInfo);
+      refreshUserStats(); // Обновляем информацию о пользователе
+      if (currentCharacter?.name) {
+        fetchPaidAlbumStatus(currentCharacter.name);
+      }
+    } else {
+      // Если checkAuth не сработал, устанавливаем состояние вручную
+      console.warn('[AUTH] checkAuth вернул null, но токены сохранены');
+      setIsAuthenticated(true);
     }
   };
 
@@ -1451,7 +1581,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       // Обновляем статус альбома
       await fetchPaidAlbumStatus(characterName);
       
-      alert('Фото успешно добавлено в платный альбом');
+      console.log('[CHAT] Фото успешно добавлено в платный альбом');
     } catch (error) {
       console.error('[CHAT] Ошибка при добавлении фото в альбом:', error);
       throw error;
@@ -1674,7 +1804,14 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             
             <MessageInput 
               onSendMessage={handleSendMessage}
-              onGenerateImage={handleGenerateImage}
+              onGenerateImage={() => {
+                // Открываем модалку с предзаполненным промптом
+                const appearance = (currentCharacter as any)?.character_appearance || '';
+                const location = (currentCharacter as any)?.location || '';
+                const defaultPrompt = `${appearance} ${location}`.trim() || 'portrait, high quality, detailed';
+                setImagePromptInput(defaultPrompt);
+                setIsImagePromptModalOpen(true);
+              }}
               onClearChat={clearChat}
               onTipCreator={() => {
                 console.log('[TIP BUTTON] Нажата кнопка благодарности');
@@ -1852,7 +1989,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                       Расширить альбом
                     </PaidAlbumButton>
                     <PaidAlbumInfo>
-                      Доступно кредитов: {userCoins}. Не хватает? Пополните баланс или оформите подписку, чтобы получать больше монет.
+                      Доступно кредитов: {userCoins}. Разблокировка за 200 кредитов.
                     </PaidAlbumInfo>
                     <PaidAlbumInfo>
                       Для создания платного альбома нужна подписка Standard или Premium.
@@ -1909,7 +2046,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                     </PaidAlbumButton>
                   )}
                 <PaidAlbumInfo>
-                  Доступно кредитов: {userCoins}. Не хватает? Пополните баланс или оформите подписку, чтобы получать больше монет.
+                 Доступно кредитов: {userCoins}. Разблокировка за 200 кредитов.
                 </PaidAlbumInfo>
                   {isOwner && !canCreatePaidAlbum && (
                   <PaidAlbumInfo>
@@ -2015,6 +2152,115 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             </UpgradeModalActions>
           </UpgradeModal>
         </UpgradeOverlay>
+      )}
+
+      {/* Модалка для ввода промпта генерации */}
+      {isImagePromptModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.75)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+          backdropFilter: 'blur(12px)'
+        }}>
+          <div style={{
+            background: 'rgba(20, 20, 25, 0.85)',
+            backdropFilter: 'blur(20px)',
+            padding: '2rem',
+            borderRadius: '16px',
+            maxWidth: '600px',
+            width: '90%',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            boxShadow: '0 25px 50px rgba(0, 0, 0, 0.9)'
+          }}>
+            <h3 style={{ color: '#fff', marginBottom: '1rem', fontSize: '1.5rem' }}>
+              Генерация фото персонажа
+            </h3>
+            <p style={{ color: '#aaa', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+              Стоимость: 30 монет. Опишите желаемое изображение или отредактируйте предзаполненный промпт.
+            </p>
+            <textarea
+              value={imagePromptInput}
+              onChange={(e) => setImagePromptInput(e.target.value)}
+              placeholder="Опишите желаемое изображение..."
+              style={{
+                width: '100%',
+                minHeight: '120px',
+                padding: '1rem',
+                background: 'rgba(15, 15, 20, 0.7)',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                borderRadius: '8px',
+                color: '#fff',
+                fontSize: '1rem',
+                resize: 'vertical',
+                marginBottom: '1.5rem',
+                fontFamily: 'inherit'
+              }}
+            />
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button
+                onClick={() => {
+                  if (imagePromptInput.trim()) {
+                    setIsImagePromptModalOpen(false);
+                    handleGenerateImage(imagePromptInput);
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  padding: '0.75rem 1.5rem',
+                  background: 'rgba(100, 100, 110, 0.9)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  fontSize: '1rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(120, 120, 130, 1)';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(100, 100, 110, 0.9)';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
+                Сгенерировать
+              </button>
+              <button
+                onClick={() => setIsImagePromptModalOpen(false)}
+                style={{
+                  flex: 1,
+                  padding: '0.75rem 1.5rem',
+                  background: 'rgba(80, 80, 80, 0.8)',
+                  border: '2px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  fontSize: '1rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(100, 100, 100, 0.9)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(80, 80, 80, 0.8)'}
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {isAuthModalOpen && (

@@ -7,10 +7,14 @@ import { FiSend, FiImage, FiTrash2 } from 'react-icons/fi';
 
 const InputContainer = styled.div`
   padding: ${theme.spacing.lg};
-  background: rgba(30, 30, 30, 0.8);
-  border-top: 1px solid rgba(150, 150, 150, 0.3);
+  background: linear-gradient(180deg, rgba(25, 25, 25, 0.95) 0%, rgba(20, 20, 20, 0.9) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(100, 100, 100, 0.2);
   display: flex;
   flex-direction: column;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 10;
 `;
 
 const InputWrapper = styled.div`
@@ -23,35 +27,38 @@ const InputWrapper = styled.div`
 
 const TextArea = styled.textarea<{ $isDisabled: boolean }>`
   flex: 1;
-  min-height: 80px; /* Увеличена минимальная высота */
-  max-height: 200px; /* Увеличена максимальная высота */
-  padding: ${theme.spacing.lg}; /* Увеличен padding */
-  background: rgba(35, 35, 35, 0.8); /* Более темный фон */
-  border: 2px solid rgba(150, 150, 150, 0.4);
-  border-radius: ${theme.borderRadius.xl}; /* Более скругленные углы */
+  min-height: 80px;
+  max-height: 200px;
+  padding: ${theme.spacing.lg};
+  background: linear-gradient(135deg, rgba(40, 40, 40, 0.6) 0%, rgba(30, 30, 30, 0.5) 100%);
+  border: 2px solid rgba(120, 120, 120, 0.3);
+  border-radius: ${theme.borderRadius.xl};
   color: rgba(240, 240, 240, 1);
   font-size: ${theme.fontSize.base};
   font-family: inherit;
   resize: none;
   transition: all 0.3s ease;
   opacity: ${props => props.$isDisabled ? 0.6 : 1};
-  backdrop-filter: blur(10px); /* Эффект размытия */
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); /* Тень для глубины */
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 2px rgba(255, 255, 255, 0.05);
   
   &:focus {
-    border-color: rgba(200, 200, 200, 0.6);
-    box-shadow: 0 0 0 4px rgba(150, 150, 150, 0.2), 0 4px 12px rgba(0, 0, 0, 0.4);
+    border-color: rgba(150, 150, 150, 0.6);
+    box-shadow: 0 0 0 4px rgba(100, 100, 100, 0.15), 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.1);
     outline: none;
-    background: rgba(40, 40, 40, 0.9); /* Немного светлее при фокусе */
+    background: linear-gradient(135deg, rgba(50, 50, 50, 0.7) 0%, rgba(40, 40, 40, 0.6) 100%);
+    transform: translateY(-1px);
   }
   
   &::placeholder {
-    color: rgba(160, 160, 160, 0.8);
+    color: rgba(140, 140, 140, 0.6);
     font-style: italic;
   }
   
   &:disabled {
     cursor: not-allowed;
+    opacity: 0.5;
   }
   
   /* Улучшенная прокрутка */
@@ -60,16 +67,16 @@ const TextArea = styled.textarea<{ $isDisabled: boolean }>`
   }
   
   &::-webkit-scrollbar-track {
-    background: rgba(30, 30, 30, 0.5);
+    background: rgba(20, 20, 20, 0.3);
     border-radius: ${theme.borderRadius.md};
   }
   
   &::-webkit-scrollbar-thumb {
-    background: rgba(150, 150, 150, 0.5);
+    background: linear-gradient(180deg, rgba(120, 120, 120, 0.5) 0%, rgba(100, 100, 100, 0.5) 100%);
     border-radius: ${theme.borderRadius.md};
     
     &:hover {
-      background: rgba(180, 180, 180, 0.6);
+      background: linear-gradient(180deg, rgba(140, 140, 140, 0.7) 0%, rgba(120, 120, 120, 0.7) 100%);
     }
   }
 `;
@@ -85,7 +92,7 @@ const DockWrapper = styled.div`
 
 interface MessageInputProps {
   onSendMessage: (message: string) => void;
-  onGenerateImage?: (message: string) => void;
+  onGenerateImage?: (message?: string) => void;
   onClearChat?: () => void;
   onTipCreator?: () => void;
   disabled?: boolean;
@@ -136,8 +143,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   const handleImageGeneration = () => {
-    if (message.trim() && !disabled && onGenerateImage) {
-      onGenerateImage(message.trim());
+    if (!disabled && onGenerateImage) {
+      // Вызываем без параметра - откроется модалка с предзаполненным промптом
+      onGenerateImage();
+      setMessage('');
     }
   };
 
@@ -158,7 +167,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       icon: <FiImage size={20} />,
       label: 'Сгенерировать изображение',
       onClick: handleImageGeneration,
-      className: disabled || !message.trim() || !onGenerateImage ? 'disabled' : ''
+      className: disabled || !onGenerateImage ? 'disabled' : ''
     },
     ...(onClearChat && hasMessages ? [{
       icon: <FiTrash2 size={20} />,
@@ -168,9 +177,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }] : []),
     ...(onTipCreator ? [{
       icon: <span style={{ fontSize: '20px' }}>💝</span>,
-      label: 'Поблагодарить создателя',
+      label: 'Поблагодарить',
       onClick: onTipCreator,
-      className: ''
+      className: '' 
     }] : [])
   ];
 

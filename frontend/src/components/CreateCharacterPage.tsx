@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import '../styles/ContentArea.css';
+import { AuthModal } from './AuthModal';
 
 const MainContainer = styled.div`
   width: 100vw;
@@ -57,12 +58,13 @@ const MainContainer = styled.div`
 
 const MainContent = styled.div`
   flex: 1;
-  padding: 0;
+  padding: 2rem;
   overflow-y: auto;
   width: 100%;
   height: 100%;
   position: relative;
   z-index: 10;
+  color: #ffffff;
 `;
 
 const LeftColumn = styled.div`
@@ -100,44 +102,10 @@ const FormGroup = styled.div`
   padding: ${theme.spacing.lg};
   border: 1px solid rgba(130, 130, 130, 0.4);
   transition: border-color 0.3s ease;
-  animation: fadeIn 0.6s ease-out forwards;
-  opacity: 0;
+  opacity: 1;
   
   &:hover {
     border-color: rgba(200, 200, 200, 0.5);
-  }
-  
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-  
-  &:nth-child(1) {
-    animation-delay: 0.1s;
-  }
-  &:nth-child(2) {
-    animation-delay: 0.2s;
-  }
-  &:nth-child(3) {
-    animation-delay: 0.3s;
-  }
-  &:nth-child(4) {
-    animation-delay: 0.4s;
-  }
-  &:nth-child(5) {
-    animation-delay: 0.5s;
-  }
-  &:nth-child(6) {
-    animation-delay: 0.6s;
-  }
-  &:nth-child(7) {
-    animation-delay: 0.7s;
   }
 `;
 
@@ -1029,6 +997,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userInfo, setUserInfo] = useState<{username: string, coins: number, id: number} | null>(null);
   const [isPhotoGenerationExpanded, setIsPhotoGenerationExpanded] = useState(false);
@@ -1042,6 +1011,36 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [selectedPhotoForView, setSelectedPhotoForView] = useState<any>(null); // Для модального окна просмотра фото
   const [swiperTranslateX, setSwiperTranslateX] = useState(0); // Для swiper
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]); // Выбранные фото для карточки
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authCheckComplete, setAuthCheckComplete] = useState(false);
+
+  // Валидация имени персонажа
+  const validateCharacterName = (name: string): string | null => {
+    if (!name || name.trim().length === 0) {
+      return 'Имя персонажа не может быть пустым';
+    }
+    
+    if (name.length < 2) {
+      return 'Имя должно содержать минимум 2 символа';
+    }
+    
+    if (name.length > 50) {
+      return 'Имя не может быть длиннее 50 символов';
+    }
+    
+    // Проверяем что имя содержит хотя бы одну букву
+    if (!/[a-zA-Zа-яА-ЯёЁ]/.test(name)) {
+      return 'Имя должно содержать хотя бы одну букву';
+    }
+    
+    // Проверяем что имя содержит только допустимые символы
+    if (!/^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]+$/.test(name)) {
+      return 'Имя может содержать только буквы, цифры, пробелы, дефисы и подчёркивания';
+    }
+    
+    return null;
+  };
 
   // Проверка авторизации
   const checkAuth = async () => {
@@ -1079,31 +1078,57 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     } catch (error) {
       console.error('Auth check error:', error);
       setIsAuthenticated(false);
+    } finally {
+      setAuthCheckComplete(true);
     }
   };
 
   useEffect(() => {
-    checkAuth();
-    loadGenerationSettings();
+    const initPage = async () => {
+      console.log('[CREATE_CHAR] Инициализация страницы...');
+      try {
+        await checkAuth();
+        console.log('[CREATE_CHAR] checkAuth завершён');
+      } catch (error) {
+        console.error('[CREATE_CHAR] Ошибка checkAuth:', error);
+        setAuthCheckComplete(true);
+      }
+      
+      try {
+        await loadGenerationSettings();
+        console.log('[CREATE_CHAR] Инициализация завершена');
+      } catch (error) {
+        console.error('[CREATE_CHAR] Ошибка loadGenerationSettings:', error);
+      }
+    };
+    
+    initPage();
   }, []);
+
+  // Показываем модалку ТОЛЬКО один раз после проверки
+  useEffect(() => {
+    if (authCheckComplete && !isAuthenticated && !isAuthModalOpen) {
+      setIsAuthModalOpen(true);
+      setAuthMode('login');
+    }
+  }, [authCheckComplete]);
 
   // Загружаем настройки генерации из API
   const loadGenerationSettings = async () => {
     try {
-      console.log('Загружаем настройки генерации...');
+      console.log('[CREATE_CHAR] Загружаем настройки генерации...');
       const response = await fetch('/api/v1/fallback-settings/');
-      console.log('Response status:', response.status);
+      console.log('[CREATE_CHAR] Response status:', response.status);
       
       if (response.ok) {
         const settings = await response.json();
         setGenerationSettings(settings);
-        console.log('Настройки генерации загружены:', settings);
-        console.log('Steps:', settings.steps, 'CFG:', settings.cfg_scale);
+        console.log('[CREATE_CHAR] Настройки генерации загружены:', settings);
       } else {
-        console.error('Ошибка загрузки настроек генерации:', response.status);
+        console.error('[CREATE_CHAR] Ошибка загрузки настроек генерации:', response.status);
       }
     } catch (error) {
-      console.error('Ошибка загрузки настроек генерации:', error);
+      console.error('[CREATE_CHAR] Ошибка загрузки настроек генерации:', error);
     }
   };
 
@@ -1112,6 +1137,12 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     setFormData(prev => ({ ...prev, [name]: value }));
     setError(null);
     setSuccess(null);
+    
+    // Валидация имени в реальном времени
+    if (name === 'name') {
+      const error = validateCharacterName(value);
+      setNameError(error);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1470,9 +1501,29 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     onBackToMain();
   };
 
+  // Убрана блокировка - страница показывается всегда
+  // authCheckComplete используется только для показа модалки входа
+
+  console.log('[CREATE_CHAR] Rendering component, authCheckComplete:', authCheckComplete, 'isAuthenticated:', isAuthenticated);
+  
+  // Проверка на undefined states/props
+  if (!formData) {
+    console.error('[CREATE_CHAR] formData is undefined!');
   return (
     <MainContainer>
-        <MainContent>
+        <MainContent style={{ background: 'rgba(20, 20, 30, 0.9)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ color: '#ffffff', textAlign: 'center' }}>
+            <h2>Ошибка инициализации</h2>
+            <p>Не удалось загрузить форму. Пожалуйста, обновите страницу.</p>
+          </div>
+        </MainContent>
+      </MainContainer>
+    );
+  }
+  
+  return (
+    <MainContainer>
+        <MainContent style={{ background: 'rgba(20, 20, 30, 0.9)', minHeight: '100vh' }}>
           <Form onSubmit={isCharacterCreated ? handleEditCharacter : handleSubmit}>
             <LeftColumn>
               <ColumnContent>
@@ -1486,7 +1537,20 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
                   onChange={handleInputChange}
                   placeholder="Введите имя персонажа..."
                   required
+                  style={{ borderColor: nameError ? '#ff4444' : undefined }}
                 />
+                {nameError && (
+                  <div style={{ 
+                    color: '#ff4444', 
+                    fontSize: '0.875rem', 
+                    marginTop: '0.5rem',
+                    padding: '0.5rem',
+                    background: 'rgba(255, 68, 68, 0.1)',
+                    borderRadius: '8px'
+                  }}>
+                    {nameError}
+                  </div>
+                )}
               </FormGroup>
               
               <FormGroup>
@@ -1608,6 +1672,34 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       
       {/* Отладочная информация */}
       {console.log('Selected photo for view:', selectedPhotoForView)}
+
+      {/* Модальное окно авторизации */}
+      {isAuthModalOpen && (
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          mode={authMode}
+          onClose={() => {
+            setIsAuthModalOpen(false);
+            setAuthMode('login');
+            // Если закрыл без входа - на главную
+            if (!isAuthenticated) {
+              onBackToMain();
+            }
+          }}
+          onAuthSuccess={(accessToken, refreshToken) => {
+            localStorage.setItem('authToken', accessToken);
+            if (refreshToken) {
+              localStorage.setItem('refreshToken', refreshToken);
+            }
+            setIsAuthModalOpen(false);
+            setAuthMode('login');
+            // Диспатчим событие для обновления App.tsx
+            window.dispatchEvent(new Event('auth-success'));
+            // Перебрасываем на главную после входа
+            onBackToMain();
+          }}
+        />
+      )}
     </MainContainer>
   );
-};
+}

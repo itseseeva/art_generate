@@ -247,6 +247,7 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authCheckComplete, setAuthCheckComplete] = useState(false);
   const [characterPhotos, setCharacterPhotos] = useState<{[key: string]: string[]}>({});
 
   // Загрузка фото персонажей
@@ -378,6 +379,8 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
     } catch (error) {
       console.error('Auth check error:', error);
       setIsAuthenticated(false);
+    } finally {
+      setAuthCheckComplete(true);
     }
 
     setCurrentUserId(null);
@@ -394,6 +397,14 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
 
     bootstrap();
   }, []);
+
+  // Показываем модалку ТОЛЬКО один раз после проверки
+  useEffect(() => {
+    if (authCheckComplete && !isAuthenticated && !isAuthModalOpen) {
+      setIsAuthModalOpen(true);
+      setAuthMode('login');
+    }
+  }, [authCheckComplete]);
 
   useEffect(() => {
     if (!currentUserId) {
@@ -454,14 +465,22 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
             </EmptyState>
           ) : (
             <CharactersGrid>
-              {characters.map((character) => (
+              {characters.map((character) => {
+                // Добавляем фото к персонажу
+                const characterWithPhotos = {
+                  ...character,
+                  photos: characterPhotos[character.name.toLowerCase()] || []
+                };
+                
+                return (
                 <CharacterCard
                   key={character.id}
-                  character={character}
+                    character={characterWithPhotos}
                   onClick={handleCharacterClick}
                   showEditButton={false}
                 />
-              ))}
+                );
+              })}
             </CharactersGrid>
           )}
         </MainContent>
@@ -475,13 +494,19 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
           onClose={() => {
             setIsAuthModalOpen(false);
             setAuthMode('login');
+            // Если закрыл без входа - на главную
+            if (!isAuthenticated) {
+              onBackToMain();
+            }
           }}
           onAuthSuccess={({ accessToken, refreshToken }) => {
             authManager.setTokens(accessToken, refreshToken);
-            setIsAuthenticated(true);
             setIsAuthModalOpen(false);
             setAuthMode('login');
-            checkAuth();
+            // Диспатчим событие для обновления App.tsx
+            window.dispatchEvent(new Event('auth-success'));
+            // Перебрасываем на главную после входа
+            onBackToMain();
           }}
         />
       )}

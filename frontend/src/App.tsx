@@ -25,6 +25,7 @@ import { AboutPage } from './components/AboutPage';
 import { TariffsPage } from './components/TariffsPage';
 import { HowItWorksPage } from './components/HowItWorksPage';
 import { PaidAlbumPurchaseModal } from './components/PaidAlbumPurchaseModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { authManager } from './utils/auth';
 
 const AppContainer = styled.div`
@@ -513,10 +514,12 @@ function App() {
             onEditCharacters={handleEditCharacters}
             onPhotoGeneration={handlePhotoGeneration}
             onPaidAlbum={handlePaidAlbum}
+            onCharacterSelect={handleCharacterSelect}
           />
         );
       case 'create-character':
         return (
+          <ErrorBoundary>
           <CreateCharacterPage
             onBackToMain={handleBackToMain}
             onShop={handleShop}
@@ -524,6 +527,7 @@ function App() {
             onPhotoGeneration={handlePhotoGeneration}
             contentMode={contentMode}
           />
+          </ErrorBoundary>
         );
       case 'shop':
         return (
@@ -813,7 +817,7 @@ function App() {
         if (response.ok) {
           const userData = await response.json();
           if (userData && userData.coins !== undefined) {
-            console.log('[APP] Обновление баланса после subscription-update:', userData.coins);
+            // Обновляем баланс без избыточного логирования
             setUserInfo({
               username: userData.username || userData.email || 'Пользователь',
               coins: userData.coins || 0,
@@ -834,12 +838,37 @@ function App() {
       }
     };
 
+    const handleAuthSuccess = async () => {
+      console.log('[APP] Событие auth-success получено');
+      // Обновляем состояние авторизации
+      const token = authManager.getToken();
+      if (token) {
+        try {
+          const response = await authManager.fetchWithAuth('/api/v1/auth/me/');
+          if (response.ok) {
+            const userData = await response.json();
+            setIsAuthenticated(true);
+            setUserInfo({
+              username: userData.username || userData.email || 'Пользователь',
+              coins: userData.coins || 0,
+              id: userData.id
+            });
+            console.log('[APP] Авторизация обновлена после входа');
+          }
+        } catch (error) {
+          console.error('[APP] Ошибка обновления авторизации:', error);
+        }
+      }
+    };
+
     window.addEventListener('balance-update', handleBalanceUpdate);
     window.addEventListener('subscription-update', handleSubscriptionUpdate);
+    window.addEventListener('auth-success', handleAuthSuccess);
 
     return () => {
       window.removeEventListener('balance-update', handleBalanceUpdate);
       window.removeEventListener('subscription-update', handleSubscriptionUpdate);
+      window.removeEventListener('auth-success', handleAuthSuccess);
     };
   }, [userInfo]);
 
@@ -1068,8 +1097,11 @@ function App() {
             setIsAuthModalOpen(false);
             setAuthMode('login');
           }}
-          onAuthSuccess={(token) => {
-            localStorage.setItem('authToken', token);
+          onAuthSuccess={(accessToken, refreshToken) => {
+            localStorage.setItem('authToken', accessToken);
+            if (refreshToken) {
+              localStorage.setItem('refreshToken', refreshToken);
+            }
             setIsAuthenticated(true);
             setIsAuthModalOpen(false);
             setAuthMode('login');

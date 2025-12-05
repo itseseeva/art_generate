@@ -2109,7 +2109,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             setIsAuthModalOpen(false);
             setAuthMode('login');
           }}
-          onAuthSuccess={({ accessToken, refreshToken }) => {
+          onAuthSuccess={(accessToken, refreshToken) => {
             localStorage.setItem('authToken', accessToken);
             if (refreshToken) {
               localStorage.setItem('refreshToken', refreshToken);

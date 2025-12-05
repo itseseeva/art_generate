@@ -663,8 +663,8 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
     }
     setFakeProgress(0);
     
-    // Моковый прогресс на 30 секунд
-    const duration = 30000; // 30 секунд
+    // Моковый прогресс на 15 секунд
+    const duration = 15000; // 15 секунд
     const interval = 300; // Обновление каждые 300ms
     const steps = duration / interval; // 100 шагов
     const increment = 100 / steps; // ~1% за шаг
@@ -858,11 +858,8 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         // Ждем завершения генерации (параллельно с прогрессом)
         const photoPromise = waitForGeneration(result.task_id, token);
         
-        // Ждем минимум 30 секунд для показа прогресса
-        const minWaitPromise = new Promise(resolve => setTimeout(resolve, 30000));
-        
-        // Ждем завершения обоих промисов
-        const [image] = await Promise.all([photoPromise, minWaitPromise]);
+        // Ждем только реальной генерации, без искусственной задержки
+        const image = await photoPromise;
         
         // Завершаем прогресс
         stopFakeProgress(false);

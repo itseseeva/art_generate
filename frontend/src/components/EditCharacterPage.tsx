@@ -454,61 +454,88 @@ const PhotoModal = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.9);
-  display: flex;
+  background: rgba(0, 0, 0, 0.95);
+  display: flex !important;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 10000;
   padding: ${theme.spacing.xl};
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  animation: fadeIn 0.2s ease;
+  
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
 `;
 
 const PhotoModalContent = styled.div`
   position: relative;
-  max-width: 85vw;
-  max-height: 85vh;
-  display: flex;
+  max-width: 95vw;
+  max-height: 95vh;
+  display: flex !important;
   align-items: center;
   justify-content: center;
+  cursor: default;
 `;
 
 const PhotoModalImage = styled.img`
   max-width: 100%;
-  max-height: 100%;
+  max-height: 90vh;
   width: auto;
   height: auto;
   object-fit: contain;
-  border-radius: ${theme.borderRadius.lg};
+  border-radius: ${theme.borderRadius.xl};
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
+  display: block !important;
+  visibility: visible !important;
 `;
 
 const PhotoModalClose = styled.button`
   position: absolute;
-  top: -40px;
-  right: 0;
-  background: rgba(255, 255, 255, 0.2);
-  border: none;
+  top: ${theme.spacing.xl};
+  right: ${theme.spacing.xl};
+  background: rgba(20, 20, 20, 0.95);
+  border: 2px solid rgba(255, 255, 255, 0.3);
   color: white;
-  font-size: ${theme.fontSize.xl};
-  width: 40px;
-  height: 40px;
+  font-size: 32px;
+  font-weight: bold;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: all 0.2s ease;
+  z-index: 10001;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
   
   &:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(220, 38, 38, 0.95);
+    border-color: rgba(255, 255, 255, 0.6);
+    transform: scale(1.15) rotate(90deg);
   }
 `;
 
 const PhotoStatus = styled.span<{ isSelected?: boolean }>`
+  position: absolute;
+  top: ${theme.spacing.sm};
+  left: ${theme.spacing.sm};
   font-size: ${theme.fontSize.xs};
   font-weight: 700;
-  color: ${props => props.isSelected
-    ? 'rgba(226, 232, 240, 0.95)'
-    : 'rgba(148, 163, 184, 0.9)'};
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
-  margin-right: auto;
+  color: #ffffff;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+  padding: ${theme.spacing.xs} ${theme.spacing.sm};
+  background: ${props => props.isSelected
+    ? 'rgba(34, 197, 94, 0.9)'
+    : 'rgba(100, 100, 100, 0.8)'};
+  border-radius: ${theme.borderRadius.sm};
+  border: 1px solid ${props => props.isSelected
+    ? 'rgba(74, 222, 128, 0.6)'
+    : 'rgba(255, 255, 255, 0.3)'};
+  pointer-events: none;
 `;
 
 const FullSizePhotoSlider = styled.div`
@@ -555,21 +582,23 @@ const PhotosCounter = styled.div<{ $limitReached: boolean }>`
 `;
 
 const PhotoList = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: ${theme.spacing.lg};
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
+  gap: ${theme.spacing.xl};
   margin-top: ${theme.spacing.md};
-  max-height: 600px;
+  max-height: 800px;
   overflow-y: auto;
-  padding-right: ${theme.spacing.sm};
+  padding: ${theme.spacing.md};
+  visibility: visible !important;
+  opacity: 1 !important;
   scrollbar-width: thin;
 
   &::-webkit-scrollbar {
-    width: 6px;
+    width: 8px;
   }
 
   &::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.4);
+    background: rgba(148, 163, 184, 0.6);
     border-radius: ${theme.borderRadius.sm};
   }
 
@@ -582,22 +611,35 @@ const PhotoTile = styled.div`
   position: relative;
   border-radius: ${theme.borderRadius.lg};
   overflow: hidden;
-  border: 1px solid rgba(120, 120, 120, 0.3);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  background: rgba(40, 40, 40, 0.7);
-  transition: ${theme.transition.fast};
+  border: 2px solid rgba(120, 120, 120, 0.3);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  background: rgba(30, 30, 30, 0.95);
+  transition: all 0.3s ease;
+  min-height: 400px;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  cursor: pointer;
+  z-index: 1;
 
   &:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 18px 36px rgba(0, 0, 0, 0.6);
+    transform: translateY(-8px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7);
+    border-color: rgba(180, 180, 180, 0.5);
+    z-index: 10;
   }
 `;
 
 const PhotoImage = styled.img`
-  width: 100%;
-  height: 320px;
+  width: 100% !important;
+  height: 400px !important;
   object-fit: cover;
-  display: block;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  background: #333;
+  cursor: pointer;
+  user-select: none;
 `;
 
 const PhotoOverlay = styled.div`
@@ -605,45 +647,64 @@ const PhotoOverlay = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  padding: ${theme.spacing.xs} ${theme.spacing.md};
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: ${theme.spacing.sm};
-  background: linear-gradient(180deg, transparent 0%, rgba(10, 14, 25, 0.95) 85%);
+  padding: ${theme.spacing.sm};
+  display: flex !important;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: ${theme.spacing.xs};
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.9) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  height: 60px;
+  
+  ${PhotoTile}:hover & {
+    opacity: 1;
+    pointer-events: auto;
+  }
 `;
 
 const OverlayActions = styled.div`
-  display: inline-flex;
+  display: flex !important;
   align-items: center;
-  gap: ${theme.spacing.xs};
+  justify-content: center;
+  gap: ${theme.spacing.md};
+  width: 100%;
+  padding: ${theme.spacing.sm} 0;
 `;
 
 const OverlayButton = styled.button<{ $variant: 'primary' | 'danger' }>`
   padding: ${theme.spacing.xs} ${theme.spacing.sm};
   border-radius: ${theme.borderRadius.sm};
-  border: 1px solid rgba(150, 150, 150, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   font-size: ${theme.fontSize.xs};
   font-weight: 600;
   cursor: pointer;
-  transition: ${theme.transition.fast};
+  transition: all 0.2s ease;
   background: ${({ $variant }) =>
     $variant === 'primary'
-      ? 'rgba(100, 100, 100, 0.6)'
-      : 'rgba(80, 80, 80, 0.6)'};
-  color: ${theme.colors.text.primary};
+      ? 'rgba(59, 130, 246, 0.9)'
+      : 'rgba(239, 68, 68, 0.9)'};
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+  min-width: 80px;
 
-  &:hover {
+  &:hover:not(:disabled) {
     background: ${({ $variant }) =>
       $variant === 'primary'
-        ? 'rgba(120, 120, 120, 0.7)'
-        : 'rgba(100, 100, 100, 0.7)'};
-    border-color: rgba(180, 180, 180, 0.5);
+        ? 'rgba(29, 78, 216, 1)'
+        : 'rgba(220, 38, 38, 1)'};
+    transform: scale(1.05);
   }
 
   &:disabled {
-    opacity: 0.45;
+    opacity: 0.3;
     cursor: not-allowed;
+    background: rgba(80, 80, 80, 0.6);
   }
 `;
 
@@ -816,7 +877,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   onCreateCharacter,
   onEditCharacters
 }) => {
+  console.log('[EDIT_CHAR_PAGE] Component rendering, character:', character);
+  console.log('[EDIT_CHAR_PAGE] Character name:', character?.name);
+  
   useEffect(() => {
+    console.log('[EDIT_CHAR_PAGE] Component mounted');
     window.history.pushState({ page: 'edit-character' }, '', window.location.href);
 
     const handlePopState = (event: PopStateEvent) => {
@@ -914,19 +979,25 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   };
 
   useEffect(() => {
-    setCharacterIdentifier(character.name);
-  }, [character.name]);
+    if (character?.name) {
+      setCharacterIdentifier(character.name);
+      console.log('[EDIT_CHAR] Character name set:', character.name);
+    } else {
+      console.warn('[EDIT_CHAR] Character name is missing!', character);
+    }
+  }, [character?.name]);
 
   const fetchCharacterPhotos = useCallback(async (targetName?: string) => {
     const effectiveName = (targetName ?? characterIdentifier)?.trim();
     if (!effectiveName) {
-      console.warn('fetchCharacterPhotos: No character name provided');
+      console.warn('[EDIT_CHAR] fetchCharacterPhotos: No character name provided');
       setIsLoadingPhotos(false);
+      setGeneratedPhotos([]);
       return;
     }
     try {
       setIsLoadingPhotos(true);
-      console.log('Fetching character photos for:', effectiveName);
+      console.log('[EDIT_CHAR] Fetching character photos for:', effectiveName);
       const response = await authManager.fetchWithAuth(API_CONFIG.CHARACTER_PHOTOS_FULL(effectiveName), {
         method: 'GET',
         headers: {
@@ -935,23 +1006,28 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       });
 
       if (!response.ok) {
-        console.error('Failed to load character photos:', response.status, response.statusText);
-        setError(`Не удалось загрузить фотографии: ${response.status}`);
+        console.error('[EDIT_CHAR] Failed to load character photos:', response.status, response.statusText);
+        // НЕ показываем ошибку - просто пустой массив
+        setGeneratedPhotos([]);
+        setSelectedPhotos([]);
         setIsLoadingPhotos(false);
         return;
       }
 
       const photos = await response.json();
-      console.log('Raw photos from API:', photos);
+      console.log('[EDIT_CHAR] Raw photos from API:', photos);
+      console.log('[EDIT_CHAR] Photos count:', Array.isArray(photos) ? photos.length : 'not array');
       
       if (!Array.isArray(photos)) {
-        console.error('Photos is not an array:', typeof photos, photos);
+        console.error('[EDIT_CHAR] Photos is not an array:', typeof photos, photos);
+        setGeneratedPhotos([]);
+        setSelectedPhotos([]);
         setIsLoadingPhotos(false);
         return;
       }
 
       if (photos.length === 0) {
-        console.warn('No photos returned from API');
+        console.warn('[EDIT_CHAR] No photos returned from API');
         setGeneratedPhotos([]);
         setSelectedPhotos([]);
         setIsLoadingPhotos(false);
@@ -974,25 +1050,42 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         };
       }).filter(photo => photo.url); // Фильтруем фотографии без URL
 
-      console.log('Formatted photos:', formattedPhotos);
-      console.log('Main photos (isSelected=true):', formattedPhotos.filter(p => p.isSelected));
+      console.log('[EDIT_CHAR] Formatted photos:', formattedPhotos);
+      console.log('[EDIT_CHAR] Formatted photos count:', formattedPhotos.length);
+      console.log('[EDIT_CHAR] Main photos (isSelected=true):', formattedPhotos.filter(p => p.isSelected));
 
       setGeneratedPhotos(formattedPhotos);
+      console.log('[EDIT_CHAR] setGeneratedPhotos called with', formattedPhotos.length, 'photos');
       
       const selected = formattedPhotos
         .filter(photo => photo.isSelected)
         .slice(0, 3)
         .map(photo => ({ id: photo.id, url: photo.url }));
       
-      console.log('Selected photos:', selected);
+      console.log('[EDIT_CHAR] Selected photos:', selected);
       setSelectedPhotos(selected);
       setIsLoadingPhotos(false);
+      console.log('[EDIT_CHAR] Photos loading complete!');
     } catch (error) {
-      console.error('Error loading character photos:', error);
-      setError(`Ошибка загрузки фотографий: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+      console.error('[EDIT_CHAR] Error loading character photos:', error);
+      // НЕ показываем ошибку - просто пустой массив
+      setGeneratedPhotos([]);
+      setSelectedPhotos([]);
       setIsLoadingPhotos(false);
     }
   }, [characterIdentifier]);
+
+  // Загружаем фото при изменении characterIdentifier
+  useEffect(() => {
+    if (characterIdentifier) {
+      console.log('[EDIT_CHAR] Loading photos for character:', characterIdentifier);
+      fetchCharacterPhotos(characterIdentifier);
+    } else {
+      console.warn('[EDIT_CHAR] No characterIdentifier, skipping photo load');
+      setIsLoadingPhotos(false);
+      setGeneratedPhotos([]);
+    }
+  }, [characterIdentifier, fetchCharacterPhotos]);
 
   const togglePhotoSelection = async (photoId: string) => {
     const targetPhoto = generatedPhotos.find(photo => photo.id === photoId);
@@ -1184,7 +1277,22 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     checkAuth();
     loadCharacterData();
     loadGenerationSettings();
+    
+    // Загружаем фото персонажа из API
     fetchCharacterPhotos();
+    
+    // Также загружаем main_photos если они есть в character prop (для начального отображения)
+    if (character.photos && Array.isArray(character.photos) && character.photos.length > 0) {
+      console.log('Loading main_photos from character prop:', character.photos);
+      const mainPhotos = character.photos.map((url: string, index: number) => ({
+        id: `main_${index}`,
+        url: url,
+        isSelected: true,
+        created_at: null
+      }));
+      setSelectedPhotos(mainPhotos.slice(0, MAX_MAIN_PHOTOS));
+      console.log('Main photos loaded from prop:', mainPhotos);
+    }
 
     return () => {
       if (fakeProgressIntervalRef.current) {
@@ -1196,7 +1304,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         fakeProgressTimeoutRef.current = null;
       }
     };
-  }, [fetchCharacterPhotos]);
+  }, [characterIdentifier, character.name]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -1353,9 +1461,28 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       console.log('New photo object:', newPhoto);
       console.log('Photo URL for display:', newPhoto.url);
       
+      // Добавляем фото в галерею пользователя
+      try {
+        const addToGalleryResponse = await authManager.fetchWithAuth('/api/v1/auth/user-gallery/add/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            image_url: imageUrl,
+            character_name: formData.name
+          })
+        });
+        
+        if (addToGalleryResponse.ok) {
+          console.log('[GALLERY] Фото добавлено в галерею пользователя');
+        }
+      } catch (galleryError) {
+        console.warn('[GALLERY] Ошибка добавления в галерею:', galleryError);
+      }
+      
       // Добавляем новое фото в начало списка
       setGeneratedPhotos(prev => {
-        // Проверяем, нет ли уже такого фото (по URL)
         const exists = prev.some(p => p.url === imageUrl);
         if (exists) {
           console.log('Photo already exists in list, skipping');
@@ -1366,9 +1493,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         console.log('Total photos now:', updated.length);
         return updated;
       });
-      setSuccess('Фото успешно сгенерировано!');
+      setSuccess('Фото сгенерировано и добавлено в вашу галерею!');
 
-      // Обновляем информацию о пользователе
       await checkAuth();
       
       // НЕ вызываем fetchCharacterPhotos() сразу, так как новое фото еще не сохранено в БД
@@ -1429,13 +1555,52 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   };
 
   const openPhotoModal = (photo: any) => {
-    console.log('Opening photo modal for:', photo);
+    console.log('[MODAL] Opening photo modal for:', photo);
+    console.log('[MODAL] Photo URL:', photo.url);
     setSelectedPhotoForView(photo);
+    console.log('[MODAL] selectedPhotoForView set');
   };
 
   const closePhotoModal = () => {
+    console.log('[MODAL] Closing photo modal');
     setSelectedPhotoForView(null);
   };
+
+  // Проверка на undefined character
+  if (!character) {
+    console.error('[EDIT_CHAR] Character is undefined!');
+    return (
+      <MainContainer>
+        <MainContent style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
+          <div style={{ textAlign: 'center' }}>
+            <h2>Ошибка загрузки</h2>
+            <p>Персонаж не найден. Пожалуйста, вернитесь к списку персонажей.</p>
+            <button onClick={onBackToEditList} style={{ marginTop: '1rem', padding: '0.5rem 1rem', cursor: 'pointer' }}>
+              ← Назад к списку
+            </button>
+          </div>
+        </MainContent>
+      </MainContainer>
+    );
+  }
+
+  // Проверка на undefined formData
+  if (!formData) {
+    console.error('[EDIT_CHAR] formData is undefined!');
+    return (
+      <MainContainer>
+        <MainContent style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
+          <div style={{ textAlign: 'center' }}>
+            <h2>Ошибка инициализации</h2>
+            <p>Не удалось загрузить форму. Пожалуйста, обновите страницу.</p>
+            <button onClick={onBackToEditList} style={{ marginTop: '1rem', padding: '0.5rem 1rem', cursor: 'pointer' }}>
+              ← Назад к списку
+            </button>
+          </div>
+        </MainContent>
+      </MainContainer>
+    );
+  }
 
   return (
     <MainContainer>
@@ -1573,9 +1738,9 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
             <RightColumn>
               <ColumnContent>
                 <PhotoGenerationBox>
-                  <PhotoGenerationBoxTitle>Генерация фото для персонажа (30 монет за фото)</PhotoGenerationBoxTitle>
+                  <PhotoGenerationBoxTitle>Генерация фото персонажа</PhotoGenerationBoxTitle>
                   <PhotoGenerationDescription>
-                    Генерируйте фото для вашего персонажа
+                    Сгенерируйте фото для вашего персонажа (30 монет). После генерации выберите до 3 фотографий для главной карточки.
                   </PhotoGenerationDescription>
                   
                   <GenerateSection>
@@ -1588,7 +1753,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                           <LoadingSpinner size="sm" /> Генерация... {fakeProgress}%
                         </>
                       ) : (
-                        'Сгенерировать фото'
+                        'Сгенерировать фото (30 монет)'
                       )}
                     </GenerateButton>
                   </GenerateSection>
@@ -1605,53 +1770,74 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                 </PhotoGenerationBox>
 
                   {/* Область для отображения сгенерированных фото */}
-                  {console.log('Generated photos count:', generatedPhotos.length)}
-                  {console.log('Generated photos:', generatedPhotos)}
-                  {generatedPhotos.length > 0 ? (
-                    <FullSizePhotoSlider>
+                  {console.log('[EDIT_CHAR] Render check - isLoadingPhotos:', isLoadingPhotos, 'photos count:', generatedPhotos?.length || 0)}
+                  
+                  {isLoadingPhotos ? (
+                    <div style={{ padding: '2rem', textAlign: 'center', color: '#fff', background: 'rgba(255,255,255,0.1)', borderRadius: '8px', margin: '1rem 0' }}>
+                      Загрузка фотографий...
+                    </div>
+                  ) : (generatedPhotos && Array.isArray(generatedPhotos) && generatedPhotos.length > 0) ? (
+                    <FullSizePhotoSlider style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', margin: '1rem 0' }}>
                       <GeneratedPhotosHeader>
-                        <GeneratedPhotosTitle>Сгенерированные фото</GeneratedPhotosTitle>
+                        <GeneratedPhotosTitle>Сгенерированные фото ({generatedPhotos.length})</GeneratedPhotosTitle>
                         <PhotosCounter $limitReached={isLimitReached}>
-                          {selectedPhotos.length} из {MAX_MAIN_PHOTOS}
+                          {selectedPhotos?.length || 0} из {MAX_MAIN_PHOTOS}
                         </PhotosCounter>
                       </GeneratedPhotosHeader>
 
                       <PhotoList>
-                        {generatedPhotos.map((photo) => {
-                          const isSelected = Boolean(photo.isSelected);
-                          const statusLabel = isSelected
-                            ? 'Добавлено в карточку'
-                            : isLimitReached
-                            ? 'Лимит выбранных фото достигнут'
-                            : 'Доступно для добавления';
+                        {console.log('[EDIT_CHAR] Rendering photos, count:', generatedPhotos.length)}
+                        {generatedPhotos.map((photo, index) => {
+                          if (!photo || !photo.url) {
+                            console.warn(`[EDIT_CHAR] Photo ${index} is missing url:`, photo);
+                            return null;
+                          }
+                          
+                          console.log(`[EDIT_CHAR] Rendering photo ${index}:`, photo.url);
+                          const isSelected = Boolean(photo?.isSelected);
 
                           return (
-                            <PhotoTile key={photo.id}>
+                            <PhotoTile key={photo?.id || `photo-${index}`}>
                               <PhotoImage
                                 src={photo.url}
-                                alt="Generated photo"
+                                alt={`Photo ${index + 1}`}
                                 onClick={(e) => {
+                                  console.log('[MODAL] Клик на PhotoImage');
                                   e.stopPropagation();
-                                  openPhotoModal(photo);
+                                  if (photo) {
+                                    openPhotoModal(photo);
+                                  }
                                 }}
-                                onError={() => {
-                                  console.error('Ошибка загрузки изображения:', photo.url);
+                                onError={(e) => {
+                                  console.error('[EDIT_CHAR] Ошибка загрузки изображения:', photo?.url);
+                                }}
+                                onLoad={() => {
+                                  console.log('[EDIT_CHAR] Фото загружено успешно');
                                 }}
                               />
                               <PhotoOverlay>
-                                <PhotoStatus isSelected={isSelected}>{statusLabel}</PhotoStatus>
                                 <OverlayActions>
                                   <OverlayButton
                                     $variant="primary"
                                     disabled={isSelected || isLimitReached}
-                                    onClick={() => handleAddPhoto(photo.id)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (photo?.id) {
+                                        handleAddPhoto(photo.id);
+                                      }
+                                    }}
                                   >
                                     Добавить
                                   </OverlayButton>
                                   <OverlayButton
                                     $variant="danger"
                                     disabled={!isSelected}
-                                    onClick={() => handleRemovePhoto(photo.id)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (photo?.id) {
+                                        handleRemovePhoto(photo.id);
+                                      }
+                                    }}
                                   >
                                     Удалить
                                   </OverlayButton>
@@ -1659,7 +1845,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                               </PhotoOverlay>
                             </PhotoTile>
                           );
-                        })}
+                        }).filter(Boolean)}
                       </PhotoList>
 
                       <SliderDescription>
@@ -1670,13 +1856,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                         </DescriptionText>
                       </SliderDescription>
                     </FullSizePhotoSlider>
-                  ) : isLoadingPhotos ? (
-                    <PhotoGenerationPlaceholder>
-                      <LoadingSpinner size="md" />
-                      <div style={{ marginTop: theme.spacing.md, color: theme.colors.text.muted }}>
-                        Загрузка фотографий...
-                      </div>
-                    </PhotoGenerationPlaceholder>
                   ) : (
                     <PhotoGenerationPlaceholder>
                       Фотографии будут здесь
@@ -1693,13 +1872,32 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       
       {/* Модальное окно для просмотра фото в полный размер */}
       {selectedPhotoForView && (
-        <PhotoModal onClick={closePhotoModal}>
-          <PhotoModalContent onClick={(e) => e.stopPropagation()}>
-            <PhotoModalClose onClick={closePhotoModal}>×</PhotoModalClose>
+        <PhotoModal 
+          onClick={(e) => {
+            console.log('[MODAL] Click on PhotoModal background');
+            closePhotoModal();
+          }}
+        >
+          <PhotoModalContent 
+            onClick={(e) => {
+              console.log('[MODAL] Click on PhotoModalContent - stopping propagation');
+              e.stopPropagation();
+            }}
+          >
+            <PhotoModalClose 
+              onClick={(e) => {
+                console.log('[MODAL] Click on close button');
+                e.stopPropagation();
+                closePhotoModal();
+              }}
+            >
+              ×
+            </PhotoModalClose>
             <PhotoModalImage 
               src={selectedPhotoForView.url} 
               alt="Generated photo full size"
-              onLoad={() => console.log('Modal image loaded:', selectedPhotoForView.url)}
+              onLoad={() => console.log('[MODAL] Image loaded in modal:', selectedPhotoForView.url)}
+              onError={() => console.error('[MODAL] Error loading image in modal:', selectedPhotoForView.url)}
             />
           </PhotoModalContent>
         </PhotoModal>
@@ -1715,7 +1913,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
             setIsAuthModalOpen(false);
             setAuthMode('login');
           }}
-          onAuthSuccess={({ accessToken, refreshToken }) => {
+          onAuthSuccess={(accessToken, refreshToken) => {
             authManager.setTokens(accessToken, refreshToken);
             setIsAuthenticated(true);
             setIsAuthModalOpen(false);
@@ -1727,7 +1925,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       )}
       
       {/* Отладочная информация */}
-      {console.log('Selected photo for view:', selectedPhotoForView)}
+      {console.log('[MODAL] Render check - selectedPhotoForView:', selectedPhotoForView)}
+      {console.log('[MODAL] Should show modal:', selectedPhotoForView !== null)}
     </MainContainer>
   );
 };

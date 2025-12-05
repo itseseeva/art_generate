@@ -1,6 +1,87 @@
-version: '3.8'
-
 services:
+  # Stable Diffusion WebUI Forge (генерация изображений)
+  sd-webui:
+    build:
+      context: .
+      dockerfile: Dockerfile.sd-webui
+    container_name: art_generation_sd_webui
+    restart: unless-stopped
+    ports:
+      - "7860:7860"
+    volumes:
+      # Монтируем только outputs (модели и конфиги уже в образе)
+      - sd_outputs:/app/webui/outputs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - PYTORCH_CUDA_ALLOC_CONF=garbage_collection_threshold:0.6,max_split_size_mb:512
+      - CUDA_VISIBLE_DEVICES=0
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7860/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # Backend (FastAPI)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: art_generation_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - APP_SD_API_URL=http://sd-webui:7860
+      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:///./app.db}
+      - APP_DATABASE_URL=${APP_DATABASE_URL:-sqlite+aiosqlite:///./app.db}
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./app.db:/app/app.db
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - ./avatars:/app/avatars
+      - ./outputs:/app/outputs
+    depends_on:
+      redis:
+        condition: service_healthy
+      sd-webui:
+        condition: service_healthy
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/test-ping-simple"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend (React + Nginx)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: art_generation_frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - app_network
+
   redis:
     image: redis:7-alpine
     container_name: art_generation_redis
@@ -68,7 +149,7 @@ services:
       - .env
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - APP_SD_API_URL=${APP_SD_API_URL:-http://host.docker.internal:7860}
+      - APP_SD_API_URL=http://sd-webui:7860
       - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:///./sql_app.db}
       - APP_DATABASE_URL=${APP_DATABASE_URL:-sqlite+aiosqlite:///./sql_app.db}
       - PYTHONPATH=/app
@@ -84,6 +165,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      sd-webui:
+        condition: service_healthy
     networks:
       - app_network
     healthcheck:
@@ -93,8 +176,31 @@ services:
       retries: 3
       start_period: 40s
 
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile.celery
+    container_name: art_generation_celery_beat
+    restart: unless-stopped
+    command: >
+      celery -A app.celery_app beat
+      --loglevel=info
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - app_network
+
 volumes:
   redis_data:
+    driver: local
+  sd_outputs:
     driver: local
 
 networks:

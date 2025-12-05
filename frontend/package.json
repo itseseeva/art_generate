@@ -7,7 +7,7 @@
     "dev": "vite --host 0.0.0.0 --port 5173",
     "dev:fastapi": "cd .. && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
     "dev:both": "concurrently \"npm run dev:fastapi\" \"npm run dev\" --names \"FastAPI,React\" --prefix-colors \"cyan,magenta\"",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },

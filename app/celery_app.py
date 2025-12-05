@@ -7,6 +7,7 @@ import logging
 from celery import Celery
 from celery.signals import worker_ready, worker_shutting_down
 from celery.backends.redis import RedisBackend
+from celery.schedules import crontab
 from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -52,7 +53,7 @@ celery_app = Celery(
     "art_generation",
     broker=redis_url,
     backend=redis_url,
-    include=["app.tasks.generation_tasks", "app.tasks.email_tasks", "app.tasks.storage_tasks"],
+    include=["app.tasks.generation_tasks", "app.tasks.email_tasks", "app.tasks.storage_tasks", "app.tasks.cache_tasks"],
     # Оптимизация импортов для ускорения запуска
     autodiscover_tasks=False,  # Отключаем автодискавери для ускорения
 )
@@ -117,6 +118,8 @@ celery_app.conf.update(
         "app.tasks.storage_tasks.upload_to_cloud_task": {"queue": "normal_priority"},
         "app.tasks.email_tasks.send_email_task": {"queue": "low_priority"},
         "app.tasks.generation_tasks.save_chat_history_task": {"queue": "low_priority"},
+        "app.tasks.cache_tasks.clear_cache_task": {"queue": "low_priority"},
+        "app.tasks.cache_tasks.clear_characters_cache_task": {"queue": "low_priority"},
     },
     
     # Настройки retry
@@ -143,6 +146,15 @@ celery_app.conf.update(
     # Мониторинг и логирование
     worker_log_format='[%(asctime)s: %(levelname)s/%(processName)s] %(message)s',
     worker_task_log_format='[%(asctime)s: %(levelname)s/%(processName)s][%(task_name)s(%(task_id)s)] %(message)s',
+    
+    # Celery Beat расписание (планировщик задач)
+    beat_schedule={
+        'clear-characters-cache-daily': {
+            'task': 'app.tasks.cache_tasks.clear_characters_cache_task',
+            'schedule': crontab(hour=0, minute=0),  # Каждый день в 00:00 UTC
+            'options': {'queue': 'low_priority'}
+        },
+    },
 )
 
 # Именование очередей

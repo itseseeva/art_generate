@@ -13,7 +13,7 @@ from datetime import datetime
 
 from app.chat_bot.config.chat_config import chat_config
 from app.chat_bot.schemas.chat import SimpleChatRequest, ChatMessage
-from app.chat_bot.services.textgen_webui_service import textgen_webui_service
+from app.chat_bot.services.openrouter_service import openrouter_service
 from app.chat_bot.schemas.chat import CharacterConfig
 from app.auth.dependencies import get_current_user_optional
 from app.models.user import Users
@@ -31,19 +31,19 @@ async def get_chat_status():
     Проверка статуса чат-бота.
     """
     try:
-        # Проверяем подключение к text-generation-webui
-        is_connected = await textgen_webui_service.check_connection()
+        # Проверяем подключение к OpenRouter
+        is_connected = await openrouter_service.check_connection()
         
         return {
             "status": "online" if is_connected else "offline",
-            "textgen_webui_connected": is_connected,
-            "message": "Чат-бот работает" if is_connected else "text-generation-webui недоступен"
+            "openrouter_connected": is_connected,
+            "message": "Чат-бот работает" if is_connected else "OpenRouter API недоступен"
         }
         
     except Exception as e:
         return {
             "status": "error",
-            "textgen_webui_connected": False,
+            "openrouter_connected": False,
             "message": f"Ошибка: {str(e)}"
         }
 
@@ -98,50 +98,131 @@ async def chat_with_character(
         session_result = await db.execute(session_query)
         chat_session = session_result.scalar_one_or_none()
         
+        # Импортируем утилиты для работы с контекстом
+        from app.chat_bot.utils.context_manager import get_context_limit, get_max_tokens, trim_messages_to_token_limit
+        from app.models.subscription import SubscriptionType
+        
+        # Определяем лимит контекста на основе подписки
+        subscription_type_enum = None
+        if current_user:
+            from app.models.subscription import UserSubscription, SubscriptionStatus
+            subscription_query = await db.execute(
+                select(UserSubscription)
+                .where(UserSubscription.user_id == current_user.id)
+                .where(UserSubscription.status == SubscriptionStatus.ACTIVE)
+                .order_by(UserSubscription.activated_at.desc())
+                .limit(1)
+            )
+            user_subscription = subscription_query.scalar_one_or_none()
+            if user_subscription and user_subscription.subscription_type:
+                try:
+                    subscription_type_enum = SubscriptionType(user_subscription.subscription_type.value)
+                except (ValueError, AttributeError):
+                    subscription_type_enum = None
+        
+        context_limit = get_context_limit(subscription_type_enum)
+        max_tokens = get_max_tokens(subscription_type_enum)
+        
         if chat_session:
             messages_query = (
                 select(ChatMessageDB)
                 .where(ChatMessageDB.session_id == chat_session.id)
                 .order_by(ChatMessageDB.timestamp.desc())
-                .limit(20)
+                .limit(context_limit)
             )
             messages_result = await db.execute(messages_query)
-            messages = messages_result.scalars().all()
+            db_messages = messages_result.scalars().all()
             
-            for msg in reversed(messages):
+            # Импортируем фильтр сообщений
+            from app.chat_bot.utils.message_filter import should_include_message_in_context
+            
+            # Формируем массив messages для OpenAI API
+            openai_messages = []
+            
+            # 1. Системное сообщение с описанием персонажа (всегда первое)
+            openai_messages.append({
+                "role": "system",
+                "content": character_config.prompt
+            })
+            
+            # 2. История диалога из БД
+            for msg in reversed(db_messages):
+                # Фильтруем промпты от фото и другие нерелевантные сообщения
+                if not should_include_message_in_context(msg.content, msg.role):
+                    logger.debug(f"[CONTEXT] Пропущено сообщение {msg.role}: {msg.content[:50] if msg.content else 'empty'}...")
+                    continue
+                    
                 if msg.role == "user":
-                    conversation_history += f"User: {msg.content}\n"
-                else:
-                    conversation_history += f"Anna: {msg.content}\n"
+                    openai_messages.append({
+                        "role": "user",
+                        "content": msg.content
+                    })
+                elif msg.role == "assistant":
+                    openai_messages.append({
+                        "role": "assistant",
+                        "content": msg.content
+                    })
             
-            if conversation_history.strip():
-                character_prompt = f"{character_config.prompt}\n\n{conversation_history}\n\nUser: {request.message}\nAnna:"
-            else:
-                character_prompt = f"{character_config.prompt}\n\nUser: {request.message}\nAnna:"
+            # 3. Текущее сообщение пользователя (всегда последнее)
+            # НЕ фильтруем текущее сообщение - у пользователя есть отдельная кнопка для генерации изображений
+            # Все сообщения в чате предназначены для текстовой модели
+            openai_messages.append({
+                "role": "user",
+                "content": request.message
+            })
+            
+            # 4. Проверяем и обрезаем по лимиту токенов (4096)
+            openai_messages = trim_messages_to_token_limit(openai_messages, max_tokens=4096, system_message_index=0)
+            
+            messages = openai_messages
             
             logger.info("=== FULL PROMPT DEBUG ===")
-            logger.info(f"Character prompt: {character_config.prompt}")
-            logger.info(f"Conversation history: {conversation_history}")
+            logger.info(f"Character prompt (system): {character_config.prompt[:200]}...")
+            logger.info(f"Conversation history: {len(openai_messages) - 2} messages")
             logger.info(f"User message: {request.message}")
-            logger.info(f"Final prompt: {character_prompt}")
+            logger.info(f"Total messages: {len(openai_messages)}")
             logger.info("=== END PROMPT DEBUG ===")
         else:
-            character_prompt = f"{character_config.prompt}\n\nUser: {request.message}\nAnna:"
+            # Нет истории - только системное сообщение и текущее сообщение пользователя
+            messages = [
+                {
+                    "role": "system",
+                    "content": character_config.prompt
+                },
+                {
+                    "role": "user",
+                    "content": request.message
+                }
+            ]
+            
             logger.info("=== PROMPT DEBUG (NO HISTORY) ===")
-            logger.info(f"Character prompt: {character_config.prompt}")
+            logger.info(f"Character prompt (system): {character_config.prompt[:200]}...")
             logger.info(f"User message: {request.message}")
-            logger.info(f"Final prompt: {character_prompt}")
+            logger.info(f"Total messages: {len(messages)}")
             logger.info("=== END PROMPT DEBUG ===")
         
         # Получаем ответ от модели без стриминга
-        response_text = await textgen_webui_service.generate_text(
-            prompt=character_prompt,
-            max_tokens=chat_config.DEFAULT_MAX_TOKENS,
+        # max_tokens определяется на основе подписки: STANDARD=200, PREMIUM=450
+        response_text = await openrouter_service.generate_text(
+            messages=messages,
+            max_tokens=max_tokens,
             temperature=chat_config.DEFAULT_TEMPERATURE,
             top_p=chat_config.DEFAULT_TOP_P,
-            top_k=chat_config.DEFAULT_TOP_K,
             repeat_penalty=chat_config.DEFAULT_REPEAT_PENALTY,
             presence_penalty=chat_config.DEFAULT_PRESENCE_PENALTY
+        )
+        
+        # Проверяем ошибку подключения к сервису генерации
+        if response_text == "__CONNECTION_ERROR__":
+            raise HTTPException(
+                status_code=503,
+                detail="Сервис генерации текста недоступен. Проверьте настройки OpenRouter API."
+            )
+        
+        if not response_text:
+            raise HTTPException(
+                status_code=500,
+                detail="Не удалось сгенерировать ответ от модели"
         )
         
         # Сохраняем диалог в базу данных

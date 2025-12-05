@@ -1,7 +1,6 @@
 """
-Конфигурация чат-бота для text-generation-webui.
-Оптимизирована для модели L3-DARKEST-PLANET-16.5B-GGUF.
-Использует Llama3 format template. Специализированная NSFW/RP модель.
+Конфигурация чат-бота для OpenRouter API.
+Оптимизирована для модели gryphe/mythomax-l2-13b.
 """
 from typing import Optional, List, Dict, Any
 from pydantic_settings import BaseSettings
@@ -15,22 +14,14 @@ load_dotenv()
 class ChatConfig(BaseSettings):
     """Конфигурация для чат-бота."""
 
-    # --- Настройки text-generation-webui API ---
-    TEXTGEN_WEBUI_ENABLED: bool = Field(
+    # --- Настройки OpenRouter API ---
+    OPENROUTER_ENABLED: bool = Field(
         default=True, 
-        description="Включить text-generation-webui API"
+        description="Включить OpenRouter API"
     )
-    TEXTGEN_WEBUI_URL: str = Field(
-        default="http://localhost:5000", 
-        description="URL text-generation-webui API"
-    )
-    TEXTGEN_WEBUI_TIMEOUT: int = Field(
-        default=300, 
-        description="Таймаут для API запросов в секундах"
-    )
-    TEXTGEN_WEBUI_MODEL: str = Field(
-        default="Gryphe-MythoMax-L2-13b.Q4_K_S.gguf", 
-        description="MythoMax-L2-13B Q4_K_S - Gryphe's модель для ролевых игр и творческого письма (~7.4GB)"
+    OPENROUTER_MODEL: str = Field(
+        default="gryphe/mythomax-l2-13b", 
+        description="Модель для OpenRouter API"
     )
     
     # --- Параметры генерации для L3-DARKEST-PLANET-16.5B ---

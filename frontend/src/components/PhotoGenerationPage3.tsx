@@ -723,7 +723,7 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
     // Запускаем мок-прогресс на 30 секунд
     let progressInterval: NodeJS.Timeout | null = null;
     const startTime = Date.now();
-    const duration = 30000; // 30 секунд
+    const duration = 15000; // 15 секунд
     
     progressInterval = setInterval(() => {
       const elapsed = Date.now() - startTime;
@@ -811,11 +811,8 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
         // Ждем завершения генерации (параллельно с прогрессом)
         const photoPromise = waitForGeneration(result.task_id, token);
         
-        // Ждем минимум 30 секунд для показа прогресса
-        const minWaitPromise = new Promise(resolve => setTimeout(resolve, 30000));
-        
-        // Ждем завершения обоих промисов
-        const [photo] = await Promise.all([photoPromise, minWaitPromise]);
+        // Ждем только реальной генерации, без искусственной задержки
+        const photo = await photoPromise;
         
         // Завершаем прогресс
         if (progressInterval) clearInterval(progressInterval);
@@ -856,11 +853,9 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
         // Мок или синхронная генерация
         console.log('Photo generated synchronously:', result.image_url);
         
-        // Ждем минимум 30 секунд для показа прогресса (мок)
-        const waitPromise = new Promise(resolve => setTimeout(resolve, 30000));
+        // НЕ ждём искусственно - завершаем сразу после получения результата
         
-        // Завершаем прогресс после ожидания
-        await waitPromise;
+        // Завершаем прогресс сразу
         if (progressInterval) clearInterval(progressInterval);
         setGenerationProgress(100);
         

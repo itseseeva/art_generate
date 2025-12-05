@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { theme } from '../theme';
 import { CharacterCard } from './CharacterCard';
 import { API_CONFIG } from '../config/api';
+import { AuthModal } from './AuthModal';
 
 const MainContainer = styled.div`
   width: 100vw;
@@ -81,6 +82,7 @@ interface MyCharactersPageProps {
   onEditCharacters?: () => void;
   onPhotoGeneration?: (character: Character) => void;
   onPaidAlbum?: (character: Character) => void;
+  onCharacterSelect: (character: Character) => void;
 }
 
 export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
@@ -88,12 +90,16 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
   onCreateCharacter,
   onShop,
   onPhotoGeneration,
-  onPaidAlbum
+  onPaidAlbum,
+  onCharacterSelect
 }) => {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userInfo, setUserInfo] = useState<{username: string, coins: number} | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authCheckComplete, setAuthCheckComplete] = useState(false);
 
   // Загрузка персонажей пользователя
   const loadMyCharacters = async () => {
@@ -248,6 +254,8 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
     } catch (error) {
       console.error('Auth check error:', error);
       setIsAuthenticated(false);
+    } finally {
+      setAuthCheckComplete(true);
     }
   };
 
@@ -265,9 +273,26 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
 
   // Загрузка данных при монтировании
   useEffect(() => {
-    checkAuth();
-    loadMyCharacters();
+    const initPage = async () => {
+      await checkAuth();
+      
+      // Загружаем персонажей если есть токен
+      const token = localStorage.getItem('authToken');
+      if (token) {
+        await loadMyCharacters();
+      }
+    };
+    
+    initPage();
   }, []);
+
+  // Показываем модалку ТОЛЬКО один раз после проверки
+  useEffect(() => {
+    if (authCheckComplete && !isAuthenticated && !isAuthModalOpen) {
+      setIsAuthModalOpen(true);
+      setAuthMode('login');
+    }
+  }, [authCheckComplete]);
 
   if (!isAuthenticated) {
     return (
@@ -314,6 +339,34 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
             ))
           )}
         </CharactersGrid>
+
+        {/* Модальное окно авторизации */}
+        {isAuthModalOpen && (
+          <AuthModal
+            isOpen={isAuthModalOpen}
+            mode={authMode}
+          onClose={() => {
+            setIsAuthModalOpen(false);
+            setAuthMode('login');
+            // Если закрыл без входа - на главную
+            if (!isAuthenticated) {
+              onBackToMain();
+            }
+          }}
+          onAuthSuccess={(accessToken, refreshToken) => {
+            localStorage.setItem('authToken', accessToken);
+            if (refreshToken) {
+              localStorage.setItem('refreshToken', refreshToken);
+            }
+            setIsAuthModalOpen(false);
+            setAuthMode('login');
+            // Диспатчим событие для обновления App.tsx
+            window.dispatchEvent(new Event('auth-success'));
+            // Перебрасываем на главную после входа
+            onBackToMain();
+          }}
+          />
+        )}
     </MainContainer>
   );
 };

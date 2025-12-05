@@ -8,11 +8,11 @@ RUN apt-get update && apt-get install -y \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Копируем requirements.txt
-COPY requirements.txt .
+# Копируем requirements.txt (БЕЗ torch!)
+COPY requirements-backend.txt .
 
 # Устанавливаем Python зависимости
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements-backend.txt
 
 # Копируем только необходимые файлы для Celery
 # Celery app и задачи

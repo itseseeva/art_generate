@@ -47,15 +47,23 @@ async def get_redis_client() -> Optional[Redis]:
     
     if _redis_client is None:
         try:
-            redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+            # Приоритет: REDIS_LOCAL (для локалки) -> REDIS_URL (для Docker) -> дефолт
+            redis_url = os.getenv("REDIS_LOCAL") or os.getenv("REDIS_URL", "redis://localhost:6379/0")
+            
+            # ФИКС для локальной разработки: если hostname "redis" - заменяем на "localhost"
+            # Это нужно когда .env настроен для Docker (redis://redis:6379), но backend запущен локально
+            if "://redis:" in redis_url:
+                redis_url = redis_url.replace("://redis:", "://localhost:")
+                logger.info(f"[REDIS] Заменён Docker hostname 'redis' на 'localhost' для локальной разработки")
+            
             # Оптимизированная конфигурация с connection pooling
             _redis_client = aioredis.from_url(
                 redis_url,
                 encoding="utf-8",
                 decode_responses=True,
-                # Оптимизированные таймауты для production
-                socket_connect_timeout=5,  # Увеличено для стабильности
-                socket_timeout=5,  # Увеличено для стабильности
+                # Таймауты для Windows Docker Desktop (сеть через Hyper-V медленнее)
+                socket_connect_timeout=3,  # Подключение через Docker может быть медленным
+                socket_timeout=3,  # Таймаут операций
                 socket_keepalive=True,  # Keep-alive для долгих соединений
                 socket_keepalive_options={},  # Опции keep-alive
                 retry_on_timeout=True,  # Повтор при таймауте
@@ -117,7 +125,7 @@ async def cache_get(key: str, timeout: float = 2.0) -> Optional[Any]:
             if value is None:
                 logger.debug(f"[REDIS GET] Ключ не найден: {key}")
                 return None
-            logger.info(f"[REDIS GET] ✓ Найден ключ: {key} (размер: {len(str(value))} символов)")
+            logger.debug(f"[REDIS GET] ✓ Найден ключ: {key}")
         except asyncio.TimeoutError:
             logger.warning(f"[REDIS GET] ⏱ Таймаут чтения ключа: {key} (>{timeout}с)")
             return None
@@ -188,7 +196,7 @@ async def cache_set(
                     client.set(key, serialized_value),
                     timeout=timeout
                 )
-            logger.info(f"[REDIS SET] ✓ Сохранен ключ: {key} (размер: {len(serialized_value)} символов, TTL: {expire_seconds}с)")
+            logger.debug(f"[REDIS SET] ✓ Сохранен ключ: {key}")
             return True
         except asyncio.TimeoutError:
             logger.warning(f"[REDIS SET] ⏱ Таймаут записи ключа: {key} (>{timeout}с)")
@@ -223,7 +231,7 @@ async def cache_delete(key: str, timeout: float = 2.0) -> bool:
             logger.debug(f"[REDIS DEL] Удаление ключа: {key}")
             deleted_count = await asyncio.wait_for(client.delete(key), timeout=timeout)
             if deleted_count > 0:
-                logger.info(f"[REDIS DEL] ✓ Удален ключ: {key}")
+                logger.debug(f"[REDIS DEL] ✓ Удален ключ: {key}")
             else:
                 logger.debug(f"[REDIS DEL] Ключ не существовал: {key}")
             return True
@@ -313,9 +321,9 @@ TTL_SUBSCRIPTION = 300  # 5 минут
 TTL_SUBSCRIPTION_STATS = 300  # 5 минут
 TTL_USER = 120  # 2 минуты
 TTL_USER_COINS = 60  # 1 минута
-TTL_CHARACTERS_LIST = 1800  # 30 минут
-TTL_CHARACTER = 1800  # 30 минут
-TTL_CHARACTER_PHOTOS = 1800  # 30 минут
+TTL_CHARACTERS_LIST = 86400  # 24 часа (обновляется при создании/редактировании)
+TTL_CHARACTER = 86400  # 24 часа (обновляется при редактировании)
+TTL_CHARACTER_PHOTOS = 86400  # 24 часа (обновляется при генерации фото)
 TTL_GENERATION_SETTINGS = 3600  # 1 час
 TTL_GENERATION_FALLBACK = 3600  # 1 час
 TTL_PROMPTS_DEFAULT = 3600  # 1 час

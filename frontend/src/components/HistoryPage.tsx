@@ -365,6 +365,17 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
         const historyData = await historyResponse.json().catch(() => ({}));
         const charactersData = await charactersResponse.json().catch(() => []);
 
+        console.log('[HISTORY] History data:', historyData);
+        console.log('[HISTORY] History response status:', historyResponse.status);
+        console.log('[HISTORY] History response ok:', historyResponse.ok);
+        console.log('[HISTORY] Characters count from history:', historyData?.characters?.length);
+        console.log('[HISTORY] Can save history:', historyData?.can_save_history);
+        
+        // Проверяем, что ответ содержит массив characters
+        if (!historyData?.characters) {
+          console.warn('[HISTORY] В ответе нет массива characters:', historyData);
+        }
+
         // Проверяем, что historyData содержит массив characters
         const historyList: HistoryCharacter[] = Array.isArray(historyData?.characters)
           ? historyData.characters
@@ -448,10 +459,11 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
             const char = buildCharacterData(entry, finalMatch, characterPhotos);
             
             // Логируем для отладки
+            console.log('[HISTORY] Персонаж:', char.name, 'фото:', char.photos?.length || 0, 'last_image_url:', entry.last_image_url);
             if (!char.photos || char.photos.length === 0) {
               const rawName = finalMatch?.name || entryName;
               const photoKey = rawName.toLowerCase();
-              console.warn('[HISTORY] Нет фото для персонажа:', char.name, 'rawName:', rawName, 'photoKey:', photoKey, 'characterPhotos[photoKey]:', characterPhotos[photoKey]);
+              console.warn('[HISTORY] Нет фото для персонажа:', char.name, 'rawName:', rawName, 'photoKey:', photoKey, 'characterPhotos[photoKey]:', characterPhotos[photoKey], 'entry.last_image_url:', entry.last_image_url);
             }
             
             return char;

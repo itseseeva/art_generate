@@ -80,11 +80,23 @@ const FavoriteButton = styled.button<{ $isFavorite: boolean }>`
   outline: none !important;
   box-shadow: ${props => props.$isFavorite ? '0 0 12px rgba(255, 59, 48, 0.6)' : 'none'};
   
+  svg {
+    fill: ${props => props.$isFavorite ? 'rgba(255, 59, 48, 1)' : 'none'};
+    stroke: ${props => props.$isFavorite ? 'rgba(255, 59, 48, 1)' : 'rgba(255, 255, 255, 0.8)'};
+    stroke-width: ${props => props.$isFavorite ? '2.5' : '2'};
+    transition: all ${theme.transition.fast};
+  }
+  
   &:hover {
     transform: scale(1.1);
     background: ${props => props.$isFavorite ? 'rgba(255, 59, 48, 1)' : 'rgba(0, 0, 0, 0.7)'};
     border-color: ${props => props.$isFavorite ? 'rgba(255, 59, 48, 1)' : 'rgba(255, 255, 255, 0.5)'};
     box-shadow: ${props => props.$isFavorite ? '0 0 16px rgba(255, 59, 48, 0.8)' : '0 4px 12px rgba(255, 255, 255, 0.2)'};
+    
+    svg {
+      fill: ${props => props.$isFavorite ? 'rgba(255, 59, 48, 1)' : 'none'};
+      stroke: ${props => props.$isFavorite ? 'rgba(255, 59, 48, 1)' : 'rgba(255, 255, 255, 1)'};
+    }
   }
   
   &:active {
@@ -915,7 +927,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                 }}
           />
           
-          {!isChecking && (
+          {/* На странице favorites всегда показываем кнопку, даже если идет проверка */}
+          {(isFavoriteProp !== undefined || !isChecking) && (
             <FavoriteButton 
               $isFavorite={isFavorite}
               onClick={toggleFavorite}

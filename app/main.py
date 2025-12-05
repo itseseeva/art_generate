@@ -230,14 +230,15 @@ async def test_ping_simple():
     logger.info("[TEST] /test-ping-simple called")
     return {"status": "ok", "message": "Server is alive"}
 
-# Middleware для логирования всех запросов (для диагностики)
+# Middleware для логирования запросов (только ошибки)
 @app.middleware("http")
 async def log_requests_middleware(request: Request, call_next):
-    """Логирует все входящие запросы для диагностики."""
-    logger.info(f"[REQUEST] {request.method} {request.url.path}")
+    """Логирует только ошибки запросов."""
     try:
         response = await call_next(request)
-        logger.info(f"[RESPONSE] {request.method} {request.url.path} -> {response.status_code}")
+        # Логируем только ошибки
+        if response.status_code >= 400:
+            logger.warning(f"[ERROR] {request.method} {request.url.path} -> {response.status_code}")
         return response
     except Exception as e:
         logger.error(f"[ERROR] {request.method} {request.url.path} -> {e}")
@@ -1098,13 +1099,18 @@ async def _write_chat_history(
             elif image_filename and not user_content:
                 user_content = f"[image:{image_filename}]"
             
+            # Используем более точное время для правильной сортировки
+            import time
+            user_timestamp = datetime.now()
+            
             user_record = ChatMessageDB(
                 session_id=chat_session.id,
                 role="user",
                 content=user_content,
-                timestamp=datetime.now(),
+                timestamp=user_timestamp,
             )
             db.add(user_record)
+            await db.flush()  # Сохраняем user сообщение сразу, чтобы получить ID
 
             # Если есть только фото без текста, создаем сообщение с фото
             assistant_content = response if response else ""
@@ -1121,11 +1127,21 @@ async def _write_chat_history(
                     # Если нет текста, создаем сообщение только с фото
                     assistant_content = f"[image:{image_filename}]"
 
+            # Добавляем небольшую задержку, чтобы timestamp был разным
+            # Используем микросекунды для более точного времени
+            time.sleep(0.001)  # 1 миллисекунда
+            assistant_timestamp = datetime.now()
+            
+            # Убеждаемся, что assistant timestamp больше user timestamp
+            if assistant_timestamp <= user_timestamp:
+                from datetime import timedelta
+                assistant_timestamp = user_timestamp + timedelta(microseconds=1000)
+
             assistant_record = ChatMessageDB(
                 session_id=chat_session.id,
                 role="assistant",
                 content=assistant_content,
-                timestamp=datetime.now(),
+                timestamp=assistant_timestamp,
             )
             db.add(assistant_record)
             
@@ -1302,19 +1318,18 @@ async def chat_endpoint(
         logger.info("[NOTE] /chat: Простой режим - прямой ответ от модели")
         
         # Импортируем необходимые модули
-        from app.chat_bot.services.textgen_webui_service import textgen_webui_service
+        from app.chat_bot.services.openrouter_service import openrouter_service
         from app.chat_bot.config.chat_config import chat_config
         from app.config.generation_defaults import get_generation_params
         from app.services.profit_activate import ProfitActivateService
         from app.database.db import async_session_maker
         import json
         
-        # Проверяем подключение к text-generation-webui (только если не подключены)
-        if not textgen_webui_service.is_connected:
-            if not await textgen_webui_service.check_connection():
+        # Проверяем подключение к OpenRouter
+        if not await openrouter_service.check_connection():
                 raise HTTPException(
                     status_code=503, 
-                    detail="text-generation-webui недоступен. Запустите сервер text-generation-webui."
+                detail="OpenRouter API недоступен. Проверьте настройки OPENROUTER_KEY."
                 )
         
         # Простая валидация запроса
@@ -1342,6 +1357,16 @@ async def chat_endpoint(
         history = request.get("history", [])
         session_id = request.get("session_id", "default")
         
+        # Логируем историю из запроса для диагностики
+        if history:
+            logger.info(f"[CONTEXT] История из запроса: {len(history)} сообщений")
+            for i, msg in enumerate(history[-5:]):  # Показываем последние 5
+                role = msg.get('role', 'unknown')
+                content = msg.get('content', '')[:100]
+                logger.debug(f"[CONTEXT]   history[{i}]: {role}: {content}...")
+        else:
+            logger.info(f"[CONTEXT] История из запроса отсутствует")
+        
         # ОПТИМИЗИРОВАНО: Объединяем все запросы к БД в один блок
         token_user_id = str(current_user.id) if current_user else None
         body_user_id = request.get("user_id")
@@ -1362,6 +1387,8 @@ async def chat_endpoint(
         character_data = None
         user_subscription_type: Optional[str] = None
         use_credits = False  # Флаг: использовать кредиты подписки (True) или монеты (False)
+        subscription = None
+        subscription_type_enum = None
         
         async with async_session_maker() as db:
             # 1. Проверяем возможность отправки сообщения (если авторизован)
@@ -1374,6 +1401,14 @@ async def chat_endpoint(
                 subscription_service = ProfitActivateService(db)
                 subscription = await subscription_service.get_user_subscription(coins_user_id)
                 user_subscription_type = subscription.subscription_type.value if subscription else None
+                
+                # Сохраняем subscription_type_enum для использования после выхода из блока
+                if subscription and subscription.subscription_type:
+                    try:
+                        from app.models.subscription import SubscriptionType
+                        subscription_type_enum = SubscriptionType(subscription.subscription_type.value)
+                    except (ValueError, AttributeError):
+                        subscription_type_enum = None
                 
                 # Сначала проверяем кредиты подписки (приоритет)
                 can_use_subscription_credits = await subscription_service.can_user_send_message(
@@ -1460,36 +1495,155 @@ async def chat_endpoint(
         else:
             logger.info(f"[START] Генерируем ответ для: {message[:50]}...")
         
-        # Строим простой промпт в формате Alpaca (ОПТИМИЗИРОВАНО)
-        if history:
-            # Строим историю в формате Alpaca (только последние 5 сообщений для скорости)
-            history_text = ""
-            for msg in history[-5:]:  # Уменьшено до 5 сообщений для быстрой обработки
-                if msg.get('role') == 'user':
-                    user_content = msg.get('content', '')[:200]  # Ограничиваем длину сообщений
-                    history_text += f"### Instruction:\n{user_content}\n\n### Response:\n"
-                elif msg.get('role') == 'assistant':
-                    history_text += f"{msg.get('content', '')[:300]}\n\n"  # Ограничиваем длину ответов
+        # Импортируем утилиты для работы с контекстом
+        from app.chat_bot.utils.context_manager import get_context_limit, get_max_tokens, trim_messages_to_token_limit
+        
+        # Определяем лимит контекста на основе подписки
+        # subscription_type_enum уже определен выше в блоке async with
+        context_limit = get_context_limit(subscription_type_enum)
+        max_tokens = get_max_tokens(subscription_type_enum)
+        logger.info(f"[CONTEXT] Максимальное количество токенов для генерации: {max_tokens}")
+        
+        # Получаем историю из БД, если есть подписка и user_id
+        db_history_messages = []
+        if coins_user_id and character_data.get("id"):
+            try:
+                from app.chat_bot.models.models import ChatSession, ChatMessageDB
+                from sqlalchemy import select
+                
+                # Используем отдельную сессию для получения истории
+                from app.database.db import async_session_maker
+                async with async_session_maker() as history_db:
+                    # Находим последнюю сессию чата
+                    session_query = (
+                        select(ChatSession)
+                        .where(ChatSession.character_id == character_data["id"])
+                        .where(ChatSession.user_id == user_id)
+                        .order_by(ChatSession.started_at.desc())
+                        .limit(1)
+                    )
+                    session_result = await history_db.execute(session_query)
+                    chat_session = session_result.scalar_one_or_none()
+                    
+                    if chat_session:
+                        # Получаем сообщения из истории (с учетом лимита подписки)
+                        messages_query = (
+                            select(ChatMessageDB)
+                            .where(ChatMessageDB.session_id == chat_session.id)
+                            .order_by(ChatMessageDB.timestamp.asc(), ChatMessageDB.id.asc())  # Сортируем по возрастанию времени и ID
+                            .limit(context_limit)
+                        )
+                        messages_result = await history_db.execute(messages_query)
+                        db_history_messages = messages_result.scalars().all()
+            except Exception as e:
+                logger.warning(f"[CONTEXT] Ошибка загрузки истории из БД: {e}, используем history из запроса")
+                import traceback
+                logger.warning(f"[CONTEXT] Трейсбек: {traceback.format_exc()}")
+        
+        # Формируем массив messages для OpenAI API
+        openai_messages = []
+        
+        # 1. Системное сообщение с описанием персонажа (всегда первое)
+        openai_messages.append({
+            "role": "system",
+            "content": character_data["prompt"]
+        })
+        
+        # Импортируем фильтр сообщений
+        from app.chat_bot.utils.message_filter import should_include_message_in_context
+        
+        # 2. История диалога из БД (если есть)
+        if db_history_messages:
             
-            # Строим промпт
-            full_prompt = character_data["prompt"] + "\n\n" + history_text
+            # Сообщения уже отсортированы по возрастанию времени (timestamp.asc), используем их в прямом порядке
+            for msg in db_history_messages:
+                # Фильтруем промпты от фото и другие нерелевантные сообщения
+                if not should_include_message_in_context(msg.content, msg.role):
+                    logger.info(f"[CONTEXT] Пропущено сообщение {msg.role}: {msg.content[:100] if msg.content else 'empty'}...")
+                    continue
+                    
+                if msg.role == "user":
+                    openai_messages.append({
+                        "role": "user",
+                        "content": msg.content
+                    })
+                    logger.debug(f"[CONTEXT] Добавлено user сообщение: {msg.content[:100]}...")
+                elif msg.role == "assistant":
+                    openai_messages.append({
+                        "role": "assistant",
+                        "content": msg.content
+                    })
+                    logger.debug(f"[CONTEXT] Добавлено assistant сообщение: {msg.content[:100]}...")
+        # Fallback: используем history из запроса (для обратной совместимости)
+        elif history:
+            logger.info(f"[CONTEXT] Используем history из запроса: {len(history)} сообщений, берем последние {context_limit}")
+            for msg in history[-context_limit:]:
+                role = msg.get('role', 'user')
+                content = msg.get('content', '')
+                
+                # Фильтруем промпты от фото и другие нерелевантные сообщения
+                if not should_include_message_in_context(content, role):
+                    logger.info(f"[CONTEXT] Пропущено сообщение {role} из history: {content[:100] if content else 'empty'}...")
+                    continue
+                
+                if role == 'user':
+                    openai_messages.append({
+                        "role": "user",
+                        "content": content
+                    })
+                    logger.debug(f"[CONTEXT] Добавлено user сообщение из history: {content[:100]}...")
+                elif role == 'assistant':
+                    openai_messages.append({
+                        "role": "assistant",
+                        "content": content
+                    })
+                    logger.debug(f"[CONTEXT] Добавлено assistant сообщение из history: {content[:100]}...")
         else:
-            # Если истории нет
-            if is_continue_story:
-                full_prompt = character_data["prompt"] + f"\n\n### Instruction:\ncontinue the story briefly.\n\n### Response:\n"
-            else:
-                full_prompt = character_data["prompt"] + f"\n\n### Instruction:\n{message}\n\n### Response:\n"
+            logger.info(f"[CONTEXT] Нет истории диалога (ни из БД, ни из запроса)")
+        
+        # 3. Текущее сообщение пользователя (всегда последнее)
+        # НЕ фильтруем текущее сообщение - у пользователя есть отдельная кнопка для генерации изображений
+        # Все сообщения в чате предназначены для текстовой модели
+        if is_continue_story:
+            openai_messages.append({
+                "role": "user",
+                "content": "continue the story briefly"
+            })
+        else:
+            # Всегда добавляем текущее сообщение пользователя без фильтрации
+            openai_messages.append({
+                "role": "user",
+                "content": message
+            })
+        
+        # 4. Проверяем и обрезаем по лимиту токенов (4096)
+        messages_before_trim = len(openai_messages)
+        openai_messages = trim_messages_to_token_limit(openai_messages, max_tokens=4096, system_message_index=0)
+        messages_after_trim = len(openai_messages)
+        
+        if messages_before_trim != messages_after_trim:
+            logger.warning(f"[CONTEXT] Сообщения обрезаны: было {messages_before_trim}, стало {messages_after_trim}")
+        
+        # Короткое логирование: количество сообщений в памяти
+        history_count = len(openai_messages) - 1  # -1 для system сообщения
+        logger.info(f"[CONTEXT] В памяти: {history_count} сообщений")
         
         # Генерируем ответ напрямую от модели (ОПТИМИЗИРОВАНО ДЛЯ СКОРОСТИ)
-        response = await textgen_webui_service.generate_text(
-            prompt=full_prompt,
-            max_tokens=min(chat_config.HARD_MAX_TOKENS, 150),  # Ограничиваем до 150 токенов для скорости
+        # max_tokens определяется на основе подписки: STANDARD=200, PREMIUM=450
+        response = await openrouter_service.generate_text(
+            messages=openai_messages,
+            max_tokens=max_tokens,
             temperature=chat_config.DEFAULT_TEMPERATURE,
             top_p=chat_config.DEFAULT_TOP_P,
-            top_k=chat_config.DEFAULT_TOP_K,
-            min_p=chat_config.DEFAULT_MIN_P,
             repeat_penalty=chat_config.DEFAULT_REPEAT_PENALTY,
             presence_penalty=chat_config.DEFAULT_PRESENCE_PENALTY
+        )
+        
+        # Проверяем ошибку подключения к сервису генерации
+        if response == "__CONNECTION_ERROR__":
+            raise HTTPException(
+                status_code=503,
+                detail="Сервис генерации текста недоступен. Проверьте настройки OpenRouter API."
         )
         
         if not response:
@@ -1499,6 +1653,13 @@ async def chat_endpoint(
             )
         
         logger.info(f"[OK] /chat: Ответ сгенерирован ({len(response)} символов)")
+        
+        # КРИТИЧЕСКИ ВАЖНО: Сохраняем ответ модели в БД СРАЗУ после генерации
+        # Это нужно для того, чтобы следующий запрос мог использовать этот ответ в контексте
+        # Сохраняем только user сообщение здесь, assistant сохраним позже вместе с полной историей
+        # Но сначала нужно подготовить данные для сохранения
+        history_message = message if message else ""
+        history_response = response if response else ""
         
         # Списываем ресурсы после успешной генерации ответа
         if user_id and coins_user_id is not None:
@@ -1655,18 +1816,16 @@ async def chat_endpoint(
         else:
             logger.warning(f"[WARNING] DEBUG: image_url пустой, изображение не добавлено в ответ")
 
-        # Сохраняем историю чата через ChatSession / ChatMessageDB
-        # КРИТИЧЕСКИ ВАЖНО: сохраняем историю даже если message пустой, но есть фото
-        # Фото = текст для истории чата
-        history_message = message if message else ""
-        history_response = response if response else ""
-        
-        # Если есть только фото без текста, используем промпт для генерации как сообщение
+        # КРИТИЧЕСКИ ВАЖНО: Сохраняем историю чата СРАЗУ после генерации ответа
+        # Это гарантирует, что следующий запрос получит полную историю с ответами модели
+        # Подготавливаем данные для сохранения
         if not history_message and (cloud_url or image_url):
             image_prompt = request.get("image_prompt", "")
             if image_prompt:
                 history_message = image_prompt
             # Если нет промпта, оставляем пустым - фото будет сохранено в историю
+        
+        logger.info(f"[HISTORY] Сохраняем историю: user_message={len(history_message)} chars, assistant_response={len(history_response)} chars")
         
         await process_chat_history_storage(
             subscription_type=user_subscription_type,
@@ -1677,6 +1836,8 @@ async def chat_endpoint(
             image_url=cloud_url or image_url,
             image_filename=image_filename,
         )
+        
+        logger.info(f"[HISTORY] История успешно сохранена в БД")
 
         return result
             
@@ -1790,7 +1951,11 @@ async def generate_image(
         face_refinement_service = FaceRefinementService(settings.SD_API_URL)
 
         # Получаем данные персонажа для внешности
-        character_name = request.character or "anna"
+        # Если use_default_prompts=False - НЕ используем дефолтного персонажа!
+        if request.use_default_prompts:
+            character_name = request.character or "anna"  # Дефолт только если use_default_prompts=True
+        else:
+            character_name = request.character  # Для тестов - только если явно передан
         
         # Сохраняем данные персонажа для сохранения истории
         character_data_for_history = None
@@ -1799,62 +1964,66 @@ async def generate_image(
         character_appearance = None
         character_location = None
         
-        try:
-            from app.database.db import async_session_maker
-            from app.chat_bot.models.models import CharacterDB
-            from sqlalchemy import select
-            
-            async with async_session_maker() as db:
-                # Поиск без учета регистра, берем первого если несколько
-                result = await db.execute(
-                    select(CharacterDB).where(CharacterDB.name.ilike(character_name))
-                )
-                db_character = result.scalars().first()
+        # Пропускаем загрузку, если character_name не задан (тестовый режим)
+        if character_name:
+            try:
+                from app.database.db import async_session_maker
+                from app.chat_bot.models.models import CharacterDB
+                from sqlalchemy import select
                 
-                if db_character:
-                    character_appearance = db_character.character_appearance
-                    character_location = db_character.location
-                    # Сохраняем данные персонажа для истории
-                    character_data_for_history = {
-                        "name": db_character.name,
-                        "prompt": db_character.prompt,
-                        "id": db_character.id
-                    }
-                    logger.info(f"[OK] Данные персонажа '{character_name}' получены из БД")
-                else:
-                    # Если в БД нет, пытаемся получить из файлов
-                    character_data = get_character_data(character_name)
-                    if character_data:
-                        character_appearance = character_data.get("character_appearance")
-                        character_location = character_data.get("location")
+                async with async_session_maker() as db:
+                    # Поиск без учета регистра, берем первого если несколько
+                    result = await db.execute(
+                        select(CharacterDB).where(CharacterDB.name.ilike(character_name))
+                    )
+                    db_character = result.scalars().first()
+                    
+                    if db_character:
+                        character_appearance = db_character.character_appearance
+                        character_location = db_character.location
                         # Сохраняем данные персонажа для истории
                         character_data_for_history = {
-                            "name": character_name,
-                            "prompt": character_data.get("prompt", ""),
-                            "id": None
+                            "name": db_character.name,
+                            "prompt": db_character.prompt,
+                            "id": db_character.id
                         }
-                        logger.info(f"[OK] Данные персонажа '{character_name}' получены из файлов")
+                        logger.info(f"[OK] Данные персонажа '{character_name}' получены из БД")
                     else:
-                        logger.error(f"[ERROR] Персонаж '{character_name}' не найден ни в БД, ни в файлах")
-                        raise HTTPException(status_code=404, detail=f"Персонаж '{character_name}' не найден")
-                        
-        except Exception as e:
-            logger.error(f"[ERROR] Ошибка получения данных персонажа: {e}")
-            # Fallback к файлам
-            character_data = get_character_data(character_name)
-            if character_data:
-                character_appearance = character_data.get("character_appearance")
-                character_location = character_data.get("location")
-                # Сохраняем данные персонажа для истории
-                character_data_for_history = {
-                    "name": character_name,
-                    "prompt": character_data.get("prompt", ""),
-                    "id": None
-                }
-                logger.info(f"[OK] Fallback: данные персонажа '{character_name}' получены из файлов")
-            else:
-                logger.error(f"[ERROR] Персонаж '{character_name}' не найден")
-                raise HTTPException(status_code=404, detail=f"Персонаж '{character_name}' не найден")
+                        # Если в БД нет, пытаемся получить из файлов
+                        character_data = get_character_data(character_name)
+                        if character_data:
+                            character_appearance = character_data.get("character_appearance")
+                            character_location = character_data.get("location")
+                            # Сохраняем данные персонажа для истории
+                            character_data_for_history = {
+                                "name": character_name,
+                                "prompt": character_data.get("prompt", ""),
+                                "id": None
+                            }
+                            logger.info(f"[OK] Данные персонажа '{character_name}' получены из файлов")
+                        else:
+                            logger.error(f"[ERROR] Персонаж '{character_name}' не найден ни в БД, ни в файлах")
+                            raise HTTPException(status_code=404, detail=f"Персонаж '{character_name}' не найден")
+                            
+            except Exception as e:
+                logger.error(f"[ERROR] Ошибка получения данных персонажа: {e}")
+                # Fallback к файлам
+                character_data = get_character_data(character_name)
+                if character_data:
+                    character_appearance = character_data.get("character_appearance")
+                    character_location = character_data.get("location")
+                    # Сохраняем данные персонажа для истории
+                    character_data_for_history = {
+                        "name": character_name,
+                        "prompt": character_data.get("prompt", ""),
+                        "id": None
+                    }
+                    logger.info(f"[OK] Fallback: данные персонажа '{character_name}' получены из файлов")
+                else:
+                    logger.error(f"[ERROR] Персонаж '{character_name}' не найден")
+                    raise HTTPException(status_code=404, detail=f"Персонаж '{character_name}' не найден")
+        else:
+            logger.info("[TEST] character_name=None - пропускаем загрузку персонажа")
         # Импортируем настройки по умолчанию
         from app.config.generation_defaults import get_generation_params
         
@@ -1905,57 +2074,85 @@ async def generate_image(
         })
         full_settings_for_logging["negative_prompt"] = generation_settings.negative_prompt
         
-        # Добавляем внешность и локацию персонажа в промпт если есть
+        # Добавляем внешность и локацию персонажа в промпт ТОЛЬКО если use_default_prompts=True
         prompt_parts = []
         
-        if character_appearance:
-            logger.info(f"[ART] Добавляем внешность персонажа: {character_appearance[:100]}...")
-            prompt_parts.append(character_appearance)
-            full_settings_for_logging["character_appearance"] = character_appearance
+        if request.use_default_prompts and character_appearance:
+            # Очищаем от переносов строк
+            clean_appearance = character_appearance.replace('\n', ', ')
+            clean_appearance = ', '.join([p.strip() for p in clean_appearance.split(',') if p.strip()])
+            logger.info(f"[ART] Добавляем внешность персонажа: {clean_appearance[:100]}...")
+            prompt_parts.append(clean_appearance)
+            full_settings_for_logging["character_appearance"] = clean_appearance
         
-        if character_location:
-            logger.info(f"🏠 Добавляем локацию персонажа: {character_location[:100]}...")
-            prompt_parts.append(character_location)
-            full_settings_for_logging["character_location"] = character_location
+        if request.use_default_prompts and character_location:
+            # Очищаем от переносов строк
+            clean_location = character_location.replace('\n', ', ')
+            clean_location = ', '.join([p.strip() for p in clean_location.split(',') if p.strip()])
+            logger.info(f"🏠 Добавляем локацию персонажа: {clean_location[:100]}...")
+            prompt_parts.append(clean_location)
+            full_settings_for_logging["character_location"] = clean_location
         
-        # Получаем стандартный промпт из default_prompts.py
+        # Получаем стандартный промпт из default_prompts.py ТОЛЬКО если use_default_prompts=True
         from app.config.default_prompts import get_default_positive_prompts, get_default_negative_prompts
-        default_positive_prompts = get_default_positive_prompts() or ""
-        if default_positive_prompts:
-            logger.info(f"[NOTE] Добавляем стандартный промпт: {default_positive_prompts[:100]}...")
+        
+        if request.use_default_prompts:
+            default_positive_prompts = get_default_positive_prompts() or ""
+            if default_positive_prompts:
+                logger.info(f"[NOTE] Добавляем стандартный промпт: {default_positive_prompts}...")
+            else:
+                logger.warning("[WARNING] Стандартный промпт пустой, используем только пользовательский и данные персонажа")
         else:
-            logger.warning("[WARNING] Стандартный промпт пустой, используем только пользовательский и данные персонажа")
-        default_negative_prompts = get_default_negative_prompts() or ""
-        if not request.negative_prompt and default_negative_prompts:
-            logger.info("[NOTE] Используем стандартный негативный промпт")
-            generation_settings.negative_prompt = default_negative_prompts
-        elif request.negative_prompt:
-            generation_settings.negative_prompt = request.negative_prompt
+            logger.info("[TEST] use_default_prompts=False - НЕ добавляем стандартные промпты и персонажа")
+            default_positive_prompts = ""
+        # Негативный промпт
+        if request.use_default_prompts:
+            default_negative_prompts = get_default_negative_prompts() or ""
+            if not request.negative_prompt and default_negative_prompts:
+                logger.info("[NOTE] Используем стандартный негативный промпт")
+                generation_settings.negative_prompt = default_negative_prompts
+            elif request.negative_prompt:
+                generation_settings.negative_prompt = request.negative_prompt
+            else:
+                generation_settings.negative_prompt = ""
         else:
-            generation_settings.negative_prompt = ""
+            # Для тестов - только базовый негативный или пользовательский
+            generation_settings.negative_prompt = request.negative_prompt or "lowres, bad quality"
         
-        # Формируем финальный промпт: данные персонажа + пользовательский промпт + стандартный промпт
-        final_prompt_parts = []
-        
-        # 1. Данные персонажа (если есть)
-        if prompt_parts:
-            final_prompt_parts.extend(prompt_parts)
-        
-        # 2. Пользовательский промпт
-        if generation_settings.prompt:
-            final_prompt_parts.append(generation_settings.prompt)
-        
-        # 3. Стандартный промпт
-        if default_positive_prompts:
-            final_prompt_parts.append(default_positive_prompts)
-        
-        # Объединяем все части
-        enhanced_prompt = ", ".join(final_prompt_parts)
-        generation_settings.prompt = enhanced_prompt or (generation_settings.prompt or "")
+        # Формируем финальный промпт
+        if request.use_default_prompts:
+            # Обычный режим: данные персонажа + пользовательский промпт + стандартный промпт
+            final_prompt_parts = []
+            
+            # 1. Пользовательский промпт (СНАЧАЛА!)
+            if generation_settings.prompt:
+                # Очищаем от переносов строк
+                clean_user_prompt = generation_settings.prompt.replace('\n', ', ')
+                clean_user_prompt = ', '.join([p.strip() for p in clean_user_prompt.split(',') if p.strip()])
+                final_prompt_parts.append(clean_user_prompt)
+            
+            # 2. Данные персонажа (если есть)
+            if prompt_parts:
+                final_prompt_parts.extend(prompt_parts)
+            
+            # 3. Стандартный промпт
+            if default_positive_prompts:
+                final_prompt_parts.append(default_positive_prompts)
+            
+            # Объединяем все части
+            enhanced_prompt = ", ".join(final_prompt_parts)
+            generation_settings.prompt = enhanced_prompt or (generation_settings.prompt or "")
+        else:
+            # Тестовый режим: ТОЛЬКО пользовательский промпт БЕЗ изменений
+            # Но всё равно очищаем от \n
+            generation_settings.prompt = generation_settings.prompt.replace('\n', ', ')
+            generation_settings.prompt = ', '.join([p.strip() for p in generation_settings.prompt.split(',') if p.strip()])
+            logger.info(f"[TEST] Финальный промпт (чистый): {generation_settings.prompt}")
+            enhanced_prompt = generation_settings.prompt  # Для логирования
         
         # Обновляем промпт в настройках для логирования
         full_settings_for_logging["prompt"] = enhanced_prompt
-        full_settings_for_logging["default_positive_prompts"] = default_positive_prompts
+        full_settings_for_logging["default_positive_prompts"] = default_positive_prompts if request.use_default_prompts else ""
         
         # Для чата используем синхронную генерацию через GenerationService (как на странице photo-generation)
         # Это обеспечивает немедленный возврат image_url без опроса статуса
@@ -2029,44 +2226,54 @@ async def generate_image(
                     await coins_service.spend_coins(user_id, PHOTO_GENERATION_COST)
                     logger.info(f"[COINS] Списано {PHOTO_GENERATION_COST} монет за генерацию фото для user_id={user_id}")
             
-            # Сохраняем историю чата после успешной генерации изображения
-            # КРИТИЧЕСКИ ВАЖНО: сохраняем историю даже если нет текстового ответа
-            # Фото = текст для истории чата
+            # Сохраняем промпт для ГАЛЕРЕИ (не для чата!)
+            # Используем специальный session_id чтобы не показывался в истории чата
             if user_id and cloud_url and character_data_for_history:
                 try:
-                    # Получаем тип подписки для проверки прав на сохранение истории
-                    user_subscription_type = None
-                    try:
-                        from app.services.profit_activate import ProfitActivateService
-                        from app.database.db import async_session_maker
+                    from app.models.chat_history import ChatHistory
+                    from app.database.db import async_session_maker
+                    
+                    async with async_session_maker() as history_db:
+                        # Специальный session_id для промптов галереи
+                        gallery_session_id = f"gallery_generation_{character_name}"
                         
-                        async with async_session_maker() as db:
-                            subscription_service = ProfitActivateService(db)
-                            subscription = await subscription_service.get_user_subscription(user_id)
-                            user_subscription_type = subscription.subscription_type.value if subscription else None
-                    except Exception as e:
-                        logger.warning(f"[HISTORY] Не удалось получить тип подписки: {e}")
-                    
-                    # Используем промпт как сообщение пользователя для истории
-                    history_message = request.prompt if request.prompt else ""
-                    
-                    # Сохраняем историю чата
-                    logger.info(f"[HISTORY] Сохраняем историю для генерации фото: user_id={user_id}, character={character_name}, prompt={history_message[:50]}...")
-                    await process_chat_history_storage(
-                        subscription_type=user_subscription_type,
-                        user_id=str(user_id),
-                        character_data=character_data_for_history,
-                        message=history_message,
-                        response="",  # Пустой ответ, так как генерируется только фото
-                        image_url=cloud_url,
-                        image_filename=None,
+                        # Нормализуем URL
+                        normalized_url = cloud_url.split('?')[0].split('#')[0]
+                        
+                        chat_message = ChatHistory(
+                            user_id=user_id,
+                            character_name=character_name,
+                            session_id=gallery_session_id,  # НЕ обычный чат!
+                            message_type="user",
+                            message_content=request.prompt,  # Сохраняем промпт для "show prompt"
+                            image_url=normalized_url,
+                            image_filename=None
                     )
-                    logger.info(f"[HISTORY] История успешно сохранена для генерации фото")
+                        history_db.add(chat_message)
+                        await history_db.commit()
+                        logger.info(f"[GALLERY] Промпт сохранён для галереи (не для чата): {gallery_session_id}")
                 except Exception as history_error:
-                    # Не прерываем выполнение, если не удалось сохранить историю
-                    logger.error(f"[HISTORY] Ошибка сохранения истории при генерации фото: {history_error}")
-                    import traceback
-                    logger.error(f"[HISTORY] Трейсбек: {traceback.format_exc()}")
+                    logger.error(f"[GALLERY] Ошибка сохранения промпта для галереи: {history_error}")
+            
+            # НЕ сохраняем метаданные в paid_gallery - фото идут в UserGallery
+            # Инвалидируем кэш фото персонажа для обновления страницы
+            if character_data_for_history:
+                try:
+                    from app.database.db import async_session_maker
+                    from app.chat_bot.models.models import CharacterDB
+                    from app.utils.redis_cache import cache_delete, key_character_photos
+                    
+                    async with async_session_maker() as db_for_cache:
+                        result = await db_for_cache.execute(
+                            select(CharacterDB).where(CharacterDB.name == character_name)
+                        )
+                        character_for_cache = result.scalar_one_or_none()
+                        if character_for_cache:
+                            await cache_delete(key_character_photos(character_for_cache.id))
+                            logger.info(f"[CACHE] Инвалидирован кэш фото персонажа {character_name}")
+                
+                except Exception as cache_error:
+                    logger.warning(f"[GENERATE] Не удалось инвалидировать кэш: {cache_error}")
             
             # Возвращаем результат с URL изображения (как на странице photo-generation)
             response_data = {
@@ -2075,13 +2282,7 @@ async def generate_image(
                 "success": True,
                 "message": "Изображение успешно сгенерировано"
             }
-            logger.info(f"[GENERATE] =========================================")
             logger.info(f"[GENERATE] УСПЕШНО: Возвращаем результат фронтенду")
-            logger.info(f"[GENERATE] image_url: {response_data.get('image_url')}")
-            logger.info(f"[GENERATE] cloud_url: {response_data.get('cloud_url')}")
-            logger.info(f"[GENERATE] success: {response_data.get('success')}")
-            logger.info(f"[GENERATE] Полный ответ: {json.dumps(response_data, indent=2)}")
-            logger.info(f"[GENERATE] =========================================")
             return response_data
                 
         except Exception as e:
