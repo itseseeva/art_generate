@@ -7,6 +7,22 @@ from pathlib import Path
 from typing import Optional
 from pydantic_settings import BaseSettings
 from pydantic import Field, ConfigDict
+from dotenv import load_dotenv
+
+# Загружаем .env файл перед созданием Settings
+# Это гарантирует, что переменные окружения будут доступны
+env_path = Path(__file__).parent.parent.parent / ".env"
+if env_path.exists():
+    load_dotenv(env_path, override=True)
+else:
+    # Пробуем загрузить из корня проекта
+    root_env = Path(__file__).parent.parent.parent.parent / ".env"
+    if root_env.exists():
+        load_dotenv(root_env, override=True)
+    else:
+        # Пробуем загрузить из текущей директории
+        load_dotenv(override=True)
+
 
 class Settings(BaseSettings):
     """Основные настройки приложения."""
@@ -87,6 +103,7 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Получить экземпляр настроек."""
     return Settings()
+
 
 # Создаем глобальный экземпляр настроек
 settings = get_settings()

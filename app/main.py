@@ -80,8 +80,14 @@ from httpx import HTTPStatusError
 # Импорты для генерации изображений
 from app.chat_bot.add_character import get_character_data
 # FaceRefinementService импортируется лениво внутри функции, т.к. требует torch
-from app.schemas.generation import GenerationSettings
+from app.schemas.generation import GenerationSettings, GenerationResponse
 from app.config.settings import settings
+import replicate
+from replicate.exceptions import ReplicateError, ModelError
+import requests
+from PIL import Image
+from io import BytesIO
+import base64
 
 # Импорты моделей для Alembic
 from app.models.chat_history import ChatHistory
@@ -191,6 +197,33 @@ async def lifespan(app: FastAPI):
     # Redis будет подключен при первом использовании, если доступен
     logger.info("[INFO] Redis кэш будет инициализирован при первом использовании")
     
+    # Keep Alive скрипт отключен
+    # keep_alive_task = None
+    # try:
+    #     import sys
+    #     from pathlib import Path
+    #
+    #     # Добавляем корневую директорию проекта в sys.path
+    #     # для корректного импорта keep_alive
+    #     project_root = Path(__file__).parent.parent
+    #     if str(project_root) not in sys.path:
+    #         sys.path.insert(0, str(project_root))
+    #
+    #     from keep_alive import start_keep_alive_task
+    #
+    #     # Запускаем как asyncio task в текущем event loop
+    #     keep_alive_task = await start_keep_alive_task()
+    #     logger.info("[OK] Keep Alive скрипт запущен (асинхронно, не блокирует)")
+    # except ImportError as e:
+    #     logger.warning(
+    #         f"[WARNING] Не удалось импортировать Keep Alive модуль: {e}"
+    #     )
+    # except Exception as e:
+    #     logger.warning(
+    #         f"[WARNING] Не удалось запустить Keep Alive скрипт: {e}"
+    #     )
+    keep_alive_task = None
+    
     logger.info("🎉 Приложение готово к работе!")
     logger.info("[INFO] Сервер должен быть готов принимать соединения")
     yield
@@ -198,6 +231,18 @@ async def lifespan(app: FastAPI):
     
     # Завершение работы приложения
     logger.info("🛑 Останавливаем приложение...")
+    
+    # Keep Alive скрипт отключен
+    # if keep_alive_task:
+    #     try:
+    #         logger.info("[INFO] Останавливаем Keep Alive скрипт...")
+    #         from keep_alive import stop_keep_alive_task
+    #         await stop_keep_alive_task()
+    #         logger.info("[OK] Keep Alive скрипт остановлен")
+    #     except Exception as e:
+    #         logger.warning(
+    #             f"[WARNING] Ошибка остановки Keep Alive скрипта: {e}"
+    #         )
     
     # Закрываем соединение с Redis
     try:
@@ -1850,6 +1895,249 @@ async def chat_endpoint(
 
 # Импорт уже есть выше в файле
 
+async def generate_image_replicate(settings: GenerationSettings) -> GenerationResponse:
+    """
+    Генерирует изображение через Replicate API.
+    
+    Args:
+        settings: Настройки генерации
+        
+    Returns:
+        GenerationResponse с результатами генерации
+    """
+    logger.info("[REPLICATE] Начинаем генерацию через Replicate API")
+    
+    # Проверяем наличие API токена
+    replicate_api_token = os.environ.get("REPLICATE_API_TOKEN")
+    if not replicate_api_token:
+        raise Exception("REPLICATE_API_TOKEN не установлен в переменных окружения")
+    
+    # Получаем модель из переменных окружения
+    replicate_model = os.environ.get("REPLICATE_MODEL")
+    if not replicate_model:
+        raise Exception("REPLICATE_MODEL не установлен в переменных окружения")
+    
+    # Если указана версия и она не найдена, пробуем использовать latest
+    # Это поможет избежать ошибок при изменении версий на Replicate
+    original_model = replicate_model
+    
+    # Читаем настройки из конфигурационных файлов
+    from app.config.generation_defaults import DEFAULT_GENERATION_PARAMS
+    
+    # Промпты уже сформированы в эндпоинте, используем их как есть
+    # НЕ добавляем дефолтные промпты повторно, чтобы избежать дублирования
+    final_prompt = settings.prompt or ""
+    final_negative_prompt = settings.negative_prompt or ""
+    
+    # Обработка размера: парсим settings.size если есть, иначе используем width/height
+    width = DEFAULT_GENERATION_PARAMS.get("width", 832)
+    height = DEFAULT_GENERATION_PARAMS.get("height", 1216)
+    
+    # Проверяем, есть ли поле size в settings
+    if hasattr(settings, 'size') and settings.size:
+        try:
+            # Парсим строку вида "832x1216"
+            size_parts = str(settings.size).split('x')
+            if len(size_parts) == 2:
+                width = int(size_parts[0].strip())
+                height = int(size_parts[1].strip())
+            else:
+                logger.warning(f"[REPLICATE] Не удалось распарсить size: {settings.size}, используем дефолтные значения")
+        except (ValueError, AttributeError) as e:
+            logger.warning(f"[REPLICATE] Ошибка парсинга size: {e}, используем дефолтные значения")
+    else:
+        # Используем отдельные поля width и height
+        width = settings.width or DEFAULT_GENERATION_PARAMS.get("width", 832)
+        height = settings.height or DEFAULT_GENERATION_PARAMS.get("height", 1216)
+    
+    # Получаем параметры из settings или используем дефолтные
+    num_inference_steps = settings.steps or DEFAULT_GENERATION_PARAMS.get("steps", 30)
+    
+    # Проверяем settings.cfg, если нет - используем cfg_scale
+    if hasattr(settings, 'cfg') and settings.cfg is not None:
+        guidance_scale = settings.cfg
+    else:
+        guidance_scale = settings.cfg_scale or 7.0
+    
+    # Обрабатываем seed: -1 означает случайный seed, поэтому передаем None в Replicate
+    seed = settings.seed if settings.seed is not None and settings.seed != -1 else None
+    
+    logger.info(f"[REPLICATE] Параметры: steps={num_inference_steps}, cfg={guidance_scale}, size={width}x{height}, seed={seed}")
+    logger.info(f"[REPLICATE] Промпт: {final_prompt[:100]}...")
+    
+    # Подготавливаем входные параметры для Replicate (только правильные имена параметров)
+    input_params = {
+        "prompt": final_prompt or "",
+        "num_inference_steps": num_inference_steps,
+        "guidance_scale": guidance_scale,
+        "width": width,
+        "height": height,
+    }
+    
+    # Добавляем negative_prompt только если он не пустой
+    if final_negative_prompt and final_negative_prompt.strip():
+        input_params["negative_prompt"] = final_negative_prompt.strip()
+    
+    # Добавляем seed только если он задан (если -1, передаем None или случайное число)
+    if seed is not None:
+        input_params["seed"] = seed
+    # Если seed не задан, не передаем его - Replicate сам сгенерирует случайный seed
+    
+    try:
+        # Устанавливаем API токен для Replicate
+        # Replicate автоматически использует переменную окружения REPLICATE_API_TOKEN
+        # Убеждаемся, что она установлена
+        if not os.environ.get("REPLICATE_API_TOKEN"):
+            os.environ["REPLICATE_API_TOKEN"] = replicate_api_token
+        
+        # Вызываем Replicate API
+        logger.info(f"[REPLICATE] Вызываем модель: {replicate_model}")
+        logger.info(f"[REPLICATE] Параметры запроса: {json.dumps(input_params, indent=2, ensure_ascii=False)}")
+        output = replicate.run(replicate_model, input=input_params)
+        
+        logger.info(f"[REPLICATE] Получен ответ от Replicate: {type(output)}")
+        
+        # Replicate возвращает список URL или один URL
+        image_urls = []
+        if isinstance(output, list):
+            image_urls = output
+        elif isinstance(output, str):
+            image_urls = [output]
+        else:
+            # Если это итератор или другой тип
+            image_urls = list(output) if hasattr(output, '__iter__') else [str(output)]
+        
+        if not image_urls:
+            raise Exception("Replicate API не вернул изображения")
+        
+        # Загружаем первое изображение
+        first_image_url = image_urls[0]
+        logger.info(f"[REPLICATE] Загружаем изображение с URL: {first_image_url}")
+        
+        # Загружаем изображение через requests
+        response = requests.get(first_image_url, timeout=60)
+        response.raise_for_status()
+        
+        # Конвертируем в PIL Image
+        image = Image.open(BytesIO(response.content))
+        
+        # Конвертируем в base64
+        buffered = BytesIO()
+        image.save(buffered, format="PNG")
+        img_bytes = buffered.getvalue()
+        img_base64 = base64.b64encode(img_bytes).decode("utf-8")
+        
+        # Сохраняем на диск для отладки (опционально)
+        output_path = Path("replicate_output.png")
+        image.save(str(output_path))
+        logger.info(f"[REPLICATE] Изображение сохранено: {output_path}")
+        
+        # Формируем информацию о генерации
+        info_dict = {
+            "seed": seed if seed is not None else -1,
+            "steps": num_inference_steps,
+            "model": replicate_model,
+            "width": width,
+            "height": height,
+            "guidance_scale": guidance_scale
+        }
+        
+        # Создаем GenerationResponse
+        result = GenerationResponse(
+            images=[img_base64],
+            image_data=[img_bytes],
+            parameters=input_params,
+            info=json.dumps(info_dict),
+            seed=seed if seed is not None else -1,
+            saved_paths=[str(output_path)],
+            cloud_urls=[first_image_url]
+        )
+        
+        logger.info("[REPLICATE] Генерация успешно завершена")
+        return result
+        
+    except ModelError as e:
+        # Специальная обработка ошибок модели на Replicate
+        error_detail = str(e)
+        logger.error(f"[REPLICATE] Ошибка модели: {error_detail}")
+        
+        # Пытаемся получить дополнительную информацию об ошибке
+        error_info = {}
+        if hasattr(e, 'prediction'):
+            prediction = e.prediction
+            if hasattr(prediction, 'error'):
+                error_info['prediction_error'] = prediction.error
+            if hasattr(prediction, 'status'):
+                error_info['prediction_status'] = prediction.status
+            if hasattr(prediction, 'logs'):
+                error_info['prediction_logs'] = prediction.logs
+        
+        logger.error(f"[REPLICATE] Детали ошибки модели: {json.dumps(error_info, indent=2, ensure_ascii=False)}")
+        
+        # Формируем понятное сообщение об ошибке
+        if error_info.get('prediction_error'):
+            error_message = (
+                f"Ошибка при выполнении модели на Replicate: {error_info.get('prediction_error')}. "
+                f"Проверьте логи модели и параметры запроса."
+            )
+        else:
+            error_message = (
+                f"Ошибка при выполнении модели на Replicate: {error_detail}. "
+                f"Возможно, модель не смогла обработать переданные параметры. "
+                f"Проверьте правильность параметров запроса."
+            )
+        
+        raise HTTPException(
+            status_code=500,
+            detail=error_message
+        )
+    except ReplicateError as e:
+        # Специальная обработка ошибок Replicate API
+        error_detail = str(e)
+        error_status = getattr(e, 'status', None) or (str(e) if hasattr(e, '__str__') else '')
+        logger.error(f"[REPLICATE] Ошибка Replicate API: {error_detail}")
+        logger.error(f"[REPLICATE] Статус ошибки: {error_status}")
+        
+        # Проверяем тип ошибки
+        if "Insufficient credit" in error_detail or "402" in str(error_status):
+            error_message = (
+                "Недостаточно кредитов на аккаунте Replicate. "
+                "Пожалуйста, пополните баланс на https://replicate.com/account/billing#billing "
+                "и подождите несколько минут перед повторной попыткой."
+            )
+            logger.error(f"[REPLICATE] {error_message}")
+            raise HTTPException(
+                status_code=402,
+                detail=error_message
+            )
+        elif "404" in str(error_status) or "not found" in error_detail.lower() or "could not be found" in error_detail.lower():
+            error_message = (
+                f"Модель не найдена на Replicate. "
+                f"Проверьте правильность указания модели в переменной окружения REPLICATE_MODEL. "
+                f"Текущее значение: {replicate_model}. "
+                f"Формат должен быть: 'owner/model-name' или 'owner/model-name:version-id'. "
+                f"Проверьте модель на https://replicate.com/{replicate_model.split('/')[0] if '/' in replicate_model else ''}"
+            )
+            logger.error(f"[REPLICATE] {error_message}")
+            raise HTTPException(
+                status_code=404,
+                detail=error_message
+            )
+        else:
+            # Другие ошибки Replicate
+            raise HTTPException(
+                status_code=500,
+                detail=f"Ошибка Replicate API: {error_detail}"
+            )
+    except Exception as e:
+        logger.error(f"[REPLICATE] Ошибка при генерации: {str(e)}")
+        logger.error(f"[REPLICATE] Трейсбек: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка генерации изображения: {str(e)}"
+        )
+
+
 @app.post("/api/v1/generate-image/")
 async def generate_image(
     request: ImageGenerationRequest,
@@ -1945,10 +2233,17 @@ async def generate_image(
         
         logger.info(f"[TARGET] Генерация изображения: {request.prompt}")
 
-        # Создаем сервис для генерации
-        # Ленивый импорт - импортируем только при выполнении эндпоинта
-        from app.services.face_refinement import FaceRefinementService
-        face_refinement_service = FaceRefinementService(settings.SD_API_URL)
+        # Проверяем наличие переменных окружения для Replicate
+        if not os.environ.get("REPLICATE_API_TOKEN"):
+            raise HTTPException(
+                status_code=500,
+                detail="REPLICATE_API_TOKEN не установлен в переменных окружения"
+            )
+        if not os.environ.get("REPLICATE_MODEL"):
+            raise HTTPException(
+                status_code=500,
+                detail="REPLICATE_MODEL не установлен в переменных окружения"
+            )
 
         # Получаем данные персонажа для внешности
         # Если use_default_prompts=False - НЕ используем дефолтного персонажа!
@@ -2042,13 +2337,13 @@ async def generate_image(
             height=request.height or default_params.get("height"),
             cfg_scale=request.cfg_scale or default_params.get("cfg_scale"),
             sampler_name=request.sampler_name or default_params.get("sampler_name"),
-            batch_size=default_params.get("batch_size"),
-            n_iter=default_params.get("n_iter"),
+            batch_size=default_params.get("batch_size", 1),
+            n_iter=default_params.get("n_iter", 1),
             save_grid=default_params.get("save_grid", False),
-            enable_hr=default_params.get("enable_hr", True),
-            denoising_strength=default_params.get("denoising_strength"),
-            hr_scale=default_params.get("hr_scale"),
-            hr_upscaler=default_params.get("hr_upscaler"),
+            enable_hr=default_params.get("enable_hr", False),
+            denoising_strength=default_params.get("denoising_strength", 0.4),
+            hr_scale=default_params.get("hr_scale", 1.5),
+            hr_upscaler=default_params.get("hr_upscaler", "SwinIR_4x"),
             hr_prompt=default_params.get("hr_prompt", ""),
             hr_negative_prompt=default_params.get("hr_negative_prompt", ""),
             restore_faces=default_params.get("restore_faces", False),
@@ -2154,31 +2449,20 @@ async def generate_image(
         full_settings_for_logging["prompt"] = enhanced_prompt
         full_settings_for_logging["default_positive_prompts"] = default_positive_prompts if request.use_default_prompts else ""
         
-        # Для чата используем синхронную генерацию через GenerationService (как на странице photo-generation)
-        # Это обеспечивает немедленный возврат image_url без опроса статуса
+        # Генерация изображения через Replicate API
         logger.info(f"[GENERATE] =========================================")
-        logger.info(f"[GENERATE] === ИСПОЛЬЗУЕМ СИНХРОННУЮ ГЕНЕРАЦИЮ ===")
-        logger.info(f"[GENERATE] Начинаем синхронную генерацию изображения для чата (user_id={user_id})")
-        logger.info(f"[GENERATE] КРИТИЧЕСКАЯ ПРОВЕРКА: Код дошел до синхронной генерации!")
-        logger.info(f"[GENERATE] Если вы видите этот лог, значит старый код с Celery НЕ должен выполняться")
+        logger.info(f"[GENERATE] === ГЕНЕРАЦИЯ ИЗОБРАЖЕНИЯ ЧЕРЕЗ REPLICATE ===")
+        logger.info(f"[GENERATE] Начинаем генерацию изображения (user_id={user_id})")
         logger.info(f"[GENERATE] =========================================")
         
-        # КРИТИЧЕСКАЯ ПРОВЕРКА: Если код дошел сюда, значит старый код с Celery НЕ должен выполняться
-        # Если где-то возвращается task_id, значит код не дошел до этого места
         try:
-            # Используем GenerationService для генерации (сохраняет в облако автоматически)
-            from app.services.generation import GenerationService
-            from app.config.settings import settings as app_settings
-            
-            logger.info(f"[GENERATE] Создаем GenerationService с API URL: {app_settings.SD_API_URL}")
-            generation_service = GenerationService(api_url=app_settings.SD_API_URL)
-            logger.info(f"[GENERATE] Вызываем generation_service.generate() с настройками: character={character_name}, steps={generation_settings.steps}")
+            logger.info(f"[GENERATE] Вызываем generate_image_replicate() с настройками: character={character_name}, steps={generation_settings.steps}")
             try:
-                result = await generation_service.generate(generation_settings)
+                result = await generate_image_replicate(generation_settings)
                 logger.info(f"[GENERATE] Генерация завершена, получен результат")
-                logger.info(f"[GENERATE] Результат содержит cloud_urls: {len(result.cloud_urls) if hasattr(result, 'cloud_urls') and result.cloud_urls else 0}")
+                logger.info(f"[GENERATE] Результат содержит изображений: {len(result.images) if hasattr(result, 'images') and result.images else 0}")
             except Exception as gen_error:
-                logger.error(f"[GENERATE] Ошибка в generation_service.generate(): {str(gen_error)}")
+                logger.error(f"[GENERATE] Ошибка в generate_image_replicate(): {str(gen_error)}")
                 logger.error(f"[GENERATE] Тип ошибки: {type(gen_error).__name__}")
                 import traceback
                 logger.error(f"[GENERATE] Трейсбек ошибки генерации: {traceback.format_exc()}")
@@ -2191,8 +2475,10 @@ async def generate_image(
                 from app.utils.image_saver import save_image_cloud_only
                 
                 try:
+                    # Используем image_data если доступно (bytes), иначе images (base64)
+                    image_data = result.image_data[0] if result.image_data and len(result.image_data) > 0 else result.images[0]
                     save_result = await save_image_cloud_only(
-                        image_data=result.images[0],  # base64 строка
+                        image_data=image_data,  # base64 строка или bytes
                         prefix=f"gen_{result.seed}_0",
                         character_name=character_name
                     )
@@ -2287,7 +2573,7 @@ async def generate_image(
                 
         except Exception as e:
             logger.error(f"[GENERATE] =========================================")
-            logger.error(f"[GENERATE] ОШИБКА в синхронной генерации: {e}")
+            logger.error(f"[GENERATE] ОШИБКА в генерации: {e}")
             import traceback
             logger.error(f"[GENERATE] Трейсбек: {traceback.format_exc()}")
             logger.error(f"[GENERATE] =========================================")

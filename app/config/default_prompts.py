@@ -25,25 +25,18 @@ DEFAULT_POSITIVE_PROMPTS = [
     "Detailed realistic boobs",
     "Detailed realistic eyes",
     "Realistic lighting",
-    "Dramatic lighting",
-    "perfect eyes",
     "beautiful iris",
     "symmetrical face",
     "Cinematic lighting",
-    "Volumetric lighting",
     "Hi-Res",
-    "Masterpiece",
     "Best quality",
-    "Artwork",
     "Semi-Realistic",
     "Lazypos",
-    "Raw",
-    "((Photorealistic))",
-    "((Realistic Tint))",
+    "Photorealistic",
+    "Realistic Tint",
     "Highly aesthetic",
     "Depth of field",
     "High-Res",
-    "Absurdres",
     "Newst-ai"
 ]
 
@@ -195,44 +188,24 @@ def get_lora_string() -> str:
 
 def remove_missing_loras(prompt: str) -> str:
     """
-    Удаляет из промпта LoRA теги для которых нет файлов
+    Удаляет из промпта LoRA теги (оставлено для совместимости).
+    LoRA управляются через параметры запроса, не через теги в промпте.
     
     Args:
         prompt: Промпт с возможными LoRA тегами
-        
+    
     Returns:
-        Промпт только с существующими LoRA
+        Промпт без LoRA тегов (они обрабатываются отдельно в сервисе)
     """
     import re
-    from pathlib import Path
     
-    # Список существующих LoRA файлов
-    lora_dir = Path("stable-diffusion-webui-forge-main/models/Lora")
-    if not lora_dir.exists():
-        # Если папка не существует, удаляем все LoRA теги
-        return re.sub(r'<lora:[^>]+>', '', prompt)
-    
-    existing_loras = {f.stem.lower(): f.name for f in lora_dir.glob("*.safetensors")}
-    
-    # Находим все LoRA теги в промпте
-    lora_pattern = r'<lora:([^:]+):([^>]+)>'
-    
-    def check_lora(match):
-        lora_name = match.group(1).strip()
-        weight = match.group(2).strip()
-        
-        # Проверяем существование файла (без учёта регистра)
-        if lora_name.lower() in existing_loras:
-            return match.group(0)  # Оставляем тег
-        else:
-            return ''  # Удаляем тег
-    
-    # Заменяем LoRA теги
-    cleaned_prompt = re.sub(lora_pattern, check_lora, prompt)
+    # Удаляем все LoRA теги из промпта
+    # LoRA передаются через параметры запроса, не через промпт
+    cleaned_prompt = re.sub(r'<lora:[^>]+>', '', prompt)
     
     # Убираем множественные пробелы и запятые
     cleaned_prompt = re.sub(r'\s+', ' ', cleaned_prompt)
     cleaned_prompt = re.sub(r',\s*,', ',', cleaned_prompt)
     cleaned_prompt = cleaned_prompt.strip()
     
-    return cleaned_prompt 
+    return cleaned_prompt

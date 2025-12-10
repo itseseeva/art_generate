@@ -1,0 +1,18 @@
+build:
+  gpu: true
+  python_version: "3.10"
+  system_packages:
+    - "libgl1-mesa-glx"
+    - "libglib2.0-0"
+  python_packages:
+    - "numpy<2"
+    - "torch==2.0.1"            # Старый PyTorch, чтобы наверняка
+    - "huggingface_hub==0.16.4"
+    - "diffusers==0.19.3"       # <--- ЭТА ВЕРСИЯ НЕ ЗНАЕТ ПРО SDXL. Ошибки быть не может.
+    - "transformers==4.30.2"
+    - "accelerate==0.21.0"
+    - "pillow>=10.0.0"
+    - "safetensors>=0.3.1"
+    - "omegaconf"
+
+predict: "predict.py:Predictor"

@@ -1,0 +1,15 @@
+{
+    "model": {
+      "checkpoint": "urn:air:sdxl:checkpoint:stabilityai:LightningSDXL"
+    },
+    "prompt": "A sunny fantasy forest with magical creatures",
+    "negative_prompt": "low quality, blurry",
+    "sampler": "Euler a",
+    "steps": 20,
+    "cfgScale": 4.0,
+    "seed": 123456,
+    "width": 1024,
+    "height": 1024,
+    "num_images": 1
+  }
+  
