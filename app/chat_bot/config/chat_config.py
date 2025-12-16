@@ -1,6 +1,19 @@
 """
 Конфигурация чат-бота для OpenRouter API.
 Оптимизирована для модели gryphe/mythomax-l2-13b.
+
+КАК ИЗМЕНИТЬ МОДЕЛЬ:
+1. Через переменную окружения в .env файле:
+   CHAT_OPENROUTER_MODEL=название_модели
+   
+2. Или измените значение по умолчанию ниже в поле OPENROUTER_MODEL
+
+Примеры моделей:
+- gryphe/mythomax-l2-13b (текущая)
+- anthropic/claude-3-opus
+- openai/gpt-4
+- meta-llama/llama-3-70b-instruct
+- и другие модели с OpenRouter.ai
 """
 from typing import Optional, List, Dict, Any
 from pydantic_settings import BaseSettings

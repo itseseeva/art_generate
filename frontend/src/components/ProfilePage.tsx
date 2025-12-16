@@ -17,7 +17,18 @@ import {
   FiClock as ClockIcon,
   FiDollarSign as CoinsIcon,
   FiAlertCircle as AlertIcon,
-  FiShoppingBag as ShopIcon
+  FiShoppingBag as ShopIcon,
+  FiUsers as UsersIcon,
+  FiMessageSquare as MessageIcon,
+  FiArrowRight as ArrowRightIcon,
+  FiHome as HomeIcon,
+  FiHeart as HeartIcon,
+  FiUserPlus as UserPlusIcon,
+  FiEdit as EditIcon,
+  FiLogIn as LogInIcon,
+  FiLogOut as LogOutIcon,
+  FiSettings as SettingsIcon,
+  FiArrowLeft as ArrowLeftIcon
 } from 'react-icons/fi';
 
 const UNLOCKED_USER_GALLERIES_KEY = 'userGalleryUnlocked';
@@ -167,6 +178,11 @@ interface ProfilePageProps {
   onEditCharacters?: () => void;
   onOpenUserGallery?: (userId?: number) => void;
   onProfile?: (userId?: number) => void;
+  onHome?: () => void;
+  onFavorites?: () => void;
+  onMyCharacters?: () => void;
+  onMessages?: () => void;
+  onHistory?: () => void;
   userId?: number; // ID пользователя, профиль которого показывается (если не указан - показывается свой профиль)
 }
 
@@ -518,6 +534,28 @@ const TwoColumnLayout = styled.div`
   }
 `;
 
+const LeftColumn = styled.div`
+  margin-left: 0;
+  padding-left: 0;
+  
+  ${Section} {
+    max-width: none;
+    margin-left: 0;
+    margin-right: auto;
+  }
+`;
+
+const RightColumn = styled.div`
+  margin-right: 0;
+  padding-right: 0;
+  
+  ${Section} {
+    max-width: none;
+    margin-left: auto;
+    margin-right: 0;
+  }
+`;
+
 const ActivityList = styled.div`
   display: flex;
   flex-direction: column;
@@ -624,6 +662,79 @@ const StatDescription = styled.span`
   margin-top: ${theme.spacing.xs};
   color: ${theme.colors.text.secondary};
   font-size: ${theme.fontSize.sm};
+`;
+
+const ProgressBarContainer = styled.div`
+  margin-top: ${theme.spacing.sm};
+  width: 100%;
+`;
+
+const ProgressBar = styled.div<{ $percentage: number }>`
+  width: 100%;
+  height: 8px;
+  background: rgba(80, 80, 80, 0.3);
+  border-radius: ${theme.borderRadius.full};
+  overflow: hidden;
+  position: relative;
+  
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: ${props => Math.min(100, Math.max(0, props.$percentage))}%;
+    background: linear-gradient(90deg, rgba(59, 130, 246, 0.8), rgba(99, 102, 241, 0.8));
+    border-radius: ${theme.borderRadius.full};
+    transition: width 0.3s ease;
+  }
+`;
+
+const ProgressText = styled.span`
+  display: block;
+  margin-top: ${theme.spacing.xs};
+  color: ${theme.colors.text.muted};
+  font-size: ${theme.fontSize.xs};
+`;
+
+const QuickActionsContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${theme.spacing.md};
+  margin-top: ${theme.spacing.xl};
+`;
+
+const QuickActionButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: ${theme.spacing.md} ${theme.spacing.lg};
+  background: rgba(60, 60, 60, 0.5);
+  border: 1px solid rgba(150, 150, 150, 0.3);
+  border-radius: ${theme.borderRadius.lg};
+  color: rgba(240, 240, 240, 1);
+  font-size: ${theme.fontSize.base};
+  font-weight: 500;
+  cursor: pointer;
+  transition: all ${theme.transition.normal};
+  
+  &:hover {
+    background: rgba(80, 80, 80, 0.7);
+    border-color: rgba(200, 200, 200, 0.5);
+    transform: translateX(4px);
+  }
+  
+  svg {
+    width: 20px;
+    height: 20px;
+    color: rgba(200, 200, 200, 0.8);
+  }
+`;
+
+const QuickActionLabel = styled.span`
+  display: flex;
+  align-items: center;
+  gap: ${theme.spacing.sm};
 `;
 
 const ErrorBanner = styled.div`
@@ -1183,6 +1294,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   onEditCharacters,
   onOpenUserGallery,
   onProfile,
+  onHome,
+  onFavorites,
+  onMyCharacters,
+  onMessages,
+  onHistory,
   userId: profileUserId
 }) => {
   console.log('[PROFILE] ProfilePage rendered with profileUserId:', profileUserId);
@@ -1202,6 +1318,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [currentUserCoins, setCurrentUserCoins] = useState<number | null>(null);
   const [hasUnlockedGallery, setHasUnlockedGallery] = useState(false);
   const [showInsufficientCreditsNotification, setShowInsufficientCreditsNotification] = useState(false);
+  const [profileStats, setProfileStats] = useState<{
+    characters_count: number;
+    messages_count: number;
+    created_at: string | null;
+  } | null>(null);
+  const [showSettingsPage, setShowSettingsPage] = useState(false);
 
   const isViewingOwnProfile = !profileUserId || (currentUserId !== null && profileUserId === currentUserId);
   const viewedUserName = userInfo?.username || userInfo?.email?.split('@')[0] || 'Пользователь';
@@ -1332,6 +1454,27 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     } catch (error) {
       // Игнорируем ошибки при загрузке количества фото
       console.error('[PROFILE] Ошибка загрузки количества фото:', error);
+    }
+  }, []);
+
+  const fetchProfileStats = useCallback(async (token: string) => {
+    try {
+      const response = await fetch('http://localhost:8000/api/v1/auth/profile-stats/', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setProfileStats({
+          characters_count: data.characters_count || 0,
+          messages_count: data.messages_count || 0,
+          created_at: data.created_at || null
+        });
+      }
+    } catch (error) {
+      console.error('[PROFILE] Ошибка загрузки статистики профиля:', error);
     }
   }, []);
 
@@ -1659,7 +1802,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     const results = await Promise.allSettled([
       fetchUserInfo(authToken),
       fetchSubscriptionStats(authToken), // Всегда загружаем статистику текущего пользователя (нужна для проверки подписки при разблокировке галереи)
-      profileUserId ? Promise.resolve(null) : loadPhotosCount(authToken) // Фото только для своего профиля
+      profileUserId ? Promise.resolve(null) : loadPhotosCount(authToken), // Фото только для своего профиля
+      isViewingOwnProfile ? fetchProfileStats(authToken) : Promise.resolve(null) // Расширенная статистика только для своего профиля
     ]);
 
     // Если это чужой профиль, загружаем количество сгенерированных фото
@@ -1682,7 +1826,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     }
 
     setIsLoading(false);
-  }, [authToken, fetchSubscriptionStats, fetchUserInfo, loadPhotosCount, profileUserId, currentUserId, loadGeneratedPhotosCount, fetchCurrentUserProfile]);
+  }, [authToken, fetchSubscriptionStats, fetchUserInfo, loadPhotosCount, profileUserId, currentUserId, loadGeneratedPhotosCount, fetchCurrentUserProfile, fetchProfileStats, isViewingOwnProfile]);
 
   // Логируем изменения profileUserId
   useEffect(() => {
@@ -1820,6 +1964,39 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
     if (isLoading) {
       return null;
+    }
+
+    // Если открыта страница настроек, показываем её
+    if (showSettingsPage && isViewingOwnProfile) {
+      return (
+        <>
+          {error && <ErrorBanner>{error}</ErrorBanner>}
+          <Section>
+            <SectionHeader>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: theme.spacing.lg }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: theme.spacing.md }}>
+                  <QuickActionButton 
+                    onClick={() => setShowSettingsPage(false)}
+                    style={{ 
+                      background: 'rgba(60, 60, 60, 0.5)',
+                      padding: theme.spacing.sm,
+                      minWidth: 'auto'
+                    }}
+                  >
+                    <QuickActionLabel>
+                      <ArrowLeftIcon />
+                      Назад
+                    </QuickActionLabel>
+                  </QuickActionButton>
+                  <SplitText text="Настройки профиля" delay={25} />
+                </div>
+              </div>
+              <SectionSubtitle>Изменить данные учетной записи</SectionSubtitle>
+            </SectionHeader>
+            <EditProfileForm userInfo={userInfo} authToken={authToken} onUpdate={loadProfileData} />
+          </Section>
+        </>
+      );
     }
 
     const recentActivities = [
@@ -1984,21 +2161,111 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         </ProfileHeader>
 
         {isViewingOwnProfile ? (
-          <TwoColumnLayout>
-            <div>
-              <Section>
-                <SectionHeader>
-                  <SplitText text="Настройки профиля" delay={25} />
-                  <SectionSubtitle>Изменить данные учетной записи</SectionSubtitle>
-                </SectionHeader>
-
-                <EditProfileForm userInfo={userInfo} authToken={authToken} onUpdate={loadProfileData} />
-              </Section>
-            </div>
-
-            <div>
-              <Section>
-                <StatsGrid>
+          <>
+            <TwoColumnLayout>
+              <LeftColumn>
+                <Section>
+                  <SectionHeader>
+                    <SplitText text="Навигация" delay={25} />
+                    <SectionSubtitle>Быстрый доступ к разделам</SectionSubtitle>
+                  </SectionHeader>
+                  <QuickActionsContainer>
+                    {onHome && (
+                      <QuickActionButton onClick={onHome}>
+                        <QuickActionLabel>
+                          <HomeIcon />
+                          Главная
+                        </QuickActionLabel>
+                        <ArrowRightIcon />
+                      </QuickActionButton>
+                    )}
+                    {onCreateCharacter && (
+                      <QuickActionButton onClick={onCreateCharacter}>
+                        <QuickActionLabel>
+                          <UserPlusIcon />
+                          Создать персонажа
+                        </QuickActionLabel>
+                        <ArrowRightIcon />
+                      </QuickActionButton>
+                    )}
+                    {onEditCharacters && (
+                      <QuickActionButton onClick={onEditCharacters}>
+                        <QuickActionLabel>
+                          <EditIcon />
+                          Редактировать персонажей
+                        </QuickActionLabel>
+                        <ArrowRightIcon />
+                      </QuickActionButton>
+                    )}
+                    {onHistory && (
+                      <QuickActionButton onClick={onHistory}>
+                        <QuickActionLabel>
+                          <ClockIcon />
+                          История чатов
+                        </QuickActionLabel>
+                        <ArrowRightIcon />
+                      </QuickActionButton>
+                    )}
+                    {onFavorites && (
+                      <QuickActionButton onClick={onFavorites}>
+                        <QuickActionLabel>
+                          <HeartIcon />
+                          Избранное
+                        </QuickActionLabel>
+                        <ArrowRightIcon />
+                      </QuickActionButton>
+                    )}
+                    {onMyCharacters && (
+                      <QuickActionButton onClick={onMyCharacters}>
+                        <QuickActionLabel>
+                          <UsersIcon />
+                          Мои персонажи
+                        </QuickActionLabel>
+                        <ArrowRightIcon />
+                      </QuickActionButton>
+                    )}
+                    {onProfile && (
+                      <QuickActionButton onClick={() => onProfile(undefined)}>
+                        <QuickActionLabel>
+                          <UserIcon />
+                          Профиль
+                        </QuickActionLabel>
+                        <ArrowRightIcon />
+                      </QuickActionButton>
+                    )}
+                    {onShop && (
+                      <QuickActionButton onClick={onShop}>
+                        <QuickActionLabel>
+                          <ShopIcon />
+                          Магазин
+                        </QuickActionLabel>
+                        <ArrowRightIcon />
+                      </QuickActionButton>
+                    )}
+                    {onMessages && (
+                      <QuickActionButton onClick={onMessages}>
+                        <QuickActionLabel>
+                          <MessageIcon />
+                          Сообщения
+                        </QuickActionLabel>
+                        <ArrowRightIcon />
+                      </QuickActionButton>
+                    )}
+                    {isViewingOwnProfile && (
+                      <QuickActionButton onClick={() => setShowSettingsPage(true)}>
+                        <QuickActionLabel>
+                          <SettingsIcon />
+                          Сменить данные
+                        </QuickActionLabel>
+                        <ArrowRightIcon />
+                      </QuickActionButton>
+                    )}
+                  </QuickActionsContainer>
+                </Section>
+              </LeftColumn>
+              <RightColumn>
+                <Section>
+                  <StatsGrid>
                   <StatCard>
                     <StatIcon color="rgba(59, 130, 246, 0.15)">
                       <CoinsIcon />
@@ -2007,17 +2274,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       <StatValue>{coinBalance}</StatValue>
                       <StatLabel>Баланс монет</StatLabel>
                       <StatDescription>Обновляется после любого списания или пополнения</StatDescription>
-                    </StatContent>
-                  </StatCard>
-
-                  <StatCard>
-                    <StatIcon color="rgba(80, 80, 80, 0.3)">
-                      <ImageIcon />
-                    </StatIcon>
-                    <StatContent>
-                      <StatValue>{photosRemaining}</StatValue>
-                      <StatLabel>Генераций фото</StatLabel>
-                      <StatDescription>Доступно для создания изображений</StatDescription>
                     </StatContent>
                   </StatCard>
 
@@ -2031,11 +2287,55 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       <StatDescription>Срок действия текущей подписки</StatDescription>
                     </StatContent>
                   </StatCard>
+
+                  {profileStats && (
+                    <>
+                      <StatCard>
+                        <StatIcon color="rgba(139, 92, 246, 0.15)">
+                          <UsersIcon />
+                        </StatIcon>
+                        <StatContent>
+                          <StatValue>{profileStats.characters_count}</StatValue>
+                          <StatLabel>Создано персонажей</StatLabel>
+                          <StatDescription>Всего персонажей в вашей коллекции</StatDescription>
+                        </StatContent>
+                      </StatCard>
+
+                      <StatCard>
+                        <StatIcon color="rgba(236, 72, 153, 0.15)">
+                          <MessageIcon />
+                        </StatIcon>
+                        <StatContent>
+                          <StatValue>{profileStats.messages_count}</StatValue>
+                          <StatLabel>Сообщений в чате</StatLabel>
+                          <StatDescription>Всего отправлено сообщений</StatDescription>
+                        </StatContent>
+                      </StatCard>
+                    </>
+                  )}
+
+                  {stats && stats.monthly_credits > 0 && (
+                    <StatCard>
+                      <StatIcon color="rgba(59, 130, 246, 0.15)">
+                        <TrendingUpIcon />
+                      </StatIcon>
+                      <StatContent>
+                        <StatValue>{stats.credits_remaining} / {stats.monthly_credits}</StatValue>
+                        <StatLabel>Кредиты подписки</StatLabel>
+                        <ProgressBarContainer>
+                          <ProgressBar $percentage={(stats.credits_remaining / stats.monthly_credits) * 100} />
+                          <ProgressText>
+                            Использовано: {stats.used_credits} из {stats.monthly_credits}
+                          </ProgressText>
+                        </ProgressBarContainer>
+                      </StatContent>
+                    </StatCard>
+                  )}
                 </StatsGrid>
               </Section>
-            </div>
-
-          </TwoColumnLayout>
+              </RightColumn>
+            </TwoColumnLayout>
+          </>
         ) : (
           userInfo && (
             <Section>

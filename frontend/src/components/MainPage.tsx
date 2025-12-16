@@ -280,7 +280,11 @@ export const MainPage: React.FC<MainPageProps> = ({
   // Load characters from API
   const loadCharacters = async (forceRefresh: boolean = false) => {
     try {
+      // Показываем индикатор загрузки только при первой загрузке или принудительном обновлении
+      // Если данные уже есть в кэше, не показываем индикатор
+      if (forceRefresh || characters.length === 0) {
       setIsLoadingCharacters(true);
+      }
       const charactersData = await fetchCharactersFromApi(forceRefresh);
 
       if (!charactersData.length) {

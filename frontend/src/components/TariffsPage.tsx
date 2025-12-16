@@ -476,10 +476,11 @@ export const TariffsPage: React.FC = () => {
             <PlanName>Free</PlanName>
             <Price>Бесплатно</Price>
             <FeatureList>
-              <Feature>100 кредитов в месяц</Feature>
-              <Feature>10 генераций фото</Feature>
+              <Feature>100 кредитов</Feature>
+              <Feature>5 генераций фото</Feature>
               <Feature>Доступ ко всем персонажам</Feature>
               <Feature>Возможность создать своих персонажей</Feature>
+              <Feature>Премиум модель с ограничением на 20 сообщений</Feature>
             </FeatureList>
             <ActivateButton disabled>
               Доступна при регистрации
@@ -491,10 +492,10 @@ export const TariffsPage: React.FC = () => {
             <Price>699₽ <span>/ месяц</span></Price>
             <FeatureList>
               <Feature>1000 кредитов</Feature>
-              <Feature>100 генераций фото</Feature>
               <Feature>Доступ ко всем персонажам</Feature>
               <Feature>Сохранение истории сообщений</Feature>
               <Feature>Создание платных альбомов</Feature>
+              <Feature>Стандартная модель, память 2000 слов</Feature>
             </FeatureList>
             <ActivateButton 
               onClick={() => handleActivateSubscription('standard')}
@@ -518,12 +519,12 @@ export const TariffsPage: React.FC = () => {
             <Price>1499₽ <span>/ месяц</span></Price>
             <FeatureList>
               <Feature>5000 кредитов</Feature>
-              <Feature>300 генераций фото</Feature>
               <Feature>Доступ ко всем персонажам</Feature>
               <Feature>Сохранение истории сообщений</Feature>
               <Feature>Создание платных альбомов</Feature>
               <Feature>Доступ ко всем платным альбомам</Feature>
               <Feature>Доступ ко всем галереям пользователей</Feature>
+              <Feature>Премиум модель, память 6000 слов</Feature>
             </FeatureList>
             <ActivateButton 
               onClick={() => handleActivateSubscription('premium')}

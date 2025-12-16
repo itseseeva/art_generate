@@ -8,85 +8,118 @@ const ModalOverlay = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(5px);
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 10000;
+  animation: fadeIn 0.3s ease-out;
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
 `;
 
 const ModalContent = styled.div`
-  background: ${theme.colors.background.primary};
+  background: linear-gradient(145deg, rgba(30, 30, 30, 0.95) 0%, rgba(20, 20, 20, 0.9) 100%);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
   border-radius: ${theme.borderRadius.xl};
-  padding: ${theme.spacing.xl};
+  padding: ${theme.spacing.xxl};
   width: 90%;
-  max-width: 400px;
-  border: 1px solid ${theme.colors.border.accent};
-  box-shadow: ${theme.colors.shadow.message};
+  max-width: 480px;
+  border: 1px solid rgba(100, 100, 100, 0.3);
+  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
   text-align: center;
+  animation: slideIn 0.3s ease-out;
+  
+  @keyframes slideIn {
+    from {
+      transform: translateY(-20px) scale(0.95);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+  }
 `;
 
 const Title = styled.h2`
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.lg};
+  color: rgba(240, 240, 240, 1);
+  font-size: ${theme.fontSize['2xl']};
   font-weight: 700;
   margin: 0 0 ${theme.spacing.lg} 0;
+  letter-spacing: -0.5px;
 `;
 
 const Message = styled.p`
-  color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.md};
+  color: rgba(160, 160, 160, 1);
+  font-size: ${theme.fontSize.base};
   margin: 0 0 ${theme.spacing.xl} 0;
-  line-height: 1.5;
+  line-height: 1.6;
 `;
 
 const ButtonGroup = styled.div`
   display: flex;
   gap: ${theme.spacing.md};
   justify-content: center;
+  margin-top: ${theme.spacing.lg};
 `;
 
 const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
-  padding: ${theme.spacing.md} ${theme.spacing.lg};
+  padding: ${theme.spacing.md} ${theme.spacing.xl};
   border-radius: ${theme.borderRadius.lg};
-  font-size: ${theme.fontSize.md};
+  font-size: ${theme.fontSize.base};
   font-weight: 600;
   cursor: pointer;
-  transition: ${theme.transition.fast};
-  border: none;
-  min-width: 100px;
+  transition: all 0.3s ease;
+  min-width: 120px;
+  border: 1px solid transparent;
   
   ${props => {
     if (props.variant === 'primary') {
       return `
-        background: #dc2626;
-        color: white;
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.9) 0%, rgba(80, 100, 200, 0.9) 100%);
+        color: rgba(255, 255, 255, 1);
+        box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
         
         &:hover {
-          background: #b91c1c;
+          background: linear-gradient(135deg, rgba(102, 126, 234, 1) 0%, rgba(80, 100, 200, 1) 100%);
           transform: translateY(-2px);
-          box-shadow: ${theme.colors.shadow.button};
+          box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
         }
         
         &:active {
           transform: translateY(0);
+          box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
         }
       `;
     } else {
       return `
-        background: transparent;
-        color: ${theme.colors.text.primary};
-        border: 2px solid;
-        border-image: linear-gradient(45deg, #764ba2 50%, #4a0000 50%) 1;
+        background: rgba(60, 60, 60, 0.6);
+        color: rgba(240, 240, 240, 1);
+        border: 1px solid rgba(120, 120, 120, 0.3);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
         
         &:hover {
-          border-image: linear-gradient(45deg, #8b5cf6 50%, #7f1d1d 50%) 1;
-          transform: scale(1.05);
+          background: rgba(80, 80, 80, 0.8);
+          border-color: rgba(150, 150, 150, 0.5);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
         }
         
         &:active {
-          transform: scale(0.95);
+          transform: translateY(0);
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
         }
       `;
     }

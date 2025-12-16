@@ -5,7 +5,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import List
 from fastapi import APIRouter, HTTPException, Request, Depends, UploadFile, File
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 import traceback
 import os
@@ -28,6 +28,7 @@ from app.models.user import Users, RefreshToken, EmailVerificationCode
 from app.models.chat_history import ChatHistory
 from app.models.user_gallery import UserGallery
 from app.models.user_gallery_unlock import UserGalleryUnlock
+from app.models.subscription import UserSubscription, SubscriptionType
 from app.chat_bot.models.models import TipMessage
 from app.auth.utils import (
     hash_password, verify_password, hash_token, 
@@ -120,13 +121,37 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
     # Generate new verification code (всегда новый код при повторной регистрации)
     verification_code = generate_verification_code()
     
+    # Проверяем fingerprint_id - обязательная проверка для защиты от злоупотреблений
+    if not user.fingerprint_id:
+        raise HTTPException(
+            status_code=400,
+            detail="fingerprint_id обязателен для регистрации. Пожалуйста, обновите страницу и попробуйте снова."
+        )
+    
+    # Проверяем, использовался ли этот fingerprint_id для бесплатного тарифа
+    fingerprint_result = await db.execute(
+        select(Users)
+        .join(UserSubscription, Users.id == UserSubscription.user_id)
+        .filter(
+            Users.fingerprint_id == user.fingerprint_id,
+            UserSubscription.subscription_type == SubscriptionType.FREE
+        )
+    )
+    existing_fingerprint_user = fingerprint_result.scalar_one_or_none()
+    if existing_fingerprint_user:
+            raise HTTPException(
+                status_code=403,
+                detail="Нельзя регистрировать новые аккаунты!"
+            )
+    
     # Сохраняем данные регистрации во временное хранилище (Redis)
     # Если данные уже есть - они будут перезаписаны новым кодом
     registration_data = {
         "email": user.email,
         "username": user.username,
         "password_hash": hashed_password,
-        "verification_code": verification_code
+        "verification_code": verification_code,
+        "fingerprint_id": user.fingerprint_id
     }
     
     # Сохраняем в Redis на 1 час (3600 секунд)
@@ -174,6 +199,36 @@ async def confirm_registration(
             detail="Invalid verification code"
         )
     
+    # Обновляем fingerprint_id из запроса подтверждения (если он был передан)
+    fingerprint_id = confirm_data.fingerprint_id or registration_data.get("fingerprint_id")
+    if fingerprint_id:
+        registration_data["fingerprint_id"] = fingerprint_id
+    
+    # Проверяем fingerprint_id перед созданием пользователя - обязательная проверка
+    if not fingerprint_id:
+        await cache_delete(cache_key)
+        raise HTTPException(
+            status_code=400,
+            detail="fingerprint_id обязателен для регистрации. Пожалуйста, обновите страницу и попробуйте снова."
+        )
+    
+    # Проверяем, использовался ли этот fingerprint_id для бесплатного тарифа
+    fingerprint_result = await db.execute(
+        select(Users)
+        .join(UserSubscription, Users.id == UserSubscription.user_id)
+        .filter(
+            Users.fingerprint_id == fingerprint_id,
+            UserSubscription.subscription_type == SubscriptionType.FREE
+        )
+    )
+    existing_fingerprint_user = fingerprint_result.scalar_one_or_none()
+    if existing_fingerprint_user:
+        await cache_delete(cache_key)
+        raise HTTPException(
+            status_code=403,
+            detail="Нельзя регистрировать новые аккаунты!"
+        )
+    
     # Проверяем, не создан ли уже пользователь (на случай параллельных запросов)
     result = await db.execute(select(Users).filter(Users.email == confirm_data.email))
     existing_user = result.scalar_one_or_none()
@@ -203,11 +258,15 @@ async def confirm_registration(
             token_type="bearer"
         )
     
+    # Получаем fingerprint_id из registration_data
+    fingerprint_id = registration_data.get("fingerprint_id")
+    
     # Создаем нового пользователя
     db_user = Users(
         email=registration_data["email"],
         username=registration_data["username"],
         password_hash=registration_data["password_hash"],
+        fingerprint_id=fingerprint_id,
         is_active=True,
         is_verified=True  # Пользователь верифицирован после подтверждения кода
     )
@@ -1835,6 +1894,57 @@ async def add_photo_to_gallery(
         db.add(gallery_photo)
         await db.commit()
         
+        # КРИТИЧЕСКИ ВАЖНО: Сохраняем фото в историю чата
+        # Это нужно чтобы фото отображалось в истории персонажа
+        if request.character_name:
+            try:
+                from app.main import process_chat_history_storage
+                from app.chat_bot.models.models import CharacterDB
+                from sqlalchemy import select
+                from app.services.subscription_service import SubscriptionService
+                
+                # Получаем данные персонажа
+                result = await db.execute(
+                    select(CharacterDB).where(CharacterDB.name.ilike(request.character_name))
+                )
+                character_db = result.scalar_one_or_none()
+                
+                if character_db:
+                    character_data = {
+                        "name": character_db.name,
+                        "prompt": character_db.prompt,
+                        "id": character_db.id
+                    }
+                    
+                    # Получаем тип подписки для сохранения истории
+                    subscription_service = SubscriptionService(db)
+                    subscription = await subscription_service.get_user_subscription(current_user.id)
+                    subscription_type = subscription.subscription_type.value.lower() if subscription else "free"
+                    
+                    # Сохраняем историю: пользователь запросил генерацию фото, ассистент вернул фото
+                    user_message = "Генерация изображения"
+                    assistant_response = ""  # Пустой ответ, только фото
+                    
+                    # Сохраняем в фоне через asyncio.create_task
+                    import asyncio
+                    asyncio.create_task(process_chat_history_storage(
+                        subscription_type=subscription_type,
+                        user_id=str(current_user.id),
+                        character_data=character_data,
+                        message=user_message,
+                        response=assistant_response,
+                        image_url=request.image_url,
+                        image_filename=None
+                    ))
+                    logger.info(f"[GALLERY] История чата будет сохранена для фото {request.image_url} и персонажа {request.character_name}")
+                else:
+                    logger.warning(f"[GALLERY] Персонаж {request.character_name} не найден, история не сохранена")
+            except Exception as history_error:
+                # Не блокируем добавление в галерею если не удалось сохранить историю
+                logger.warning(f"[GALLERY] Не удалось сохранить историю чата: {history_error}")
+                import traceback
+                logger.warning(f"[GALLERY] Traceback: {traceback.format_exc()}")
+        
         # Инвалидируем кэш пользователя
         from app.utils.redis_cache import cache_delete, key_user
         await cache_delete(key_user(current_user.email))
@@ -1851,4 +1961,44 @@ async def add_photo_to_gallery(
         raise HTTPException(
             status_code=500,
             detail=f"Не удалось добавить фото в галерею: {str(e)}"
+        )
+
+
+@auth_router.get("/auth/profile-stats/")
+async def get_profile_stats(
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Получает расширенную статистику профиля пользователя:
+    - Количество созданных персонажей
+    - Количество сообщений в чате
+    - Дата регистрации
+    """
+    try:
+        from app.chat_bot.models.models import CharacterDB, ChatMessageDB, ChatSession
+        from app.models.chat_history import ChatHistory
+        
+        # Количество созданных персонажей
+        characters_count_result = await db.execute(
+            select(func.count(CharacterDB.id))
+            .where(CharacterDB.user_id == current_user.id)
+        )
+        characters_count = characters_count_result.scalar_one_or_none() or 0
+        
+        # Количество сообщений берем из поля total_messages_sent (не уменьшается при удалении истории)
+        messages_count = current_user.total_messages_sent or 0
+        
+        return {
+            "characters_count": characters_count,
+            "messages_count": messages_count,
+            "created_at": current_user.created_at.isoformat() if current_user.created_at else None
+        }
+    except Exception as e:
+        logger.error(f"[ERROR] Ошибка получения статистики профиля: {e}")
+        import traceback
+        logger.error(f"[ERROR] Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Не удалось получить статистику профиля: {str(e)}"
         )

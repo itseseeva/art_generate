@@ -227,18 +227,18 @@ class ProfitActivateService:
         return subscription
     
     async def activate_subscription(self, user_id: int, subscription_type: str) -> UserSubscription:
-        """Активирует подписку для пользователя."""
+        """Активирует или продлевает подписку для пользователя."""
         if subscription_type.lower() == "free":
             raise ValueError("Подписка Free доступна только при регистрации и не может быть активирована вручную.")
 
         # Определяем параметры подписки
         if subscription_type.lower() == "standard":
             monthly_credits = 1000
-            monthly_photos = 100
+            monthly_photos = 0  # Без ограничений на генерации фото для STANDARD
             max_message_length = 200
         elif subscription_type.lower() == "premium":
             monthly_credits = 5000
-            monthly_photos = 300
+            monthly_photos = 0  # Без ограничений на генерации фото для PREMIUM
             max_message_length = 300
         else:
             raise ValueError(f"Неподдерживаемый тип подписки: {subscription_type}")
@@ -262,9 +262,10 @@ class ProfitActivateService:
             old_type = existing_subscription.subscription_type.value
             old_monthly_credits = existing_subscription.monthly_credits
             old_monthly_photos = existing_subscription.monthly_photos
+            is_subscription_active = existing_subscription.is_active
             
             # Если та же подписка уже активна - просто возвращаем
-            if existing_subscription.is_active and old_type == subscription_type.lower():
+            if is_subscription_active and old_type == subscription_type.lower():
                 logger.info(f"[SUBSCRIPTION] Пользователь {user_id} уже имеет активную подписку {old_type}")
                 await emit_profile_update(user_id, self.db)
                 return existing_subscription
@@ -274,65 +275,102 @@ class ProfitActivateService:
             old_photos_remaining = existing_subscription.photos_remaining
             old_user_balance = user.coins
             
-            logger.info(f"[SUBSCRIPTION UPGRADE] Пользователь {user_id} меняет подписку {old_type.upper()} -> {subscription_type.upper()}")
-            logger.info(f"[OLD SUBSCRIPTION] Лимиты: кредиты={old_monthly_credits}, фото={old_monthly_photos}")
-            logger.info(f"[OLD SUBSCRIPTION] Остатки: кредиты={old_credits_remaining}, фото={old_photos_remaining}")
-            logger.info(f"[OLD BALANCE] Баланс пользователя: {old_user_balance} монет")
-            
-            # СТРАТЕГИЯ СОХРАНЕНИЯ БОНУСОВ:
-            # 1. Сохраняем все остатки от старой подписки
-            # 2. Добавляем полный лимит новой подписки
-            # 3. Итого: старые остатки + новый лимит
-            
-            # Обновляем тип и лимиты подписки
-            existing_subscription.subscription_type = _normalize_subscription_type(subscription_type)
-            existing_subscription.status = SubscriptionStatus.ACTIVE
-            existing_subscription.monthly_credits = monthly_credits
-            existing_subscription.monthly_photos = monthly_photos
-            existing_subscription.max_message_length = max_message_length
-            
-            # ВАЖНО: 
-            # КРЕДИТЫ - суммируются и переводятся на баланс
-            # ФОТО - ТЕПЕРЬ ТОЖЕ СУММИРУЮТСЯ!
-            
-            # Кредиты: сбрасываем used_credits т.к. все остатки уже на балансе
-            existing_subscription.used_credits = 0
-            
-            # ФОТО: Сохраняем старые остатки фото
-            # Новый лимит + старые остатки - то есть used = 0 для полного переноса
-            # Формула: used = new_limit - (new_limit + old_remaining) = -old_remaining
-            # Но used не может быть отрицательным, поэтому используем другой подход:
-            # Увеличиваем monthly_photos на старый остаток
-            total_photos_available = monthly_photos + old_photos_remaining
-            existing_subscription.monthly_photos = total_photos_available
-            existing_subscription.used_photos = 0
-            
-            existing_subscription.activated_at = datetime.utcnow()
-            existing_subscription.expires_at = datetime.utcnow() + timedelta(days=30)
-            existing_subscription.last_reset_at = datetime.utcnow()
-            
-            # ДОПОЛНИТЕЛЬНЫЙ БОНУС: Старые остатки переводим на баланс
-            total_credits_to_add = monthly_credits + old_credits_remaining
-            user.coins += total_credits_to_add
-            
-            total_photos_available = monthly_photos + old_photos_remaining
-            
-            logger.info(f"[NEW SUBSCRIPTION] Базовые лимиты: кредиты={monthly_credits}, фото={monthly_photos}")
-            logger.info(f"[CREDITS TRANSFER] ✅ Переведено на баланс: {monthly_credits} (новая) + {old_credits_remaining} (остаток) = {total_credits_to_add} кредитов")
-            logger.info(f"[PHOTOS TRANSFER] ✅ Суммировано фото: {monthly_photos} (новая) + {old_photos_remaining} (остаток) = {total_photos_available} фото")
-            logger.info(f"[NEW BALANCE] Баланс пользователя: {old_user_balance} + {total_credits_to_add} = {user.coins} монет")
-            
-            await self.db.commit()
-            await self.db.refresh(existing_subscription)
-            await self.db.refresh(user)
-            
-            # Инвалидируем кэш подписки
-            await cache_delete(key_subscription(user_id))
-            await cache_delete(key_subscription_stats(user_id))
-            
-            logger.info(f"[OK] ✅ Подписка успешно обновлена. Все бонусы сохранены!")
-            await emit_profile_update(user_id, self.db)
-            return existing_subscription
+            # Определяем, это продление или новая активация
+            if is_subscription_active and old_type == subscription_type.lower():
+                # ПРОДЛЕНИЕ: та же подписка, активна
+                logger.info(f"[SUBSCRIPTION RENEWAL] Пользователь {user_id} продлевает подписку {old_type.upper()}")
+                logger.info(f"[OLD SUBSCRIPTION] Лимиты: кредиты={old_monthly_credits}, фото={old_monthly_photos}")
+                logger.info(f"[OLD SUBSCRIPTION] Остатки: кредиты={old_credits_remaining}, фото={old_photos_remaining}")
+                logger.info(f"[OLD BALANCE] Баланс пользователя: {old_user_balance} монет")
+                logger.info(f"[OLD EXPIRES] Текущая дата окончания: {existing_subscription.expires_at}")
+                
+                # ПРОДЛЕНИЕ: сдвигаем дату окончания (текущая дата окончания + 30 дней)
+                new_expires_at = existing_subscription.expires_at + timedelta(days=30)
+                
+                # Кредиты ДОБАВЛЯЮТСЯ к текущим остаткам
+                # Для STANDARD и PREMIUM фото не ограничены (monthly_photos = 0)
+                total_credits_to_add = monthly_credits
+                
+                # Обновляем лимиты: увеличиваем monthly_credits
+                existing_subscription.monthly_credits = old_monthly_credits + monthly_credits
+                # monthly_photos остается 0 для STANDARD и PREMIUM
+                
+                # Кредиты переводим на баланс
+                user.coins += total_credits_to_add
+                
+                # Обновляем дату окончания
+                existing_subscription.expires_at = new_expires_at
+                existing_subscription.last_reset_at = datetime.utcnow()
+                
+                logger.info(f"[RENEWAL] Добавлено кредитов: {total_credits_to_add}")
+                logger.info(f"[RENEWAL] Новая дата окончания: {new_expires_at}")
+                logger.info(f"[NEW BALANCE] Баланс пользователя: {old_user_balance} + {total_credits_to_add} = {user.coins} монет")
+                
+            else:
+                # СМЕНА ПОДПИСКИ: другая подписка или истекшая
+                logger.info(f"[SUBSCRIPTION UPGRADE] Пользователь {user_id} меняет подписку {old_type.upper()} -> {subscription_type.upper()}")
+                logger.info(f"[OLD SUBSCRIPTION] Лимиты: кредиты={old_monthly_credits}, фото={old_monthly_photos}")
+                logger.info(f"[OLD SUBSCRIPTION] Остатки: кредиты={old_credits_remaining}, фото={old_photos_remaining}")
+                logger.info(f"[OLD BALANCE] Баланс пользователя: {old_user_balance} монет")
+                
+                # СТРАТЕГИЯ СОХРАНЕНИЯ БОНУСОВ:
+                # 1. Сохраняем все остатки от старой подписки
+                # 2. Добавляем полный лимит новой подписки
+                # 3. Итого: старые остатки + новый лимит
+                
+                # Обновляем тип и лимиты подписки
+                existing_subscription.subscription_type = _normalize_subscription_type(subscription_type)
+                existing_subscription.status = SubscriptionStatus.ACTIVE
+                existing_subscription.monthly_credits = monthly_credits
+                existing_subscription.monthly_photos = monthly_photos
+                existing_subscription.max_message_length = max_message_length
+                
+                # ВАЖНО: 
+                # КРЕДИТЫ - суммируются и переводятся на баланс
+                # ФОТО - ТЕПЕРЬ ТОЖЕ СУММИРУЮТСЯ!
+                
+                # Кредиты: сбрасываем used_credits т.к. все остатки уже на балансе
+                existing_subscription.used_credits = 0
+                
+                # ФОТО: Для STANDARD и PREMIUM monthly_photos = 0 (без ограничений)
+                # Для FREE сохраняем старые остатки фото
+                if existing_subscription.subscription_type == SubscriptionType.FREE:
+                    total_photos_available = monthly_photos + old_photos_remaining
+                    existing_subscription.monthly_photos = total_photos_available
+                    existing_subscription.used_photos = 0
+                else:
+                    # Для STANDARD и PREMIUM - без ограничений на фото
+                    existing_subscription.monthly_photos = 0
+                    existing_subscription.used_photos = 0
+                
+                existing_subscription.activated_at = datetime.utcnow()
+                existing_subscription.expires_at = datetime.utcnow() + timedelta(days=30)
+                existing_subscription.last_reset_at = datetime.utcnow()
+                
+                # ДОПОЛНИТЕЛЬНЫЙ БОНУС: Старые остатки переводим на баланс
+                total_credits_to_add = monthly_credits + old_credits_remaining
+                user.coins += total_credits_to_add
+                
+                logger.info(f"[NEW SUBSCRIPTION] Базовые лимиты: кредиты={monthly_credits}, фото={monthly_photos}")
+                logger.info(f"[CREDITS TRANSFER] ✅ Переведено на баланс: {monthly_credits} (новая) + {old_credits_remaining} (остаток) = {total_credits_to_add} кредитов")
+                if existing_subscription.subscription_type == SubscriptionType.FREE:
+                    total_photos_available = monthly_photos + old_photos_remaining
+                    logger.info(f"[PHOTOS TRANSFER] ✅ Суммировано фото: {monthly_photos} (новая) + {old_photos_remaining} (остаток) = {total_photos_available} фото")
+                else:
+                    logger.info(f"[PHOTOS] Для {existing_subscription.subscription_type.value.upper()} генерации фото не ограничены")
+                logger.info(f"[NEW BALANCE] Баланс пользователя: {old_user_balance} + {total_credits_to_add} = {user.coins} монет")
+                
+                await self.db.commit()
+                await self.db.refresh(existing_subscription)
+                await self.db.refresh(user)
+                
+                # Инвалидируем кэш подписки
+                await cache_delete(key_subscription(user_id))
+                await cache_delete(key_subscription_stats(user_id))
+                
+                logger.info("[OK] Подписка успешно обновлена. Все бонусы сохранены!")
+                await emit_profile_update(user_id, self.db)
+                return existing_subscription
         
         # Создаем новую подписку (первая подписка пользователя)
         logger.info(f"[NEW SUBSCRIPTION] Создание первой подписки {subscription_type} для пользователя {user_id}")
@@ -369,7 +407,7 @@ class ProfitActivateService:
         await cache_delete(key_subscription(user_id))
         await cache_delete(key_subscription_stats(user_id))
         
-        logger.info(f"[OK] ✅ Первая подписка создана успешно!")
+        logger.info("[OK] Первая подписка создана успешно!")
         await emit_profile_update(user_id, self.db)
         return subscription
     
@@ -440,8 +478,8 @@ class ProfitActivateService:
         if not subscription.can_send_message(message_length):
             return False
         
-        # Для сообщений требуется 2 кредита
-        return subscription.can_use_credits(2)
+        # Для сообщений требуется 5 кредитов
+        return subscription.can_use_credits(5)
     
     async def can_user_generate_photo(self, user_id: int) -> bool:
         """Проверяет, может ли пользователь сгенерировать фото."""
@@ -450,7 +488,7 @@ class ProfitActivateService:
     
     async def use_message_credits(self, user_id: int) -> bool:
         """Тратит кредиты за отправку сообщения."""
-        return await self.use_credits_amount(user_id, 2)
+        return await self.use_credits_amount(user_id, 5)
     
     async def use_photo_generation(self, user_id: int, commit: bool = True) -> bool:
         """Тратит генерацию фото."""

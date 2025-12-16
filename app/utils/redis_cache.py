@@ -329,6 +329,7 @@ TTL_GENERATION_FALLBACK = 3600  # 1 час
 TTL_PROMPTS_DEFAULT = 3600  # 1 час
 TTL_CHAT_HISTORY = 600  # 10 минут
 TTL_CHAT_STATUS = 30  # 30 секунд
+TTL_USER_CHARACTERS = 300  # 5 минут
 
 
 # Функции для генерации ключей кэша
@@ -464,4 +465,9 @@ def key_chat_history(user_id: int, character_name: str, session_id: str) -> str:
 def key_chat_status() -> str:
     """Генерирует ключ для статуса чат-бота."""
     return "chat:status"
+
+
+def key_user_characters(user_id: int) -> str:
+    """Генерирует ключ для списка персонажей пользователя с историей."""
+    return f"user:characters:{user_id}"
 

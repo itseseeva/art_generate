@@ -92,44 +92,49 @@ class YandexCloudStorageService:
         except ImportError:
             pass  # python-dotenv не установлен, используем системные переменные
         
-        self.bucket_name = os.getenv("BUCKET_NAME")
-        # Пробуем разные варианты имени переменной (дефис может вызывать проблемы)
-        # Также проверяем переменные с подчеркиванием
-        # Пробуем разные варианты имени переменной
-        # Дефис в имени переменной может вызывать проблемы в Docker Compose
+        # Используем новые стандартные названия переменных
+        # Fallback на старые для обратной совместимости
+        self.bucket_name = (
+            os.getenv("YANDEX_BUCKET_NAME") or
+            os.getenv("BUCKET_NAME")
+        )
         self.access_key = (
-            os.getenv("YANDEX-KEY") or
-            os.getenv("YANDEX_KEY") or
             os.getenv("YANDEX_ACCESS_KEY") or
+            os.getenv("YANDEX_KEY") or
+            os.getenv("YANDEX-KEY") or
             os.getenv("AWS_ACCESS_KEY_ID")
         )
         self.secret_key = (
-            os.getenv("SECRET_KEY") or
             os.getenv("YANDEX_SECRET_KEY") or
+            os.getenv("SECRET_KEY") or
             os.getenv("AWS_SECRET_ACCESS_KEY")
         )
-        self.endpoint_url = os.getenv("ENDPOINT_URL")
+        self.endpoint_url = (
+            os.getenv("YANDEX_ENDPOINT_URL") or
+            os.getenv("ENDPOINT_URL") or
+            "https://storage.yandexcloud.net"
+        )
         
         # Логируем наличие переменных (без значений для безопасности)
         logger.info(
             f"Yandex Cloud Storage переменные: "
-            f"BUCKET_NAME={'установлен' if self.bucket_name else 'НЕ УСТАНОВЛЕН'}, "
-            f"YANDEX-KEY={'установлен' if self.access_key else 'НЕ УСТАНОВЛЕН'}, "
-            f"SECRET_KEY={'установлен' if self.secret_key else 'НЕ УСТАНОВЛЕН'}, "
-            f"ENDPOINT_URL={'установлен' if self.endpoint_url else 'НЕ УСТАНОВЛЕН'}"
+            f"YANDEX_BUCKET_NAME={'установлен' if self.bucket_name else 'НЕ УСТАНОВЛЕН'}, "
+            f"YANDEX_ACCESS_KEY={'установлен' if self.access_key else 'НЕ УСТАНОВЛЕН'}, "
+            f"YANDEX_SECRET_KEY={'установлен' if self.secret_key else 'НЕ УСТАНОВЛЕН'}, "
+            f"YANDEX_ENDPOINT_URL={'установлен' if self.endpoint_url else 'НЕ УСТАНОВЛЕН'}"
         )
         
         # Валидация обязательных параметров
         if not all([self.bucket_name, self.access_key, self.secret_key, self.endpoint_url]):
             missing = []
             if not self.bucket_name:
-                missing.append("BUCKET_NAME")
+                missing.append("YANDEX_BUCKET_NAME")
             if not self.access_key:
-                missing.append("YANDEX-KEY (или YANDEX_KEY)")
+                missing.append("YANDEX_ACCESS_KEY")
             if not self.secret_key:
-                missing.append("SECRET_KEY")
+                missing.append("YANDEX_SECRET_KEY")
             if not self.endpoint_url:
-                missing.append("ENDPOINT_URL")
+                missing.append("YANDEX_ENDPOINT_URL")
             
             error_msg = (
                 f"Отсутствуют обязательные переменные окружения для "

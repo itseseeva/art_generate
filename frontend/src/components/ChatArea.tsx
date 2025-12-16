@@ -10,7 +10,7 @@ const MessagesContainer = styled.div`
   overflow-x: hidden;
   background: transparent;
   position: relative;
-  min-height: 0; /* Важно для flex-элементов */
+  min-height: 0;
   
   /* Стилизация скроллбара */
   &::-webkit-scrollbar {
@@ -23,11 +23,11 @@ const MessagesContainer = styled.div`
   }
   
   &::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, rgba(120, 120, 120, 0.5) 0%, rgba(100, 100, 100, 0.5) 100%);
+    background: rgba(80, 80, 80, 0.6);
     border-radius: ${theme.borderRadius.md};
     
     &:hover {
-      background: linear-gradient(180deg, rgba(140, 140, 140, 0.7) 0%, rgba(120, 120, 120, 0.7) 100%);
+      background: rgba(100, 100, 100, 0.8);
     }
   }
 `;
@@ -94,11 +94,15 @@ const EmptyState = styled.div`
   min-height: 400px;
   text-align: center;
   color: rgba(160, 160, 160, 1);
+  padding: ${theme.spacing.xl};
+  background: transparent;
+  border: none;
+  box-shadow: none;
   
   h3 {
     font-size: ${theme.fontSize.xl};
     margin-bottom: ${theme.spacing.md};
-    color: rgba(220, 220, 220, 1);
+    color: rgba(240, 240, 240, 1);
     font-weight: 600;
   }
   
@@ -106,7 +110,7 @@ const EmptyState = styled.div`
     font-size: ${theme.fontSize.base};
     line-height: 1.7;
     max-width: 500px;
-    color: rgba(140, 140, 140, 0.9);
+    color: rgba(180, 180, 180, 0.9);
   }
 `;
 
@@ -140,7 +144,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   isAuthenticated,
   isCharacterOwner,
   onAddToGallery,
-  onAddToPaidAlbum
+  onAddToPaidAlbum,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -185,17 +189,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             onAddToPaidAlbum={onAddToPaidAlbum}
           />
         ))}
-        
-        {isLoading && (
-          <LoadingMessage>
-            <LoadingDots>
-              <span></span>
-              <span></span>
-              <span></span>
-            </LoadingDots>
-            Генерируется ответ...
-          </LoadingMessage>
-        )}
         
         <div ref={messagesEndRef} />
       </MessagesList>

@@ -12,6 +12,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fingerprintjs/fingerprintjs": "^4.6.2",
     "@radix-ui/react-navigation-menu": "^1.2.14",
     "@types/node": "^24.5.2",
     "@types/styled-components": "^5.1.34",

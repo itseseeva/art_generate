@@ -70,6 +70,7 @@ from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconn
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse, Response, StreamingResponse
+from typing import AsyncGenerator
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 import uvicorn
@@ -82,7 +83,7 @@ from app.chat_bot.add_character import get_character_data
 # FaceRefinementService импортируется лениво внутри функции, т.к. требует torch
 from app.schemas.generation import GenerationSettings, GenerationResponse
 from app.config.settings import settings
-import replicate
+# import replicate  # Устарело: переехали на RunPod API
 from replicate.exceptions import ReplicateError, ModelError
 import requests
 from PIL import Image
@@ -1138,11 +1139,26 @@ async def _write_chat_history(
             # Сохраняем сообщение пользователя (даже если оно пустое, но есть фото)
             # Фото = текст для истории чата
             user_content = message if message else ""
-            if image_url and not user_content:
-                # Если есть только фото без текста, создаем сообщение с фото
-                user_content = f"[image:{image_url}]"
-            elif image_filename and not user_content:
-                user_content = f"[image:{image_filename}]"
+            
+            # ВАЖНО: Если есть фото, но нет текста - создаем сообщение для истории
+            # Это нужно, чтобы история работала даже при генерации фото без текста
+            if (image_url or image_filename) and not user_content:
+                # Используем текст "Генерация изображения" чтобы пройти фильтры истории
+                # (минимум 3 символа, максимум 1000 символов)
+                user_content = "Генерация изображения"
+                logger.info(f"[HISTORY] Установлен user_content='Генерация изображения' для фото без текста (image_url={bool(image_url)}, image_filename={bool(image_filename)}, message='{message}')")
+            
+            # ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: если message уже содержит "Генерация изображения", используем его
+            if message == "Генерация изображения" and (image_url or image_filename):
+                user_content = "Генерация изображения"
+                logger.info(f"[HISTORY] Используем message='Генерация изображения' как user_content")
+            
+            # Если есть image_url, добавляем его в user_content для сохранения в ChatMessageDB
+            # Это нужно для случаев, когда пользователь загружает изображение
+            if image_url and user_content and "[image:" not in user_content:
+                user_content = f"{user_content}\n\n[image:{image_url}]"
+            elif image_filename and user_content and "[image:" not in user_content:
+                user_content = f"{user_content}\n\n[image:{image_filename}]"
             
             # Используем более точное время для правильной сортировки
             import time
@@ -1161,20 +1177,21 @@ async def _write_chat_history(
             assistant_content = response if response else ""
             if image_url:
                 if assistant_content:
+                    # Если есть текст, добавляем метку о фото с URL
                     assistant_content = f"{assistant_content}\n\n[image:{image_url}]"
                 else:
-                    # Если нет текста, создаем сообщение только с фото
+                    # Если нет текста, создаем сообщение о фото с URL
+                    # Используем формат [image:url] чтобы можно было извлечь URL при загрузке
                     assistant_content = f"[image:{image_url}]"
             elif image_filename:
                 if assistant_content:
                     assistant_content = f"{assistant_content}\n\n[image:{image_filename}]"
                 else:
-                    # Если нет текста, создаем сообщение только с фото
                     assistant_content = f"[image:{image_filename}]"
 
             # Добавляем небольшую задержку, чтобы timestamp был разным
             # Используем микросекунды для более точного времени
-            time.sleep(0.001)  # 1 миллисекунда
+            await asyncio.sleep(0.001)  # 1 миллисекунда (асинхронно)
             assistant_timestamp = datetime.now()
             
             # Убеждаемся, что assistant timestamp больше user timestamp
@@ -1193,6 +1210,9 @@ async def _write_chat_history(
             # КРИТИЧЕСКИ ВАЖНО: коммитим ChatMessageDB сразу, чтобы они сохранились
             await db.commit()
             logger.info(f"[HISTORY] ChatSession и ChatMessageDB сохранены для user_id={user_id_int}, character={character_name}, session_id={chat_session.id}")
+            logger.info(f"[HISTORY] User message: '{user_content}' ({len(user_content)} chars), Assistant message: '{assistant_content[:100]}...' ({len(assistant_content)} chars)")
+            logger.info(f"[HISTORY] User message length check: >= 3? {len(user_content.strip()) >= 3}, < 1000? {len(user_content.strip()) < 1000}")
+            logger.info(f"[HISTORY] Image URL present: {bool(image_url)}, Image filename present: {bool(image_filename)}")
         else:
             logger.warning(f"[HISTORY] Пропуск сохранения ChatSession/ChatMessageDB: подписка FREE или отсутствует (user_id={user_id_int}, can_save_session={can_save_session})")
 
@@ -1249,6 +1269,12 @@ async def _write_chat_history(
                     str(chat_session.id),
                     bool(image_url or image_filename)
                 )
+                
+                # Инвалидируем кэш списка персонажей, чтобы новый персонаж появился на странице /history
+                from app.utils.redis_cache import cache_delete, key_user_characters
+                user_characters_cache_key = key_user_characters(user_id_int)
+                await cache_delete(user_characters_cache_key)
+                logger.info(f"[HISTORY] Кэш списка персонажей инвалидирован для user_id={user_id_int}")
             except Exception as chat_history_error:
                 logger.error(f"[HISTORY] Ошибка сохранения в ChatHistory: {chat_history_error}")
                 import traceback
@@ -1264,6 +1290,36 @@ async def _write_chat_history(
             )
 
 
+async def increment_message_counter_async(user_id: int) -> None:
+    """Асинхронно увеличивает счетчик отправленных сообщений пользователя."""
+    try:
+        async with async_session_maker() as db:
+            from app.models.user import Users
+            from sqlalchemy import select, update
+            
+            # Получаем пользователя
+            result = await db.execute(
+                select(Users).where(Users.id == user_id)
+            )
+            user = result.scalar_one_or_none()
+            
+            if user:
+                # Увеличиваем счетчик атомарно
+                current_count = user.total_messages_sent or 0
+                await db.execute(
+                    update(Users)
+                    .where(Users.id == user_id)
+                    .values(total_messages_sent=current_count + 1)
+                )
+                await db.commit()
+                logger.info(f"[MESSAGE_COUNTER] Счетчик сообщений увеличен для user_id={user_id} (было {current_count}, стало {current_count + 1})")
+            else:
+                logger.warning(f"[MESSAGE_COUNTER] Пользователь {user_id} не найден")
+    except Exception as e:
+        logger.error(f"[MESSAGE_COUNTER] Ошибка увеличения счетчика сообщений для user_id={user_id}: {e}")
+        # Не прерываем выполнение, если счетчик не обновился
+
+
 async def process_chat_history_storage(
     subscription_type: Optional[str],
     user_id: Optional[str],
@@ -1276,6 +1332,18 @@ async def process_chat_history_storage(
     """Определяет, нужно ли сохранять историю чата, и выполняет сохранение."""
     logger.info(f"[HISTORY] process_chat_history_storage вызван: user_id={user_id}, subscription_type={subscription_type}, character={character_data.get('name') if character_data else None}")
     try:
+        # Преобразуем user_id в int для счетчика
+        user_id_int = None
+        if user_id:
+            try:
+                user_id_int = int(user_id) if isinstance(user_id, str) else user_id
+            except (ValueError, TypeError):
+                logger.warning(f"[HISTORY] Не удалось преобразовать user_id в int: {user_id}")
+        
+        # Увеличиваем счетчик сообщений асинхронно (не блокируем сохранение истории)
+        if user_id_int:
+            asyncio.create_task(increment_message_counter_async(user_id_int))
+        
         await _write_chat_history(
             user_id=user_id,
             character_data=character_data,
@@ -1288,6 +1356,25 @@ async def process_chat_history_storage(
         logger.error(f"[ERROR] Не удалось сохранить историю чата: {history_error}")
         import traceback
         logger.error(f"[ERROR] Трейсбек: {traceback.format_exc()}")
+
+
+async def spend_message_resources_async(user_id: int, use_credits: bool) -> None:
+    """Списывает кредиты или монеты за сообщение в фоновом режиме."""
+    try:
+        async with async_session_maker() as db:
+            if use_credits:
+                subscription_service = ProfitActivateService(db)
+                credits_spent = await subscription_service.use_message_credits(user_id)
+                if credits_spent:
+                    logger.info(f"[STREAM] Списаны кредиты подписки за сообщение пользователя {user_id}")
+            else:
+                from app.services.coins_service import CoinsService
+                coins_service = CoinsService(db)
+                coins_spent = await coins_service.spend_coins_for_message(user_id)
+                if coins_spent:
+                    logger.info(f"[STREAM] Списаны монеты за сообщение пользователя {user_id}")
+    except Exception as e:
+        logger.error(f"[STREAM] Ошибка списания ресурсов: {e}")
 
 
 async def spend_photo_resources(user_id: int) -> None:
@@ -1350,13 +1437,21 @@ async def chat_endpoint(
 ):
     """
     Простой эндпоинт для чата - прямой ответ от модели без пост-обработки.
+    Поддерживает стриминг через параметр stream=true.
     """
+    # КРИТИЧЕСКИ ВАЖНО: Логируем ВСЕ параметры запроса для диагностики
     logger.info(f"[ENDPOINT CHAT] ========================================")
     logger.info(f"[ENDPOINT CHAT] POST /chat")
     logger.info(f"[ENDPOINT CHAT] User: {current_user.email if current_user else 'Anonymous'} (ID: {current_user.id if current_user else 'N/A'})")
     logger.info(f"[ENDPOINT CHAT] Character: {request.get('character', 'N/A')}")
     logger.info(f"[ENDPOINT CHAT] Generate image: {request.get('generate_image', False)}")
     logger.info(f"[ENDPOINT CHAT] Message (первые 100 символов): {request.get('message', '')[:100]}...")
+    
+    # КРИТИЧЕСКИ ВАЖНО: Проверяем параметр stream
+    stream_param_raw = request.get('stream')
+    logger.info(f"[ENDPOINT CHAT] Stream parameter RAW: {stream_param_raw} (type: {type(stream_param_raw).__name__ if stream_param_raw is not None else 'None'})")
+    logger.info(f"[ENDPOINT CHAT] Все ключи запроса: {list(request.keys())}")
+    logger.info(f"[ENDPOINT CHAT] Полный request dict: {request}")
     logger.info(f"[ENDPOINT CHAT] ========================================")
     
     try:
@@ -1393,6 +1488,22 @@ async def chat_endpoint(
         
         # Проверяем, нужно ли генерировать изображение
         generate_image = request.get("generate_image", False)
+        
+        # Проверяем, нужен ли стриминг
+        stream_param = request.get("stream", False)
+        logger.info(f"[STREAM DEBUG] stream_param из request.get('stream'): {stream_param} (type: {type(stream_param).__name__})")
+        
+        # Обрабатываем разные форматы: bool, строка "true"/"false", число 1/0
+        if isinstance(stream_param, bool):
+            use_streaming = stream_param
+        elif isinstance(stream_param, str):
+            use_streaming = stream_param.lower() in ("true", "1", "yes")
+        elif isinstance(stream_param, (int, float)):
+            use_streaming = bool(stream_param)
+        else:
+            use_streaming = False
+        
+        logger.info(f"[STREAM] Параметр stream из запроса: {stream_param} (тип: {type(stream_param).__name__}), use_streaming={use_streaming}")
         
         # Разрешаем пустое сообщение, если запрашивается генерация фото
         # Фото = текст для истории чата
@@ -1541,13 +1652,19 @@ async def chat_endpoint(
             logger.info(f"[START] Генерируем ответ для: {message[:50]}...")
         
         # Импортируем утилиты для работы с контекстом
-        from app.chat_bot.utils.context_manager import get_context_limit, get_max_tokens, trim_messages_to_token_limit
+        from app.chat_bot.utils.context_manager import (
+            get_context_limit, 
+            get_max_tokens, 
+            get_max_context_tokens,
+            trim_messages_to_token_limit
+        )
         
         # Определяем лимит контекста на основе подписки
         # subscription_type_enum уже определен выше в блоке async with
-        context_limit = get_context_limit(subscription_type_enum)
-        max_tokens = get_max_tokens(subscription_type_enum)
-        logger.info(f"[CONTEXT] Максимальное количество токенов для генерации: {max_tokens}")
+        context_limit = get_context_limit(subscription_type_enum)  # Лимит сообщений для загрузки из БД
+        max_context_tokens = get_max_context_tokens(subscription_type_enum)  # Лимит токенов для контекста
+        max_tokens = get_max_tokens(subscription_type_enum)  # Лимит токенов для генерации ответа
+        logger.info(f"[CONTEXT] Лимит сообщений из БД: {context_limit}, лимит токенов контекста: {max_context_tokens}, лимит токенов генерации: {max_tokens}")
         
         # Получаем историю из БД, если есть подписка и user_id
         db_history_messages = []
@@ -1572,12 +1689,15 @@ async def chat_endpoint(
                     
                     if chat_session:
                         # Получаем сообщения из истории (с учетом лимита подписки)
+                        # Для PREMIUM и STANDARD context_limit = None (без ограничений, обрезка только по токенам)
                         messages_query = (
                             select(ChatMessageDB)
                             .where(ChatMessageDB.session_id == chat_session.id)
                             .order_by(ChatMessageDB.timestamp.asc(), ChatMessageDB.id.asc())  # Сортируем по возрастанию времени и ID
-                            .limit(context_limit)
                         )
+                        # Применяем лимит только если он установлен (для FREE)
+                        if context_limit is not None:
+                            messages_query = messages_query.limit(context_limit)
                         messages_result = await history_db.execute(messages_query)
                         db_history_messages = messages_result.scalars().all()
             except Exception as e:
@@ -1589,9 +1709,26 @@ async def chat_endpoint(
         openai_messages = []
         
         # 1. Системное сообщение с описанием персонажа (всегда первое)
+        # Получаем target_language из запроса (по умолчанию 'ru')
+        target_language = request.get("target_language", "ru")
+        
+        # Формируем языковую инструкцию
+        if target_language == "ru":
+            language_instruction = "\n\nIMPORTANT: You must write your response STRICTLY in RUSSIAN language. Do not use English."
+        elif target_language == "en":
+            language_instruction = "\n\nIMPORTANT: You must write your response STRICTLY in ENGLISH language."
+        else:
+            # По умолчанию русский
+            language_instruction = "\n\nIMPORTANT: You must write your response STRICTLY in RUSSIAN language. Do not use English."
+        
+        # Добавляем языковую инструкцию к промпту персонажа
+        system_prompt = character_data["prompt"] + language_instruction
+        
+        logger.info(f"[LANGUAGE] Target language: {target_language}, instruction added to system prompt")
+        
         openai_messages.append({
             "role": "system",
-            "content": character_data["prompt"]
+            "content": system_prompt
         })
         
         # Импортируем фильтр сообщений
@@ -1621,8 +1758,10 @@ async def chat_endpoint(
                     logger.debug(f"[CONTEXT] Добавлено assistant сообщение: {msg.content[:100]}...")
         # Fallback: используем history из запроса (для обратной совместимости)
         elif history:
-            logger.info(f"[CONTEXT] Используем history из запроса: {len(history)} сообщений, берем последние {context_limit}")
-            for msg in history[-context_limit:]:
+            # Для PREMIUM и STANDARD context_limit = None, берем все сообщения
+            history_to_process = history if context_limit is None else history[-context_limit:]
+            logger.info(f"[CONTEXT] Используем history из запроса: {len(history)} сообщений, обрабатываем {len(history_to_process)}")
+            for msg in history_to_process:
                 role = msg.get('role', 'user')
                 content = msg.get('content', '')
                 
@@ -1661,9 +1800,13 @@ async def chat_endpoint(
                 "content": message
             })
         
-        # 4. Проверяем и обрезаем по лимиту токенов (4096)
+        # 4. Проверяем и обрезаем по лимиту токенов контекста (4000 для STANDARD, 8000 для PREMIUM)
         messages_before_trim = len(openai_messages)
-        openai_messages = trim_messages_to_token_limit(openai_messages, max_tokens=4096, system_message_index=0)
+        openai_messages = await trim_messages_to_token_limit(
+            openai_messages, 
+            max_tokens=max_context_tokens, 
+            system_message_index=0
+        )
         messages_after_trim = len(openai_messages)
         
         if messages_before_trim != messages_after_trim:
@@ -1671,17 +1814,100 @@ async def chat_endpoint(
         
         # Короткое логирование: количество сообщений в памяти
         history_count = len(openai_messages) - 1  # -1 для system сообщения
-        logger.info(f"[CONTEXT] В памяти: {history_count} сообщений")
+        logger.info(f"[CONTEXT] В памяти: {history_count} сообщений (лимит контекста: {max_context_tokens} токенов)")
         
+        # Если запрошен стриминг, возвращаем StreamingResponse
+        logger.info(f"[STREAM CHECK] use_streaming={use_streaming}, проверяем условие...")
+        if use_streaming:
+            logger.info("[STREAM] /chat: Режим стриминга включен - возвращаем StreamingResponse")
+            
+            # Создаем асинхронный генератор для SSE
+            async def generate_sse_stream() -> AsyncGenerator[str, None]:
+                """
+                Генерирует SSE события из потока OpenRouter.
+                """
+                full_response = ""  # Собираем полный ответ для сохранения в БД
+                
+                try:
+                    # Получаем поток от OpenRouter
+                    async for chunk in openrouter_service.generate_text_stream(
+                        messages=openai_messages,
+                        max_tokens=max_tokens,
+                        temperature=chat_config.DEFAULT_TEMPERATURE,
+                        top_p=chat_config.DEFAULT_TOP_P,
+                        presence_penalty=chat_config.DEFAULT_PRESENCE_PENALTY,
+                        subscription_type=subscription_type_enum
+                    ):
+                        # Проверяем на ошибку
+                        if chunk.startswith('{"error"'):
+                            error_data = json.loads(chunk)
+                            error_msg = error_data.get("error", "Unknown error")
+                            
+                            if error_msg == "__CONNECTION_ERROR__":
+                                yield f"data: {json.dumps({'error': 'Сервис генерации текста недоступен'})}\n\n"
+                                return
+                            else:
+                                yield f"data: {json.dumps({'error': error_msg})}\n\n"
+                                return
+                        
+                        # Отправляем чанк как SSE событие
+                        full_response += chunk
+                        yield f"data: {json.dumps({'content': chunk})}\n\n"
+                    
+                    # Отправляем маркер завершения
+                    yield f"data: {json.dumps({'done': True})}\n\n"
+                    
+                    # Списываем ресурсы и сохраняем диалог в базу данных после завершения стриминга
+                    # Используем фоновую задачу для сохранения, чтобы не блокировать стриминг
+                    if full_response:
+                        # Подготавливаем данные для сохранения
+                        history_message = message if message else ""
+                        
+                        # Списываем ресурсы в фоне
+                        if user_id and coins_user_id is not None:
+                            asyncio.create_task(spend_message_resources_async(
+                                user_id=coins_user_id,
+                                use_credits=use_credits
+                            ))
+                        
+                        # Сохраняем историю в фоне
+                        asyncio.create_task(process_chat_history_storage(
+                            subscription_type=user_subscription_type,
+                            user_id=user_id,
+                            character_data=character_data,
+                            message=history_message,
+                            response=full_response,
+                            image_url=None,
+                            image_filename=None
+                        ))
+                    
+                except Exception as e:
+                    logger.error(f"[STREAM] Ошибка в генераторе SSE: {e}")
+                    yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            
+            # Возвращаем StreamingResponse с SSE
+            return StreamingResponse(
+                generate_sse_stream(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no"  # Отключаем буферизацию в nginx
+                }
+            )
+        
+        # Обычный режим без стриминга
         # Генерируем ответ напрямую от модели (ОПТИМИЗИРОВАНО ДЛЯ СКОРОСТИ)
         # max_tokens определяется на основе подписки: STANDARD=200, PREMIUM=450
+        # Модель выбирается на основе подписки: STANDARD=gryphe/mythomax-l2-13b, PREMIUM=sao10k/l3-euryale-70b
         response = await openrouter_service.generate_text(
             messages=openai_messages,
             max_tokens=max_tokens,
             temperature=chat_config.DEFAULT_TEMPERATURE,
             top_p=chat_config.DEFAULT_TOP_P,
             repeat_penalty=chat_config.DEFAULT_REPEAT_PENALTY,
-            presence_penalty=chat_config.DEFAULT_PRESENCE_PENALTY
+            presence_penalty=chat_config.DEFAULT_PRESENCE_PENALTY,
+            subscription_type=subscription_type_enum
         )
         
         # Проверяем ошибку подключения к сервису генерации
@@ -1703,6 +1929,7 @@ async def chat_endpoint(
         # Это нужно для того, чтобы следующий запрос мог использовать этот ответ в контексте
         # Сохраняем только user сообщение здесь, assistant сохраним позже вместе с полной историей
         # Но сначала нужно подготовить данные для сохранения
+        # ВАЖНО: history_message будет установлен ПОСЛЕ генерации фото (если нужно)
         history_message = message if message else ""
         history_response = response if response else ""
         
@@ -1754,8 +1981,16 @@ async def chat_endpoint(
             if image_prompt:
                 message = image_prompt
             else:
-                # Если нет промпта, создаем пустое сообщение - фото будет сохранено в историю
-                message = ""
+                # Если нет промпта, создаем сообщение для истории
+                # Это нужно, чтобы история работала даже при генерации фото без текста
+                message = "Генерация изображения"
+                logger.info(f"[HISTORY] Установлен message='Генерация изображения' для генерации фото без текста")
+        
+        # ВАЖНО: Обновляем history_message после установки message
+        # Это нужно, чтобы history_message содержал правильное значение для сохранения истории
+        if not history_message and message:
+            history_message = message
+            logger.info(f"[HISTORY] Обновлен history_message из message: '{history_message}'")
         
         image_url = None
         image_filename = None
@@ -1808,6 +2043,7 @@ async def chat_endpoint(
                 
                 # Вызываем существующий эндпоинт генерации изображений через HTTP
                 import httpx
+                generation_time = None
                 async with httpx.AsyncClient() as client:
                     response = await client.post(
                         "http://localhost:8000/api/v1/generate-image/",
@@ -1818,6 +2054,7 @@ async def chat_endpoint(
                         image_url = image_result.get("image_url")  # Теперь это cloud URL
                         cloud_url = image_result.get("cloud_url")  # Тот же URL
                         image_filename = image_result.get("filename")
+                        generation_time = image_result.get("generation_time")  # Время генерации в секундах
                     else:
                         raise Exception(f"Ошибка генерации изображения: {response.status_code}")
                 
@@ -1857,6 +2094,8 @@ async def chat_endpoint(
             result["image_filename"] = image_filename
             if cloud_url:
                 result["cloud_url"] = cloud_url
+            if generation_time is not None:
+                result["generation_time"] = generation_time
             logger.info(f"[OK] DEBUG: Добавлено изображение в ответ: {image_url}")
         else:
             logger.warning(f"[WARNING] DEBUG: image_url пустой, изображение не добавлено в ответ")
@@ -1864,14 +2103,36 @@ async def chat_endpoint(
         # КРИТИЧЕСКИ ВАЖНО: Сохраняем историю чата СРАЗУ после генерации ответа
         # Это гарантирует, что следующий запрос получит полную историю с ответами модели
         # Подготавливаем данные для сохранения
-        if not history_message and (cloud_url or image_url):
+        # ВАЖНО: Если генерировалось фото без текста, создаем сообщение для истории
+        if generate_image and not history_message:
             image_prompt = request.get("image_prompt", "")
             if image_prompt:
                 history_message = image_prompt
-            # Если нет промпта, оставляем пустым - фото будет сохранено в историю
+                logger.info(f"[HISTORY] Используем image_prompt как history_message: {image_prompt[:50]}")
+            elif cloud_url or image_url:
+                # Если нет промпта, но есть фото - создаем сообщение для истории
+                # Это нужно, чтобы история работала даже при генерации фото без текста
+                history_message = "Генерация изображения"  # Минимум 3 символа для прохождения фильтров
+                logger.info(f"[HISTORY] Установлен history_message='Генерация изображения' для фото без текста")
         
-        logger.info(f"[HISTORY] Сохраняем историю: user_message={len(history_message)} chars, assistant_response={len(history_response)} chars")
+        logger.info(f"[HISTORY] Сохраняем историю: user_message='{history_message}' ({len(history_message)} chars), assistant_response={len(history_response)} chars, image_url={bool(cloud_url or image_url)}")
+        logger.info(f"[HISTORY] history_message проходит фильтры? >=3: {len(history_message.strip()) >= 3}, <1000: {len(history_message.strip()) < 1000 if history_message else False}")
         
+        # Сохраняем историю в фоне через Celery для неблокирующего выполнения
+        try:
+            from app.tasks.chat_tasks import save_chat_history_async_task
+            save_chat_history_async_task.delay(
+                user_id=str(user_id) if user_id else None,
+                character_data=character_data,
+                message=history_message,
+                response=history_response,
+                image_url=cloud_url or image_url,
+                image_filename=image_filename
+            )
+            logger.info(f"[HISTORY] Задача сохранения истории отправлена в Celery")
+        except Exception as celery_error:
+            # Fallback: сохраняем синхронно если Celery недоступен
+            logger.warning(f"[HISTORY] Celery недоступен, сохраняем синхронно: {celery_error}")
         await process_chat_history_storage(
             subscription_type=user_subscription_type,
             user_id=user_id,
@@ -1881,8 +2142,7 @@ async def chat_endpoint(
             image_url=cloud_url or image_url,
             image_filename=image_filename,
         )
-        
-        logger.info(f"[HISTORY] История успешно сохранена в БД")
+        logger.info(f"[HISTORY] История успешно сохранена в БД (синхронно)")
 
         return result
             
@@ -1993,33 +2253,136 @@ async def generate_image_replicate(settings: GenerationSettings) -> GenerationRe
         # Вызываем Replicate API
         logger.info(f"[REPLICATE] Вызываем модель: {replicate_model}")
         logger.info(f"[REPLICATE] Параметры запроса: {json.dumps(input_params, indent=2, ensure_ascii=False)}")
-        output = replicate.run(replicate_model, input=input_params)
+        # Обертываем синхронный вызов replicate.run в asyncio.to_thread для неблокирующего выполнения
+        output = await asyncio.to_thread(replicate.run, replicate_model, input=input_params)
         
         logger.info(f"[REPLICATE] Получен ответ от Replicate: {type(output)}")
         
-        # Replicate возвращает список URL или один URL
-        image_urls = []
-        if isinstance(output, list):
-            image_urls = output
-        elif isinstance(output, str):
-            image_urls = [output]
-        else:
-            # Если это итератор или другой тип
-            image_urls = list(output) if hasattr(output, '__iter__') else [str(output)]
+        # Обрабатываем разные типы ответов от Replicate
+        image_data = None
         
-        if not image_urls:
-            raise Exception("Replicate API не вернул изображения")
+        # Проверяем, является ли это FileOutput (бинарные данные)
+        try:
+            from replicate.helpers import FileOutput
+            if isinstance(output, FileOutput):
+                logger.info(
+                    "[REPLICATE] Получен FileOutput, "
+                    "получаем URL или читаем данные"
+                )
+                # FileOutput может иметь атрибут url для получения URL
+                if hasattr(output, 'url') and output.url:
+                    # Используем URL если доступен
+                    url_str = str(output.url)
+                    logger.info(
+                        f"[REPLICATE] FileOutput имеет URL: {url_str}"
+                    )
+                    image_data = None  # Будем загружать по URL
+                elif hasattr(output, 'read'):
+                    # Читаем бинарные данные напрямую
+                    try:
+                        image_data = output.read()
+                        if isinstance(image_data, bytes):
+                            logger.info(
+                                f"[REPLICATE] Прочитано {len(image_data)} байт "
+                                f"из FileOutput"
+                            )
+                        else:
+                            # Если read() вернул не bytes, пробуем получить URL
+                            image_data = None
+                    except Exception as read_error:
+                        logger.warning(
+                            f"[REPLICATE] Ошибка чтения FileOutput: {read_error}, "
+                            f"пробуем получить URL"
+                        )
+                        image_data = None
+                else:
+                    # Пробуем получить URL через другие методы
+                    image_data = None
+        except ImportError:
+            # Модуль replicate.helpers может быть недоступен
+            pass
+        except Exception as e:
+            logger.warning(
+                f"[REPLICATE] Ошибка при обработке FileOutput: {e}, "
+                f"пробуем обработать как URL"
+            )
         
-        # Загружаем первое изображение
-        first_image_url = image_urls[0]
-        logger.info(f"[REPLICATE] Загружаем изображение с URL: {first_image_url}")
-        
-        # Загружаем изображение через requests
-        response = requests.get(first_image_url, timeout=60)
-        response.raise_for_status()
+        # Если не FileOutput или FileOutput без бинарных данных, обрабатываем как URL
+        if image_data is None:
+            # Replicate возвращает список URL или один URL
+            image_urls = []
+            
+            # Проверяем FileOutput с URL
+            try:
+                from replicate.helpers import FileOutput
+                if isinstance(output, FileOutput):
+                    if hasattr(output, 'url') and output.url:
+                        url_str = str(output.url)
+                        if url_str.startswith('http'):
+                            image_urls = [url_str]
+                        else:
+                            logger.warning(
+                                f"[REPLICATE] FileOutput.url не является URL: "
+                                f"{url_str[:100]}"
+                            )
+            except (ImportError, AttributeError, TypeError) as e:
+                logger.debug(
+                    f"[REPLICATE] Не удалось получить URL из FileOutput: {e}"
+                )
+            
+            # Если не FileOutput, обрабатываем как обычный ответ
+            if not image_urls:
+                if isinstance(output, list):
+                    image_urls = output
+                elif isinstance(output, str):
+                    image_urls = [output]
+                else:
+                    # Если это итератор или другой тип
+                    if hasattr(output, '__iter__'):
+                        image_urls = list(output)
+                    else:
+                        # Пробуем получить строковое представление
+                        output_str = str(output)
+                        # Проверяем, является ли это URL
+                        if output_str.startswith('http'):
+                            image_urls = [output_str]
+                        else:
+                            raise Exception(
+                                f"Replicate API вернул неожиданный тип: "
+                                f"{type(output)}"
+                            )
+            
+            if not image_urls:
+                raise Exception("Replicate API не вернул изображения")
+            
+            # Загружаем первое изображение
+            first_image_url = image_urls[0]
+            
+            # Убеждаемся, что это строка, а не bytes
+            if isinstance(first_image_url, bytes):
+                # Если это бинарные данные PNG, используем их напрямую
+                if first_image_url.startswith(b'\x89PNG'):
+                    logger.info(
+                        "[REPLICATE] Получены бинарные данные PNG, "
+                        "используем напрямую"
+                    )
+                    image_data = first_image_url
+                else:
+                    raise Exception(
+                        "Получены бинарные данные вместо URL. "
+                        "Проверьте обработку FileOutput."
+                    )
+            else:
+                # Это строка URL
+                logger.info(
+                    f"[REPLICATE] Загружаем изображение с URL: {first_image_url}"
+                )
+                response = requests.get(first_image_url, timeout=60)
+                response.raise_for_status()
+                image_data = response.content
         
         # Конвертируем в PIL Image
-        image = Image.open(BytesIO(response.content))
+        image = Image.open(BytesIO(image_data))
         
         # Конвертируем в base64
         buffered = BytesIO()
@@ -2233,16 +2596,16 @@ async def generate_image(
         
         logger.info(f"[TARGET] Генерация изображения: {request.prompt}")
 
-        # Проверяем наличие переменных окружения для Replicate
-        if not os.environ.get("REPLICATE_API_TOKEN"):
+        # Проверяем наличие переменных окружения для RunPod
+        if not os.environ.get("RUNPOD_API_KEY"):
             raise HTTPException(
                 status_code=500,
-                detail="REPLICATE_API_TOKEN не установлен в переменных окружения"
+                detail="RUNPOD_API_KEY не установлен в переменных окружения. Настрой RunPod в .env файле."
             )
-        if not os.environ.get("REPLICATE_MODEL"):
+        if not os.environ.get("RUNPOD_URL"):
             raise HTTPException(
                 status_code=500,
-                detail="REPLICATE_MODEL не установлен в переменных окружения"
+                detail="RUNPOD_URL не установлен в переменных окружения. Настрой RunPod в .env файле."
             )
 
         # Получаем данные персонажа для внешности
@@ -2388,19 +2751,9 @@ async def generate_image(
             prompt_parts.append(clean_location)
             full_settings_for_logging["character_location"] = clean_location
         
-        # Получаем стандартный промпт из default_prompts.py ТОЛЬКО если use_default_prompts=True
-        from app.config.default_prompts import get_default_positive_prompts, get_default_negative_prompts
+        # Негативный промпт (стандартные позитивные промпты убраны)
+        from app.config.default_prompts import get_default_negative_prompts
         
-        if request.use_default_prompts:
-            default_positive_prompts = get_default_positive_prompts() or ""
-            if default_positive_prompts:
-                logger.info(f"[NOTE] Добавляем стандартный промпт: {default_positive_prompts}...")
-            else:
-                logger.warning("[WARNING] Стандартный промпт пустой, используем только пользовательский и данные персонажа")
-        else:
-            logger.info("[TEST] use_default_prompts=False - НЕ добавляем стандартные промпты и персонажа")
-            default_positive_prompts = ""
-        # Негативный промпт
         if request.use_default_prompts:
             default_negative_prompts = get_default_negative_prompts() or ""
             if not request.negative_prompt and default_negative_prompts:
@@ -2414,9 +2767,9 @@ async def generate_image(
             # Для тестов - только базовый негативный или пользовательский
             generation_settings.negative_prompt = request.negative_prompt or "lowres, bad quality"
         
-        # Формируем финальный промпт
+        # Формируем финальный промпт (БЕЗ стандартных позитивных промптов)
         if request.use_default_prompts:
-            # Обычный режим: данные персонажа + пользовательский промпт + стандартный промпт
+            # Обычный режим: данные персонажа + пользовательский промпт (БЕЗ стандартных промптов)
             final_prompt_parts = []
             
             # 1. Пользовательский промпт (СНАЧАЛА!)
@@ -2430,11 +2783,7 @@ async def generate_image(
             if prompt_parts:
                 final_prompt_parts.extend(prompt_parts)
             
-            # 3. Стандартный промпт
-            if default_positive_prompts:
-                final_prompt_parts.append(default_positive_prompts)
-            
-            # Объединяем все части
+            # Объединяем все части (БЕЗ стандартных промптов)
             enhanced_prompt = ", ".join(final_prompt_parts)
             generation_settings.prompt = enhanced_prompt or (generation_settings.prompt or "")
         else:
@@ -2445,131 +2794,80 @@ async def generate_image(
             logger.info(f"[TEST] Финальный промпт (чистый): {generation_settings.prompt}")
             enhanced_prompt = generation_settings.prompt  # Для логирования
         
+        # ВАЖНО: Удаляем дубликаты из финального промпта
+        from app.config.default_prompts import deduplicate_prompt
+        generation_settings.prompt = deduplicate_prompt(generation_settings.prompt)
+        enhanced_prompt = generation_settings.prompt  # Обновляем для логирования
+        
+        logger.info(f"[PROMPT] Финальный промпт после дедупликации ({len(generation_settings.prompt)} символов)")
+        
         # Обновляем промпт в настройках для логирования
         full_settings_for_logging["prompt"] = enhanced_prompt
-        full_settings_for_logging["default_positive_prompts"] = default_positive_prompts if request.use_default_prompts else ""
         
-        # Генерация изображения через Replicate API
+        # Генерация изображения через RunPod API
         logger.info(f"[GENERATE] =========================================")
-        logger.info(f"[GENERATE] === ГЕНЕРАЦИЯ ИЗОБРАЖЕНИЯ ЧЕРЕЗ REPLICATE ===")
+        logger.info(f"[GENERATE] === ГЕНЕРАЦИЯ ИЗОБРАЖЕНИЯ ЧЕРЕЗ RUNPOD ===")
         logger.info(f"[GENERATE] Начинаем генерацию изображения (user_id={user_id})")
         logger.info(f"[GENERATE] =========================================")
         
         try:
-            logger.info(f"[GENERATE] Вызываем generate_image_replicate() с настройками: character={character_name}, steps={generation_settings.steps}")
-            try:
-                result = await generate_image_replicate(generation_settings)
-                logger.info(f"[GENERATE] Генерация завершена, получен результат")
-                logger.info(f"[GENERATE] Результат содержит изображений: {len(result.images) if hasattr(result, 'images') and result.images else 0}")
-            except Exception as gen_error:
-                logger.error(f"[GENERATE] Ошибка в generate_image_replicate(): {str(gen_error)}")
-                logger.error(f"[GENERATE] Тип ошибки: {type(gen_error).__name__}")
-                import traceback
-                logger.error(f"[GENERATE] Трейсбек ошибки генерации: {traceback.format_exc()}")
-                raise
+            from app.services.runpod_client import start_generation
+            import httpx
+            import time
             
-            # Сохраняем изображение в облако синхронно (быстро)
-            cloud_url = None
-            if result.images and len(result.images) > 0:
-                logger.info(f"[GENERATE] Сохраняем изображение в облако...")
-                from app.utils.image_saver import save_image_cloud_only
-                
+            # Засекаем время начала генерации
+            start_time = time.time()
+            
+            logger.info(f"[GENERATE] Запускаем асинхронную генерацию через RunPod: character={character_name}, steps={generation_settings.steps}")
+            
+            # ВАЖНО: Запускаем задачу и сразу возвращаем task_id, не ждём завершения
+            # Это позволяет другим пользователям генерировать изображения параллельно
+            async with httpx.AsyncClient() as client:
                 try:
-                    # Используем image_data если доступно (bytes), иначе images (base64)
-                    image_data = result.image_data[0] if result.image_data and len(result.image_data) > 0 else result.images[0]
-                    save_result = await save_image_cloud_only(
-                        image_data=image_data,  # base64 строка или bytes
-                        prefix=f"gen_{result.seed}_0",
-                        character_name=character_name
+                    # Запускаем генерацию и получаем job_id
+                    job_id = await start_generation(
+                        client=client,
+                        user_prompt=generation_settings.prompt,
+                        width=generation_settings.width,
+                        height=generation_settings.height,
+                        steps=generation_settings.steps,
+                        cfg_scale=generation_settings.cfg_scale,
+                        seed=generation_settings.seed if generation_settings.seed and generation_settings.seed != -1 else None,
+                        sampler_name=generation_settings.sampler_name,
+                        negative_prompt=generation_settings.negative_prompt,
+                        use_enhanced_prompts=False,  # Мы уже обработали промпты выше
+                        lora_scale=default_params.get("lora_scale", 0.5),  # Dramatic Lighting LoRA
                     )
                     
-                    if save_result and save_result.get("success"):
-                        cloud_url = save_result.get("cloud_url")
-                        logger.info(f"[GENERATE] Изображение сохранено в облако: {cloud_url}")
-                    else:
-                        logger.error(f"[GENERATE] Ошибка сохранения в облако: {save_result.get('error', 'Unknown error')}")
-                        raise Exception("Не удалось сохранить изображение в облако")
+                    logger.info(f"[GENERATE] ✅ Задача запущена на RunPod, job_id: {job_id}")
+                    
+                    # ВАЖНО: Тратим монеты СРАЗУ при запуске задачи, а не при завершении
+                    # Это предотвращает злоупотребление (если пользователь отменит задачу, монеты уже списаны)
+                    if user_id:
+                        from app.services.coins_service import CoinsService
+                        from app.database.db import async_session_maker
+                        from app.chat_bot.api.character_endpoints import PHOTO_GENERATION_COST
                         
-                except Exception as save_error:
-                    logger.error(f"[GENERATE] Критическая ошибка сохранения: {save_error}")
+                        async with async_session_maker() as db:
+                            coins_service = CoinsService(db)
+                            await coins_service.spend_coins(user_id, PHOTO_GENERATION_COST)
+                            logger.info(f"[COINS] Списано {PHOTO_GENERATION_COST} монет за запуск генерации для user_id={user_id}")
+                    
+                    # Возвращаем task_id сразу, фронтенд будет опрашивать статус
+                    # Это позволяет другим пользователям генерировать изображения параллельно
+                    return {
+                        "task_id": job_id,
+                        "status_url": f"/api/v1/generation-status/{job_id}",
+                        "success": True,
+                        "message": "Генерация запущена, используйте task_id для проверки статуса"
+                    }
+                    
+                except Exception as gen_error:
+                    logger.error(f"[GENERATE] Ошибка при запуске генерации: {str(gen_error)}")
+                    logger.error(f"[GENERATE] Тип ошибки: {type(gen_error).__name__}")
+                    import traceback
+                    logger.error(f"[GENERATE] Трейсбек ошибки генерации: {traceback.format_exc()}")
                     raise
-            else:
-                logger.error(f"[GENERATE] Нет данных изображения для сохранения")
-                raise Exception("Генерация не вернула данные изображения")
-            
-            if not cloud_url:
-                logger.error(f"[GENERATE] Не удалось получить URL изображения после сохранения")
-                raise Exception("Не удалось получить URL изображения после генерации")
-            
-            # Тратим монеты за генерацию фото (если пользователь авторизован)
-            if user_id and cloud_url:
-                from app.services.coins_service import CoinsService
-                from app.database.db import async_session_maker
-                from app.chat_bot.api.character_endpoints import PHOTO_GENERATION_COST
-                
-                async with async_session_maker() as db:
-                    coins_service = CoinsService(db)
-                    await coins_service.spend_coins(user_id, PHOTO_GENERATION_COST)
-                    logger.info(f"[COINS] Списано {PHOTO_GENERATION_COST} монет за генерацию фото для user_id={user_id}")
-            
-            # Сохраняем промпт для ГАЛЕРЕИ (не для чата!)
-            # Используем специальный session_id чтобы не показывался в истории чата
-            if user_id and cloud_url and character_data_for_history:
-                try:
-                    from app.models.chat_history import ChatHistory
-                    from app.database.db import async_session_maker
-                    
-                    async with async_session_maker() as history_db:
-                        # Специальный session_id для промптов галереи
-                        gallery_session_id = f"gallery_generation_{character_name}"
-                        
-                        # Нормализуем URL
-                        normalized_url = cloud_url.split('?')[0].split('#')[0]
-                        
-                        chat_message = ChatHistory(
-                            user_id=user_id,
-                            character_name=character_name,
-                            session_id=gallery_session_id,  # НЕ обычный чат!
-                            message_type="user",
-                            message_content=request.prompt,  # Сохраняем промпт для "show prompt"
-                            image_url=normalized_url,
-                            image_filename=None
-                    )
-                        history_db.add(chat_message)
-                        await history_db.commit()
-                        logger.info(f"[GALLERY] Промпт сохранён для галереи (не для чата): {gallery_session_id}")
-                except Exception as history_error:
-                    logger.error(f"[GALLERY] Ошибка сохранения промпта для галереи: {history_error}")
-            
-            # НЕ сохраняем метаданные в paid_gallery - фото идут в UserGallery
-            # Инвалидируем кэш фото персонажа для обновления страницы
-            if character_data_for_history:
-                try:
-                    from app.database.db import async_session_maker
-                    from app.chat_bot.models.models import CharacterDB
-                    from app.utils.redis_cache import cache_delete, key_character_photos
-                    
-                    async with async_session_maker() as db_for_cache:
-                        result = await db_for_cache.execute(
-                            select(CharacterDB).where(CharacterDB.name == character_name)
-                        )
-                        character_for_cache = result.scalar_one_or_none()
-                        if character_for_cache:
-                            await cache_delete(key_character_photos(character_for_cache.id))
-                            logger.info(f"[CACHE] Инвалидирован кэш фото персонажа {character_name}")
-                
-                except Exception as cache_error:
-                    logger.warning(f"[GENERATE] Не удалось инвалидировать кэш: {cache_error}")
-            
-            # Возвращаем результат с URL изображения (как на странице photo-generation)
-            response_data = {
-                "image_url": cloud_url,
-                "cloud_url": cloud_url,  # Для совместимости
-                "success": True,
-                "message": "Изображение успешно сгенерировано"
-            }
-            logger.info(f"[GENERATE] УСПЕШНО: Возвращаем результат фронтенду")
-            return response_data
                 
         except Exception as e:
             logger.error(f"[GENERATE] =========================================")
@@ -2605,103 +2903,261 @@ async def stream_generation_status(
 ):
     """
     Server-Sent Events (SSE) эндпоинт для получения статуса генерации в реальном времени.
+    Поддерживает как Celery task_id, так и RunPod job_id.
     
     Args:
-        task_id: ID задачи Celery
+        task_id: ID задачи Celery или RunPod job_id
         
     Returns:
         StreamingResponse: SSE поток с событиями статуса
     """
     from app.celery_app import celery_app
     import json
+    import re
+    import httpx
+    
+    # Проверяем, является ли это RunPod job_id (формат: UUID с дефисами)
+    runpod_job_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(-[0-9a-f]+)?$', re.IGNORECASE)
+    is_runpod_job = runpod_job_pattern.match(task_id)
     
     async def event_generator():
         """Генератор событий SSE"""
         last_status = None
-        max_wait_time = 300  # Максимум 5 минут
-        check_interval = 0.5  # Проверяем каждые 0.5 секунды
+        max_wait_time = 600  # Максимум 10 минут (увеличено для RunPod)
+        check_interval = 2.0 if is_runpod_job else 0.5  # Для RunPod проверяем реже (каждые 2 сек)
         elapsed_time = 0
+        consecutive_errors = 0
+        max_consecutive_errors = 5
         
         try:
-            while elapsed_time < max_wait_time:
-                task = celery_app.AsyncResult(task_id)
-                current_state = task.state
+            if is_runpod_job:
+                # Это RunPod job_id - проверяем статус через RunPod API
+                logger.info(f"[SSE RUNPOD] Начинаем отслеживание RunPod job: {task_id}")
+                from app.services.runpod_client import check_status
                 
-                # Отправляем событие только если статус изменился
-                if current_state != last_status or current_state in ["PROGRESS", "SUCCESS", "FAILURE"]:
-                    last_status = current_state
-                    
-                    if current_state == "PENDING":
-                        event_data = {
-                            "status": "PENDING",
-                            "message": "Задача ожидает выполнения"
-                        }
-                    elif current_state == "PROGRESS":
-                        progress = task.info.get("progress", 0) if isinstance(task.info, dict) else 0
-                        event_data = {
-                            "status": "PROGRESS",
-                            "message": task.info.get("status", "Выполняется генерация") if isinstance(task.info, dict) else "Выполняется генерация",
-                            "progress": progress
-                        }
-                    elif current_state == "SUCCESS":
-                        result = task.result
-                        event_data = {
-                            "status": "SUCCESS",
-                            "message": "Генерация завершена успешно",
-                            "data": result
-                        }
-                        # Отправляем финальное событие и завершаем
-                        yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
-                        break
-                    elif current_state == "FAILURE":
-                        error_info = task.info
-                        error_message = "Неизвестная ошибка"
+                async with httpx.AsyncClient() as client:
+                    while elapsed_time < max_wait_time:
+                        try:
+                            # Проверяем статус через RunPod API
+                            status_response = await check_status(client, task_id)
+                            consecutive_errors = 0  # Сбрасываем счетчик ошибок при успехе
+                            
+                            status = status_response.get("status")
+                            
+                            # Отправляем событие только если статус изменился
+                            if status != last_status:
+                                last_status = status
+                                
+                                if status == "COMPLETED":
+                                    output = status_response.get("output", {})
+                                    image_url = output.get("image_url")
+                                    generation_time = output.get("generation_time")
+                                    
+                                    if image_url:
+                                        result = {
+                                            "image_url": image_url,
+                                            "cloud_url": image_url,
+                                            "success": True
+                                        }
+                                        if generation_time is not None:
+                                            result["generation_time"] = generation_time
+                                        
+                                        event_data = {
+                                            "status": "SUCCESS",
+                                            "message": "Генерация завершена успешно",
+                                            "data": result
+                                        }
+                                        yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                        logger.info(f"[SSE RUNPOD] Генерация завершена: {image_url}")
+                                        break
+                                    else:
+                                        event_data = {
+                                            "status": "PROGRESS",
+                                            "message": "Генерация завершена, обработка результата..."
+                                        }
+                                        yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                
+                                elif status == "FAILED":
+                                    error = status_response.get("error", "Unknown error")
+                                    event_data = {
+                                        "status": "FAILURE",
+                                        "message": "Ошибка при генерации изображения",
+                                        "error": error
+                                    }
+                                    yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                    logger.error(f"[SSE RUNPOD] Генерация завершилась с ошибкой: {error}")
+                                    break
+                                
+                                elif status == "CANCELLED":
+                                    event_data = {
+                                        "status": "FAILURE",
+                                        "message": "Генерация была отменена",
+                                        "error": "Задача была отменена на RunPod"
+                                    }
+                                    yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                    logger.warning(f"[SSE RUNPOD] Генерация была отменена")
+                                    break
+                                
+                                elif status in ["IN_QUEUE", "IN_PROGRESS"]:
+                                    # Вычисляем примерный прогресс на основе времени
+                                    # Средняя генерация занимает ~30-60 секунд
+                                    estimated_total_time = 60
+                                    progress = min(95, int((elapsed_time / estimated_total_time) * 100))
+                                    
+                                    status_message = "В очереди..." if status == "IN_QUEUE" else "Выполняется генерация..."
+                                    event_data = {
+                                        "status": "PROGRESS",
+                                        "message": status_message,
+                                        "progress": progress
+                                    }
+                                    yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                
+                                else:
+                                    event_data = {
+                                        "status": "PROGRESS",
+                                        "message": f"Статус: {status}"
+                                    }
+                                    yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                            
+                            # Если статус не изменился, но это IN_PROGRESS, отправляем heartbeat с прогрессом
+                            elif status in ["IN_QUEUE", "IN_PROGRESS"]:
+                                estimated_total_time = 60
+                                progress = min(95, int((elapsed_time / estimated_total_time) * 100))
+                                
+                                # Отправляем обновление прогресса каждые 5 секунд
+                                if int(elapsed_time) % 5 == 0:
+                                    status_message = "В очереди..." if status == "IN_QUEUE" else "Выполняется генерация..."
+                                    event_data = {
+                                        "status": "PROGRESS",
+                                        "message": status_message,
+                                        "progress": progress
+                                    }
+                                    yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                            
+                        except Exception as check_error:
+                            consecutive_errors += 1
+                            logger.warning(f"[SSE RUNPOD] Ошибка проверки статуса (попытка {consecutive_errors}/{max_consecutive_errors}): {check_error}")
+                            
+                            if consecutive_errors >= max_consecutive_errors:
+                                event_data = {
+                                    "status": "ERROR",
+                                    "message": "Не удалось получить статус генерации",
+                                    "error": f"Превышено количество ошибок при проверке статуса: {str(check_error)}"
+                                }
+                                yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                break
+                            
+                            # При ошибке отправляем событие прогресса, чтобы клиент знал, что мы еще работаем
+                            if int(elapsed_time) % 10 == 0:
+                                event_data = {
+                                    "status": "PROGRESS",
+                                    "message": "Проверка статуса генерации..."
+                                }
+                                yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
                         
-                        if isinstance(error_info, dict):
-                            error_message = (
-                                error_info.get("error") or 
-                                error_info.get("exc_message") or 
-                                error_info.get("message") or
-                                str(error_info)
-                            )
-                        elif error_info:
-                            error_message = str(error_info)
+                        # Задержка перед следующей проверкой
+                        await asyncio.sleep(check_interval)
+                        elapsed_time += check_interval
                         
-                        event_data = {
-                            "status": "FAILURE",
-                            "message": "Ошибка генерации изображения",
-                            "error": error_message
-                        }
-                        # Отправляем финальное событие и завершаем
-                        yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
-                        break
-                    else:
-                        event_data = {
-                            "status": current_state,
-                            "message": f"Статус: {current_state}"
-                        }
+                        # Отправляем heartbeat каждые 10 секунд
+                        if int(elapsed_time) % 10 == 0:
+                            yield f": heartbeat\n\n"
                     
-                    yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
-                
-                # Небольшая задержка перед следующей проверкой
-                await asyncio.sleep(check_interval)
-                elapsed_time += check_interval
-                
-                # Отправляем heartbeat каждые 10 секунд, чтобы соединение не закрывалось
-                if int(elapsed_time) % 10 == 0:
-                    yield f": heartbeat\n\n"
+                    # Если время истекло, отправляем событие таймаута
+                    if elapsed_time >= max_wait_time:
+                        event_data = {
+                            "status": "TIMEOUT",
+                            "message": "Превышено время ожидания генерации",
+                            "error": f"Генерация превысила максимальное время ожидания {max_wait_time} секунд"
+                        }
+                        yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                        logger.warning(f"[SSE RUNPOD] Таймаут для задачи {task_id}")
             
-            # Если время истекло, отправляем событие таймаута
-            if elapsed_time >= max_wait_time:
-                event_data = {
-                    "status": "TIMEOUT",
-                    "message": "Превышено время ожидания генерации",
-                    "error": "Превышено время ожидания генерации изображения"
-                }
-                yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+            else:
+                # Это Celery task_id - используем стандартную логику
+                logger.info(f"[SSE CELERY] Начинаем отслеживание Celery задачи: {task_id}")
+                
+                while elapsed_time < max_wait_time:
+                    task = celery_app.AsyncResult(task_id)
+                    current_state = task.state
+                    
+                    # Отправляем событие только если статус изменился
+                    if current_state != last_status or current_state in ["PROGRESS", "SUCCESS", "FAILURE"]:
+                        last_status = current_state
+                        
+                        if current_state == "PENDING":
+                            event_data = {
+                                "status": "PENDING",
+                                "message": "Задача ожидает выполнения"
+                            }
+                        elif current_state == "PROGRESS":
+                            progress = task.info.get("progress", 0) if isinstance(task.info, dict) else 0
+                            event_data = {
+                                "status": "PROGRESS",
+                                "message": task.info.get("status", "Выполняется генерация") if isinstance(task.info, dict) else "Выполняется генерация",
+                                "progress": progress
+                            }
+                        elif current_state == "SUCCESS":
+                            result = task.result
+                            event_data = {
+                                "status": "SUCCESS",
+                                "message": "Генерация завершена успешно",
+                                "data": result
+                            }
+                            # Отправляем финальное событие и завершаем
+                            yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                            break
+                        elif current_state == "FAILURE":
+                            error_info = task.info
+                            error_message = "Неизвестная ошибка"
+                            
+                            if isinstance(error_info, dict):
+                                error_message = (
+                                    error_info.get("error") or 
+                                    error_info.get("exc_message") or 
+                                    error_info.get("message") or
+                                    str(error_info)
+                                )
+                            elif error_info:
+                                error_message = str(error_info)
+                            
+                            event_data = {
+                                "status": "FAILURE",
+                                "message": "Ошибка генерации изображения",
+                                "error": error_message
+                            }
+                            # Отправляем финальное событие и завершаем
+                            yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                            break
+                        else:
+                            event_data = {
+                                "status": current_state,
+                                "message": f"Статус: {current_state}"
+                            }
+                        
+                        yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                    
+                    # Небольшая задержка перед следующей проверкой
+                    await asyncio.sleep(check_interval)
+                    elapsed_time += check_interval
+                    
+                    # Отправляем heartbeat каждые 10 секунд, чтобы соединение не закрывалось
+                    if int(elapsed_time) % 10 == 0:
+                        yield f": heartbeat\n\n"
+                
+                # Если время истекло, отправляем событие таймаута
+                if elapsed_time >= max_wait_time:
+                    event_data = {
+                        "status": "TIMEOUT",
+                        "message": "Превышено время ожидания генерации",
+                        "error": "Превышено время ожидания генерации изображения"
+                    }
+                    yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
                 
         except Exception as e:
             logger.error(f"[SSE] Ошибка в event_generator для задачи {task_id}: {e}")
+            import traceback
+            logger.error(f"[SSE] Трейсбек: {traceback.format_exc()}")
             event_data = {
                 "status": "ERROR",
                 "message": "Ошибка получения статуса",
@@ -2727,20 +3183,101 @@ async def get_generation_status(
 ):
     """
     Получить статус генерации изображения по task_id.
+    Поддерживает как Celery task_id, так и RunPod job_id.
     
     Args:
-        task_id: ID задачи Celery
+        task_id: ID задачи Celery или RunPod job_id
         
     Returns:
         dict: Статус задачи и результат (если готово)
     """
     try:
-        logger.info(f"[CELERY STATUS] Запрос статуса задачи {task_id}")
-        from app.celery_app import celery_app
+        logger.info(f"[STATUS] Запрос статуса задачи {task_id}")
         
-        # Получаем информацию о задаче
-        task = celery_app.AsyncResult(task_id)
-        logger.info(f"[CELERY STATUS] Запрос статуса задачи {task_id}, состояние: {task.state}")
+        # Проверяем, является ли это RunPod job_id (формат: UUID с дефисами)
+        # RunPod job_id обычно выглядит как: "95c8aded-6fa3-4737-9728-7d34a88c277a-e1"
+        import re
+        runpod_job_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(-[0-9a-f]+)?$', re.IGNORECASE)
+        
+        if runpod_job_pattern.match(task_id):
+            # Это RunPod job_id - проверяем статус через RunPod API
+            logger.info(f"[RUNPOD STATUS] Проверяем статус RunPod job: {task_id}")
+            from app.services.runpod_client import check_status
+            import httpx
+            
+            async with httpx.AsyncClient() as client:
+                try:
+                    status_response = await check_status(client, task_id)
+                    status = status_response.get("status")
+                    
+                    if status == "COMPLETED":
+                        output = status_response.get("output", {})
+                        logger.info(f"[RUNPOD STATUS] Полный output: {output}")
+                        image_url = output.get("image_url")
+                        generation_time = output.get("generation_time")  # Время генерации от RunPod
+                        logger.info(f"[RUNPOD STATUS] generation_time из output: {generation_time}")
+                        
+                        if image_url:
+                            result = {
+                                "image_url": image_url,
+                                "cloud_url": image_url,
+                                "success": True
+                            }
+                            # Добавляем generation_time если оно есть
+                            if generation_time is not None:
+                                result["generation_time"] = generation_time
+                                logger.info(f"[RUNPOD STATUS] Добавлено generation_time в result: {generation_time}")
+                            else:
+                                logger.warning(f"[RUNPOD STATUS] generation_time отсутствует в output!")
+                            
+                            logger.info(f"[RUNPOD STATUS] Финальный result: {result}")
+                            return {
+                                "task_id": task_id,
+                                "status": "SUCCESS",
+                                "message": "Генерация завершена успешно",
+                                "result": result
+                            }
+                        else:
+                            return {
+                                "task_id": task_id,
+                                "status": "PROGRESS",
+                                "message": "Генерация завершена, обработка результата..."
+                            }
+                    elif status == "FAILED":
+                        error = status_response.get("error", "Unknown error")
+                        return {
+                            "task_id": task_id,
+                            "status": "FAILURE",
+                            "message": "Ошибка при генерации изображения",
+                            "error": error
+                        }
+                    elif status in ["IN_QUEUE", "IN_PROGRESS"]:
+                        return {
+                            "task_id": task_id,
+                            "status": "PROGRESS",
+                            "message": "Генерация выполняется..."
+                        }
+                    else:
+                        return {
+                            "task_id": task_id,
+                            "status": "PROGRESS",
+                            "message": f"Статус: {status}"
+                        }
+                except Exception as e:
+                    logger.error(f"[RUNPOD STATUS] Ошибка проверки статуса: {e}")
+                    return {
+                        "task_id": task_id,
+                        "status": "PROGRESS",
+                        "message": "Проверка статуса..."
+                    }
+        else:
+            # Это Celery task_id - используем стандартную логику
+            logger.info(f"[CELERY STATUS] Проверяем статус Celery задачи: {task_id}")
+            from app.celery_app import celery_app
+            
+            # Получаем информацию о задаче
+            task = celery_app.AsyncResult(task_id)
+            logger.info(f"[CELERY STATUS] Запрос статуса задачи {task_id}, состояние: {task.state}")
         
         # Логируем результат задачи для диагностики
         if task.state == "SUCCESS":

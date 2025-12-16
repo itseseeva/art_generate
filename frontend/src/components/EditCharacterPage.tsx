@@ -6,15 +6,24 @@ import { GlobalHeader } from './GlobalHeader';
 import { AuthModal } from './AuthModal';
 import { authManager } from '../utils/auth';
 import { LoadingSpinner } from './LoadingSpinner';
+import { fetchPromptByImage } from '../utils/prompt';
+import { FiX as CloseIcon } from 'react-icons/fi';
 
 const MainContainer = styled.div`
   width: 100vw;
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
   background: linear-gradient(to bottom right, rgba(20, 20, 20, 1), rgba(30, 30, 30, 0.95), rgba(50, 50, 50, 0.1));
   overflow: visible;
   box-sizing: border-box;
   position: relative;
+  z-index: 1;
+  
+  & > * {
+    position: relative;
+    z-index: 2;
+  }
   
   &::before {
     content: '';
@@ -191,71 +200,184 @@ const AuthButton = styled.button`
 
 const MainContent = styled.div`
   flex: 1;
-  padding: 0;
-  overflow-y: auto;
-  display: flex;
-  gap: 0;
-  width: 100%;
-  height: 100%;
-  position: relative;
-  z-index: 10;
+  padding: ${theme.spacing.lg} !important;
+  overflow: hidden !important;
+  display: flex !important;
+  gap: ${theme.spacing.lg} !important;
+  width: 100% !important;
+  height: calc(100vh - 80px) !important;
+  max-height: calc(100vh - 80px) !important;
+  position: relative !important;
+  z-index: 10 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  background: transparent !important;
+  box-sizing: border-box !important;
 `;
 
 const LeftColumn = styled.div`
   flex: 1;
   min-width: 0;
-  min-height: calc(150vh - 80px);
-  background: transparent;
-  border-radius: 0;
-  padding: 0;
-  border: 1px solid rgba(130, 130, 130, 0.3);
-  box-shadow: none;
+  background: linear-gradient(135deg, rgba(12, 12, 12, 0.95) 0%, rgba(20, 20, 20, 0.98) 100%);
+  border-radius: ${theme.borderRadius.xl};
+  padding: ${theme.spacing.lg};
+  border: 2px solid rgba(60, 60, 60, 0.9);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 0 0 1px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
+  visibility: visible;
+  opacity: 1;
+  position: relative;
+  overflow: hidden;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(100, 100, 100, 0.3), transparent);
+    pointer-events: none;
+  }
 `;
 
 const RightColumn = styled.div`
   flex: 1;
   min-width: 0;
-  min-height: calc(150vh - 80px);
   background: transparent;
-  border-radius: 0;
-  padding: 0;
+  border-radius: ${theme.borderRadius.lg};
+  padding: ${theme.spacing.md};
   border: 1px solid rgba(130, 130, 130, 0.3);
   box-shadow: none;
   display: flex;
   flex-direction: column;
+  visibility: visible;
+  opacity: 1;
 `;
 
 const Form = styled.form`
-  display: contents;
+  display: flex;
+  flex: 1;
+  width: 100%;
+  gap: ${theme.spacing.lg};
+  min-height: 0;
+  visibility: visible;
+  opacity: 1;
 `;
 
 const ColumnContent = styled.div`
-  padding: ${theme.spacing.md} ${theme.spacing.sm};
-  flex: 1;
-  display: flex;
-  flex-direction: column;
+  padding: ${theme.spacing.sm} !important;
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-height: 300px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  position: relative !important;
+  z-index: 10 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  box-sizing: border-box !important;
+  gap: ${theme.spacing.md} !important;
+  
+  /* Кастомный скроллбар */
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: rgba(15, 15, 15, 0.5);
+    border-radius: 4px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(80, 80, 80, 0.6);
+    border-radius: 4px;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    
+    &:hover {
+      background: rgba(100, 100, 100, 0.7);
+    }
+  }
+  
+  /* Убеждаемся, что все дочерние элементы не выходят за границы */
+  > * {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
 `;
 
 const FormGroup = styled.div`
-  margin-bottom: ${theme.spacing.lg};
-  background: transparent;
-  border-radius: ${theme.borderRadius.xl};
-  padding: ${theme.spacing.lg};
-  border: 1px solid rgba(130, 130, 130, 0.4);
-  transition: border-color 0.3s ease;
+  margin-bottom: 0 !important;
+  background: linear-gradient(135deg, rgba(15, 15, 15, 0.95) 0%, rgba(22, 22, 22, 0.98) 100%);
+  border-radius: ${theme.borderRadius.lg} !important;
+  padding: ${theme.spacing.xl} !important;
+  border: 1px solid rgba(70, 70, 70, 0.8) !important;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   animation: fadeIn 0.6s ease-out forwards;
-  opacity: 0;
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: auto !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+  word-wrap: break-word !important;
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 0 0 1px rgba(0, 0, 0, 0.2);
+  position: relative !important;
+  z-index: 100 !important;
+  pointer-events: auto !important;
+  
+  /* Убеждаемся, что все дочерние элементы видны */
+  > * {
+    visibility: visible !important;
+    opacity: 1 !important;
+    display: block !important;
+  }
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(100, 100, 100, 0.4), transparent);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
   
   &:hover {
-    border-color: rgba(200, 200, 200, 0.5);
+    border-color: rgba(100, 100, 100, 0.9) !important;
+    background: linear-gradient(135deg, rgba(18, 18, 18, 0.98) 0%, rgba(25, 25, 25, 1) 100%) !important;
+    box-shadow: 
+      0 6px 24px rgba(0, 0, 0, 0.6),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      0 0 0 1px rgba(0, 0, 0, 0.3),
+      0 0 20px rgba(100, 100, 100, 0.1) !important;
+    transform: translateY(-2px);
+    
+    &::before {
+      opacity: 1;
+    }
   }
   
   @keyframes fadeIn {
     from {
       opacity: 0;
-      transform: translateY(10px);
+      transform: translateY(15px);
     }
     to {
       opacity: 1;
@@ -264,97 +386,248 @@ const FormGroup = styled.div`
   }
   
   &:nth-child(1) {
-    animation-delay: 0.1s;
+    animation-delay: 0.05s;
   }
   &:nth-child(2) {
-    animation-delay: 0.2s;
+    animation-delay: 0.1s;
   }
   &:nth-child(3) {
-    animation-delay: 0.3s;
+    animation-delay: 0.15s;
   }
   &:nth-child(4) {
-    animation-delay: 0.4s;
+    animation-delay: 0.2s;
   }
   &:nth-child(5) {
-    animation-delay: 0.5s;
+    animation-delay: 0.25s;
   }
   &:nth-child(6) {
-    animation-delay: 0.6s;
+    animation-delay: 0.3s;
   }
   &:nth-child(7) {
-    animation-delay: 0.7s;
+    animation-delay: 0.35s;
+  }
+  &:nth-child(8) {
+    animation-delay: 0.4s;
   }
 `;
 
 const Label = styled.label`
-  display: flex;
-  align-items: center;
-  gap: ${theme.spacing.sm};
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.lg};
-  font-weight: 600;
-  margin-bottom: ${theme.spacing.md};
+  display: flex !important;
+  align-items: center !important;
+  gap: ${theme.spacing.md} !important;
+  color: rgba(230, 230, 230, 1) !important;
+  font-size: ${theme.fontSize.base} !important;
+  font-weight: 700 !important;
+  margin-bottom: ${theme.spacing.lg} !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  width: 100% !important;
+  position: relative !important;
+  z-index: 100 !important;
+  pointer-events: auto !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 13px;
   
   &::before {
     content: attr(data-icon);
-    width: 32px;
-    height: 32px;
-    border: 1px solid rgba(180, 180, 180, 0.3);
-    border-radius: ${theme.borderRadius.lg};
+    width: 36px;
+    height: 36px;
+    border: 2px solid rgba(90, 90, 90, 0.7);
+    border-radius: ${theme.borderRadius.md};
     display: flex;
     align-items: center;
     justify-content: center;
-    color: rgba(230, 230, 230, 0.95);
-    transition: border-color 0.3s ease;
+    color: rgba(200, 200, 200, 1);
+    background: linear-gradient(135deg, rgba(25, 25, 25, 0.8) 0%, rgba(35, 35, 35, 0.9) 100%);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    box-shadow: 
+      0 2px 8px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    font-size: 18px;
+    flex-shrink: 0;
   }
   
   ${FormGroup}:hover &::before {
-    border-color: rgba(255, 255, 255, 0.6);
+    border-color: rgba(120, 120, 120, 0.9);
+    background: linear-gradient(135deg, rgba(30, 30, 30, 0.9) 0%, rgba(40, 40, 40, 1) 100%);
+    box-shadow: 
+      0 4px 12px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 0 12px rgba(100, 100, 100, 0.2);
+    transform: scale(1.05);
   }
 `;
 
 const Input = styled.input`
-  width: 100%;
-  height: 48px;
-  padding: ${theme.spacing.md};
-  border: 1px solid rgba(140, 140, 140, 0.5);
-  border-radius: ${theme.borderRadius.md};
-  background: transparent;
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.base};
-  transition: border-color 0.3s ease;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 52px !important;
+  min-height: 52px !important;
+  max-height: 52px !important;
+  padding: 0 ${theme.spacing.lg} !important;
+  border: 2px solid rgba(70, 70, 70, 0.8) !important;
+  border-radius: ${theme.borderRadius.md} !important;
+  background: linear-gradient(135deg, rgba(10, 10, 10, 0.95) 0%, rgba(18, 18, 18, 0.98) 100%) !important;
+  color: rgba(240, 240, 240, 1) !important;
+  font-size: ${theme.fontSize.base} !important;
+  font-weight: 500 !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  box-sizing: border-box !important;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  overflow-x: hidden !important;
+  overflow-y: visible !important;
+  box-shadow: 
+    inset 0 2px 6px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.02),
+    0 0 0 1px rgba(0, 0, 0, 0.3) !important;
+  margin: 0 !important;
+  margin-top: 0 !important;
+  position: relative !important;
+  z-index: 100 !important;
+  pointer-events: auto !important;
+  -webkit-text-fill-color: rgba(240, 240, 240, 1) !important;
+  flex-shrink: 0 !important;
   
   &::placeholder {
-    color: rgba(200, 200, 200, 0.5);
+    color: rgba(100, 100, 100, 0.8) !important;
+    opacity: 1 !important;
+    font-weight: 400 !important;
   }
   
   &:focus {
     outline: none;
-    border-color: rgba(220, 220, 220, 0.8);
+    border-color: rgba(120, 120, 120, 1) !important;
+    background: linear-gradient(135deg, rgba(15, 15, 15, 0.98) 0%, rgba(22, 22, 22, 1) 100%) !important;
+    box-shadow: 
+      inset 0 2px 8px rgba(0, 0, 0, 0.7),
+      inset 0 1px 0 rgba(255, 255, 255, 0.03),
+      0 0 0 3px rgba(100, 100, 100, 0.15),
+      0 0 20px rgba(100, 100, 100, 0.1) !important;
+    -webkit-text-fill-color: rgba(240, 240, 240, 1) !important;
+    transform: translateY(-1px);
+  }
+  
+  &:hover:not(:focus) {
+    border-color: rgba(85, 85, 85, 0.9) !important;
+    box-shadow: 
+      inset 0 2px 6px rgba(0, 0, 0, 0.6),
+      inset 0 1px 0 rgba(255, 255, 255, 0.02),
+      0 0 0 1px rgba(0, 0, 0, 0.3),
+      0 2px 8px rgba(0, 0, 0, 0.4) !important;
+  }
+  
+  /* Убеждаемся, что текст всегда виден */
+  &::-webkit-input-placeholder {
+    color: rgba(100, 100, 100, 0.8) !important;
+    opacity: 1 !important;
+  }
+  
+  &:-moz-placeholder {
+    color: rgba(100, 100, 100, 0.8) !important;
+    opacity: 1 !important;
+  }
+  
+  &::-moz-placeholder {
+    color: rgba(100, 100, 100, 0.8) !important;
+    opacity: 1 !important;
+  }
+  
+  &:-ms-input-placeholder {
+    color: rgba(100, 100, 100, 0.8) !important;
+    opacity: 1 !important;
   }
 `;
 
 const Textarea = styled.textarea`
-  width: 100%;
-  min-height: 128px;
-  padding: ${theme.spacing.md};
-  border: 1px solid rgba(140, 140, 140, 0.5);
-  border-radius: ${theme.borderRadius.md};
-  background: transparent;
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.base};
-  font-family: inherit;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: 140px !important;
+  height: auto !important;
+  padding: ${theme.spacing.lg} !important;
+  border: 2px solid rgba(70, 70, 70, 0.8) !important;
+  border-radius: ${theme.borderRadius.md} !important;
+  background: linear-gradient(135deg, rgba(10, 10, 10, 0.95) 0%, rgba(18, 18, 18, 0.98) 100%) !important;
+  color: rgba(240, 240, 240, 1) !important;
+  font-size: ${theme.fontSize.base} !important;
+  font-family: inherit !important;
+  font-weight: 500 !important;
   resize: vertical;
-  line-height: 1.6;
-  transition: border-color 0.3s ease;
+  line-height: 1.7 !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  box-sizing: border-box !important;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  overflow-x: hidden !important;
+  overflow-y: visible !important;
+  white-space: pre-wrap !important;
+  box-shadow: 
+    inset 0 2px 6px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.02),
+    0 0 0 1px rgba(0, 0, 0, 0.3) !important;
+  margin: 0 !important;
+  margin-top: 0 !important;
+  position: relative !important;
+  z-index: 100 !important;
+  pointer-events: auto !important;
+  -webkit-text-fill-color: rgba(240, 240, 240, 1) !important;
+  flex-shrink: 0 !important;
   
   &::placeholder {
-    color: rgba(200, 200, 200, 0.5);
+    color: rgba(100, 100, 100, 0.8) !important;
+    opacity: 1 !important;
+    font-weight: 400 !important;
   }
   
   &:focus {
     outline: none;
-    border-color: rgba(220, 220, 220, 0.8);
+    border-color: rgba(120, 120, 120, 1) !important;
+    background: linear-gradient(135deg, rgba(15, 15, 15, 0.98) 0%, rgba(22, 22, 22, 1) 100%) !important;
+    box-shadow: 
+      inset 0 2px 8px rgba(0, 0, 0, 0.7),
+      inset 0 1px 0 rgba(255, 255, 255, 0.03),
+      0 0 0 3px rgba(100, 100, 100, 0.15),
+      0 0 20px rgba(100, 100, 100, 0.1) !important;
+    -webkit-text-fill-color: rgba(240, 240, 240, 1) !important;
+    transform: translateY(-1px);
+  }
+  
+  &:hover:not(:focus) {
+    border-color: rgba(85, 85, 85, 0.9) !important;
+    box-shadow: 
+      inset 0 2px 6px rgba(0, 0, 0, 0.6),
+      inset 0 1px 0 rgba(255, 255, 255, 0.02),
+      0 0 0 1px rgba(0, 0, 0, 0.3),
+      0 2px 8px rgba(0, 0, 0, 0.4) !important;
+  }
+  
+  /* Убеждаемся, что текст всегда виден */
+  &::-webkit-input-placeholder {
+    color: rgba(100, 100, 100, 0.8) !important;
+    opacity: 1 !important;
+  }
+  
+  &:-moz-placeholder {
+    color: rgba(100, 100, 100, 0.8) !important;
+    opacity: 1 !important;
+  }
+  
+  &::-moz-placeholder {
+    color: rgba(100, 100, 100, 0.8) !important;
+    opacity: 1 !important;
+  }
+  
+  &:-ms-input-placeholder {
+    color: rgba(100, 100, 100, 0.8) !important;
+    opacity: 1 !important;
   }
 `;
 
@@ -364,7 +637,8 @@ const ButtonGroup = styled.div`
   padding-top: ${theme.spacing.xl};
   animation: fadeIn 0.6s ease-out forwards;
   animation-delay: 0.8s;
-  opacity: 0;
+  opacity: 1;
+  visibility: visible;
 `;
 
 const ActionButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
@@ -477,7 +751,9 @@ const PhotoModalContent = styled.div`
   display: flex !important;
   align-items: center;
   justify-content: center;
+  gap: ${theme.spacing.xl};
   cursor: default;
+  flex-wrap: wrap;
 `;
 
 const PhotoModalImage = styled.img`
@@ -496,27 +772,91 @@ const PhotoModalClose = styled.button`
   position: absolute;
   top: ${theme.spacing.xl};
   right: ${theme.spacing.xl};
-  background: rgba(20, 20, 20, 0.95);
+  background: rgba(0, 0, 0, 0.7);
   border: 2px solid rgba(255, 255, 255, 0.3);
-  color: white;
-  font-size: 32px;
-  font-weight: bold;
-  width: 56px;
-  height: 56px;
   border-radius: 50%;
-  cursor: pointer;
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  cursor: pointer;
+  color: ${theme.colors.text.primary};
+  font-size: ${theme.fontSize.xl};
+  transition: ${theme.transition.fast};
   z-index: 10001;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
-  
+
   &:hover {
-    background: rgba(220, 38, 38, 0.95);
-    border-color: rgba(255, 255, 255, 0.6);
-    transform: scale(1.15) rotate(90deg);
+    background: rgba(0, 0, 0, 0.9);
+    border-color: ${theme.colors.accent.primary};
+    transform: scale(1.1);
   }
+`;
+
+const ModalImageContainer = styled.div`
+  flex: 1;
+  min-width: 300px;
+  max-width: 60%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+const PromptPanel = styled.div`
+  width: 400px;
+  min-width: 350px;
+  max-width: 30%;
+  background: rgba(30, 30, 30, 0.95);
+  border: 2px solid rgba(150, 150, 150, 0.5);
+  border-radius: ${theme.borderRadius.xl};
+  padding: ${theme.spacing.xl};
+  overflow-y: auto;
+  max-height: 95vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+`;
+
+const PromptPanelHeader = styled.div`
+  margin-bottom: ${theme.spacing.lg};
+  padding-bottom: ${theme.spacing.md};
+  border-bottom: 1px solid rgba(150, 150, 150, 0.3);
+`;
+
+const PromptPanelTitle = styled.h3`
+  color: rgba(240, 240, 240, 1);
+  font-size: ${theme.fontSize.xl};
+  font-weight: 800;
+  margin: 0;
+`;
+
+const PromptPanelText = styled.div`
+  color: rgba(200, 200, 200, 1);
+  font-size: ${theme.fontSize.sm};
+  line-height: 1.8;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  padding: ${theme.spacing.md};
+  background: rgba(40, 40, 40, 0.5);
+  border-radius: ${theme.borderRadius.lg};
+  border: 1px solid rgba(150, 150, 150, 0.3);
+  font-family: 'Courier New', monospace;
+  flex: 1;
+`;
+
+const PromptLoading = styled.div`
+  color: rgba(200, 200, 200, 1);
+  font-size: ${theme.fontSize.sm};
+  text-align: center;
+  padding: ${theme.spacing.xl};
+`;
+
+const PromptError = styled.div`
+  color: ${theme.colors.error || '#ff6b6b'};
+  font-size: ${theme.fontSize.sm};
+  text-align: center;
+  padding: ${theme.spacing.xl};
 `;
 
 const PhotoStatus = styled.span<{ isSelected?: boolean }>`
@@ -541,7 +881,8 @@ const PhotoStatus = styled.span<{ isSelected?: boolean }>`
 const FullSizePhotoSlider = styled.div`
   position: relative;
   width: 100%;
-  min-height: 420px;
+  min-height: 500px;
+  max-height: calc(100vh - 400px);
   background: rgba(30, 30, 30, 0.8);
   border-radius: ${theme.borderRadius.xl};
   border: 1px solid rgba(120, 120, 120, 0.3);
@@ -550,6 +891,7 @@ const FullSizePhotoSlider = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${theme.spacing.md};
+  overflow: hidden;
 `;
 
 const GeneratedPhotosHeader = styled.div`
@@ -583,11 +925,13 @@ const PhotosCounter = styled.div<{ $limitReached: boolean }>`
 
 const PhotoList = styled.div`
   display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
-  gap: ${theme.spacing.xl};
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
+  gap: ${theme.spacing.sm} !important;
   margin-top: ${theme.spacing.md};
-  max-height: 800px;
-  overflow-y: auto;
+  max-height: calc(100vh - 500px) !important;
+  min-height: 600px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
   padding: ${theme.spacing.md};
   visibility: visible !important;
   opacity: 1 !important;
@@ -615,7 +959,7 @@ const PhotoTile = styled.div`
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   background: rgba(30, 30, 30, 0.95);
   transition: all 0.3s ease;
-  min-height: 400px;
+  height: 300px;
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
@@ -623,8 +967,8 @@ const PhotoTile = styled.div`
   z-index: 1;
 
   &:hover {
-    transform: translateY(-8px);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7);
+    transform: translateY(-2px);
+    box-shadow: ${theme.colors.shadow.glow};
     border-color: rgba(180, 180, 180, 0.5);
     z-index: 10;
   }
@@ -632,7 +976,7 @@ const PhotoTile = styled.div`
 
 const PhotoImage = styled.img`
   width: 100% !important;
-  height: 400px !important;
+  height: 100% !important;
   object-fit: cover;
   display: block !important;
   visibility: visible !important;
@@ -907,12 +1251,20 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   });
   
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userInfo, setUserInfo] = useState<{username: string, coins: number, id: number} | null>(null);
+  const [subscriptionStats, setSubscriptionStats] = useState<{credits_remaining: number} | null>(null);
   const [customPrompt, setCustomPrompt] = useState('');
-  const [characterIdentifier, setCharacterIdentifier] = useState(character.name);
+  const CHARACTER_EDIT_COST = 50; // Кредиты за редактирование персонажа
+  // Безопасная инициализация characterIdentifier с fallback
+  const [characterIdentifier, setCharacterIdentifier] = useState<string>(() => {
+    const name = character?.name || character?.id?.toString() || '';
+    console.log('[EDIT_CHAR] Initializing characterIdentifier:', name);
+    return name;
+  });
   type SelectedPhoto = { id: string; url: string };
   const [generatedPhotos, setGeneratedPhotos] = useState<any[]>([]);
   const [isGeneratingPhoto, setIsGeneratingPhoto] = useState(false);
@@ -920,6 +1272,9 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const [generationSettings, setGenerationSettings] = useState<any>(null);
   const [selectedPhotos, setSelectedPhotos] = useState<SelectedPhoto[]>([]);
   const [selectedPhotoForView, setSelectedPhotoForView] = useState<any>(null);
+  const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
+  const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
+  const [promptError, setPromptError] = useState<string | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [fakeProgress, setFakeProgress] = useState(0);
@@ -978,14 +1333,19 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     setUserInfo(null);
   };
 
+  // Безопасное обновление characterIdentifier при изменении character
   useEffect(() => {
-    if (character?.name) {
-      setCharacterIdentifier(character.name);
-      console.log('[EDIT_CHAR] Character name set:', character.name);
-    } else {
-      console.warn('[EDIT_CHAR] Character name is missing!', character);
+    const newName = character?.name || character?.id?.toString() || '';
+    console.log('[EDIT_CHAR] Character prop changed, newName:', newName, 'current identifier:', characterIdentifier);
+    if (newName && newName !== characterIdentifier) {
+      console.log('[EDIT_CHAR] Character changed, updating identifier:', newName);
+      setCharacterIdentifier(newName);
+      // Данные загрузятся автоматически через useEffect для characterIdentifier
+    } else if (!newName && !characterIdentifier) {
+      console.warn('[EDIT_CHAR] Character name/id is missing!', character);
+      setIsLoadingData(false);
     }
-  }, [character?.name]);
+  }, [character?.name, character?.id, characterIdentifier]);
 
   const fetchCharacterPhotos = useCallback(async (targetName?: string) => {
     const effectiveName = (targetName ?? characterIdentifier)?.trim();
@@ -995,13 +1355,23 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       setGeneratedPhotos([]);
       return;
     }
+    
     try {
       setIsLoadingPhotos(true);
       console.log('[EDIT_CHAR] Fetching character photos for:', effectiveName);
-      const response = await authManager.fetchWithAuth(API_CONFIG.CHARACTER_PHOTOS_FULL(effectiveName), {
+      
+      // Добавляем timestamp для обхода кеша
+      const cacheBuster = `?t=${Date.now()}`;
+      const photosUrl = API_CONFIG.CHARACTER_PHOTOS_FULL(effectiveName);
+      const urlWithCache = photosUrl.includes('?') 
+        ? `${photosUrl}&t=${Date.now()}` 
+        : `${photosUrl}${cacheBuster}`;
+      
+      const response = await authManager.fetchWithAuth(urlWithCache, {
         method: 'GET',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache'
         }
       });
 
@@ -1183,59 +1553,120 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const isLimitReached = selectedPhotos.length >= MAX_MAIN_PHOTOS;
 
   // Загружаем данные персонажа
-  const loadCharacterData = async () => {
+  const loadCharacterData = useCallback(async (targetIdentifier?: string) => {
+    const identifier = targetIdentifier || characterIdentifier;
+    
+    console.log('[EDIT_CHAR] ========== loadCharacterData CALLED ==========');
+    console.log('[EDIT_CHAR] targetIdentifier:', targetIdentifier);
+    console.log('[EDIT_CHAR] characterIdentifier:', characterIdentifier);
+    console.log('[EDIT_CHAR] Final identifier:', identifier);
+    
+    // Проверка на валидность идентификатора
+    if (!identifier || identifier.trim() === '') {
+      console.warn('[EDIT_CHAR] No valid characterIdentifier provided, setting isLoadingData to false');
+      setIsLoadingData(false);
+      return;
+    }
+    
     try {
-      if (!characterIdentifier) {
-        return;
-      }
-      const response = await authManager.fetchWithAuth(`/api/v1/characters/${characterIdentifier}`);
+      console.log('[EDIT_CHAR] Setting isLoadingData to true and clearing error');
+      setIsLoadingData(true);
+      setError(null);
+      setSuccess(null);
+      console.log('[EDIT_CHAR] Loading character data for:', identifier);
+      
+      // Добавляем timestamp для обхода кеша
+      const cacheBuster = `?t=${Date.now()}`;
+      const url = `/api/v1/characters/${encodeURIComponent(identifier)}${cacheBuster}`;
+      console.log('[EDIT_CHAR] Request URL:', url);
+      const response = await authManager.fetchWithAuth(url);
+
+      console.log('[EDIT_CHAR] Response status:', response.status, response.statusText);
 
       if (response.ok) {
         const characterData = await response.json();
+        console.log('[EDIT_CHAR] Character data loaded successfully');
+        console.log('[EDIT_CHAR] Character name:', characterData?.name);
+        console.log('[EDIT_CHAR] Character prompt exists:', !!characterData?.prompt);
+        console.log('[EDIT_CHAR] Character prompt length:', characterData?.prompt?.length || 0);
         
         // Парсим промпт для извлечения полей пользователя
-        const prompt = characterData.prompt || '';
+        const prompt = characterData?.prompt || '';
         let personality = '';
         let situation = '';
         let instructions = '';
         let style = '';
         
-        // Извлекаем данные из промпта
-        const personalityMatch = prompt.match(/Personality and Character:\s*(.*?)(?=\n\nRole-playing Situation:|$)/s);
-        if (personalityMatch) {
-          personality = personalityMatch[1].trim();
+        // Извлекаем данные из промпта с безопасными проверками
+        if (prompt) {
+          const personalityMatch = prompt.match(/Personality and Character:\s*(.*?)(?=\n\nRole-playing Situation:|$)/s);
+          if (personalityMatch && personalityMatch[1]) {
+            personality = personalityMatch[1].trim();
+          }
+          
+          const situationMatch = prompt.match(/Role-playing Situation:\s*(.*?)(?=\n\nInstructions:|$)/s);
+          if (situationMatch && situationMatch[1]) {
+            situation = situationMatch[1].trim();
+          }
+          
+          const instructionsMatch = prompt.match(/Instructions:\s*(.*?)(?=\n\nResponse Style:|$)/s);
+          if (instructionsMatch && instructionsMatch[1]) {
+            instructions = instructionsMatch[1].trim();
+          }
+          
+          const styleMatch = prompt.match(/Response Style:\s*(.*?)(?=\n\nIMPORTANT:|$)/s);
+          if (styleMatch && styleMatch[1]) {
+            style = styleMatch[1].trim();
+          }
         }
         
-        const situationMatch = prompt.match(/Role-playing Situation:\s*(.*?)(?=\n\nInstructions:|$)/s);
-        if (situationMatch) {
-          situation = situationMatch[1].trim();
+        const newFormData = {
+          name: characterData?.name || identifier || '',
+          personality: personality || '',
+          situation: situation || '',
+          instructions: instructions || '',
+          style: style || '',
+          appearance: characterData?.character_appearance || '',
+          location: characterData?.location || ''
+        };
+        
+        console.log('[EDIT_CHAR] ========== SETTING FORMDATA ==========');
+        console.log('[EDIT_CHAR] FormData name:', newFormData.name);
+        console.log('[EDIT_CHAR] FormData personality length:', newFormData.personality.length);
+        console.log('[EDIT_CHAR] FormData situation length:', newFormData.situation.length);
+        console.log('[EDIT_CHAR] FormData instructions length:', newFormData.instructions.length);
+        console.log('[EDIT_CHAR] Full formData object:', JSON.stringify(newFormData, null, 2));
+        
+        // КРИТИЧНО: Устанавливаем formData СРАЗУ перед установкой isLoadingData в false
+        setFormData(newFormData);
+        
+        // Обновляем characterIdentifier только если имя изменилось
+        const newName = characterData?.name || identifier;
+        if (newName && newName !== characterIdentifier) {
+          console.log('[EDIT_CHAR] Updating characterIdentifier from', characterIdentifier, 'to', newName);
+          setCharacterIdentifier(newName);
         }
         
-        const instructionsMatch = prompt.match(/Instructions:\s*(.*?)(?=\n\nResponse Style:|$)/s);
-        if (instructionsMatch) {
-          instructions = instructionsMatch[1].trim();
+        console.log('[EDIT_CHAR] FormData set successfully, about to set isLoadingData to false');
+      } else {
+        console.error('[EDIT_CHAR] Failed to load character data:', response.status);
+        if (response.status === 404) {
+          setError('Персонаж не найден. Возможно, он был удален.');
+        } else {
+          setError('Не удалось загрузить данные персонажа');
         }
-        
-        const styleMatch = prompt.match(/Response Style:\s*(.*?)(?=\n\nIMPORTANT:|$)/s);
-        if (styleMatch) {
-          style = styleMatch[1].trim();
-        }
-        
-        setFormData({
-          name: characterData.name,
-          personality: personality,
-          situation: situation,
-          instructions: instructions,
-          style: style,
-          appearance: characterData.character_appearance || '',
-          location: characterData.location || ''
-        });
-        setCharacterIdentifier(characterData.name);
       }
     } catch (error) {
-      console.error('Error loading character data:', error);
+      console.error('[EDIT_CHAR] Error loading character data:', error);
+      console.error('[EDIT_CHAR] Error details:', error instanceof Error ? error.message : String(error));
+      setError('Ошибка при загрузке данных персонажа');
+    } finally {
+      console.log('[EDIT_CHAR] ========== FINALLY BLOCK ==========');
+      console.log('[EDIT_CHAR] Setting isLoadingData to false');
+      setIsLoadingData(false);
+      console.log('[EDIT_CHAR] isLoadingData should now be false');
     }
-  };
+  }, [characterIdentifier]);
 
   // Проверка авторизации
   const checkAuth = async () => {
@@ -1273,25 +1704,56 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     }
   };
 
+  // Инициализация при монтировании компонента
   useEffect(() => {
+    console.log('[EDIT_CHAR] ========== COMPONENT MOUNTED ==========');
+    console.log('[EDIT_CHAR] Initial characterIdentifier:', characterIdentifier);
+    console.log('[EDIT_CHAR] Character prop:', character);
+    console.log('[EDIT_CHAR] Character name:', character?.name);
+    console.log('[EDIT_CHAR] Character id:', character?.id);
+    
     checkAuth();
-    loadCharacterData();
     loadGenerationSettings();
     
-    // Загружаем фото персонажа из API
-    fetchCharacterPhotos();
+    // КРИТИЧНО: Определяем идентификатор персонажа из prop или state
+    const effectiveIdentifier = characterIdentifier || character?.name || character?.id?.toString() || '';
+    console.log('[EDIT_CHAR] Effective identifier:', effectiveIdentifier);
     
-    // Также загружаем main_photos если они есть в character prop (для начального отображения)
-    if (character.photos && Array.isArray(character.photos) && character.photos.length > 0) {
-      console.log('Loading main_photos from character prop:', character.photos);
-      const mainPhotos = character.photos.map((url: string, index: number) => ({
-        id: `main_${index}`,
-        url: url,
-        isSelected: true,
-        created_at: null
-      }));
-      setSelectedPhotos(mainPhotos.slice(0, MAX_MAIN_PHOTOS));
-      console.log('Main photos loaded from prop:', mainPhotos);
+    // КРИТИЧНО: Загружаем данные персонажа сразу при монтировании
+    if (effectiveIdentifier && effectiveIdentifier.trim() !== '') {
+      console.log('[EDIT_CHAR] Loading data immediately on mount:', effectiveIdentifier);
+      // Обновляем characterIdentifier если он был пустой
+      if (!characterIdentifier || characterIdentifier !== effectiveIdentifier) {
+        console.log('[EDIT_CHAR] Setting characterIdentifier from prop:', effectiveIdentifier);
+        setCharacterIdentifier(effectiveIdentifier);
+      }
+      // Устанавливаем isLoadingData в true перед загрузкой
+      setIsLoadingData(true);
+      loadCharacterData(effectiveIdentifier).catch((error) => {
+        console.error('[EDIT_CHAR] Error in loadCharacterData:', error);
+        setIsLoadingData(false);
+        setError('Ошибка при загрузке данных персонажа');
+      });
+    } else {
+      console.warn('[EDIT_CHAR] No valid identifier found, setting isLoadingData to false');
+      setIsLoadingData(false);
+    }
+    
+    // Безопасная загрузка main_photos из character prop
+    if (character?.photos && Array.isArray(character.photos) && character.photos.length > 0) {
+      console.log('[EDIT_CHAR] Loading main_photos from character prop:', character.photos);
+      const mainPhotos = character.photos
+        .filter((url: any) => url && typeof url === 'string')
+        .map((url: string, index: number) => ({
+          id: `main_${index}_${Date.now()}`,
+          url: url,
+          isSelected: true,
+          created_at: null
+        }));
+      if (mainPhotos.length > 0) {
+        setSelectedPhotos(mainPhotos.slice(0, MAX_MAIN_PHOTOS));
+        console.log('[EDIT_CHAR] Main photos loaded from prop:', mainPhotos);
+      }
     }
 
     return () => {
@@ -1304,7 +1766,19 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         fakeProgressTimeoutRef.current = null;
       }
     };
-  }, [characterIdentifier, character.name]);
+  }, []); // Запускается только при монтировании
+
+  // Загрузка данных персонажа при изменении characterIdentifier
+  useEffect(() => {
+    console.log('[EDIT_CHAR] useEffect triggered, characterIdentifier:', characterIdentifier, 'isLoadingData:', isLoadingData);
+    if (characterIdentifier && characterIdentifier.trim() !== '') {
+      console.log('[EDIT_CHAR] characterIdentifier valid, calling loadCharacterData:', characterIdentifier);
+      loadCharacterData(characterIdentifier);
+    } else {
+      console.warn('[EDIT_CHAR] Invalid characterIdentifier, skipping load. Setting isLoadingData to false.');
+      setIsLoadingData(false);
+    }
+  }, [characterIdentifier]); // Убираем loadCharacterData из зависимостей, чтобы избежать бесконечных циклов
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -1320,6 +1794,10 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     setSuccess(null);
 
     try {
+      // Проверяем кредиты перед отправкой
+      if (!subscriptionStats || subscriptionStats.credits_remaining < CHARACTER_EDIT_COST) {
+        throw new Error(`Недостаточно кредитов. Для редактирования персонажа требуется ${CHARACTER_EDIT_COST} кредитов.`);
+      }
       
       const requestData = {
         name: formData.name.trim(),
@@ -1363,6 +1841,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       }));
       setSuccess('Персонаж успешно обновлен!');
       await fetchCharacterPhotos(updatedName);
+      // Обновляем статистику подписки после успешного сохранения
+      await loadSubscriptionStats();
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка при редактировании персонажа');
@@ -1554,28 +2034,66 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     }
   };
 
-  const openPhotoModal = (photo: any) => {
+  const openPhotoModal = async (photo: any) => {
     console.log('[MODAL] Opening photo modal for:', photo);
     console.log('[MODAL] Photo URL:', photo.url);
     setSelectedPhotoForView(photo);
-    console.log('[MODAL] selectedPhotoForView set');
+    setSelectedPrompt(null);
+    setPromptError(null);
+    setIsLoadingPrompt(true);
+
+    try {
+      const { prompt, errorMessage } = await fetchPromptByImage(photo.url);
+      if (prompt) {
+        setSelectedPrompt(prompt);
+      } else {
+        setPromptError(errorMessage || 'Промпт недоступен для этого изображения');
+      }
+    } finally {
+      setIsLoadingPrompt(false);
+    }
   };
 
   const closePhotoModal = () => {
     console.log('[MODAL] Closing photo modal');
     setSelectedPhotoForView(null);
+    setSelectedPrompt(null);
+    setPromptError(null);
+    setIsLoadingPrompt(false);
   };
 
-  // Проверка на undefined character
-  if (!character) {
-    console.error('[EDIT_CHAR] Character is undefined!');
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectedPhotoForView) {
+        closePhotoModal();
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [selectedPhotoForView]);
+
+  // Проверка на undefined character с более детальной информацией
+  if (!character || (!character.name && !character.id)) {
+    console.error('[EDIT_CHAR] Character is undefined or invalid!', character);
     return (
       <MainContainer>
         <MainContent style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
           <div style={{ textAlign: 'center' }}>
             <h2>Ошибка загрузки</h2>
-            <p>Персонаж не найден. Пожалуйста, вернитесь к списку персонажей.</p>
-            <button onClick={onBackToEditList} style={{ marginTop: '1rem', padding: '0.5rem 1rem', cursor: 'pointer' }}>
+            <p>Персонаж не найден или данные повреждены. Пожалуйста, вернитесь к списку персонажей.</p>
+            <button 
+              onClick={onBackToEditList} 
+              style={{ 
+                marginTop: '1rem', 
+                padding: '0.5rem 1rem', 
+                cursor: 'pointer',
+                backgroundColor: '#6a0dad',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '16px'
+              }}
+            >
               ← Назад к списку
             </button>
           </div>
@@ -1584,7 +2102,53 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     );
   }
 
+  // Показываем индикатор загрузки, пока данные не загружены
+  console.log('[EDIT_CHAR] ========== RENDER CHECK ==========');
+  console.log('[EDIT_CHAR] isLoadingData:', isLoadingData);
+  console.log('[EDIT_CHAR] formData exists:', !!formData);
+  console.log('[EDIT_CHAR] formData.name:', formData?.name);
+  console.log('[EDIT_CHAR] characterIdentifier:', characterIdentifier);
+  console.log('[EDIT_CHAR] character prop:', character);
+  console.log('[EDIT_CHAR] ===================================');
+  
+  if (isLoadingData) {
+    console.log('[EDIT_CHAR] Showing loading spinner because isLoadingData is true');
+    return (
+      <MainContainer>
+        <div className="content-area vertical">
+          <GlobalHeader 
+            onShop={onShop}
+            onLogin={() => {
+              setAuthMode('login');
+              setIsAuthModalOpen(true);
+            }}
+            onRegister={() => {
+              setAuthMode('register');
+              setIsAuthModalOpen(true);
+            }}
+            onLogout={handleLogout}
+            onProfile={onProfile}
+            onBalance={() => alert('Баланс пользователя')}
+            leftContent={
+              <>
+                <BackButton onClick={onBackToEditList}>← Назад к списку</BackButton>
+                <PageTitle>Загрузка...</PageTitle>
+              </>
+            }
+          />
+          <MainContent style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
+            <div style={{ textAlign: 'center' }}>
+              <LoadingSpinner size="lg" />
+              <p style={{ marginTop: '1rem' }}>Загрузка данных персонажа...</p>
+            </div>
+          </MainContent>
+        </div>
+      </MainContainer>
+    );
+  }
+
   // Проверка на undefined formData
+  console.log('[EDIT_CHAR] Render check - formData exists:', !!formData, 'formData:', formData);
   if (!formData) {
     console.error('[EDIT_CHAR] formData is undefined!');
     return (
@@ -1602,34 +2166,112 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     );
   }
 
+  // Финальная проверка перед рендерингом формы
+  console.log('[EDIT_CHAR] ========== FINAL RENDER CHECK ==========');
+  console.log('[EDIT_CHAR] isLoadingData:', isLoadingData);
+  console.log('[EDIT_CHAR] formData:', formData);
+  console.log('[EDIT_CHAR] formData.name:', formData?.name);
+  console.log('[EDIT_CHAR] formData.personality:', formData?.personality?.substring(0, 50) + '...');
+  console.log('[EDIT_CHAR] Will render form:', !isLoadingData && !!formData);
+  console.log('[EDIT_CHAR] =========================================');
+  
+  // Дополнительная проверка: если formData пустой, но isLoadingData false, показываем ошибку
+  if (!isLoadingData && formData && (!formData.name || formData.name.trim() === '')) {
+    console.warn('[EDIT_CHAR] FormData is empty but isLoadingData is false. This might indicate a loading issue.');
+    // Не показываем ошибку, просто логируем - возможно данные еще загружаются
+  }
+  
+  console.log('[EDIT_CHAR] Rendering main form. formData.name:', formData.name, 'formData.personality length:', formData.personality.length);
+  
   return (
-    <MainContainer>
-      <div className="content-area vertical">
-        <GlobalHeader 
-          onShop={onShop}
-          onLogin={() => {
-            setAuthMode('login');
-            setIsAuthModalOpen(true);
-          }}
-          onRegister={() => {
-            setAuthMode('register');
-            setIsAuthModalOpen(true);
-          }}
-          onLogout={handleLogout}
-          onProfile={onProfile}
-          onBalance={() => alert('Баланс пользователя')}
-          leftContent={
-            <>
-              <BackButton onClick={onBackToEditList}>← Назад к списку</BackButton>
-              <PageTitle>Редактирование: {formData.name || characterIdentifier}</PageTitle>
-            </>
-          }
-        />
-        
-        <MainContent>
-          <Form onSubmit={handleSubmit}>
-            <LeftColumn>
-              <ColumnContent>
+    <MainContainer style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      height: '100vh', 
+      width: '100vw',
+      position: 'relative',
+      zIndex: 1,
+      overflow: 'visible'
+    }}>
+      <GlobalHeader 
+        onShop={onShop}
+        onLogin={() => {
+          setAuthMode('login');
+          setIsAuthModalOpen(true);
+        }}
+        onRegister={() => {
+          setAuthMode('register');
+          setIsAuthModalOpen(true);
+        }}
+        onLogout={handleLogout}
+        onProfile={onProfile}
+        onBalance={() => alert('Баланс пользователя')}
+        leftContent={
+          <>
+            <BackButton onClick={onBackToEditList}>← Назад к списку</BackButton>
+            <PageTitle>Редактирование: {formData.name || characterIdentifier}</PageTitle>
+          </>
+        }
+      />
+      
+      <MainContent style={{ 
+          flex: 1, 
+          display: 'flex', 
+          height: 'calc(100vh - 80px)',
+          maxHeight: 'calc(100vh - 80px)',
+          overflow: 'hidden',
+          padding: theme.spacing.lg,
+          gap: theme.spacing.lg,
+          visibility: 'visible',
+          opacity: 1,
+          width: '100%',
+          boxSizing: 'border-box'
+        }}>
+          <Form onSubmit={handleSubmit} style={{ 
+            display: 'flex', 
+            flex: 1, 
+            width: '100%', 
+            height: '100%',
+            gap: theme.spacing.lg,
+            visibility: 'visible',
+            opacity: 1,
+            overflow: 'hidden',
+            position: 'relative',
+            zIndex: 10
+          }}>
+            <LeftColumn style={{ 
+              flex: 1, 
+              display: 'flex', 
+              flexDirection: 'column', 
+              minWidth: '300px',
+              height: '100%',
+              maxHeight: '100%',
+              visibility: 'visible', 
+              opacity: 1,
+              padding: theme.spacing.lg,
+              background: 'linear-gradient(135deg, rgba(12, 12, 12, 0.95) 0%, rgba(20, 20, 20, 0.98) 100%)',
+              border: '2px solid rgba(60, 60, 60, 0.9)',
+              borderRadius: theme.borderRadius.xl,
+              overflow: 'hidden',
+              boxSizing: 'border-box'
+            }}>
+              <ColumnContent style={{ 
+                flex: 1, 
+                display: 'flex', 
+                flexDirection: 'column', 
+                visibility: 'visible', 
+                opacity: 1,
+                padding: theme.spacing.sm,
+                height: '100%',
+                overflowY: 'auto',
+                overflowX: 'hidden',
+                position: 'relative',
+                zIndex: 10,
+                boxSizing: 'border-box',
+                width: '100%',
+                maxWidth: '100%',
+                gap: theme.spacing.md
+              }}>
                 <FormGroup>
                   <Label htmlFor="name" data-icon="👤">Имя персонажа:</Label>
                   <Input
@@ -1728,15 +2370,63 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                 {success && <SuccessMessage>{success}</SuccessMessage>}
 
                 <ButtonGroup>
-                  <ActionButton type="submit" disabled={isLoading}>
+                  <ActionButton 
+                    type="submit" 
+                    disabled={isLoading || !subscriptionStats || subscriptionStats.credits_remaining < CHARACTER_EDIT_COST}
+                  >
                     {isLoading ? 'Обновление...' : 'Сохранить изменения'}
                   </ActionButton>
+                  <div style={{
+                    marginTop: '8px',
+                    fontSize: '12px',
+                    color: subscriptionStats && subscriptionStats.credits_remaining < CHARACTER_EDIT_COST 
+                      ? 'rgba(255, 100, 100, 0.9)' 
+                      : 'rgba(200, 200, 200, 0.7)',
+                    textAlign: 'center'
+                  }}>
+                    Стоимость: {CHARACTER_EDIT_COST} кредитов
+                    {subscriptionStats && (
+                      <span style={{ display: 'block', marginTop: '4px' }}>
+                        У вас: {subscriptionStats.credits_remaining} кредитов
+                      </span>
+                    )}
+                  </div>
                 </ButtonGroup>
               </ColumnContent>
             </LeftColumn>
 
-            <RightColumn>
-              <ColumnContent>
+            <RightColumn style={{ 
+              flex: 1, 
+              display: 'flex', 
+              flexDirection: 'column', 
+              minWidth: '300px',
+              height: '100%',
+              maxHeight: '100%',
+              visibility: 'visible', 
+              opacity: 1,
+              padding: theme.spacing.md,
+              background: 'rgba(30, 30, 30, 0.2)',
+              border: '1px solid rgba(130, 130, 130, 0.3)',
+              borderRadius: theme.borderRadius.lg,
+              overflow: 'hidden',
+              boxSizing: 'border-box'
+            }}>
+              <ColumnContent style={{ 
+                flex: 1, 
+                display: 'flex', 
+                flexDirection: 'column', 
+                visibility: 'visible', 
+                opacity: 1,
+                padding: theme.spacing.md,
+                height: '100%',
+                overflowY: 'auto',
+                overflowX: 'hidden',
+                position: 'relative',
+                zIndex: 10,
+                boxSizing: 'border-box',
+                width: '100%',
+                maxWidth: '100%'
+              }}>
                 <PhotoGenerationBox>
                   <PhotoGenerationBoxTitle>Генерация фото персонажа</PhotoGenerationBoxTitle>
                   <PhotoGenerationDescription>
@@ -1868,7 +2558,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
             </RightColumn>
           </Form>
         </MainContent>
-      </div>
       
       {/* Модальное окно для просмотра фото в полный размер */}
       {selectedPhotoForView && (
@@ -1891,14 +2580,28 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                 closePhotoModal();
               }}
             >
-              ×
+              <CloseIcon />
             </PhotoModalClose>
-            <PhotoModalImage 
-              src={selectedPhotoForView.url} 
-              alt="Generated photo full size"
-              onLoad={() => console.log('[MODAL] Image loaded in modal:', selectedPhotoForView.url)}
-              onError={() => console.error('[MODAL] Error loading image in modal:', selectedPhotoForView.url)}
-            />
+            <ModalImageContainer>
+              <PhotoModalImage 
+                src={selectedPhotoForView.url} 
+                alt="Generated photo full size"
+                onLoad={() => console.log('[MODAL] Image loaded in modal:', selectedPhotoForView.url)}
+                onError={() => console.error('[MODAL] Error loading image in modal:', selectedPhotoForView.url)}
+              />
+            </ModalImageContainer>
+            <PromptPanel>
+              <PromptPanelHeader>
+                <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+              </PromptPanelHeader>
+              {isLoadingPrompt ? (
+                <PromptLoading>Загрузка промпта...</PromptLoading>
+              ) : promptError ? (
+                <PromptError>{promptError}</PromptError>
+              ) : selectedPrompt ? (
+                <PromptPanelText>{selectedPrompt}</PromptPanelText>
+              ) : null}
+            </PromptPanel>
           </PhotoModalContent>
         </PhotoModal>
       )}

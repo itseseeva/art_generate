@@ -1,0 +1,14 @@
+{
+  "input": {
+    "prompt": "beautiful anime girl, blue hair, detailed eyes, smiling",
+    "negative_prompt": "",
+    "width": 832,
+    "height": 1216,
+    "num_inference_steps": 5,
+    "guidance_scale": 4.0,
+    "seed": 42,
+    "lora_scale": 0.7,
+    "return_type": "file"
+  }
+}
+  

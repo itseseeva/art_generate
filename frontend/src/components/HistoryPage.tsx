@@ -6,6 +6,7 @@ import { authManager } from '../utils/auth';
 import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
 import { CharacterCard } from './CharacterCard';
+import { API_CONFIG } from '../config/api';
 import '../styles/ContentArea.css';
 
 const MainContainer = styled.div`
@@ -230,6 +231,37 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [characterPhotos, setCharacterPhotos] = useState<{[key: string]: string[]}>({});
+  const [favoriteCharacterIds, setFavoriteCharacterIds] = useState<Set<number>>(new Set());
+
+  // Загрузка избранных персонажей
+  const loadFavorites = async () => {
+    try {
+      const token = authManager.getToken();
+      if (!token) {
+        setFavoriteCharacterIds(new Set());
+        return;
+      }
+
+      const response = await authManager.fetchWithAuth(API_CONFIG.FAVORITES);
+      
+      if (response.ok) {
+        const favorites = await response.json();
+        // Извлекаем ID избранных персонажей
+        const favoriteIds = new Set<number>(
+          favorites.map((char: any) => {
+            const id = typeof char.id === 'number' ? char.id : parseInt(char.id, 10);
+            return isNaN(id) ? null : id;
+          }).filter((id: number | null): id is number => id !== null)
+        );
+        setFavoriteCharacterIds(favoriteIds);
+      } else {
+        setFavoriteCharacterIds(new Set());
+      }
+    } catch (error) {
+      console.error('Error loading favorites:', error);
+      setFavoriteCharacterIds(new Set());
+    }
+  };
 
   // Загружаем фото персонажей по аналогии с MainPage
   const loadCharacterPhotos = async () => {
@@ -385,10 +417,16 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                   return entry.trim().length > 0;
                 }
                 if (entry && typeof entry === 'object') {
-                  // Проверяем, что есть имя и есть время последнего сообщения (реальный диалог)
+                  // Проверяем, что есть имя
                   const hasName = typeof entry.name === 'string' && entry.name.trim().length > 0;
+                  if (!hasName) {
+                    return false;
+                  }
+                  // Проверяем, что есть либо время последнего сообщения, либо картинка
+                  // Это позволяет показывать персонажей с историей только из картинок
                   const hasLastMessage = entry.last_message_at && entry.last_message_at.trim().length > 0;
-                  return hasName && hasLastMessage;
+                  const hasImage = entry.last_image_url && entry.last_image_url.trim().length > 0;
+                  return hasLastMessage || hasImage;
                 }
                 return false;
               })
@@ -480,9 +518,10 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
       }
     };
 
-  // Загружаем фото при монтировании
+  // Загружаем фото и избранные при монтировании
   useEffect(() => {
     loadCharacterPhotos();
+    loadFavorites();
   }, []);
 
   // Используем ref для отслеживания первого вызова loadCharacters
@@ -582,12 +621,21 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                 Пока у вас нет сохранённых переписок. Начните диалог с любым персонажем!
               </EmptyState>
             ) : (
-              characters.map((character) => (
+              characters.map((character) => {
+                // Проверяем, находится ли персонаж в избранном
+                const characterId = typeof character.id === 'number' 
+                  ? character.id 
+                  : parseInt(character.id, 10);
+                const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
+                
+                return (
                 <CardWrapper key={character.id}>
                   <CharacterCard
                     character={character}
                     onClick={() => onOpenChat(character)}
                     showPromptButton={true}
+                      isFavorite={isFavorite}
+                      onFavoriteToggle={loadFavorites}
                   />
                   <LastMessage>
                     {character.lastMessageAt
@@ -595,7 +643,8 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                       : 'История появится после первого сообщения'}
                   </LastMessage>
                 </CardWrapper>
-              ))
+                );
+              })
             )}
           </CharactersGrid>
         )}

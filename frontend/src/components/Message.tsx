@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
-import { FiX, FiImage, FiFolder, FiGlobe } from 'react-icons/fi';
+import { FiX, FiImage, FiFolder } from 'react-icons/fi';
 
 const MessageContainer = styled.div<{ $isUser: boolean }>`
   display: flex;
@@ -9,10 +9,19 @@ const MessageContainer = styled.div<{ $isUser: boolean }>`
   justify-content: ${props => props.$isUser ? 'flex-end' : 'flex-start'};
   gap: ${theme.spacing.md};
   margin-bottom: ${theme.spacing.md};
+  position: relative;
+`;
+
+const MessageWithButtons = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: ${theme.spacing.sm};
+  max-width: 75%;
+  flex-shrink: 1;
 `;
 
 const MessageContent = styled.div<{ $isUser: boolean; $imageOnly?: boolean }>`
-  max-width: ${props => props.$imageOnly ? 'none' : '70%'};
+  max-width: ${props => props.$imageOnly ? 'none' : '100%'};
   padding: ${props => props.$imageOnly ? '0 !important' : theme.spacing.lg};
   border-radius: ${props => props.$imageOnly 
     ? '0' 
@@ -23,22 +32,22 @@ const MessageContent = styled.div<{ $isUser: boolean; $imageOnly?: boolean }>`
   background: ${props => props.$imageOnly 
     ? 'transparent !important' 
     : props.$isUser 
-    ? 'linear-gradient(135deg, rgba(80, 80, 80, 0.4) 0%, rgba(70, 70, 70, 0.3) 100%)' 
-    : 'linear-gradient(135deg, rgba(50, 50, 50, 0.4) 0%, rgba(40, 40, 40, 0.3) 100%)'
+    ? 'rgba(50, 50, 50, 0.6)' 
+    : 'rgba(30, 30, 30, 0.6)'
   };
-  backdrop-filter: ${props => props.$imageOnly ? 'none' : 'blur(10px)'};
-  -webkit-backdrop-filter: ${props => props.$imageOnly ? 'none' : 'blur(10px)'};
+  backdrop-filter: ${props => props.$imageOnly ? 'none' : 'blur(15px)'};
+  -webkit-backdrop-filter: ${props => props.$imageOnly ? 'none' : 'blur(15px)'};
   color: rgba(240, 240, 240, 1);
   border: ${props => props.$imageOnly 
     ? 'none !important' 
     : `1px solid ${props.$isUser 
-    ? 'rgba(120, 120, 120, 0.3)' 
-    : 'rgba(100, 100, 100, 0.2)'
+    ? 'rgba(60, 60, 60, 0.5)' 
+    : 'rgba(40, 40, 40, 0.5)'
     }`
   };
   box-shadow: ${props => props.$imageOnly 
     ? 'none !important' 
-    : '0 8px 24px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2)'
+    : '0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
   };
   position: relative;
   word-wrap: break-word;
@@ -49,7 +58,11 @@ const MessageContent = styled.div<{ $isUser: boolean; $imageOnly?: boolean }>`
   &:hover {
     ${props => !props.$imageOnly && `
       transform: translateY(-2px);
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      border-color: ${props.$isUser 
+        ? 'rgba(70, 70, 70, 0.7)' 
+        : 'rgba(50, 50, 50, 0.7)'
+      };
     `}
   }
 `;
@@ -59,58 +72,7 @@ const MessageText = styled.div`
   line-height: 1.6;
   margin-bottom: ${theme.spacing.md};
   position: relative;
-  padding-right: 100px; /* Место для кнопки перевода */
-  min-height: 24px; /* Минимальная высота для кнопки */
-`;
-
-const TranslateButton = styled.button`
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  background: rgba(60, 60, 60, 0.9);
-  border: 1px solid rgba(150, 150, 150, 0.3);
-  border-radius: ${theme.borderRadius.sm};
-  color: rgba(240, 240, 240, 0.9);
-  font-size: ${theme.fontSize.xs};
-  padding: 4px 8px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  transition: all 0.2s ease;
-  z-index: 10;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  white-space: nowrap;
-  
-  &:hover {
-    background: rgba(80, 80, 80, 0.95);
-    border-color: rgba(150, 150, 150, 0.5);
-    color: rgba(255, 255, 255, 1);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  }
-  
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
-  }
-  
-  svg {
-    width: 12px;
-    height: 12px;
-  }
-`;
-
-const TranslatedText = styled.div`
-  font-size: ${theme.fontSize.base};
-  line-height: 1.6;
-  margin-top: ${theme.spacing.sm};
-  padding-top: ${theme.spacing.sm};
-  border-top: 1px solid rgba(150, 150, 150, 0.2);
-  color: rgba(200, 200, 200, 0.9);
-  font-style: italic;
+  flex: 1;
 `;
 
 const ImageContainer = styled.div`
@@ -218,8 +180,8 @@ const Avatar = styled.div<{ $isUser: boolean; $avatarUrl?: string }>`
       return 'transparent';
     }
     return props.$isUser 
-    ? 'rgba(80, 80, 80, 0.8)' 
-      : 'rgba(60, 60, 60, 0.8)';
+    ? 'rgba(60, 60, 60, 0.8)' 
+      : 'rgba(40, 40, 40, 0.8)';
   }};
   display: flex;
   align-items: center;
@@ -227,9 +189,9 @@ const Avatar = styled.div<{ $isUser: boolean; $avatarUrl?: string }>`
   font-weight: 600;
   font-size: ${theme.fontSize.lg};
   color: rgba(240, 240, 240, 1);
-  border: 2px solid ${props => props.$isUser 
-    ? 'rgba(150, 150, 150, 0.5)' 
-    : 'rgba(150, 150, 150, 0.3)'
+  border: 1px solid ${props => props.$isUser 
+    ? 'rgba(70, 70, 70, 0.6)' 
+    : 'rgba(50, 50, 50, 0.6)'
   };
   flex-shrink: 0;
   overflow: hidden;
@@ -294,6 +256,7 @@ interface MessageProps {
     content: string;
     timestamp: Date;
     imageUrl?: string;
+    generationTime?: number; // Время генерации изображения в секундах
   };
   characterName?: string;
   characterAvatar?: string;
@@ -313,13 +276,17 @@ export const Message: React.FC<MessageProps> = ({
   onAddToPaidAlbum
 }) => {
   const isUser = message.type === 'user';
+  
+  // Логирование для отладки generationTime
+  if (message.imageUrl) {
+    console.log('[MESSAGE] Отображение изображения:', {
+      imageUrl: message.imageUrl,
+      generationTime: message.generationTime,
+      hasGenerationTime: message.generationTime !== undefined
+    });
+  }
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isAddingToGallery, setIsAddingToGallery] = useState(false);
   const [isAddingToPaidAlbum, setIsAddingToPaidAlbum] = useState(false);
-  const [isAddedToGallery, setIsAddedToGallery] = useState(false);
-  const [translatedText, setTranslatedText] = useState<string | null>(null);
-  const [isTranslating, setIsTranslating] = useState(false);
-  const [showTranslation, setShowTranslation] = useState(false);
   
   const timeString = message.timestamp.toLocaleTimeString('ru-RU', {
     hour: '2-digit',
@@ -351,189 +318,6 @@ export const Message: React.FC<MessageProps> = ({
       window.removeEventListener('keydown', handleEscape);
     };
   }, [isFullscreen]);
-
-  // Функция перевода текста
-  const translateText = async (text: string): Promise<string | null> => {
-    if (!text || text.trim().length === 0) {
-      return null;
-    }
-
-    try {
-      // MyMemory API имеет ограничение на длину текста (обычно 500 символов)
-      // Для длинных текстов разбиваем на части
-      const MAX_CHUNK_LENGTH = 450; // Оставляем запас
-      
-      if (text.length <= MAX_CHUNK_LENGTH) {
-        // Короткий текст - переводим целиком
-        return await translateChunk(text);
-      } else {
-        // Длинный текст - разбиваем на предложения и переводим по частям
-        const sentences = text.match(/[^.!?]+[.!?]+/g);
-        
-        // Если нет предложений с знаками препинания, разбиваем по пробелам
-        if (!sentences || sentences.length === 0) {
-          const words = text.split(/\s+/);
-          const translatedParts: string[] = [];
-          let currentChunk = '';
-
-          for (const word of words) {
-            if ((currentChunk + ' ' + word).length <= MAX_CHUNK_LENGTH) {
-              currentChunk = currentChunk ? currentChunk + ' ' + word : word;
-            } else {
-              if (currentChunk) {
-                const translated = await translateChunk(currentChunk);
-                if (translated) {
-                  translatedParts.push(translated);
-                } else {
-                  return null;
-                }
-              }
-              currentChunk = word;
-            }
-          }
-
-          if (currentChunk) {
-            const translated = await translateChunk(currentChunk);
-            if (translated) {
-              translatedParts.push(translated);
-            } else {
-              return null;
-            }
-          }
-
-          return translatedParts.join(' ');
-        }
-
-        // Разбиваем по предложениям
-        const translatedParts: string[] = [];
-        let currentChunk = '';
-
-        for (const sentence of sentences) {
-          if ((currentChunk + sentence).length <= MAX_CHUNK_LENGTH) {
-            currentChunk += sentence;
-          } else {
-            if (currentChunk) {
-              const translated = await translateChunk(currentChunk);
-              if (translated) {
-                translatedParts.push(translated);
-              } else {
-                return null; // Ошибка перевода части
-              }
-            }
-            currentChunk = sentence;
-          }
-        }
-
-        // Переводим последний chunk
-        if (currentChunk) {
-          const translated = await translateChunk(currentChunk);
-          if (translated) {
-            translatedParts.push(translated);
-          } else {
-            return null;
-          }
-        }
-
-        return translatedParts.join(' ');
-      }
-    } catch (error) {
-      console.error('Ошибка перевода:', error);
-      return null;
-    }
-  };
-
-  // Вспомогательная функция для перевода одного chunk
-  const translateChunk = async (chunk: string): Promise<string | null> => {
-    try {
-      const response = await fetch(
-        `https://api.mymemory.translated.net/get?q=${encodeURIComponent(chunk)}&langpair=en|ru`
-      );
-      
-      if (!response.ok) {
-        console.warn(`[TRANSLATE] HTTP ошибка: ${response.status}`);
-        return null;
-      }
-      
-      const data = await response.json();
-      
-      // Проверяем разные варианты структуры ответа
-      if (data.responseStatus === 200) {
-        if (data.responseData && data.responseData.translatedText) {
-          return data.responseData.translatedText;
-        }
-        // Иногда перевод может быть в другом поле
-        if (data.translatedText) {
-          return data.translatedText;
-        }
-      }
-      
-      // Если статус не 200, но есть данные - пробуем использовать
-      if (data.responseData && data.responseData.translatedText) {
-        return data.responseData.translatedText;
-      }
-      
-      console.warn('[TRANSLATE] Неожиданный формат ответа:', data);
-      return null;
-    } catch (error) {
-      console.error('[TRANSLATE] Ошибка при запросе перевода:', error);
-      return null;
-    }
-  };
-
-  const handleTranslateClick = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    
-    if (!message.content || message.content.trim().length === 0) {
-      return;
-    }
-
-    // Если перевод уже есть, просто показываем/скрываем его
-    if (translatedText) {
-      setShowTranslation(!showTranslation);
-      return;
-    }
-
-    // Проверяем, содержит ли текст английские буквы
-    const hasEnglish = /[a-zA-Z]/.test(message.content);
-    if (!hasEnglish) {
-      alert('Текст не содержит английских символов для перевода');
-      return;
-    }
-
-    setIsTranslating(true);
-    try {
-      const translation = await translateText(message.content);
-      if (translation) {
-        setTranslatedText(translation);
-        setShowTranslation(true);
-      } else {
-        alert('Не удалось перевести текст. Попробуйте позже.');
-      }
-    } catch (error) {
-      console.error('Ошибка при переводе:', error);
-      alert('Ошибка при переводе текста');
-    } finally {
-      setIsTranslating(false);
-    }
-  };
-
-  const handleAddToGalleryClick = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!message.imageUrl || !characterName || !onAddToGallery || !isAuthenticated) {
-      return;
-    }
-
-    setIsAddingToGallery(true);
-    try {
-      await onAddToGallery(message.imageUrl, characterName);
-      setIsAddedToGallery(true);
-    } catch (error) {
-      console.error('Ошибка при добавлении в галерею:', error);
-      alert(error instanceof Error ? error.message : 'Не удалось добавить фото в галерею');
-    } finally {
-      setIsAddingToGallery(false);
-    }
-  };
 
   const [isAddedToPaidAlbum, setIsAddedToPaidAlbum] = useState(false);
 
@@ -635,6 +419,26 @@ export const Message: React.FC<MessageProps> = ({
               e.currentTarget.style.display = 'none';
             }}
           />
+          {message.generationTime !== undefined && (
+            <div style={{
+              position: 'absolute',
+              bottom: '8px',
+              left: '8px',
+              background: 'rgba(0, 0, 0, 0.75)',
+              color: '#fff',
+              padding: '4px 10px',
+              borderRadius: '6px',
+              fontSize: '12px',
+              fontWeight: 500,
+              pointerEvents: 'none',
+              zIndex: 10,
+              backdropFilter: 'blur(4px)'
+            }}>
+              ⏱ {message.generationTime < 60 
+                ? `${Math.round(message.generationTime)}с` 
+                : `${Math.round(message.generationTime / 60)}м ${Math.round(message.generationTime % 60)}с`}
+            </div>
+          )}
           {isAuthenticated && characterName && (
             <div
               onClick={(e) => e.stopPropagation()}
@@ -653,16 +457,6 @@ export const Message: React.FC<MessageProps> = ({
                 pointerEvents: 'auto'
               }}
             >
-                {onAddToGallery && !isAddedToGallery && (
-                  <ImageButton
-                    onClick={handleAddToGalleryClick}
-                    disabled={isAddingToGallery}
-                    title="Добавить в галерею"
-                  >
-                    <FiImage size={12} />
-                    {isAddingToGallery ? 'Добавление...' : 'В галерею'}
-                  </ImageButton>
-                )}
                 {onAddToPaidAlbum && !isAddedToPaidAlbum && (
                   <ImageButton
                     onClick={handleAddToPaidAlbumClick}
@@ -698,6 +492,7 @@ export const Message: React.FC<MessageProps> = ({
   return (
     <>
       <MessageContainer $isUser={isUser}>
+        {/* Аватар модели слева */}
         {!isUser && (
           <Avatar $isUser={false} $avatarUrl={characterAvatar}>
             {characterAvatar ? (
@@ -715,21 +510,6 @@ export const Message: React.FC<MessageProps> = ({
           {message.content && (
             <MessageText>
               {message.content}
-              {/[a-zA-Z]/.test(message.content) && (
-                <TranslateButton
-                  onClick={handleTranslateClick}
-                  disabled={isTranslating}
-                  title="Перевести на русский"
-                >
-                  <FiGlobe size={12} />
-                  {isTranslating ? 'Перевод...' : (showTranslation ? 'Скрыть перевод' : 'Перевести')}
-                </TranslateButton>
-              )}
-              {showTranslation && translatedText && (
-                <TranslatedText>
-                  {translatedText}
-                </TranslatedText>
-              )}
             </MessageText>
           )}
           
@@ -765,16 +545,6 @@ export const Message: React.FC<MessageProps> = ({
               />
               {isAuthenticated && characterName && (
                 <ImageButtons onClick={(e) => e.stopPropagation()}>
-                  {onAddToGallery && !isAddedToGallery && (
-                    <ImageButton
-                      onClick={handleAddToGalleryClick}
-                      disabled={isAddingToGallery}
-                      title="Добавить в галерею"
-                    >
-                      <FiImage size={12} />
-                      {isAddingToGallery ? 'Добавление...' : 'В галерею'}
-                    </ImageButton>
-                  )}
                   {onAddToPaidAlbum && !isAddedToPaidAlbum && (
                     <ImageButton
                       onClick={handleAddToPaidAlbumClick}
@@ -798,7 +568,7 @@ export const Message: React.FC<MessageProps> = ({
           )}
         </MessageContent>
         
-        {/* Аватар пользователя показываем только если есть текст */}
+        {/* Аватар пользователя справа */}
         {isUser && (message.content || !message.imageUrl) && (
           <Avatar $isUser={true}>
             U

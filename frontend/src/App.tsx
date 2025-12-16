@@ -73,32 +73,69 @@ function App() {
   const [contentMode, setContentMode] = useState<'safe' | 'nsfw'>('safe');
   const [selectedSubscriptionType, setSelectedSubscriptionType] = useState<string>('');
 
-  // Функция загрузки персонажа по ID
+  // Функция загрузки персонажа по ID или имени
   const loadCharacterById = async (characterId: string | number): Promise<any | null> => {
     try {
-      // Сначала проверяем localStorage
-      const savedCharacter = localStorage.getItem(`character_${characterId}`);
-      if (savedCharacter) {
-        return JSON.parse(savedCharacter);
+      console.log('[APP] loadCharacterById called with:', characterId);
+      
+      // Сначала проверяем localStorage (по ID и по имени)
+      const savedById = localStorage.getItem(`character_${characterId}`);
+      if (savedById) {
+        console.log('[APP] Character found in localStorage by ID:', characterId);
+        return JSON.parse(savedById);
       }
 
-      // Загружаем из API
+      // Пытаемся загрузить из API по ID
+      try {
+        const response = await fetch(`/api/v1/characters/${encodeURIComponent(characterId)}`);
+        if (response.ok) {
+          const character = await response.json();
+          if (character && (character.id || character.name)) {
+            console.log('[APP] Character loaded from API by ID:', characterId);
+            // Сохраняем в localStorage
+            const storageKey = character.id ? `character_${character.id}` : `character_${character.name}`;
+            localStorage.setItem(storageKey, JSON.stringify(character));
+            return character;
+          }
+        }
+      } catch (apiError) {
+        console.warn('[APP] Failed to load character by ID from API, trying list:', apiError);
+      }
+
+      // Если не удалось загрузить по ID, пытаемся найти в списке всех персонажей
       const response = await fetch(`/api/v1/characters/`);
       if (response.ok) {
         const characters = await response.json();
-        const character = Array.isArray(characters) 
-          ? characters.find((char: any) => char.id === Number(characterId) || char.id === String(characterId))
-          : null;
-        
-        if (character) {
-          // Сохраняем в localStorage
-          localStorage.setItem(`character_${characterId}`, JSON.stringify(character));
-          return character;
+        if (Array.isArray(characters)) {
+          // Ищем по ID
+          let character = characters.find((char: any) => 
+            char.id === Number(characterId) || 
+            char.id === String(characterId) ||
+            String(char.id) === String(characterId)
+          );
+          
+          // Если не нашли по ID, ищем по имени
+          if (!character) {
+            character = characters.find((char: any) => 
+              char.name === characterId || 
+              char.name === String(characterId)
+            );
+          }
+          
+          if (character) {
+            console.log('[APP] Character found in list:', characterId);
+            // Сохраняем в localStorage
+            const storageKey = character.id ? `character_${character.id}` : `character_${character.name}`;
+            localStorage.setItem(storageKey, JSON.stringify(character));
+            return character;
+          }
         }
       }
+      
+      console.warn('[APP] Character not found:', characterId);
       return null;
     } catch (error) {
-      console.error('Error loading character by ID:', error);
+      console.error('[APP] Error loading character by ID:', error);
       return null;
     }
   };
@@ -156,6 +193,32 @@ function App() {
     } else if (path.includes('/create-character')) {
       setCurrentPage('create-character');
       window.history.replaceState({ page: 'create-character' }, '', path);
+    } else if (path.includes('/edit-character')) {
+      // КРИТИЧНО: Восстанавливаем персонажа для страницы редактирования
+      const characterId = urlParams.get('character');
+      if (characterId) {
+        console.log('[APP] Restoring character for edit-character:', characterId);
+        loadCharacterById(characterId).then(char => {
+          if (char) {
+            console.log('[APP] Character loaded for edit:', char);
+            setSelectedCharacter(char);
+            setCurrentPage('edit-character');
+            window.history.replaceState({ page: 'edit-character', character: characterId }, '', path);
+          } else {
+            console.error('[APP] Failed to load character for edit:', characterId);
+            setCurrentPage('edit-characters');
+            window.history.replaceState({ page: 'edit-characters' }, '', '/edit-characters');
+          }
+        });
+        return; // Выходим, чтобы не устанавливать main
+      } else {
+        // Если нет characterId, переходим на список редактирования
+        setCurrentPage('edit-characters');
+        window.history.replaceState({ page: 'edit-characters' }, '', '/edit-characters');
+      }
+    } else if (path.includes('/edit-characters')) {
+      setCurrentPage('edit-characters');
+      window.history.replaceState({ page: 'edit-characters' }, '', path);
     } else if (path.includes('/shop')) {
       setCurrentPage('shop');
       window.history.replaceState({ page: 'shop' }, '', path);
@@ -550,6 +613,13 @@ function App() {
             onShop={handleShop}
             onOpenUserGallery={handleOpenUserGallery}
             onProfile={handleProfile}
+            onHome={handleBackToMain}
+            onFavorites={handleFavorites}
+            onMyCharacters={handleMyCharacters}
+            onMessages={handleMessages}
+            onHistory={handleHistory}
+            onCreateCharacter={handleCreateCharacter}
+            onEditCharacters={handleEditCharacters}
           />
         );
       case 'messages':
@@ -621,23 +691,125 @@ function App() {
             onCreateCharacter={handleCreateCharacter}
             onShop={handleShop}
             onEditCharacter={(character) => {
-              setSelectedCharacter(character);
+              console.log('[APP] ========== onEditCharacter CALLED ==========');
+              console.log('[APP] Character received:', character);
+              console.log('[APP] Character name:', character?.name);
+              console.log('[APP] Character id:', character?.id);
+              
+              // Строгая проверка на валидность character
+              if (!character) {
+                console.error('[APP] Character is null or undefined');
+                alert('Ошибка: данные персонажа не найдены.');
+                return;
+              }
+              
+              // Проверяем наличие хотя бы одного идентификатора
+              if (!character.name && !character.id) {
+                console.error('[APP] Character has no name or id:', character);
+                alert('Ошибка: персонаж не имеет имени или ID.');
+                return;
+              }
+              
+              // Создаем безопасную копию character
+              const safeCharacter = {
+                ...character,
+                name: character.name || character.id?.toString() || 'Unknown',
+                id: character.id || character.name || 'unknown',
+                description: character.description || '',
+                avatar: character.avatar || '',
+                photos: character.photos || [],
+                tags: character.tags || [],
+                author: character.author || '',
+                likes: character.likes || 0,
+                views: character.views || 0,
+                comments: character.comments || 0
+              };
+              
+              console.log('[APP] Safe character created for edit:', safeCharacter);
+              console.log('[APP] Setting selectedCharacter and switching to edit-character page');
+              
+              // КРИТИЧНО: Сначала устанавливаем selectedCharacter
+              setSelectedCharacter(safeCharacter);
+              
+              // КРИТИЧНО: Сохраняем персонажа в localStorage и URL для восстановления при обновлении
+              if (safeCharacter.id) {
+                localStorage.setItem(`character_${safeCharacter.id}`, JSON.stringify(safeCharacter));
+                window.history.pushState({ page: 'edit-character', character: safeCharacter.id }, '', `/edit-character?character=${safeCharacter.id}`);
+              } else if (safeCharacter.name) {
+                // Если нет ID, используем имя как идентификатор
+                localStorage.setItem(`character_${safeCharacter.name}`, JSON.stringify(safeCharacter));
+                window.history.pushState({ page: 'edit-character', character: safeCharacter.name }, '', `/edit-character?character=${encodeURIComponent(safeCharacter.name)}`);
+              } else {
+                window.history.pushState({ page: 'edit-character' }, '', '/edit-character');
+              }
+              
+              // КРИТИЧНО: Переключаем страницу ПОСЛЕ установки selectedCharacter
+              console.log('[APP] Switching to edit-character page');
               setCurrentPage('edit-character');
+              console.log('[APP] ============================================');
             }}
           />
         );
       case 'edit-character':
-        return selectedCharacter ? (
+        console.log('[APP] ========== RENDERING edit-character PAGE ==========');
+        console.log('[APP] selectedCharacter:', selectedCharacter);
+        console.log('[APP] selectedCharacter.name:', selectedCharacter?.name);
+        console.log('[APP] selectedCharacter.id:', selectedCharacter?.id);
+        
+        // Более строгая проверка на валидность character
+        if (!selectedCharacter || (!selectedCharacter.name && !selectedCharacter.id)) {
+          console.error('[APP] Invalid selectedCharacter for edit-character:', selectedCharacter);
+          return (
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              height: '100vh',
+              color: '#ffffff',
+              flexDirection: 'column',
+              gap: '1rem',
+              backgroundColor: '#1a1a1a'
+            }}>
+              <h2>Ошибка загрузки</h2>
+              <p>Персонаж не найден или данные повреждены. Пожалуйста, вернитесь к списку персонажей.</p>
+              <button 
+                onClick={() => {
+                  setSelectedCharacter(null);
+                  setCurrentPage('edit-characters');
+                }} 
+                style={{ 
+                  marginTop: '1rem', 
+                  padding: '0.5rem 1rem', 
+                  cursor: 'pointer',
+                  background: 'rgba(100, 100, 100, 0.3)',
+                  border: '1px solid rgba(150, 150, 150, 0.5)',
+                  borderRadius: '8px',
+                  color: '#ffffff',
+                  fontSize: '16px'
+                }}
+              >
+                ← Назад к списку
+              </button>
+            </div>
+          );
+        }
+        
+        console.log('[APP] Rendering EditCharacterPage with character:', selectedCharacter);
+        return (
           <EditCharacterPage
             character={selectedCharacter}
-            onBackToEditList={() => setCurrentPage('edit-characters')}
+            onBackToEditList={() => {
+              console.log('[APP] onBackToEditList called');
+              setSelectedCharacter(null);
+              setCurrentPage('edit-characters');
+            }}
             onBackToMain={handleBackToMain}
             onShop={handleShop}
             onProfile={handleProfile}
             onCreateCharacter={handleCreateCharacter}
             onEditCharacters={handleEditCharacters}
           />
-        ) : null;
+        );
       case 'favorites':
         return (
           <FavoritesPage

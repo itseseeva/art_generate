@@ -362,7 +362,6 @@ export const ShopModal: React.FC<ShopModalProps> = ({
               <PlanPrice>999₽</PlanPrice>
               <PlanFeatures>
                 <PlanFeature>1000 кредитов в месяц</PlanFeature>
-                <PlanFeature>100 генераций фото</PlanFeature>
                 <PlanFeature>Все персонажи + новые</PlanFeature>
                 <PlanFeature>Персональный менеджер</PlanFeature>
                 <PlanFeature>Ранний доступ к функциям</PlanFeature>

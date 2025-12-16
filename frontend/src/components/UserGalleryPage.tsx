@@ -560,7 +560,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
                 
                 return (
                   <GalleryImage key={photo.id} onClick={() => handleOpenPhoto(imageUrl)}>
-                    <img src={imageUrl} alt={photo.character_name} />
+                    <img src={imageUrl} alt={photo.character_name} loading="lazy" />
                     {isOtherUserGallery && !isAdded && (
                       <AddToGalleryButton
                         onClick={(e) => handleAddToGallery(e, photo)}

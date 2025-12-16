@@ -64,7 +64,10 @@ async def universal_chat(request: Dict[str, Any]):
         
         # Импортируем утилиты для работы с контекстом
         from app.chat_bot.utils.context_manager import (
-            get_context_limit, get_max_tokens, trim_messages_to_token_limit
+            get_context_limit, 
+            get_max_tokens, 
+            get_max_context_tokens,
+            trim_messages_to_token_limit
         )
         from app.models.subscription import SubscriptionType
         
@@ -73,6 +76,7 @@ async def universal_chat(request: Dict[str, Any]):
         context_limit = 10  # Дефолтный лимит для universal_chat
         # Для universal_chat используем минимальное значение max_tokens (150)
         max_tokens = get_max_tokens(None)
+        max_context_tokens = get_max_context_tokens(None)  # 2000 токенов для FREE
         
         # Формируем массив messages для OpenAI API
         openai_messages = []
@@ -123,20 +127,27 @@ async def universal_chat(request: Dict[str, Any]):
                 "content": message
             })
         
-        # 4. Проверяем и обрезаем по лимиту токенов (4096)
-        openai_messages = trim_messages_to_token_limit(openai_messages, max_tokens=4096, system_message_index=0)
+        # 4. Проверяем и обрезаем по лимиту токенов контекста
+        openai_messages = await trim_messages_to_token_limit(
+            openai_messages, 
+            max_tokens=max_context_tokens, 
+            system_message_index=0
+        )
         
         logger.info(f"[UNIVERSAL CHAT] Формируем запрос: system prompt length={len(character_data['prompt'])}, history messages={len(openai_messages) - 2}, total messages={len(openai_messages)}")
         
         # Генерируем ответ напрямую от модели
         # Для universal_chat используем минимальное значение max_tokens (150)
+        # Модель выбирается на основе подписки: STANDARD=gryphe/mythomax-l2-13b, PREMIUM=sao10k/l3-euryale-70b
+        # Для universal_chat подписка не передается (None), используется модель по умолчанию
         response = await openrouter_service.generate_text(
             messages=openai_messages,
             max_tokens=max_tokens,
             temperature=chat_config.DEFAULT_TEMPERATURE,
             top_p=chat_config.DEFAULT_TOP_P,
             repeat_penalty=chat_config.DEFAULT_REPEAT_PENALTY,
-            presence_penalty=chat_config.DEFAULT_PRESENCE_PENALTY
+            presence_penalty=chat_config.DEFAULT_PRESENCE_PENALTY,
+            subscription_type=None  # universal_chat не использует подписки
         )
         
         # Проверяем ошибку подключения к сервису генерации

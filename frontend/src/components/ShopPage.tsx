@@ -185,23 +185,57 @@ const PlanFeatures = styled.ul`
   flex: 1;
 `;
 
-const PlanFeature = styled.li<{ $isAvailable?: boolean }>`
-  color: ${props => props.$isAvailable === false ? '#666666' : '#d1d1d1'};
-  font-size: 1.05rem;
+const PlanFeature = styled.li<{ $isAvailable?: boolean; $isHighlighted?: boolean }>`
+  color: ${props => {
+    if (props.$isAvailable === false) return '#666666';
+    if (props.$isHighlighted) return '#ffffff';
+    return '#d1d1d1';
+  }};
+  font-size: ${props => props.$isHighlighted ? '1.2rem' : '1.05rem'};
+  font-weight: ${props => props.$isHighlighted ? '700' : '400'};
   margin-bottom: 1.25rem;
   display: flex;
   align-items: flex-start;
   line-height: 1.5;
   
+  ${props => props.$isHighlighted && `
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(99, 102, 241, 0.15) 100%);
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    border: 1px solid rgba(139, 92, 246, 0.4);
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.2);
+    margin-top: 0.5rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    
+    &::after {
+      content: '⭐';
+      position: absolute;
+      right: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1.3rem;
+      filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.8));
+    }
+  `}
+  
   &::before {
     content: ${props => props.$isAvailable === false ? "'✕'" : "'✓'"};
-    color: ${props => props.$isAvailable === false ? 'rgba(200, 100, 100, 1)' : '#8b5cf6'};
+    color: ${props => {
+      if (props.$isAvailable === false) return 'rgba(200, 100, 100, 1)';
+      if (props.$isHighlighted) return '#a78bfa';
+      return '#8b5cf6';
+    }};
     margin-right: 0.75rem;
     font-weight: bold;
-    font-size: 1.2rem;
+    font-size: ${props => props.$isHighlighted ? '1.4rem' : '1.2rem'};
     flex-shrink: 0;
     margin-top: 2px;
-    text-shadow: ${props => props.$isAvailable === false ? 'none' : '0 0 10px rgba(139, 92, 246, 0.5)'};
+    text-shadow: ${props => {
+      if (props.$isAvailable === false) return 'none';
+      if (props.$isHighlighted) return '0 0 15px rgba(139, 92, 246, 0.8)';
+      return '0 0 10px rgba(139, 92, 246, 0.5)';
+    }};
   }
 `;
 
@@ -250,6 +284,18 @@ const PaymentLogo = styled.img`
   background: white;
   border-radius: 4px;
   padding: 2px;
+`;
+
+const RenewalInfo = styled.div`
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  color: #a78bfa;
+  text-align: center;
+  line-height: 1.4;
 `;
 
 const ActivateButton = styled.button`
@@ -347,6 +393,7 @@ interface SubscriptionStats {
   photos_remaining: number;
   days_left: number;
   is_active: boolean;
+  expires_at?: string | null;
 }
 
 interface ShopPageProps {
@@ -486,6 +533,9 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       if (response.ok) {
         const statsData = await response.json();
         console.log('[SHOP] Статистика получена:', statsData);
+        console.log('[SHOP] is_active:', statsData.is_active);
+        console.log('[SHOP] subscription_type:', statsData.subscription_type);
+        console.log('[SHOP] expires_at:', statsData.expires_at);
         setStats(statsData);
       } else {
         console.error('[SHOP] Ошибка получения статистики:', response.status);
@@ -600,9 +650,10 @@ export const ShopPage: React.FC<ShopPageProps> = ({
               <PlanPrice>Бесплатно</PlanPrice>
               <PlanFeatures>
                 <PlanFeature>Все персонажи</PlanFeature>
-                <PlanFeature>100 кредитов в месяц</PlanFeature>
-                <PlanFeature>10 генераций фото</PlanFeature>
+                <PlanFeature>100 кредитов</PlanFeature>
+                <PlanFeature>5 генераций фото</PlanFeature>
                 <PlanFeature>Возможность создать своих персонажей</PlanFeature>
+                <PlanFeature>Премиум модель с ограничением на 20 сообщений</PlanFeature>
                 <PlanFeature $isAvailable={false}>Сохранение истории сообщений</PlanFeature>
                 <PlanFeature $isAvailable={false}>Возможность создавать платные альбомы</PlanFeature>
               </PlanFeatures>
@@ -619,27 +670,46 @@ export const ShopPage: React.FC<ShopPageProps> = ({
               <PlanPrice>699₽</PlanPrice>
               <PlanFeatures>
                 <PlanFeature>1000 кредитов в месяц</PlanFeature>
-                <PlanFeature>100 генераций фото</PlanFeature>
                 <PlanFeature>Возможность создать своих персонажей</PlanFeature>
                 <PlanFeature>Возможность создавать платные альбомы</PlanFeature>
                 <PlanFeature>Сохранение истории сообщений</PlanFeature>
-                <PlanFeature>Память: Последние 20 сообщений в контексте</PlanFeature>
+                <PlanFeature $isHighlighted>Стандартная модель, память 2000 слов</PlanFeature>
                 <PlanFeature>Максимум токенов: 200 токенов на ответ</PlanFeature>
               </PlanFeatures>
-              <ActivateButton 
-                onClick={() => handleActivateSubscription('standard')}
-                disabled={isLoading || (stats?.subscription_type === 'standard')}
-              >
-                {stats?.subscription_type === 'standard' ? 'Активна' : (selectedPlanForPayment === 'standard' ? 'Скрыть способы оплаты' : 'Активировать')}
-              </ActivateButton>
-              
-              {selectedPlanForPayment === 'standard' && (
-                <PaymentButtonsContainer>
-                  <PaymentButton onClick={() => handleYoumoneyPayment('standard')}>
-                    <PaymentLogo src="/logo/yoomoneyIcon.svg" alt="YooMoney" />
-                    Банковская карта (РФ)
-                  </PaymentButton>
-                </PaymentButtonsContainer>
+              {stats?.is_active && stats?.subscription_type === 'standard' ? (
+                <>
+                  <ActivateButton 
+                    onClick={() => handleActivateSubscription('standard')}
+                    disabled={isLoading}
+                  >
+                    {selectedPlanForPayment === 'standard' ? 'Скрыть способы оплаты' : 'Продлить подписку'}
+                  </ActivateButton>
+                  {selectedPlanForPayment === 'standard' && (
+                    <PaymentButtonsContainer>
+                      <PaymentButton onClick={() => handleYoumoneyPayment('standard')}>
+                        <PaymentLogo src="/logo/yoomoneyIcon.svg" alt="YooMoney" />
+                        Банковская карта (РФ)
+                      </PaymentButton>
+                    </PaymentButtonsContainer>
+                  )}
+                </>
+              ) : (
+                <>
+                  <ActivateButton 
+                    onClick={() => handleActivateSubscription('standard')}
+                    disabled={isLoading}
+                  >
+                    {selectedPlanForPayment === 'standard' ? 'Скрыть способы оплаты' : 'Активировать'}
+                  </ActivateButton>
+                  {selectedPlanForPayment === 'standard' && (
+                    <PaymentButtonsContainer>
+                      <PaymentButton onClick={() => handleYoumoneyPayment('standard')}>
+                        <PaymentLogo src="/logo/yoomoneyIcon.svg" alt="YooMoney" />
+                        Банковская карта (РФ)
+                      </PaymentButton>
+                    </PaymentButtonsContainer>
+                  )}
+                </>
               )}
             </PlanCard>
             
@@ -648,29 +718,48 @@ export const ShopPage: React.FC<ShopPageProps> = ({
               <PlanPrice>1499₽</PlanPrice>
               <PlanFeatures>
                 <PlanFeature>5000 кредитов в месяц</PlanFeature>
-                <PlanFeature>300 генераций фото</PlanFeature>
                 <PlanFeature>Возможность создать своих персонажей</PlanFeature>
                 <PlanFeature>Сохранение истории сообщений</PlanFeature>
                 <PlanFeature>Возможность создавать платные альбомы</PlanFeature>
                 <PlanFeature>Доступ ко всем платным альбомам</PlanFeature>
                 <PlanFeature>Доступ ко всем галереям пользователей</PlanFeature>
-                <PlanFeature>Расширенная память: Последние 40 сообщений в контексте</PlanFeature>
+                <PlanFeature $isHighlighted>Премиум модель, память 6000 слов</PlanFeature>
                 <PlanFeature>Максимум токенов: 450 токенов на ответ</PlanFeature>
               </PlanFeatures>
-              <ActivateButton 
-                onClick={() => handleActivateSubscription('premium')}
-                disabled={isLoading || (stats?.subscription_type === 'premium')}
-              >
-                {stats?.subscription_type === 'premium' ? 'Активна' : (selectedPlanForPayment === 'premium' ? 'Скрыть способы оплаты' : 'Активировать')}
-              </ActivateButton>
-
-              {selectedPlanForPayment === 'premium' && (
-                <PaymentButtonsContainer>
-                  <PaymentButton onClick={() => handleYoumoneyPayment('premium')}>
-                    <PaymentLogo src="/logo/yoomoneyIcon.svg" alt="YooMoney" />
-                    Банковская карта (РФ)
-                  </PaymentButton>
-                </PaymentButtonsContainer>
+              {stats?.is_active && stats?.subscription_type === 'premium' ? (
+                <>
+                  <ActivateButton 
+                    onClick={() => handleActivateSubscription('premium')}
+                    disabled={isLoading}
+                  >
+                    {selectedPlanForPayment === 'premium' ? 'Скрыть способы оплаты' : 'Продлить подписку'}
+                  </ActivateButton>
+                  {selectedPlanForPayment === 'premium' && (
+                    <PaymentButtonsContainer>
+                      <PaymentButton onClick={() => handleYoumoneyPayment('premium')}>
+                        <PaymentLogo src="/logo/yoomoneyIcon.svg" alt="YooMoney" />
+                        Банковская карта (РФ)
+                      </PaymentButton>
+                    </PaymentButtonsContainer>
+                  )}
+                </>
+              ) : (
+                <>
+                  <ActivateButton 
+                    onClick={() => handleActivateSubscription('premium')}
+                    disabled={isLoading}
+                  >
+                    {selectedPlanForPayment === 'premium' ? 'Скрыть способы оплаты' : 'Активировать'}
+                  </ActivateButton>
+                  {selectedPlanForPayment === 'premium' && (
+                    <PaymentButtonsContainer>
+                      <PaymentButton onClick={() => handleYoumoneyPayment('premium')}>
+                        <PaymentLogo src="/logo/yoomoneyIcon.svg" alt="YooMoney" />
+                        Банковская карта (РФ)
+                      </PaymentButton>
+                    </PaymentButtonsContainer>
+                  )}
+                </>
               )}
             </PlanCard>
           </SubscriptionPlans>

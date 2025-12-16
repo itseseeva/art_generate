@@ -7,6 +7,7 @@ import { GlobalHeader } from './GlobalHeader';
 import { AuthModal } from './AuthModal';
 import SplitText from './SplitText';
 import { authManager } from '../utils/auth';
+import { API_CONFIG } from '../config/api';
 
 const MainContainer = styled.div`
   width: 100vw;
@@ -249,6 +250,7 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authCheckComplete, setAuthCheckComplete] = useState(false);
   const [characterPhotos, setCharacterPhotos] = useState<{[key: string]: string[]}>({});
+  const [favoriteCharacterIds, setFavoriteCharacterIds] = useState<Set<number>>(new Set());
 
   // Загрузка фото персонажей
   const loadCharacterPhotos = async (userId: number) => {
@@ -362,6 +364,36 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
     }
   };
 
+  // Загрузка избранных персонажей
+  const loadFavorites = async () => {
+    try {
+      const token = authManager.getToken();
+      if (!token) {
+        setFavoriteCharacterIds(new Set());
+        return;
+      }
+
+      const response = await authManager.fetchWithAuth(API_CONFIG.FAVORITES);
+      
+      if (response.ok) {
+        const favorites = await response.json();
+        // Извлекаем ID избранных персонажей
+        const favoriteIds = new Set<number>(
+          favorites.map((char: any) => {
+            const id = typeof char.id === 'number' ? char.id : parseInt(char.id, 10);
+            return isNaN(id) ? null : id;
+          }).filter((id: number | null): id is number => id !== null)
+        );
+        setFavoriteCharacterIds(favoriteIds);
+      } else {
+        setFavoriteCharacterIds(new Set());
+      }
+    } catch (error) {
+      console.error('Error loading favorites:', error);
+      setFavoriteCharacterIds(new Set());
+    }
+  };
+
   // Проверка авторизации
   const checkAuth = async () => {
     try {
@@ -374,6 +406,8 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
           username: userInfo.email,
           coins: userInfo.coins
         });
+        // Загружаем избранные после успешной авторизации
+        await loadFavorites();
         return userInfo.id as number;
       }
     } catch (error) {
@@ -423,7 +457,41 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
   };
 
   const handleCharacterClick = (character: Character) => {
-    onEditCharacter(character);
+    console.log('[EDIT_CHARACTERS] Character clicked:', character);
+    console.log('[EDIT_CHARACTERS] Character name:', character?.name);
+    console.log('[EDIT_CHARACTERS] Character id:', character?.id);
+    
+    // Строгая проверка на валидность character
+    if (!character) {
+      console.error('[EDIT_CHARACTERS] Character is null or undefined');
+      alert('Ошибка: данные персонажа не найдены. Пожалуйста, обновите страницу.');
+      return;
+    }
+    
+    // Проверяем наличие хотя бы одного идентификатора (name или id)
+    if (!character.name && !character.id) {
+      console.error('[EDIT_CHARACTERS] Character has no name or id:', character);
+      alert('Ошибка: персонаж не имеет имени или ID. Пожалуйста, обновите страницу.');
+      return;
+    }
+    
+    // Создаем безопасную копию character с гарантированными полями
+    const safeCharacter: Character = {
+      ...character,
+      name: character.name || character.id?.toString() || 'Unknown',
+      id: character.id || character.name || 'unknown',
+      description: character.description || '',
+      avatar: character.avatar || '',
+      photos: character.photos || [],
+      tags: character.tags || [],
+      author: character.author || '',
+      likes: character.likes || 0,
+      views: character.views || 0,
+      comments: character.comments || 0
+    };
+    
+    console.log('[EDIT_CHARACTERS] Safe character created:', safeCharacter);
+    onEditCharacter(safeCharacter);
   };
 
   return (
@@ -472,12 +540,20 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
                   photos: characterPhotos[character.name.toLowerCase()] || []
                 };
                 
+                // Проверяем, находится ли персонаж в избранном
+                const characterId = typeof character.id === 'number' 
+                  ? character.id 
+                  : parseInt(character.id, 10);
+                const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
+                
                 return (
                 <CharacterCard
                   key={character.id}
                     character={characterWithPhotos}
                   onClick={handleCharacterClick}
                   showEditButton={false}
+                  isFavorite={isFavorite}
+                  onFavoriteToggle={loadFavorites}
                 />
                 );
               })}

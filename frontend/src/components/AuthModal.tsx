@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
+import FingerprintJS from '@fingerprintjs/fingerprintjs';
 
 const ModalOverlay = styled.div`
   position: fixed;
@@ -269,6 +270,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
   const [error, setError] = useState<string | null>(null);
   const [showVerificationCode, setShowVerificationCode] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
+  const [fingerprintId, setFingerprintId] = useState<string | null>(null);
+
+  // Получаем fingerprint_id при открытии модального окна
+  useEffect(() => {
+    if (isOpen && mode === 'register') {
+      const getFingerprint = async () => {
+        try {
+          const fp = await FingerprintJS.load();
+          const result = await fp.get();
+          setFingerprintId(result.visitorId);
+        } catch (err) {
+          console.error('Ошибка получения fingerprint:', err);
+          // В случае ошибки продолжаем без fingerprint_id
+          setFingerprintId(null);
+        }
+      };
+      getFingerprint();
+    }
+  }, [isOpen, mode]);
 
   if (!isOpen) return null;
 
@@ -280,7 +300,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
     try {
       const endpoint = mode === 'register' ? '/api/v1/auth/register/' : '/api/v1/auth/login/';
       const body = mode === 'register' 
-        ? { email, password, username: username || email }
+        ? { email, password, username: username || email, fingerprint_id: fingerprintId }
         : { email, password };
 
       const response = await fetch(endpoint, {
@@ -334,7 +354,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
         },
         body: JSON.stringify({
           email,
-          verification_code: verificationCode
+          verification_code: verificationCode,
+          fingerprint_id: fingerprintId
         }),
       });
 

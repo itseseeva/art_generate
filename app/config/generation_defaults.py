@@ -9,38 +9,18 @@ from typing import Dict, Any
 # ========================================
 
 DEFAULT_GENERATION_PARAMS = {
-    "sampler_name": "Euler",
-    "steps": 30,
+    "sampler_name": "DPM++ 2M Karras",  # Лучше для semi-realism
+    "steps": 28,  # Оптимум для DPM++
     # SDXL требует минимум 1024x1024, используем портретный формат 832x1216
     "width": 832,
     "height": 1216,
-    "scheduler": "Euler A",
-    "cfg_scale": 4,
-    "seed": -1,
+    "scheduler": "DPM++ 2M Karras",
+    "cfg_scale": 4,  # 3-5 для DPM++
+    "seed": 1668578321,
     
-    # LoRA модели для использования в генерации
-    "lora_models": [
-        {
-            "name": "EasyNegativeV2",
-            "weight": 0.7,
-            "enabled": True
-        },
-        {
-            "name": "DetailedEyes_V3",
-            "weight": 0.6,
-            "enabled": True
-        },
-        {
-            "name": "Dramatic Lighting Slider",
-            "weight": 0.5,
-            "enabled": True
-        },
-        {
-            "name": "Semi-realism_illustrious",
-            "weight": 0.5,
-            "enabled": True
-        },
-    ],
+    # LoRA: Dramatic Lighting Slider
+    # Контролирует интенсивность света и теней
+    "lora_scale": 0.5,  # 0.0-1.0, рекомендуется 0.3-0.7
 }
 
 def get_generation_params(

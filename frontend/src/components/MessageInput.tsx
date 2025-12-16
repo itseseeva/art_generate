@@ -7,14 +7,13 @@ import { FiSend, FiImage, FiTrash2 } from 'react-icons/fi';
 
 const InputContainer = styled.div`
   padding: ${theme.spacing.lg};
-  background: linear-gradient(180deg, rgba(25, 25, 25, 0.95) 0%, rgba(20, 20, 20, 0.9) 100%);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid rgba(100, 100, 100, 0.2);
+  background: transparent;
+  border: none;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: none;
   z-index: 10;
+  position: relative;
 `;
 
 const InputWrapper = styled.div`
@@ -23,6 +22,48 @@ const InputWrapper = styled.div`
   gap: ${theme.spacing.md};
   align-items: flex-end;
   max-width: 100%;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  margin: 0;
+  padding: 0;
+`;
+
+const LanguageToggle = styled.div`
+  display: flex;
+  gap: 4px;
+  background: rgba(25, 25, 25, 0.8);
+  border: 1px solid rgba(50, 50, 50, 0.6);
+  border-radius: ${theme.borderRadius.md};
+  padding: 4px;
+  backdrop-filter: blur(15px);
+`;
+
+const LanguageButton = styled.button<{ $isActive: boolean }>`
+  padding: 6px 12px;
+  background: ${props => props.$isActive 
+    ? 'rgba(60, 60, 60, 0.9)' 
+    : 'transparent'};
+  border: none;
+  border-radius: ${theme.borderRadius.sm};
+  color: ${props => props.$isActive ? 'rgba(255, 255, 255, 1)' : 'rgba(180, 180, 180, 0.8)'};
+  font-size: ${theme.fontSize.sm};
+  font-weight: ${props => props.$isActive ? '600' : '500'};
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 44px;
+  
+  &:hover {
+    background: ${props => props.$isActive 
+      ? 'rgba(70, 70, 70, 1)' 
+      : 'rgba(40, 40, 40, 0.6)'};
+    color: rgba(255, 255, 255, 1);
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 `;
 
 const TextArea = styled.textarea<{ $isDisabled: boolean }>`
@@ -30,8 +71,8 @@ const TextArea = styled.textarea<{ $isDisabled: boolean }>`
   min-height: 80px;
   max-height: 200px;
   padding: ${theme.spacing.lg};
-  background: linear-gradient(135deg, rgba(40, 40, 40, 0.6) 0%, rgba(30, 30, 30, 0.5) 100%);
-  border: 2px solid rgba(120, 120, 120, 0.3);
+  background: rgba(25, 25, 25, 0.8);
+  border: 1px solid rgba(50, 50, 50, 0.6);
   border-radius: ${theme.borderRadius.xl};
   color: rgba(240, 240, 240, 1);
   font-size: ${theme.fontSize.base};
@@ -39,16 +80,20 @@ const TextArea = styled.textarea<{ $isDisabled: boolean }>`
   resize: none;
   transition: all 0.3s ease;
   opacity: ${props => props.$isDisabled ? 0.6 : 1};
-  backdrop-filter: blur(15px);
-  -webkit-backdrop-filter: blur(15px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 2px rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.4), 
+    inset 0 1px 2px rgba(255, 255, 255, 0.05);
   
   &:focus {
-    border-color: rgba(150, 150, 150, 0.6);
-    box-shadow: 0 0 0 4px rgba(100, 100, 100, 0.15), 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.1);
+    border-color: rgba(80, 80, 80, 0.8);
+    box-shadow: 
+      0 0 0 2px rgba(60, 60, 60, 0.3), 
+      0 8px 24px rgba(0, 0, 0, 0.5), 
+      inset 0 1px 2px rgba(255, 255, 255, 0.1);
     outline: none;
-    background: linear-gradient(135deg, rgba(50, 50, 50, 0.7) 0%, rgba(40, 40, 40, 0.6) 100%);
-    transform: translateY(-1px);
+    background: rgba(30, 30, 30, 0.9);
   }
   
   &::placeholder {
@@ -61,7 +106,7 @@ const TextArea = styled.textarea<{ $isDisabled: boolean }>`
     opacity: 0.5;
   }
   
-  /* Улучшенная прокрутка */
+  /* Прокрутка */
   &::-webkit-scrollbar {
     width: 8px;
   }
@@ -72,11 +117,11 @@ const TextArea = styled.textarea<{ $isDisabled: boolean }>`
   }
   
   &::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, rgba(120, 120, 120, 0.5) 0%, rgba(100, 100, 100, 0.5) 100%);
+    background: rgba(80, 80, 80, 0.6);
     border-radius: ${theme.borderRadius.md};
     
     &:hover {
-      background: linear-gradient(180deg, rgba(140, 140, 140, 0.7) 0%, rgba(120, 120, 120, 0.7) 100%);
+      background: rgba(100, 100, 100, 0.8);
     }
   }
 `;
@@ -95,9 +140,12 @@ interface MessageInputProps {
   onGenerateImage?: (message?: string) => void;
   onClearChat?: () => void;
   onTipCreator?: () => void;
+  onShowHelp?: () => void;
   disabled?: boolean;
   placeholder?: string;
   hasMessages?: boolean;
+  targetLanguage?: 'ru' | 'en';
+  onLanguageChange?: (language: 'ru' | 'en') => void;
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
@@ -105,9 +153,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onGenerateImage,
   onClearChat,
   onTipCreator,
+  onShowHelp,
   disabled = false,
   placeholder = "Введите сообщение...",
-  hasMessages = false
+  hasMessages = false,
+  targetLanguage = 'ru',
+  onLanguageChange
 }) => {
   const [message, setMessage] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -156,6 +207,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   };
 
+  const handleShowHelp = () => {
+    if (!disabled && onShowHelp) {
+      onShowHelp();
+    }
+  };
+
   const dockItems: DockItemData[] = [
     {
       icon: <FiSend size={20} />,
@@ -169,6 +226,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       onClick: handleImageGeneration,
       className: disabled || !onGenerateImage ? 'disabled' : ''
     },
+    ...(onGenerateImage && onShowHelp ? [{
+      icon: <span style={{ fontSize: '24px', fontWeight: 600, color: 'white' }}>?</span>,
+      label: 'Помощь по генерации фото',
+      onClick: handleShowHelp,
+      className: disabled ? 'disabled' : ''
+    }] : []),
     ...(onClearChat && hasMessages ? [{
       icon: <FiTrash2 size={20} />,
       label: 'Очистить историю',
@@ -187,6 +250,35 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     <InputContainer>
       <form onSubmit={handleSubmit}>
         <InputWrapper>
+          <LanguageToggle>
+            <LanguageButton
+              type="button"
+              $isActive={targetLanguage === 'ru'}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onLanguageChange && onLanguageChange('ru');
+              }}
+              disabled={disabled}
+              title="Русский язык"
+            >
+              RU
+            </LanguageButton>
+            <LanguageButton
+              type="button"
+              $isActive={targetLanguage === 'en'}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onLanguageChange && onLanguageChange('en');
+              }}
+              disabled={disabled}
+              title="English language"
+            >
+              EN
+            </LanguageButton>
+          </LanguageToggle>
+          
           <TextArea
             ref={textareaRef}
             value={message}

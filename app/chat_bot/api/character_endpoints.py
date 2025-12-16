@@ -31,6 +31,7 @@ router = APIRouter(tags=["Characters"])
 
 CHARACTER_CREATION_COST = 50
 PHOTO_GENERATION_COST = 30
+CHARACTER_EDIT_COST = 50  # Кредиты за редактирование персонажа
 
 
 def _get_gallery_metadata_dir() -> Path:
@@ -694,6 +695,25 @@ async def get_character_chat_history(
         )
         messages = messages.scalars().all()
         
+        # Также получаем ChatHistory для этого session_id чтобы найти image_url для сообщений
+        chat_history_dict = {}
+        if current_user:
+            from app.models.chat_history import ChatHistory
+            history_messages = await db.execute(
+                select(ChatHistory)
+                .where(ChatHistory.user_id == current_user.id)
+                .where(ChatHistory.character_name == character_name)
+                .where(ChatHistory.session_id == str(chat_session.id))
+                .order_by(ChatHistory.created_at.desc())
+            )
+            history_list = history_messages.scalars().all()
+            # Создаем словарь по timestamp для быстрого поиска
+            for hist_msg in history_list:
+                # Используем timestamp как ключ (округленный до секунды для совпадения)
+                if hist_msg.created_at:
+                    timestamp_key = hist_msg.created_at.replace(microsecond=0)
+                    chat_history_dict[(timestamp_key, hist_msg.message_type)] = hist_msg
+        
         # Форматируем сообщения для фронтенда (в хронологическом порядке)
         import re
         formatted_messages = []
@@ -707,6 +727,24 @@ async def get_character_chat_history(
                 image_match = re.search(r'\[image:(.*?)\]', content)
                 if image_match:
                     image_url = image_match.group(1).strip()
+            
+            # Если не нашли в content, ищем в ChatHistory по timestamp и role
+            if not image_url and current_user and chat_history_dict:
+                msg_timestamp_key = msg.timestamp.replace(microsecond=0) if msg.timestamp else None
+                if msg_timestamp_key:
+                    role_key = "user" if msg.role == "user" else "assistant"
+                    # Пробуем точное совпадение
+                    hist_msg = chat_history_dict.get((msg_timestamp_key, role_key))
+                    if not hist_msg:
+                        # Пробуем найти ближайшее по времени (в пределах 2 секунд)
+                        for (ts_key, msg_type), hist in chat_history_dict.items():
+                            if msg_type == role_key:
+                                time_diff = abs((msg_timestamp_key - ts_key).total_seconds())
+                                if time_diff <= 2.0:
+                                    hist_msg = hist
+                                    break
+                    if hist_msg and hist_msg.image_url:
+                        image_url = hist_msg.image_url
             
             formatted_messages.append({
                 "id": msg.id,
@@ -812,6 +850,32 @@ async def update_user_character(
         # Check character ownership
         await check_character_ownership(character_name, current_user, db)
         
+        # Проверяем и списываем кредиты за редактирование
+        subscription_service = ProfitActivateService(db)
+        user_id = current_user.id
+        
+        # Проверяем, достаточно ли кредитов
+        if not await subscription_service.can_user_use_credits_amount(user_id, CHARACTER_EDIT_COST):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Недостаточно кредитов. Для редактирования персонажа требуется {CHARACTER_EDIT_COST} кредитов."
+            )
+        
+        # Списываем кредиты
+        credits_spent = await subscription_service.use_credits_amount(
+            user_id, CHARACTER_EDIT_COST, commit=False
+        )
+        if not credits_spent:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Не удалось списать кредиты. Требуется {CHARACTER_EDIT_COST} кредитов."
+            )
+        
+        logger.info(
+            f"Списано {CHARACTER_EDIT_COST} кредитов у пользователя {user_id} "
+            f"за редактирование персонажа '{character_name}'"
+        )
+        
         # Find character
         result = await db.execute(
             select(CharacterDB).where(CharacterDB.name == character_name)
@@ -819,6 +883,7 @@ async def update_user_character(
         db_char = result.scalar_one_or_none()
         
         if not db_char:
+            await db.rollback()
             raise HTTPException(
                 status_code=404, 
                 detail=f"Character '{character_name}' not found"

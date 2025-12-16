@@ -8,7 +8,9 @@ import { TipCreatorModal } from './TipCreatorModal';
 import { SuccessToast } from './SuccessToast';
 import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
+import { ConfirmModal } from './ConfirmModal';
 import { GlobalHeader } from './GlobalHeader';
+import { PhotoGenerationHelpModal } from './PhotoGenerationHelpModal';
 import { extractRolePlayingSituation } from '../utils/characterUtils';
 import { authManager } from '../utils/auth';
 import { FiUnlock, FiLock, FiImage } from 'react-icons/fi';
@@ -23,8 +25,7 @@ const Container = styled.div`
   display: flex;
   position: relative;
   overflow: hidden;
-  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #151515 100%);
-  background-attachment: fixed;
+  background: #0a0a0a;
 
   /* Адаптивность для мобильных устройств */
   @media (max-width: 1024px) {
@@ -46,6 +47,7 @@ const MainContent = styled.div`
   box-shadow: none;
   overflow: hidden;
   position: relative;
+  z-index: 1;
 
   /* Адаптивность для мобильных устройств */
   @media (max-width: 1024px) {
@@ -190,8 +192,12 @@ const ChatMessagesArea = styled.div`
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  min-height: 0; /* Важно для flex-элементов */
+  min-height: 0;
   background: transparent;
+  border: none;
+  box-shadow: none;
+  margin: 0;
+  padding: 0;
   position: relative;
 `;
 
@@ -200,6 +206,11 @@ const ChatContentWrapper = styled.div`
   display: flex;
   gap: ${theme.spacing.lg};
   min-height: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  margin: 0;
+  padding: 0;
 
   @media (max-width: 1280px) {
     flex-direction: column;
@@ -228,11 +239,17 @@ const PaidAlbumPanel = styled.div`
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  background: rgba(40, 40, 40, 0.5);
-  border: 1px solid rgba(150, 150, 150, 0.3);
-  border-radius: ${theme.borderRadius.lg};
+  background: rgba(18, 18, 18, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(50, 50, 50, 0.6);
+  border-radius: 16px;
   padding: ${theme.spacing.xl} ${theme.spacing.lg};
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 
+    0 4px 24px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  position: relative;
+  margin: ${theme.spacing.lg};
 
   @media (max-width: 1480px) {
     width: 280px;
@@ -243,6 +260,7 @@ const PaidAlbumPanel = styled.div`
     width: 100%;
     min-width: 0;
     order: -1;
+    margin: ${theme.spacing.md};
   }
 `;
 
@@ -394,6 +412,7 @@ interface Message {
   content: string;
   timestamp: Date;
   imageUrl?: string;
+  generationTime?: number; // Время генерации изображения в секундах
 }
 
 interface Character {
@@ -471,6 +490,34 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const [fetchedSubscriptionType, setFetchedSubscriptionType] = useState<string>('free');
   const [characterPhotos, setCharacterPhotos] = useState<string[]>([]);
   const [isCharacterFavorite, setIsCharacterFavorite] = useState<boolean>(false);
+  // Функция для определения языка по умолчанию
+  const getDefaultLanguage = (): 'ru' | 'en' => {
+    // Сначала проверяем localStorage
+    const savedLanguage = localStorage.getItem('targetLanguage');
+    if (savedLanguage === 'ru' || savedLanguage === 'en') {
+      return savedLanguage as 'ru' | 'en';
+    }
+    
+    // Если в localStorage нет, определяем по языку браузера
+    const browserLanguage = navigator.language || navigator.languages?.[0] || 'en';
+    const languageCode = browserLanguage.toLowerCase().split('-')[0];
+    
+    // Если язык начинается с 'ru', ставим RU, иначе EN
+    if (languageCode === 'ru') {
+      return 'ru';
+    }
+    
+    return 'en';
+  };
+
+  const [targetLanguage, setTargetLanguage] = useState<'ru' | 'en'>(getDefaultLanguage());
+  const [isLanguageChangeModalOpen, setIsLanguageChangeModalOpen] = useState(false);
+  const [pendingLanguage, setPendingLanguage] = useState<'ru' | 'en' | null>(null);
+
+  // Сохраняем выбор языка в localStorage при изменении
+  useEffect(() => {
+    localStorage.setItem('targetLanguage', targetLanguage);
+  }, [targetLanguage]);
 
   // Загружаем тип подписки из API
   useEffect(() => {
@@ -894,6 +941,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   };
 
   const [isImagePromptModalOpen, setIsImagePromptModalOpen] = useState(false);
+  const [isPhotoGenerationHelpModalOpen, setIsPhotoGenerationHelpModalOpen] = useState(false);
   const [imagePromptInput, setImagePromptInput] = useState('');
 
   const handleGenerateImage = async (userPrompt?: string) => {
@@ -976,6 +1024,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       
       // Проверяем, пришел ли синхронный ответ с URL или асинхронный с task_id
       let generatedImageUrl = data.cloud_url || data.image_url;
+      let generationTime: number | undefined = data.generation_time; // Время генерации в секундах
+      console.log('[CHAT] Инициализация generationTime из data:', generationTime);
       
       // Если пришел task_id, опрашиваем статус до получения изображения
       if (!generatedImageUrl && data.task_id) {
@@ -1008,6 +1058,18 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               // URL может быть в result.image_url, result.cloud_url или напрямую в statusData
               const result = statusData.result || {};
               generatedImageUrl = result.image_url || result.cloud_url || statusData.image_url || statusData.cloud_url;
+              const resultGenerationTime = result.generation_time || statusData.generation_time;
+              console.log('[CHAT] Полный statusData:', JSON.stringify(statusData, null, 2));
+              console.log('[CHAT] result:', JSON.stringify(result, null, 2));
+              console.log('[CHAT] result.generation_time:', result.generation_time);
+              console.log('[CHAT] statusData.generation_time:', statusData.generation_time);
+              console.log('[CHAT] resultGenerationTime:', resultGenerationTime);
+              if (resultGenerationTime !== undefined) {
+                generationTime = resultGenerationTime;
+                console.log('[CHAT] Установлено generationTime:', generationTime);
+              } else {
+                console.warn('[CHAT] generation_time не найден в ответе!');
+              }
               
               console.log('[CHAT] Извлеченный URL из result:', result.image_url || result.cloud_url);
               console.log('[CHAT] Извлеченный URL из statusData:', statusData.image_url || statusData.cloud_url);
@@ -1049,16 +1111,25 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
       stopFakeMessageProgress(assistantMessageId, true);
 
+      console.log('[CHAT] Обновляем сообщение с generationTime:', generationTime);
+      console.log('[CHAT] Тип generationTime:', typeof generationTime);
+      console.log('[CHAT] generationTime === undefined?', generationTime === undefined);
+      console.log('[CHAT] generationTime === null?', generationTime === null);
+      
       setMessages(prev =>
-        prev.map(msg =>
-          msg.id === assistantMessageId
-            ? {
-                ...msg,
-                content: '',
-                imageUrl: generatedImageUrl
-              }
-            : msg
-        )
+        prev.map(msg => {
+          if (msg.id === assistantMessageId) {
+            const updatedMsg = {
+              ...msg,
+              content: '',
+              imageUrl: generatedImageUrl,
+              ...(generationTime !== undefined && generationTime !== null ? { generationTime } : {})
+            };
+            console.log('[CHAT] Обновлённое сообщение:', updatedMsg);
+            return updatedMsg;
+          }
+          return msg;
+        })
       );
 
       // КРИТИЧЕСКИ ВАЖНО: Добавляем фото в галерею пользователя
@@ -1128,47 +1199,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     await sendChatMessage(message, false);
   };
 
-  // Функция перевода текста с русского на английский
-  const translateToEnglish = async (text: string): Promise<string> => {
-    if (!text || text.trim().length === 0) {
-      return text;
-    }
-
-    // Проверяем, содержит ли текст русские буквы
-    const hasRussian = /[а-яА-ЯёЁ]/.test(text);
-    if (!hasRussian) {
-      // Если нет русских букв, возвращаем как есть
-      return text;
-    }
-
-    try {
-      // Используем бесплатный API перевода (MyMemory Translation API)
-      const response = await fetch(
-        `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=ru|en`
-      );
-      
-      if (!response.ok) {
-        console.warn('[TRANSLATE] Ошибка перевода, используем оригинальный текст');
-        return text;
-      }
-      
-      const data = await response.json();
-      
-      if (data.responseStatus === 200 && data.responseData && data.responseData.translatedText) {
-        const translated = data.responseData.translatedText;
-        console.log('[TRANSLATE] Переведено:', text.substring(0, 50), '->', translated.substring(0, 50));
-        return translated;
-      } else {
-        console.warn('[TRANSLATE] Перевод не получен, используем оригинальный текст');
-        return text;
-      }
-    } catch (error) {
-      console.error('[TRANSLATE] Ошибка перевода:', error);
-      // В случае ошибки возвращаем оригинальный текст
-      return text;
-    }
-  };
-
   const sendChatMessage = async (message: string, generateImage: boolean = false) => {
     // Разрешаем пустое сообщение, если запрашивается генерация фото
     // Фото = текст для истории чата
@@ -1216,11 +1246,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     setMessages(prev => [...prev, assistantMessage]);
 
     try {
-      // Переводим сообщение с русского на английский перед отправкой модели
-      const translatedMessage = await translateToEnglish(originalMessage);
-      console.log('[CHAT] Оригинальное сообщение:', originalMessage.substring(0, 100));
-      console.log('[CHAT] Переведенное сообщение:', translatedMessage.substring(0, 100));
-
       // Используем /chat эндпоинт который поддерживает генерацию изображений
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
@@ -1231,24 +1256,148 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         headers.Authorization = `Bearer ${authToken}`;
       }
 
+      // Включаем стриминг для всех запросов
+      console.log('[STREAM] Отправка запроса с stream=true, targetLanguage:', targetLanguage);
       const response = await fetch('http://localhost:8000/chat', {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          message: translatedMessage, // Отправляем переведенное сообщение модели
+          message: originalMessage, // Отправляем оригинальное сообщение
           character: currentCharacter.name,
           generate_image: generateImage,
           user_id: effectiveUserId,
-          image_prompt: generateImage ? translatedMessage : undefined // Используем переведенный промпт для генерации изображения
+          image_prompt: generateImage ? originalMessage : undefined,
+          target_language: targetLanguage, // Передаем выбранный язык
+          stream: true // Включаем стриминг
         })
       });
+      
+      console.log('[STREAM] Получен ответ, Content-Type:', response.headers.get('content-type'));
+
+      // Проверяем, является ли ответ SSE потоком
+      const contentType = response.headers.get('content-type');
+      console.log('[STREAM] Content-Type:', contentType);
 
       if (!response.ok) {
-        const errorData = await response.json();
+        // Если это не SSE, пытаемся получить JSON ошибку
+        if (!contentType || !contentType.includes('text/event-stream')) {
+          const errorData = await response.json().catch(() => ({ detail: 'Ошибка отправки сообщения' }));
         throw new Error(errorData.detail || 'Ошибка отправки сообщения');
+        } else {
+          // Если это SSE с ошибкой, обрабатываем её в потоке
+          // (ошибка будет обработана в цикле чтения)
+        }
       }
+      if (contentType && contentType.includes('text/event-stream')) {
+        // Обрабатываем SSE поток
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let accumulatedContent = ''; // Накопленный контент для обновления
 
-      // Обрабатываем обычный JSON ответ
+        if (!reader) {
+          throw new Error('Не удалось получить поток данных');
+        }
+
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) {
+            break;
+          }
+
+          // Декодируем чанк
+          buffer += decoder.decode(value, { stream: true });
+          
+          // Обрабатываем все полные строки
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || ''; // Сохраняем неполную строку обратно в буфер
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                
+                if (data.error) {
+                  setIsLoading(false);
+                  throw new Error(data.error);
+                }
+                
+                if (data.content) {
+                  // Накопляем контент
+                  accumulatedContent += data.content;
+                  console.log('[STREAM] Получен чанк:', data.content.substring(0, 50), 'накоплено:', accumulatedContent.length, 'символов');
+                  
+                  // Обновляем сообщение ассистента с накопленным контентом
+                  setMessages(prev => {
+                    const messageIndex = prev.findIndex(msg => msg.id === assistantMessageId);
+                    if (messageIndex === -1) {
+                      console.warn('[STREAM] Сообщение с id', assistantMessageId, 'не найдено в состоянии');
+                      return prev;
+                    }
+                    
+                    const updated = [...prev];
+                    updated[messageIndex] = {
+                      ...updated[messageIndex],
+                      content: accumulatedContent
+                    };
+                    
+                    console.log('[STREAM] Обновлено сообщение:', assistantMessageId, 'новый content length:', accumulatedContent.length);
+                    return updated;
+                  });
+                }
+                
+                if (data.done) {
+                  // Стриминг завершен
+                  console.log('[STREAM] Стриминг завершен, финальный контент:', accumulatedContent.length, 'символов');
+                  setIsLoading(false);
+                  break;
+                }
+              } catch (e) {
+                // Если это ошибка из данных, пробрасываем её дальше
+                if (e instanceof Error && e.message) {
+                  setIsLoading(false);
+                  throw e;
+                }
+                // Иначе это ошибка парсинга, просто логируем
+                console.error('[STREAM] Ошибка парсинга SSE:', e, line);
+              }
+            }
+          }
+        }
+
+        // Обрабатываем оставшийся буфер
+        if (buffer.trim()) {
+          const lines = buffer.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.content) {
+                  accumulatedContent += data.content;
+                  setMessages(prev => {
+                    const messageIndex = prev.findIndex(msg => msg.id === assistantMessageId);
+                    if (messageIndex === -1) {
+                      return prev;
+                    }
+                    const updated = [...prev];
+                    updated[messageIndex] = {
+                      ...updated[messageIndex],
+                      content: accumulatedContent
+                    };
+                    return updated;
+                  });
+                }
+              } catch (e) {
+                console.error('[STREAM] Ошибка парсинга последнего чанка:', e);
+              }
+            }
+          }
+        }
+
+        setIsLoading(false);
+      } else {
+        // Обрабатываем обычный JSON ответ (fallback)
       const data = await response.json();
       
       if (data.response) {
@@ -1258,7 +1407,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             ? { 
                 ...msg, 
                 content: data.response,
-                imageUrl: data.image_url || data.cloud_url || undefined
+                imageUrl: data.image_url || data.cloud_url || undefined,
+                generationTime: data.generation_time
               }
             : msg
         ));
@@ -1266,6 +1416,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         setIsLoading(false);
       } else {
         throw new Error('Некорректный ответ от сервера');
+        }
       }
 
       // Обновляем информацию о пользователе после отправки сообщения
@@ -1331,7 +1482,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               type: msg.type === 'assistant' ? 'assistant' : 'user',
               content: finalContent,
               timestamp: new Date(msg.timestamp),
-              imageUrl: imageUrl
+              imageUrl: imageUrl,
+              generationTime: msg.generation_time
             };
           });
           
@@ -1662,6 +1814,39 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     }
   };
 
+  const handleLanguageChange = (newLanguage: 'ru' | 'en') => {
+    // Если язык не изменился, ничего не делаем
+    if (newLanguage === targetLanguage) {
+      return;
+    }
+    
+    // Если есть сообщения в чате, показываем модальное окно
+    if (messages.length > 0) {
+      setPendingLanguage(newLanguage);
+      setIsLanguageChangeModalOpen(true);
+    } else {
+      // Если сообщений нет, просто меняем язык (сохранение в localStorage произойдет автоматически через useEffect)
+      setTargetLanguage(newLanguage);
+    }
+  };
+
+  const handleConfirmLanguageChange = async () => {
+    if (pendingLanguage) {
+      // Очищаем чат перед сменой языка
+      await clearChat();
+      // Меняем язык
+      setTargetLanguage(pendingLanguage);
+      // Закрываем модальное окно
+      setIsLanguageChangeModalOpen(false);
+      setPendingLanguage(null);
+    }
+  };
+
+  const handleCancelLanguageChange = () => {
+    setIsLanguageChangeModalOpen(false);
+    setPendingLanguage(null);
+  };
+
   const clearChat = async () => {
     try {
       if (!currentCharacter) return;
@@ -1804,6 +1989,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             
             <MessageInput 
               onSendMessage={handleSendMessage}
+              targetLanguage={targetLanguage}
+              onLanguageChange={handleLanguageChange}
               onGenerateImage={() => {
                 // Открываем модалку с предзаполненным промптом
                 const appearance = (currentCharacter as any)?.character_appearance || '';
@@ -1811,6 +1998,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 const defaultPrompt = `${appearance} ${location}`.trim() || 'portrait, high quality, detailed';
                 setImagePromptInput(defaultPrompt);
                 setIsImagePromptModalOpen(true);
+              }}
+              onShowHelp={() => {
+                setIsPhotoGenerationHelpModalOpen(true);
               }}
               onClearChat={clearChat}
               onTipCreator={() => {
@@ -2154,6 +2344,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         </UpgradeOverlay>
       )}
 
+      {/* Модальное окно помощи по генерации фото */}
+      <PhotoGenerationHelpModal
+        isOpen={isPhotoGenerationHelpModalOpen}
+        onClose={() => setIsPhotoGenerationHelpModalOpen(false)}
+      />
+
       {/* Модалка для ввода промпта генерации */}
       {isImagePromptModalOpen && (
         <div style={{
@@ -2174,7 +2370,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             backdropFilter: 'blur(20px)',
             padding: '2rem',
             borderRadius: '16px',
-            maxWidth: '600px',
+            maxWidth: '900px',
             width: '90%',
             border: '1px solid rgba(255, 255, 255, 0.15)',
             boxShadow: '0 25px 50px rgba(0, 0, 0, 0.9)'
@@ -2191,7 +2387,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               placeholder="Опишите желаемое изображение..."
               style={{
                 width: '100%',
-                minHeight: '120px',
+                minHeight: '200px',
                 padding: '1rem',
                 background: 'rgba(15, 15, 20, 0.7)',
                 backdropFilter: 'blur(10px)',
@@ -2306,6 +2502,18 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           amount={tipAmount}
           onClose={() => setShowSuccessToast(false)}
           duration={3000}
+        />
+      )}
+
+      {isLanguageChangeModalOpen && (
+        <ConfirmModal
+          isOpen={isLanguageChangeModalOpen}
+          title="Смена языка"
+          message="История чата с персонажем будет удалена, если вы хотите общаться на другом языке. Продолжить?"
+          confirmText="Продолжить"
+          cancelText="Отмена"
+          onConfirm={handleConfirmLanguageChange}
+          onCancel={handleCancelLanguageChange}
         />
       )}
     </Container>

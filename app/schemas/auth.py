@@ -19,6 +19,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     username: str = Field(..., min_length=3, max_length=30)
     password: str = Field(..., min_length=8, max_length=100)
+    fingerprint_id: str | None = Field(None, max_length=255)  # Уникальный идентификатор устройства
     
     @field_validator('username')
     @classmethod
@@ -80,6 +81,7 @@ class ConfirmRegistrationRequest(BaseModel):
     """Схема для подтверждения регистрации с кодом верификации"""
     email: EmailStr
     verification_code: str
+    fingerprint_id: str | None = Field(None, max_length=255)  # Уникальный идентификатор устройства
 
 
 class Token(BaseModel):

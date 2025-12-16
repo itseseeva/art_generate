@@ -53,7 +53,15 @@ celery_app = Celery(
     "art_generation",
     broker=redis_url,
     backend=redis_url,
-    include=["app.tasks.generation_tasks", "app.tasks.email_tasks", "app.tasks.storage_tasks", "app.tasks.cache_tasks"],
+    include=[
+        "app.tasks.generation_tasks", 
+        "app.tasks.email_tasks", 
+        "app.tasks.storage_tasks", 
+        "app.tasks.cache_tasks",
+        "app.tasks.chat_tasks",
+        "app.tasks.periodic_tasks",
+        "app.tasks.runpod_tasks"
+    ],
     # Оптимизация импортов для ускорения запуска
     autodiscover_tasks=False,  # Отключаем автодискавери для ускорения
 )
@@ -115,9 +123,13 @@ celery_app.conf.update(
     task_routes={
         "app.tasks.generation_tasks.generate_image_task": {"queue": "high_priority"},
         "app.tasks.generation_tasks.generate_image_task_premium": {"queue": "high_priority"},
+        "app.tasks.runpod_tasks.generate_image_runpod_task": {"queue": "high_priority"},
+        "app.tasks.runpod_tasks.generate_image_batch_task": {"queue": "high_priority"},
+        "app.tasks.runpod_tasks.test_runpod_connection_task": {"queue": "normal_priority"},
         "app.tasks.storage_tasks.upload_to_cloud_task": {"queue": "normal_priority"},
         "app.tasks.email_tasks.send_email_task": {"queue": "low_priority"},
         "app.tasks.generation_tasks.save_chat_history_task": {"queue": "low_priority"},
+        "app.tasks.chat_tasks.save_chat_history_async_task": {"queue": "low_priority"},
         "app.tasks.cache_tasks.clear_cache_task": {"queue": "low_priority"},
         "app.tasks.cache_tasks.clear_characters_cache_task": {"queue": "low_priority"},
     },
@@ -152,6 +164,16 @@ celery_app.conf.update(
         'clear-characters-cache-daily': {
             'task': 'app.tasks.cache_tasks.clear_characters_cache_task',
             'schedule': crontab(hour=0, minute=0),  # Каждый день в 00:00 UTC
+            'options': {'queue': 'low_priority'}
+        },
+        'cleanup-old-data-daily': {
+            'task': 'app.tasks.periodic_tasks.cleanup_old_data_task',
+            'schedule': crontab(hour=2, minute=0),  # Каждый день в 02:00 UTC
+            'options': {'queue': 'low_priority'}
+        },
+        'clear-expired-cache-hourly': {
+            'task': 'app.tasks.periodic_tasks.clear_expired_cache_task',
+            'schedule': crontab(minute=0),  # Каждый час
             'options': {'queue': 'low_priority'}
         },
     },

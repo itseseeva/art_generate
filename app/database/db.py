@@ -54,9 +54,9 @@ if is_postgres:
 engine = create_async_engine(
     DATABASE_URL, 
     echo=False,  # Отключаем echo для производительности
-    # Настройки пула соединений для предотвращения зависаний
-    pool_size=10 if not is_sqlite else 1,  # SQLite не поддерживает пул
-    max_overflow=20 if not is_sqlite else 0,  # SQLite не поддерживает overflow
+    # Настройки пула соединений для высокой нагрузки (до 100+ одновременных пользователей)
+    pool_size=20 if not is_sqlite else 1,  # SQLite не поддерживает пул
+    max_overflow=40 if not is_sqlite else 0,  # SQLite не поддерживает overflow (итого до 60 соединений)
     pool_timeout=5,  # Таймаут ожидания соединения из пула (уменьшен для быстрого отказа)
     pool_pre_ping=True,  # Проверяем соединения перед использованием
     pool_recycle=300,  # Переиспользуем соединения каждые 5 минут

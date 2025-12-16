@@ -65,8 +65,8 @@ class CoinsService:
         return coins
     
     async def can_user_send_message(self, user_id: int) -> bool:
-        """Проверяет, может ли пользователь отправить сообщение (стоимость: 2 монеты)."""
-        return await self.can_user_afford(user_id, 2)
+        """Проверяет, может ли пользователь отправить сообщение (стоимость: 5 монет)."""
+        return await self.can_user_afford(user_id, 5)
     
     async def can_user_generate_photo(self, user_id: int) -> bool:
         """Проверяет, может ли пользователь сгенерировать фото (стоимость: 30 монет)."""
@@ -96,8 +96,8 @@ class CoinsService:
             raise
     
     async def spend_coins_for_message(self, user_id: int) -> bool:
-        """Тратит 2 монеты за отправку сообщения."""
-        return await self.spend_coins(user_id, 2)
+        """Тратит 5 монет за отправку сообщения."""
+        return await self.spend_coins(user_id, 5)
     
     async def spend_coins_for_photo(self, user_id: int) -> bool:
         """Тратит 30 монет за генерацию фото."""

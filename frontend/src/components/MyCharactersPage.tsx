@@ -100,6 +100,7 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authCheckComplete, setAuthCheckComplete] = useState(false);
+  const [favoriteCharacterIds, setFavoriteCharacterIds] = useState<Set<number>>(new Set());
 
   // Загрузка персонажей пользователя
   const loadMyCharacters = async () => {
@@ -225,6 +226,40 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
     }
   };
 
+  // Загрузка избранных персонажей
+  const loadFavorites = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        setFavoriteCharacterIds(new Set());
+        return;
+      }
+
+      const response = await fetch(API_CONFIG.FAVORITES, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const favorites = await response.json();
+        // Извлекаем ID избранных персонажей
+        const favoriteIds = new Set<number>(
+          favorites.map((char: any) => {
+            const id = typeof char.id === 'number' ? char.id : parseInt(char.id, 10);
+            return isNaN(id) ? null : id;
+          }).filter((id: number | null): id is number => id !== null)
+        );
+        setFavoriteCharacterIds(favoriteIds);
+      } else {
+        setFavoriteCharacterIds(new Set());
+      }
+    } catch (error) {
+      console.error('Error loading favorites:', error);
+      setFavoriteCharacterIds(new Set());
+    }
+  };
+
   // Проверка авторизации
   const checkAuth = async () => {
     try {
@@ -247,6 +282,8 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
           coins: userData.coins
         });
         setIsAuthenticated(true);
+        // Загружаем избранные после успешной авторизации
+        await loadFavorites();
       } else {
         setIsAuthenticated(false);
         localStorage.removeItem('authToken');
@@ -327,7 +364,14 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
               </CreateButton>
             </EmptyState>
           ) : (
-            characters.map((character) => (
+            characters.map((character) => {
+              // Проверяем, находится ли персонаж в избранном
+              const characterId = typeof character.id === 'number' 
+                ? character.id 
+                : parseInt(character.id, 10);
+              const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
+              
+              return (
                 <CharacterCard
                   key={character.id}
                   character={character}
@@ -335,8 +379,11 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
                 isAuthenticated={isAuthenticated}
                 onPhotoGeneration={onPhotoGeneration}
                 onPaidAlbum={onPaidAlbum}
+                  isFavorite={isFavorite}
+                  onFavoriteToggle={loadFavorites}
                 />
-            ))
+              );
+            })
           )}
         </CharactersGrid>
 

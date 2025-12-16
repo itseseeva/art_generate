@@ -93,16 +93,16 @@ class SubscriptionService:
             existing_subscription = await self.get_user_subscription(user_id)
             if existing_subscription:
                 raise ValueError("Бесплатная подписка доступна только при регистрации и не может быть активирована повторно.")
-            monthly_credits = 100
-            monthly_photos = 10
+            monthly_credits = 100  # 100 кредитов для FREE подписки
+            monthly_photos = 5  # 5 генераций фото для FREE подписки
             max_message_length = 100
         elif normalized_enum == SubscriptionType.STANDARD:
             monthly_credits = 1000
-            monthly_photos = 100
+            monthly_photos = 0  # Без ограничений на генерации фото для STANDARD
             max_message_length = 200
         elif normalized_enum == SubscriptionType.PREMIUM:
             monthly_credits = 5000
-            monthly_photos = 300
+            monthly_photos = 0  # Без ограничений на генерации фото для PREMIUM
             max_message_length = 300
         else:
             print(f"[ERROR] DEBUG: Неподдерживаемый тип подписки: {subscription_type}")
@@ -299,8 +299,8 @@ class SubscriptionService:
         if not subscription.can_send_message(message_length):
             return False
         
-        # Для сообщений требуется 2 кредита
-        return subscription.can_use_credits(2)
+        # Для сообщений требуется 5 кредитов
+        return subscription.can_use_credits(5)
     
     async def can_user_generate_photo(self, user_id: int) -> bool:
         """Проверяет, может ли пользователь сгенерировать фото."""
@@ -328,8 +328,8 @@ class SubscriptionService:
             await self.db.commit()
             await self.db.refresh(subscription)
         
-        # Тратим 2 кредита за сообщение
-        success = subscription.use_credits(2)
+        # Тратим 5 кредитов за сообщение
+        success = subscription.use_credits(5)
         if success:
             await self.db.commit()
             await self.db.refresh(subscription)

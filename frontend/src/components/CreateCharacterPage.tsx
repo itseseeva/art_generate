@@ -70,12 +70,29 @@ const MainContent = styled.div`
 const LeftColumn = styled.div`
   width: 100%;
   min-height: calc(150vh - 80px);
-  background: transparent;
-  border-radius: 0;
-  padding: 0;
-  box-shadow: none;
+  background: linear-gradient(135deg, rgba(12, 12, 12, 0.95) 0%, rgba(20, 20, 20, 0.98) 100%);
+  border-radius: ${theme.borderRadius.xl};
+  padding: ${theme.spacing.lg};
+  border: 2px solid rgba(60, 60, 60, 0.9);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 0 0 1px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(100, 100, 100, 0.3), transparent);
+    pointer-events: none;
+  }
 `;
 
 
@@ -89,95 +106,364 @@ const Form = styled.form`
 `;
 
 const ColumnContent = styled.div`
-  padding: ${theme.spacing.md} ${theme.spacing.sm};
-  flex: 1;
-  display: flex;
-  flex-direction: column;
+  padding: ${theme.spacing.sm} !important;
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-height: 300px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  position: relative !important;
+  z-index: 10 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  box-sizing: border-box !important;
+  gap: ${theme.spacing.md} !important;
+  
+  /* Кастомный скроллбар */
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: rgba(15, 15, 15, 0.5);
+    border-radius: 4px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(80, 80, 80, 0.6);
+    border-radius: 4px;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    
+    &:hover {
+      background: rgba(100, 100, 100, 0.7);
+    }
+  }
+  
+  /* Убеждаемся, что все дочерние элементы не выходят за границы */
+  > * {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
 `;
 
 const FormGroup = styled.div`
-  margin-bottom: ${theme.spacing.lg};
-  background: transparent;
-  border-radius: ${theme.borderRadius.xl};
-  padding: ${theme.spacing.lg};
-  border: 1px solid rgba(130, 130, 130, 0.4);
-  transition: border-color 0.3s ease;
-  opacity: 1;
+  margin-bottom: 0 !important;
+  background: linear-gradient(135deg, rgba(15, 15, 15, 0.95) 0%, rgba(22, 22, 22, 0.98) 100%);
+  border-radius: ${theme.borderRadius.lg} !important;
+  padding: ${theme.spacing.xl} !important;
+  border: 1px solid rgba(70, 70, 70, 0.8) !important;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: fadeIn 0.6s ease-out forwards;
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: auto !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+  word-wrap: break-word !important;
+  box-shadow: 
+    0 4px 16px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 0 0 1px rgba(0, 0, 0, 0.2);
+  position: relative !important;
+  z-index: 100 !important;
+  pointer-events: auto !important;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(100, 100, 100, 0.4), transparent);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
   
   &:hover {
-    border-color: rgba(200, 200, 200, 0.5);
+    border-color: rgba(100, 100, 100, 0.9) !important;
+    background: linear-gradient(135deg, rgba(18, 18, 18, 0.98) 0%, rgba(25, 25, 25, 1) 100%) !important;
+    box-shadow: 
+      0 6px 24px rgba(0, 0, 0, 0.6),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      0 0 0 1px rgba(0, 0, 0, 0.3),
+      0 0 20px rgba(100, 100, 100, 0.1) !important;
+    transform: translateY(-2px);
+    
+    &::before {
+      opacity: 1;
+    }
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(15px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  &:nth-child(1) {
+    animation-delay: 0.05s;
+  }
+  &:nth-child(2) {
+    animation-delay: 0.1s;
+  }
+  &:nth-child(3) {
+    animation-delay: 0.15s;
+  }
+  &:nth-child(4) {
+    animation-delay: 0.2s;
+  }
+  &:nth-child(5) {
+    animation-delay: 0.25s;
+  }
+  &:nth-child(6) {
+    animation-delay: 0.3s;
+  }
+  &:nth-child(7) {
+    animation-delay: 0.35s;
+  }
+  &:nth-child(8) {
+    animation-delay: 0.4s;
+  }
+  
+  /* Убеждаемся, что все дочерние элементы видны */
+  > * {
+    visibility: visible !important;
+    opacity: 1 !important;
+    display: block !important;
   }
 `;
 
 const Label = styled.label`
-  display: flex;
-  align-items: center;
-  gap: ${theme.spacing.sm};
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.lg};
-  font-weight: 600;
-  margin-bottom: ${theme.spacing.md};
+  display: flex !important;
+  align-items: center !important;
+  gap: ${theme.spacing.md} !important;
+  color: rgba(230, 230, 230, 1) !important;
+  font-size: ${theme.fontSize.base} !important;
+  font-weight: 700 !important;
+  margin-bottom: ${theme.spacing.lg} !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  width: 100% !important;
+  position: relative !important;
+  z-index: 100 !important;
+  pointer-events: auto !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 13px;
   
   &::before {
     content: attr(data-icon);
-    width: 32px;
-    height: 32px;
-    border: 1px solid rgba(180, 180, 180, 0.3);
-    border-radius: ${theme.borderRadius.lg};
+    width: 36px;
+    height: 36px;
+    border: 2px solid rgba(90, 90, 90, 0.7);
+    border-radius: ${theme.borderRadius.md};
     display: flex;
     align-items: center;
     justify-content: center;
-    color: rgba(230, 230, 230, 0.95);
-    transition: border-color 0.3s ease;
+    color: rgba(200, 200, 200, 1);
+    background: linear-gradient(135deg, rgba(25, 25, 25, 0.8) 0%, rgba(35, 35, 35, 0.9) 100%);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    box-shadow: 
+      0 2px 8px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    font-size: 18px;
+    flex-shrink: 0;
   }
   
   ${FormGroup}:hover &::before {
-    border-color: rgba(255, 255, 255, 0.6);
+    border-color: rgba(120, 120, 120, 0.9);
+    background: linear-gradient(135deg, rgba(30, 30, 30, 0.9) 0%, rgba(40, 40, 40, 1) 100%);
+    box-shadow: 
+      0 4px 12px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 0 12px rgba(100, 100, 100, 0.2);
+    transform: scale(1.05);
   }
 `;
 
 const Input = styled.input`
-  width: 100%;
-  height: 48px;
-  padding: ${theme.spacing.md};
-  border: 1px solid rgba(140, 140, 140, 0.5);
-  border-radius: ${theme.borderRadius.md};
-  background: transparent;
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.base};
-  transition: border-color 0.3s ease;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 52px !important;
+  min-height: 52px !important;
+  max-height: 52px !important;
+  padding: 0 ${theme.spacing.lg} !important;
+  border: 2px solid rgba(70, 70, 70, 0.8) !important;
+  border-radius: ${theme.borderRadius.md} !important;
+  background: linear-gradient(135deg, rgba(10, 10, 10, 0.95) 0%, rgba(18, 18, 18, 0.98) 100%) !important;
+  color: rgba(240, 240, 240, 1) !important;
+  font-size: ${theme.fontSize.base} !important;
+  font-weight: 500 !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  box-sizing: border-box !important;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  overflow-x: hidden !important;
+  overflow-y: visible !important;
+  box-shadow: 
+    inset 0 2px 6px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.02),
+    0 0 0 1px rgba(0, 0, 0, 0.3) !important;
+  margin: 0 !important;
+  margin-top: 0 !important;
+  position: relative !important;
+  z-index: 100 !important;
+  pointer-events: auto !important;
+  -webkit-text-fill-color: rgba(240, 240, 240, 1) !important;
+  flex-shrink: 0 !important;
   
   &::placeholder {
-    color: rgba(200, 200, 200, 0.5);
+    color: rgba(100, 100, 100, 0.8) !important;
+    opacity: 1 !important;
+    font-weight: 400 !important;
   }
   
   &:focus {
     outline: none;
-    border-color: rgba(220, 220, 220, 0.8);
+    border-color: rgba(120, 120, 120, 1) !important;
+    background: linear-gradient(135deg, rgba(15, 15, 15, 0.98) 0%, rgba(22, 22, 22, 1) 100%) !important;
+    box-shadow: 
+      inset 0 2px 8px rgba(0, 0, 0, 0.7),
+      inset 0 1px 0 rgba(255, 255, 255, 0.03),
+      0 0 0 3px rgba(100, 100, 100, 0.15),
+      0 0 20px rgba(100, 100, 100, 0.1) !important;
+    -webkit-text-fill-color: rgba(240, 240, 240, 1) !important;
+    transform: translateY(-1px);
+  }
+  
+  &:hover:not(:focus) {
+    border-color: rgba(85, 85, 85, 0.9) !important;
+    box-shadow: 
+      inset 0 2px 6px rgba(0, 0, 0, 0.6),
+      inset 0 1px 0 rgba(255, 255, 255, 0.02),
+      0 0 0 1px rgba(0, 0, 0, 0.3),
+      0 2px 8px rgba(0, 0, 0, 0.4) !important;
+  }
+  
+  /* Убеждаемся, что текст всегда виден */
+  &::-webkit-input-placeholder {
+    color: rgba(100, 100, 100, 0.8) !important;
+    opacity: 1 !important;
+  }
+  
+  &:-moz-placeholder {
+    color: rgba(100, 100, 100, 0.8) !important;
+    opacity: 1 !important;
+  }
+  
+  &::-moz-placeholder {
+    color: rgba(100, 100, 100, 0.8) !important;
+    opacity: 1 !important;
+  }
+  
+  &:-ms-input-placeholder {
+    color: rgba(100, 100, 100, 0.8) !important;
+    opacity: 1 !important;
   }
 `;
 
 const Textarea = styled.textarea`
-  width: 100%;
-  min-height: 128px;
-  padding: ${theme.spacing.md};
-  border: 1px solid rgba(140, 140, 140, 0.5);
-  border-radius: ${theme.borderRadius.md};
-  background: transparent;
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.base};
-  font-family: inherit;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: 140px !important;
+  height: auto !important;
+  padding: ${theme.spacing.lg} !important;
+  border: 2px solid rgba(70, 70, 70, 0.8) !important;
+  border-radius: ${theme.borderRadius.md} !important;
+  background: linear-gradient(135deg, rgba(10, 10, 10, 0.95) 0%, rgba(18, 18, 18, 0.98) 100%) !important;
+  color: rgba(240, 240, 240, 1) !important;
+  font-size: ${theme.fontSize.base} !important;
+  font-family: inherit !important;
+  font-weight: 500 !important;
   resize: vertical;
-  line-height: 1.6;
-  transition: border-color 0.3s ease;
+  line-height: 1.7 !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  box-sizing: border-box !important;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  overflow-x: hidden !important;
+  overflow-y: visible !important;
+  white-space: pre-wrap !important;
+  box-shadow: 
+    inset 0 2px 6px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.02),
+    0 0 0 1px rgba(0, 0, 0, 0.3) !important;
+  margin: 0 !important;
+  margin-top: 0 !important;
+  position: relative !important;
+  z-index: 100 !important;
+  pointer-events: auto !important;
+  -webkit-text-fill-color: rgba(240, 240, 240, 1) !important;
+  flex-shrink: 0 !important;
   
   &::placeholder {
-    color: rgba(200, 200, 200, 0.5);
+    color: rgba(100, 100, 100, 0.8) !important;
+    opacity: 1 !important;
+    font-weight: 400 !important;
   }
   
   &:focus {
     outline: none;
-    border-color: rgba(220, 220, 220, 0.8);
+    border-color: rgba(120, 120, 120, 1) !important;
+    background: linear-gradient(135deg, rgba(15, 15, 15, 0.98) 0%, rgba(22, 22, 22, 1) 100%) !important;
+    box-shadow: 
+      inset 0 2px 8px rgba(0, 0, 0, 0.7),
+      inset 0 1px 0 rgba(255, 255, 255, 0.03),
+      0 0 0 3px rgba(100, 100, 100, 0.15),
+      0 0 20px rgba(100, 100, 100, 0.1) !important;
+    -webkit-text-fill-color: rgba(240, 240, 240, 1) !important;
+    transform: translateY(-1px);
+  }
+  
+  &:hover:not(:focus) {
+    border-color: rgba(85, 85, 85, 0.9) !important;
+    box-shadow: 
+      inset 0 2px 6px rgba(0, 0, 0, 0.6),
+      inset 0 1px 0 rgba(255, 255, 255, 0.02),
+      0 0 0 1px rgba(0, 0, 0, 0.3),
+      0 2px 8px rgba(0, 0, 0, 0.4) !important;
+  }
+  
+  /* Убеждаемся, что текст всегда виден */
+  &::-webkit-input-placeholder {
+    color: rgba(100, 100, 100, 0.8) !important;
+    opacity: 1 !important;
+  }
+  
+  &:-moz-placeholder {
+    color: rgba(100, 100, 100, 0.8) !important;
+    opacity: 1 !important;
+  }
+  
+  &::-moz-placeholder {
+    color: rgba(100, 100, 100, 0.8) !important;
+    opacity: 1 !important;
+  }
+  
+  &:-ms-input-placeholder {
+    color: rgba(100, 100, 100, 0.8) !important;
+    opacity: 1 !important;
   }
 `;
 

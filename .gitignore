@@ -294,3 +294,17 @@ settings.local.*
 artifacts/
 builds/
 releases/
+
+weights/
+
+# Игнорируем мусор python и git
+.git
+__pycache__
+*.pyc
+venv/
+.venv/
+.env
+
+# Игнорируем картинки, если они там валяются
+*.png
+*.jpg

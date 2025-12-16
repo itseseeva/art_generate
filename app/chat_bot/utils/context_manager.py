@@ -1,29 +1,68 @@
 """
 Утилита для управления контекстом чата на основе подписки пользователя.
+Использует tiktoken для точного подсчета токенов.
 """
 
 from typing import Optional, List, Dict
+import tiktoken
 from app.models.subscription import SubscriptionType
 from app.utils.logger import logger
 
 
-def get_context_limit(subscription_type: Optional[SubscriptionType]) -> int:
+# Инициализация энкодера для подсчета токенов (используем cl100k_base как в GPT-4)
+_encoding = None
+
+
+def _get_encoding():
+    """Ленивая инициализация энкодера tiktoken."""
+    global _encoding
+    if _encoding is None:
+        try:
+            _encoding = tiktoken.get_encoding("cl100k_base")
+        except Exception as e:
+            logger.warning(f"[CONTEXT] Не удалось загрузить tiktoken, используем fallback: {e}")
+            _encoding = None
+    return _encoding
+
+
+def get_context_limit(subscription_type: Optional[SubscriptionType]) -> Optional[int]:
     """
-    Возвращает лимит сообщений для контекста на основе типа подписки.
+    Возвращает лимит сообщений для загрузки из БД на основе типа подписки.
+    Для PREMIUM и STANDARD возвращает None (без ограничений) - обрезка только по токенам.
 
     Args:
         subscription_type: Тип подписки пользователя
 
     Returns:
-        Количество сообщений для включения в контекст
+        Количество сообщений для загрузки из БД или None (без ограничений)
     """
     if subscription_type == SubscriptionType.PREMIUM:
-        return 40
+        return None  # Без ограничений - обрезка только по токенам (8000)
     elif subscription_type == SubscriptionType.STANDARD:
-        return 20
+        return None  # Без ограничений - обрезка только по токенам (4000)
     else:
-        # FREE или отсутствие подписки
+        # FREE/BASE - ограничение на 10 сообщений
         return 10
+
+
+def get_max_context_tokens(subscription_type: Optional[SubscriptionType]) -> int:
+    """
+    Возвращает максимальное количество токенов для контекста (включая system prompt)
+    на основе типа подписки.
+
+    Args:
+        subscription_type: Тип подписки пользователя
+
+    Returns:
+        Максимальное количество токенов для контекста
+    """
+    if subscription_type == SubscriptionType.PREMIUM:
+        return 8000  # 8000 токенов для PREMIUM
+    elif subscription_type == SubscriptionType.STANDARD:
+        return 4000  # 4000 токенов для STANDARD
+    else:
+        # FREE или отсутствие подписки - используем минимальное значение
+        return 2000
 
 
 def get_max_tokens(subscription_type: Optional[SubscriptionType]) -> int:
@@ -46,34 +85,67 @@ def get_max_tokens(subscription_type: Optional[SubscriptionType]) -> int:
         return 150
 
 
-def estimate_tokens(text: str) -> int:
+def count_message_tokens(message: Dict[str, str]) -> int:
     """
-    Оценивает количество токенов в тексте.
-    Примерная оценка: 1 токен ≈ 4 символа для английского текста.
+    Точный подсчет токенов в сообщении с учетом role и content.
 
     Args:
-        text: Текст для оценки
+        message: Сообщение в формате {"role": "...", "content": "..."}
 
     Returns:
-        Примерное количество токенов
+        Количество токенов в сообщении
     """
-    # Простая оценка: примерно 4 символа на токен
-    # Для более точной оценки можно использовать tiktoken
-    return len(text) // 4
+    encoding = _get_encoding()
+    if encoding is None:
+        # Fallback: примерная оценка
+        role = message.get("role", "")
+        content = message.get("content", "")
+        return (len(role) + len(content)) // 4
+    
+    # Подсчитываем токены для role и content
+    role = message.get("role", "")
+    content = message.get("content", "")
+    
+    # Формируем строку для подсчета (как в OpenAI API)
+    # Формат: "role: {role}\ncontent: {content}"
+    text_to_encode = f"role: {role}\ncontent: {content}"
+    
+    try:
+        tokens = encoding.encode(text_to_encode)
+        return len(tokens)
+    except Exception as e:
+        logger.warning(f"[CONTEXT] Ошибка подсчета токенов: {e}, используем fallback")
+        return (len(role) + len(content)) // 4
 
 
-def trim_messages_to_token_limit(
-    messages: List[Dict[str, str]],
-    max_tokens: int = 4096,
-    system_message_index: int = 0
-) -> List[Dict[str, str]]:
+def count_messages_tokens(messages: List[Dict[str, str]]) -> int:
     """
-    Обрезает массив сообщений, чтобы не превысить лимит токенов.
-    Системное сообщение всегда сохраняется.
+    Подсчитывает общее количество токенов в массиве сообщений.
 
     Args:
         messages: Массив сообщений
-        max_tokens: Максимальное количество токенов
+
+    Returns:
+        Общее количество токенов
+    """
+    total_tokens = 0
+    for message in messages:
+        total_tokens += count_message_tokens(message)
+    return total_tokens
+
+
+async def trim_messages_to_token_limit(
+    messages: List[Dict[str, str]],
+    max_tokens: int,
+    system_message_index: int = 0
+) -> List[Dict[str, str]]:
+    """
+    Асинхронно обрезает массив сообщений, чтобы не превысить лимит токенов.
+    Использует скользящее окно: сохраняет system prompt и удаляет самые старые сообщения.
+
+    Args:
+        messages: Массив сообщений
+        max_tokens: Максимальное количество токенов для контекста
         system_message_index: Индекс системного сообщения (обычно 0)
 
     Returns:
@@ -88,51 +160,66 @@ def trim_messages_to_token_limit(
         if system_message_index < len(messages)
         else None
     )
+    
+    if not system_message:
+        return messages
+
+    # Отделяем системное сообщение от истории
     history_messages = [
         msg for i, msg in enumerate(messages)
         if i != system_message_index
     ]
 
-    # Оцениваем токены системного сообщения
-    system_tokens = (
-        estimate_tokens(system_message.get("content", ""))
-        if system_message
-        else 0
-    )
+    # Подсчитываем токены системного сообщения
+    system_tokens = count_message_tokens(system_message)
     available_tokens = max_tokens - system_tokens
 
     if available_tokens <= 0:
-        logger.warning(
-            f"[CONTEXT] Системное сообщение слишком большое "
-            f"({system_tokens} токенов), оставляем только его"
+        return [system_message]
+
+    # Если история пуста, возвращаем только system message
+    if not history_messages:
+        return [system_message]
+
+    # Подсчитываем токены для всей истории
+    total_history_tokens = count_messages_tokens(history_messages)
+
+    # Если история укладывается в лимит, возвращаем все
+    if total_history_tokens <= available_tokens:
+        logger.info(
+            f"[CONTEXT] История укладывается в лимит: "
+            f"{total_history_tokens}/{available_tokens} токенов, "
+            f"{len(history_messages)} сообщений"
         )
-        return [system_message] if system_message else []
+        return [system_message] + history_messages
 
-    # Подсчитываем токены для истории, начиная с самых новых
-    trimmed_messages = []
+    # Нужно обрезать историю: удаляем самые старые сообщения
+    # (первые после system message)
+    trimmed_history = []
     current_tokens = 0
+    removed_count = 0
 
-    # Идем с конца (самые новые сообщения)
+    # Идем с конца (самые новые сообщения) и добавляем их в trimmed_history
     for msg in reversed(history_messages):
-        msg_tokens = estimate_tokens(msg.get("content", ""))
+        msg_tokens = count_message_tokens(msg)
         if current_tokens + msg_tokens <= available_tokens:
-            trimmed_messages.insert(0, msg)
+            trimmed_history.insert(0, msg)
             current_tokens += msg_tokens
         else:
-            trimmed_count = len(history_messages) - len(trimmed_messages)
-            logger.info(
-                f"[CONTEXT] Достигнут лимит токенов "
-                f"({current_tokens}/{available_tokens}), "
-                f"обрезано {trimmed_count} сообщений"
-            )
-            break
+            removed_count += 1
+            # Продолжаем проверять, может быть следующее сообщение поместится
+            # Но если уже удалили много, прекращаем
+            if removed_count > len(history_messages) // 2:
+                break
+
+    # Если все еще не укладывается, удаляем самые старые
+    while current_tokens > available_tokens and trimmed_history:
+        removed_msg = trimmed_history.pop(0)
+        removed_tokens = count_message_tokens(removed_msg)
+        current_tokens -= removed_tokens
+        removed_count += 1
 
     # Возвращаем системное сообщение + обрезанную историю
-    result = []
-    if system_message:
-        result.append(system_message)
-    result.extend(trimmed_messages)
-
-    logger.info(f"[CONTEXT] Контекст: {len(result)} сообщений")
+    result = [system_message] + trimmed_history
 
     return result
