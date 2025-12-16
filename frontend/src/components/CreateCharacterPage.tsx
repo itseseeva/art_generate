@@ -1715,7 +1715,8 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         height: generationSettings?.height || 512,
         steps: generationSettings?.steps || 20,
         cfg_scale: generationSettings?.cfg_scale || 4,
-        use_default_prompts: false
+        use_default_prompts: false,
+        model: 'anime-realism'  // Дефолтная модель для CreateCharacterPage
       };
       
       console.log('Request body:', requestBody);

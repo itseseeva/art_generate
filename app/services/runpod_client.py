@@ -89,7 +89,8 @@ async def start_generation(
     scheduler: Optional[str] = None,
     negative_prompt: Optional[str] = None,
     use_enhanced_prompts: bool = True,
-    lora_scale: Optional[float] = None
+    lora_scale: Optional[float] = None,
+    model: Optional[str] = "anime-realism"
 ) -> str:
     """
     Отправляет запрос на RunPod Endpoint и возвращает Job ID.
@@ -135,6 +136,13 @@ async def start_generation(
     logger.debug(f"[RUNPOD] Очищенный промпт: {final_prompt[:200]}...")
     logger.debug(f"[RUNPOD] Очищенный негативный промпт: {final_negative[:200] if final_negative else 'None'}...")
     
+    # Маппинг пользовательских имен моделей на внутренние имена для RunPod
+    MODEL_MAPPING = {
+        "anime": "one_obsession",
+        "anime-realism": "perfect_deliberate"
+    }
+    internal_model = MODEL_MAPPING.get(model or "anime-realism", "perfect_deliberate")
+    
     # Берём параметры из дефолтов, если не указаны
     params = {
         "prompt": final_prompt,
@@ -147,6 +155,7 @@ async def start_generation(
         "scheduler": scheduler or DEFAULT_GENERATION_PARAMS["scheduler"],
         "seed": seed if seed is not None else DEFAULT_GENERATION_PARAMS["seed"],
         "lora_scale": lora_scale if lora_scale is not None else DEFAULT_GENERATION_PARAMS["lora_scale"],
+        "model": internal_model,  # Внутреннее имя модели для RunPod
         "return_type": "url"  # Важно: возвращаем URL, а не Base64
     }
     
@@ -258,6 +267,7 @@ async def generate_image_async(
     negative_prompt: Optional[str] = None,
     use_enhanced_prompts: bool = True,
     lora_scale: Optional[float] = None,
+    model: Optional[str] = "anime-realism",
     timeout: int = DEFAULT_TIMEOUT
 ) -> str:
     """
@@ -307,7 +317,8 @@ async def generate_image_async(
                 scheduler=scheduler,
                 negative_prompt=negative_prompt,
                 use_enhanced_prompts=use_enhanced_prompts,
-                lora_scale=lora_scale
+                lora_scale=lora_scale,
+                model=model
             )
         except Exception as e:
             logger.error(f"[RUNPOD] Ошибка при запуске генерации: {e}")

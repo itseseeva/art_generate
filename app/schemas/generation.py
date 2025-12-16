@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator, ConfigDict
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any, Union, Literal
 import sys
 from pathlib import Path
 
@@ -38,6 +38,7 @@ class GenerationSettings(BaseModel):
     negative_prompt: Optional[str] = Field(None, description="Негативный промпт")
     seed: Optional[int] = Field(None, description="Seed для генерации")
     steps: int = Field(default=DEFAULT_GENERATION_PARAMS.get("steps"), description="Количество шагов")
+    model: Optional[Literal["anime", "anime-realism"]] = Field(default="anime-realism", description="Модель для генерации: 'anime' или 'anime-realism'")
     
     def __init__(self, **data):
         super().__init__(**data)

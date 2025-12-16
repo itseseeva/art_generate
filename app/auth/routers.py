@@ -1925,18 +1925,25 @@ async def add_photo_to_gallery(
                     user_message = "Генерация изображения"
                     assistant_response = ""  # Пустой ответ, только фото
                     
-                    # Сохраняем в фоне через asyncio.create_task
-                    import asyncio
-                    asyncio.create_task(process_chat_history_storage(
-                        subscription_type=subscription_type,
-                        user_id=str(current_user.id),
-                        character_data=character_data,
-                        message=user_message,
-                        response=assistant_response,
-                        image_url=request.image_url,
-                        image_filename=None
-                    ))
-                    logger.info(f"[GALLERY] История чата будет сохранена для фото {request.image_url} и персонажа {request.character_name}")
+                    # КРИТИЧЕСКИ ВАЖНО: Сохраняем историю СРАЗУ, а не в фоне
+                    # Используем await чтобы гарантировать сохранение
+                    try:
+                        from app.main import process_chat_history_storage
+                        await process_chat_history_storage(
+                            subscription_type=subscription_type,
+                            user_id=str(current_user.id),
+                            character_data=character_data,
+                            message=user_message,
+                            response=assistant_response,
+                            image_url=request.image_url,
+                            image_filename=None
+                        )
+                        logger.info(f"[GALLERY] История чата сохранена для фото {request.image_url} и персонажа {request.character_name}")
+                    except Exception as save_error:
+                        # Логируем ошибку, но не блокируем добавление в галерею
+                        logger.error(f"[GALLERY] Ошибка сохранения истории: {save_error}")
+                        import traceback
+                        logger.error(f"[GALLERY] Traceback: {traceback.format_exc()}")
                 else:
                     logger.warning(f"[GALLERY] Персонаж {request.character_name} не найден, история не сохранена")
             except Exception as history_error:

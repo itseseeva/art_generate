@@ -634,6 +634,7 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
   const [success, setSuccess] = useState<string | null>(null);
   const [userInfo, setUserInfo] = useState<{coins: number; subscription_type?: string} | null>(null);
   const [generationSettings, setGenerationSettings] = useState<any>(null);
+  const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime'>('anime-realism');
   const [addedPhotos, setAddedPhotos] = useState<string[]>([]);
   const [showFreeSubscriptionModal, setShowFreeSubscriptionModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -775,7 +776,8 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
         height: generationSettings?.height,
         steps: generationSettings?.steps,
         cfg_scale: generationSettings?.cfg_scale,
-        use_default_prompts: false
+        use_default_prompts: false,
+        model: selectedModel
       };
 
       // Отправляем запрос на генерацию
@@ -1347,6 +1349,29 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
                   onChange={(e) => setPrompt(e.target.value)}
                   disabled={isGenerating}
                 />
+
+                <Label htmlFor="model">
+                  Модель генерации
+                </Label>
+                <select
+                  id="model"
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value as 'anime-realism' | 'anime')}
+                  disabled={isGenerating}
+                  style={{
+                    padding: '0.75rem',
+                    background: 'rgba(22, 33, 62, 0.5)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    borderRadius: '0.5rem',
+                    color: 'rgba(240, 240, 240, 1)',
+                    fontSize: '0.875rem',
+                    cursor: isGenerating ? 'not-allowed' : 'pointer',
+                    width: '100%'
+                  }}
+                >
+                  <option value="anime-realism">Anime Realism</option>
+                  <option value="anime">Anime</option>
+                </select>
 
                 <GenerateButton
                   onClick={handleGenerate}

@@ -328,6 +328,7 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
   const [customPrompt, setCustomPrompt] = useState('');
   const [generationSettings, setGenerationSettings] = useState<any>(null);
+  const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime'>('anime-realism');
   const fakeProgressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fakeProgressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -455,7 +456,8 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({
           height: generationSettings?.height,
           steps: generationSettings?.steps,
           cfg_scale: generationSettings?.cfg_scale,
-          use_default_prompts: false
+          use_default_prompts: false,
+          model: selectedModel
         };
         
         // Добавляем user_id если пользователь авторизован
@@ -687,6 +689,28 @@ useEffect(() => {
                   onChange={(e) => setCustomPrompt(e.target.value)}
                   placeholder={`${character.character_appearance || ''} ${character.location || ''}`.trim() || 'portrait, high quality, detailed'}
                 />
+              </PromptContainer>
+              
+              <PromptContainer>
+                <PromptLabel htmlFor="model-select">Модель генерации:</PromptLabel>
+                <select
+                  id="model-select"
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value as 'anime-realism' | 'anime')}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    background: 'rgba(40, 40, 40, 0.5)',
+                    border: '1px solid rgba(100, 100, 100, 0.3)',
+                    borderRadius: '0.5rem',
+                    color: '#fff',
+                    fontSize: '0.875rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="anime-realism">Anime Realism</option>
+                  <option value="anime">Anime</option>
+                </select>
               </PromptContainer>
               
               <GenerateSection>

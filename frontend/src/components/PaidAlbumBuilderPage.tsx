@@ -837,7 +837,8 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         body: JSON.stringify({
           character: character.name,
           prompt: effectivePrompt,
-          use_default_prompts: false
+          use_default_prompts: false,
+          model: 'anime-realism'  // Дефолтная модель для PaidAlbumBuilderPage
         })
       });
 

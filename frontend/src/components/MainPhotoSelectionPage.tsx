@@ -612,7 +612,8 @@ export const MainPhotoSelectionPage: React.FC<MainPhotoSelectionPageProps> = ({
         body: JSON.stringify({
           character: character.name,
           prompt: effectivePrompt,
-          use_default_prompts: false
+          use_default_prompts: false,
+          model: 'anime-realism'  // Дефолтная модель для MainPhotoSelectionPage
         })
       });
 

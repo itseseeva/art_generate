@@ -407,14 +407,11 @@ class ChatHistoryService:
                 import traceback
                 print(f"[WARNING] Traceback: {traceback.format_exc()}")
 
-            # Дополнительно проверяем ChatHistory, но только если там есть реальные сообщения ОТ ПОЛЬЗОВАТЕЛЯ
-            # КРИТИЧЕСКИ ВАЖНО: исключаем записи, созданные автоматически (при генерации фото, создании персонажа и т.д.)
+            # Дополнительно проверяем ChatHistory, включая записи с фото
+            # КРИТИЧЕСКИ ВАЖНО: включаем записи с image_url даже если message_content="Генерация изображения"
             try:
-                # Исключаем записи, которые могут быть созданы автоматически:
-                # 1. session_id="photo_generation" - записи при генерации фото (старый способ)
-                # 2. session_id начинается с "task_" - записи при генерации фото (новый способ через prompt_saver)
-                # 3. Записи только с image_url без реального текстового сообщения
-                # 4. Записи с пустым или автоматически сгенерированным содержимым
+                # ВАЖНО: Разрешаем записи с image_url, даже если текст="Генерация изображения"
+                # Это нужно для показа персонажей, с которыми генерировались фото
                 history_result = await self.db.execute(
                     select(
                         ChatHistory.character_name,
@@ -423,12 +420,20 @@ class ChatHistoryService:
                     )
                     .where(ChatHistory.user_id == user_id)
                     .where(ChatHistory.message_type == "user")  # Только сообщения от пользователя
-                    .where(ChatHistory.session_id != "photo_generation")  # Исключаем записи при генерации фото (старый способ)
-                    .where(~ChatHistory.session_id.like("task_%"))  # КРИТИЧЕСКИ ВАЖНО: исключаем записи с session_id="task_*" (генерация фото)
-                    .where(ChatHistory.message_content.isnot(None))  # Должно быть текстовое сообщение
-                    .where(ChatHistory.message_content != "")  # Не пустое сообщение
-                    .where(func.trim(ChatHistory.message_content) != "")  # Не только пробелы
-                    .where(func.length(func.trim(ChatHistory.message_content)) >= 3)  # Минимум 3 символа (реальное сообщение)
+                    .where(
+                        # ИЛИ есть валидное текстовое сообщение (>= 3 символов)
+                        # ИЛИ есть image_url (фото в истории)
+                        or_(
+                            and_(
+                                ChatHistory.message_content.isnot(None),
+                                ChatHistory.message_content != "",
+                                func.trim(ChatHistory.message_content) != "",
+                                func.length(func.trim(ChatHistory.message_content)) >= 3
+                            ),
+                            ChatHistory.image_url.isnot(None),  # Есть фото в истории
+                            ChatHistory.image_filename.isnot(None)  # Или есть filename
+                        )
+                    )
                     .group_by(ChatHistory.character_name)
                     .having(func.count(func.distinct(ChatHistory.id)) > 0)  # Должно быть хотя бы одно сообщение
                     .order_by(func.max(ChatHistory.created_at).desc())
@@ -479,6 +484,71 @@ class ChatHistoryService:
                                 pass
             except Exception as e:
                 print(f"[WARNING] Ошибка получения персонажей из ChatHistory: {e}")
+
+            # КРИТИЧЕСКИ ВАЖНО: Добавляем персонажей из UserGallery
+            # Это нужно для случаев, когда фото было сгенерировано, но ChatSession не был создан
+            try:
+                from app.models.user_gallery import UserGallery
+                
+                # Получаем уникальных персонажей из UserGallery для этого пользователя
+                gallery_result = await self.db.execute(
+                    select(
+                        UserGallery.character_name,
+                        func.max(UserGallery.created_at).label("last_image_at")
+                    )
+                    .where(UserGallery.user_id == user_id)
+                    .where(UserGallery.character_name.isnot(None))
+                    .where(UserGallery.character_name != "")
+                    .group_by(UserGallery.character_name)
+                    .order_by(func.max(UserGallery.created_at).desc())
+                )
+                
+                gallery_rows = gallery_result.fetchall()
+                print(f"[DEBUG] Найдено {len(gallery_rows)} персонажей в UserGallery для user_id={user_id}")
+                
+                for row in gallery_rows:
+                    character_name = row[0]
+                    last_image_at = row[1]
+                    
+                    if not character_name or not last_image_at:
+                        continue
+                    
+                    key = character_name.lower()
+                    
+                    # Добавляем только если персонажа еще нет в списке
+                    if key not in characters:
+                        # Получаем последнее фото для этого персонажа
+                        last_image_url = await self._get_last_image_url(user_id, character_name)
+                        characters[key] = {
+                            "name": character_name,
+                            "last_message_at": last_image_at.isoformat() if hasattr(last_image_at, 'isoformat') else str(last_image_at),
+                            "last_image_url": last_image_url,
+                        }
+                        print(f"[DEBUG] Добавлен персонаж из UserGallery {character_name}: last_image_at={last_image_at}")
+                    else:
+                        # Если персонаж уже есть, обновляем last_image_at если фото новее
+                        existing_time = characters[key].get("last_message_at")
+                        if existing_time and last_image_at:
+                            try:
+                                from datetime import datetime
+                                if isinstance(existing_time, str):
+                                    existing_dt = datetime.fromisoformat(existing_time.replace('Z', '+00:00'))
+                                else:
+                                    existing_dt = existing_time
+                                
+                                image_dt = last_image_at if isinstance(last_image_at, datetime) else datetime.fromisoformat(str(last_image_at).replace('Z', '+00:00'))
+                                
+                                if image_dt > existing_dt:
+                                    characters[key]["last_message_at"] = image_dt.isoformat()
+                                    # Обновляем также last_image_url
+                                    characters[key]["last_image_url"] = await self._get_last_image_url(user_id, character_name)
+                                    print(f"[DEBUG] Обновлено время для персонажа {character_name} из UserGallery")
+                            except Exception as time_err:
+                                print(f"[DEBUG] Ошибка сравнения времени для {character_name}: {time_err}")
+            except Exception as gallery_err:
+                print(f"[WARNING] Ошибка получения персонажей из UserGallery: {gallery_err}")
+                import traceback
+                print(f"[WARNING] Traceback: {traceback.format_exc()}")
 
             # ДОПОЛНИТЕЛЬНО: проверяем сообщения с картинками от ассистента
             # Это нужно для случаев, когда в истории только картинки без текстовых сообщений от пользователя

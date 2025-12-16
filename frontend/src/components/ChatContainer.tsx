@@ -943,6 +943,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const [isImagePromptModalOpen, setIsImagePromptModalOpen] = useState(false);
   const [isPhotoGenerationHelpModalOpen, setIsPhotoGenerationHelpModalOpen] = useState(false);
   const [imagePromptInput, setImagePromptInput] = useState('');
+  const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime'>('anime-realism');
 
   const handleGenerateImage = async (userPrompt?: string) => {
     // Если промпт не передан - открываем модалку
@@ -1000,7 +1001,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         prompt: trimmedPrompt,
         character: currentCharacter.name,
         use_default_prompts: true,
-        user_id: userInfo?.id
+        user_id: userInfo?.id,
+        model: selectedModel
         // Размеры берутся из generation_defaults.py (768x1344)
       };
 
@@ -2381,6 +2383,28 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             <p style={{ color: '#aaa', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
               Стоимость: 30 монет. Опишите желаемое изображение или отредактируйте предзаполненный промпт.
             </p>
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ color: '#fff', fontSize: '0.9rem', marginBottom: '0.5rem', display: 'block' }}>
+                Модель генерации:
+              </label>
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value as 'anime-realism' | 'anime')}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  background: 'rgba(15, 15, 20, 0.7)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  fontSize: '1rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="anime-realism">Anime Realism</option>
+                <option value="anime">Anime</option>
+              </select>
+            </div>
             <textarea
               value={imagePromptInput}
               onChange={(e) => setImagePromptInput(e.target.value)}

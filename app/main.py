@@ -75,7 +75,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Literal
 from httpx import HTTPStatusError
 
 # Импорты для генерации изображений
@@ -106,6 +106,7 @@ class ImageGenerationRequest(BaseModel):
     sampler_name: Optional[str] = None
     character: Optional[str] = None
     user_id: Optional[int] = None  # ID пользователя для проверки подписки
+    model: Optional[Literal["anime", "anime-realism"]] = Field(default="anime-realism", description="Модель для генерации: 'anime' или 'anime-realism'")
 
 # Настраиваем логирование с правильной кодировкой
 # Создаем папку для логов только при необходимости (не блокируем импорт)
@@ -1219,67 +1220,99 @@ async def _write_chat_history(
         # Также сохраняем в ChatHistory для истории чата
         # КРИТИЧЕСКИ ВАЖНО: сохраняем для STANDARD и PREMIUM подписок одинаково
         # PREMIUM должен работать так же, как STANDARD - никаких различий в обработке
-        if user_id_int and can_save_session and chat_session:
-            try:
-                # Сохраняем промпт пользователя (даже если он пустой, но есть фото)
-                # Фото = текст для истории чата
-                user_message_content = message if message else ""
-                if image_url and not user_message_content:
-                    # Если есть только фото без текста, создаем сообщение с фото
-                    user_message_content = f"[image:{image_url}]"
-                elif image_filename and not user_message_content:
-                    user_message_content = f"[image:{image_filename}]"
-                
-                user_chat_history = ChatHistory(
-                    user_id=user_id_int,
-                    character_name=character_name,
-                    session_id=str(chat_session.id),
-                    message_type="user",
-                    message_content=user_message_content,
-                    image_url=image_url,
-                    image_filename=image_filename
-                )
-                db.add(user_chat_history)
-                
-                # Также сохраняем ответ ассистента (даже если он пустой, но есть фото)
-                assistant_message_content = response if response else ""
-                if image_url and not assistant_message_content:
-                    # Если есть только фото без текста, создаем сообщение с фото
-                    assistant_message_content = f"[image:{image_url}]"
-                elif image_filename and not assistant_message_content:
-                    assistant_message_content = f"[image:{image_filename}]"
-                
-                assistant_chat_history = ChatHistory(
-                    user_id=user_id_int,
-                    character_name=character_name,
-                    session_id=str(chat_session.id),
-                    message_type="assistant",
-                    message_content=assistant_message_content,
-                    image_url=image_url,
-                    image_filename=image_filename
-                )
-                db.add(assistant_chat_history)
-                
-                await db.commit()
-                
-                logger.info(
-                    "[HISTORY] Сообщения сохранены в ChatHistory (user_id=%s, character=%s, session_id=%s, has_image=%s)",
-                    user_id_int,
-                    character_name,
-                    str(chat_session.id),
-                    bool(image_url or image_filename)
-                )
-                
-                # Инвалидируем кэш списка персонажей, чтобы новый персонаж появился на странице /history
-                from app.utils.redis_cache import cache_delete, key_user_characters
-                user_characters_cache_key = key_user_characters(user_id_int)
-                await cache_delete(user_characters_cache_key)
-                logger.info(f"[HISTORY] Кэш списка персонажей инвалидирован для user_id={user_id_int}")
-            except Exception as chat_history_error:
-                logger.error(f"[HISTORY] Ошибка сохранения в ChatHistory: {chat_history_error}")
-                import traceback
-                logger.error(f"[HISTORY] Трейсбек: {traceback.format_exc()}")
-                # НЕ делаем rollback, так как ChatMessageDB уже сохранены
+        # ВАЖНО: Если chat_session не был создан (например, при сохранении через галерею),
+        # создаем его сейчас, чтобы можно было сохранить ChatHistory
+        if user_id_int and can_save_session:
+            # Если chat_session не был создан выше, создаем его сейчас
+            if not chat_session:
+                try:
+                    # Пытаемся найти существующую сессию или создать новую
+                    if resolved_character_id:
+                        session_query = await db.execute(
+                            select(ChatSession)
+                            .where(
+                                ChatSession.character_id == resolved_character_id,
+                                ChatSession.user_id == db_user_id,
+                            )
+                            .order_by(ChatSession.started_at.desc())
+                            .limit(1)
+                        )
+                        chat_session = session_query.scalar_one_or_none()
+                        
+                        if not chat_session:
+                            chat_session = ChatSession(
+                                character_id=resolved_character_id,
+                                user_id=db_user_id,
+                                started_at=datetime.now(),
+                            )
+                            db.add(chat_session)
+                            await db.commit()
+                            await db.refresh(chat_session)
+                            logger.info(f"[HISTORY] Создан ChatSession для сохранения ChatHistory: session_id={chat_session.id}")
+                except Exception as session_error:
+                    logger.warning(f"[HISTORY] Не удалось создать ChatSession для ChatHistory: {session_error}")
+            
+            if chat_session:
+                try:
+                    # Сохраняем промпт пользователя (даже если он пустой, но есть фото)
+                    # Фото = текст для истории чата
+                    user_message_content = message if message else ""
+                    if image_url and not user_message_content:
+                        # Если есть только фото без текста, создаем сообщение с фото
+                        user_message_content = f"[image:{image_url}]"
+                    elif image_filename and not user_message_content:
+                        user_message_content = f"[image:{image_filename}]"
+                    
+                    user_chat_history = ChatHistory(
+                        user_id=user_id_int,
+                        character_name=character_name,
+                        session_id=str(chat_session.id),
+                        message_type="user",
+                        message_content=user_message_content,
+                        image_url=image_url,
+                        image_filename=image_filename
+                    )
+                    db.add(user_chat_history)
+                    
+                    # Также сохраняем ответ ассистента (даже если он пустой, но есть фото)
+                    assistant_message_content = response if response else ""
+                    if image_url and not assistant_message_content:
+                        # Если есть только фото без текста, создаем сообщение с фото
+                        assistant_message_content = f"[image:{image_url}]"
+                    elif image_filename and not assistant_message_content:
+                        assistant_message_content = f"[image:{image_filename}]"
+                    
+                    assistant_chat_history = ChatHistory(
+                        user_id=user_id_int,
+                        character_name=character_name,
+                        session_id=str(chat_session.id),
+                        message_type="assistant",
+                        message_content=assistant_message_content,
+                        image_url=image_url,
+                        image_filename=image_filename
+                    )
+                    db.add(assistant_chat_history)
+                    
+                    await db.commit()
+                    
+                    logger.info(
+                        "[HISTORY] Сообщения сохранены в ChatHistory (user_id=%s, character=%s, session_id=%s, has_image=%s)",
+                        user_id_int,
+                        character_name,
+                        str(chat_session.id),
+                        bool(image_url or image_filename)
+                    )
+                    
+                    # Инвалидируем кэш списка персонажей, чтобы новый персонаж появился на странице /history
+                    from app.utils.redis_cache import cache_delete, key_user_characters
+                    user_characters_cache_key = key_user_characters(user_id_int)
+                    await cache_delete(user_characters_cache_key)
+                    logger.info(f"[HISTORY] Кэш списка персонажей инвалидирован для user_id={user_id_int}")
+                except Exception as chat_history_error:
+                    logger.error(f"[HISTORY] Ошибка сохранения в ChatHistory: {chat_history_error}")
+                    import traceback
+                    logger.error(f"[HISTORY] Трейсбек: {traceback.format_exc()}")
+                    # НЕ делаем rollback, так как ChatMessageDB уже сохранены
         
         # Логируем только если chat_session был создан
         if chat_session:
@@ -1504,6 +1537,19 @@ async def chat_endpoint(
             use_streaming = False
         
         logger.info(f"[STREAM] Параметр stream из запроса: {stream_param} (тип: {type(stream_param).__name__}), use_streaming={use_streaming}")
+        
+        # === КРИТИЧЕСКИ ВАЖНО: Обрабатываем пустое сообщение ДО формирования контекста для LLM ===
+        # Если сообщение пустое, но запрашивается генерация фото, устанавливаем message
+        # Это нужно сделать ДО вызова openrouter_service.generate_text!
+        if not message and generate_image:
+            image_prompt = request.get("image_prompt", "")
+            if image_prompt:
+                message = image_prompt
+                logger.info(f"[HISTORY] Используем image_prompt как message: {image_prompt[:50]}...")
+            else:
+                # Если нет промпта, создаем сообщение-заглушку для LLM
+                message = "Генерация изображения"
+                logger.info(f"[HISTORY] Установлен message='Генерация изображения' для генерации фото без текста")
         
         # Разрешаем пустое сообщение, если запрашивается генерация фото
         # Фото = текст для истории чата
@@ -1974,20 +2020,8 @@ async def chat_endpoint(
                         user_id,
                     )
         
-        # Если сообщение пустое, но запрашивается генерация фото, используем промпт для генерации
-        if not message and generate_image:
-            image_prompt = request.get("image_prompt", "")
-            # Если есть image_prompt, используем его как сообщение для истории
-            if image_prompt:
-                message = image_prompt
-            else:
-                # Если нет промпта, создаем сообщение для истории
-                # Это нужно, чтобы история работала даже при генерации фото без текста
-                message = "Генерация изображения"
-                logger.info(f"[HISTORY] Установлен message='Генерация изображения' для генерации фото без текста")
-        
-        # ВАЖНО: Обновляем history_message после установки message
-        # Это нужно, чтобы history_message содержал правильное значение для сохранения истории
+        # ВАЖНО: Обновляем history_message после установки message (если он еще не установлен)
+        # message уже установлен выше для случая generate_image
         if not history_message and message:
             history_message = message
             logger.info(f"[HISTORY] Обновлен history_message из message: '{history_message}'")
@@ -2032,13 +2066,16 @@ async def chat_endpoint(
                 image_cfg_scale = request.get("image_cfg_scale")
                 
                 # Создаем запрос для генерации изображения
+                # Получаем model из request если есть, иначе используем дефолт
+                image_model = request.get("image_model") or request.get("model") or "anime-realism"
                 image_request = ImageGenerationRequest(
                     prompt=image_prompt,
                     character=character_name,
                     steps=image_steps,
                     width=image_width,
                     height=image_height,
-                    cfg_scale=image_cfg_scale
+                    cfg_scale=image_cfg_scale,
+                    model=image_model
                 )
                 
                 # Вызываем существующий эндпоинт генерации изображений через HTTP
@@ -2103,17 +2140,10 @@ async def chat_endpoint(
         # КРИТИЧЕСКИ ВАЖНО: Сохраняем историю чата СРАЗУ после генерации ответа
         # Это гарантирует, что следующий запрос получит полную историю с ответами модели
         # Подготавливаем данные для сохранения
-        # ВАЖНО: Если генерировалось фото без текста, создаем сообщение для истории
-        if generate_image and not history_message:
-            image_prompt = request.get("image_prompt", "")
-            if image_prompt:
-                history_message = image_prompt
-                logger.info(f"[HISTORY] Используем image_prompt как history_message: {image_prompt[:50]}")
-            elif cloud_url or image_url:
-                # Если нет промпта, но есть фото - создаем сообщение для истории
-                # Это нужно, чтобы история работала даже при генерации фото без текста
-                history_message = "Генерация изображения"  # Минимум 3 символа для прохождения фильтров
-                logger.info(f"[HISTORY] Установлен history_message='Генерация изображения' для фото без текста")
+        # history_message уже должен быть установлен выше, но на всякий случай проверяем
+        if not history_message:
+            history_message = message if message else "Генерация изображения"
+            logger.info(f"[HISTORY] history_message не был установлен, используем message: '{history_message}'")
         
         logger.info(f"[HISTORY] Сохраняем историю: user_message='{history_message}' ({len(history_message)} chars), assistant_response={len(history_response)} chars, image_url={bool(cloud_url or image_url)}")
         logger.info(f"[HISTORY] history_message проходит фильтры? >=3: {len(history_message.strip()) >= 3}, <1000: {len(history_message.strip()) < 1000 if history_message else False}")
@@ -2523,7 +2553,7 @@ async def generate_image(
     logger.info(f"[ENDPOINT IMG] POST /api/v1/generate-image/")
     logger.info(f"[ENDPOINT IMG] User: {current_user.email if current_user else 'Anonymous'} (ID: {current_user.id if current_user else 'N/A'})")
     logger.info(f"[ENDPOINT IMG] Character: {request.character}")
-    logger.info(f"[ENDPOINT IMG] Steps: {request.steps}, CFG: {request.cfg_scale}, Size: {request.width}x{request.height}")
+    logger.info(f"[ENDPOINT IMG] Steps: {request.steps}, CFG: {request.cfg_scale}, Size: {request.width}x{request.height}, Model: {request.model}")
     logger.info(f"[ENDPOINT IMG] Промпт (первые 100 символов): {request.prompt[:100] if request.prompt else 'None'}...")
     logger.info(f"[ENDPOINT IMG] ========================================")
     
@@ -2700,6 +2730,7 @@ async def generate_image(
             height=request.height or default_params.get("height"),
             cfg_scale=request.cfg_scale or default_params.get("cfg_scale"),
             sampler_name=request.sampler_name or default_params.get("sampler_name"),
+            model=getattr(request, 'model', None) or "anime-realism",  # Модель из запроса или дефолт
             batch_size=default_params.get("batch_size", 1),
             n_iter=default_params.get("n_iter", 1),
             save_grid=default_params.get("save_grid", False),
@@ -2723,6 +2754,7 @@ async def generate_image(
             "negative_prompt": request.negative_prompt,
             "use_default_prompts": request.use_default_prompts,
             "character": character_name,
+            "model": getattr(request, 'model', None) or "anime-realism",
             "seed": request.seed or default_params.get("seed"),
             "steps": request.steps or default_params.get("steps"),
             "width": request.width or default_params.get("width"),
@@ -2837,6 +2869,7 @@ async def generate_image(
                         negative_prompt=generation_settings.negative_prompt,
                         use_enhanced_prompts=False,  # Мы уже обработали промпты выше
                         lora_scale=default_params.get("lora_scale", 0.5),  # Dramatic Lighting LoRA
+                        model=getattr(generation_settings, 'model', None) or (getattr(request, 'model', None) or "anime-realism")
                     )
                     
                     logger.info(f"[GENERATE] ✅ Задача запущена на RunPod, job_id: {job_id}")
