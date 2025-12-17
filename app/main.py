@@ -2875,6 +2875,7 @@ async def generate_image(
                 try:
                     # Запускаем генерацию и получаем job_id
                     selected_model = getattr(generation_settings, 'model', None) or (getattr(request, 'model', None) or "anime-realism")
+                    logger.info(f"[GENERATE] 🎯 Выбранная модель: '{selected_model}' -> будет использован {'RUNPOD_URL_2 (k1eeffsqd0hnr0)' if selected_model == 'anime-realism' else 'RUNPOD_URL (eyulcfjcdh4h3u)'}")
                     job_id, runpod_url_base = await start_generation(
                         client=client,
                         user_prompt=generation_settings.prompt,
@@ -2954,6 +2955,10 @@ async def generate_image(
                             logger.error(f"[HISTORY] Критическая ошибка сохранения метаданных: {cache_error}")
                             import traceback
                             logger.error(f"[HISTORY] Трейсбек: {traceback.format_exc()}")
+                    
+                    # Логируем seed, который был использован для генерации
+                    # Seed уже залогирован в runpod_client.py, но добавим здесь для удобства
+                    logger.info(f"[GENERATE] ✓ Задача запущена: job_id={job_id}, seed будет залогирован в runpod_client")
                     
                     # Возвращаем task_id сразу, фронтенд будет опрашивать статус
                     # Это позволяет другим пользователям генерировать изображения параллельно
@@ -3374,12 +3379,41 @@ async def get_generation_status(
                         import traceback
                         logger.debug(f"[RUNPOD STATUS] Traceback: {traceback.format_exc()}")
                     
+                    # Если статус IN_PROGRESS и есть прогресс, возвращаем его
+                    if status == "IN_PROGRESS" and progress is not None:
+                        return {
+                            "status": "generating",  # Используем кастомный статус для фронта
+                            "task_id": task_id,
+                            "progress": progress,
+                            "result": {
+                                "status": "generating",
+                                "progress": progress,
+                                "message": f"Generating: {progress}%"
+                            }
+                        }
+                    
+                    # Если статус IN_PROGRESS но прогресс еще не получен
+                    if status == "IN_PROGRESS":
+                        return {
+                            "status": "generating",
+                            "task_id": task_id,
+                            "progress": 0,
+                            "result": {
+                                "status": "generating",
+                                "progress": 0,
+                                "message": "Generating: 0%"
+                            }
+                        }
+                    
                     if status == "COMPLETED":
                         output = status_response.get("output", {})
                         logger.info(f"[RUNPOD STATUS] Полный output: {output}")
                         image_url = output.get("image_url")
                         generation_time = output.get("generation_time")  # Время генерации от RunPod
+                        seed_used = output.get("seed")  # Seed, который использовался для генерации
                         logger.info(f"[RUNPOD STATUS] generation_time из output: {generation_time}")
+                        if seed_used is not None:
+                            logger.info(f"[RUNPOD STATUS] 🎲 SEED использованный для генерации: {seed_used}")
                         
                         if image_url:
                             result = {
@@ -3503,11 +3537,24 @@ async def get_generation_status(
                             result["progress"] = progress
                             logger.info(f"[RUNPOD STATUS] Возвращаем прогресс: {progress}%")
                         return result
-                    else:
+                    elif status == "IN_QUEUE":
                         return {
                             "task_id": task_id,
-                            "status": "PROGRESS",
-                            "message": f"Статус: {status}"
+                            "status": "pending",
+                            "progress": 0,
+                            "result": {
+                                "status": "pending",
+                                "progress": 0,
+                                "message": "Задача в очереди"
+                            }
+                        }
+                    else:
+                        # Другие статусы (FAILED, CANCELLED и т.д.)
+                        return {
+                            "task_id": task_id,
+                            "status": status.lower(),
+                            "message": f"Статус: {status}",
+                            "progress": progress if progress is not None else 0
                         }
                 except Exception as e:
                     logger.error(f"[RUNPOD STATUS] Ошибка проверки статуса: {e}")
@@ -3539,12 +3586,18 @@ async def get_generation_status(
                 "message": "Задача ожидает выполнения"
             }
         elif task.state == "PROGRESS":
-            # Задача выполняется
+            # Задача выполняется с прогрессом
+            progress = task.info.get("progress", 0)
             response = {
                 "task_id": task_id,
-                "status": "PROGRESS",
-                "message": task.info.get("status", "Выполняется генерация"),
-                "progress": task.info.get("progress", 0)
+                "status": "generating",  # Используем кастомный статус для фронта
+                "message": task.info.get("message", f"Generating: {progress}%"),
+                "progress": progress,
+                "result": {
+                    "status": "generating",
+                    "progress": progress,
+                    "message": f"Generating: {progress}%"
+                }
             }
         elif task.state == "SUCCESS":
             # Задача выполнена успешно

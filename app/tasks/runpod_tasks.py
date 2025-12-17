@@ -56,7 +56,9 @@ def generate_image_runpod_task(
     scheduler: Optional[str] = None,
     negative_prompt: Optional[str] = None,
     use_enhanced_prompts: bool = True,
-    timeout: int = 300
+    timeout: int = 300,
+    model: Optional[str] = "anime-realism",
+    lora_scale: Optional[float] = None
 ) -> Dict[str, Any]:
     """
     Celery задача для генерации изображения через RunPod API.
@@ -89,6 +91,22 @@ def generate_image_runpod_task(
     task_id = self.request.id
     logger.info(f"[RUNPOD TASK] Запуск задачи {task_id} с промптом: {user_prompt[:100]}...")
     
+    # Функция, которая будет обновлять статус задачи в Redis/Celery
+    def update_celery_progress(progress_str):
+        # Парсим "30%" -> 30
+        try:
+            percent = int(progress_str.replace('%', '').strip())
+            self.update_state(
+                state='PROGRESS',  # Специальный статус
+                meta={
+                    'status': 'generating',
+                    'progress': percent,
+                    'message': f"Generating: {percent}%"
+                }
+            )
+        except:
+            pass
+    
     try:
         # Создаём новый event loop для этой задачи
         loop = asyncio.new_event_loop()
@@ -108,7 +126,10 @@ def generate_image_runpod_task(
                     scheduler=scheduler,
                     negative_prompt=negative_prompt,
                     use_enhanced_prompts=use_enhanced_prompts,
-                    timeout=timeout
+                    timeout=timeout,
+                    model=model,
+                    lora_scale=lora_scale,
+                    progress_callback=update_celery_progress  # <--- ПЕРЕДАЕМ КОЛЛБЕК
                 )
             )
         finally:
@@ -123,7 +144,8 @@ def generate_image_runpod_task(
             "height": height,
             "steps": steps,
             "cfg_scale": cfg_scale,
-            "seed": seed
+            "seed": seed,
+            "progress": 100  # Финал
         }
         
         logger.success(f"[RUNPOD TASK] Задача {task_id} завершена успешно: {image_url}")

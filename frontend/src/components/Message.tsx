@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, memo } from 'react';
+import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import { FiX, FiImage, FiFolder } from 'react-icons/fi';
+import { fetchPromptByImage } from '../utils/prompt';
 
 const MessageContainer = styled.div<{ $isUser: boolean }>`
   display: flex;
@@ -204,25 +206,7 @@ const AvatarImage = styled.img`
   border-radius: ${theme.borderRadius.full};
 `;
 
-const FullscreenOverlay = styled.div`
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.95);
-  backdrop-filter: blur(10px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
-  padding: ${theme.spacing.xl};
-`;
-
-const FullscreenImage = styled.img`
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  border-radius: ${theme.borderRadius.lg};
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
-`;
+// Удалены FullscreenOverlay и FullscreenImage, теперь используем ModalOverlay и ModalImage
 
 const CloseButton = styled.button`
   position: absolute;
@@ -241,12 +225,111 @@ const CloseButton = styled.button`
   cursor: pointer;
   transition: all 0.2s ease;
   backdrop-filter: blur(10px);
+  z-index: 10001;
   
   &:hover {
     background: rgba(80, 80, 80, 0.95);
     border-color: rgba(180, 180, 180, 0.5);
     transform: scale(1.1);
   }
+`;
+
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(70px);
+  -webkit-backdrop-filter: blur(70px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  padding: ${theme.spacing.xl};
+`;
+
+const ModalContent = styled.div`
+  position: relative;
+  max-width: 95vw;
+  max-height: 95vh;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: ${theme.spacing.xl};
+  width: 100%;
+`;
+
+const ModalImageContainer = styled.div`
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  max-width: 70%;
+`;
+
+const ModalImage = styled.img`
+  max-width: 100%;
+  max-height: 95vh;
+  object-fit: contain;
+  border-radius: ${theme.borderRadius.lg};
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+`;
+
+const PromptPanel = styled.div`
+  width: 400px;
+  min-width: 350px;
+  max-width: 30%;
+  background: rgba(30, 30, 30, 0.95);
+  border: 2px solid rgba(150, 150, 150, 0.5);
+  border-radius: ${theme.borderRadius.xl};
+  padding: ${theme.spacing.xl};
+  overflow-y: auto;
+  max-height: 95vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+`;
+
+const PromptPanelHeader = styled.div`
+  margin-bottom: ${theme.spacing.lg};
+  padding-bottom: ${theme.spacing.md};
+  border-bottom: 1px solid rgba(150, 150, 150, 0.3);
+`;
+
+const PromptPanelTitle = styled.h3`
+  color: rgba(240, 240, 240, 1);
+  font-size: ${theme.fontSize.xl};
+  font-weight: 800;
+  margin: 0;
+`;
+
+const PromptPanelText = styled.div`
+  color: rgba(200, 200, 200, 1);
+  font-size: ${theme.fontSize.sm};
+  line-height: 1.8;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  padding: ${theme.spacing.md};
+  flex: 1;
+  overflow-y: auto;
+`;
+
+const PromptLoading = styled.div`
+  color: rgba(160, 160, 160, 1);
+  font-size: ${theme.fontSize.sm};
+  text-align: center;
+  padding: ${theme.spacing.xl};
+`;
+
+const PromptError = styled.div`
+  color: ${theme.colors.error || '#ff6b6b'};
+  font-size: ${theme.fontSize.sm};
+  text-align: center;
+  padding: ${theme.spacing.xl};
 `;
 
 interface MessageProps {
@@ -278,23 +361,51 @@ const MessageComponent: React.FC<MessageProps> = ({
   const isUser = message.type === 'user';
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isAddingToPaidAlbum, setIsAddingToPaidAlbum] = useState(false);
+  const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
+  const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
+  const [promptError, setPromptError] = useState<string | null>(null);
   
   const timeString = message.timestamp.toLocaleTimeString('ru-RU', {
     hour: '2-digit',
     minute: '2-digit'
   });
 
-  const handleImageClick = () => {
+  const handleImageClick = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
     if (message.imageUrl) {
+      console.log('[MESSAGE] Клик по изображению, загружаем промпт для:', message.imageUrl);
       setIsFullscreen(true);
+      setSelectedPrompt(null);
+      setPromptError(null);
+      setIsLoadingPrompt(true);
+
+      try {
+        const { prompt, errorMessage } = await fetchPromptByImage(message.imageUrl);
+        console.log('[MESSAGE] Результат загрузки промпта:', { prompt: prompt ? 'получен' : 'не получен', errorMessage });
+        if (prompt) {
+          setSelectedPrompt(prompt);
+        } else {
+          setPromptError(errorMessage || 'Промпт недоступен для этого изображения');
+        }
+      } catch (error) {
+        console.error('[MESSAGE] Ошибка загрузки промпта:', error);
+        setPromptError('Не удалось загрузить промпт');
+      } finally {
+        setIsLoadingPrompt(false);
+      }
     }
   };
 
   const handleCloseFullscreen = () => {
     setIsFullscreen(false);
+    setSelectedPrompt(null);
+    setPromptError(null);
+    setIsLoadingPrompt(false);
   };
 
-  // Обработка клавиши Escape для закрытия полноэкранного изображения
+  // Обработка клавиши Escape для закрытия модального окна
   useEffect(() => {
     if (!isFullscreen) return;
 
@@ -463,17 +574,36 @@ const MessageComponent: React.FC<MessageProps> = ({
           </div>
         </div>
       </div>
-      {isFullscreen && message.imageUrl && (
-        <FullscreenOverlay onClick={handleCloseFullscreen}>
-          <CloseButton onClick={handleCloseFullscreen}>
-            <FiX />
-          </CloseButton>
-          <FullscreenImage 
-            src={message.imageUrl} 
-            alt="Fullscreen image"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </FullscreenOverlay>
+      {isFullscreen && message.imageUrl && createPortal(
+        <ModalOverlay onClick={handleCloseFullscreen}>
+          <ModalContent onClick={(e) => e.stopPropagation()}>
+            <CloseButton onClick={handleCloseFullscreen}>
+              <FiX />
+            </CloseButton>
+            <ModalImageContainer>
+              <ModalImage 
+                src={message.imageUrl} 
+                alt="Fullscreen image"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </ModalImageContainer>
+            <PromptPanel>
+              <PromptPanelHeader>
+                <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+              </PromptPanelHeader>
+              {isLoadingPrompt ? (
+                <PromptLoading>Загрузка промпта...</PromptLoading>
+              ) : promptError ? (
+                <PromptError>{promptError}</PromptError>
+              ) : selectedPrompt ? (
+                <PromptPanelText>{selectedPrompt}</PromptPanelText>
+              ) : (
+                <PromptLoading>Промпт не найден</PromptLoading>
+              )}
+            </PromptPanel>
+          </ModalContent>
+        </ModalOverlay>,
+        document.body
       )}
     </>
     );
@@ -567,17 +697,36 @@ const MessageComponent: React.FC<MessageProps> = ({
         )}
       </MessageContainer>
 
-      {isFullscreen && message.imageUrl && (
-        <FullscreenOverlay onClick={handleCloseFullscreen}>
-          <CloseButton onClick={handleCloseFullscreen}>
-            <FiX />
-          </CloseButton>
-          <FullscreenImage 
-            src={message.imageUrl} 
-            alt="Fullscreen image"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </FullscreenOverlay>
+      {isFullscreen && message.imageUrl && createPortal(
+        <ModalOverlay onClick={handleCloseFullscreen}>
+          <ModalContent onClick={(e) => e.stopPropagation()}>
+            <CloseButton onClick={handleCloseFullscreen}>
+              <FiX />
+            </CloseButton>
+            <ModalImageContainer>
+              <ModalImage 
+                src={message.imageUrl} 
+                alt="Fullscreen image"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </ModalImageContainer>
+            <PromptPanel>
+              <PromptPanelHeader>
+                <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+              </PromptPanelHeader>
+              {isLoadingPrompt ? (
+                <PromptLoading>Загрузка промпта...</PromptLoading>
+              ) : promptError ? (
+                <PromptError>{promptError}</PromptError>
+              ) : selectedPrompt ? (
+                <PromptPanelText>{selectedPrompt}</PromptPanelText>
+              ) : (
+                <PromptLoading>Промпт не найден</PromptLoading>
+              )}
+            </PromptPanel>
+          </ModalContent>
+        </ModalOverlay>,
+        document.body
       )}
     </>
   );

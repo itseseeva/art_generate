@@ -256,14 +256,15 @@ class ChatHistoryService:
             print(f"[DEBUG] Фильтрация по user_id={user_id} (user_id_str='{user_id_str}', username='{username}')")
 
             try:
-                # КРИТИЧЕСКИ ВАЖНО: используем INNER JOIN с условиями фильтрации в самом JOIN
-                # Это гарантирует, что мы НЕ получим персонажей без сообщений
-                # Условия фильтрации по user_id должны быть в JOIN, а не в WHERE
+                # КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: OUTER JOIN вместо INNER JOIN
+                # Мы берем сессию, даже если сообщений в ней нет (NULL в ChatMessageDB)
+                # Это позволяет находить персонажей с фото, но без текстовых сообщений
                 session_result = await self.db.execute(
                     select(
                         CharacterDB.name,
                         func.max(ChatMessageDB.timestamp).label("last_message_at"),
-                        func.count(func.distinct(ChatMessageDB.id)).label("message_count"),
+                        func.count(ChatMessageDB.id).label("message_count"),
+                        func.max(ChatSession.created_at).label("session_created_at")
                     )
                     .select_from(CharacterDB)
                     .join(ChatSession,
@@ -272,30 +273,10 @@ class ChatHistoryService:
                               or_(*conditions)  # Фильтр по user_id в JOIN
                           )
                     )
-                    .join(ChatMessageDB,
-                          and_(
-                              ChatMessageDB.session_id == ChatSession.id,
-                              # Включаем сообщения от пользователя ИЛИ от ассистента (для незаконченных диалогов)
-                              or_(
-                                  # Сообщения пользователя с валидным текстом (ДАЖЕ КОРОТКИЕ - >= 1 символ)
-                                  and_(
-                                      ChatMessageDB.role == "user",
-                                      ChatMessageDB.content.isnot(None),
-                                      ChatMessageDB.content != "",
-                                      func.trim(ChatMessageDB.content) != "",
-                                      func.length(func.trim(ChatMessageDB.content)) >= 1,  # ИЗМЕНЕНО: было >= 3
-                                      func.length(func.trim(ChatMessageDB.content)) < 1000
-                                  ),
-                                  # Сообщения ассистента с ЛЮБЫМ текстом или БЕЗ текста (для картинок без текста)
-                                  and_(
-                                      ChatMessageDB.role == "assistant"
-                                      # ИЗМЕНЕНО: убрали проверку content != "", так как картинка может быть без текста
-                                  )
-                              )
-                          )
-                    )
+                    # Используем outerjoin, чтобы не терять сессии без текстовых сообщений
+                    .outerjoin(ChatMessageDB, ChatMessageDB.session_id == ChatSession.id)
                     .group_by(CharacterDB.name)
-                    .having(func.count(func.distinct(ChatMessageDB.id)) > 0)  # Хотя бы одно сообщение
+                    # Убрали HAVING message_count > 0, чтобы ловить фото-диалоги
                     .order_by(func.max(ChatMessageDB.timestamp).desc())
                 )
 
@@ -354,16 +335,32 @@ class ChatHistoryService:
                     character_name = row[0]
                     last_message_at = row[1]
                     message_count = row[2]
+                    session_created_at = row[3] if len(row) > 3 else None
                     
                     print(f"[DEBUG] Обрабатываем персонажа {character_name}: message_count={message_count}, last_message_at={last_message_at}")
                     
-                    # КРИТИЧЕСКИ ВАЖНО: строгая проверка - пропускаем, если нет сообщений или нет времени
-                    if message_count == 0:
-                        print(f"[DEBUG] ПРОПУСК: персонаж {character_name} - message_count=0")
+                    # Ищем фото для этого персонажа
+                    last_image_url = await self._get_last_image_url(user_id, character_name)
+                    
+                    # ЛОГИКА ФИЛЬТРАЦИИ:
+                    # Показываем персонажа, если:
+                    # 1. Есть текстовые сообщения (count > 0)
+                    # 2. ИЛИ Есть фото (last_image_url is not None)
+                    if message_count == 0 and not last_image_url:
+                        # Пустая сессия без фото и текста - пропускаем
+                        print(f"[DEBUG] ПРОПУСК: персонаж {character_name} - нет сообщений и нет фото")
                         continue
-                    if last_message_at is None:
-                        print(f"[DEBUG] ПРОПУСК: персонаж {character_name} - last_message_at is None")
-                        continue
+                    
+                    # Определяем время для сортировки
+                    display_time = last_message_at if last_message_at else session_created_at
+                    if display_time is None:
+                        # Если нет времени вообще, но есть фото - все равно добавляем
+                        if last_image_url:
+                            from datetime import datetime, timezone
+                            display_time = datetime.now(timezone.utc)
+                        else:
+                            print(f"[DEBUG] ПРОПУСК: персонаж {character_name} - нет времени и нет фото")
+                            continue
                     
                     # ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: проверяем реальные сообщения для этого персонажа
                     # Это поможет понять, почему персонаж не проходит фильтры
@@ -403,27 +400,20 @@ class ChatHistoryService:
                         continue
                     
                     key = character_name.lower()
-                    last_image_url = await self._get_last_image_url(user_id, character_name)
                     characters[key] = {
                         "name": character_name,
-                        "last_message_at": last_message_at.isoformat() if last_message_at else None,
+                        "last_message_at": display_time.isoformat() if hasattr(display_time, 'isoformat') else str(display_time),
                         "last_image_url": last_image_url,
                     }
-                    print(f"[DEBUG] ДОБАВЛЕН персонаж {character_name} с историей: message_count={message_count}, last_message_at={last_message_at.isoformat() if last_message_at else None}")
+                    print(f"[DEBUG] ДОБАВЛЕН персонаж {character_name} с историей: message_count={message_count}, last_message_at={display_time.isoformat() if hasattr(display_time, 'isoformat') else str(display_time)}, has_image={bool(last_image_url)}")
             except Exception as e:
                 print(f"[WARNING] Ошибка получения персонажей из ChatSession: {e}")
                 import traceback
                 print(f"[WARNING] Traceback: {traceback.format_exc()}")
 
             # Дополнительно проверяем ChatHistory, включая записи с фото
-            # КРИТИЧЕСКИ ВАЖНО: включаем записи с image_url даже если message_content="Генерация изображения"
-            # ВАЖНО: Проверяем как сообщения пользователя (с текстом), так и сообщения ассистента (с фото)
+            # УПРОЩЕННЫЙ ЗАПРОС: находим ВСЕХ персонажей с ЛЮБЫМИ сообщениями
             try:
-                # ВАЖНО: Разрешаем записи с image_url, даже если текст="Генерация изображения"
-                # Это нужно для показа персонажей, с которыми генерировались фото
-                # Проверяем оба типа сообщений: user (с текстом) и assistant (с фото)
-                # УПРОЩЕННЫЙ ЗАПРОС: находим ВСЕХ персонажей с ЛЮБЫМИ сообщениями
-                # Это включает незаконченные диалоги, сообщения с фото, и любые другие сообщения
                 history_result = await self.db.execute(
                     select(
                         ChatHistory.character_name,
@@ -431,30 +421,6 @@ class ChatHistoryService:
                         func.count(func.distinct(ChatHistory.id)).label("message_count"),
                     )
                     .where(ChatHistory.user_id == user_id)
-                    .where(
-                        # Включаем персонажей если есть ЛЮБОЕ из:
-                        # 1. Сообщение пользователя с текстом (>= 3 символов)
-                        # 2. Сообщение ассистента с ЛЮБЫМ текстом (для незаконченных диалогов) - УПРОЩЕНО
-                        # 3. ЛЮБОЕ сообщение с image_url (независимо от типа)
-                        or_(
-                            # Сообщения пользователя с текстом (ДАЖЕ КОРОТКИЕ - >= 1 символ)
-                            and_(
-                                ChatHistory.message_type == "user",
-                                ChatHistory.message_content.isnot(None),
-                                ChatHistory.message_content != "",
-                                func.trim(ChatHistory.message_content) != "",
-                                func.length(func.trim(ChatHistory.message_content)) >= 1  # ИЗМЕНЕНО: было >= 3
-                            ),
-                            # Сообщения ассистента с ЛЮБЫМ текстом или БЕЗ текста (для картинок без текста)
-                            # ИЗМЕНЕНО: убрали проверку content != "", так как картинка может быть без текста
-                            and_(
-                                ChatHistory.message_type == "assistant"
-                                # Разрешаем даже пустой контент, если есть картинка
-                            ),
-                            # ЛЮБОЕ сообщение с фото (независимо от типа и текста)
-                            ChatHistory.image_url.isnot(None)
-                        )
-                    )
                     .group_by(ChatHistory.character_name)
                     .having(func.count(func.distinct(ChatHistory.id)) > 0)
                     .order_by(func.max(ChatHistory.created_at).desc())
@@ -488,15 +454,21 @@ class ChatHistoryService:
                     last_message_at = row[1]
                     message_count = row[2]
                     
-                    # Проверка: пропускаем только если нет сообщений
-                    if message_count == 0:
-                        print(f"[DEBUG] Пропускаем персонажа из ChatHistory {character_name}: message_count=0")
+                    key = character_name.lower()
+                    
+                    # Пропускаем только если персонаж уже добавлен из ChatSession
+                    if key in characters:
                         continue
                     
-                    # Если last_message_at None, но есть сообщения - используем текущее время
-                    # Это может произойти, если created_at не установлен (не должно, но на всякий случай)
+                    # Ищем фото для этого персонажа
+                    last_image_url = await self._get_last_image_url(user_id, character_name)
+                    
+                    # Показываем персонажа если есть сообщения ИЛИ есть фото
+                    if message_count == 0 and not last_image_url:
+                        continue
+                    
+                    # Если last_message_at None, но есть сообщения или фото - используем текущее время
                     if last_message_at is None:
-                        print(f"[DEBUG] ВНИМАНИЕ: персонаж {character_name} имеет {message_count} сообщений, но last_message_at=None, используем текущее время")
                         from datetime import datetime, timezone
                         last_message_at = datetime.now(timezone.utc)
                     
@@ -513,28 +485,12 @@ class ChatHistoryService:
                         from datetime import datetime, timezone
                         last_message_at = datetime.now(timezone.utc)
                     
-                    key = character_name.lower()
-                    
-                    # Добавляем только если персонажа еще нет в списке
-                    if key not in characters:
-                        last_image_url = await self._get_last_image_url(user_id, character_name)
-                        characters[key] = {
-                            "name": character_name,
-                            "last_message_at": last_message_at.isoformat() if last_message_at else None,
-                            "last_image_url": last_image_url,
-                        }
-                        print(f"[DEBUG] Добавлен персонаж из ChatHistory {character_name} с историей: message_count={message_count}, last_message_at={last_message_at}")
-                    elif last_message_at:
-                        # Обновляем время последнего сообщения, если оно новее
-                        existing_time = characters[key].get("last_message_at")
-                        if existing_time and last_message_at:
-                            try:
-                                from datetime import datetime
-                                existing_dt = datetime.fromisoformat(existing_time.replace('Z', '+00:00'))
-                                if last_message_at > existing_dt:
-                                    characters[key]["last_message_at"] = last_message_at.isoformat()
-                            except:
-                                pass
+                    characters[key] = {
+                        "name": character_name,
+                        "last_message_at": last_message_at.isoformat() if last_message_at else None,
+                        "last_image_url": last_image_url,
+                    }
+                    print(f"[DEBUG] Добавлен персонаж из ChatHistory {character_name} с историей: message_count={message_count}, last_message_at={last_message_at}, has_image={bool(last_image_url)}")
             except Exception as e:
                 print(f"[WARNING] Ошибка получения персонажей из ChatHistory: {e}")
 
@@ -810,9 +766,13 @@ class ChatHistoryService:
                 final_result.append(char)
                 print(f"[DEBUG] ФИНАЛЬНАЯ ФИЛЬТРАЦИЯ: Добавлен персонаж {char['name']} с last_message_at={char.get('last_message_at')}, last_image_url={char.get('last_image_url')}")
             
+            # Финальная сортировка по времени
+            final_result = list(characters.values())
+            final_result.sort(key=lambda x: x.get('last_message_at') or "", reverse=True)
+            
             print(f"[DEBUG] Итоговый список персонажей с историей для user_id={user_id}: {len(final_result)} персонажей")
             for char in final_result:
-                print(f"[DEBUG]   - {char['name']}: last_message_at={char.get('last_message_at')}")
+                print(f"[DEBUG]   - {char['name']}: last_message_at={char.get('last_message_at')}, has_image={bool(char.get('last_image_url'))}")
             
             # Сохраняем в кэш
             await cache_set(cache_key, final_result, ttl_seconds=TTL_USER_CHARACTERS)
@@ -893,12 +853,16 @@ class ChatHistoryService:
     
     async def clear_chat_history(self, user_id: int, character_name: str, session_id: str) -> bool:
         """Очищает историю чата для конкретного персонажа и сессии."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         try:
             # Проверяем права на очистку истории
             if not await self.can_save_history(user_id):
                 return False
             
             from app.chat_bot.models.models import ChatSession, ChatMessageDB, CharacterDB
+            logger.info(f"[HISTORY CLEAR] Начинаем очистку истории для user_id={user_id}, character={character_name}")
             
             # Удаляем из ChatHistory (старая система)
             # Сначала находим персонажа по name или display_name
@@ -964,15 +928,61 @@ class ChatHistoryService:
                         delete(ChatSession).where(ChatSession.id == session.id)
                     )
             
+            # КРИТИЧЕСКИ ВАЖНО: Удаляем фото из UserGallery для этого персонажа
+            # Это нужно, чтобы персонаж исчез со страницы /history после очистки истории
+            # ЗАЩИТА: Проверяем, что character_name не пустой и не None, чтобы не удалить все фото
+            if character_name and character_name.strip():
+                try:
+                    from app.models.user_gallery import UserGallery
+                    gallery_delete_result = await self.db.execute(
+                        delete(UserGallery)
+                        .where(
+                            UserGallery.user_id == user_id,
+                            UserGallery.character_name == character_name
+                        )
+                    )
+                    deleted_gallery_count = gallery_delete_result.rowcount
+                    if deleted_gallery_count > 0:
+                        logger.info(f"[HISTORY] Удалено {deleted_gallery_count} фото из UserGallery для персонажа {character_name}")
+                except Exception as gallery_error:
+                    logger.warning(f"[HISTORY] Ошибка удаления фото из UserGallery: {gallery_error}")
+            else:
+                logger.warning(f"[HISTORY] ПРОПУСК удаления фото: character_name пустой или None (user_id={user_id})")
+            
+            # КРИТИЧЕСКИ ВАЖНО: Удаляем записи из ImageGenerationHistory для этого персонажа
+            # Это нужно, чтобы персонаж исчез со страницы /history после очистки истории
+            # ЗАЩИТА: Проверяем, что character_name не пустой и не None, чтобы не удалить все записи
+            if character_name and character_name.strip():
+                try:
+                    from app.models.image_generation_history import ImageGenerationHistory
+                    image_history_delete_result = await self.db.execute(
+                        delete(ImageGenerationHistory)
+                        .where(
+                            ImageGenerationHistory.user_id == user_id,
+                            ImageGenerationHistory.character_name == character_name
+                        )
+                    )
+                    deleted_image_history_count = image_history_delete_result.rowcount
+                    if deleted_image_history_count > 0:
+                        logger.info(f"[HISTORY] Удалено {deleted_image_history_count} записей из ImageGenerationHistory для персонажа {character_name}")
+                except Exception as image_history_error:
+                    logger.warning(f"[HISTORY] Ошибка удаления записей из ImageGenerationHistory: {image_history_error}")
+            else:
+                logger.warning(f"[HISTORY] ПРОПУСК удаления записей ImageGenerationHistory: character_name пустой или None (user_id={user_id})")
+            
             await self.db.commit()
             
             # Инвалидируем кэш списка персонажей, чтобы удаленный персонаж исчез со страницы /history
             from app.utils.redis_cache import key_user_characters
-            import logging
-            logger = logging.getLogger(__name__)
             user_characters_cache_key = key_user_characters(user_id)
             await cache_delete(user_characters_cache_key)
-            logger.info(f"[HISTORY] Кэш списка персонажей инвалидирован после очистки истории для user_id={user_id}")
+            logger.info(f"[HISTORY CLEAR] ✓ Кэш списка персонажей инвалидирован после очистки истории для user_id={user_id}, character={character_name}")
+            
+            # Дополнительно инвалидируем кэш истории для этого персонажа (если есть)
+            from app.utils.redis_cache import key_chat_history
+            # Инвалидируем кэш для всех возможных session_id (так как мы удалили все сессии)
+            # Для простоты просто инвалидируем основной кэш списка персонажей
+            logger.info(f"[HISTORY CLEAR] ✓ История полностью очищена для user_id={user_id}, character={character_name}")
             
             return True
             

@@ -69,9 +69,15 @@ def extract_progress_from_response(status_response: Dict[str, Any]) -> Optional[
         if isinstance(progress, (int, float)):
             return min(100, max(0, int(progress)))  # Ограничиваем 0-100
         elif isinstance(progress, str):
-            match = re.search(r'(\d+)%?', progress)
+            # Ищем паттерн "Progress: 90%" или просто "90%"
+            match = re.search(
+                r'Progress:\s*(\d+)%|(\d+)%',
+                progress,
+                re.IGNORECASE
+            )
             if match:
-                return min(100, max(0, int(match.group(1))))
+                percent = int(match.group(1) or match.group(2))
+                return min(100, max(0, percent))
     
     # 2. Проверяем поле "status" (может содержать "50%" или "IN_PROGRESS 50%")
     status = status_response.get("status", "")
@@ -84,14 +90,49 @@ def extract_progress_from_response(status_response: Dict[str, Any]) -> Optional[
     # 3. Проверяем вложенные поля в "output"
     output = status_response.get("output", {})
     if isinstance(output, dict):
+        # Проверяем output.progress
         output_progress = output.get("progress")
         if output_progress is not None:
             if isinstance(output_progress, (int, float)):
                 return min(100, max(0, int(output_progress)))
             elif isinstance(output_progress, str):
-                match = re.search(r'(\d+)%?', output_progress)
+                # Ищем паттерн "Progress: 90%" или просто "90%"
+                match = re.search(
+                    r'Progress:\s*(\d+)%|(\d+)%',
+                    output_progress,
+                    re.IGNORECASE
+                )
                 if match:
-                    return min(100, max(0, int(match.group(1))))
+                    percent = int(match.group(1) or match.group(2))
+                    return min(100, max(0, percent))
+        
+        # Проверяем output.message (может содержать "Progress: 90%")
+        output_message = output.get("message")
+        if isinstance(output_message, str):
+            # Ищем паттерн "Progress: 90%" или просто "90%"
+            match = re.search(
+                r'Progress:\s*(\d+)%|(\d+)%',
+                output_message,
+                re.IGNORECASE
+            )
+            if match:
+                percent = int(match.group(1) or match.group(2))
+                return min(100, max(0, percent))
+    
+    # 3.5. Проверяем output как строку напрямую (RunPod возвращает "90%" в output)
+    # Это самый частый случай - когда worker вызывает progress_update(job, "90%")
+    if isinstance(output, str):
+        # Ищем паттерн "Progress: 90%" или просто "90%"
+        match = re.search(
+            r'Progress:\s*(\d+)%|(\d+)%',
+            output,
+            re.IGNORECASE
+        )
+        if match:
+            percent = int(match.group(1) or match.group(2))
+            return min(100, max(0, percent))
+    
+    # 4. Проверяем поле "stream"
     
     # 4. Проверяем поле "stream"
     stream = status_response.get("stream")

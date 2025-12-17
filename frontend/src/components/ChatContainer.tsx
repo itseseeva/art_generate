@@ -484,8 +484,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const [paidAlbumStatus, setPaidAlbumStatus] = useState<PaidAlbumStatus | null>(null);
   const [isUnlockingAlbum, setIsUnlockingAlbum] = useState(false);
   const [paidAlbumError, setPaidAlbumError] = useState<string | null>(null);
-  const messageProgressIntervals = useRef<Record<string, ReturnType<typeof setInterval>>>({});
-  const messageProgressValues = useRef<Record<string, number>>({});
+  // УДАЛЕНЫ: messageProgressIntervals и messageProgressValues - больше не используем фейковый прогресс
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [fetchedSubscriptionType, setFetchedSubscriptionType] = useState<string>('free');
   const [characterPhotos, setCharacterPhotos] = useState<string[]>([]);
@@ -583,32 +582,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     );
   }, []);
 
-  const startFakeMessageProgress = useCallback((messageId: string) => {
-    const existingInterval = messageProgressIntervals.current[messageId];
-    if (existingInterval) {
-      clearInterval(existingInterval);
-    }
-    messageProgressValues.current[messageId] = 0;
-    updateMessageProgressContent(messageId, 0);
-    messageProgressIntervals.current[messageId] = setInterval(() => {
-      const current = messageProgressValues.current[messageId] ?? 0;
-      const next = Math.min(current + 1, 99);
-      messageProgressValues.current[messageId] = next;
-      updateMessageProgressContent(messageId, next);
-    }, 300);
-  }, [updateMessageProgressContent]);
-
-  const stopFakeMessageProgress = useCallback((messageId: string, immediate = false) => {
-    const interval = messageProgressIntervals.current[messageId];
-    if (interval) {
-      clearInterval(interval);
-      delete messageProgressIntervals.current[messageId];
-    }
-    delete messageProgressValues.current[messageId];
-    if (!immediate) {
-      updateMessageProgressContent(messageId, 100);
-    }
-  }, [updateMessageProgressContent]);
+  // УДАЛЕНЫ: startFakeMessageProgress и stopFakeMessageProgress
+  // Теперь используем только реальный прогресс из RunPod API
 
   const fetchPaidAlbumStatus = useCallback(async (characterName: string) => {
     if (!characterName) {
@@ -754,9 +729,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
   useEffect(() => {
     return () => {
-      Object.values(messageProgressIntervals.current).forEach(clearInterval);
-      messageProgressIntervals.current = {};
-      messageProgressValues.current = {};
+      // УДАЛЕНА очистка фейкового прогресса - больше не используется
     };
   }, []);
 
@@ -984,12 +957,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     const assistantMessage: Message = {
       id: assistantMessageId,
       type: 'assistant',
-      content: 'Генерация изображения... 0%',
+      content: 'Генерация изображения...',
       timestamp: new Date()
     };
 
     setMessages(prev => [...prev, assistantMessage]);
-    startFakeMessageProgress(assistantMessageId);
+    // УБРАН ФЕЙКОВЫЙ ПРОГРЕСС - используем только реальный из RunPod API
     setIsLoading(true);
     setIsGeneratingImage(true);
     setError(null);
@@ -1059,14 +1032,22 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             // Прогресс может быть в разных местах ответа
             let progressValue: number | undefined = undefined;
             
+            // КРИТИЧЕСКИ ВАЖНО: Проверяем статус "generating" (новый статус из бэкенда)
+            if (statusData.status === 'generating' && statusData.result?.progress !== undefined) {
+              progressValue = typeof statusData.result.progress === 'number'
+                ? Math.min(99, Math.max(0, statusData.result.progress))
+                : parseInt(String(statusData.result.progress).replace('%', ''), 10);
+              console.log(`[CHAT] Получен реальный прогресс из API (generating): ${progressValue}%`);
+            }
+            
             // 1. Проверяем прямое поле progress
-            if (statusData.progress !== undefined && statusData.progress !== null) {
+            if (progressValue === undefined && statusData.progress !== undefined && statusData.progress !== null) {
               progressValue = typeof statusData.progress === 'number' 
                 ? Math.min(99, Math.max(0, statusData.progress))
                 : parseInt(String(statusData.progress).replace('%', ''), 10);
             }
             
-            // 2. Проверяем в result.progress
+            // 2. Проверяем в result.progress (для других статусов)
             if (progressValue === undefined && statusData.result?.progress !== undefined) {
               progressValue = typeof statusData.result.progress === 'number'
                 ? Math.min(99, Math.max(0, statusData.result.progress))
@@ -1091,22 +1072,33 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             // Обновляем прогресс если он найден
             if (progressValue !== undefined && !isNaN(progressValue)) {
               updateMessageProgressContent(assistantMessageId, progressValue);
-              // Останавливаем фейковый прогресс, так как есть реальный
-              stopFakeMessageProgress(assistantMessageId);
               if (attempts % 5 === 0) {  // Логируем каждые 5 попыток
-                console.log(`[CHAT] Реальный прогресс из RunPod: ${progressValue}%`);
+                console.log(`[CHAT] ✓ Реальный прогресс из RunPod: ${progressValue}%`);
+              }
+            } else {
+              // Если прогресс не найден, логируем для отладки
+              if (attempts % 10 === 0) {
+                console.log('[CHAT] Прогресс не найден в ответе:', {
+                  status: statusData.status,
+                  result: statusData.result,
+                  progress: statusData.progress
+                });
               }
             }
             
             // Логируем только при изменении статуса или при завершении
-            if (statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED' || statusData.status === 'FAILURE' || attempts % 10 === 0) {
+            if (statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED' || statusData.status === 'FAILURE' || statusData.status === 'generating' || attempts % 10 === 0) {
               console.log('[CHAT] Статус генерации:', statusData.status, progressValue !== undefined ? `Прогресс: ${progressValue}%` : '');
             }
             
+            // Обрабатываем статус "generating" - продолжаем опрос
+            if (statusData.status === 'generating') {
+              // Продолжаем опрос, прогресс уже обновлен выше
+              attempts++;
+              continue;
+            }
+            
             if (statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED') {
-              // Останавливаем фейковый прогресс при завершении
-              stopFakeMessageProgress(assistantMessageId);
-              
               // URL может быть в result.image_url, result.cloud_url или напрямую в statusData
               const result = statusData.result || {};
               generatedImageUrl = result.image_url || result.cloud_url || statusData.image_url || statusData.cloud_url;
@@ -1129,7 +1121,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 console.warn('[CHAT] URL не найден в ответе, продолжаем опрос...');
               }
             } else if (statusData.status === 'FAILURE' || statusData.status === 'ERROR') {
-              stopFakeMessageProgress(assistantMessageId);
               throw new Error(statusData.message || statusData.error || 'Ошибка генерации изображения');
             }
             
@@ -1150,8 +1141,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         console.error('[CHAT] Полный ответ:', JSON.stringify(data, null, 2));
         throw new Error('Не удалось получить изображение');
       }
-
-      stopFakeMessageProgress(assistantMessageId, true);
 
       setMessages(prev =>
         prev.map(msg => {
@@ -1269,16 +1258,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       }
     } catch (error) {
       generationFailed = true;
-      stopFakeMessageProgress(assistantMessageId, true);
       const errorMessage = error instanceof Error ? error.message : 'Ошибка генерации изображения';
       setError(errorMessage);
       setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
     } finally {
       setIsLoading(false);
       setIsGeneratingImage(false);
-      if (generationFailed) {
-        stopFakeMessageProgress(assistantMessageId, true);
-      }
     }
   };
 

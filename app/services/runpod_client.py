@@ -6,6 +6,7 @@ import os
 import time
 import asyncio
 import re
+import random
 from typing import Optional, Dict, Any
 import httpx
 from dotenv import load_dotenv
@@ -138,11 +139,13 @@ async def start_generation(
         runpod_url_base = RUNPOD_URL_BASE_2
         if not RUNPOD_URL_2:
             raise ValueError("RUNPOD_URL_2 не установлен в переменных окружения (требуется для модели 'anime-realism' / 'Больше реализма')")
+        logger.info(f"[RUNPOD] ✓ Модель 'anime-realism' ('Больше реализма') -> используем RUNPOD_URL_2: {runpod_url}")
     else:  # anime или дефолт
         runpod_url = RUNPOD_URL
         runpod_url_base = RUNPOD_URL_BASE
         if not RUNPOD_URL:
             raise ValueError("RUNPOD_URL не установлен в переменных окружения (требуется для модели 'anime' / 'Больше аниме')")
+        logger.info(f"[RUNPOD] ✓ Модель 'anime' ('Больше аниме') -> используем RUNPOD_URL: {runpod_url}")
     
     # Обрабатываем промпты
     if use_enhanced_prompts:
@@ -160,14 +163,17 @@ async def start_generation(
     logger.debug(f"[RUNPOD] Очищенный промпт: {final_prompt[:200]}...")
     logger.debug(f"[RUNPOD] Очищенный негативный промпт: {final_negative[:200] if final_negative else 'None'}...")
     
-    # Маппинг пользовательских имен моделей на внутренние имена для RunPod
-    MODEL_MAPPING = {
-        "anime": "one_obsession",
-        "anime-realism": "perfect_deliberate"
-    }
-    internal_model = MODEL_MAPPING.get(model or "anime-realism", "perfect_deliberate")
+    # Обработка seed: если seed не указан или равен -1, генерируем случайный
+    final_seed = seed
+    if final_seed is None or final_seed == -1:
+        final_seed = random.randint(0, 4294967295)
+        logger.info(f"[RUNPOD] Seed не указан или равен -1, сгенерирован случайный seed: {final_seed}")
+    else:
+        logger.info(f"[RUNPOD] Используется указанный seed: {final_seed}")
     
     # Берём параметры из дефолтов, если не указаны
+    # ВАЖНО: Не передаем поле "model" в payload, так как выбор модели происходит через URL endpoint
+    # (RUNPOD_URL_2 для anime-realism, RUNPOD_URL для anime)
     params = {
         "prompt": final_prompt,
         "negative_prompt": final_negative,
@@ -177,9 +183,8 @@ async def start_generation(
         "cfg_scale": cfg_scale or DEFAULT_GENERATION_PARAMS["cfg_scale"],
         "sampler_name": sampler_name or DEFAULT_GENERATION_PARAMS["sampler_name"],
         "scheduler": scheduler or DEFAULT_GENERATION_PARAMS["scheduler"],
-        "seed": seed if seed is not None else DEFAULT_GENERATION_PARAMS["seed"],
+        "seed": final_seed,  # Используем обработанный seed (случайный или указанный)
         "lora_scale": lora_scale if lora_scale is not None else DEFAULT_GENERATION_PARAMS["lora_scale"],
-        "model": internal_model,  # Внутреннее имя модели для RunPod
         "return_type": "url"  # Важно: возвращаем URL, а не Base64
     }
     
@@ -195,10 +200,11 @@ async def start_generation(
     }
     
     logger.info(f"[RUNPOD] Отправка запроса на генерацию: {user_prompt[:100]}...")
+    logger.info(f"[RUNPOD] 🎲 SEED для генерации: {final_seed} (тип: {'случайный' if (seed is None or seed == -1) else 'указанный'})")
     logger.debug(f"[RUNPOD] Параметры: {params}")
     
     try:
-        logger.info(f"[RUNPOD] Используется URL: {runpod_url} (модель: {model})")
+        logger.info(f"[RUNPOD] ✓ ОТПРАВКА ЗАДАЧИ: URL={runpod_url}, модель={model}, base_url={runpod_url_base}, seed={final_seed}")
         response = await client.post(
             runpod_url,
             json=payload,
@@ -213,7 +219,7 @@ async def start_generation(
         if not job_id:
             raise ValueError(f"RunPod API не вернул Job ID: {result}")
         
-        logger.info(f"[RUNPOD] Задача создана: {job_id} (модель: {model})")
+        logger.info(f"[RUNPOD] Задача создана: job_id={job_id}, модель={model}, seed={final_seed}")
         return job_id, runpod_url_base
         
     except httpx.HTTPStatusError as e:
@@ -259,7 +265,14 @@ async def check_status(
     status_url = f"{base_url}/status/{job_id}"
     
     logger.info(f"[RUNPOD] Проверка статуса job_id={job_id} на URL: {status_url}")
-    logger.info(f"[RUNPOD] Используемый base_url: {base_url} (переданный: {runpod_url_base}, дефолтный: {RUNPOD_URL_BASE})")
+    # Показываем какой URL используется и откуда он взят
+    if base_url == RUNPOD_URL_BASE_2:
+        url_source = "RUNPOD_URL_2 (модель 'anime-realism' / 'Больше реализма')"
+    elif base_url == RUNPOD_URL_BASE:
+        url_source = "RUNPOD_URL (модель 'anime' / 'Больше аниме')"
+    else:
+        url_source = f"переданный явно ({base_url})"
+    logger.info(f"[RUNPOD] Используемый base_url: {base_url} (источник: {url_source})")
     
     headers = {
         "Authorization": f"Bearer {RUNPOD_API_KEY}",
@@ -322,7 +335,8 @@ async def generate_image_async(
     use_enhanced_prompts: bool = True,
     lora_scale: Optional[float] = None,
     model: Optional[str] = "anime-realism",
-    timeout: int = DEFAULT_TIMEOUT
+    timeout: int = DEFAULT_TIMEOUT,
+    progress_callback = None  # <--- НОВЫЙ АРГУМЕНТ
 ) -> str:
     """
     Главная функция для асинхронной генерации изображения через RunPod.
@@ -381,6 +395,8 @@ async def generate_image_async(
         # Шаг 2: Опрос статуса в цикле
         logger.info(f"[RUNPOD] Начинаю опрос статуса задачи {job_id}")
         
+        last_progress = None
+        
         while True:
             # Проверяем таймаут
             elapsed_time = time.time() - start_time
@@ -401,6 +417,25 @@ async def generate_image_async(
             
             status = status_response.get("status")
             logger.debug(f"[RUNPOD] Статус задачи {job_id}: {status}")
+            
+            # === НОВАЯ ЛОГИКА ОБРАБОТКИ ПРОГРЕССА ===
+            if status == "IN_PROGRESS":
+                # Извлекаем прогресс из ответа RunPod API
+                from app.services.runpod_progress_tracker import extract_progress_from_response
+                progress_percent = extract_progress_from_response(status_response)
+                
+                # Вызываем коллбек, если прогресс изменился
+                if progress_percent is not None:
+                    progress_str = f"{progress_percent}%"
+                    if progress_str != last_progress:
+                        logger.info(f"[RUNPOD PROGRESS] Job {job_id}: {progress_str}")
+                        if progress_callback:
+                            try:
+                                progress_callback(progress_str)
+                            except Exception as e:
+                                logger.warning(f"Ошибка в progress_callback: {e}")
+                        last_progress = progress_str
+            # ==========================================
             
             # Обрабатываем различные статусы
             if status == "COMPLETED":

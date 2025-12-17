@@ -1899,7 +1899,6 @@ async def add_photo_to_gallery(
         if request.character_name:
             try:
                 from app.chat_bot.models.models import CharacterDB
-                from sqlalchemy import select
                 from app.services.subscription_service import SubscriptionService
                 
                 # Получаем данные персонажа

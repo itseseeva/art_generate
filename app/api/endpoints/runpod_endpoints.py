@@ -151,12 +151,22 @@ async def check_task_status(task_id: str):
     Статусы:
     - PENDING: Задача в очереди
     - STARTED: Задача выполняется
+    - PROGRESS: Задача выполняется с прогрессом (generating)
     - SUCCESS: Задача завершена успешно
     - FAILURE: Задача завершилась с ошибкой
     - RETRY: Задача будет повторена
     """
     try:
         task = AsyncResult(task_id)
+        
+        # Если задача в состоянии PROGRESS (промежуточный результат)
+        if task.state == 'PROGRESS':
+            # Возвращаем промежуточный результат из meta
+            return TaskStatusResponse(
+                task_id=task_id,
+                status="generating",  # Можно использовать кастомный статус для фронта
+                result=task.info  # Тут будет {'progress': 30, 'status': 'generating', 'message': 'Generating: 30%'}
+            )
         
         # Если задача завершена
         if task.ready():
@@ -176,11 +186,11 @@ async def check_task_status(task_id: str):
                     error=error
                 )
         else:
-            # Задача ещё выполняется
+            # PENDING или STARTED (но еще без прогресса)
             return TaskStatusResponse(
                 task_id=task_id,
                 status=task.status.lower(),
-                result=None
+                result={"progress": 0} if task.status == 'PENDING' or task.status == 'STARTED' else None
             )
             
     except Exception as e:
