@@ -1898,7 +1898,6 @@ async def add_photo_to_gallery(
         # Это нужно чтобы фото отображалось в истории персонажа
         if request.character_name:
             try:
-                from app.main import process_chat_history_storage
                 from app.chat_bot.models.models import CharacterDB
                 from sqlalchemy import select
                 from app.services.subscription_service import SubscriptionService
@@ -1928,17 +1927,30 @@ async def add_photo_to_gallery(
                     # КРИТИЧЕСКИ ВАЖНО: Сохраняем историю СРАЗУ, а не в фоне
                     # Используем await чтобы гарантировать сохранение
                     try:
-                        from app.main import process_chat_history_storage
-                        await process_chat_history_storage(
-                            subscription_type=subscription_type,
-                            user_id=str(current_user.id),
-                            character_data=character_data,
-                            message=user_message,
-                            response=assistant_response,
-                            image_url=request.image_url,
-                            image_filename=None
-                        )
-                        logger.info(f"[GALLERY] История чата сохранена для фото {request.image_url} и персонажа {request.character_name}")
+                        # Импортируем функцию через ленивый импорт, избегая циклических импортов
+                        # Используем прямой импорт только внутри try-except
+                        import importlib
+                        main_module = importlib.import_module('app.main')
+                        process_chat_history_storage = getattr(main_module, 'process_chat_history_storage', None)
+                        
+                        if process_chat_history_storage:
+                            await process_chat_history_storage(
+                                subscription_type=subscription_type,
+                                user_id=str(current_user.id),
+                                character_data=character_data,
+                                message=user_message,
+                                response=assistant_response,
+                                image_url=request.image_url,
+                                image_filename=None
+                            )
+                            logger.info(f"[GALLERY] История чата сохранена для фото {request.image_url} и персонажа {request.character_name}")
+                        else:
+                            logger.warning(f"[GALLERY] Функция process_chat_history_storage не найдена в app.main")
+                    except ImportError as import_err:
+                        # Если не удалось импортировать, логируем, но не блокируем добавление в галерею
+                        logger.warning(f"[GALLERY] Не удалось импортировать process_chat_history_storage: {import_err}")
+                        import traceback
+                        logger.warning(f"[GALLERY] Import traceback: {traceback.format_exc()}")
                     except Exception as save_error:
                         # Логируем ошибку, но не блокируем добавление в галерею
                         logger.error(f"[GALLERY] Ошибка сохранения истории: {save_error}")

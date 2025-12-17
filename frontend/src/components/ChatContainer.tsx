@@ -1054,12 +1054,59 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             }
             
             const statusData = await statusResponse.json();
+            
+            // ИЗВЛЕКАЕМ ПРОГРЕСС ИЗ ОТВЕТА RUNPOD API
+            // Прогресс может быть в разных местах ответа
+            let progressValue: number | undefined = undefined;
+            
+            // 1. Проверяем прямое поле progress
+            if (statusData.progress !== undefined && statusData.progress !== null) {
+              progressValue = typeof statusData.progress === 'number' 
+                ? Math.min(99, Math.max(0, statusData.progress))
+                : parseInt(String(statusData.progress).replace('%', ''), 10);
+            }
+            
+            // 2. Проверяем в result.progress
+            if (progressValue === undefined && statusData.result?.progress !== undefined) {
+              progressValue = typeof statusData.result.progress === 'number'
+                ? Math.min(99, Math.max(0, statusData.result.progress))
+                : parseInt(String(statusData.result.progress).replace('%', ''), 10);
+            }
+            
+            // 3. Проверяем в output.progress
+            if (progressValue === undefined && statusData.output?.progress !== undefined) {
+              progressValue = typeof statusData.output.progress === 'number'
+                ? Math.min(99, Math.max(0, statusData.output.progress))
+                : parseInt(String(statusData.output.progress).replace('%', ''), 10);
+            }
+            
+            // 4. Пытаемся извлечь из строки status (например, "IN_PROGRESS 50%")
+            if (progressValue === undefined && typeof statusData.status === 'string') {
+              const progressMatch = statusData.status.match(/(\d+)%/);
+              if (progressMatch) {
+                progressValue = Math.min(99, Math.max(0, parseInt(progressMatch[1], 10)));
+              }
+            }
+            
+            // Обновляем прогресс если он найден
+            if (progressValue !== undefined && !isNaN(progressValue)) {
+              updateMessageProgressContent(assistantMessageId, progressValue);
+              // Останавливаем фейковый прогресс, так как есть реальный
+              stopFakeMessageProgress(assistantMessageId);
+              if (attempts % 5 === 0) {  // Логируем каждые 5 попыток
+                console.log(`[CHAT] Реальный прогресс из RunPod: ${progressValue}%`);
+              }
+            }
+            
             // Логируем только при изменении статуса или при завершении
             if (statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED' || statusData.status === 'FAILURE' || attempts % 10 === 0) {
-              console.log('[CHAT] Статус генерации:', statusData.status);
+              console.log('[CHAT] Статус генерации:', statusData.status, progressValue !== undefined ? `Прогресс: ${progressValue}%` : '');
             }
             
             if (statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED') {
+              // Останавливаем фейковый прогресс при завершении
+              stopFakeMessageProgress(assistantMessageId);
+              
               // URL может быть в result.image_url, result.cloud_url или напрямую в statusData
               const result = statusData.result || {};
               generatedImageUrl = result.image_url || result.cloud_url || statusData.image_url || statusData.cloud_url;
@@ -1082,13 +1129,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 console.warn('[CHAT] URL не найден в ответе, продолжаем опрос...');
               }
             } else if (statusData.status === 'FAILURE' || statusData.status === 'ERROR') {
+              stopFakeMessageProgress(assistantMessageId);
               throw new Error(statusData.message || statusData.error || 'Ошибка генерации изображения');
-            }
-            
-            // Обновляем прогресс на основе статуса
-            if (statusData.progress !== undefined) {
-              const progressValue = Math.min(statusData.progress, 99);
-              updateMessageProgressContent(assistantMessageId, progressValue);
             }
             
             attempts++;

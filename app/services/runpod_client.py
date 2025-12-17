@@ -58,8 +58,8 @@ load_dotenv()
 
 # Константы для подключения к RunPod
 RUNPOD_API_KEY = os.getenv("RUNPOD_API_KEY")
-RUNPOD_URL = os.getenv("RUNPOD_URL")  # Дефолтная модель (PerfectDeliberate/anime-realism) - должен заканчиваться на '/run' или '/runsync'
-RUNPOD_URL_2 = os.getenv("RUNPOD_URL_2")  # Новая модель (OneObsession/anime) - должен заканчиваться на '/run' или '/runsync'
+RUNPOD_URL = os.getenv("RUNPOD_URL")  # Модель "Больше аниме" (OneObsession/anime) - должен заканчиваться на '/run' или '/runsync'
+RUNPOD_URL_2 = os.getenv("RUNPOD_URL_2")  # Модель "Больше реализма" (PerfectDeliberate/anime-realism) - должен заканчиваться на '/run' или '/runsync'
 
 # Извлекаем базовый URL и ENDPOINT_ID из RUNPOD_URL (дефолтная модель)
 # Формат: https://api.runpod.ai/v2/{ENDPOINT_ID}/run
@@ -131,18 +131,18 @@ async def start_generation(
         raise ValueError("RUNPOD_API_KEY не установлен в переменных окружения")
     
     # Определяем какой URL использовать на основе модели
-    # anime -> RUNPOD_URL_2 (OneObsession)
-    # anime-realism -> RUNPOD_URL (PerfectDeliberate, дефолт)
-    if model == "anime":
+    # anime -> RUNPOD_URL (OneObsession, "Больше аниме")
+    # anime-realism -> RUNPOD_URL_2 (PerfectDeliberate, "Больше реализма")
+    if model == "anime-realism":
         runpod_url = RUNPOD_URL_2
         runpod_url_base = RUNPOD_URL_BASE_2
         if not RUNPOD_URL_2:
-            raise ValueError("RUNPOD_URL_2 не установлен в переменных окружения (требуется для модели 'anime')")
-    else:  # anime-realism или дефолт
+            raise ValueError("RUNPOD_URL_2 не установлен в переменных окружения (требуется для модели 'anime-realism' / 'Больше реализма')")
+    else:  # anime или дефолт
         runpod_url = RUNPOD_URL
         runpod_url_base = RUNPOD_URL_BASE
         if not RUNPOD_URL:
-            raise ValueError("RUNPOD_URL не установлен в переменных окружения (требуется для модели 'anime-realism')")
+            raise ValueError("RUNPOD_URL не установлен в переменных окружения (требуется для модели 'anime' / 'Больше аниме')")
     
     # Обрабатываем промпты
     if use_enhanced_prompts:

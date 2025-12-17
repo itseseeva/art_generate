@@ -277,20 +277,19 @@ class ChatHistoryService:
                               ChatMessageDB.session_id == ChatSession.id,
                               # Включаем сообщения от пользователя ИЛИ от ассистента (для незаконченных диалогов)
                               or_(
-                                  # Сообщения пользователя с валидным текстом
+                                  # Сообщения пользователя с валидным текстом (ДАЖЕ КОРОТКИЕ - >= 1 символ)
                                   and_(
                                       ChatMessageDB.role == "user",
                                       ChatMessageDB.content.isnot(None),
                                       ChatMessageDB.content != "",
                                       func.trim(ChatMessageDB.content) != "",
-                                      func.length(func.trim(ChatMessageDB.content)) >= 3,
+                                      func.length(func.trim(ChatMessageDB.content)) >= 1,  # ИЗМЕНЕНО: было >= 3
                                       func.length(func.trim(ChatMessageDB.content)) < 1000
                                   ),
-                                  # Сообщения ассистента с ЛЮБЫМ текстом (для незаконченных диалогов)
+                                  # Сообщения ассистента с ЛЮБЫМ текстом или БЕЗ текста (для картинок без текста)
                                   and_(
-                                      ChatMessageDB.role == "assistant",
-                                      ChatMessageDB.content.isnot(None),
-                                      ChatMessageDB.content != ""
+                                      ChatMessageDB.role == "assistant"
+                                      # ИЗМЕНЕНО: убрали проверку content != "", так как картинка может быть без текста
                                   )
                               )
                           )
@@ -438,20 +437,19 @@ class ChatHistoryService:
                         # 2. Сообщение ассистента с ЛЮБЫМ текстом (для незаконченных диалогов) - УПРОЩЕНО
                         # 3. ЛЮБОЕ сообщение с image_url (независимо от типа)
                         or_(
-                            # Сообщения пользователя с текстом
+                            # Сообщения пользователя с текстом (ДАЖЕ КОРОТКИЕ - >= 1 символ)
                             and_(
                                 ChatHistory.message_type == "user",
                                 ChatHistory.message_content.isnot(None),
                                 ChatHistory.message_content != "",
                                 func.trim(ChatHistory.message_content) != "",
-                                func.length(func.trim(ChatHistory.message_content)) >= 3
+                                func.length(func.trim(ChatHistory.message_content)) >= 1  # ИЗМЕНЕНО: было >= 3
                             ),
-                            # Сообщения ассистента с ЛЮБЫМ текстом (для незаконченных диалогов)
-                            # УБРАЛИ проверку на >= 3 символа, чтобы находить даже короткие ответы
+                            # Сообщения ассистента с ЛЮБЫМ текстом или БЕЗ текста (для картинок без текста)
+                            # ИЗМЕНЕНО: убрали проверку content != "", так как картинка может быть без текста
                             and_(
-                                ChatHistory.message_type == "assistant",
-                                ChatHistory.message_content.isnot(None),
-                                ChatHistory.message_content != ""
+                                ChatHistory.message_type == "assistant"
+                                # Разрешаем даже пустой контент, если есть картинка
                             ),
                             # ЛЮБОЕ сообщение с фото (независимо от типа и текста)
                             ChatHistory.image_url.isnot(None)

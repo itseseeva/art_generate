@@ -3357,6 +3357,23 @@ async def get_generation_status(
                     status_response = await check_status(client, task_id, runpod_url_base)
                     status = status_response.get("status")
                     
+                    # ЛОГИРУЕМ ПОЛНЫЙ ОТВЕТ для диагностики прогресса
+                    logger.info(f"[RUNPOD STATUS] Полный ответ от RunPod API: {status_response}")
+                    
+                    # Извлекаем прогресс из ответа RunPod API
+                    progress = None
+                    try:
+                        from app.services.runpod_progress_tracker import extract_progress_from_response
+                        progress = extract_progress_from_response(status_response)
+                        if progress is not None:
+                            logger.info(f"[RUNPOD STATUS] ✓ Извлечен прогресс: {progress}%")
+                        else:
+                            logger.debug(f"[RUNPOD STATUS] Прогресс не найден в ответе. Ключи ответа: {list(status_response.keys())}")
+                    except Exception as progress_err:
+                        logger.warning(f"[RUNPOD STATUS] Ошибка извлечения прогресса: {progress_err}")
+                        import traceback
+                        logger.debug(f"[RUNPOD STATUS] Traceback: {traceback.format_exc()}")
+                    
                     if status == "COMPLETED":
                         output = status_response.get("output", {})
                         logger.info(f"[RUNPOD STATUS] Полный output: {output}")
@@ -3476,11 +3493,16 @@ async def get_generation_status(
                             "error": error
                         }
                     elif status in ["IN_QUEUE", "IN_PROGRESS"]:
-                        return {
+                        result = {
                             "task_id": task_id,
                             "status": "PROGRESS",
                             "message": "Генерация выполняется..."
                         }
+                        # Добавляем прогресс если он есть
+                        if progress is not None:
+                            result["progress"] = progress
+                            logger.info(f"[RUNPOD STATUS] Возвращаем прогресс: {progress}%")
+                        return result
                     else:
                         return {
                             "task_id": task_id,
