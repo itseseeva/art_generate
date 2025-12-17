@@ -16,7 +16,7 @@ DEFAULT_GENERATION_PARAMS = {
     "height": 1216,
     "scheduler": "DPM++ 2M Karras",
     "cfg_scale": 4,  # 3-5 для DPM++
-    "seed": 1668578321,
+    "seed": None,  # None означает, что seed будет рандомизирован при генерации
     
     # LoRA: Dramatic Lighting Slider
     # Контролирует интенсивность света и теней

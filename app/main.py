@@ -125,6 +125,8 @@ try:
         ],
         force=True  # Принудительно перезаписываем конфигурацию
     )
+    # Отключаем INFO логи от httpx для уменьшения шума
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 except Exception:
     # Если не удалось настроить логирование в файл, используем только консоль
     logging.basicConfig(
@@ -133,6 +135,10 @@ except Exception:
         handlers=[logging.StreamHandler(sys.stdout)],
         force=True
     )
+    # Отключаем INFO логи от httpx для уменьшения шума
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    # Отключаем INFO логи от httpx для уменьшения шума
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
@@ -619,11 +625,13 @@ try:
     try:
         from app.chat_history.api.endpoints import router as chat_history_router
         app.include_router(chat_history_router, prefix="/api/v1/chat-history", tags=["chat-history"])
+        logger.info(f"[ROUTER] Chat history router подключен: {len(chat_history_router.routes)} routes")
     except ImportError as e:
         # Fallback на старый путь
+        logger.warning(f"[ROUTER] Fallback на старый путь chat_history: {e}")
         from app.api.endpoints.chat_history import router as chat_history_router
         app.include_router(chat_history_router, prefix="/api/v1/chat-history", tags=["chat-history"])
-    # Убрано логирование подключения
+        logger.info(f"[ROUTER] Chat history router (fallback) подключен: {len(chat_history_router.routes)} routes")
 except Exception as e:
     logger.error(f"[ERROR] Ошибка подключения роутера истории чата: {e}")
     import traceback
@@ -2738,10 +2746,19 @@ async def generate_image(
         logger.info(f"🚨 MAIN.PY: default_params.get('steps') = {default_params.get('steps')}")
         
         # Создаем настройки генерации с использованием значений по умолчанию
+        # ВАЖНО: Если seed не указан или равен -1, передаем None для рандомизации
+        seed_value = None
+        if request.seed is not None:
+            if request.seed == -1:
+                seed_value = None  # Будет рандомизирован в start_generation
+            else:
+                seed_value = request.seed
+        # Если request.seed is None, seed_value остается None (будет рандомизирован)
+        
         generation_settings = GenerationSettings(
             prompt=request.prompt,
             negative_prompt=request.negative_prompt,
-            seed=request.seed or default_params.get("seed"),
+            seed=seed_value,
             steps=request.steps or default_params.get("steps"),  # Используем steps из запроса или дефолтное значение
             width=request.width or default_params.get("width"),
             height=request.height or default_params.get("height"),
@@ -2876,6 +2893,13 @@ async def generate_image(
                     # Запускаем генерацию и получаем job_id
                     selected_model = getattr(generation_settings, 'model', None) or (getattr(request, 'model', None) or "anime-realism")
                     logger.info(f"[GENERATE] 🎯 Выбранная модель: '{selected_model}' -> будет использован {'RUNPOD_URL_2 (k1eeffsqd0hnr0)' if selected_model == 'anime-realism' else 'RUNPOD_URL (eyulcfjcdh4h3u)'}")
+                    # Подготавливаем seed для передачи
+                    # Если seed не указан или равен -1, передаем None, чтобы start_generation сгенерировал случайный seed
+                    seed_to_send = None
+                    if generation_settings.seed is not None and generation_settings.seed != -1:
+                        seed_to_send = generation_settings.seed
+                    logger.info(f"[GENERATE] 🎲 Seed из запроса: {generation_settings.seed}, seed для отправки: {seed_to_send} (будет рандомизирован если None)")
+                    
                     job_id, runpod_url_base = await start_generation(
                         client=client,
                         user_prompt=generation_settings.prompt,
@@ -2883,7 +2907,7 @@ async def generate_image(
                         height=generation_settings.height,
                         steps=generation_settings.steps,
                         cfg_scale=generation_settings.cfg_scale,
-                        seed=generation_settings.seed if generation_settings.seed and generation_settings.seed != -1 else None,
+                        seed=seed_to_send,  # None или -1 будут обработаны в start_generation для генерации случайного seed
                         sampler_name=generation_settings.sampler_name,
                         negative_prompt=generation_settings.negative_prompt,
                         use_enhanced_prompts=False,  # Мы уже обработали промпты выше
@@ -2892,6 +2916,7 @@ async def generate_image(
                     )
 
                     logger.info(f"[GENERATE] ✅ Задача запущена на RunPod, job_id: {job_id}, модель: {selected_model}")
+                    # Seed уже залогирован в start_generation с сообщением "Generating random seed: {seed}"
                     
                     # ВАЖНО: Тратим монеты СРАЗУ при запуске задачи, а не при завершении
                     # Это предотвращает злоупотребление (если пользователь отменит задачу, монеты уже списаны)
@@ -2921,7 +2946,7 @@ async def generate_image(
                                 "task_id": job_id,
                                 "runpod_url_base": runpod_url_base,  # Сохраняем для правильной проверки статуса
                                 "model": selected_model,  # Сохраняем модель для отладки
-                                "created_at": time.time()
+                                "created_at": time.time()  # Время запуска задачи для оценки прогресса
                             }
                             
                             # ВАЖНО: Сохраняем метаданные в БД сразу (fallback на случай если Redis недоступен)
@@ -3362,9 +3387,6 @@ async def get_generation_status(
                     status_response = await check_status(client, task_id, runpod_url_base)
                     status = status_response.get("status")
                     
-                    # ЛОГИРУЕМ ПОЛНЫЙ ОТВЕТ для диагностики прогресса
-                    logger.info(f"[RUNPOD STATUS] Полный ответ от RunPod API: {status_response}")
-                    
                     # Извлекаем прогресс из ответа RunPod API
                     progress = None
                     try:
@@ -3372,8 +3394,7 @@ async def get_generation_status(
                         progress = extract_progress_from_response(status_response)
                         if progress is not None:
                             logger.info(f"[RUNPOD STATUS] ✓ Извлечен прогресс: {progress}%")
-                        else:
-                            logger.debug(f"[RUNPOD STATUS] Прогресс не найден в ответе. Ключи ответа: {list(status_response.keys())}")
+                        # Логирование структуры ответа удалено для уменьшения шума в логах
                     except Exception as progress_err:
                         logger.warning(f"[RUNPOD STATUS] Ошибка извлечения прогресса: {progress_err}")
                         import traceback
@@ -3393,15 +3414,65 @@ async def get_generation_status(
                         }
                     
                     # Если статус IN_PROGRESS но прогресс еще не получен
+                    # ВАЖНО: RunPod API не возвращает поле progress в ответе /status для этого типа endpoint
+                    # Используем время с момента запуска задачи для оценки прогресса
                     if status == "IN_PROGRESS":
+                        estimated_progress = 0
+                        execution_time = status_response.get("executionTime", 0)
+                        
+                        # Пытаемся получить время запуска из метаданных
+                        try:
+                            from app.utils.redis_cache import cache_get
+                            import json
+                            import time
+                            generation_metadata = await cache_get(f"generation:{task_id}")
+                            if generation_metadata:
+                                if isinstance(generation_metadata, str):
+                                    try:
+                                        generation_metadata = json.loads(generation_metadata)
+                                    except json.JSONDecodeError:
+                                        generation_metadata = None
+                                
+                                if generation_metadata and isinstance(generation_metadata, dict):
+                                    start_time = generation_metadata.get("created_at")
+                                    if start_time:
+                                        elapsed_seconds = time.time() - start_time
+                                        # Среднее время генерации ~20 секунд (20000ms), оцениваем прогресс
+                                        # Используем более консервативную оценку: первые 5 секунд = 10%, затем линейно до 90%
+                                        if elapsed_seconds < 5:
+                                            estimated_progress = min(10, int((elapsed_seconds / 5) * 10))
+                                        else:
+                                            # После 5 секунд: от 10% до 90% за оставшиеся 15 секунд
+                                            remaining_time = elapsed_seconds - 5
+                                            estimated_progress = min(90, 10 + int((remaining_time / 15) * 80))
+                                        
+                                        logger.debug(f"[RUNPOD STATUS] Оценка прогресса на основе времени: {estimated_progress}% (elapsed={elapsed_seconds:.1f}s)")
+                        except Exception as time_err:
+                            logger.debug(f"[RUNPOD STATUS] Не удалось оценить прогресс по времени: {time_err}")
+                        
+                        # Если есть executionTime, используем его для более точной оценки
+                        if execution_time > 0:
+                            # executionTime в миллисекундах, среднее время ~20000ms
+                            execution_seconds = execution_time / 1000
+                            # Более консервативная оценка: первые 5 секунд = 10%, затем линейно до 90%
+                            if execution_seconds < 5:
+                                exec_progress = min(10, int((execution_seconds / 5) * 10))
+                            else:
+                                # После 5 секунд: от 10% до 90% за оставшиеся 15 секунд
+                                remaining_time = execution_seconds - 5
+                                exec_progress = min(90, 10 + int((remaining_time / 15) * 80))
+                            # Используем максимум из двух оценок (по времени запуска и по executionTime)
+                            estimated_progress = max(estimated_progress, exec_progress)
+                            logger.debug(f"[RUNPOD STATUS] Оценка прогресса на основе executionTime: {estimated_progress}% (executionTime={execution_time}ms, {execution_seconds:.1f}s)")
+                        
                         return {
                             "status": "generating",
                             "task_id": task_id,
-                            "progress": 0,
+                            "progress": estimated_progress,
                             "result": {
                                 "status": "generating",
-                                "progress": 0,
-                                "message": "Generating: 0%"
+                                "progress": estimated_progress,
+                                "message": f"Generating: {estimated_progress}%" if estimated_progress > 0 else "Generating..."
                             }
                         }
                     

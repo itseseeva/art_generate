@@ -360,7 +360,7 @@ class ChatHistoryService:
                             display_time = datetime.now(timezone.utc)
                         else:
                             print(f"[DEBUG] ПРОПУСК: персонаж {character_name} - нет времени и нет фото")
-                            continue
+                        continue
                     
                     # ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: проверяем реальные сообщения для этого персонажа
                     # Это поможет понять, почему персонаж не проходит фильтры
@@ -425,7 +425,7 @@ class ChatHistoryService:
                     .having(func.count(func.distinct(ChatHistory.id)) > 0)
                     .order_by(func.max(ChatHistory.created_at).desc())
                 )
-                
+
                 history_rows = history_result.fetchall()
                 print(f"[DEBUG] Найдено {len(history_rows)} персонажей в ChatHistory для user_id={user_id}")
                 
@@ -485,11 +485,11 @@ class ChatHistoryService:
                         from datetime import datetime, timezone
                         last_message_at = datetime.now(timezone.utc)
                     
-                    characters[key] = {
-                        "name": character_name,
-                        "last_message_at": last_message_at.isoformat() if last_message_at else None,
-                        "last_image_url": last_image_url,
-                    }
+                        characters[key] = {
+                            "name": character_name,
+                            "last_message_at": last_message_at.isoformat() if last_message_at else None,
+                            "last_image_url": last_image_url,
+                        }
                     print(f"[DEBUG] Добавлен персонаж из ChatHistory {character_name} с историей: message_count={message_count}, last_message_at={last_message_at}, has_image={bool(last_image_url)}")
             except Exception as e:
                 print(f"[WARNING] Ошибка получения персонажей из ChatHistory: {e}")

@@ -1028,6 +1028,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             
             const statusData = await statusResponse.json();
             
+            // ЛОГИРУЕМ ПОЛНЫЙ ОТВЕТ для отладки (только первые несколько раз)
+            if (attempts < 3 || attempts % 10 === 0) {
+              console.log('[CHAT] Полный ответ от API статуса:', JSON.stringify(statusData, null, 2));
+            }
+            
             // ИЗВЛЕКАЕМ ПРОГРЕСС ИЗ ОТВЕТА RUNPOD API
             // Прогресс может быть в разных местах ответа
             let progressValue: number | undefined = undefined;
@@ -1037,7 +1042,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               progressValue = typeof statusData.result.progress === 'number'
                 ? Math.min(99, Math.max(0, statusData.result.progress))
                 : parseInt(String(statusData.result.progress).replace('%', ''), 10);
-              console.log(`[CHAT] Получен реальный прогресс из API (generating): ${progressValue}%`);
+              console.log(`[CHAT] ✓ Получен реальный прогресс из API (generating): ${progressValue}%`);
             }
             
             // 1. Проверяем прямое поле progress
@@ -1045,6 +1050,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               progressValue = typeof statusData.progress === 'number' 
                 ? Math.min(99, Math.max(0, statusData.progress))
                 : parseInt(String(statusData.progress).replace('%', ''), 10);
+              console.log(`[CHAT] ✓ Прогресс из statusData.progress: ${progressValue}%`);
             }
             
             // 2. Проверяем в result.progress (для других статусов)
@@ -1052,13 +1058,24 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               progressValue = typeof statusData.result.progress === 'number'
                 ? Math.min(99, Math.max(0, statusData.result.progress))
                 : parseInt(String(statusData.result.progress).replace('%', ''), 10);
+              console.log(`[CHAT] ✓ Прогресс из result.progress: ${progressValue}%`);
             }
             
-            // 3. Проверяем в output.progress
-            if (progressValue === undefined && statusData.output?.progress !== undefined) {
-              progressValue = typeof statusData.output.progress === 'number'
-                ? Math.min(99, Math.max(0, statusData.output.progress))
-                : parseInt(String(statusData.output.progress).replace('%', ''), 10);
+            // 3. Проверяем в output.progress (RunPod может возвращать прогресс здесь)
+            if (progressValue === undefined && statusData.output !== undefined) {
+              // output может быть строкой "90%" или объектом с полем progress
+              if (typeof statusData.output === 'string') {
+                const match = statusData.output.match(/(\d+)%/);
+                if (match) {
+                  progressValue = Math.min(99, Math.max(0, parseInt(match[1], 10)));
+                  console.log(`[CHAT] ✓ Прогресс из output (строка): ${progressValue}%`);
+                }
+              } else if (typeof statusData.output === 'object' && statusData.output.progress !== undefined) {
+                progressValue = typeof statusData.output.progress === 'number'
+                  ? Math.min(99, Math.max(0, statusData.output.progress))
+                  : parseInt(String(statusData.output.progress).replace('%', ''), 10);
+                console.log(`[CHAT] ✓ Прогресс из output.progress: ${progressValue}%`);
+              }
             }
             
             // 4. Пытаемся извлечь из строки status (например, "IN_PROGRESS 50%")
@@ -1066,6 +1083,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               const progressMatch = statusData.status.match(/(\d+)%/);
               if (progressMatch) {
                 progressValue = Math.min(99, Math.max(0, parseInt(progressMatch[1], 10)));
+                console.log(`[CHAT] ✓ Прогресс из status (строка): ${progressValue}%`);
               }
             }
             

@@ -164,10 +164,11 @@ async def start_generation(
     logger.debug(f"[RUNPOD] Очищенный негативный промпт: {final_negative[:200] if final_negative else 'None'}...")
     
     # Обработка seed: если seed не указан или равен -1, генерируем случайный
+    # Это гарантирует, что каждая генерация имеет уникальный seed, если пользователь не указал конкретный
     final_seed = seed
     if final_seed is None or final_seed == -1:
         final_seed = random.randint(0, 4294967295)
-        logger.info(f"[RUNPOD] Seed не указан или равен -1, сгенерирован случайный seed: {final_seed}")
+        logger.info(f"Generating random seed: {final_seed}")
     else:
         logger.info(f"[RUNPOD] Используется указанный seed: {final_seed}")
     
@@ -288,6 +289,11 @@ async def check_status(
         response.raise_for_status()
         
         result = response.json()
+        
+        # ЛОГИРУЕМ наличие поля progress для отладки (только если найдено)
+        if "progress" in result:
+            logger.debug(f"[RUNPOD] ✓ Поле 'progress' найдено в ответе: {result.get('progress')}")
+        
         return result
         
     except httpx.HTTPStatusError as e:

@@ -33,7 +33,7 @@ import os
 import time
 import asyncio
 import re
-from typing import Optional, Dict, Any, Generator, Callable
+from typing import Optional, Dict, Any, Callable
 import httpx
 from loguru import logger
 
@@ -49,13 +49,8 @@ def extract_progress_from_response(status_response: Dict[str, Any]) -> Optional[
     """
     Извлекает процент прогресса из ответа RunPod API.
     
-    Когда handler вызывает `runpod.serverless.progress_update(job, "50%")`,
-    прогресс может быть доступен в разных местах ответа:
-    1. В поле "status" как строка "IN_PROGRESS" с дополнительной информацией
-    2. В поле "progress" как число или строка
-    3. В поле "output" -> "progress" (для некоторых типов задач)
-    4. В поле "stream" -> "progress" (для streaming задач)
-    5. В поле "status" как часть строки типа "50%" (если RunPod включает прогресс в статус)
+    Когда handler вызывает `runpod.serverless.progress_update(job, "90%")`,
+    RunPod API возвращает прогресс в поле "output" как строку "90%".
     
     Args:
         status_response: JSON ответ от RunPod API
@@ -63,21 +58,26 @@ def extract_progress_from_response(status_response: Dict[str, Any]) -> Optional[
     Returns:
         Процент прогресса (0-100) или None, если не найден
     """
-    # 1. Проверяем поле "progress" напрямую
+    # Логирование структуры ответа удалено для уменьшения шума в логах
+    
+    # 1. Проверяем поле "progress" напрямую (согласно документации RunPod)
     progress = status_response.get("progress")
     if progress is not None:
+        logger.debug(f"[PROGRESS] Найдено поле progress: {progress} (тип: {type(progress)})")
         if isinstance(progress, (int, float)):
-            return min(100, max(0, int(progress)))  # Ограничиваем 0-100
+            percent = min(100, max(0, int(progress)))
+            logger.info(f"[PROGRESS] ✓ Извлечен прогресс из progress (число): {percent}%")
+            return percent
         elif isinstance(progress, str):
-            # Ищем паттерн "Progress: 90%" или просто "90%"
-            match = re.search(
-                r'Progress:\s*(\d+)%|(\d+)%',
-                progress,
-                re.IGNORECASE
-            )
+            # Ищем паттерн "90%" в строке прогресса
+            match = re.search(r'(\d+)%', progress)
             if match:
-                percent = int(match.group(1) or match.group(2))
-                return min(100, max(0, percent))
+                percent = int(match.group(1))
+                percent = min(100, max(0, percent))
+                logger.info(f"[PROGRESS] ✓ Извлечен прогресс из progress (строка): {percent}%")
+                return percent
+            else:
+                logger.debug(f"[PROGRESS] progress является строкой, но не содержит процент: '{progress}'")
     
     # 2. Проверяем поле "status" (может содержать "50%" или "IN_PROGRESS 50%")
     status = status_response.get("status", "")
@@ -121,6 +121,7 @@ def extract_progress_from_response(status_response: Dict[str, Any]) -> Optional[
     
     # 3.5. Проверяем output как строку напрямую (RunPod возвращает "90%" в output)
     # Это самый частый случай - когда worker вызывает progress_update(job, "90%")
+    # RunPod API возвращает прогресс в поле output как строку "90%" при статусе IN_PROGRESS
     if isinstance(output, str):
         # Ищем паттерн "Progress: 90%" или просто "90%"
         match = re.search(
@@ -130,7 +131,10 @@ def extract_progress_from_response(status_response: Dict[str, Any]) -> Optional[
         )
         if match:
             percent = int(match.group(1) or match.group(2))
+            logger.info(f"[PROGRESS] ✓ Извлечен прогресс из output (строка): {percent}%")
             return min(100, max(0, percent))
+        else:
+            logger.debug(f"[PROGRESS] output является строкой, но не содержит процент: '{output}'")
     
     # 4. Проверяем поле "stream"
     

@@ -258,17 +258,37 @@ async def get_prompt_by_image(
 
         logger = logging.getLogger(__name__)
         user_id = current_user.id
-        logger.info(
-            "[PROMPT] Поиск промпта для изображения: %s (user_id=%s)",
-            image_url,
-            user_id
-        )
+        # Логирование удалено для уменьшения шума в логах
 
         # Нормализуем URL точно так же, как при сохранении
         normalized_url = image_url.split('?')[0].split('#')[0] if image_url else image_url
         
-        logger.info(f"[PROMPT] Ищем промпт по точному совпадению: normalized_url={normalized_url}, user_id={user_id}")
+        # ВАЖНО: Сначала ищем в ImageGenerationHistory, так как там всегда есть реальный промпт
+        # ChatHistory может содержать "Генерация изображения" вместо реального промпта
+        try:
+            from app.models.image_generation_history import ImageGenerationHistory
+            image_history_stmt = (
+                select(ImageGenerationHistory)
+                .where(
+                    ImageGenerationHistory.image_url == normalized_url,
+                    ImageGenerationHistory.user_id == user_id
+                )
+                .order_by(ImageGenerationHistory.created_at.desc())
+                .limit(1)
+            )
+            image_history_record = (await db.execute(image_history_stmt)).scalars().first()
+            
+            if image_history_record and image_history_record.prompt:
+                # Логирование удалено для уменьшения шума в логах
+                return {
+                    "success": True,
+                    "prompt": image_history_record.prompt,
+                    "character_name": image_history_record.character_name
+                }
+        except Exception as img_history_err:
+            logger.warning(f"[PROMPT] Ошибка поиска в ImageGenerationHistory: {img_history_err}")
         
+        # Если не найдено в ImageGenerationHistory, ищем в ChatHistory
         # Сначала ищем промпт у текущего пользователя (приоритет)
         stmt = (
             select(ChatHistory)
@@ -281,9 +301,12 @@ async def get_prompt_by_image(
         )
         message = (await db.execute(stmt)).scalars().first()
         
+        # Если найдено, но это "Генерация изображения", продолжаем поиск
+        if message and message.message_content == "Генерация изображения":
+            message = None  # Сбрасываем, чтобы продолжить поиск
+        
         # Если не найдено у текущего пользователя, ищем среди всех пользователей (fallback)
         if not message:
-            logger.info(f"[PROMPT] Промпт не найден у текущего пользователя, ищем среди всех пользователей")
             stmt = (
                 select(ChatHistory)
                 .where(ChatHistory.image_url == normalized_url)
@@ -291,14 +314,37 @@ async def get_prompt_by_image(
                 .limit(1)
             )
             message = (await db.execute(stmt)).scalars().first()
+            
+            # Если найдено, но это "Генерация изображения", продолжаем поиск
+            if message and message.message_content == "Генерация изображения":
+                logger.info(f"[PROMPT] Найдена запись с 'Генерация изображения' среди всех пользователей, продолжаем поиск")
+                message = None
         
-        if message:
-            logger.info(
-                "[PROMPT] Промпт найден: character_name=%s, user_id=%s, image_url=%s",
-                message.character_name,
-                message.user_id,
-                message.image_url,
-            )
+        # Если не найдено в ChatHistory или найдено только "Генерация изображения", ищем в ImageGenerationHistory среди всех пользователей
+        if not message:
+            logger.info(f"[PROMPT] Промпт не найден в ChatHistory или это 'Генерация изображения', ищем в ImageGenerationHistory среди всех пользователей")
+            try:
+                from app.models.image_generation_history import ImageGenerationHistory
+                image_history_stmt = (
+                    select(ImageGenerationHistory)
+                    .where(ImageGenerationHistory.image_url == normalized_url)
+                    .order_by(ImageGenerationHistory.created_at.desc())
+                    .limit(1)
+                )
+                image_history_record = (await db.execute(image_history_stmt)).scalars().first()
+                
+                if image_history_record and image_history_record.prompt:
+                    # Логирование удалено для уменьшения шума в логах
+                    return {
+                        "success": True,
+                        "prompt": image_history_record.prompt,
+                        "character_name": image_history_record.character_name
+                    }
+            except Exception as img_history_err:
+                logger.warning(f"[PROMPT] Ошибка поиска в ImageGenerationHistory: {img_history_err}")
+        
+        if message and message.message_content != "Генерация изображения":
+            # Логирование удалено для уменьшения шума в логах
             return {
                 "success": True,
                 "prompt": message.message_content,

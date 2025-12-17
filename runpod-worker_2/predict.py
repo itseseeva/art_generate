@@ -3,6 +3,7 @@ import torch
 import os
 import sys
 import traceback
+import random
 from diffusers import (
     StableDiffusionXLPipeline,
     DPMSolverMultistepScheduler
@@ -10,14 +11,12 @@ from diffusers import (
 from compel import Compel, ReturnedEmbeddingsType
 
 # === НАСТРОЙКИ ===
-# Просто поменяй это имя файла для второго воркера!
 MODEL_FILENAME = "oneObsession_v18.safetensors" 
-# Для второго воркера напишешь: "oneObsession_v18.safetensors"
 
 DEFAULT_WIDTH = 832
 DEFAULT_HEIGHT = 1216
-DEFAULT_STEPS = 30
-DEFAULT_GUIDANCE = 5.0
+DEFAULT_STEPS = 40        # Поднял до 40 (стандарт для качества)
+DEFAULT_GUIDANCE = 7.0    # Строгость следования промпту
 
 DEFAULT_NEGATIVE_PROMPTS = "poorly_detailed, worst_quality, bad_quality, extra fingers, missing fingers, lowres, bad anatomy, extra digits, jpeg artifacts, signature, watermark, username, conjoined, deformed fingers, short legs, body disproportion, bad ai-generated, text, halo, multiple views, displeasing, messy composition, clones"
 
@@ -41,82 +40,66 @@ class Predictor(BasePredictor):
                 model_path,
                 torch_dtype=self.torch_dtype,
                 use_safetensors=True,
-                safety_checker=None,
-                requires_safety_checker=False
+                variant="fp16" # Попытка загрузить fp16 веса если есть
             )
             print("Model loaded.")
         except Exception as e:
             raise RuntimeError(f"Failed to load model: {e}")
 
-        # 2. СЕМПЛЕР (DPM++ 2M Karras)
+        # 2. НАСТРОЙКА СЕМПЛЕРА (КАК В AUTOMATIC1111)
+        # DPM++ 2M Karras - золотой стандарт
         self.pipe.scheduler = DPMSolverMultistepScheduler.from_config(
             self.pipe.scheduler.config,
-            use_karras_sigmas=True,
-            algorithm_type="dpmsolver++"
+            use_karras_sigmas=True,      # ВАЖНО: Karras расписание шума
+            algorithm_type="dpmsolver++",
+            solver_order=2
         )
         
-        # 3. VAE FIX (Исправление цветов)
         self.pipe.to(self.device)
-        if hasattr(self.pipe, "vae"):
-            self.pipe.vae.to(dtype=torch.float32)
-            try:
-                orig_decode = self.pipe.vae.decode
-                def decode_fp32(z, *args, **kwargs):
-                    if isinstance(z, torch.Tensor):
-                        z = z.to(dtype=torch.float32)
-                    else:
-                        try:
-                            z = type(z)(elem.to(dtype=torch.float32) if isinstance(elem, torch.Tensor) else elem for elem in z)
-                        except Exception:
-                            pass
-                    return orig_decode(z, *args, **kwargs)
-                self.pipe.vae.decode = decode_fp32
-            except Exception:
-                pass
 
-        # 4. Compel
+        # 3. Compel с отключенным обрезанием
         try:
             self.compel = Compel(
                 tokenizer=[self.pipe.tokenizer, self.pipe.tokenizer_2],
                 text_encoder=[self.pipe.text_encoder, self.pipe.text_encoder_2],
                 returned_embeddings_type=ReturnedEmbeddingsType.PENULTIMATE_HIDDEN_STATES_NON_NORMALIZED,
-                requires_pooled=[False, True]
+                requires_pooled=[False, True],
+                truncate_long_prompts=False 
             )
         except Exception as e:
-            print(f"Warning: Compel initialization failed: {e}")
+            print(f"Warning: Compel init failed: {e}")
             self.compel = None
 
-        # 5. Загрузка LORA (Они будут работать для обеих моделей)
+        # 4. Загрузка LORA
         self._load_loras()
         print("Pipeline ready.")
 
     def _load_loras(self):
+        self.lora_loaded = False
         active_adapters = []
         adapter_weights = []
         
-        # Названия файлов LoRA и их веса
         lora_configs = [
-            ("add-detail-xl.safetensors", "details", 0.8),
-            ("sdxl_offset_example_v10.safetensors", "offset", 0.5),
-            ("Dramatic Lighting Slider.safetensors", "lighting", 0.6)
+            ("add-detail-xl.safetensors", "details", 1.0),
+            ("sdxl_offset_example_v10.safetensors", "offset", 0.6),
+            ("Dramatic Lighting Slider.safetensors", "lighting", 0.6),
+            ("ZiTD3tailed4nime.safetensors", "anime_detail", 0.7)
         ]
 
         for filename, name, weight in lora_configs:
             path = os.path.join(self.weights_dir, filename)
             if os.path.exists(path):
                 try:
+                    print(f"Loading LoRA: {name}")
                     self.pipe.load_lora_weights(self.weights_dir, weight_name=filename, adapter_name=name)
                     active_adapters.append(name)
                     adapter_weights.append(weight)
-                    print(f"Loaded LoRA: {name}")
                 except Exception as e:
                     print(f"Failed to load LoRA {name}: {e}")
-
+        
         if active_adapters:
             self.pipe.set_adapters(active_adapters, adapter_weights=adapter_weights)
             self.lora_loaded = True
-        else:
-            self.lora_loaded = False
 
     def predict(
         self,
@@ -132,25 +115,23 @@ class Predictor(BasePredictor):
     ) -> Path:
 
         if prompt:
-            prompt = prompt.replace("\\(", "(").replace("\\)", ")")
+            prompt = prompt.replace("+++", "").replace("---", "")
         
-        print(f"[PROMPT]: {prompt}...")
+        print(f"[PROMPT]: {prompt[:50]}...")
 
         if not negative_prompt or negative_prompt.strip() == "":
             negative_prompt = DEFAULT_NEGATIVE_PROMPTS
 
         if seed is None or seed == -1:
-            seed = int.from_bytes(os.urandom(4), "big")
-
+            seed = random.randint(0, 2**32 - 1)
         print(f"Seed: {seed}")
         generator = torch.Generator(self.device).manual_seed(seed)
 
-        # Обратный вызов прогресса
         def step_callback(pipe, step_index, timestep, callback_kwargs):
             if progress_callback is not None:
                 current_step = step_index + 1
                 percent = int((current_step / num_inference_steps) * 100)
-                percent = min(percent, 100)
+                percent = min(percent, 99) 
                 try:
                     progress_callback(percent)
                 except Exception:
@@ -161,15 +142,16 @@ class Predictor(BasePredictor):
 
         try:
             with torch.inference_mode():
+                # Compel processing
                 if self.compel:
                     conditioning, pooled = self.compel(prompt)
-                    negative_conditioning, negative_pooled = self.compel(negative_prompt)
+                    neg_conditioning, neg_pooled = self.compel(negative_prompt)
                     
                     out = self.pipe(
                         prompt_embeds=conditioning,
                         pooled_prompt_embeds=pooled,
-                        negative_prompt_embeds=negative_conditioning,
-                        negative_pooled_prompt_embeds=negative_pooled,
+                        negative_prompt_embeds=neg_conditioning,
+                        negative_pooled_prompt_embeds=neg_pooled,
                         width=width,
                         height=height,
                         num_inference_steps=num_inference_steps,
@@ -177,8 +159,10 @@ class Predictor(BasePredictor):
                         generator=generator,
                         cross_attention_kwargs=cross_attention_kwargs,
                         callback_on_step_end=step_callback if progress_callback else None,
+                        clip_skip=2  # <--- ВАЖНЕЙШАЯ НАСТРОЙКА ДЛЯ КАЧЕСТВА
                     )
                 else:
+                    # Fallback (вряд ли сработает с длинным промптом, но на всякий случай)
                     out = self.pipe(
                         prompt=prompt,
                         negative_prompt=negative_prompt,
@@ -188,16 +172,17 @@ class Predictor(BasePredictor):
                         guidance_scale=guidance_scale,
                         generator=generator,
                         cross_attention_kwargs=cross_attention_kwargs,
-                        clip_skip=2,
                         callback_on_step_end=step_callback if progress_callback else None,
+                        clip_skip=2 # <--- И ТУТ ТОЖЕ
                     )
+                    
         except Exception as e:
-            print("=== EXCEPTION DURING GENERATION ===")
+            print("=== EXCEPTION ===")
             traceback.print_exc()
             raise RuntimeError(f"Generation failed: {e}")
 
         if not out.images:
-            raise RuntimeError("Pipeline returned no images.")
+            raise RuntimeError("No images returned.")
 
         out_path = "/tmp/output.png"
         out.images[0].save(out_path)

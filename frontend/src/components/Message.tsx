@@ -240,9 +240,9 @@ const ModalOverlay = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(70px);
-  -webkit-backdrop-filter: blur(70px);
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -577,15 +577,15 @@ const MessageComponent: React.FC<MessageProps> = ({
       {isFullscreen && message.imageUrl && createPortal(
         <ModalOverlay onClick={handleCloseFullscreen}>
           <ModalContent onClick={(e) => e.stopPropagation()}>
-            <CloseButton onClick={handleCloseFullscreen}>
-              <FiX />
-            </CloseButton>
+          <CloseButton onClick={handleCloseFullscreen}>
+            <FiX />
+          </CloseButton>
             <ModalImageContainer>
               <ModalImage 
-                src={message.imageUrl} 
-                alt="Fullscreen image"
-                onClick={(e) => e.stopPropagation()}
-              />
+            src={message.imageUrl} 
+            alt="Fullscreen image"
+            onClick={(e) => e.stopPropagation()}
+          />
             </ModalImageContainer>
             <PromptPanel>
               <PromptPanelHeader>
@@ -700,15 +700,15 @@ const MessageComponent: React.FC<MessageProps> = ({
       {isFullscreen && message.imageUrl && createPortal(
         <ModalOverlay onClick={handleCloseFullscreen}>
           <ModalContent onClick={(e) => e.stopPropagation()}>
-            <CloseButton onClick={handleCloseFullscreen}>
-              <FiX />
-            </CloseButton>
+          <CloseButton onClick={handleCloseFullscreen}>
+            <FiX />
+          </CloseButton>
             <ModalImageContainer>
               <ModalImage 
-                src={message.imageUrl} 
-                alt="Fullscreen image"
-                onClick={(e) => e.stopPropagation()}
-              />
+            src={message.imageUrl} 
+            alt="Fullscreen image"
+            onClick={(e) => e.stopPropagation()}
+          />
             </ModalImageContainer>
             <PromptPanel>
               <PromptPanelHeader>
