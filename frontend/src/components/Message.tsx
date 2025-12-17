@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import { FiX, FiImage, FiFolder } from 'react-icons/fi';
@@ -266,7 +266,7 @@ interface MessageProps {
   onAddToPaidAlbum?: (imageUrl: string, characterName: string) => Promise<void>;
 }
 
-export const Message: React.FC<MessageProps> = ({ 
+const MessageComponent: React.FC<MessageProps> = ({ 
   message, 
   characterName,
   characterAvatar,
@@ -276,15 +276,6 @@ export const Message: React.FC<MessageProps> = ({
   onAddToPaidAlbum
 }) => {
   const isUser = message.type === 'user';
-  
-  // Логирование для отладки generationTime
-  if (message.imageUrl) {
-    console.log('[MESSAGE] Отображение изображения:', {
-      imageUrl: message.imageUrl,
-      generationTime: message.generationTime,
-      hasGenerationTime: message.generationTime !== undefined
-    });
-  }
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isAddingToPaidAlbum, setIsAddingToPaidAlbum] = useState(false);
   
@@ -591,3 +582,6 @@ export const Message: React.FC<MessageProps> = ({
     </>
   );
 };
+
+// Мемоизируем компонент для предотвращения лишних перерендеров
+export const Message = memo(MessageComponent);

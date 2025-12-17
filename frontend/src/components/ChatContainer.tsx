@@ -1035,11 +1035,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         const statusUrl = data.status_url || `/api/v1/generation-status/${data.task_id}`;
         
         // Опрашиваем статус с интервалом
-        const maxAttempts = 120; // Максимум 2 минуты (120 * 1 секунда)
+        const maxAttempts = 60; // Максимум 2 минуты (60 * 2 секунды)
+        const pollInterval = 2000; // Опрашиваем каждые 2 секунды (вместо 1 секунды)
         let attempts = 0;
         
         while (attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Ждем 1 секунду
+          await new Promise(resolve => setTimeout(resolve, pollInterval)); // Ждем 2 секунды
           
           try {
             const statusResponse = await fetch(statusUrl, {
@@ -1053,29 +1054,26 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             }
             
             const statusData = await statusResponse.json();
-            console.log('[CHAT] Статус генерации:', statusData.status);
-            console.log('[CHAT] Полный ответ статуса:', JSON.stringify(statusData, null, 2));
+            // Логируем только при изменении статуса или при завершении
+            if (statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED' || statusData.status === 'FAILURE' || attempts % 10 === 0) {
+              console.log('[CHAT] Статус генерации:', statusData.status);
+            }
             
             if (statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED') {
               // URL может быть в result.image_url, result.cloud_url или напрямую в statusData
               const result = statusData.result || {};
               generatedImageUrl = result.image_url || result.cloud_url || statusData.image_url || statusData.cloud_url;
               const resultGenerationTime = result.generation_time || statusData.generation_time;
-              console.log('[CHAT] Полный statusData:', JSON.stringify(statusData, null, 2));
-              console.log('[CHAT] result:', JSON.stringify(result, null, 2));
-              console.log('[CHAT] result.generation_time:', result.generation_time);
-              console.log('[CHAT] statusData.generation_time:', statusData.generation_time);
-              console.log('[CHAT] resultGenerationTime:', resultGenerationTime);
+              
               if (resultGenerationTime !== undefined) {
                 generationTime = resultGenerationTime;
-                console.log('[CHAT] Установлено generationTime:', generationTime);
-              } else {
-                console.warn('[CHAT] generation_time не найден в ответе!');
               }
               
-              console.log('[CHAT] Извлеченный URL из result:', result.image_url || result.cloud_url);
-              console.log('[CHAT] Извлеченный URL из statusData:', statusData.image_url || statusData.cloud_url);
-              console.log('[CHAT] Финальный URL:', generatedImageUrl);
+              // Логируем только финальный результат
+              console.log('[CHAT] ✓ Генерация завершена:', {
+                imageUrl: generatedImageUrl,
+                generationTime: generationTime
+              });
               
               if (generatedImageUrl) {
                 console.log('[CHAT] Изображение готово:', generatedImageUrl);
@@ -1113,22 +1111,15 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
       stopFakeMessageProgress(assistantMessageId, true);
 
-      console.log('[CHAT] Обновляем сообщение с generationTime:', generationTime);
-      console.log('[CHAT] Тип generationTime:', typeof generationTime);
-      console.log('[CHAT] generationTime === undefined?', generationTime === undefined);
-      console.log('[CHAT] generationTime === null?', generationTime === null);
-      
       setMessages(prev =>
         prev.map(msg => {
           if (msg.id === assistantMessageId) {
-            const updatedMsg = {
+            return {
               ...msg,
               content: '',
               imageUrl: generatedImageUrl,
               ...(generationTime !== undefined && generationTime !== null ? { generationTime } : {})
             };
-            console.log('[CHAT] Обновлённое сообщение:', updatedMsg);
-            return updatedMsg;
           }
           return msg;
         })
