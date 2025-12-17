@@ -97,12 +97,12 @@ class SubscriptionService:
             monthly_photos = 5  # 5 генераций фото для FREE подписки
             max_message_length = 100
         elif normalized_enum == SubscriptionType.STANDARD:
-            monthly_credits = 1000
-            monthly_photos = 0  # Без ограничений на генерации фото для STANDARD
+            monthly_credits = 1500  # Увеличено с 1000 до 1500
+            monthly_photos = 0  # Без лимита - генерация оплачивается кредитами (10 кредитов за фото)
             max_message_length = 200
         elif normalized_enum == SubscriptionType.PREMIUM:
             monthly_credits = 5000
-            monthly_photos = 0  # Без ограничений на генерации фото для PREMIUM
+            monthly_photos = 0  # Без лимита - генерация оплачивается кредитами (10 кредитов за фото)
             max_message_length = 300
         else:
             print(f"[ERROR] DEBUG: Неподдерживаемый тип подписки: {subscription_type}")

@@ -471,9 +471,9 @@ async def activate_subscription_direct(
         subscription = await service.activate_subscription(current_user.id, request.subscription_type)
         
         if request.subscription_type.lower() == "standard":
-            message = "Подписка Standard активирована! 1000 кредитов, 100 генераций фото и возможность создавать персонажей!"
+            message = "Подписка Standard активирована! 1500 кредитов. Генерация фото оплачивается кредитами (10 кредитов за фото) и возможность создавать персонажей!"
         else:  # premium
-            message = "Подписка Premium активирована! 5000 кредитов, 300 генераций фото и приоритет в очереди!"
+            message = "Подписка Premium активирована! 5000 кредитов. Генерация фото оплачивается кредитами (10 кредитов за фото) и приоритет в очереди!"
         
         return SubscriptionActivateResponse(
             success=True,
@@ -1411,44 +1411,61 @@ async def spend_message_resources_async(user_id: int, use_credits: bool) -> None
 
 
 async def spend_photo_resources(user_id: int) -> None:
-    """Списывает монеты и лимит подписки за генерацию фото."""
+    """Списывает монеты за генерацию фото. Для STANDARD/PREMIUM только баланс, для FREE - также лимит подписки."""
     async with async_session_maker() as db:
         coins_service = CoinsService(db)
         subscription_service = ProfitActivateService(db)
 
-        if not await coins_service.can_user_afford(user_id, 30):
+        # Проверяем баланс пользователя (обязательно для всех)
+        if not await coins_service.can_user_afford(user_id, 10):
             raise HTTPException(
                 status_code=403,
-                detail="Недостаточно монет для генерации изображения. Нужно 30 монет."
+                detail="Недостаточно монет для генерации изображения. Нужно 10 монет."
             )
 
-        if not await subscription_service.can_user_generate_photo(user_id):
-            raise HTTPException(
-                status_code=403,
-                detail="Достигнут лимит генераций фото в подписке."
-            )
+        # Проверяем подписку (для FREE может быть лимит на фото)
+        subscription = await subscription_service.get_user_subscription(user_id)
+        if subscription:
+            subscription_type = subscription.subscription_type.value
+            if subscription_type == "free":
+                # Для FREE проверяем лимит подписки
+                if not await subscription_service.can_user_generate_photo(user_id):
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Достигнут лимит генераций фото в подписке."
+                    )
+            # Для STANDARD и PREMIUM - только проверяем активность подписки
+            elif subscription_type in ("standard", "premium"):
+                if not subscription.is_active:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Подписка неактивна. Необходима активная подписка для генерации фото."
+                    )
 
         try:
-            coins_spent = await coins_service.spend_coins(user_id, 30, commit=False)
+            # Списываем кредиты с баланса пользователя
+            coins_spent = await coins_service.spend_coins(user_id, 10, commit=False)
             if not coins_spent:
                 raise HTTPException(
                     status_code=403,
                     detail="Не удалось списать монеты за генерацию изображения."
                 )
 
-            photo_spent = await subscription_service.use_photo_generation(user_id, commit=False)
-            if not photo_spent:
-                raise HTTPException(
-                    status_code=403,
-                    detail="Недостаточно лимита подписки для генерации изображения."
-                )
+            # Для FREE списываем лимит подписки, для STANDARD/PREMIUM - ничего не делаем
+            if subscription and subscription.subscription_type.value == "free":
+                photo_spent = await subscription_service.use_photo_generation(user_id, commit=False)
+                if not photo_spent:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Недостаточно лимита подписки для генерации изображения."
+                    )
 
             await db.commit()
             await emit_profile_update(user_id, db)
 
             coins_left = await coins_service.get_user_coins(user_id)
             logger.info(
-                "[OK] Потрачено 30 монет и лимит фото для пользователя %s. Осталось монет: %s",
+                "[OK] Потрачено 10 монет за генерацию фото для пользователя %s. Осталось монет: %s",
                 user_id,
                 coins_left,
             )
@@ -2046,10 +2063,10 @@ async def chat_endpoint(
                         logger.info(f"[DEBUG] DEBUG: Может генерировать фото: {can_generate_photo}")
                         if not can_generate_photo:
                             coins = await coins_service.get_user_coins(coins_user_id)
-                            logger.error(f"[ERROR] DEBUG: Недостаточно монет для генерации фото! У пользователя {user_id}: {coins} монет, нужно 30")
+                            logger.error(f"[ERROR] DEBUG: Недостаточно монет для генерации фото! У пользователя {user_id}: {coins} монет, нужно 10")
                             raise HTTPException(
                                 status_code=403, 
-                                detail="Недостаточно монет для генерации фото! Нужно 30 монет."
+                                detail="Недостаточно монет для генерации фото! Нужно 10 монет."
                             )
                         else:
                             logger.info(f"[OK] DEBUG: Пользователь {user_id} может генерировать фото")
@@ -2583,7 +2600,7 @@ async def generate_image(
             )
         
         # Получаем user_id из текущего пользователя или из request
-        user_id = current_user.id if current_user else (getattr(request, 'user_id', None))
+        user_id = current_user.id if current_user else request.user_id
         logger.info(f"[DEBUG] DEBUG: Эндпоинт generate-image, user_id: {user_id}")
         if user_id:
             logger.info(f"[DEBUG] DEBUG: Проверка монет для генерации фото пользователя {user_id}")
@@ -2596,10 +2613,10 @@ async def generate_image(
                 logger.info(f"[DEBUG] DEBUG: Может генерировать фото: {can_generate_photo}")
                 if not can_generate_photo:
                     coins = await coins_service.get_user_coins(user_id)
-                    logger.error(f"[ERROR] DEBUG: Недостаточно монет для генерации фото! У пользователя {user_id}: {coins} монет, нужно 30")
+                    logger.error(f"[ERROR] DEBUG: Недостаточно монет для генерации фото! У пользователя {user_id}: {coins} монет, нужно 10")
                     raise HTTPException(
                         status_code=403, 
-                        detail="Недостаточно монет для генерации фото! Нужно 30 монет."
+                        detail="Недостаточно монет для генерации фото! Нужно 10 монет."
                     )
                 else:
                     logger.info(f"[OK] DEBUG: Пользователь {user_id} может генерировать фото")
@@ -2857,7 +2874,8 @@ async def generate_image(
             async with httpx.AsyncClient() as client:
                 try:
                     # Запускаем генерацию и получаем job_id
-                    job_id = await start_generation(
+                    selected_model = getattr(generation_settings, 'model', None) or (getattr(request, 'model', None) or "anime-realism")
+                    job_id, runpod_url_base = await start_generation(
                         client=client,
                         user_prompt=generation_settings.prompt,
                         width=generation_settings.width,
@@ -2869,10 +2887,10 @@ async def generate_image(
                         negative_prompt=generation_settings.negative_prompt,
                         use_enhanced_prompts=False,  # Мы уже обработали промпты выше
                         lora_scale=default_params.get("lora_scale", 0.5),  # Dramatic Lighting LoRA
-                        model=getattr(generation_settings, 'model', None) or (getattr(request, 'model', None) or "anime-realism")
+                        model=selected_model
                     )
-                    
-                    logger.info(f"[GENERATE] ✅ Задача запущена на RunPod, job_id: {job_id}")
+
+                    logger.info(f"[GENERATE] ✅ Задача запущена на RunPod, job_id: {job_id}, модель: {selected_model}")
                     
                     # ВАЖНО: Тратим монеты СРАЗУ при запуске задачи, а не при завершении
                     # Это предотвращает злоупотребление (если пользователь отменит задачу, монеты уже списаны)
@@ -2885,6 +2903,57 @@ async def generate_image(
                             coins_service = CoinsService(db)
                             await coins_service.spend_coins(user_id, PHOTO_GENERATION_COST)
                             logger.info(f"[COINS] Списано {PHOTO_GENERATION_COST} монет за запуск генерации для user_id={user_id}")
+                    
+                    # КРИТИЧЕСКИ ВАЖНО: Сохраняем метаданные генерации в Redis для сохранения истории после завершения
+                    if user_id and character_data_for_history:
+                        try:
+                            from app.utils.redis_cache import cache_set
+                            from app.database.db import async_session_maker
+                            from app.models.image_generation_history import ImageGenerationHistory
+                            import json
+                            
+                            generation_metadata = {
+                                "user_id": user_id,
+                                "character_name": character_data_for_history.get("name"),
+                                "character_id": character_data_for_history.get("id"),
+                                "prompt": request.prompt,
+                                "task_id": job_id,
+                                "runpod_url_base": runpod_url_base,  # Сохраняем для правильной проверки статуса
+                                "model": selected_model,  # Сохраняем модель для отладки
+                                "created_at": time.time()
+                            }
+                            
+                            # ВАЖНО: Сохраняем метаданные в БД сразу (fallback на случай если Redis недоступен)
+                            # Это гарантирует, что история будет сохранена даже без Redis
+                            async with async_session_maker() as fallback_db:
+                                try:
+                                    # Создаем временную запись с пустым image_url (будет обновлена при завершении)
+                                    temp_entry = ImageGenerationHistory(
+                                        user_id=user_id,
+                                        character_name=character_data_for_history.get("name"),
+                                        prompt=request.prompt,
+                                        image_url=f"pending:{job_id}",  # Временный маркер
+                                        task_id=job_id
+                                    )
+                                    fallback_db.add(temp_entry)
+                                    await fallback_db.commit()
+                                    logger.info(f"[HISTORY] ✓ Метаданные сохранены в БД для task_id={job_id}: user_id={user_id}, character={character_data_for_history.get('name')}")
+                                except Exception as db_error:
+                                    logger.error(f"[HISTORY] Ошибка сохранения метаданных в БД: {db_error}")
+                                    import traceback
+                                    logger.error(f"[HISTORY] Трейсбек: {traceback.format_exc()}")
+                                    await fallback_db.rollback()
+                            
+                            # Дополнительно сохраняем в Redis для быстрого доступа
+                            cache_saved = await cache_set(f"generation:{job_id}", generation_metadata, ttl_seconds=3600)
+                            if cache_saved:
+                                logger.info(f"[HISTORY] ✓ Метаданные также сохранены в Redis для task_id={job_id}")
+                            else:
+                                logger.warning(f"[HISTORY] Redis недоступен, но метаданные уже в БД для task_id={job_id}")
+                        except Exception as cache_error:
+                            logger.error(f"[HISTORY] Критическая ошибка сохранения метаданных: {cache_error}")
+                            import traceback
+                            logger.error(f"[HISTORY] Трейсбек: {traceback.format_exc()}")
                     
                     # Возвращаем task_id сразу, фронтенд будет опрашивать статус
                     # Это позволяет другим пользователям генерировать изображения параллельно
@@ -3238,9 +3307,54 @@ async def get_generation_status(
             from app.services.runpod_client import check_status
             import httpx
             
+            # Пытаемся получить runpod_url_base из метаданных
+            runpod_url_base = None
+            try:
+                from app.utils.redis_cache import cache_get
+                generation_metadata = await cache_get(f"generation:{task_id}")
+                if generation_metadata:
+                    if isinstance(generation_metadata, str):
+                        import json
+                        try:
+                            generation_metadata = json.loads(generation_metadata)
+                        except json.JSONDecodeError:
+                            logger.warning(f"[RUNPOD STATUS] Не удалось распарсить метаданные из Redis")
+                            generation_metadata = None
+                    
+                    if generation_metadata and isinstance(generation_metadata, dict):
+                        runpod_url_base = generation_metadata.get("runpod_url_base")
+                        model = generation_metadata.get("model", "unknown")
+                        logger.info(f"[RUNPOD STATUS] Найден runpod_url_base в метаданных: {runpod_url_base} (модель: {model})")
+                    else:
+                        logger.warning(f"[RUNPOD STATUS] Метаданные не являются словарем: {type(generation_metadata)}")
+                else:
+                    logger.warning(f"[RUNPOD STATUS] Метаданные не найдены в Redis для task_id={task_id}")
+            except Exception as meta_error:
+                logger.warning(f"[RUNPOD STATUS] Не удалось получить runpod_url_base из метаданных: {meta_error}")
+                import traceback
+                logger.warning(f"[RUNPOD STATUS] Трейсбек: {traceback.format_exc()}")
+            
+            # Если не нашли в метаданных, пытаемся найти в БД
+            if not runpod_url_base:
+                try:
+                    from app.models.image_generation_history import ImageGenerationHistory
+                    from sqlalchemy import select
+                    async with async_session_maker() as fallback_db:
+                        stmt = select(ImageGenerationHistory).where(
+                            ImageGenerationHistory.task_id == task_id
+                        ).limit(1)
+                        result = await fallback_db.execute(stmt)
+                        pending_entry = result.scalar_one_or_none()
+                        if pending_entry and pending_entry.image_url and pending_entry.image_url.startswith("pending:"):
+                            # Метаданные могут быть в JSON в prompt или в отдельном поле
+                            # Пока используем дефолтный URL, но логируем
+                            logger.warning(f"[RUNPOD STATUS] Найдена pending запись, но runpod_url_base не сохранен в БД")
+                except Exception as db_error:
+                    logger.warning(f"[RUNPOD STATUS] Ошибка поиска в БД: {db_error}")
+
             async with httpx.AsyncClient() as client:
                 try:
-                    status_response = await check_status(client, task_id)
+                    status_response = await check_status(client, task_id, runpod_url_base)
                     status = status_response.get("status")
                     
                     if status == "COMPLETED":
@@ -3262,6 +3376,83 @@ async def get_generation_status(
                                 logger.info(f"[RUNPOD STATUS] Добавлено generation_time в result: {generation_time}")
                             else:
                                 logger.warning(f"[RUNPOD STATUS] generation_time отсутствует в output!")
+                            
+                            # КРИТИЧЕСКИ ВАЖНО: Сохраняем историю генерации изображения
+                            try:
+                                from app.utils.redis_cache import cache_get
+                                from app.services.image_generation_history_service import ImageGenerationHistoryService
+                                from app.database.db import async_session_maker
+                                from app.models.image_generation_history import ImageGenerationHistory
+                                from sqlalchemy import select, update
+                                import json
+                                
+                                user_id = None
+                                character_name = None
+                                prompt = "Генерация изображения"
+                                
+                                # Пытаемся получить метаданные из Redis
+                                metadata_raw = await cache_get(f"generation:{task_id}")
+                                if metadata_raw:
+                                    # cache_get уже возвращает распарсенный JSON (dict) или строку
+                                    if isinstance(metadata_raw, str):
+                                        try:
+                                            metadata = json.loads(metadata_raw)
+                                        except json.JSONDecodeError:
+                                            metadata = None
+                                    else:
+                                        metadata = metadata_raw
+                                    
+                                    if metadata and isinstance(metadata, dict):
+                                        user_id = metadata.get("user_id")
+                                        character_name = metadata.get("character_name")
+                                        prompt = metadata.get("prompt", "Генерация изображения")
+                                        logger.info(f"[IMAGE_HISTORY] Получены метаданные из Redis: user_id={user_id}, character={character_name}, task_id={task_id}")
+                                
+                                # Если не нашли в Redis, пытаемся найти временную запись в БД
+                                if not user_id or not character_name:
+                                    logger.info(f"[IMAGE_HISTORY] Метаданные не найдены в Redis, ищем в БД по task_id={task_id}")
+                                    async with async_session_maker() as search_db:
+                                        temp_entry = await search_db.execute(
+                                            select(ImageGenerationHistory).where(
+                                                ImageGenerationHistory.task_id == task_id,
+                                                ImageGenerationHistory.image_url.like("pending:%")
+                                            ).limit(1)
+                                        )
+                                        temp_record = temp_entry.scalars().first()
+                                        
+                                        if temp_record:
+                                            user_id = temp_record.user_id
+                                            character_name = temp_record.character_name
+                                            prompt = temp_record.prompt or "Генерация изображения"
+                                            logger.info(f"[IMAGE_HISTORY] Найдена временная запись в БД: user_id={user_id}, character={character_name}")
+                                
+                                # Сохраняем историю если есть все данные
+                                if user_id and character_name and image_url:
+                                    logger.info(f"[IMAGE_HISTORY] Сохраняем историю генерации: user_id={user_id}, character={character_name}, image_url={image_url[:50]}...")
+                                    
+                                    async with async_session_maker() as history_db:
+                                        # Используем сервис для сохранения (он сам проверит дубликаты и обновит pending записи)
+                                        history_service = ImageGenerationHistoryService(history_db)
+                                        saved = await history_service.save_generation(
+                                            user_id=user_id,
+                                            character_name=character_name,
+                                            image_url=image_url,
+                                            prompt=prompt,
+                                            generation_time=generation_time,
+                                            task_id=task_id
+                                        )
+                                        
+                                        if saved:
+                                            logger.info(f"[IMAGE_HISTORY] ✓ История сохранена для task_id={task_id}")
+                                        else:
+                                            logger.warning(f"[IMAGE_HISTORY] Не удалось сохранить историю для task_id={task_id}")
+                                else:
+                                    logger.warning(f"[IMAGE_HISTORY] Недостаточно данных для сохранения: user_id={user_id}, character={character_name}, image_url={bool(image_url)}, task_id={task_id}")
+                            except Exception as history_error:
+                                logger.error(f"[IMAGE_HISTORY] Ошибка сохранения истории: {history_error}")
+                                import traceback
+                                logger.error(f"[IMAGE_HISTORY] Трейсбек: {traceback.format_exc()}")
+                                # Не прерываем выполнение, история - дополнительная функция
                             
                             logger.info(f"[RUNPOD STATUS] Финальный result: {result}")
                             return {

@@ -16,6 +16,7 @@ from app.schemas.subscription import (
     SubscriptionActivateResponse,
     SubscriptionInfoResponse
 )
+from app.config.credit_packages import get_all_packages
 
 router = APIRouter()
 
@@ -67,9 +68,9 @@ async def activate_subscription(
         
         # Формируем сообщение в зависимости от типа подписки
         if request.subscription_type.lower() == "standard":
-            message = "Подписка Standard успешно активирована! Вы получили 1000 кредитов и 100 генераций фото."
+            message = "Подписка Standard успешно активирована! Вы получили 1500 кредитов. Генерация фото оплачивается кредитами (10 кредитов за фото)."
         else:  # premium
-            message = "Подписка Premium успешно активирована! Вы получили 5000 кредитов и 300 генераций фото."
+            message = "Подписка Premium успешно активирована! Вы получили 5000 кредитов. Генерация фото оплачивается кредитами (10 кредитов за фото)."
         
         return SubscriptionActivateResponse(
             success=True,
@@ -169,4 +170,22 @@ async def check_photo_permission(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка проверки разрешения: {str(e)}"
+        )
+
+
+@router.get("/credit-packages/")
+async def get_credit_packages():
+    """
+    Получает список доступных пакетов для разовой докупки кредитов.
+    """
+    try:
+        packages = get_all_packages()
+        return {
+            "success": True,
+            "packages": packages
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка получения пакетов: {str(e)}"
         )

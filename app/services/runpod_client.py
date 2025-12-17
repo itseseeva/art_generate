@@ -58,9 +58,10 @@ load_dotenv()
 
 # Константы для подключения к RunPod
 RUNPOD_API_KEY = os.getenv("RUNPOD_API_KEY")
-RUNPOD_URL = os.getenv("RUNPOD_URL")  # Должен заканчиваться на '/run' или '/runsync'
+RUNPOD_URL = os.getenv("RUNPOD_URL")  # Дефолтная модель (PerfectDeliberate/anime-realism) - должен заканчиваться на '/run' или '/runsync'
+RUNPOD_URL_2 = os.getenv("RUNPOD_URL_2")  # Новая модель (OneObsession/anime) - должен заканчиваться на '/run' или '/runsync'
 
-# Извлекаем базовый URL и ENDPOINT_ID из RUNPOD_URL
+# Извлекаем базовый URL и ENDPOINT_ID из RUNPOD_URL (дефолтная модель)
 # Формат: https://api.runpod.ai/v2/{ENDPOINT_ID}/run
 if RUNPOD_URL:
     # Убираем '/run' или '/runsync' с конца
@@ -70,6 +71,16 @@ if RUNPOD_URL:
 else:
     RUNPOD_URL_BASE = None
     ENDPOINT_ID = None
+
+# Извлекаем базовый URL и ENDPOINT_ID из RUNPOD_URL_2 (новая модель)
+if RUNPOD_URL_2:
+    # Убираем '/run' или '/runsync' с конца
+    RUNPOD_URL_BASE_2 = RUNPOD_URL_2.rstrip('/').replace('/run', '').replace('/runsync', '')
+    # Извлекаем ENDPOINT_ID
+    ENDPOINT_ID_2 = RUNPOD_URL_BASE_2.split('/')[-1] if '/' in RUNPOD_URL_BASE_2 else None
+else:
+    RUNPOD_URL_BASE_2 = None
+    ENDPOINT_ID_2 = None
 
 # Таймауты
 DEFAULT_TIMEOUT = 300  # 5 минут
@@ -107,18 +118,31 @@ async def start_generation(
         scheduler: Планировщик
         negative_prompt: Негативный промпт
         use_enhanced_prompts: Использовать ли дефолтные промпты
+        model: Модель для генерации ('anime' или 'anime-realism')
         
     Returns:
-        Job ID для отслеживания статуса
+        Tuple[Job ID, base_url]: Job ID для отслеживания статуса и базовый URL для проверки статуса
         
     Raises:
-        ValueError: Если не установлены RUNPOD_API_KEY или RUNPOD_URL
+        ValueError: Если не установлены RUNPOD_API_KEY или нужный RUNPOD_URL
         httpx.HTTPError: При ошибках сетевого запроса
     """
     if not RUNPOD_API_KEY:
         raise ValueError("RUNPOD_API_KEY не установлен в переменных окружения")
-    if not RUNPOD_URL:
-        raise ValueError("RUNPOD_URL не установлен в переменных окружения")
+    
+    # Определяем какой URL использовать на основе модели
+    # anime -> RUNPOD_URL_2 (OneObsession)
+    # anime-realism -> RUNPOD_URL (PerfectDeliberate, дефолт)
+    if model == "anime":
+        runpod_url = RUNPOD_URL_2
+        runpod_url_base = RUNPOD_URL_BASE_2
+        if not RUNPOD_URL_2:
+            raise ValueError("RUNPOD_URL_2 не установлен в переменных окружения (требуется для модели 'anime')")
+    else:  # anime-realism или дефолт
+        runpod_url = RUNPOD_URL
+        runpod_url_base = RUNPOD_URL_BASE
+        if not RUNPOD_URL:
+            raise ValueError("RUNPOD_URL не установлен в переменных окружения (требуется для модели 'anime-realism')")
     
     # Обрабатываем промпты
     if use_enhanced_prompts:
@@ -174,8 +198,9 @@ async def start_generation(
     logger.debug(f"[RUNPOD] Параметры: {params}")
     
     try:
+        logger.info(f"[RUNPOD] Используется URL: {runpod_url} (модель: {model})")
         response = await client.post(
-            RUNPOD_URL,
+            runpod_url,
             json=payload,
             headers=headers,
             timeout=REQUEST_TIMEOUT
@@ -188,8 +213,8 @@ async def start_generation(
         if not job_id:
             raise ValueError(f"RunPod API не вернул Job ID: {result}")
         
-        logger.info(f"[RUNPOD] Задача создана: {job_id}")
-        return job_id
+        logger.info(f"[RUNPOD] Задача создана: {job_id} (модель: {model})")
+        return job_id, runpod_url_base
         
     except httpx.HTTPStatusError as e:
         logger.error(f"[RUNPOD] HTTP ошибка: {e.response.status_code} - {e.response.text}")
@@ -204,7 +229,8 @@ async def start_generation(
 
 async def check_status(
     client: httpx.AsyncClient,
-    job_id: str
+    job_id: str,
+    runpod_url_base: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Опрашивает статус задачи по Job ID.
@@ -212,6 +238,7 @@ async def check_status(
     Args:
         client: Асинхронный HTTP клиент
         job_id: ID задачи
+        runpod_url_base: Базовый URL для проверки статуса (если не указан, используется дефолтный RUNPOD_URL_BASE)
         
     Returns:
         JSON-ответ от RunPod API со статусом
@@ -222,11 +249,17 @@ async def check_status(
     """
     if not RUNPOD_API_KEY:
         raise ValueError("RUNPOD_API_KEY не установлен в переменных окружения")
-    if not RUNPOD_URL_BASE:
-        raise ValueError("RUNPOD_URL_BASE не может быть вычислен из RUNPOD_URL")
+    
+    # Используем переданный базовый URL или дефолтный
+    base_url = runpod_url_base or RUNPOD_URL_BASE
+    if not base_url:
+        raise ValueError("Базовый URL не может быть вычислен. Убедитесь, что установлен RUNPOD_URL или RUNPOD_URL_2")
     
     # Формируем URL для проверки статуса
-    status_url = f"{RUNPOD_URL_BASE}/status/{job_id}"
+    status_url = f"{base_url}/status/{job_id}"
+    
+    logger.info(f"[RUNPOD] Проверка статуса job_id={job_id} на URL: {status_url}")
+    logger.info(f"[RUNPOD] Используемый base_url: {base_url} (переданный: {runpod_url_base}, дефолтный: {RUNPOD_URL_BASE})")
     
     headers = {
         "Authorization": f"Bearer {RUNPOD_API_KEY}",
@@ -245,6 +278,27 @@ async def check_status(
         return result
         
     except httpx.HTTPStatusError as e:
+        # Если получили 404 и есть альтернативный endpoint, пробуем его
+        if e.response.status_code == 404 and runpod_url_base:
+            logger.warning(f"[RUNPOD] Job не найден на {base_url}, пробуем альтернативный endpoint...")
+            # Пробуем другой endpoint
+            alternative_base = RUNPOD_URL_BASE_2 if base_url == RUNPOD_URL_BASE else RUNPOD_URL_BASE
+            if alternative_base:
+                alternative_url = f"{alternative_base}/status/{job_id}"
+                logger.info(f"[RUNPOD] Пробуем альтернативный URL: {alternative_url}")
+                try:
+                    alt_response = await client.get(
+                        alternative_url,
+                        headers=headers,
+                        timeout=REQUEST_TIMEOUT
+                    )
+                    alt_response.raise_for_status()
+                    result = alt_response.json()
+                    logger.info(f"[RUNPOD] ✓ Job найден на альтернативном endpoint!")
+                    return result
+                except Exception as alt_error:
+                    logger.error(f"[RUNPOD] Альтернативный endpoint также не помог: {alt_error}")
+        
         logger.error(f"[RUNPOD] HTTP ошибка при проверке статуса: {e.response.status_code} - {e.response.text}")
         raise
     except httpx.RequestError as e:
@@ -305,7 +359,7 @@ async def generate_image_async(
     async with httpx.AsyncClient() as client:
         # Шаг 1: Запускаем генерацию
         try:
-            job_id = await start_generation(
+            job_id, runpod_url_base = await start_generation(
                 client=client,
                 user_prompt=user_prompt,
                 width=width,
@@ -339,7 +393,7 @@ async def generate_image_async(
             
             # Проверяем статус
             try:
-                status_response = await check_status(client, job_id)
+                status_response = await check_status(client, job_id, runpod_url_base)
             except Exception as e:
                 logger.error(f"[RUNPOD] Ошибка при проверке статуса {job_id}: {e}")
                 # Не выбрасываем исключение, пробуем ещё раз

@@ -31,6 +31,9 @@ try:
         PaidAlbumPhoto, CharacterMainPhoto, TipMessage
     )
     from app.models.user import Users, RefreshToken, EmailVerificationCode
+    from app.models.subscription import UserSubscription
+    from app.models.payment_transaction import PaymentTransaction
+    from app.models.image_generation_history import ImageGenerationHistory
     target_metadata = Base.metadata
 except Exception as e:
     # Avoid non-ASCII output to prevent Windows encoding issues

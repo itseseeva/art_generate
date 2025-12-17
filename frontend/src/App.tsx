@@ -222,6 +222,13 @@ function App() {
     } else if (path.includes('/shop')) {
       setCurrentPage('shop');
       window.history.replaceState({ page: 'shop' }, '', path);
+      
+      // Проверяем, вернулись ли мы с оплаты
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('payment') === 'success') {
+        // Очищаем URL от параметров после обработки
+        window.history.replaceState({ page: 'shop' }, '', '/shop');
+      }
     } else if (path.includes('/profile')) {
       setCurrentPage('profile');
       window.history.replaceState({ page: 'profile' }, '', path);

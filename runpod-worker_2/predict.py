@@ -11,7 +11,7 @@ from compel import Compel, ReturnedEmbeddingsType
 
 # === НАСТРОЙКИ ===
 # Просто поменяй это имя файла для второго воркера!
-MODEL_FILENAME = "perfectdeliberate_v50.safetensors" 
+MODEL_FILENAME = "oneObsession_v18.safetensors" 
 # Для второго воркера напишешь: "oneObsession_v18.safetensors"
 
 DEFAULT_WIDTH = 832

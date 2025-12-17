@@ -3,7 +3,7 @@ API эндпоинты для работы с историей чата.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 
 from app.database.db_depends import get_db
@@ -19,9 +19,9 @@ class ChatMessageRequest(BaseModel):
     character_name: str
     session_id: str
     message_type: str  # 'user' или 'assistant'
-    message_content: str
-    image_url: str = None
-    image_filename: str = None
+    message_content: str = ""  # Может быть пустым для сообщений только с фото
+    image_url: Optional[str] = None
+    image_filename: Optional[str] = None
 
 
 class ChatHistoryRequest(BaseModel):
@@ -44,31 +44,53 @@ async def save_chat_message(
 ):
     """Сохраняет сообщение в историю чата."""
     try:
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(
+            f"[CHAT_HISTORY_API] Сохранение сообщения: user_id={current_user.id}, "
+            f"character={request.character_name}, type={request.message_type}, "
+            f"has_image={bool(request.image_url)}, content_length={len(request.message_content)}"
+        )
+        
         # Импортируем сервис только здесь, чтобы избежать циклических импортов
         from app.chat_history.services.chat_history_service import ChatHistoryService
         history_service = ChatHistoryService(db)
+        
+        # Если message_content пустой, но есть image_url, используем дефолтный текст
+        message_content = request.message_content
+        if not message_content and request.image_url:
+            message_content = "Генерация изображения"
+            logger.info(f"[CHAT_HISTORY_API] message_content пустой, используем '{message_content}'")
         
         success = await history_service.save_message(
             user_id=current_user.id,
             character_name=request.character_name,
             session_id=request.session_id,
             message_type=request.message_type,
-            message_content=request.message_content,
+            message_content=message_content,
             image_url=request.image_url,
             image_filename=request.image_filename
         )
         
         if success:
+            logger.info(f"[CHAT_HISTORY_API] ✓ Сообщение сохранено в историю для user_id={current_user.id}")
             return {"success": True, "message": "Сообщение сохранено в историю"}
         else:
+            logger.warning(f"[CHAT_HISTORY_API] Не удалось сохранить сообщение для user_id={current_user.id} (нет прав)")
             raise HTTPException(
                 status_code=403, 
-                detail="У вас нет прав на сохранение истории чата. Требуется подписка Premium или выше."
+                detail="У вас нет прав на сохранение истории чата. Требуется подписка STANDARD или PREMIUM."
             )
             
     except HTTPException:
         raise
     except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"[CHAT_HISTORY_API] Ошибка сохранения сообщения: {e}")
+        import traceback
+        logger.error(f"[CHAT_HISTORY_API] Трейсбек: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Ошибка сохранения сообщения: {str(e)}")
 
 

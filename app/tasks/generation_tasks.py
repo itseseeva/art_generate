@@ -247,8 +247,41 @@ def generate_image_task(
                     # Не прерываем выполнение задачи из-за ошибки траты ресурсов
                     # Изображение уже загружено, пользователь должен получить результат
             
-            # Промпт теперь сохраняется сразу в generate_image эндпоинте, а не здесь
-            # В get_generation_status мы только обновляем запись с image_url по task_id
+            # КРИТИЧЕСКИ ВАЖНО: Сохраняем историю генерации изображения
+            if user_id is not None and character_name and cloud_url:
+                try:
+                    from app.database.db import async_sessionmaker, engine
+                    from app.services.image_generation_history_service import ImageGenerationHistoryService
+                    from sqlalchemy.ext.asyncio import AsyncSession
+                    
+                    # Создаем новую сессию для текущего event loop
+                    async_session_factory = async_sessionmaker(
+                        engine, expire_on_commit=False, class_=AsyncSession
+                    )
+                    
+                    async def save_history():
+                        async with async_session_factory() as history_db:
+                            history_service = ImageGenerationHistoryService(history_db)
+                            generation_time_seconds = int(generation_time) if generation_time else None
+                            saved = await history_service.save_generation(
+                                user_id=user_id,
+                                character_name=character_name,
+                                image_url=cloud_url,
+                                prompt=settings_dict.get("original_user_prompt") or settings_dict.get("prompt", "Генерация изображения"),
+                                generation_time=generation_time_seconds,
+                                task_id=task_id
+                            )
+                            if saved:
+                                logger.info(f"[CELERY] ✓ История генерации сохранена для task_id={task_id}")
+                            else:
+                                logger.warning(f"[CELERY] Не удалось сохранить историю для task_id={task_id}")
+                    
+                    loop.run_until_complete(save_history())
+                except Exception as history_error:
+                    logger.error(f"[CELERY] Ошибка сохранения истории генерации: {history_error}")
+                    import traceback
+                    logger.error(f"[CELERY] Трейсбек: {traceback.format_exc()}")
+                    # Не прерываем выполнение, история - дополнительная функция
             
             result_dict = {
                 "success": True,
@@ -392,7 +425,7 @@ async def _spend_photo_resources(user_id: int) -> None:
         subscription_service = ProfitActivateService(db_session)
         
         try:
-            coins_spent = await coins_service.spend_coins(user_id, 30, commit=False)
+            coins_spent = await coins_service.spend_coins(user_id, 10, commit=False)
             if not coins_spent:
                 logger.error(f"[CELERY] Не удалось списать монеты для пользователя {user_id}")
                 return

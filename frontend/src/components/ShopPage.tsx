@@ -429,6 +429,19 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   const [balanceRefreshTrigger, setBalanceRefreshTrigger] = useState(0);
   const [statsRefreshTrigger, setStatsRefreshTrigger] = useState(0);
   const [selectedPlanForPayment, setSelectedPlanForPayment] = useState<string | null>(null);
+  // Инициализируем creditPackages с пустым массивом для предотвращения ошибок
+  const [creditPackages, setCreditPackages] = useState<Array<{id: string; name: string; credits: number; price: number; price_per_credit: number; description: string}>>([]);
+  const [isLoadingPackages, setIsLoadingPackages] = useState(false);
+  
+  // Защита от undefined - убеждаемся, что creditPackages всегда массив
+  // Вычисляем это значение каждый раз при рендере для безопасности
+  const getSafeCreditPackages = () => {
+    try {
+      return Array.isArray(creditPackages) ? creditPackages : [];
+    } catch (e) {
+      return [];
+    }
+  };
 
   useEffect(() => {
     if (propIsAuthenticated !== undefined) {
@@ -450,6 +463,31 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       loadSubscriptionStats();
     }
   }, [isAuthenticated, statsRefreshTrigger]);
+
+  useEffect(() => {
+    // Загружаем пакеты всегда, независимо от статуса подписки
+    loadCreditPackages();
+    
+    // Проверяем, вернулись ли мы с YooMoney после оплаты
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentSuccess = urlParams.get('payment') === 'success';
+    
+    if (paymentSuccess) {
+      // Очищаем URL от параметров
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      // Обновляем баланс и статистику подписки
+      if (isAuthenticated) {
+        setBalanceRefreshTrigger(prev => prev + 1);
+        setStatsRefreshTrigger(prev => prev + 1);
+        
+        // Показываем сообщение об успехе
+        setSuccessMessage('Оплата успешно обработана! Ваш баланс обновлен.');
+        setShowSuccessToast(true);
+        setTimeout(() => setShowSuccessToast(false), 5000);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -545,6 +583,64 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     }
   };
 
+  const loadCreditPackages = async () => {
+    try {
+      setIsLoadingPackages(true);
+      console.log('[SHOP] Загрузка пакетов кредитов...');
+      const response = await fetch('http://localhost:8000/api/v1/subscription/credit-packages/');
+      console.log('[SHOP] Ответ сервера:', response.status, response.statusText);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[SHOP] Данные пакетов:', data);
+        if (data.success && data.packages) {
+          console.log('[SHOP] Установка пакетов:', data.packages);
+          setCreditPackages(data.packages);
+        } else {
+          console.warn('[SHOP] Неожиданный формат данных:', data);
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('[SHOP] Ошибка ответа сервера:', response.status, errorText);
+      }
+    } catch (error) {
+      console.error('[SHOP] Ошибка загрузки пакетов кредитов:', error);
+    } finally {
+      setIsLoadingPackages(false);
+    }
+  };
+
+  const handleCreditTopUpPayment = (packageId: string, price: number, credits: number) => {
+    const currentUserId = userInfo?.id;
+    if (!currentUserId) {
+      setAuthMode('login');
+      setIsAuthModalOpen(true);
+      return;
+    }
+
+    try {
+      const receiverWallet = '4100119070489003';
+      const label = `type:topup;package:${packageId};uid:${currentUserId}`;
+      // Используем относительный URL для возврата на страницу магазина
+      const successURL = `${window.location.origin}/shop`;
+      const quickPayUrl =
+        `https://yoomoney.ru/quickpay/confirm.xml` +
+        `?receiver=${encodeURIComponent(receiverWallet)}` +
+        `&quickpay-form=shop` +
+        `&targets=${encodeURIComponent(`Покупка ${credits} кредитов`)}` +
+        `&formcomment=${encodeURIComponent('Пополнение баланса Spicychat')}` +
+        `&short-dest=${encodeURIComponent('Пополнение баланса')}` +
+        `&sum=${encodeURIComponent(price.toFixed(2))}` +
+        `&label=${encodeURIComponent(label)}` +
+        `&successURL=${encodeURIComponent(successURL)}`;
+
+      window.location.href = quickPayUrl;
+    } catch (err) {
+      console.error('[SHOP] Ошибка формирования ссылки QuickPay для пакета:', err);
+      setError('Не удалось открыть страницу оплаты YooMoney');
+    }
+  };
+
   const handleActivateSubscription = async (subscriptionType: string) => {
     const token = localStorage.getItem('authToken');
     
@@ -599,7 +695,8 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       const receiverWallet = '4100119070489003';
       const amount = subscriptionType === 'premium' ? 1499 : 699;
       const label = `plan:${subscriptionType};uid:${currentUserId}`;
-      const successURL = `${window.location.origin}/frontend/payment/success/`;
+      // Используем относительный URL для возврата на страницу магазина
+      const successURL = `${window.location.origin}/shop`;
       const quickPayUrl =
         `https://yoomoney.ru/quickpay/confirm.xml` +
         `?receiver=${encodeURIComponent(receiverWallet)}` +
@@ -669,7 +766,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
               <PlanName>Standard</PlanName>
               <PlanPrice>699₽</PlanPrice>
               <PlanFeatures>
-                <PlanFeature>1000 кредитов в месяц</PlanFeature>
+                <PlanFeature>1500 кредитов в месяц</PlanFeature>
                 <PlanFeature>Возможность создать своих персонажей</PlanFeature>
                 <PlanFeature>Возможность создавать платные альбомы</PlanFeature>
                 <PlanFeature>Сохранение истории сообщений</PlanFeature>
@@ -765,6 +862,79 @@ export const ShopPage: React.FC<ShopPageProps> = ({
           </SubscriptionPlans>
 
         </SubscriptionSection>
+
+        {/* Секция разовой докупки кредитов */}
+        {isAuthenticated && stats?.is_active && (
+          <SubscriptionSection style={{ marginTop: '4rem' }}>
+            <SectionTitle>Докупить кредиты</SectionTitle>
+            <p style={{ 
+              textAlign: 'center', 
+              color: '#b8b8b8', 
+              fontSize: '1rem', 
+              marginBottom: '2rem',
+              maxWidth: '800px',
+              margin: '0 auto 2rem'
+            }}>
+              Закончились кредиты? Докупите пакет и продолжайте общение! Кредиты суммируются с текущим балансом.
+            </p>
+            
+            <SubscriptionPlans>
+              {isLoadingPackages ? (
+                <div style={{ textAlign: 'center', color: '#888', padding: '2rem' }}>
+                  Загрузка пакетов...
+                </div>
+              ) : (() => {
+                  // Защита от undefined - убеждаемся, что creditPackages всегда массив
+                  try {
+                    const safePackages = Array.isArray(creditPackages) ? creditPackages : [];
+                    if (safePackages.length > 0) {
+                      return safePackages.map((pkg: any) => (
+                  <PlanCard key={pkg.id} style={{ position: 'relative' }}>
+                    <PlanName>{pkg.name}</PlanName>
+                    <PlanPrice>{pkg.price}₽</PlanPrice>
+                    <div style={{ 
+                      fontSize: '0.9rem', 
+                      color: '#a78bfa', 
+                      marginBottom: '1rem',
+                      textAlign: 'center'
+                    }}>
+                      {pkg.credits} кредитов
+                    </div>
+                    <div style={{ 
+                      fontSize: '0.85rem', 
+                      color: '#888', 
+                      marginBottom: '1.5rem',
+                      textAlign: 'center',
+                      fontStyle: 'italic'
+                    }}>
+                      {pkg.description}
+                    </div>
+                    <ActivateButton
+                      onClick={() => handleCreditTopUpPayment(pkg.id, pkg.price, pkg.credits)}
+                      disabled={isLoadingPackages}
+                    >
+                      Купить за {pkg.price}₽
+                    </ActivateButton>
+                      </PlanCard>
+                      ));
+                    } else {
+                      return (
+                        <div style={{ textAlign: 'center', color: '#888', padding: '2rem' }}>
+                          Пакеты временно недоступны
+                        </div>
+                      );
+                    }
+                  } catch (e) {
+                    return (
+                      <div style={{ textAlign: 'center', color: '#888', padding: '2rem' }}>
+                        Ошибка загрузки пакетов
+                      </div>
+                    );
+                  }
+                })()}
+            </SubscriptionPlans>
+          </SubscriptionSection>
+        )}
         
         {error && <ErrorMessage>{error}</ErrorMessage>}
       </ContentWrapper>

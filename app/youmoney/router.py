@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 import hashlib
 import logging
+from datetime import datetime
 
 from .config import get_youm_config
 
@@ -61,12 +62,19 @@ async def youmoney_quickpay_notify(request: Request):
 	label = data["label"] or ""
 	plan = "standard"
 	user_id = None
-	# ожидаем "plan:premium;uid:37"
+	payment_type = "subscription"  # По умолчанию подписка
+	package_id = None
+	
+	# ожидаем "plan:premium;uid:37" или "type:topup;package:small;uid:37"
 	try:
 		parts = [p.strip() for p in label.split(";")]
 		for p in parts:
 			if p.startswith("plan:"):
 				plan = p.split(":",1)[1].strip().lower()
+			if p.startswith("type:"):
+				payment_type = p.split(":",1)[1].strip().lower()
+			if p.startswith("package:"):
+				package_id = p.split(":",1)[1].strip().lower()
 			if p.startswith("uid:"):
 				user_id = int(p.split(":",1)[1].strip())
 	except Exception:
@@ -75,30 +83,97 @@ async def youmoney_quickpay_notify(request: Request):
 		logging.warning("[YOUMONEY NOTIFY] label parse error, no uid: %s", label)
 		raise HTTPException(status_code=400, detail="user id not found in label")
 
-	# Проверяем сумму: premium >=10, standard >=599 (допускаем копейки)
+	# Проверяем сумму
 	try:
 		amount_val = float(data["amount"].replace(",","."))
 	except Exception:
 		amount_val = 0.0
-	# Порог можно настроить в env, чтобы учитывать комиссии карт
-	min_amount = (cfg["min_premium"] if plan == "premium" else cfg["min_standard"])
-	if amount_val + 1e-6 < min_amount:
-		logging.warning("[YOUMONEY NOTIFY] amount too low: %s (min %s) for plan=%s", amount_val, min_amount, plan)
-		raise HTTPException(status_code=400, detail=f"amount too low ({amount_val} < {min_amount})")
-
-	# Активируем подписку пользователю
+	
+	# Проверяем идемпотентность: не обрабатывали ли мы уже этот платеж?
 	from sqlalchemy.ext.asyncio import AsyncSession
-	from app.database.db_depends import get_db
-	from fastapi import Depends
-	from app.services.profit_activate import ProfitActivateService
-
-	# Получаем сессию вручную (без Depends) через async_session_maker
 	from app.database.db import async_session_maker
+	from app.services.profit_activate import ProfitActivateService
+	from app.config.credit_packages import get_credit_package
+	from app.models.payment_transaction import PaymentTransaction
+	from sqlalchemy import select
+	
 	async with async_session_maker() as db:  # type: AsyncSession
+		# Проверяем, не обрабатывали ли мы уже этот operation_id
+		existing_transaction = await db.execute(
+			select(PaymentTransaction).where(PaymentTransaction.operation_id == data["operation_id"])
+		)
+		transaction = existing_transaction.scalars().first()
+		
+		if transaction:
+			if transaction.processed:
+				# Платеж уже обработан - возвращаем успешный ответ (идемпотентность)
+				logging.info("[YOUMONEY NOTIFY] Дубликат платежа (уже обработан): operation_id=%s", data["operation_id"])
+				return {"ok": True, "user_id": transaction.user_id, "duplicate": True, "message": "Payment already processed"}
+			else:
+				# Транзакция существует, но не обработана - возможно, была ошибка
+				logging.warning("[YOUMONEY NOTIFY] Транзакция существует, но не обработана: operation_id=%s", data["operation_id"])
+				# Продолжаем обработку ниже
+		else:
+			# Создаем новую запись о транзакции (еще не обработана)
+			transaction = PaymentTransaction(
+				operation_id=data["operation_id"],
+				payment_type=payment_type,
+				user_id=user_id,
+				amount=data["amount"],
+				currency=data.get("currency", "RUB"),
+				label=label,
+				package_id=package_id if payment_type == "topup" else None,
+				subscription_type=plan if payment_type == "subscription" else None,
+				processed=False
+			)
+			db.add(transaction)
+			await db.flush()  # Сохраняем транзакцию перед обработкой
+		
 		service = ProfitActivateService(db)
-		sub = await service.activate_subscription(user_id, plan)
-		logging.info("[YOUMONEY NOTIFY] subscription activated: user_id=%s plan=%s", user_id, plan)
-
-	return {"ok": True, "user_id": user_id, "plan": plan}
+		
+		try:
+			if payment_type == "topup" and package_id:
+				# Разовая покупка кредитов
+				package = get_credit_package(package_id)
+				if not package:
+					logging.warning("[YOUMONEY NOTIFY] unknown package_id: %s", package_id)
+					raise HTTPException(status_code=400, detail=f"Unknown package: {package_id}")
+				
+				# Проверяем сумму (допускаем небольшую погрешность из-за комиссий)
+				if amount_val + 1e-6 < package.price * 0.95:  # Минимум 95% от цены
+					logging.warning("[YOUMONEY NOTIFY] amount too low: %s (expected ~%s) for package=%s", amount_val, package.price, package_id)
+					raise HTTPException(status_code=400, detail=f"amount too low ({amount_val} < {package.price * 0.95})")
+				
+				result = await service.add_credits_topup(user_id, package.credits)
+				logging.info("[YOUMONEY NOTIFY] credits top-up: user_id=%s package=%s credits=%s", user_id, package_id, package.credits)
+				
+				# Помечаем транзакцию как обработанную
+				transaction.processed = True
+				transaction.processed_at = datetime.utcnow()
+				await db.commit()
+				
+				return {"ok": True, "user_id": user_id, "type": "topup", "package": package_id, "credits": package.credits}
+			else:
+				# Обычная подписка
+				min_amount = (cfg["min_premium"] if plan == "premium" else cfg["min_standard"])
+				if amount_val + 1e-6 < min_amount:
+					logging.warning("[YOUMONEY NOTIFY] amount too low: %s (min %s) for plan=%s", amount_val, min_amount, plan)
+					raise HTTPException(status_code=400, detail=f"amount too low ({amount_val} < {min_amount})")
+				
+				sub = await service.activate_subscription(user_id, plan)
+				logging.info("[YOUMONEY NOTIFY] subscription activated: user_id=%s plan=%s", user_id, plan)
+				
+				# Помечаем транзакцию как обработанную
+				transaction.processed = True
+				transaction.processed_at = datetime.utcnow()
+				await db.commit()
+				
+				return {"ok": True, "user_id": user_id, "plan": plan}
+		except Exception as e:
+			# В случае ошибки не помечаем транзакцию как обработанную
+			# Это позволит повторить обработку при повторном запросе от YooMoney
+			await db.rollback()
+			logging.error("[YOUMONEY NOTIFY] Ошибка обработки платежа: %s", e)
+			raise
 
 

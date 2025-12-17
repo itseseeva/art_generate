@@ -708,8 +708,8 @@ useEffect(() => {
                     cursor: 'pointer'
                   }}
                 >
-                  <option value="anime-realism">Anime Realism</option>
-                  <option value="anime">Anime</option>
+                  <option value="anime-realism">Больше реализма</option>
+                  <option value="anime">Больше аниме</option>
                 </select>
               </PromptContainer>
               

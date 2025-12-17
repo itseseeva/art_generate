@@ -233,12 +233,12 @@ class ProfitActivateService:
 
         # Определяем параметры подписки
         if subscription_type.lower() == "standard":
-            monthly_credits = 1000
-            monthly_photos = 0  # Без ограничений на генерации фото для STANDARD
+            monthly_credits = 1500  # Увеличено с 1000 до 1500
+            monthly_photos = 0  # Без лимита - генерация оплачивается кредитами (10 кредитов за фото)
             max_message_length = 200
         elif subscription_type.lower() == "premium":
             monthly_credits = 5000
-            monthly_photos = 0  # Без ограничений на генерации фото для PREMIUM
+            monthly_photos = 0  # Без лимита - генерация оплачивается кредитами (10 кредитов за фото)
             max_message_length = 300
         else:
             raise ValueError(f"Неподдерживаемый тип подписки: {subscription_type}")
@@ -371,6 +371,50 @@ class ProfitActivateService:
                 logger.info("[OK] Подписка успешно обновлена. Все бонусы сохранены!")
                 await emit_profile_update(user_id, self.db)
                 return existing_subscription
+    
+    async def add_credits_topup(self, user_id: int, credits: int) -> Dict[str, Any]:
+        """
+        Добавляет кредиты пользователю при разовой покупке (Credit Top-up).
+        Кредиты суммируются с текущим балансом, дата окончания подписки НЕ меняется.
+        
+        Args:
+            user_id: ID пользователя
+            credits: Количество кредитов для добавления
+            
+        Returns:
+            Dict с информацией о результате операции
+        """
+        from app.models.user import Users
+        from sqlalchemy import select
+        
+        user_query = select(Users).where(Users.id == user_id)
+        user_result = await self.db.execute(user_query)
+        user = user_result.scalars().first()
+        
+        if not user:
+            raise ValueError(f"Пользователь {user_id} не найден")
+        
+        old_balance = user.coins
+        user.coins += credits
+        new_balance = user.coins
+        
+        await self.db.commit()
+        await self.db.refresh(user)
+        
+        # Инвалидируем кэш пользователя
+        from app.utils.redis_cache import cache_delete, key_user
+        await cache_delete(key_user(user.email))
+        
+        logger.info(f"[CREDIT TOP-UP] ✅ Добавлено {credits} кредитов пользователю {user_id}. Баланс: {old_balance} -> {new_balance}")
+        
+        await emit_profile_update(user_id, self.db)
+        
+        return {
+            "success": True,
+            "credits_added": credits,
+            "old_balance": old_balance,
+            "new_balance": new_balance
+        }
         
         # Создаем новую подписку (первая подписка пользователя)
         logger.info(f"[NEW SUBSCRIPTION] Создание первой подписки {subscription_type} для пользователя {user_id}")
@@ -482,7 +526,11 @@ class ProfitActivateService:
         return subscription.can_use_credits(5)
     
     async def can_user_generate_photo(self, user_id: int) -> bool:
-        """Проверяет, может ли пользователь сгенерировать фото."""
+        """
+        Проверяет, может ли пользователь сгенерировать фото.
+        Для STANDARD/PREMIUM: только проверяет активность подписки (кредиты проверяются отдельно через user.coins).
+        Для FREE: проверяет лимит подписки или кредиты.
+        """
         subscription = await self._ensure_subscription(user_id)
         return subscription.can_generate_photo()
     
@@ -491,7 +539,11 @@ class ProfitActivateService:
         return await self.use_credits_amount(user_id, 5)
     
     async def use_photo_generation(self, user_id: int, commit: bool = True) -> bool:
-        """Тратит генерацию фото."""
+        """
+        Тратит генерацию фото.
+        Для STANDARD/PREMIUM: ничего не делает (кредиты списываются с user.coins отдельно).
+        Для FREE: списывает лимит подписки или кредиты.
+        """
         subscription = await self._ensure_subscription(user_id)
         if subscription.should_reset_limits():
             subscription.reset_monthly_limits()

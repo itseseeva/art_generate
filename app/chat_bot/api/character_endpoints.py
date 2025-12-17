@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Characters"])
 
 CHARACTER_CREATION_COST = 50
-PHOTO_GENERATION_COST = 30
+PHOTO_GENERATION_COST = 10
 CHARACTER_EDIT_COST = 50  # Кредиты за редактирование персонажа
 
 
@@ -220,33 +220,38 @@ async def charge_for_character_creation(user_id: int, db: AsyncSession) -> None:
 
 
 async def charge_for_photo_generation(user_id: int, db: AsyncSession) -> None:
-    """Списывает ресурсы за генерацию/загрузку фото персонажа."""
+    """Списывает ресурсы за генерацию/загрузку фото персонажа. Для STANDARD/PREMIUM только кредиты, для FREE - также лимит подписки."""
     coins_service = CoinsService(db)
     subscription_service = ProfitActivateService(db)
 
+    # Проверяем баланс пользователя (обязательно для всех)
     if not await coins_service.can_user_afford(user_id, PHOTO_GENERATION_COST):
         raise HTTPException(
             status_code=403,
             detail=f"Недостаточно монет. Для генерации фотографий требуется {PHOTO_GENERATION_COST} монет."
         )
 
+    # Списываем кредиты с баланса пользователя
     await coins_service.spend_coins(user_id, PHOTO_GENERATION_COST, commit=False)
 
-    if await subscription_service.can_user_generate_photo(user_id):
-        photo_spent = await subscription_service.use_photo_generation(user_id, commit=False)
-        if not photo_spent:
-            logger.warning(
-                "Не удалось списать лимит генераций подписки у пользователя %s", user_id
+    # Для FREE проверяем и списываем лимит подписки, для STANDARD/PREMIUM - ничего не делаем
+    subscription = await subscription_service.get_user_subscription(user_id)
+    if subscription and subscription.subscription_type.value == "free":
+        if await subscription_service.can_user_generate_photo(user_id):
+            photo_spent = await subscription_service.use_photo_generation(user_id, commit=False)
+            if not photo_spent:
+                logger.warning(
+                    "Не удалось списать лимит генераций подписки у пользователя %s", user_id
+                )
+                raise HTTPException(
+                    status_code=403,
+                    detail="Не удалось списать лимит генераций подписки. Попробуйте позже."
+                )
+        else:
+            logger.info(
+                "У пользователя %s закончился лимит генераций подписки, продолжаем за счет монет",
+                user_id,
             )
-            raise HTTPException(
-                status_code=403,
-                detail="Не удалось списать лимит генераций подписки. Попробуйте позже."
-            )
-    else:
-        logger.info(
-            "У пользователя %s закончился лимит генераций подписки, продолжаем за счет монет",
-            user_id,
-        )
 
     await db.flush()
 
@@ -1221,7 +1226,7 @@ async def upload_character_photo(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    """Загружает фотографию для персонажа. Стоит 30 монет."""
+    """Загружает фотографию для персонажа. Стоит 10 монет."""
     import logging
     logger = logging.getLogger(__name__)
     
@@ -1325,7 +1330,7 @@ async def generate_character_photo(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    """Генерирует фото для персонажа через Stable Diffusion. Стоит 30 монет."""
+    """Генерирует фото для персонажа через Stable Diffusion. Стоит 10 монет."""
     try:
         character_name = request_data.get("character_name")
         character_appearance = request_data.get("character_appearance", "")

@@ -1158,6 +1158,79 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         console.warn('[CHAT] Не удалось добавить фото в галерею:', galleryError);
       }
 
+      // КРИТИЧЕСКИ ВАЖНО: Сохраняем историю чата с фото (как для текста)
+      try {
+        const token = authManager.getToken();
+        // Получаем актуальные данные пользователя и персонажа
+        let effectiveUserInfo = userInfo;
+        if (!effectiveUserInfo) {
+          effectiveUserInfo = await checkAuth();
+        }
+        const effectiveCharacter = currentCharacter;
+        
+        if (token && effectiveUserInfo?.id && effectiveCharacter?.name && generatedImageUrl) {
+          const userPrompt = trimmedPrompt || 'Генерация изображения';
+          
+          console.log('[CHAT] Сохраняем историю чата:', {
+            user_id: effectiveUserInfo.id,
+            character: effectiveCharacter.name,
+            prompt: userPrompt,
+            image_url: generatedImageUrl
+          });
+          
+          // Сохраняем сообщение пользователя (с промптом)
+          const saveUserMessageResponse = await fetch('/api/v1/chat-history/save-message', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              character_name: effectiveCharacter.name,
+              session_id: 'default',
+              message_type: 'user',
+              message_content: userPrompt,
+              image_url: null,
+              image_filename: null
+            })
+          });
+
+          if (saveUserMessageResponse.ok) {
+            console.log('[CHAT] Сообщение пользователя сохранено в историю');
+          } else {
+            console.warn('[CHAT] Не удалось сохранить сообщение пользователя в историю');
+          }
+
+          // Сохраняем сообщение ассистента (с фото)
+          const saveAssistantMessageResponse = await fetch('/api/v1/chat-history/save-message', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              character_name: effectiveCharacter.name,
+              session_id: 'default',
+              message_type: 'assistant',
+              message_content: 'Генерация изображения', // Минимальный текст для прохождения валидации
+              image_url: generatedImageUrl,
+              image_filename: null
+            })
+          });
+
+          if (saveAssistantMessageResponse.ok) {
+            console.log('[CHAT] ✓ История чата с фото сохранена!');
+          } else {
+            const errorData = await saveAssistantMessageResponse.json().catch(() => ({}));
+            console.warn('[CHAT] Не удалось сохранить сообщение ассистента в историю:', errorData);
+          }
+        } else {
+          console.warn('[CHAT] Не удалось сохранить историю: отсутствует токен, user_id или character_name');
+        }
+      } catch (historyError) {
+        console.error('[CHAT] Ошибка сохранения истории чата:', historyError);
+      }
+
       if (isAuthenticated) {
         await refreshUserStats();
       }
@@ -2401,8 +2474,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   cursor: 'pointer'
                 }}
               >
-                <option value="anime-realism">Anime Realism</option>
-                <option value="anime">Anime</option>
+                <option value="anime-realism">Больше реализма</option>
+                <option value="anime">Больше аниме</option>
               </select>
             </div>
             <textarea
