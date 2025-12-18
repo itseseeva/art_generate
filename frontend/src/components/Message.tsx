@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { theme } from '../theme';
 import { FiX, FiImage, FiFolder } from 'react-icons/fi';
 import { fetchPromptByImage } from '../utils/prompt';
+import { CircularProgress } from './ui/CircularProgress';
 
 const MessageContainer = styled.div<{ $isUser: boolean }>`
   display: flex;
@@ -370,6 +371,11 @@ const MessageComponent: React.FC<MessageProps> = ({
     minute: '2-digit'
   });
 
+  // Проверяем, является ли сообщение прогрессом генерации
+  const isGenerationProgress = message.content && /^\d+%$/.test(message.content.trim()) && !message.imageUrl;
+  const progressMatch = isGenerationProgress ? message.content.match(/(\d+)%/) : null;
+  const progressValue = progressMatch ? parseInt(progressMatch[1], 10) : 0;
+
   const handleImageClick = async (e?: React.MouseEvent) => {
     if (e) {
       e.stopPropagation();
@@ -441,6 +447,35 @@ const MessageComponent: React.FC<MessageProps> = ({
       setIsAddingToPaidAlbum(false);
     }
   };
+
+  // Для прогресса генерации - отображаем БЕЗ MessageContent контейнера (прозрачный фон)
+  if (isGenerationProgress && !message.imageUrl) {
+    return (
+      <>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'flex-start',
+        alignItems: 'flex-start',
+        marginBottom: '0.5rem',
+        width: '100%',
+        gap: '1rem'
+      }}>
+        {/* Аватар ассистента слева */}
+        {!isUser && (
+          <Avatar $isUser={false} $avatarUrl={characterAvatar}>
+            {characterAvatar ? (
+              <AvatarImage src={characterAvatar} alt={characterName || 'Character'} />
+            ) : (
+              'AI'
+            )}
+          </Avatar>
+        )}
+        
+        <CircularProgress progress={progressValue} size={60} showLabel={false} />
+      </div>
+      </>
+    );
+  }
 
   // Для фото без текста - чистое отображение (v2)
   // Проверяем, что content пустой или содержит только пробелы
@@ -628,7 +663,7 @@ const MessageComponent: React.FC<MessageProps> = ({
           $isUser={isUser} 
           $imageOnly={false}
         >
-          {message.content && (
+          {message.content && !isGenerationProgress && (
             <MessageText>
               {message.content}
             </MessageText>

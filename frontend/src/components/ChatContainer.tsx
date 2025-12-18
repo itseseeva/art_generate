@@ -508,6 +508,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   subscriptionType = 'free'
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
+  const isLoadingHistoryRef = useRef<string | null>(null); // Отслеживаем, для какого персонажа идет загрузка истории
   
   // Утилита для дедупликации сообщений по ID и URL изображения
   const deduplicateMessages = (msgs: Message[]): Message[] => {
@@ -669,13 +670,40 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     return 1; // FREE/BASE: только 1 фото одновременно
   }, [normalizedSubscriptionType]);
 
-  const updateMessageProgressContent = useCallback((messageId: string, value: number) => {
+  // Храним время начала генерации для каждого сообщения
+  const generationStartTimesRef = useRef<Map<string, number>>(new Map());
+
+  const updateMessageProgressContent = useCallback((messageId: string, value: number, usePlaceholder: boolean = false) => {
     setMessages(prev =>
-      prev.map(msg =>
-        msg.id === messageId && !msg.imageUrl
-          ? { ...msg, content: `Генерация изображения... ${value}%` }
-          : msg
-      )
+      prev.map(msg => {
+        if (msg.id === messageId && !msg.imageUrl) {
+          const startTime = generationStartTimesRef.current.get(messageId);
+          let displayProgress = value;
+          
+          // Если нужно использовать заглушку, вычисляем её
+          if (usePlaceholder && startTime) {
+            const elapsed = Date.now() - startTime;
+            const placeholderDuration = 10000; // Строго 10 секунд (10000 миллисекунд)
+            
+            if (elapsed < placeholderDuration) {
+              // Заглушка: от 0% до 15% строго за 10 секунд
+              // elapsed в миллисекундах, placeholderDuration тоже в миллисекундах
+              const placeholderProgress = (elapsed / placeholderDuration) * 15;
+              // Используем ТОЛЬКО заглушку в первые 10 секунд, реальный прогресс игнорируем
+              displayProgress = Math.min(15, placeholderProgress); // Ограничиваем максимум 15%
+            } else {
+              // После строго 10 секунд используем реальный прогресс
+              displayProgress = value;
+            }
+          } else {
+            // Если заглушка отключена, используем реальный прогресс
+            displayProgress = value;
+          }
+          
+          return { ...msg, content: `${Math.round(displayProgress)}%` };
+        }
+        return msg;
+      })
     );
   }, []);
 
@@ -725,8 +753,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       window.dispatchEvent(new Event('balance-update'));
     }
     notifyUsageUpdate();
-    if (currentCharacter?.name) {
-      fetchPaidAlbumStatus(currentCharacter.name);
+    if (currentCharacter?.raw?.name || currentCharacter?.name) {
+      const identifier = currentCharacter.raw?.name || currentCharacter.name;
+      fetchPaidAlbumStatus(identifier);
     }
     return info;
   };
@@ -762,7 +791,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     });
     loadModelInfo();
     loadCharacterData(characterIdentifier);
-    loadChatHistory(characterIdentifier); // Загружаем историю чатов при инициализации
+    loadChatHistory(characterIdentifier, currentCharacter); // Загружаем историю чатов при инициализации
   }, []);
 
   useEffect(() => {
@@ -772,7 +801,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     }
 
     if (isAuthenticated) {
-      fetchPaidAlbumStatus(currentCharacter.name);
+      const identifier = currentCharacter.raw?.name || currentCharacter.name;
+      if (identifier) {
+        fetchPaidAlbumStatus(identifier);
+      }
     } else {
       setPaidAlbumStatus(null);
     }
@@ -894,6 +926,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
   const loadCharacterData = async (characterIdentifier: string) => {
     try {
+      // Проверяем, что identifier не пустой
+      if (!characterIdentifier || characterIdentifier.trim() === '') {
+        console.warn('[LOAD_CHARACTER_DATA] Empty identifier, skipping data load');
+        return;
+      }
+      
       const safeIdentifier = encodeURIComponent(characterIdentifier);
       const response = await fetch(`http://localhost:8000/api/v1/characters/${safeIdentifier}/with-creator`);
       if (response.ok) {
@@ -919,9 +957,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             avatar: characterData.avatar || currentCharacter.avatar,
             user_id: characterData.user_id || (currentCharacter as any).user_id,
             character_appearance: characterData.character_appearance || '',
-            location: characterData.location || ''
+            location: characterData.location || '',
+            raw: characterData // Сохраняем raw данные для правильной работы с именем
           };
-          console.log('[LOAD_CHARACTER_DATA] Setting currentCharacter with id:', updatedCharacter.id);
+          console.log('[LOAD_CHARACTER_DATA] Setting currentCharacter with id:', updatedCharacter.id, 'name:', updatedCharacter.name, 'raw.name:', updatedCharacter.raw?.name);
           setCurrentCharacter(updatedCharacter);
         }
         
@@ -1063,7 +1102,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     const assistantMessage: Message = {
       id: assistantMessageId,
       type: 'assistant',
-      content: 'Генерация изображения...',
+      content: '0%', // Начинаем с 0%
       timestamp: new Date()
     };
 
@@ -1101,6 +1140,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         const errorData = await response.json();
         throw new Error(errorData.detail || 'Ошибка генерации изображения');
       }
+
+      // Запоминаем время начала генерации ПОСЛЕ отправки запроса на RunPod
+      generationStartTimesRef.current.set(assistantMessageId, Date.now());
 
       const data = await response.json();
       console.log('[CHAT] Ответ от API генерации:', data);
@@ -1148,61 +1190,80 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             
             // КРИТИЧЕСКИ ВАЖНО: Проверяем статус "generating" (новый статус из бэкенда)
             if (statusData.status === 'generating' && statusData.result?.progress !== undefined) {
-              progressValue = typeof statusData.result.progress === 'number'
-                ? Math.min(99, Math.max(0, statusData.result.progress))
+              const rawProgress = typeof statusData.result.progress === 'number'
+                ? statusData.result.progress
                 : parseInt(String(statusData.result.progress).replace('%', ''), 10);
+              // Ограничиваем прогресс до 99% для статуса "generating", 100% только при SUCCESS
+              progressValue = Math.min(99, Math.max(0, rawProgress));
               console.log(`[CHAT] ✓ Получен реальный прогресс из API (generating): ${progressValue}%`);
             }
             
-            // 1. Проверяем прямое поле progress
-            if (progressValue === undefined && statusData.progress !== undefined && statusData.progress !== null) {
-              progressValue = typeof statusData.progress === 'number' 
-                ? Math.min(99, Math.max(0, statusData.progress))
+            // 1. Проверяем прямое поле progress (только для статуса "generating", чтобы не показывать >99%)
+            if (progressValue === undefined && statusData.status === 'generating' && statusData.progress !== undefined && statusData.progress !== null) {
+              const rawProgress = typeof statusData.progress === 'number'
+                ? statusData.progress
                 : parseInt(String(statusData.progress).replace('%', ''), 10);
+              progressValue = Math.min(99, Math.max(0, rawProgress));
               console.log(`[CHAT] ✓ Прогресс из statusData.progress: ${progressValue}%`);
             }
-            
-            // 2. Проверяем в result.progress (для других статусов)
-            if (progressValue === undefined && statusData.result?.progress !== undefined) {
-              progressValue = typeof statusData.result.progress === 'number'
-                ? Math.min(99, Math.max(0, statusData.result.progress))
+
+            // 2. Проверяем в result.progress (для статуса "generating")
+            if (progressValue === undefined && statusData.status === 'generating' && statusData.result?.progress !== undefined) {
+              const rawProgress = typeof statusData.result.progress === 'number'
+                ? statusData.result.progress
                 : parseInt(String(statusData.result.progress).replace('%', ''), 10);
+              progressValue = Math.min(99, Math.max(0, rawProgress));
               console.log(`[CHAT] ✓ Прогресс из result.progress: ${progressValue}%`);
             }
-            
-            // 3. Проверяем в output.progress (RunPod может возвращать прогресс здесь)
-            if (progressValue === undefined && statusData.output !== undefined) {
+
+            // 3. Проверяем в output.progress (RunPod может возвращать прогресс здесь) - только для "generating"
+            if (progressValue === undefined && statusData.status === 'generating' && statusData.output !== undefined) {
               // output может быть строкой "90%" или объектом с полем progress
               if (typeof statusData.output === 'string') {
                 const match = statusData.output.match(/(\d+)%/);
                 if (match) {
-                  progressValue = Math.min(99, Math.max(0, parseInt(match[1], 10)));
+                  const rawProgress = parseInt(match[1], 10);
+                  progressValue = Math.min(99, Math.max(0, rawProgress));
                   console.log(`[CHAT] ✓ Прогресс из output (строка): ${progressValue}%`);
                 }
               } else if (typeof statusData.output === 'object' && statusData.output.progress !== undefined) {
-                progressValue = typeof statusData.output.progress === 'number'
-                  ? Math.min(99, Math.max(0, statusData.output.progress))
+                const rawProgress = typeof statusData.output.progress === 'number'
+                  ? statusData.output.progress
                   : parseInt(String(statusData.output.progress).replace('%', ''), 10);
+                progressValue = Math.min(99, Math.max(0, rawProgress));
                 console.log(`[CHAT] ✓ Прогресс из output.progress: ${progressValue}%`);
               }
             }
-            
-            // 4. Пытаемся извлечь из строки status (например, "IN_PROGRESS 50%")
-            if (progressValue === undefined && typeof statusData.status === 'string') {
+
+            // 4. Пытаемся извлечь из строки status (например, "IN_PROGRESS 50%") - только для "generating"
+            if (progressValue === undefined && statusData.status === 'generating' && typeof statusData.status === 'string') {
               const progressMatch = statusData.status.match(/(\d+)%/);
               if (progressMatch) {
-                progressValue = Math.min(99, Math.max(0, parseInt(progressMatch[1], 10)));
+                const rawProgress = parseInt(progressMatch[1], 10);
+                progressValue = Math.min(99, Math.max(0, rawProgress));
                 console.log(`[CHAT] ✓ Прогресс из status (строка): ${progressValue}%`);
               }
             }
             
+            // Определяем, нужно ли использовать заглушку (строго первые 10 секунд)
+            const startTime = generationStartTimesRef.current.get(assistantMessageId);
+            const elapsed = startTime ? Date.now() - startTime : 0;
+            const placeholderDuration = 10000; // Строго 10 секунд
+            const usePlaceholder = elapsed < placeholderDuration;
+            
             // Обновляем прогресс если он найден
             if (progressValue !== undefined && !isNaN(progressValue)) {
-              updateMessageProgressContent(assistantMessageId, progressValue);
+              // В первые 10 секунд используем заглушку, после - реальный прогресс
+              updateMessageProgressContent(assistantMessageId, progressValue, usePlaceholder);
               if (attempts % 5 === 0) {  // Логируем каждые 5 попыток
-                console.log(`[CHAT] ✓ Реальный прогресс из RunPod: ${progressValue}%`);
+                console.log(`[CHAT] ✓ Реальный прогресс из RunPod: ${progressValue}%, используем заглушку: ${usePlaceholder}`);
               }
             } else {
+              // Если прогресс не найден, используем заглушку в первые 10 секунд
+              if (usePlaceholder) {
+                updateMessageProgressContent(assistantMessageId, 0, true);
+              }
+              
               // Если прогресс не найден, логируем для отладки
               if (attempts % 10 === 0) {
                 console.log('[CHAT] Прогресс не найден в ответе:', {
@@ -1226,6 +1287,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             }
             
             if (statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED') {
+              // При успешном завершении устанавливаем прогресс в 100% (без заглушки)
+              updateMessageProgressContent(assistantMessageId, 100, false);
+              // Удаляем время начала генерации
+              generationStartTimesRef.current.delete(assistantMessageId);
+              
               // URL может быть в result.image_url, result.cloud_url или напрямую в statusData
               const result = statusData.result || {};
               generatedImageUrl = result.image_url || result.cloud_url || statusData.image_url || statusData.cloud_url;
@@ -1293,6 +1359,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         }
         return newSet;
       });
+      
+      // Очищаем время начала генерации
+      generationStartTimesRef.current.delete(assistantMessageId);
 
       // КРИТИЧЕСКИ ВАЖНО: Добавляем фото в галерею пользователя
       try {
@@ -1331,6 +1400,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       const errorMessage = error instanceof Error ? error.message : 'Ошибка генерации изображения';
       setError(errorMessage);
       setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
+      
+      // Очищаем время начала генерации при ошибке
+      generationStartTimesRef.current.delete(assistantMessageId);
     } finally {
       // Удаляем генерацию из очереди активных
       setActiveGenerations(prev => {
@@ -1604,17 +1676,40 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     }
   };
 
-  const loadChatHistory = async (characterName: string) => {
+  const loadChatHistory = async (characterName: string, expectedCharacter?: Character | null) => {
+    // Используем raw.name из expectedCharacter если передан, иначе из currentCharacter, иначе используем переданный name
+    // Важно: identifier должен быть реальным именем из БД, не display_name
+    let identifier = characterName; // По умолчанию используем переданный name
+    
+    if (expectedCharacter?.raw?.name) {
+      identifier = expectedCharacter.raw.name;
+    } else if (currentCharacter?.raw?.name) {
+      identifier = currentCharacter.raw.name;
+    } else if (expectedCharacter?.name && expectedCharacter.name !== expectedCharacter.display_name) {
+      // Если name отличается от display_name, используем name (это может быть реальное имя из БД)
+      identifier = expectedCharacter.name;
+    } else if (currentCharacter?.name && currentCharacter.name !== currentCharacter.display_name) {
+      identifier = currentCharacter.name;
+    }
+    
+    // Проверяем, что identifier не пустой
+    if (!identifier || identifier.trim() === '') {
+      console.warn('[CHAT HISTORY] Empty identifier, skipping history load');
+      return;
+    }
+    
+    // Отмечаем, что начинаем загрузку истории для этого персонажа
+    isLoadingHistoryRef.current = identifier;
+    
     try {
-      // Используем raw.name если доступен, иначе используем переданный name
-      const identifier = currentCharacter?.raw?.name || characterName;
       console.log('[CHAT HISTORY] Fetching history for:', { 
         characterName, 
         identifier,
         currentCharacterName: currentCharacter?.name,
+        expectedCharacterName: expectedCharacter?.name,
         currentCharacterId: currentCharacter?.id,
-        rawName: currentCharacter?.raw?.name,
-        displayName: currentCharacter?.display_name
+        rawName: expectedCharacter?.raw?.name || currentCharacter?.raw?.name,
+        displayName: expectedCharacter?.display_name || currentCharacter?.display_name
       });
       
       const token = authManager.getToken();
@@ -1628,7 +1723,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           messagesCount: data.messages?.length || 0,
           hasMessages: !!data.messages?.length,
           sessionId: data.session_id,
-          characterName: data.character_name
+          characterName: data.character_name,
+          responseStatus: response.status
         });
 
         if (data.messages && data.messages.length > 0) {
@@ -1714,19 +1810,44 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             uniqueMessages.push(msg);
           }
           
-          setMessages(deduplicateMessages(uniqueMessages));
-          console.log(`Loaded ${uniqueMessages.length} unique messages from history (was ${formattedMessages.length} before deduplication by URL and ID)`);
+          const finalMessages = deduplicateMessages(uniqueMessages);
+          console.log('[CHAT HISTORY] Setting messages to:', { 
+            count: finalMessages.length,
+            messageIds: finalMessages.map(m => m.id),
+            firstMessage: finalMessages[0] ? { id: finalMessages[0].id, type: finalMessages[0].type, hasImage: !!finalMessages[0].imageUrl } : null,
+            lastMessage: finalMessages[finalMessages.length - 1] ? { id: finalMessages[finalMessages.length - 1].id, type: finalMessages[finalMessages.length - 1].type } : null
+          });
+          
+          // Устанавливаем messages синхронно, чтобы избежать race condition
+          // Проверяем, что мы все еще загружаем историю для того же персонажа (защита от race condition)
+          if (isLoadingHistoryRef.current === identifier) {
+            setMessages(finalMessages);
+            console.log(`[CHAT HISTORY] ✓ Loaded and set ${finalMessages.length} unique messages from history (was ${formattedMessages.length} before deduplication by URL and ID)`);
         } else {
+            console.warn(`[CHAT HISTORY] Пропускаем установку messages - персонаж изменился во время загрузки. Текущий: ${isLoadingHistoryRef.current}, ожидался: ${identifier}`);
+          }
+        } else {
+          if (isLoadingHistoryRef.current === identifier) {
+            console.log('[CHAT HISTORY] No chat history found - setting empty messages array');
           setMessages([]);
-          console.log('No chat history found');
+          }
         }
       } else {
-        console.error('Failed to load chat history:', response.status);
+        console.error('[CHAT HISTORY] Failed to load chat history:', response.status, 'for identifier:', identifier);
+        if (isLoadingHistoryRef.current === identifier) {
         setMessages([]);
+        }
       }
     } catch (error) {
-      console.error('Error loading chat history:', error);
+      console.error('[CHAT HISTORY] Error loading chat history:', error, 'for identifier:', identifier);
+      if (isLoadingHistoryRef.current === identifier) {
       setMessages([]);
+      }
+    } finally {
+      // Сбрасываем флаг загрузки только если это была загрузка для текущего идентификатора
+      if (isLoadingHistoryRef.current === identifier) {
+        isLoadingHistoryRef.current = null;
+      }
     }
   };
 
@@ -1736,12 +1857,21 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       name: character.name,
       display_name: character.display_name,
       rawName: character.raw?.name,
-      identifier: characterIdentifier
+      identifier: characterIdentifier,
+      currentMessagesCount: messages.length
     });
+    
+    // Очищаем messages только если персонаж действительно изменился
+    const isDifferentCharacter = currentCharacter?.name !== character.name || 
+                                 currentCharacter?.raw?.name !== character.raw?.name;
+    if (isDifferentCharacter) {
+      console.log('[CHARACTER SELECT] Персонаж изменился - очищаем messages');
+      setMessages([]);
+    }
+    
     setCurrentCharacter(character);
-    setMessages([]); // Очищаем историю при смене персонажа
     loadCharacterData(characterIdentifier); // Загружаем данные нового персонажа
-    loadChatHistory(characterIdentifier); // Загружаем историю чатов с новым персонажем
+    loadChatHistory(characterIdentifier, character); // Загружаем историю чатов с новым персонажем, передаем character для правильного identifier
     fetchPaidAlbumStatus(characterIdentifier);
   };
 
@@ -1753,14 +1883,32 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         name: initialCharacter.name,
         display_name: initialCharacter.display_name,
         rawName: initialCharacter.raw?.name,
-        identifier: characterIdentifier
+        identifier: characterIdentifier,
+        currentMessagesCount: messages.length,
+        currentCharacterName: currentCharacter?.name,
+        currentCharacterRawName: currentCharacter?.raw?.name
       });
+      
+      // Проверяем, изменился ли персонаж действительно (сравниваем по raw.name или name)
+      const currentIdentifier = currentCharacter?.raw?.name || currentCharacter?.name;
+      const newIdentifier = initialCharacter.raw?.name || initialCharacter.name;
+      const isNewCharacter = currentIdentifier !== newIdentifier;
+      
+      if (isNewCharacter) {
+        console.log('[CHARACTER UPDATE] Новый персонаж - очищаем messages перед загрузкой истории');
+        isLoadingHistoryRef.current = null; // Сбрасываем флаг загрузки при смене персонажа
+        setMessages([]); // Очищаем только при реальной смене персонажа
+      } else {
+        console.log('[CHARACTER UPDATE] Персонаж не изменился - не очищаем messages');
+      }
+      
       setCurrentCharacter(initialCharacter);
       loadCharacterData(characterIdentifier);
-      loadChatHistory(characterIdentifier);
+      // Загружаем историю всегда, даже если персонаж не изменился (на случай, если история обновилась)
+      loadChatHistory(characterIdentifier, initialCharacter); // Передаем initialCharacter для правильного identifier
       fetchPaidAlbumStatus(characterIdentifier);
     }
-  }, [initialCharacter?.name, initialCharacter?.raw?.name, fetchPaidAlbumStatus]);
+  }, [initialCharacter?.name, initialCharacter?.raw?.name]);
 
   const handleAuthSuccess = async (accessToken: string, refreshToken?: string) => {
     // Сохраняем токены
@@ -1777,8 +1925,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       setIsAuthenticated(true);
       setUserInfo(userInfo);
       refreshUserStats(); // Обновляем информацию о пользователе
-      if (currentCharacter?.name) {
-        fetchPaidAlbumStatus(currentCharacter.name);
+      if (currentCharacter?.raw?.name || currentCharacter?.name) {
+        const identifier = currentCharacter.raw?.name || currentCharacter.name;
+        fetchPaidAlbumStatus(identifier);
       }
     } else {
       // Если checkAuth не сработал, устанавливаем состояние вручную
@@ -1884,7 +2033,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         }, 200);
       }
       
-      await fetchPaidAlbumStatus(currentCharacter.name);
+      const identifier = currentCharacter.raw?.name || currentCharacter.name;
+      await fetchPaidAlbumStatus(identifier);
       handleOpenPaidAlbumView();
     } catch (error) {
       console.error('Ошибка разблокировки платного альбома:', error);
@@ -1969,8 +2119,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         throw new Error(errorData.detail || 'Не удалось добавить фото в платный альбом');
       }
 
-      // Обновляем статус альбома
-      await fetchPaidAlbumStatus(characterName);
+      // Обновляем статус альбома (используем raw.name если доступен)
+      const identifier = currentCharacter?.raw?.name || characterName;
+      await fetchPaidAlbumStatus(identifier);
       
       console.log('[CHAT] Фото успешно добавлено в платный альбом');
     } catch (error) {

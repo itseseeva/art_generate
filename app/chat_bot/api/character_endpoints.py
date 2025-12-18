@@ -631,69 +631,112 @@ async def get_character_chat_history(
             raise HTTPException(status_code=404, detail=f"Персонаж '{character_name}' не найден")
         
         # Получаем последнюю сессию чата с этим персонажем для текущего пользователя
-        if current_user:
-            user_id_value = str(current_user.id)
-            # Авторизованный пользователь - получаем только его сессии
-            chat_session = await db.execute(
-                select(ChatSession).where(
-                    ChatSession.character_id == character.id,
-                    ChatSession.user_id == user_id_value
+        chat_session = None
+        if character:
+            # Если персонаж найден, получаем сессии по character_id
+            if current_user:
+                user_id_value = str(current_user.id)
+                # Авторизованный пользователь - получаем только его сессии
+                chat_session_result = await db.execute(
+                    select(ChatSession).where(
+                        ChatSession.character_id == character.id,
+                        ChatSession.user_id == user_id_value
+                    )
+                    .order_by(ChatSession.started_at.desc())
+                    .limit(1)
                 )
-                .order_by(ChatSession.started_at.desc())
-                .limit(1)
-            )
-            logger.info(f"Loading chat history for authenticated user {current_user.id} with character {character_name}")
+                logger.info(f"Loading chat history for authenticated user {current_user.id} with character {character_name} (found in DB)")
+            else:
+                # Неавторизованный пользователь - получаем только гостевые сессии
+                chat_session_result = await db.execute(
+                    select(ChatSession).where(
+                        ChatSession.character_id == character.id,
+                        ChatSession.user_id.is_(None)
+                    )
+                    .order_by(ChatSession.started_at.desc())
+                    .limit(1)
+                )
+                logger.info(f"Loading chat history for guest user with character {character_name} (found in DB)")
+            
+            chat_session = chat_session_result.scalar_one_or_none()
         else:
-            # Неавторизованный пользователь - получаем только гостевые сессии
-            chat_session = await db.execute(
-                select(ChatSession).where(
-                    ChatSession.character_id == character.id,
-                    ChatSession.user_id.is_(None)
-                )
-                .order_by(ChatSession.started_at.desc())
-                .limit(1)
-            )
-            logger.info(f"Loading chat history for guest user with character {character_name}")
-        
-        chat_session = chat_session.scalar_one_or_none()
+            # Если персонаж не найден в БД, все равно пытаемся получить историю из ChatHistory
+            logger.info(f"Character '{character_name}' not found in DB, checking ChatHistory directly")
         
         # Если нет ChatSession, проверяем ChatHistory (для фото из генерации)
         if not chat_session:
             if current_user:
                 from app.models.chat_history import ChatHistory
-                # Ищем сообщения в ChatHistory
-                history_messages = await db.execute(
-                    select(ChatHistory)
-                    .where(ChatHistory.user_id == current_user.id)
-                    .where(ChatHistory.character_name == character_name)
-                    .order_by(ChatHistory.created_at.desc())
-                    .limit(20)
-                )
-                history_list = history_messages.scalars().all()
-                
-                if history_list:
-                    # Форматируем сообщения из ChatHistory
-                    formatted_messages = []
-                    for msg in reversed(history_list):
-                        formatted_messages.append({
-                            "id": msg.id,
-                            "type": msg.message_type,  # 'user' или 'assistant'
-                            "content": msg.message_content or "",
-                            "timestamp": msg.created_at.isoformat(),
-                            "image_url": msg.image_url,
-                            "generation_time": msg.generation_time  # Добавляем generation_time
-                        })
+                try:
+                    # Ищем сообщения в ChatHistory используя raw SQL, так как поле generation_time может отсутствовать в БД
+                    from sqlalchemy import text
+                    result = await db.execute(
+                        text("""
+                            SELECT id, user_id, character_name, session_id, message_type, 
+                                   message_content, image_url, image_filename, created_at
+                            FROM chat_history
+                            WHERE user_id = :user_id 
+                              AND character_name ILIKE :character_name
+                            ORDER BY created_at ASC
+                            LIMIT 100
+                        """),
+                        {"user_id": current_user.id, "character_name": character_name}  # Используем character_name из URL
+                    )
+                    rows = result.fetchall()
+                    # Преобразуем в объекты для совместимости
+                    class HistoryRow:
+                        def __init__(self, row):
+                            self.id = row[0]
+                            self.message_type = row[4]
+                            self.message_content = row[5]
+                            self.image_url = row[6]
+                            self.created_at = row[8]
+                            self.generation_time = None
+                    history_list = [HistoryRow(row) for row in rows]
                     
-                    return {
-                        "messages": formatted_messages,
-                        "session_id": None,
-                        "character_name": character.name,
-                        "user_type": "authenticated"
-                    }
+                    if history_list:
+                        # Форматируем сообщения из ChatHistory (уже в правильном порядке, не reversed)
+                        formatted_messages = []
+                        for msg in history_list:
+                            formatted_messages.append({
+                                "id": msg.id,
+                                "type": msg.message_type,  # 'user' или 'assistant'
+                                "content": msg.message_content or "",
+                                "timestamp": msg.created_at.isoformat(),
+                                "image_url": msg.image_url,
+                                "generation_time": getattr(msg, 'generation_time', None)  # Безопасно получаем generation_time
+                            })
+                        
+                        logger.info(f"Found {len(formatted_messages)} messages in ChatHistory for user {current_user.id}, character {character_name}")
+                        return {
+                            "messages": formatted_messages,
+                            "session_id": None,
+                            "character_name": character_name,  # Используем character_name из URL, так как character может быть None
+                            "user_type": "authenticated"
+                        }
+                except Exception as e:
+                    logger.error(f"Error querying ChatHistory with raw SQL for character {character_name}: {e}", exc_info=True)
+                    await db.rollback()  # Откатываем транзакцию на случай ошибки
+                    # Продолжаем и возвращаем пустой список
             
-            return {"messages": [], "session_id": None}
+            # Если персонаж не найден и нет истории, возвращаем пустой список
+            return {
+                "messages": [], 
+                "session_id": None,
+                "character_name": character_name,  # Используем character_name из URL
+                "user_type": "authenticated" if current_user else "guest"
+            }
         
         # Получаем все сообщения из этой сессии (ограничиваем до 20 последних)
+        # Проверяем, что chat_session существует
+        if not chat_session:
+            return {
+                "messages": [],
+                "session_id": None,
+                "character_name": character_name,
+                "user_type": "authenticated" if current_user else "guest"
+            }
+        
         messages = await db.execute(
             select(ChatMessageDB).where(ChatMessageDB.session_id == chat_session.id)
             .order_by(ChatMessageDB.timestamp.desc())
@@ -705,20 +748,47 @@ async def get_character_chat_history(
         chat_history_dict = {}
         if current_user:
             from app.models.chat_history import ChatHistory
-            history_messages = await db.execute(
-                select(ChatHistory)
-                .where(ChatHistory.user_id == current_user.id)
-                .where(ChatHistory.character_name == character_name)
-                .where(ChatHistory.session_id == str(chat_session.id))
-                .order_by(ChatHistory.created_at.desc())
-            )
-            history_list = history_messages.scalars().all()
-            # Создаем словарь по timestamp для быстрого поиска
-            for hist_msg in history_list:
-                # Используем timestamp как ключ (округленный до секунды для совпадения)
-                if hist_msg.created_at:
-                    timestamp_key = hist_msg.created_at.replace(microsecond=0)
-                    chat_history_dict[(timestamp_key, hist_msg.message_type)] = hist_msg
+            # Используем raw SQL сразу, так как поле generation_time может отсутствовать в БД
+            from sqlalchemy import text
+            try:
+                result = await db.execute(
+                    text("""
+                        SELECT id, user_id, character_name, session_id, message_type, 
+                               message_content, image_url, image_filename, created_at
+                        FROM chat_history
+                        WHERE user_id = :user_id 
+                          AND character_name ILIKE :character_name 
+                          AND session_id = :session_id
+                        ORDER BY created_at DESC
+                    """),
+                    {"user_id": current_user.id, "character_name": character_name, "session_id": str(chat_session.id)}  # Используем character_name из URL
+                )
+                history_list_rows = result.fetchall()
+                # Преобразуем результат в объекты для совместимости с кодом ниже
+                class HistoryRow:
+                    def __init__(self, row):
+                        self.id = row[0]
+                        self.user_id = row[1]
+                        self.character_name = row[2]
+                        self.session_id = row[3]
+                        self.message_type = row[4]
+                        self.message_content = row[5]
+                        self.image_url = row[6]
+                        self.image_filename = row[7]
+                        self.created_at = row[8]
+                        self.generation_time = None  # Поле отсутствует в БД
+                
+                history_list = [HistoryRow(row) for row in history_list_rows]
+                # Создаем словарь по timestamp для быстрого поиска
+                for hist_msg in history_list:
+                    # Используем timestamp как ключ (округленный до секунды для совпадения)
+                    if hist_msg.created_at:
+                        timestamp_key = hist_msg.created_at.replace(microsecond=0)
+                        chat_history_dict[(timestamp_key, hist_msg.message_type)] = hist_msg
+            except Exception as e:
+                # Если и raw SQL не работает, логируем ошибку и продолжаем без chat_history_dict
+                logger.error(f"Error querying ChatHistory with raw SQL: {e}", exc_info=True)
+                await db.rollback()  # Откатываем транзакцию на случай ошибки
         
         # Форматируем сообщения для фронтенда (в хронологическом порядке)
         import re
@@ -752,7 +822,7 @@ async def get_character_chat_history(
                     if hist_msg and hist_msg.image_url:
                         image_url = hist_msg.image_url
             
-            # Ищем generation_time в ChatHistory
+            # Ищем generation_time в ChatHistory (может не существовать в БД)
             generation_time = None
             if image_url and current_user and chat_history_dict:
                 msg_timestamp_key = msg.timestamp.replace(microsecond=0) if msg.timestamp else None
@@ -767,8 +837,9 @@ async def get_character_chat_history(
                                 if time_diff <= 2.0:
                                     hist_msg = hist
                                     break
-                    if hist_msg and hasattr(hist_msg, 'generation_time'):
-                        generation_time = hist_msg.generation_time
+                    if hist_msg:
+                        # Безопасно получаем generation_time, так как поле может отсутствовать в БД
+                        generation_time = getattr(hist_msg, 'generation_time', None)
             
             formatted_messages.append({
                 "id": msg.id,
@@ -783,7 +854,7 @@ async def get_character_chat_history(
         return {
             "messages": formatted_messages,
             "session_id": chat_session.id,
-            "character_name": character.name,
+            "character_name": character.name if character else character_name,  # Используем character.name если найден, иначе character_name из URL
             "user_type": user_type
         }
         

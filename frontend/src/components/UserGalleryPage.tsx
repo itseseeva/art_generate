@@ -472,7 +472,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
     }
 
     if (offset === 0) {
-      setIsLoading(true);
+    setIsLoading(true);
     } else {
       setIsLoadingMore(true);
     }
@@ -524,7 +524,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
       
       let newPhotos: UserPhoto[] = [];
       let totalCount = 0;
-
+      
       // Если это endpoint для другого пользователя, данные могут быть в другом формате
       if (userId && data.photos) {
         newPhotos = data.photos || [];
@@ -627,37 +627,37 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
             <GalleryEmpty></GalleryEmpty>
           ) : (
             <>
-              <GalleryGrid>
-                {photos.map((photo) => {
-                  const imageUrl = photo.image_url || (photo.image_filename ? `http://localhost:8000/paid_gallery/${photo.image_filename}` : null);
-                  if (!imageUrl) return null;
-                  
-                  // Показываем кнопку "Добавить в галерею" только для чужих пользователей и если фото еще не добавлено
-                  const isOtherUserGallery = userId && currentUserId && userId !== currentUserId;
-                  const isAdding = addingPhotoIds.has(photo.id);
-                  const isAdded = addedPhotoIds.has(photo.id);
-                  
-                  return (
-                    <GalleryImage key={photo.id} onClick={() => handleOpenPhoto(imageUrl)}>
+            <GalleryGrid>
+              {photos.map((photo) => {
+                const imageUrl = photo.image_url || (photo.image_filename ? `http://localhost:8000/paid_gallery/${photo.image_filename}` : null);
+                if (!imageUrl) return null;
+                
+                // Показываем кнопку "Добавить в галерею" только для чужих пользователей и если фото еще не добавлено
+                const isOtherUserGallery = userId && currentUserId && userId !== currentUserId;
+                const isAdding = addingPhotoIds.has(photo.id);
+                const isAdded = addedPhotoIds.has(photo.id);
+                
+                return (
+                  <GalleryImage key={photo.id} onClick={() => handleOpenPhoto(imageUrl)}>
                       <OptimizedImage 
                         src={imageUrl} 
                         alt={photo.character_name}
                         style={{ width: '100%', height: '100%' }}
                       />
-                      {isOtherUserGallery && !isAdded && (
-                        <AddToGalleryButton
-                          onClick={(e) => handleAddToGallery(e, photo)}
-                          disabled={isAdding}
-                          title="Добавить в мою галерею"
-                        >
-                          <PlusIcon />
-                          {isAdding ? 'Добавление...' : 'Добавить в галерею'}
-                        </AddToGalleryButton>
-                      )}
-                    </GalleryImage>
-                  );
-                })}
-              </GalleryGrid>
+                    {isOtherUserGallery && !isAdded && (
+                      <AddToGalleryButton
+                        onClick={(e) => handleAddToGallery(e, photo)}
+                        disabled={isAdding}
+                        title="Добавить в мою галерею"
+                      >
+                        <PlusIcon />
+                        {isAdding ? 'Добавление...' : 'Добавить в галерею'}
+                      </AddToGalleryButton>
+                    )}
+                  </GalleryImage>
+                );
+              })}
+            </GalleryGrid>
               {hasMore && (
                 <LoadMoreButton 
                   onClick={handleLoadMore} 

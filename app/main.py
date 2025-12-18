@@ -1272,36 +1272,50 @@ async def _write_chat_history(
                     elif image_filename and not user_message_content:
                         user_message_content = f"[image:{image_filename}]"
                     
-                    user_chat_history = ChatHistory(
-                        user_id=user_id_int,
-                        character_name=character_name,
-                        session_id=str(chat_session.id),
-                        message_type="user",
-                        message_content=user_message_content,
-                        image_url=image_url,
-                        image_filename=image_filename
-                    )
-                    db.add(user_chat_history)
+                    # Сохраняем в ChatHistory используя raw SQL, так как поле generation_time может отсутствовать в БД
+                    from sqlalchemy import text
                     
-                    # Также сохраняем ответ ассистента (даже если он пустой, но есть фото)
+                    # Сохраняем сообщение пользователя
+                    user_message_content_to_save = user_message_content if user_message_content else ""
+                    
+                    # Сохраняем ответ ассистента
                     assistant_message_content = response if response else ""
                     if image_url and not assistant_message_content:
-                        # Если есть только фото без текста, создаем сообщение с фото
                         assistant_message_content = f"[image:{image_url}]"
                     elif image_filename and not assistant_message_content:
                         assistant_message_content = f"[image:{image_filename}]"
                     
-                    assistant_chat_history = ChatHistory(
-                        user_id=user_id_int,
-                        character_name=character_name,
-                        session_id=str(chat_session.id),
-                        message_type="assistant",
-                        message_content=assistant_message_content,
-                        image_url=image_url,
-                        image_filename=image_filename
+                    # Используем raw SQL для вставки без generation_time
+                    await db.execute(
+                        text("""
+                            INSERT INTO chat_history (user_id, character_name, session_id, message_type, message_content, image_url, image_filename, created_at)
+                            VALUES (:user_id, :character_name, :session_id, :message_type, :message_content, :image_url, :image_filename, NOW())
+                        """),
+                        {
+                            "user_id": user_id_int,
+                            "character_name": character_name,
+                            "session_id": str(chat_session.id),
+                            "message_type": "user",
+                            "message_content": user_message_content_to_save,
+                            "image_url": image_url,
+                            "image_filename": image_filename
+                        }
                     )
-                    db.add(assistant_chat_history)
-                    
+                    await db.execute(
+                        text("""
+                            INSERT INTO chat_history (user_id, character_name, session_id, message_type, message_content, image_url, image_filename, created_at)
+                            VALUES (:user_id, :character_name, :session_id, :message_type, :message_content, :image_url, :image_filename, NOW())
+                        """),
+                        {
+                            "user_id": user_id_int,
+                            "character_name": character_name,
+                            "session_id": str(chat_session.id),
+                            "message_type": "assistant",
+                            "message_content": assistant_message_content,
+                            "image_url": image_url,
+                            "image_filename": image_filename
+                        }
+                    )
                     await db.commit()
                     
                     logger.info(
@@ -1321,7 +1335,7 @@ async def _write_chat_history(
                     logger.error(f"[HISTORY] Ошибка сохранения в ChatHistory: {chat_history_error}")
                     import traceback
                     logger.error(f"[HISTORY] Трейсбек: {traceback.format_exc()}")
-                    # НЕ делаем rollback, так как ChatMessageDB уже сохранены
+                    # НЕ делаем rollback для ChatMessageDB, так как они уже сохранены
         
         # Логируем только если chat_session был создан
         if chat_session:
