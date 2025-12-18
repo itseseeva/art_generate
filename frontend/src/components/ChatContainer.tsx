@@ -464,6 +464,23 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   subscriptionType = 'free'
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
+  
+  // Утилита для дедупликации сообщений по ID
+  const deduplicateMessages = (msgs: Message[]): Message[] => {
+    const seen = new Map<string, Message>();
+    for (const msg of msgs) {
+      const existing = seen.get(msg.id);
+      if (!existing) {
+        seen.set(msg.id, msg);
+      } else {
+        // Если есть дубликат, оставляем тот, у которого больше данных (например, есть imageUrl)
+        if (msg.imageUrl && !existing.imageUrl) {
+          seen.set(msg.id, msg);
+        }
+      }
+    }
+    return Array.from(seen.values());
+  };
   const [currentCharacter, setCurrentCharacter] = useState<Character | null>(
     initialCharacter || null
   );
@@ -961,7 +978,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       timestamp: new Date()
     };
 
-    setMessages(prev => [...prev, assistantMessage]);
+    setMessages(prev => deduplicateMessages([...prev, assistantMessage]));
     // УБРАН ФЕЙКОВЫЙ ПРОГРЕСС - используем только реальный из RunPod API
     setIsLoading(true);
     setIsGeneratingImage(true);
@@ -1341,7 +1358,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       timestamp: new Date()
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    setMessages(prev => deduplicateMessages([...prev, userMessage]));
     setIsLoading(true);
     setError(null);
 
@@ -1598,8 +1615,24 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             };
           });
           
-          setMessages(formattedMessages);
-          console.log(`Loaded ${formattedMessages.length} messages from history`);
+          // Удаляем дубликаты по ID перед установкой сообщений
+          const uniqueMessages = formattedMessages.reduce((acc: Message[], current: Message) => {
+            // Проверяем, нет ли уже сообщения с таким ID
+            const existingIndex = acc.findIndex(msg => msg.id === current.id);
+            if (existingIndex === -1) {
+              // Если такого ID нет, добавляем
+              acc.push(current);
+            } else {
+              // Если ID уже есть, оставляем тот, у которого есть imageUrl (более полный)
+              if (current.imageUrl && !acc[existingIndex].imageUrl) {
+                acc[existingIndex] = current;
+              }
+            }
+            return acc;
+          }, []);
+          
+          setMessages(deduplicateMessages(uniqueMessages));
+          console.log(`Loaded ${uniqueMessages.length} unique messages from history (was ${formattedMessages.length} before deduplication)`);
         } else {
           setMessages([]);
           console.log('No chat history found');
