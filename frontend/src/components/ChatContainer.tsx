@@ -224,13 +224,56 @@ const CharacterCardWrapper = styled.div`
   border-top: 1px solid rgba(150, 150, 150, 0.2);
   display: flex;
   justify-content: center;
+  align-items: flex-start;
+  gap: ${theme.spacing.md};
+  flex-wrap: wrap;
   
   /* Ограничиваем ширину карточки как на главной странице (minmax(200px, 1fr)) */
-  > * {
+  > *:first-child {
     width: 200px;
     max-width: 200px;
     min-width: 200px;
   }
+`;
+
+const GenerationQueueIndicator = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${theme.spacing.xs};
+  padding: ${theme.spacing.md};
+  background: rgba(30, 30, 30, 0.8);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(100, 100, 100, 0.3);
+  border-radius: ${theme.borderRadius.md};
+  min-width: 150px;
+  flex: 1;
+  max-width: 200px;
+`;
+
+const QueueTitle = styled.div`
+  font-size: ${theme.fontSize.sm};
+  font-weight: 600;
+  color: rgba(240, 240, 240, 1);
+  margin-bottom: ${theme.spacing.xs};
+`;
+
+const QueueItem = styled.div`
+  font-size: ${theme.fontSize.xs};
+  color: rgba(200, 200, 200, 1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: ${theme.spacing.xs} 0;
+  border-bottom: 1px solid rgba(100, 100, 100, 0.1);
+  
+  &:last-child {
+    border-bottom: none;
+  }
+`;
+
+const QueueValue = styled.span<{ $isLimit?: boolean }>`
+  font-weight: ${props => props.$isLimit ? 700 : 600};
+  color: ${props => props.$isLimit ? '#ffa500' : 'rgba(160, 200, 255, 1)'};
 `;
 
 const PaidAlbumPanel = styled.div`
@@ -465,21 +508,46 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   
-  // Утилита для дедупликации сообщений по ID
+  // Утилита для дедупликации сообщений по ID и URL изображения
   const deduplicateMessages = (msgs: Message[]): Message[] => {
-    const seen = new Map<string, Message>();
+    const seenIds = new Map<string, Message>();
+    const seenUrls = new Set<string>();
+    
     for (const msg of msgs) {
-      const existing = seen.get(msg.id);
+      // Нормализуем URL для сравнения (убираем query параметры и якоря)
+      const normalizedUrl = msg.imageUrl ? msg.imageUrl.split('?')[0].split('#')[0] : null;
+      
+      // Если есть imageUrl, проверяем дубликаты по URL (высокий приоритет)
+      if (normalizedUrl && seenUrls.has(normalizedUrl)) {
+        console.log(`[DEDUP] Дубликат по URL пропущен: ${normalizedUrl.substring(0, 50)}...`);
+        continue; // Пропускаем дубликат по URL
+      }
+      
+      // Проверяем дубликаты по ID
+      const existing = seenIds.get(msg.id);
       if (!existing) {
-        seen.set(msg.id, msg);
+        seenIds.set(msg.id, msg);
+        if (normalizedUrl) {
+          seenUrls.add(normalizedUrl);
+        }
       } else {
-        // Если есть дубликат, оставляем тот, у которого больше данных (например, есть imageUrl)
-        if (msg.imageUrl && !existing.imageUrl) {
-          seen.set(msg.id, msg);
+        // Если ID уже есть, оставляем сообщение с большим количеством данных
+        // Приоритет: imageUrl > generationTime > существующее сообщение
+        const shouldReplace = 
+          (msg.imageUrl && !existing.imageUrl) ||
+          (msg.imageUrl && msg.generationTime && !existing.generationTime) ||
+          (msg.generationTime && !existing.generationTime && msg.imageUrl === existing.imageUrl);
+        
+        if (shouldReplace) {
+          seenIds.set(msg.id, msg);
+          if (normalizedUrl && !seenUrls.has(normalizedUrl)) {
+            seenUrls.add(normalizedUrl);
+          }
+          console.log(`[DEDUP] Заменено сообщение ${msg.id} на более полную версию`);
         }
       }
     }
-    return Array.from(seen.values());
+    return Array.from(seenIds.values());
   };
   const [currentCharacter, setCurrentCharacter] = useState<Character | null>(
     initialCharacter || null
@@ -1192,7 +1260,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         console.error('[CHAT] Полный ответ:', JSON.stringify(data, null, 2));
         throw new Error('Не удалось получить изображение');
       }
-
+      
       setMessages(prev =>
         prev.map(msg => {
           if (msg.id === assistantMessageId) {
@@ -1242,78 +1310,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         console.warn('[CHAT] Не удалось добавить фото в галерею:', galleryError);
       }
 
-      // КРИТИЧЕСКИ ВАЖНО: Сохраняем историю чата с фото (как для текста)
-      try {
-        const token = authManager.getToken();
-        // Получаем актуальные данные пользователя и персонажа
-        let effectiveUserInfo = userInfo;
-        if (!effectiveUserInfo) {
-          effectiveUserInfo = await checkAuth();
-        }
-        const effectiveCharacter = currentCharacter;
-        
-        if (token && effectiveUserInfo?.id && effectiveCharacter?.name && generatedImageUrl) {
-          const userPrompt = trimmedPrompt || 'Генерация изображения';
-          
-          console.log('[CHAT] Сохраняем историю чата:', {
-            user_id: effectiveUserInfo.id,
-            character: effectiveCharacter.name,
-            prompt: userPrompt,
-            image_url: generatedImageUrl
-          });
-          
-          // Сохраняем сообщение пользователя (с промптом)
-          const saveUserMessageResponse = await fetch('/api/v1/chat-history/save-message', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              character_name: effectiveCharacter.name,
-              session_id: 'default',
-              message_type: 'user',
-              message_content: userPrompt,
-              image_url: null,
-              image_filename: null
-            })
-          });
-
-          if (saveUserMessageResponse.ok) {
-            console.log('[CHAT] Сообщение пользователя сохранено в историю');
-          } else {
-            console.warn('[CHAT] Не удалось сохранить сообщение пользователя в историю');
-          }
-
-          // Сохраняем сообщение ассистента (с фото)
-          const saveAssistantMessageResponse = await fetch('/api/v1/chat-history/save-message', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              character_name: effectiveCharacter.name,
-              session_id: 'default',
-              message_type: 'assistant',
-              message_content: 'Генерация изображения', // Минимальный текст для прохождения валидации
-              image_url: generatedImageUrl,
-              image_filename: null
-            })
-          });
-
-          if (saveAssistantMessageResponse.ok) {
-            console.log('[CHAT] ✓ История чата с фото сохранена!');
-          } else {
-            const errorData = await saveAssistantMessageResponse.json().catch(() => ({}));
-            console.warn('[CHAT] Не удалось сохранить сообщение ассистента в историю:', errorData);
-          }
-        } else {
-          console.warn('[CHAT] Не удалось сохранить историю: отсутствует токен, user_id или character_name');
-        }
-      } catch (historyError) {
-        console.error('[CHAT] Ошибка сохранения истории чата:', historyError);
-      }
+      // ИСТОРИЯ ЧАТА: История уже сохраняется на бэкенде в /generation-status эндпоинте
+      // Убрано двойное сохранение на фронтенде, чтобы избежать дублирования сообщений
+      // История сохраняется через ImageGenerationHistoryService в main.py при завершении генерации
+      console.log('[CHAT] История будет сохранена автоматически на бэкенде через /generation-status');
 
       if (isAuthenticated) {
         await refreshUserStats();
@@ -1330,8 +1330,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         newSet.delete(assistantMessageId);
         // Обновляем isLoading только если нет активных генераций
         if (newSet.size === 0) {
-          setIsLoading(false);
-        }
+      setIsLoading(false);
+      }
         return newSet;
       });
     }
@@ -1650,24 +1650,48 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             };
           });
           
-          // Удаляем дубликаты по ID перед установкой сообщений
-          const uniqueMessages = formattedMessages.reduce((acc: Message[], current: Message) => {
-            // Проверяем, нет ли уже сообщения с таким ID
-            const existingIndex = acc.findIndex(msg => msg.id === current.id);
-            if (existingIndex === -1) {
-              // Если такого ID нет, добавляем
-              acc.push(current);
-            } else {
-              // Если ID уже есть, оставляем тот, у которого есть imageUrl (более полный)
-              if (current.imageUrl && !acc[existingIndex].imageUrl) {
-                acc[existingIndex] = current;
+          // Улучшенная дедупликация: сначала по URL изображения, потом по ID
+          const seenUrls = new Set<string>();
+          const seenIds = new Map<string, Message>();
+          const uniqueMessages: Message[] = [];
+          
+          for (const msg of formattedMessages) {
+            // Нормализуем URL для сравнения (убираем query параметры и якоря)
+            const normalizedUrl = msg.imageUrl ? msg.imageUrl.split('?')[0].split('#')[0] : null;
+            
+            // Если есть imageUrl, проверяем дубликаты по URL (приоритет)
+            if (normalizedUrl) {
+              if (seenUrls.has(normalizedUrl)) {
+                console.log(`[HISTORY] Дубликат по URL пропущен: ${normalizedUrl.substring(0, 50)}...`);
+                continue; // Пропускаем дубликат по URL
               }
+              seenUrls.add(normalizedUrl);
             }
-            return acc;
-          }, []);
+            
+            // Проверяем дубликаты по ID
+            const existing = seenIds.get(msg.id);
+            if (existing) {
+              // Если ID уже был, оставляем сообщение с большим количеством данных (приоритет imageUrl и generationTime)
+              if ((msg.imageUrl && !existing.imageUrl) || 
+                  (msg.generationTime && !existing.generationTime) ||
+                  (msg.imageUrl && msg.generationTime && (!existing.generationTime))) {
+                // Заменяем на более полную версию
+                const index = uniqueMessages.findIndex(m => m.id === msg.id);
+                if (index !== -1) {
+                  uniqueMessages[index] = msg;
+                  seenIds.set(msg.id, msg);
+                  console.log(`[HISTORY] Заменено сообщение ${msg.id} на более полную версию (imageUrl: ${!!msg.imageUrl}, generationTime: ${msg.generationTime})`);
+                }
+              }
+              continue;
+            }
+            
+            seenIds.set(msg.id, msg);
+            uniqueMessages.push(msg);
+          }
           
           setMessages(deduplicateMessages(uniqueMessages));
-          console.log(`Loaded ${uniqueMessages.length} unique messages from history (was ${formattedMessages.length} before deduplication)`);
+          console.log(`Loaded ${uniqueMessages.length} unique messages from history (was ${formattedMessages.length} before deduplication by URL and ID)`);
         } else {
           setMessages([]);
           console.log('No chat history found');
@@ -2195,7 +2219,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   setIsTipModalOpen(true);
                 }
               }}
-              disabled={isLoading || activeGenerations.size >= getGenerationQueueLimit}
+              disabled={isLoading}
+              disableImageGeneration={activeGenerations.size >= getGenerationQueueLimit}
               placeholder={`Напишите сообщение ${currentCharacter.name}...`}
               hasMessages={messages.length > 0}
             />
@@ -2486,6 +2511,24 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                     }
                   }}
                 />
+                {/* Индикатор очереди генераций */}
+                <GenerationQueueIndicator>
+                  <QueueTitle>Очередь генераций</QueueTitle>
+                  <QueueItem>
+                    <span>Активных:</span>
+                    <QueueValue>{activeGenerations.size}</QueueValue>
+                  </QueueItem>
+                  <QueueItem>
+                    <span>Лимит:</span>
+                    <QueueValue $isLimit>{getGenerationQueueLimit}</QueueValue>
+                  </QueueItem>
+                  <QueueItem>
+                    <span>Осталось:</span>
+                    <QueueValue style={{ color: Math.max(0, getGenerationQueueLimit - activeGenerations.size) > 0 ? '#90ee90' : '#ff6b6b' }}>
+                      {Math.max(0, getGenerationQueueLimit - activeGenerations.size)}
+                    </QueueValue>
+                  </QueueItem>
+                </GenerationQueueIndicator>
               </CharacterCardWrapper>
             )}
           </PaidAlbumPanel>
@@ -2559,11 +2602,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             </h3>
             <p style={{ color: '#aaa', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
               Стоимость: 30 монет. Опишите желаемое изображение или отредактируйте предзаполненный промпт.
-              {activeGenerations.size > 0 && (
-                <span style={{ display: 'block', marginTop: '0.5rem', color: '#ffa500' }}>
-                  Активных генераций: {activeGenerations.size} / {getGenerationQueueLimit} {getGenerationQueueLimit === 1 ? 'фото' : 'фото'}
-                </span>
-              )}
             </p>
             <div style={{ marginBottom: '1rem' }}>
               <label style={{ color: '#fff', fontSize: '0.9rem', marginBottom: '0.5rem', display: 'block' }}>
@@ -2609,24 +2647,35 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button
                 onClick={() => {
+                  // Проверяем очередь только при клике
+                  if (activeGenerations.size >= getGenerationQueueLimit) {
+                    setError(`Максимум ${getGenerationQueueLimit} ${getGenerationQueueLimit === 1 ? 'фото может' : 'фото могут'} генерироваться одновременно. Дождитесь завершения текущих генераций.`);
+                    return;
+                  }
                   if (imagePromptInput.trim()) {
                     setIsImagePromptModalOpen(false);
                     handleGenerateImage(imagePromptInput);
                   }
                 }}
+                disabled={!imagePromptInput.trim()}
                 style={{
                   flex: 1,
                   padding: '0.75rem 1.5rem',
-                  background: 'rgba(100, 100, 110, 0.9)',
+                  background: !imagePromptInput.trim()
+                    ? 'rgba(60, 60, 60, 0.5)'
+                    : 'rgba(100, 100, 110, 0.9)',
                   border: '1px solid rgba(255, 255, 255, 0.2)',
                   borderRadius: '8px',
                   color: '#fff',
                   fontSize: '1rem',
                   fontWeight: 'bold',
-                  cursor: 'pointer',
+                  cursor: !imagePromptInput.trim()
+                    ? 'not-allowed'
+                    : 'pointer',
                   transition: 'all 0.2s',
                   textTransform: 'uppercase',
-                  letterSpacing: '0.5px'
+                  letterSpacing: '0.5px',
+                  opacity: !imagePromptInput.trim() ? 0.6 : 1
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = 'rgba(120, 120, 130, 1)';

@@ -142,6 +142,7 @@ interface MessageInputProps {
   onTipCreator?: () => void;
   onShowHelp?: () => void;
   disabled?: boolean;
+  disableImageGeneration?: boolean;
   placeholder?: string;
   hasMessages?: boolean;
   targetLanguage?: 'ru' | 'en';
@@ -155,6 +156,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onTipCreator,
   onShowHelp,
   disabled = false,
+  disableImageGeneration = false,
   placeholder = "Введите сообщение...",
   hasMessages = false,
   targetLanguage = 'ru',
@@ -194,7 +196,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   const handleImageGeneration = () => {
-    if (!disabled && onGenerateImage) {
+    if (!disableImageGeneration && onGenerateImage) {
       // Вызываем без параметра - откроется модалка с предзаполненным промптом
       onGenerateImage();
       setMessage('');
@@ -224,7 +226,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       icon: <FiImage size={20} />,
       label: 'Сгенерировать изображение',
       onClick: handleImageGeneration,
-      className: disabled || !onGenerateImage ? 'disabled' : ''
+      className: disableImageGeneration || !onGenerateImage ? 'disabled' : ''
     },
     ...(onGenerateImage && onShowHelp ? [{
       icon: <span style={{ fontSize: '24px', fontWeight: 600, color: 'white' }}>?</span>,

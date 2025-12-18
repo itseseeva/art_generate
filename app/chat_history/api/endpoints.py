@@ -314,7 +314,7 @@ async def get_prompt_by_image(
                 .limit(1)
             )
             message = (await db.execute(stmt)).scalars().first()
-            
+        
             # Если найдено, но это "Генерация изображения", продолжаем поиск
             if message and message.message_content == "Генерация изображения":
                 logger.info(f"[PROMPT] Найдена запись с 'Генерация изображения' среди всех пользователей, продолжаем поиск")

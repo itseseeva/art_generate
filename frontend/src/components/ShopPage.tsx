@@ -771,7 +771,8 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                 <PlanFeature>Возможность создавать платные альбомы</PlanFeature>
                 <PlanFeature>Сохранение истории сообщений</PlanFeature>
                 <PlanFeature $isHighlighted>Стандартная модель, память 2000 слов</PlanFeature>
-                <PlanFeature>Максимум токенов: 200 токенов на ответ</PlanFeature>
+                <PlanFeature>Максимум токенов: 400 токенов на ответ</PlanFeature>
+                <PlanFeature>Лимит генерации в очереди: 3 фото одновременно</PlanFeature>
               </PlanFeatures>
               {stats?.is_active && stats?.subscription_type === 'standard' ? (
                 <>
@@ -821,7 +822,8 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                 <PlanFeature>Доступ ко всем платным альбомам</PlanFeature>
                 <PlanFeature>Доступ ко всем галереям пользователей</PlanFeature>
                 <PlanFeature $isHighlighted>Премиум модель, память 6000 слов</PlanFeature>
-                <PlanFeature>Максимум токенов: 450 токенов на ответ</PlanFeature>
+                <PlanFeature>Максимум токенов: 850 токенов на ответ</PlanFeature>
+                <PlanFeature>Лимит генерации в очереди: 5 фото одновременно</PlanFeature>
               </PlanFeatures>
               {stats?.is_active && stats?.subscription_type === 'premium' ? (
                 <>

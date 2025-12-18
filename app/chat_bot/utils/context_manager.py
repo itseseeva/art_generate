@@ -77,9 +77,9 @@ def get_max_tokens(subscription_type: Optional[SubscriptionType]) -> int:
         Максимальное количество токенов для генерации
     """
     if subscription_type == SubscriptionType.PREMIUM:
-        return 450
+        return 850
     elif subscription_type == SubscriptionType.STANDARD:
-        return 200
+        return 400
     else:
         # FREE или отсутствие подписки - используем минимальное значение
         return 150

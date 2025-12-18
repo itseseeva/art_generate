@@ -1050,7 +1050,8 @@ async def _write_chat_history(
     message: str,
     response: str,
     image_url: Optional[str],
-    image_filename: Optional[str]
+    image_filename: Optional[str],
+    generation_time: Optional[float] = None
 ) -> None:
     """Сохраняет историю чата в базу данных."""
     if not user_id:
@@ -1368,7 +1369,8 @@ async def process_chat_history_storage(
     message: str,
     response: str,
     image_url: Optional[str],
-    image_filename: Optional[str]
+    image_filename: Optional[str],
+    generation_time: Optional[float] = None
 ) -> None:
     """Определяет, нужно ли сохранять историю чата, и выполняет сохранение."""
     logger.info(f"[HISTORY] process_chat_history_storage вызван: user_id={user_id}, subscription_type={subscription_type}, character={character_data.get('name') if character_data else None}")
@@ -1392,6 +1394,7 @@ async def process_chat_history_storage(
             response=response,
             image_url=image_url,
             image_filename=image_filename,
+            generation_time=generation_time,
         )
     except Exception as history_error:
         logger.error(f"[ERROR] Не удалось сохранить историю чата: {history_error}")
@@ -2196,6 +2199,7 @@ async def chat_endpoint(
             response=history_response,
             image_url=cloud_url or image_url,
             image_filename=image_filename,
+            generation_time=generation_time
         )
         logger.info(f"[HISTORY] История успешно сохранена в БД (синхронно)")
 

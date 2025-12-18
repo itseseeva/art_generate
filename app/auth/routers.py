@@ -1665,21 +1665,36 @@ async def unlock_user_gallery(
 
 @auth_router.get("/auth/user-gallery/", response_model=UserGalleryResponse)
 async def get_user_gallery(
+    limit: int = 20,
+    offset: int = 0,
     current_user: Users = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Получает все фото из "Моей галереи" пользователя.
+    Получает фото из "Моей галереи" пользователя с пагинацией.
+    
+    Args:
+        limit: Количество фото для возврата (по умолчанию 20)
+        offset: Смещение для пагинации (по умолчанию 0)
     
     Returns:
-    - UserGalleryResponse: Список всех фото из галереи пользователя.
+    - UserGalleryResponse: Список фото из галереи пользователя с пагинацией.
     """
     try:
-        # Получаем все фото из галереи пользователя
+        # Получаем общее количество фото для подсчета total
+        total_result = await db.execute(
+            select(func.count(UserGallery.id))
+            .filter(UserGallery.user_id == current_user.id)
+        )
+        total = total_result.scalar_one() or 0
+        
+        # Получаем фото с пагинацией
         result = await db.execute(
             select(UserGallery)
             .filter(UserGallery.user_id == current_user.id)
             .order_by(UserGallery.created_at.desc())
+            .limit(limit)
+            .offset(offset)
         )
         gallery_photos = result.scalars().all()
         
@@ -1696,7 +1711,7 @@ async def get_user_gallery(
         
         return UserGalleryResponse(
             photos=photos,
-            total=len(photos)
+            total=total
         )
     except Exception as e:
         # Если таблица не существует или другая ошибка, возвращаем пустой список

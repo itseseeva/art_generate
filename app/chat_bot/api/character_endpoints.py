@@ -680,7 +680,8 @@ async def get_character_chat_history(
                             "type": msg.message_type,  # 'user' или 'assistant'
                             "content": msg.message_content or "",
                             "timestamp": msg.created_at.isoformat(),
-                            "image_url": msg.image_url
+                            "image_url": msg.image_url,
+                            "generation_time": msg.generation_time  # Добавляем generation_time
                         })
                     
                     return {
@@ -751,12 +752,31 @@ async def get_character_chat_history(
                     if hist_msg and hist_msg.image_url:
                         image_url = hist_msg.image_url
             
+            # Ищем generation_time в ChatHistory
+            generation_time = None
+            if image_url and current_user and chat_history_dict:
+                msg_timestamp_key = msg.timestamp.replace(microsecond=0) if msg.timestamp else None
+                if msg_timestamp_key:
+                    role_key = "user" if msg.role == "user" else "assistant"
+                    hist_msg = chat_history_dict.get((msg_timestamp_key, role_key))
+                    if not hist_msg:
+                        # Пробуем найти ближайшее по времени (в пределах 2 секунд)
+                        for (ts_key, msg_type), hist in chat_history_dict.items():
+                            if msg_type == role_key:
+                                time_diff = abs((msg_timestamp_key - ts_key).total_seconds())
+                                if time_diff <= 2.0:
+                                    hist_msg = hist
+                                    break
+                    if hist_msg and hasattr(hist_msg, 'generation_time'):
+                        generation_time = hist_msg.generation_time
+            
             formatted_messages.append({
                 "id": msg.id,
                 "type": msg.role,  # 'user' или 'assistant'
                 "content": content,
                 "timestamp": msg.timestamp.isoformat(),
-                "image_url": image_url  # Добавляем image_url если найден
+                "image_url": image_url,  # Добавляем image_url если найден
+                "generation_time": generation_time  # Добавляем generation_time если найден
             })
         
         user_type = "authenticated" if current_user else "guest"

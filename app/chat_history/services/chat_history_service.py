@@ -39,7 +39,8 @@ class ChatHistoryService:
     
     async def save_message(self, user_id: int, character_name: str, session_id: str, 
                           message_type: str, message_content: str, 
-                          image_url: Optional[str] = None, image_filename: Optional[str] = None) -> bool:
+                          image_url: Optional[str] = None, image_filename: Optional[str] = None,
+                          generation_time: Optional[int] = None) -> bool:
         """Сохраняет сообщение в историю чата."""
         try:
             # Проверяем права на сохранение истории
@@ -53,7 +54,8 @@ class ChatHistoryService:
                 message_type=message_type,
                 message_content=message_content,
                 image_url=image_url,
-                image_filename=image_filename
+                image_filename=image_filename,
+                generation_time=generation_time
             )
             
             self.db.add(chat_message)

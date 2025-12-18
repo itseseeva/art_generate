@@ -147,14 +147,32 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onAddToPaidAlbum,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const wasScrolledToBottomRef = useRef(true);
 
-  // Автоматическая прокрутка к последнему сообщению
+  // Проверяем, находится ли пользователь внизу, перед изменением сообщений
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const checkIfScrolledToBottom = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const threshold = 100; // Порог в пикселях от низа
+      wasScrolledToBottomRef.current = scrollHeight - scrollTop - clientHeight < threshold;
+    };
+
+    checkIfScrolledToBottom();
+  }, [messages]);
+
+  // Автоматическая прокрутка к последнему сообщению только если пользователь был внизу
+  useEffect(() => {
+    if (wasScrolledToBottomRef.current && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages, isLoading]);
 
   return (
-    <MessagesContainer>
+    <MessagesContainer ref={messagesContainerRef}>
       <MessagesList>
         {messages.length === 0 && !isLoading && (
           <EmptyState>

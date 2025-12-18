@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import { GlobalHeader } from './GlobalHeader';
 import { FiX as CloseIcon, FiPlus as PlusIcon } from 'react-icons/fi';
 import { fetchPromptByImage } from '../utils/prompt';
+import { OptimizedImage } from './ui/OptimizedImage';
 
 const MainContainer = styled.div`
   display: flex;
@@ -63,13 +64,6 @@ const GalleryImage = styled.div`
     transform: translateY(-3px);
     box-shadow: ${theme.colors.shadow.glow};
     border-color: rgba(102, 126, 234, 0.65);
-  }
-
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
   }
 `;
 
@@ -150,6 +144,32 @@ const LoadingContainer = styled.div`
   align-items: center;
   padding: ${theme.spacing.xxl};
   color: ${theme.colors.text.secondary};
+`;
+
+const LoadMoreButton = styled.button`
+  margin: ${theme.spacing.xl} auto;
+  padding: ${theme.spacing.md} ${theme.spacing.xl};
+  background: rgba(102, 126, 234, 0.8);
+  border: 2px solid rgba(102, 126, 234, 0.5);
+  border-radius: ${theme.borderRadius.lg};
+  color: rgba(255, 255, 255, 0.9);
+  font-size: ${theme.fontSize.base};
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: block;
+  
+  &:hover:not(:disabled) {
+    background: rgba(102, 126, 234, 1);
+    border-color: rgba(102, 126, 234, 0.8);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 `;
 
 const ModalOverlay = styled.div`
@@ -297,7 +317,13 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [addingPhotoIds, setAddingPhotoIds] = useState<Set<number>>(new Set());
   const [addedPhotoIds, setAddedPhotoIds] = useState<Set<number>>(new Set());
+  const [total, setTotal] = useState(0);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const photosCacheRef = useRef<Map<string, { photos: UserPhoto[], total: number }>>(new Map());
   const authToken = localStorage.getItem('authToken');
+  
+  const PAGE_SIZE = 20;
 
   const handleOpenPhoto = async (imageUrl: string) => {
     setSelectedPhoto(imageUrl);
@@ -438,22 +464,42 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
     checkExistingPhotos();
   }, [authToken, currentUserId, userId, photos]);
 
-  const loadGallery = useCallback(async () => {
+  const loadGallery = useCallback(async (offset: number = 0, append: boolean = false) => {
     if (!authToken) {
       setError('Необходима авторизация');
       setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
+    if (offset === 0) {
+      setIsLoading(true);
+    } else {
+      setIsLoadingMore(true);
+    }
     setError(null);
 
     try {
+      // Проверяем кеш только для первой загрузки
+      const cacheKey = `${userId || 'me'}_${offset}`;
+      if (offset === 0 && photosCacheRef.current.has(cacheKey)) {
+        const cached = photosCacheRef.current.get(cacheKey)!;
+        setPhotos(cached.photos);
+        setTotal(cached.total);
+        setHasMore(cached.photos.length < cached.total);
+        setIsLoading(false);
+        return;
+      }
+
       // Если передан userId, загружаем галерею конкретного пользователя
       // Иначе загружаем свою галерею
-      const url = userId 
+      const baseUrl = userId 
         ? `http://localhost:8000/api/v1/auth/user-generated-photos/${userId}/`
         : 'http://localhost:8000/api/v1/auth/user-gallery/';
+      
+      // Добавляем параметры пагинации только для своей галереи
+      const url = userId 
+        ? baseUrl
+        : `${baseUrl}?limit=${PAGE_SIZE}&offset=${offset}`;
       
       const response = await fetch(url, {
         headers: {
@@ -464,8 +510,9 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
       if (!response.ok) {
         if (response.status === 403) {
           // Если галерея не разблокирована, просто показываем пустую галерею
-          // Уведомление уже было показано на странице профиля при нажатии на кнопку
           setPhotos([]);
+          setTotal(0);
+          setHasMore(false);
           setError(null);
           return;
         }
@@ -473,34 +520,65 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
       }
 
       const data = await response.json();
-      console.log('[USER_GALLERY] Получены данные:', { userId, data, hasPhotos: !!data.photos, photosCount: data.photos?.length || 0 });
+      console.log('[USER_GALLERY] Получены данные:', { userId, offset, data });
       
+      let newPhotos: UserPhoto[] = [];
+      let totalCount = 0;
+
       // Если это endpoint для другого пользователя, данные могут быть в другом формате
       if (userId && data.photos) {
-        console.log('[USER_GALLERY] Устанавливаем фото из data.photos:', data.photos.length);
-        setPhotos(data.photos || []);
+        newPhotos = data.photos || [];
+        totalCount = data.total || newPhotos.length;
       } else if (userId && Array.isArray(data)) {
-        // Если приходит массив напрямую
-        console.log('[USER_GALLERY] Устанавливаем фото из массива:', data.length);
-        setPhotos(data);
+        // Если приходит массив напрямую (старый формат)
+        newPhotos = data;
+        totalCount = data.length;
       } else if (!userId && data.photos) {
-        console.log('[USER_GALLERY] Устанавливаем свою галерею:', data.photos.length);
-        setPhotos(data.photos || []);
+        // Своя галерея с пагинацией
+        newPhotos = data.photos || [];
+        totalCount = data.total || 0;
       } else {
-        console.warn('[USER_GALLERY] Не удалось определить формат данных, устанавливаем пустой массив');
-        setPhotos([]);
+        console.warn('[USER_GALLERY] Не удалось определить формат данных');
+        newPhotos = [];
+        totalCount = 0;
+      }
+
+      if (append) {
+        setPhotos(prev => [...prev, ...newPhotos]);
+      } else {
+        setPhotos(newPhotos);
+      }
+      
+      setTotal(totalCount);
+      setHasMore(offset + newPhotos.length < totalCount);
+
+      // Кешируем только первую страницу
+      if (offset === 0) {
+        photosCacheRef.current.set(cacheKey, { photos: newPhotos, total: totalCount });
       }
     } catch (err: any) {
       setError(err.message || 'Ошибка при загрузке галереи');
       console.error('[GALLERY] Ошибка загрузки:', err);
     } finally {
       setIsLoading(false);
+      setIsLoadingMore(false);
     }
   }, [authToken, userId]);
 
   useEffect(() => {
-    loadGallery();
+    // Очищаем кеш при смене userId
+    photosCacheRef.current.clear();
+    setPhotos([]);
+    setTotal(0);
+    setHasMore(true);
+    loadGallery(0, false);
   }, [loadGallery]);
+
+  const handleLoadMore = useCallback(() => {
+    if (!isLoadingMore && hasMore) {
+      loadGallery(photos.length, true);
+    }
+  }, [loadGallery, photos.length, isLoadingMore, hasMore]);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -538,7 +616,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
         <MainContent>
           <GalleryHeader>
             <GalleryTitle>Галерея пользователя </GalleryTitle>
-            <GallerySubtitle>Все фото, которые вы сгенерировали ({photos.length})</GallerySubtitle>
+            <GallerySubtitle>Все фото, которые вы сгенерировали ({total > 0 ? total : photos.length})</GallerySubtitle>
           </GalleryHeader>
 
           {isLoading ? (
@@ -548,33 +626,47 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
           ) : photos.length === 0 ? (
             <GalleryEmpty></GalleryEmpty>
           ) : (
-            <GalleryGrid>
-              {photos.map((photo) => {
-                const imageUrl = photo.image_url || (photo.image_filename ? `http://localhost:8000/paid_gallery/${photo.image_filename}` : null);
-                if (!imageUrl) return null;
-                
-                // Показываем кнопку "Добавить в галерею" только для чужих пользователей и если фото еще не добавлено
-                const isOtherUserGallery = userId && currentUserId && userId !== currentUserId;
-                const isAdding = addingPhotoIds.has(photo.id);
-                const isAdded = addedPhotoIds.has(photo.id);
-                
-                return (
-                  <GalleryImage key={photo.id} onClick={() => handleOpenPhoto(imageUrl)}>
-                    <img src={imageUrl} alt={photo.character_name} loading="lazy" />
-                    {isOtherUserGallery && !isAdded && (
-                      <AddToGalleryButton
-                        onClick={(e) => handleAddToGallery(e, photo)}
-                        disabled={isAdding}
-                        title="Добавить в мою галерею"
-                      >
-                        <PlusIcon />
-                        {isAdding ? 'Добавление...' : 'Добавить в галерею'}
-                      </AddToGalleryButton>
-                    )}
-                  </GalleryImage>
-                );
-              })}
-            </GalleryGrid>
+            <>
+              <GalleryGrid>
+                {photos.map((photo) => {
+                  const imageUrl = photo.image_url || (photo.image_filename ? `http://localhost:8000/paid_gallery/${photo.image_filename}` : null);
+                  if (!imageUrl) return null;
+                  
+                  // Показываем кнопку "Добавить в галерею" только для чужих пользователей и если фото еще не добавлено
+                  const isOtherUserGallery = userId && currentUserId && userId !== currentUserId;
+                  const isAdding = addingPhotoIds.has(photo.id);
+                  const isAdded = addedPhotoIds.has(photo.id);
+                  
+                  return (
+                    <GalleryImage key={photo.id} onClick={() => handleOpenPhoto(imageUrl)}>
+                      <OptimizedImage 
+                        src={imageUrl} 
+                        alt={photo.character_name}
+                        style={{ width: '100%', height: '100%' }}
+                      />
+                      {isOtherUserGallery && !isAdded && (
+                        <AddToGalleryButton
+                          onClick={(e) => handleAddToGallery(e, photo)}
+                          disabled={isAdding}
+                          title="Добавить в мою галерею"
+                        >
+                          <PlusIcon />
+                          {isAdding ? 'Добавление...' : 'Добавить в галерею'}
+                        </AddToGalleryButton>
+                      )}
+                    </GalleryImage>
+                  );
+                })}
+              </GalleryGrid>
+              {hasMore && (
+                <LoadMoreButton 
+                  onClick={handleLoadMore} 
+                  disabled={isLoadingMore}
+                >
+                  {isLoadingMore ? 'Загрузка...' : 'Загрузить еще'}
+                </LoadMoreButton>
+              )}
+            </>
           )}
         </MainContent>
       </div>
