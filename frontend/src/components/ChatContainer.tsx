@@ -485,7 +485,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     initialCharacter || null
   );
   const [isLoading, setIsLoading] = useState(false);
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  // Очередь активных генераций: Set с ID сообщений, которые генерируются
+  const [activeGenerations, setActiveGenerations] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -588,6 +589,16 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
   const canCreatePaidAlbum = normalizedSubscriptionType === 'standard' || normalizedSubscriptionType === 'premium';
   
+  // Получаем лимит очереди генераций на основе подписки
+  const getGenerationQueueLimit = useMemo(() => {
+    const subType = normalizedSubscriptionType;
+    if (subType === 'premium') {
+      return 5; // PREMIUM: 5 фото одновременно
+    } else if (subType === 'standard') {
+      return 3; // STANDARD: 3 фото одновременно
+    }
+    return 1; // FREE/BASE: только 1 фото одновременно
+  }, [normalizedSubscriptionType]);
 
   const updateMessageProgressContent = useCallback((messageId: string, value: number) => {
     setMessages(prev =>
@@ -952,8 +963,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       return;
     }
 
-    // Защита от дублирования запросов
-    if (isGeneratingImage) {
+    // Проверяем лимит очереди генераций
+    if (activeGenerations.size >= getGenerationQueueLimit) {
+      const limitText = getGenerationQueueLimit === 1 ? 'одно фото' : `${getGenerationQueueLimit} фото`;
+      setError(`Максимум ${limitText} могут генерироваться одновременно. Дождитесь завершения текущих генераций.`);
       return;
     }
 
@@ -979,9 +992,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     };
 
     setMessages(prev => deduplicateMessages([...prev, assistantMessage]));
+    
+    // Добавляем генерацию в очередь активных
+    setActiveGenerations(prev => new Set(prev).add(assistantMessageId));
+    
     // УБРАН ФЕЙКОВЫЙ ПРОГРЕСС - используем только реальный из RunPod API
     setIsLoading(true);
-    setIsGeneratingImage(true);
     setError(null);
 
     let generationFailed = false;
@@ -1190,6 +1206,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           return msg;
         })
       );
+      
+      // Удаляем генерацию из очереди активных после успешного завершения
+      setActiveGenerations(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(assistantMessageId);
+        // Обновляем isLoading только если нет активных генераций
+        if (newSet.size === 0) {
+          setIsLoading(false);
+        }
+        return newSet;
+      });
 
       // КРИТИЧЕСКИ ВАЖНО: Добавляем фото в галерею пользователя
       try {
@@ -1297,8 +1324,16 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       setError(errorMessage);
       setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
     } finally {
-      setIsLoading(false);
-      setIsGeneratingImage(false);
+      // Удаляем генерацию из очереди активных
+      setActiveGenerations(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(assistantMessageId);
+        // Обновляем isLoading только если нет активных генераций
+        if (newSet.size === 0) {
+          setIsLoading(false);
+        }
+        return newSet;
+      });
     }
   };
 
@@ -2113,7 +2148,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             <ChatArea 
               messages={messages}
               isLoading={isLoading}
-              isGeneratingImage={isGeneratingImage}
+              isGeneratingImage={activeGenerations.size > 0}
               characterSituation={characterSituation ?? undefined}
               characterName={currentCharacter?.name}
               characterAvatar={characterPhotos && characterPhotos.length > 0 ? characterPhotos[0] : undefined}
@@ -2160,7 +2195,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   setIsTipModalOpen(true);
                 }
               }}
-              disabled={isLoading || isGeneratingImage}
+              disabled={isLoading || activeGenerations.size >= getGenerationQueueLimit}
               placeholder={`Напишите сообщение ${currentCharacter.name}...`}
               hasMessages={messages.length > 0}
             />
@@ -2524,6 +2559,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             </h3>
             <p style={{ color: '#aaa', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
               Стоимость: 30 монет. Опишите желаемое изображение или отредактируйте предзаполненный промпт.
+              {activeGenerations.size > 0 && (
+                <span style={{ display: 'block', marginTop: '0.5rem', color: '#ffa500' }}>
+                  Активных генераций: {activeGenerations.size} / {getGenerationQueueLimit} {getGenerationQueueLimit === 1 ? 'фото' : 'фото'}
+                </span>
+              )}
             </p>
             <div style={{ marginBottom: '1rem' }}>
               <label style={{ color: '#fff', fontSize: '0.9rem', marginBottom: '0.5rem', display: 'block' }}>
