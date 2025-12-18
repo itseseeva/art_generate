@@ -464,6 +464,7 @@ interface Character {
   display_name?: string;
   description: string;
   avatar?: string;
+  raw?: any; // Исходные данные персонажа из API
 }
 
 interface UserInfo {
@@ -752,9 +753,16 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       refreshUserStats();
     }
     
+    const characterIdentifier = currentCharacter.raw?.name || currentCharacter.name;
+    console.log('[CHAT INIT] Инициализация чата с персонажем:', { 
+      name: currentCharacter.name,
+      display_name: currentCharacter.display_name,
+      rawName: currentCharacter.raw?.name,
+      identifier: characterIdentifier
+    });
     loadModelInfo();
-    loadCharacterData(currentCharacter.name);
-    loadChatHistory(currentCharacter.name); // Загружаем историю чатов при инициализации
+    loadCharacterData(characterIdentifier);
+    loadChatHistory(characterIdentifier); // Загружаем историю чатов при инициализации
   }, []);
 
   useEffect(() => {
@@ -1369,7 +1377,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
     // Убеждаемся, что characterPhotos загружены перед отправкой сообщения
     if (currentCharacter && (!characterPhotos || characterPhotos.length === 0)) {
-      await loadCharacterData(currentCharacter.name);
+      const characterIdentifier = currentCharacter.raw?.name || currentCharacter.name;
+      await loadCharacterData(characterIdentifier);
     }
 
     let effectiveUserId = userInfo?.id;
@@ -1597,15 +1606,30 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
   const loadChatHistory = async (characterName: string) => {
     try {
-      console.log(`Loading chat history for character: ${characterName}`);
+      // Используем raw.name если доступен, иначе используем переданный name
+      const identifier = currentCharacter?.raw?.name || characterName;
+      console.log('[CHAT HISTORY] Fetching history for:', { 
+        characterName, 
+        identifier,
+        currentCharacterName: currentCharacter?.name,
+        currentCharacterId: currentCharacter?.id,
+        rawName: currentCharacter?.raw?.name,
+        displayName: currentCharacter?.display_name
+      });
+      
       const token = authManager.getToken();
-      const response = await fetch(`http://localhost:8000/api/v1/characters/${characterName}/chat-history`, {
+      const response = await fetch(`http://localhost:8000/api/v1/characters/${encodeURIComponent(identifier)}/chat-history`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined
       });
       
       if (response.ok) {
         const data = await response.json();
-        console.log('Chat history loaded:', data);
+        console.log('[CHAT HISTORY] History response data:', { 
+          messagesCount: data.messages?.length || 0,
+          hasMessages: !!data.messages?.length,
+          sessionId: data.session_id,
+          characterName: data.character_name
+        });
 
         if (data.messages && data.messages.length > 0) {
           // Преобразуем сообщения в формат, ожидаемый компонентом
@@ -1707,24 +1731,36 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   };
 
   const handleCharacterSelect = (character: Character) => {
-    console.log('[CHARACTER SELECT] Выбран персонаж:', character.name);
+    const characterIdentifier = character.raw?.name || character.name;
+    console.log('[CHARACTER SELECT] Выбран персонаж:', { 
+      name: character.name,
+      display_name: character.display_name,
+      rawName: character.raw?.name,
+      identifier: characterIdentifier
+    });
     setCurrentCharacter(character);
     setMessages([]); // Очищаем историю при смене персонажа
-    loadCharacterData(character.name); // Загружаем данные нового персонажа
-    loadChatHistory(character.name); // Загружаем историю чатов с новым персонажем
-    fetchPaidAlbumStatus(character.name);
+    loadCharacterData(characterIdentifier); // Загружаем данные нового персонажа
+    loadChatHistory(characterIdentifier); // Загружаем историю чатов с новым персонажем
+    fetchPaidAlbumStatus(characterIdentifier);
   };
 
   // Обновляем персонажа если изменился initialCharacter
   useEffect(() => {
     if (initialCharacter) {
-      console.log('[CHARACTER UPDATE] Обновление персонажа из props:', initialCharacter.name);
+      const characterIdentifier = initialCharacter.raw?.name || initialCharacter.name;
+      console.log('[CHARACTER UPDATE] Обновление персонажа из props:', { 
+        name: initialCharacter.name,
+        display_name: initialCharacter.display_name,
+        rawName: initialCharacter.raw?.name,
+        identifier: characterIdentifier
+      });
       setCurrentCharacter(initialCharacter);
-      loadCharacterData(initialCharacter.name);
-      loadChatHistory(initialCharacter.name);
-      fetchPaidAlbumStatus(initialCharacter.name);
+      loadCharacterData(characterIdentifier);
+      loadChatHistory(characterIdentifier);
+      fetchPaidAlbumStatus(characterIdentifier);
     }
-  }, [initialCharacter?.name, fetchPaidAlbumStatus]);
+  }, [initialCharacter?.name, initialCharacter?.raw?.name, fetchPaidAlbumStatus]);
 
   const handleAuthSuccess = async (accessToken: string, refreshToken?: string) => {
     // Сохраняем токены
