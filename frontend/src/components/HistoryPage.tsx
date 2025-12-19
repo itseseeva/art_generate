@@ -382,9 +382,10 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
           throw new Error('Необходимо войти, чтобы просматривать историю чатов');
         }
 
+        // Всегда загружаем с принудительным обновлением, чтобы очистить кэш
         const [historyResponse, charactersResponse] = await Promise.all([
-          authManager.fetchWithAuth('/api/v1/chat-history/characters'),
-          authManager.fetchWithAuth('/api/v1/characters/'),
+          authManager.fetchWithAuth(`/api/v1/chat-history/characters?force_refresh=true&_t=${Date.now()}`),
+          authManager.fetchWithAuth(`/api/v1/characters/?skip=0&limit=1000&force_refresh=true&_t=${Date.now()}`),
         ]);
 
         if (!historyResponse.ok) {
@@ -492,6 +493,13 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                   break;
                 }
               }
+            }
+            
+            // КРИТИЧЕСКИ ВАЖНО: Если персонаж не найден в списке существующих персонажей,
+            // значит он был удален - не показываем его в истории
+            if (!finalMatch) {
+              console.log('[HISTORY] Персонаж удален, пропускаем:', entryName);
+              return null;
             }
             
             const char = buildCharacterData(entry, finalMatch, characterPhotos);
@@ -603,7 +611,48 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
         <Header>
           <BackButton onClick={onBackToMain}>← Назад</BackButton>
           <PageTitle>История чатов</PageTitle>
-          <div />
+          {characters.length > 0 && (
+            <button
+              onClick={async () => {
+                if (!window.confirm('Вы уверены, что хотите удалить всю историю чатов? Это действие нельзя отменить.')) {
+                  return;
+                }
+                try {
+                  const token = authManager.getToken();
+                  if (!token) {
+                    setError('Необходима авторизация');
+                    return;
+                  }
+                  const response = await authManager.fetchWithAuth('/api/v1/chat-history/clear-all-history', {
+                    method: 'POST'
+                  });
+                  if (response.ok) {
+                    // Очищаем список персонажей и перезагружаем
+                    setCharacters([]);
+                    await loadCharacters();
+                  } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    setError(errorData.detail || 'Не удалось удалить историю');
+                  }
+                } catch (err) {
+                  console.error('[HISTORY] Ошибка удаления истории:', err);
+                  setError('Ошибка при удалении истории');
+                }
+              }}
+              style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: theme.colors.status.error,
+                padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+                borderRadius: theme.borderRadius.md,
+                cursor: 'pointer',
+                fontSize: theme.fontSize.sm,
+                fontWeight: 600
+              }}
+            >
+              Удалить все истории
+            </button>
+          )}
         </Header>
 
         {error && (

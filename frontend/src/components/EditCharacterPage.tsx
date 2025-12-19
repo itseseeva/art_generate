@@ -881,8 +881,6 @@ const PhotoStatus = styled.span<{ isSelected?: boolean }>`
 const FullSizePhotoSlider = styled.div`
   position: relative;
   width: 100%;
-  min-height: 500px;
-  max-height: calc(100vh - 400px);
   background: rgba(30, 30, 30, 0.8);
   border-radius: ${theme.borderRadius.xl};
   border: 1px solid rgba(120, 120, 120, 0.3);
@@ -891,7 +889,7 @@ const FullSizePhotoSlider = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${theme.spacing.md};
-  overflow: hidden;
+  overflow: visible;
 `;
 
 const GeneratedPhotosHeader = styled.div`
@@ -928,27 +926,13 @@ const PhotoList = styled.div`
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
   gap: ${theme.spacing.sm} !important;
   margin-top: ${theme.spacing.md};
-  max-height: calc(100vh - 500px) !important;
-  min-height: 600px !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
   padding: ${theme.spacing.md};
   visibility: visible !important;
   opacity: 1 !important;
-  scrollbar-width: thin;
-
-  &::-webkit-scrollbar {
-    width: 8px;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.6);
-    border-radius: ${theme.borderRadius.sm};
-  }
-
-  &::-webkit-scrollbar-track {
-    background: rgba(15, 23, 42, 0.4);
-  }
+  width: 100% !important;
+  box-sizing: border-box !important;
+  align-content: start !important;
+  grid-auto-rows: min-content !important;
 `;
 
 const PhotoTile = styled.div`
@@ -1280,6 +1264,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const [fakeProgress, setFakeProgress] = useState(0);
   const fakeProgressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fakeProgressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime'>('anime-realism');
 
   const startFakeProgress = useCallback(() => {
     if (fakeProgressIntervalRef.current) {
@@ -1291,14 +1276,22 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       fakeProgressTimeoutRef.current = null;
     }
     setFakeProgress(0);
+    
+    // Моковый прогресс на 30 секунд (достаточно для генерации)
+    const duration = 30000; // 30 секунд
+    const interval = 300; // Обновление каждые 300ms
+    const steps = duration / interval; // 100 шагов
+    const increment = 99 / steps; // до 99% за время генерации
+    
+    let currentProgress = 0;
     fakeProgressIntervalRef.current = setInterval(() => {
-      setFakeProgress(prev => {
-        if (prev >= 99) {
-          return 99;
-        }
-        return prev + 1;
-      });
-    }, 300);
+      currentProgress += increment;
+      if (currentProgress >= 99) {
+        currentProgress = 99;
+        // Не останавливаем интервал, чтобы прогресс оставался видимым
+      }
+      setFakeProgress(Math.min(99, Math.round(currentProgress)));
+    }, interval);
   }, []);
 
   const stopFakeProgress = useCallback((immediate: boolean) => {
@@ -1851,6 +1844,68 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     }
   };
 
+  // Ожидание завершения генерации через task_id
+  const waitForGeneration = async (taskId: string, token: string): Promise<{ id: string; url: string } | null> => {
+    const maxAttempts = 120; // 2 минуты максимум
+    const delay = 2000; // 2 секунды между проверками
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        const response = await fetch(`/api/v1/generation-status/${taskId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Ошибка проверки статуса генерации');
+        }
+
+        const status = await response.json();
+        
+        // Логируем только при изменении статуса или раз в 5 попыток
+        if (attempt % 5 === 0 || status.status === 'SUCCESS' || status.status === 'FAILURE') {
+          console.log(`[EDIT_CHAR] Generation status [attempt ${attempt + 1}]:`, status.status, status.message || '');
+        }
+
+        // Бэкенд возвращает результат в поле "result", а не "data"
+        const resultData = status.result || status.data;
+        
+        if (status.status === 'SUCCESS' && resultData) {
+          console.log('[EDIT_CHAR] Generation result data:', resultData);
+          
+          // Проверяем разные варианты структуры ответа
+          const imageUrl = resultData.image_url || resultData.cloud_url || resultData.url || 
+                          (Array.isArray(resultData.cloud_urls) && resultData.cloud_urls[0]) ||
+                          (Array.isArray(resultData.saved_paths) && resultData.saved_paths[0]);
+          const imageId = resultData.image_id || resultData.id || resultData.task_id || resultData.filename || `${Date.now()}-${taskId}`;
+          
+          if (imageUrl) {
+            console.log('[EDIT_CHAR] Photo generated successfully:', { imageUrl, imageId });
+            return {
+              id: imageId,
+              url: imageUrl
+            };
+          } else {
+            console.error('[EDIT_CHAR] No image URL in result:', resultData);
+            console.error('[EDIT_CHAR] Available keys:', Object.keys(resultData));
+          }
+        } else if (status.status === 'FAILURE') {
+          throw new Error(status.error || 'Ошибка генерации изображения');
+        } else if (status.status === 'PENDING' || status.status === 'PROGRESS') {
+          // Продолжаем ждать - делаем задержку перед следующей проверкой
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+      } catch (err) {
+        console.error('[EDIT_CHAR] Error checking generation status:', err);
+        throw err;
+      }
+    }
+
+    throw new Error('Превышено время ожидания генерации');
+  };
+
   const generatePhoto = async () => {
     if (!userInfo || userInfo.coins < 30) {
       setError('Недостаточно монет! Нужно 30 монет для генерации фото.');
@@ -1862,6 +1917,14 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     startFakeProgress();
 
     let generationFailed = false;
+    const token = authManager.getToken();
+
+    if (!token) {
+      setError('Необходимо войти в систему');
+      setIsGeneratingPhoto(false);
+      stopFakeProgress(true);
+      return;
+    }
 
     try {
       
@@ -1893,7 +1956,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         height: effectiveSettings.height,
         steps: effectiveSettings.steps,
         cfg_scale: effectiveSettings.cfg_scale,
-        use_default_prompts: false
+        use_default_prompts: false,
+        model: selectedModel
       };
       
       console.log('Request body:', requestBody);
@@ -1912,34 +1976,62 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Ошибка генерации фото');
+        let errorMessage = 'Ошибка генерации фото';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorData.message || errorMessage;
+        } catch (e) {
+          errorMessage = `Ошибка сервера: ${response.status} ${response.statusText}`;
+        }
+        console.error('[GENERATE_PHOTO] API error:', errorMessage);
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
-      console.log('API Response:', result);
-      console.log('Image URL:', result.image_url);
-      console.log('Cloud URL:', result.cloud_url);
-      console.log('Image filename:', result.filename);
+      console.log('[EDIT_CHAR] API Response:', result);
+      console.log('[EDIT_CHAR] Task ID:', result.task_id);
+      console.log('[EDIT_CHAR] Image URL:', result.image_url);
+      console.log('[EDIT_CHAR] Cloud URL:', result.cloud_url);
       
-      // Проверяем URL изображения (может быть image_url или cloud_url)
-      const imageUrl = result.cloud_url || result.image_url;
-      if (!imageUrl) {
-        throw new Error('URL изображения не получен от сервера');
+      let imageUrl: string | undefined;
+      let imageId: string | undefined;
+      
+      // Проверяем, есть ли task_id (асинхронная генерация) или сразу image_url (синхронная)
+      if (result.task_id) {
+        // Асинхронная генерация через RunPod - ждем завершения
+        console.log('[EDIT_CHAR] Waiting for generation, task_id:', result.task_id);
+        
+        const generatedPhoto = await waitForGeneration(result.task_id, token);
+        
+        if (!generatedPhoto) {
+          throw new Error('Не удалось получить сгенерированное изображение');
+        }
+        
+        imageUrl = generatedPhoto.url;
+        imageId = generatedPhoto.id;
+        console.log('[EDIT_CHAR] Generation completed:', { imageUrl, imageId });
+      } else {
+        // Синхронная генерация - изображение уже готово
+        imageUrl = result.cloud_url || result.image_url;
+        if (!imageUrl) {
+          throw new Error('URL изображения не получен от сервера');
+        }
+        
+        const filename = result.filename || Date.now().toString();
+        imageId = filename.replace('.png', '').replace('.jpg', '');
       }
       
-      // Добавляем новое фото в список
-      const filename = result.filename || Date.now().toString();
-      const photoId = filename.replace('.png', '').replace('.jpg', ''); // Убираем расширение
+      if (!imageUrl) {
+        throw new Error('URL изображения не получен');
+      }
       
       const newPhoto = {
-        id: photoId,
+        id: imageId || Date.now().toString(),
         url: imageUrl,
         isSelected: false
       };
       
-      console.log('New photo object:', newPhoto);
-      console.log('Photo URL for display:', newPhoto.url);
+      console.log('[EDIT_CHAR] New photo object:', newPhoto);
       
       // Добавляем фото в галерею пользователя
       try {
@@ -1955,30 +2047,27 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         });
         
         if (addToGalleryResponse.ok) {
-          console.log('[GALLERY] Фото добавлено в галерею пользователя');
+          console.log('[EDIT_CHAR] Фото добавлено в галерею пользователя');
         }
       } catch (galleryError) {
-        console.warn('[GALLERY] Ошибка добавления в галерею:', galleryError);
+        console.warn('[EDIT_CHAR] Ошибка добавления в галерею:', galleryError);
       }
       
       // Добавляем новое фото в начало списка
       setGeneratedPhotos(prev => {
         const exists = prev.some(p => p.url === imageUrl);
         if (exists) {
-          console.log('Photo already exists in list, skipping');
+          console.log('[EDIT_CHAR] Photo already exists in list, skipping');
           return prev;
         }
         const updated = [newPhoto, ...prev];
-        console.log('Updated photos list:', updated);
-        console.log('Total photos now:', updated.length);
+        console.log('[EDIT_CHAR] Updated photos list:', updated);
+        console.log('[EDIT_CHAR] Total photos now:', updated.length);
         return updated;
       });
       setSuccess('Фото сгенерировано и добавлено в вашу галерею!');
 
       await checkAuth();
-      
-      // НЕ вызываем fetchCharacterPhotos() сразу, так как новое фото еще не сохранено в БД
-      // Оно появится после следующей загрузки страницы или после сохранения
       
     } catch (err) {
       generationFailed = true;
@@ -2408,7 +2497,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
               background: 'rgba(30, 30, 30, 0.2)',
               border: '1px solid rgba(130, 130, 130, 0.3)',
               borderRadius: theme.borderRadius.lg,
-              overflow: 'hidden',
+              overflow: 'visible',
               boxSizing: 'border-box'
             }}>
               <ColumnContent style={{ 
@@ -2418,7 +2507,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                 visibility: 'visible', 
                 opacity: 1,
                 padding: theme.spacing.md,
-                height: '100%',
+                minHeight: '100%',
+                height: 'auto',
                 overflowY: 'auto',
                 overflowX: 'hidden',
                 position: 'relative',
@@ -2447,6 +2537,35 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                       )}
                     </GenerateButton>
                   </GenerateSection>
+
+                  <div style={{ marginBottom: '1rem' }}>
+                    <label style={{ 
+                      display: 'block', 
+                      marginBottom: '0.5rem', 
+                      color: 'rgba(240, 240, 240, 1)', 
+                      fontSize: '0.875rem',
+                      fontWeight: 600
+                    }}>
+                      Модель генерации:
+                    </label>
+                    <select
+                      value={selectedModel}
+                      onChange={(e) => setSelectedModel(e.target.value as 'anime-realism' | 'anime')}
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem',
+                        background: 'rgba(30, 30, 30, 0.8)',
+                        border: '1px solid rgba(150, 150, 150, 0.3)',
+                        borderRadius: '0.5rem',
+                        color: '#fff',
+                        fontSize: '0.875rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="anime-realism">Больше реализма</option>
+                      <option value="anime">Больше аниме</option>
+                    </select>
+                  </div>
 
                   <LargeTextLabel htmlFor="photo-prompt-unified">
                     Промпт для генерации фото:

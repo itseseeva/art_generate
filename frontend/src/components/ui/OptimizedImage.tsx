@@ -55,6 +55,7 @@ const StyledImage = styled.img<{ $hasLoaded: boolean }>`
   display: block;
   opacity: ${props => props.$hasLoaded ? 1 : 0};
   transition: opacity 0.3s ease-in-out;
+  background: rgba(22, 33, 62, 0.3);
   
   ${props => props.$hasLoaded && css`
     animation: ${fadeIn} 0.3s ease-in-out;
@@ -77,6 +78,7 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
   style,
   onLoad,
   onError,
+  eager = false,
 }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -118,12 +120,16 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
         ref={imgRef}
         src={src}
         alt={alt}
-        loading="lazy"
+        loading={eager ? "eager" : "lazy"}
         decoding="async"
         $hasLoaded={hasLoaded}
         onLoad={handleLoad}
         onError={handleError}
-        style={{ display: hasError ? 'none' : 'block' }}
+        style={{ 
+          display: hasError ? 'none' : 'block',
+          opacity: hasLoaded ? 1 : 0,
+          transition: 'opacity 0.3s ease-in-out'
+        }}
       />
       {hasError && (
         <div style={{

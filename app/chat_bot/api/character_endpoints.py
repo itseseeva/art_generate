@@ -1,7 +1,7 @@
 from typing import List
 from datetime import datetime
 from urllib.parse import urlparse
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, text
 from app.chat_bot.schemas.chat import CharacterCreate, CharacterUpdate, CharacterInDB, UserCharacterCreate, CharacterWithCreator, CreatorInfo
@@ -344,7 +344,12 @@ async def create_character(character: CharacterCreate, db: AsyncSession = Depend
 
 
 @router.get("/", response_model=List[CharacterInDB])
-async def read_characters(skip: int = 0, limit: int = 1000, db: AsyncSession = Depends(get_db)):
+async def read_characters(
+    skip: int = 0, 
+    limit: int = 1000, 
+    force_refresh: bool = Query(False, description="Принудительно обновить кэш"),
+    db: AsyncSession = Depends(get_db)
+):
     """Получает список персонажей из базы данных с кэшированием."""
     import logging
     logger = logging.getLogger(__name__)
@@ -352,9 +357,18 @@ async def read_characters(skip: int = 0, limit: int = 1000, db: AsyncSession = D
     try:
         cache_key = f"{key_characters_list()}:{skip}:{limit}"
         
+        # Если запрошено принудительное обновление, очищаем кэш
+        if force_refresh:
+            logger.info("Force refresh requested, clearing cache")
+            try:
+                await cache_delete(cache_key)
+                await cache_delete_pattern("characters:list:*")
+            except Exception as cache_error:
+                logger.warning(f"Error clearing cache on force refresh: {cache_error}")
+        
         # Пытаемся получить из кэша (cache_get уже имеет внутренний таймаут)
         # Используем разумный таймаут, чтобы не блокировать запросы слишком долго
-        cached_characters = await cache_get(cache_key, timeout=2.0)
+        cached_characters = None if force_refresh else await cache_get(cache_key, timeout=2.0)
         
         if cached_characters is not None:
             try:
@@ -412,7 +426,8 @@ async def read_characters(skip: int = 0, limit: int = 1000, db: AsyncSession = D
             logger.error(f"Ошибка загрузки персонажей из БД: {db_error}")
             return []  # Возвращаем пустой список вместо зависания
         
-        # Сохраняем в кэш
+        # Сохраняем в кэш только если есть персонажи
+        # Если персонажей нет, очищаем кэш чтобы не показывать старые данные
         if characters:
             try:
                 characters_data = [
@@ -439,6 +454,14 @@ async def read_characters(skip: int = 0, limit: int = 1000, db: AsyncSession = D
                 logger.info(f"Cached {len(characters_data)} characters")
             except Exception as cache_error:
                 logger.warning(f"Error caching characters: {cache_error}")
+        else:
+            # Если персонажей нет в БД, очищаем кэш чтобы не показывать старые данные
+            try:
+                await cache_delete(cache_key)
+                await cache_delete_pattern("characters:list:*")
+                logger.info("No characters in DB, cleared cache")
+            except Exception as cache_error:
+                logger.warning(f"Error clearing cache: {cache_error}")
         
         return characters
     except Exception as e:
@@ -738,13 +761,21 @@ async def get_character_chat_history(
                         # Форматируем сообщения из ChatHistory (уже в правильном порядке, не reversed)
                         formatted_messages = []
                         for msg in history_list:
+                            # Преобразуем generation_time в число, если оно есть
+                            generation_time_value = None
+                            if hasattr(msg, 'generation_time') and msg.generation_time is not None:
+                                try:
+                                    generation_time_value = float(msg.generation_time)
+                                except (ValueError, TypeError):
+                                    generation_time_value = None
+                            
                             formatted_messages.append({
                                 "id": msg.id,
                                 "type": msg.message_type,  # 'user' или 'assistant'
                                 "content": msg.message_content or "",
                                 "timestamp": msg.created_at.isoformat(),
                                 "image_url": msg.image_url,
-                                "generation_time": getattr(msg, 'generation_time', None) if hasattr(msg, 'generation_time') else None  # Безопасно получаем generation_time
+                                "generation_time": generation_time_value  # Безопасно получаем generation_time
                             })
                         
                         logger.info(f"Found {len(formatted_messages)} messages in ChatHistory for user {user_id_for_history}, character {character_name}")
@@ -955,7 +986,15 @@ async def get_character_chat_history(
                                     break
                     if hist_msg:
                         # Безопасно получаем generation_time, так как поле может отсутствовать в БД
-                        generation_time = getattr(hist_msg, 'generation_time', None)
+                        generation_time_raw = getattr(hist_msg, 'generation_time', None)
+                        # Преобразуем в число, если оно есть
+                        if generation_time_raw is not None:
+                            try:
+                                generation_time = float(generation_time_raw)
+                            except (ValueError, TypeError):
+                                generation_time = None
+                        else:
+                            generation_time = None
             
             formatted_messages.append({
                 "id": msg_data["id"],

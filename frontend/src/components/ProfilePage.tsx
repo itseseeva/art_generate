@@ -4,6 +4,7 @@ import { theme } from '../theme';
 import { GlobalHeader } from './GlobalHeader';
 import SplitText from './SplitText';
 import { AuthModal } from './AuthModal';
+import { LoadingSpinner } from './LoadingSpinner';
 import {
   FiAward as AwardIcon,
   FiTrendingUp as TrendingUpIcon,
@@ -1304,7 +1305,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   console.log('[PROFILE] ProfilePage rendered with profileUserId:', profileUserId);
   const [userInfo, setUserInfo] = useState<UserInfoResponse | null>(null);
   const [stats, setStats] = useState<SubscriptionStats | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => {
+    // Если токена нет, сразу устанавливаем isLoading в false
+    const token = localStorage.getItem('authToken');
+    return !!token;
+  });
   const [error, setError] = useState<string | null>(null);
   const [balanceRefreshTrigger, setBalanceRefreshTrigger] = useState(0);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -1792,40 +1797,63 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     setIsLoading(true);
     setError(null);
 
-    // Если это чужой профиль, сначала загружаем ID текущего пользователя
-    let myUserId: number | null = null;
-    if (profileUserId) {
-      const myProfileData = await fetchCurrentUserProfile();
-      myUserId = myProfileData?.id ?? null;
-    }
-
-    const results = await Promise.allSettled([
-      fetchUserInfo(authToken),
-      fetchSubscriptionStats(authToken), // Всегда загружаем статистику текущего пользователя (нужна для проверки подписки при разблокировке галереи)
-      profileUserId ? Promise.resolve(null) : loadPhotosCount(authToken), // Фото только для своего профиля
-      isViewingOwnProfile ? fetchProfileStats(authToken) : Promise.resolve(null) // Расширенная статистика только для своего профиля
-    ]);
-
-    // Если это чужой профиль, загружаем количество сгенерированных фото
-    if (profileUserId && myUserId && profileUserId !== myUserId) {
-      try {
-        await loadGeneratedPhotosCount(authToken, profileUserId);
-      } catch (error) {
-        console.error('[PROFILE] Ошибка загрузки количества фото для чужого профиля:', error);
+    try {
+      // Если это чужой профиль, сначала загружаем ID текущего пользователя
+      let myUserId: number | null = null;
+      if (profileUserId) {
+        try {
+          const myProfileData = await fetchCurrentUserProfile();
+          myUserId = myProfileData?.id ?? null;
+        } catch (error) {
+          console.error('[PROFILE] Ошибка загрузки данных текущего пользователя:', error);
+          // Продолжаем загрузку даже если не удалось получить ID текущего пользователя
+        }
       }
+
+      const results = await Promise.allSettled([
+        fetchUserInfo(authToken),
+        fetchSubscriptionStats(authToken), // Всегда загружаем статистику текущего пользователя (нужна для проверки подписки при разблокировке галереи)
+        profileUserId ? Promise.resolve(null) : loadPhotosCount(authToken), // Фото только для своего профиля
+        isViewingOwnProfile ? fetchProfileStats(authToken) : Promise.resolve(null) // Расширенная статистика только для своего профиля
+      ]);
+
+      // Если это чужой профиль, загружаем количество сгенерированных фото
+      if (profileUserId && myUserId && profileUserId !== myUserId) {
+        try {
+          await loadGeneratedPhotosCount(authToken, profileUserId);
+        } catch (error) {
+          console.error('[PROFILE] Ошибка загрузки количества фото для чужого профиля:', error);
+        }
+      }
+
+      // Проверяем результат загрузки userInfo (первый промис)
+      const userInfoResult = results[0];
+      if (userInfoResult.status === 'rejected') {
+        const reason = userInfoResult.reason;
+        setError(reason instanceof Error ? reason.message : 'Не удалось загрузить данные пользователя');
+        // Если не удалось загрузить userInfo, очищаем его
+        setUserInfo(null);
+      } else if (userInfoResult.status === 'fulfilled' && userInfoResult.value) {
+        // Если userInfo успешно загружен, проверяем другие ошибки
+        const otherRejectedResult = results.slice(1).find((item) => item.status === 'rejected');
+        if (otherRejectedResult && otherRejectedResult.status === 'rejected') {
+          const reason = otherRejectedResult.reason;
+          // Показываем предупреждение, но не критическую ошибку
+          console.warn('[PROFILE] Ошибка загрузки дополнительных данных:', reason);
+        }
+        setError(null);
+        setBalanceRefreshTrigger((prev) => prev + 1);
+      } else {
+        // Если userInfo не загружен, но и ошибки нет
+        setError('Не удалось загрузить данные профиля');
+        setUserInfo(null);
+      }
+    } catch (error) {
+      console.error('[PROFILE] Критическая ошибка при загрузке данных профиля:', error);
+      setError(error instanceof Error ? error.message : 'Не удалось загрузить данные профиля');
+    } finally {
+      setIsLoading(false);
     }
-
-    const rejectedResult = results.find((item) => item.status === 'rejected');
-
-    if (rejectedResult && rejectedResult.status === 'rejected') {
-      const reason = rejectedResult.reason;
-      setError(reason instanceof Error ? reason.message : 'Не удалось обновить данные профиля');
-    } else {
-      setError(null);
-      setBalanceRefreshTrigger((prev) => prev + 1);
-    }
-
-    setIsLoading(false);
   }, [authToken, fetchSubscriptionStats, fetchUserInfo, loadPhotosCount, profileUserId, currentUserId, loadGeneratedPhotosCount, fetchCurrentUserProfile, fetchProfileStats, isViewingOwnProfile]);
 
   // Логируем изменения profileUserId
@@ -1963,7 +1991,17 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     }
 
     if (isLoading) {
-      return null;
+      return (
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          minHeight: '400px',
+          padding: theme.spacing.xxl
+        }}>
+          <LoadingSpinner size="lg" text="Загрузка профиля..." />
+        </div>
+      );
     }
 
     // Если открыта страница настроек, показываем её
@@ -1996,6 +2034,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             <EditProfileForm userInfo={userInfo} authToken={authToken} onUpdate={loadProfileData} />
           </Section>
         </>
+      );
+    }
+
+    // Если данные не загрузились, показываем сообщение
+    if (!userInfo && !error) {
+      return (
+        <ErrorBanner>
+          Не удалось загрузить данные профиля. Пожалуйста, обновите страницу.
+        </ErrorBanner>
       );
     }
 

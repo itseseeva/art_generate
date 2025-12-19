@@ -11,6 +11,8 @@ const MessagesContainer = styled.div`
   background: transparent;
   position: relative;
   min-height: 0;
+  height: 100%;
+  max-height: 100%;
   
   /* Стилизация скроллбара */
   &::-webkit-scrollbar {
@@ -36,7 +38,7 @@ const MessagesList = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${theme.spacing.lg};
-  min-height: 100%;
+  min-height: min-content;
 `;
 
 const LoadingContainer = styled.div`
@@ -150,25 +152,57 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const wasScrolledToBottomRef = useRef(true);
 
-  // Проверяем, находится ли пользователь внизу, перед изменением сообщений
+  // Отслеживаем позицию скролла и предотвращаем автоматическую прокрутку, если пользователь скроллит вверх
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
 
-    const checkIfScrolledToBottom = () => {
+    const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = container;
       const threshold = 100; // Порог в пикселях от низа
-      wasScrolledToBottomRef.current = scrollHeight - scrollTop - clientHeight < threshold;
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < threshold;
+      wasScrolledToBottomRef.current = isAtBottom;
     };
 
-    checkIfScrolledToBottom();
+    container.addEventListener('scroll', handleScroll);
+    // Проверяем начальную позицию
+    handleScroll();
+
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
+  // Проверяем позицию перед изменением сообщений
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const threshold = 100; // Порог в пикселях от низа
+    wasScrolledToBottomRef.current = scrollHeight - scrollTop - clientHeight < threshold;
   }, [messages]);
 
   // Автоматическая прокрутка к последнему сообщению только если пользователь был внизу
   useEffect(() => {
-    if (wasScrolledToBottomRef.current && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
+    // Небольшая задержка, чтобы дать время на обновление DOM
+    const timeoutId = setTimeout(() => {
+      const container = messagesContainerRef.current;
+      if (container && messagesEndRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = container;
+        const threshold = 150; // Увеличиваем порог для более надежной проверки
+        const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+        const isAtBottom = distanceFromBottom < threshold;
+        
+        // Прокручиваем только если пользователь был внизу И сейчас тоже внизу (или очень близко)
+        // И только если это не начальная загрузка (когда сообщений еще нет)
+        if (wasScrolledToBottomRef.current && isAtBottom && messages.length > 0) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      }
+    }, 100); // Небольшая задержка для обновления DOM
+
+    return () => clearTimeout(timeoutId);
   }, [messages, isLoading]);
 
   return (

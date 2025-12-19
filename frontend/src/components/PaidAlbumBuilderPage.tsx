@@ -612,6 +612,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
   const [userSubscription, setUserSubscription] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime'>('anime-realism');
 
   // Проверка подписки пользователя
   useEffect(() => {
@@ -838,7 +839,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
           character: character.name,
           prompt: effectivePrompt,
           use_default_prompts: false,
-          model: 'anime-realism'  // Дефолтная модель для PaidAlbumBuilderPage
+          model: selectedModel
         })
       });
 
@@ -868,6 +869,27 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         if (image) {
           console.log('Photo generated:', image);
           setGeneratedPhotos(prev => [image, ...prev]);
+          
+          // КРИТИЧЕСКИ ВАЖНО: Добавляем фото в галерею пользователя
+          try {
+            const addToGalleryResponse = await fetch('/api/v1/auth/user-gallery/add/', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                image_url: image.url,
+                character_name: character.name || null
+              })
+            });
+            
+            if (addToGalleryResponse.ok) {
+              console.log('[PaidAlbumBuilderPage] Фото добавлено в галерею пользователя');
+            }
+          } catch (galleryError) {
+            console.warn('[PaidAlbumBuilderPage] Не удалось добавить фото в галерею:', galleryError);
+          }
         } else {
           throw new Error('Не удалось получить изображение');
         }
@@ -883,6 +905,27 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         };
 
         setGeneratedPhotos(prev => [image, ...prev]);
+        
+        // КРИТИЧЕСКИ ВАЖНО: Добавляем фото в галерею пользователя
+        try {
+          const addToGalleryResponse = await fetch('/api/v1/auth/user-gallery/add/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              image_url: imageUrl,
+              character_name: character.name || null
+            })
+          });
+          
+          if (addToGalleryResponse.ok) {
+            console.log('[PaidAlbumBuilderPage] Фото добавлено в галерею пользователя (синхронная генерация)');
+          }
+        } catch (galleryError) {
+          console.warn('[PaidAlbumBuilderPage] Не удалось добавить фото в галерею:', galleryError);
+        }
       } else {
         console.error('No task_id or image_url in result:', result);
         throw new Error('Сервер не вернул URL изображения или task_id');
@@ -1048,6 +1091,34 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
       <Layout>
         <Section>
           <SectionTitle>Сгенерировать новые фотографии</SectionTitle>
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{ 
+              display: 'block', 
+              marginBottom: '0.5rem', 
+              color: 'rgba(240, 240, 240, 1)', 
+              fontSize: '0.875rem',
+              fontWeight: 600
+            }}>
+              Модель генерации:
+            </label>
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value as 'anime-realism' | 'anime')}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                background: 'rgba(30, 30, 30, 0.8)',
+                border: '1px solid rgba(150, 150, 150, 0.3)',
+                borderRadius: '0.5rem',
+                color: '#fff',
+                fontSize: '0.875rem',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="anime-realism">Больше реализма</option>
+              <option value="anime">Больше аниме</option>
+            </select>
+          </div>
           <PromptArea
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}

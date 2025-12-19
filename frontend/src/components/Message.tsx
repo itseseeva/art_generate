@@ -449,6 +449,7 @@ const MessageComponent: React.FC<MessageProps> = ({
   };
 
   // Для прогресса генерации - отображаем БЕЗ MessageContent контейнера (прозрачный фон)
+  // Убираем аватар при генерации фото
   if (isGenerationProgress && !message.imageUrl) {
     return (
       <>
@@ -460,17 +461,6 @@ const MessageComponent: React.FC<MessageProps> = ({
         width: '100%',
         gap: '1rem'
       }}>
-        {/* Аватар ассистента слева */}
-        {!isUser && (
-          <Avatar $isUser={false} $avatarUrl={characterAvatar}>
-            {characterAvatar ? (
-              <AvatarImage src={characterAvatar} alt={characterName || 'Character'} />
-            ) : (
-              'AI'
-            )}
-          </Avatar>
-        )}
-        
         <CircularProgress progress={progressValue} size={60} showLabel={false} />
       </div>
       </>
@@ -479,6 +469,7 @@ const MessageComponent: React.FC<MessageProps> = ({
 
   // Для фото без текста - чистое отображение (v2)
   // Проверяем, что content пустой или содержит только пробелы
+  // Убираем аватар при генерации фото
   const hasOnlyImage = message.imageUrl && (!message.content || message.content.trim() === '');
   if (hasOnlyImage) {
     return (
@@ -491,17 +482,6 @@ const MessageComponent: React.FC<MessageProps> = ({
         width: '100%',
         gap: '1rem'
       }}>
-        {/* Аватар ассистента слева */}
-        {!isUser && (
-          <Avatar $isUser={false} $avatarUrl={characterAvatar}>
-            {characterAvatar ? (
-              <AvatarImage src={characterAvatar} alt={characterName || 'Character'} />
-            ) : (
-              'AI'
-            )}
-          </Avatar>
-        )}
-        
         <div style={{
           position: 'relative',
           background: 'transparent',
@@ -594,7 +574,7 @@ const MessageComponent: React.FC<MessageProps> = ({
                 pointerEvents: 'auto'
               }}
             >
-                {onAddToPaidAlbum && !isAddedToPaidAlbum && (
+                {onAddToPaidAlbum && !isAddedToPaidAlbum && isCharacterOwner && (
                   <ImageButton
                     onClick={handleAddToPaidAlbumClick}
                     disabled={isAddingToPaidAlbum}
@@ -701,7 +681,7 @@ const MessageComponent: React.FC<MessageProps> = ({
               />
               {isAuthenticated && characterName && (
                 <ImageButtons onClick={(e) => e.stopPropagation()}>
-                  {onAddToPaidAlbum && !isAddedToPaidAlbum && (
+                  {onAddToPaidAlbum && !isAddedToPaidAlbum && isCharacterOwner && (
                     <ImageButton
                       onClick={handleAddToPaidAlbumClick}
                       disabled={isAddingToPaidAlbum}

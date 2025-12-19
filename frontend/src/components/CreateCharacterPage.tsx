@@ -1763,6 +1763,29 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       console.log('New photo object:', newPhoto);
       console.log('Photo URL for display:', newPhoto.url);
       
+      // КРИТИЧЕСКИ ВАЖНО: Добавляем фото в галерею пользователя
+      try {
+        if (token) {
+          const addToGalleryResponse = await fetch('/api/v1/auth/user-gallery/add/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              image_url: result.image_url,
+              character_name: formData.name || null
+            })
+          });
+          
+          if (addToGalleryResponse.ok) {
+            console.log('[CreateCharacterPage] Фото добавлено в галерею пользователя');
+          }
+        }
+      } catch (galleryError) {
+        console.warn('[CreateCharacterPage] Не удалось добавить фото в галерею:', galleryError);
+      }
+      
               setGeneratedPhotos(prev => [...prev, newPhoto]);
               setSuccess('Фото успешно сгенерировано!');
               

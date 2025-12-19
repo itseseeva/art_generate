@@ -493,6 +493,27 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({
         };
         
         newPhotos.push(newPhoto);
+        
+        // КРИТИЧЕСКИ ВАЖНО: Добавляем фото в галерею пользователя
+        try {
+          const addToGalleryResponse = await fetch('/api/v1/auth/user-gallery/add/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              image_url: result.image_url,
+              character_name: character?.name || null
+            })
+          });
+          
+          if (addToGalleryResponse.ok) {
+            console.log(`[PhotoGenerationPage] Фото ${i + 1} добавлено в галерею пользователя`);
+          }
+        } catch (galleryError) {
+          console.warn(`[PhotoGenerationPage] Не удалось добавить фото ${i + 1} в галерею:`, galleryError);
+        }
       }
       
       setGeneratedPhotos(prev => [...prev, ...newPhotos]);

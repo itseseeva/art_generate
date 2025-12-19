@@ -830,6 +830,27 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
           });
           setSuccess('Фото успешно сгенерировано!');
           
+          // КРИТИЧЕСКИ ВАЖНО: Добавляем фото в галерею пользователя
+          try {
+            const addToGalleryResponse = await fetch('/api/v1/auth/user-gallery/add/', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                image_url: photo.url,
+                character_name: character.name || null
+              })
+            });
+            
+            if (addToGalleryResponse.ok) {
+              console.log('[PhotoGenerationPage3] Фото добавлено в галерею пользователя');
+            }
+          } catch (galleryError) {
+            console.warn('[PhotoGenerationPage3] Не удалось добавить фото в галерею:', galleryError);
+          }
+          
           // Обновляем счетчик монет с сервера после успешной генерации
           try {
             const userResponse = await fetch('/api/v1/auth/me/', {
@@ -874,6 +895,27 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
           return updated;
         });
         setSuccess('Фото успешно сгенерировано!');
+        
+        // КРИТИЧЕСКИ ВАЖНО: Добавляем фото в галерею пользователя
+        try {
+          const addToGalleryResponse = await fetch('/api/v1/auth/user-gallery/add/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              image_url: result.image_url,
+              character_name: character.name || null
+            })
+          });
+          
+          if (addToGalleryResponse.ok) {
+            console.log('[PhotoGenerationPage3] Фото добавлено в галерею пользователя (синхронная генерация)');
+          }
+        } catch (galleryError) {
+          console.warn('[PhotoGenerationPage3] Не удалось добавить фото в галерею:', galleryError);
+        }
         
         // Обновляем счетчик монет с сервера после успешной генерации
         try {

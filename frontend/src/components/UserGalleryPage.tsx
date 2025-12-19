@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState, useRef } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import { GlobalHeader } from './GlobalHeader';
-import { FiX as CloseIcon, FiPlus as PlusIcon } from 'react-icons/fi';
+import { FiX as CloseIcon, FiPlus as PlusIcon, FiTrash2 as TrashIcon } from 'react-icons/fi';
 import { fetchPromptByImage } from '../utils/prompt';
 import { OptimizedImage } from './ui/OptimizedImage';
 
@@ -109,6 +109,57 @@ const AddToGalleryButton = styled.button`
   svg {
     width: 16px;
     height: 16px;
+  }
+`;
+
+const DeleteButton = styled.button`
+  position: absolute;
+  bottom: ${theme.spacing.md};
+  right: ${theme.spacing.md};
+  padding: ${theme.spacing.xs} ${theme.spacing.sm};
+  border-radius: ${theme.borderRadius.md};
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: ${theme.spacing.xs};
+  z-index: 100;
+  pointer-events: auto;
+  transition: all ${theme.transition.fast};
+  cursor: pointer;
+  font-size: ${theme.fontSize.xs};
+  font-weight: 500;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  opacity: 0;
+  transform: translateY(10px);
+  
+  ${GalleryImage}:hover & {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  
+  &:hover {
+    background: rgba(0, 0, 0, 0.5);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: translateY(-2px);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: translateY(0);
+  }
+  
+  svg {
+    width: 14px;
+    height: 14px;
   }
 `;
 
@@ -320,10 +371,30 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
   const [total, setTotal] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const [deletingPhotoIds, setDeletingPhotoIds] = useState<Set<number>>(new Set());
   const photosCacheRef = useRef<Map<string, { photos: UserPhoto[], total: number }>>(new Map());
-  const authToken = localStorage.getItem('authToken');
+  const [authToken, setAuthToken] = useState<string | null>(localStorage.getItem('authToken'));
+  const isLoadingRef = useRef(false);
+  const lastLoadedUserIdRef = useRef<string | number | undefined>(undefined);
   
   const PAGE_SIZE = 20;
+
+  // Обновляем authToken при изменении в localStorage
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setAuthToken(localStorage.getItem('authToken'));
+    };
+    
+    // Проверяем токен при монтировании
+    handleStorageChange();
+    
+    // Слушаем изменения в localStorage
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
   const handleOpenPhoto = async (imageUrl: string) => {
     setSelectedPhoto(imageUrl);
@@ -393,6 +464,46 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
     }
   };
 
+  const handleDeletePhoto = async (e: React.MouseEvent, photo: UserPhoto) => {
+    e.stopPropagation();
+    
+    if (!authToken) {
+      setError('Необходима авторизация');
+      return;
+    }
+
+    setDeletingPhotoIds(prev => new Set(prev).add(photo.id));
+
+    try {
+      const response = await fetch(`http://localhost:8000/api/v1/auth/user-gallery/${photo.id}/`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.detail || errorData.message || 'Не удалось удалить фото из галереи';
+        throw new Error(errorMessage);
+      }
+
+      // Удаляем фото из списка
+      setPhotos(prev => prev.filter(p => p.id !== photo.id));
+      setTotal(prev => Math.max(0, prev - 1));
+      console.log('[USER_GALLERY] Фото успешно удалено из галереи');
+    } catch (error) {
+      console.error('[USER_GALLERY] Ошибка удаления фото из галереи:', error);
+      setError(error instanceof Error ? error.message : 'Не удалось удалить фото из галереи');
+    } finally {
+      setDeletingPhotoIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(photo.id);
+        return newSet;
+      });
+    }
+  };
+
   // Загружаем ID текущего пользователя
   useEffect(() => {
     const loadCurrentUserId = async () => {
@@ -417,9 +528,20 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
   }, [authToken]);
 
   // Проверяем, какие фото уже есть в галерее текущего пользователя
+  const photosRef = useRef<UserPhoto[]>([]);
+  useEffect(() => {
+    photosRef.current = photos;
+  }, [photos]);
+
   useEffect(() => {
     const checkExistingPhotos = async () => {
-      if (!authToken || !currentUserId || !userId || userId === currentUserId || photos.length === 0) {
+      if (!authToken || !currentUserId || !userId || userId === currentUserId) {
+        return;
+      }
+
+      // Используем ref для получения актуального списка фото без добавления в зависимости
+      const currentPhotos = photosRef.current;
+      if (currentPhotos.length === 0) {
         return;
       }
 
@@ -441,7 +563,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
           
           // Добавляем в addedPhotoIds те фото, которые уже есть в нашей галерее
           const alreadyAddedIds = new Set<number>();
-          photos.forEach(photo => {
+          currentPhotos.forEach(photo => {
             const photoUrl = photo.image_url || (photo.image_filename ? `http://localhost:8000/paid_gallery/${photo.image_filename}` : null);
             if (photoUrl && myGalleryUrls.has(photoUrl)) {
               alreadyAddedIds.add(photo.id);
@@ -462,7 +584,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
     };
     
     checkExistingPhotos();
-  }, [authToken, currentUserId, userId, photos]);
+  }, [authToken, currentUserId, userId]);
 
   const loadGallery = useCallback(async (offset: number = 0, append: boolean = false) => {
     if (!authToken) {
@@ -471,24 +593,23 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
       return;
     }
 
+    // Предотвращаем множественные одновременные запросы
+    if (offset === 0 && isLoadingRef.current) {
+      console.log('[USER_GALLERY] Загрузка уже выполняется, пропускаем');
+      return;
+    }
+
     if (offset === 0) {
-    setIsLoading(true);
+      isLoadingRef.current = true;
+      setIsLoading(true);
     } else {
       setIsLoadingMore(true);
     }
     setError(null);
 
     try {
-      // Проверяем кеш только для первой загрузки
-      const cacheKey = `${userId || 'me'}_${offset}`;
-      if (offset === 0 && photosCacheRef.current.has(cacheKey)) {
-        const cached = photosCacheRef.current.get(cacheKey)!;
-        setPhotos(cached.photos);
-        setTotal(cached.total);
-        setHasMore(cached.photos.length < cached.total);
-        setIsLoading(false);
-        return;
-      }
+      // НЕ используем кеш при первой загрузке - всегда загружаем свежие данные
+      // Кеш может содержать устаревшие данные при обновлении страницы
 
       // Если передан userId, загружаем галерею конкретного пользователя
       // Иначе загружаем свою галерею
@@ -552,27 +673,46 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
       setTotal(totalCount);
       setHasMore(offset + newPhotos.length < totalCount);
 
-      // Кешируем только первую страницу
+      // Кешируем только первую страницу для будущего использования
       if (offset === 0) {
+        const cacheKey = `${userId || 'me'}_${offset}`;
         photosCacheRef.current.set(cacheKey, { photos: newPhotos, total: totalCount });
       }
     } catch (err: any) {
       setError(err.message || 'Ошибка при загрузке галереи');
       console.error('[GALLERY] Ошибка загрузки:', err);
     } finally {
+      isLoadingRef.current = false;
       setIsLoading(false);
       setIsLoadingMore(false);
     }
   }, [authToken, userId]);
 
   useEffect(() => {
-    // Очищаем кеш при смене userId
-    photosCacheRef.current.clear();
-    setPhotos([]);
-    setTotal(0);
-    setHasMore(true);
-    loadGallery(0, false);
-  }, [loadGallery]);
+    // Проверяем, не загружали ли мы уже эту галерею
+    const currentUserIdKey = userId || 'me';
+    if (lastLoadedUserIdRef.current === currentUserIdKey && photos.length > 0) {
+      console.log('[USER_GALLERY] Галерея уже загружена, пропускаем');
+      return;
+    }
+
+    // Очищаем кеш при смене userId или при монтировании компонента
+    if (lastLoadedUserIdRef.current !== currentUserIdKey) {
+      photosCacheRef.current.clear();
+      setPhotos([]);
+      setTotal(0);
+      setHasMore(true);
+      lastLoadedUserIdRef.current = currentUserIdKey;
+    }
+    
+    // Загружаем галерею только если есть токен авторизации
+    if (authToken && !isLoadingRef.current) {
+      loadGallery(0, false);
+    } else if (!authToken) {
+      setIsLoading(false);
+      setError('Необходима авторизация');
+    }
+  }, [authToken, userId, loadGallery]);
 
   const handleLoadMore = useCallback(() => {
     if (!isLoadingMore && hasMore) {
@@ -628,14 +768,22 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
           ) : (
             <>
             <GalleryGrid>
-              {photos.map((photo) => {
+              {photos.map((photo, index) => {
                 const imageUrl = photo.image_url || (photo.image_filename ? `http://localhost:8000/paid_gallery/${photo.image_filename}` : null);
-                if (!imageUrl) return null;
+                if (!imageUrl) {
+                  console.warn('[USER_GALLERY] Photo without URL:', photo);
+                  return null;
+                }
                 
                 // Показываем кнопку "Добавить в галерею" только для чужих пользователей и если фото еще не добавлено
                 const isOtherUserGallery = userId && currentUserId && userId !== currentUserId;
+                const isMyGallery = !userId || (currentUserId && userId === currentUserId);
                 const isAdding = addingPhotoIds.has(photo.id);
                 const isAdded = addedPhotoIds.has(photo.id);
+                const isDeleting = deletingPhotoIds.has(photo.id);
+                
+                // Первые 12 изображений загружаем сразу (eager), остальные - lazy
+                const shouldLoadEager = index < 12;
                 
                 return (
                   <GalleryImage key={photo.id} onClick={() => handleOpenPhoto(imageUrl)}>
@@ -643,6 +791,9 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
                         src={imageUrl} 
                         alt={photo.character_name}
                         style={{ width: '100%', height: '100%' }}
+                        eager={shouldLoadEager}
+                        onLoad={() => console.log('[USER_GALLERY] Image loaded:', imageUrl, 'index:', index)}
+                        onError={() => console.error('[USER_GALLERY] Image load error:', imageUrl, photo, 'index:', index)}
                       />
                     {isOtherUserGallery && !isAdded && (
                       <AddToGalleryButton
@@ -653,6 +804,16 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
                         <PlusIcon />
                         {isAdding ? 'Добавление...' : 'Добавить в галерею'}
                       </AddToGalleryButton>
+                    )}
+                    {isMyGallery && (
+                      <DeleteButton
+                        onClick={(e) => handleDeletePhoto(e, photo)}
+                        disabled={isDeleting}
+                        title="Удалить из галереи"
+                      >
+                        <TrashIcon />
+                        {isDeleting ? 'Удаление...' : 'Удалить'}
+                      </DeleteButton>
                     )}
                   </GalleryImage>
                 );

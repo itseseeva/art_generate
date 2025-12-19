@@ -1,7 +1,7 @@
 """
 API эндпоинты для работы с историей чата.
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
@@ -125,6 +125,7 @@ async def get_chat_history(
 @router.get("/characters")
 async def get_characters_with_history(
     current_user: Users = Depends(get_current_user),
+    force_refresh: bool = Query(False, description="Принудительно обновить кэш"),
     db: AsyncSession = Depends(get_db)
 ):
     """Получает список персонажей с историей чата."""
@@ -136,13 +137,15 @@ async def get_characters_with_history(
         from app.chat_history.services.chat_history_service import ChatHistoryService
         history_service = ChatHistoryService(db)
         
+        characters = await history_service.get_user_characters_with_history(current_user.id, force_refresh=force_refresh)
+        
         # Проверяем подписку пользователя
         can_save = await history_service.can_save_history(current_user.id)
-        logger.info(f"[HISTORY API] Пользователь {current_user.id}: can_save_history={can_save}")
+        logger.info(f"[HISTORY API] Пользователь {current_user.id}: can_save_history={can_save}, force_refresh={force_refresh}")
         
         # Если нет прав на сохранение истории, все равно пытаемся получить персонажей
         # (может быть, история была сохранена до изменения подписки)
-        characters = await history_service.get_user_characters_with_history(current_user.id)
+        # characters уже загружены выше с учетом force_refresh
         
         logger.info(f"[HISTORY API] Возвращаем {len(characters)} персонажей с историей для пользователя {current_user.id}")
         if len(characters) == 0:
@@ -190,6 +193,30 @@ async def clear_chat_history(
                 status_code=403, 
                 detail="У вас нет прав на очистку истории чата. Требуется подписка Premium или выше."
             )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка очистки истории: {str(e)}")
+
+
+@router.post("/clear-all-history")
+async def clear_all_chat_history(
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Очищает всю историю чата для текущего пользователя."""
+    try:
+        # Импортируем сервис только здесь, чтобы избежать циклических импортов
+        from app.chat_history.services.chat_history_service import ChatHistoryService
+        history_service = ChatHistoryService(db)
+        
+        success = await history_service.clear_all_chat_history(current_user.id)
+        
+        if success:
+            return {"success": True, "message": "Вся история чата очищена"}
+        else:
+            raise HTTPException(status_code=500, detail="Ошибка очистки истории")
             
     except HTTPException:
         raise
@@ -290,8 +317,21 @@ async def get_prompt_by_image(
         
         # Если не найдено в ImageGenerationHistory, ищем в ChatHistory
         # Сначала ищем промпт у текущего пользователя (приоритет)
+        # Используем load_only чтобы избежать ошибок с отсутствующими полями в БД
+        from sqlalchemy.orm import load_only
         stmt = (
             select(ChatHistory)
+            .options(load_only(
+                ChatHistory.id,
+                ChatHistory.user_id,
+                ChatHistory.character_name,
+                ChatHistory.session_id,
+                ChatHistory.message_type,
+                ChatHistory.message_content,
+                ChatHistory.image_url,
+                ChatHistory.image_filename,
+                ChatHistory.created_at
+            ))
             .where(
                 ChatHistory.image_url == normalized_url,
                 ChatHistory.user_id == user_id
@@ -309,6 +349,17 @@ async def get_prompt_by_image(
         if not message:
             stmt = (
                 select(ChatHistory)
+                .options(load_only(
+                    ChatHistory.id,
+                    ChatHistory.user_id,
+                    ChatHistory.character_name,
+                    ChatHistory.session_id,
+                    ChatHistory.message_type,
+                    ChatHistory.message_content,
+                    ChatHistory.image_url,
+                    ChatHistory.image_filename,
+                    ChatHistory.created_at
+                ))
                 .where(ChatHistory.image_url == normalized_url)
                 .order_by(ChatHistory.created_at.desc())
                 .limit(1)

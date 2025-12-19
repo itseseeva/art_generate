@@ -235,6 +235,51 @@ function App() {
     } else if (path.includes('/messages')) {
       setCurrentPage('messages');
       window.history.replaceState({ page: 'messages' }, '', path);
+    } else if (path.includes('/user-gallery')) {
+      const galleryUrlParams = new URLSearchParams(window.location.search);
+      const galleryUserId = galleryUrlParams.get('user') ? Number(galleryUrlParams.get('user')) : undefined;
+      setCurrentPage('user-gallery');
+      if (galleryUserId) {
+        window.history.replaceState({ page: 'user-gallery', userId: galleryUserId }, '', path);
+      } else {
+        window.history.replaceState({ page: 'user-gallery' }, '', path);
+      }
+    } else if (path.includes('/paid-album')) {
+      const characterId = urlParams.get('character');
+      if (characterId) {
+        loadCharacterById(characterId).then(char => {
+          if (char) {
+            setSelectedCharacter(char);
+            setCurrentPage('paid-album');
+            window.history.replaceState({ page: 'paid-album', character: characterId }, '', path);
+          } else {
+            setCurrentPage('main');
+            window.history.replaceState({ page: 'main' }, '', '/');
+          }
+        });
+        return;
+      } else {
+        setCurrentPage('main');
+        window.history.replaceState({ page: 'main' }, '', '/');
+      }
+    } else if (path.includes('/paid-album-builder')) {
+      const characterId = urlParams.get('character');
+      if (characterId) {
+        loadCharacterById(characterId).then(char => {
+          if (char) {
+            setSelectedCharacter(char);
+            setCurrentPage('paid-album-builder');
+            window.history.replaceState({ page: 'paid-album-builder', character: characterId }, '', path);
+          } else {
+            setCurrentPage('main');
+            window.history.replaceState({ page: 'main' }, '', '/');
+          }
+        });
+        return;
+      } else {
+        setCurrentPage('main');
+        window.history.replaceState({ page: 'main' }, '', '/');
+      }
     } else if (path.includes('/photo-generation')) {
       const characterId = urlParams.get('character');
       if (characterId) {

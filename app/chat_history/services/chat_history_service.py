@@ -171,7 +171,7 @@ class ChatHistoryService:
             logger.error(f"[HISTORY PHOTO] Ошибка поиска в UserGallery: {e}")
             return None
 
-    async def get_user_characters_with_history(self, user_id: int) -> List[Dict[str, Any]]:
+    async def get_user_characters_with_history(self, user_id: int, force_refresh: bool = False) -> List[Dict[str, Any]]:
         """
         Получает список персонажей, с которыми у пользователя есть НЕЗАКОНЧЕННЫЙ диалог.
         Показывает только тех персонажей, с которыми пользователь реально общался (есть сообщения).
@@ -180,13 +180,17 @@ class ChatHistoryService:
         try:
             from app.chat_bot.models.models import ChatSession, ChatMessageDB, CharacterDB
             from app.models.user import Users
-            from app.utils.redis_cache import cache_get, cache_set, key_user_characters, TTL_USER_CHARACTERS
+            from app.utils.redis_cache import cache_get, cache_set, cache_delete, key_user_characters, TTL_USER_CHARACTERS
 
-            # Проверяем кэш
+            # Проверяем кэш (если не запрошено принудительное обновление)
             cache_key = key_user_characters(user_id)
-            cached_characters = await cache_get(cache_key)
-            if cached_characters is not None:
-                return cached_characters
+            if force_refresh:
+                # Очищаем кэш при принудительном обновлении
+                await cache_delete(cache_key)
+            else:
+                cached_characters = await cache_get(cache_key)
+                if cached_characters is not None:
+                    return cached_characters
 
             # Проверяем подписку пользователя
             subscription = await self.subscription_service.get_user_subscription(user_id)
@@ -851,6 +855,67 @@ class ChatHistoryService:
         except Exception as e:
             await self.db.rollback()
             print(f"[ERROR] Ошибка очистки истории для FREE пользователя {user_id}: {e}")
+            return False
+    
+    async def clear_all_chat_history(self, user_id: int) -> bool:
+        """Очищает всю историю чата для пользователя."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            from app.chat_bot.models.models import ChatSession, ChatMessageDB, CharacterDB
+            logger.info(f"[HISTORY CLEAR ALL] Начинаем очистку всей истории для user_id={user_id}")
+            
+            # Удаляем из ChatHistory (старая система)
+            chat_history_delete_result = await self.db.execute(
+                delete(ChatHistory).where(ChatHistory.user_id == user_id)
+            )
+            deleted_chat_history_count = chat_history_delete_result.rowcount
+            
+            # Удаляем из ChatSession и ChatMessageDB (новая система)
+            user_id_str = str(user_id)
+            
+            # Получаем все сессии пользователя
+            sessions_result = await self.db.execute(
+                select(ChatSession).where(
+                    or_(
+                        ChatSession.user_id == user_id_str,
+                        func.trim(ChatSession.user_id) == user_id_str
+                    )
+                )
+            )
+            sessions = sessions_result.scalars().all()
+            session_ids = [s.id for s in sessions]
+            
+            deleted_messages = 0
+            deleted_sessions = 0
+            
+            if session_ids:
+                # Удаляем все сообщения из сессий
+                messages_delete_result = await self.db.execute(
+                    delete(ChatMessageDB).where(ChatMessageDB.session_id.in_(session_ids))
+                )
+                deleted_messages = messages_delete_result.rowcount
+                
+                # Удаляем все сессии
+                sessions_delete_result = await self.db.execute(
+                    delete(ChatSession).where(ChatSession.id.in_(session_ids))
+                )
+                deleted_sessions = sessions_delete_result.rowcount
+            
+            await self.db.commit()
+            
+            # Очищаем кэш
+            from app.utils.redis_cache import key_user_characters, cache_delete
+            cache_key = key_user_characters(user_id)
+            await cache_delete(cache_key)
+            
+            logger.info(f"[HISTORY CLEAR ALL] Очищена вся история для user_id={user_id}: {deleted_chat_history_count} записей ChatHistory, {deleted_messages} сообщений, {deleted_sessions} сессий")
+            return True
+            
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"[HISTORY CLEAR ALL] Ошибка очистки всей истории для user_id={user_id}: {e}")
             return False
     
     async def clear_chat_history(self, user_id: int, character_name: str, session_id: str) -> bool:

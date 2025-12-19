@@ -244,16 +244,16 @@ export const MainPage: React.FC<MainPageProps> = ({
     for (const endpoint of endpoints) {
       try {
         // Добавляем параметр для принудительного обновления (обход кэша)
-        const url = forceRefresh 
-          ? `${endpoint}?t=${Date.now()}&skip=0&limit=1000`
-          : `${endpoint}?skip=0&limit=1000`;
+        // Всегда добавляем timestamp для обхода кэша браузера
+        // И параметр force_refresh для очистки Redis кэша на бэкенде
+        const url = `${endpoint}?skip=0&limit=1000&force_refresh=${forceRefresh ? 'true' : 'false'}&_t=${Date.now()}`;
         
         const response = await fetch(url, {
-          cache: forceRefresh ? 'no-cache' : 'default',
-          headers: forceRefresh ? {
+          cache: 'no-cache', // Всегда обходим кэш браузера
+          headers: {
             'Cache-Control': 'no-cache',
             'Pragma': 'no-cache'
-          } : {}
+          }
         });
         
         if (!response.ok) {
@@ -288,8 +288,8 @@ export const MainPage: React.FC<MainPageProps> = ({
       const charactersData = await fetchCharactersFromApi(forceRefresh);
 
       if (!charactersData.length) {
-        console.error('Failed to load characters: пустой ответ');
-        setCharacters(mockCharacters);
+        console.log('Нет персонажей в базе данных');
+        setCharacters([]);
         setCachedRawCharacters([]);
         return;
       }
@@ -336,8 +336,8 @@ export const MainPage: React.FC<MainPageProps> = ({
       setCharacters(formattedCharacters);
     } catch (error) {
       console.error('Error loading characters:', error);
-      // Fallback to mock characters if API fails
-      setCharacters(mockCharacters);
+      // Не показываем моковых персонажей - показываем пустой список
+      setCharacters([]);
       setCachedRawCharacters([]);
     } finally {
       setIsLoadingCharacters(false);
@@ -485,10 +485,11 @@ export const MainPage: React.FC<MainPageProps> = ({
   // Автоматическое обновление фотографий каждые 30 секунд
   React.useEffect(() => {
     const loadData = async () => {
-      await loadCharacters();
+      // Всегда загружаем с принудительным обновлением при первой загрузке
+      await loadCharacters(true); // forceRefresh = true
       await loadCharacterPhotos();
     };
-    
+
     loadData();
     
     const interval = setInterval(() => {

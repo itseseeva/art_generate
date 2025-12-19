@@ -5,7 +5,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import List
 from fastapi import APIRouter, HTTPException, Request, Depends, UploadFile, File
-from sqlalchemy import select, update, func
+from sqlalchemy import select, update, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 import traceback
 import os
@@ -1994,6 +1994,61 @@ async def add_photo_to_gallery(
         raise HTTPException(
             status_code=500,
             detail=f"Не удалось добавить фото в галерею: {str(e)}"
+        )
+
+
+@auth_router.delete("/auth/user-gallery/{photo_id}/", response_model=Message)
+async def delete_photo_from_gallery(
+    photo_id: int,
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Удаляет фото из "Моей галереи" пользователя.
+    
+    Parameters:
+    - photo_id: ID фото для удаления
+    
+    Returns:
+    - Message: Подтверждение удаления фото.
+    """
+    try:
+        # Проверяем, существует ли фото и принадлежит ли оно текущему пользователю
+        result = await db.execute(
+            select(UserGallery)
+            .filter(
+                UserGallery.id == photo_id,
+                UserGallery.user_id == current_user.id
+            )
+        )
+        gallery_photo = result.scalar_one_or_none()
+        
+        if not gallery_photo:
+            raise HTTPException(
+                status_code=404,
+                detail="Фото не найдено или у вас нет прав на его удаление"
+            )
+        
+        # Удаляем фото
+        await db.execute(
+            delete(UserGallery)
+            .where(UserGallery.id == photo_id)
+            .where(UserGallery.user_id == current_user.id)
+        )
+        await db.commit()
+        
+        logger.info(f"[GALLERY] Фото {photo_id} удалено из галереи пользователя {current_user.id}")
+        return Message(message="Фото успешно удалено из галереи")
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"[GALLERY] Ошибка удаления фото из галереи: {e}")
+        import traceback
+        logger.error(f"[GALLERY] Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка при удалении фото из галереи: {str(e)}"
         )
 
 
