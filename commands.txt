@@ -5,20 +5,3 @@ docker compose -f docker-compose.local.yml up
 python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker
 
-# Deploy commands (FULL: backend + frontend + SD WebUI + Redis + Celery)
-python check_deploy.py                  # Proverka gotovnosti
-docker-compose build                    # Sborka obrazov (30-60 min pervyy raz!)
-docker-compose up -d                    # Zapusk v background
-docker-compose ps                       # Status vseh servisov
-docker-compose logs -f                  # Prosmotr logov
-docker-compose logs -f sd-webui         # Logi SD WebUI
-docker-compose logs -f backend          # Logi Backend
-docker-compose down                     # Ostanovka
-./deploy.sh                             # Polny deploy (all in one)
-
-# GPU check
-docker run --rm --gpus all nvidia/cuda:12.1.0-base-ubuntu22.04 nvidia-smi
-
-# Test generation
-python tests/generation_test/test_single.py           # 1 photo test
-python tests/generation_test/test_generate_10_images.py  # 10 photos test

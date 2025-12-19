@@ -782,13 +782,28 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       refreshUserStats();
     }
     
+    // Проверяем, что currentCharacter существует перед загрузкой данных
+    if (!currentCharacter) {
+      console.log('[CHAT INIT] currentCharacter is null, skipping initialization');
+      return;
+    }
+    
     const characterIdentifier = currentCharacter.raw?.name || currentCharacter.name;
+    if (!characterIdentifier) {
+      console.warn('[CHAT INIT] No character identifier found, skipping initialization');
+      return;
+    }
+    
     console.log('[CHAT INIT] Инициализация чата с персонажем:', { 
       name: currentCharacter.name,
       display_name: currentCharacter.display_name,
       rawName: currentCharacter.raw?.name,
       identifier: characterIdentifier
     });
+    
+    // Сбрасываем флаг загрузки перед началом новой загрузки
+    isLoadingHistoryRef.current = null;
+    
     loadModelInfo();
     loadCharacterData(characterIdentifier);
     loadChatHistory(characterIdentifier, currentCharacter); // Загружаем историю чатов при инициализации
@@ -1699,7 +1714,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     }
     
     // Отмечаем, что начинаем загрузку истории для этого персонажа
-    isLoadingHistoryRef.current = identifier;
+    // Сохраняем identifier в начале для проверки в конце
+    const loadIdentifier = identifier;
+    isLoadingHistoryRef.current = loadIdentifier;
     
     try {
       console.log('[CHAT HISTORY] Fetching history for:', { 
@@ -1820,32 +1837,48 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           
           // Устанавливаем messages синхронно, чтобы избежать race condition
           // Проверяем, что мы все еще загружаем историю для того же персонажа (защита от race condition)
-          if (isLoadingHistoryRef.current === identifier) {
+          // Используем loadIdentifier, сохраненный в начале функции
+          // Если isLoadingHistoryRef.current стал null или другим идентификатором, все равно устанавливаем,
+          // но только если текущий персонаж соответствует loadIdentifier
+          const shouldSetMessages = isLoadingHistoryRef.current === loadIdentifier || 
+                                    (isLoadingHistoryRef.current === null && currentCharacter && 
+                                     (currentCharacter.raw?.name || currentCharacter.name) === loadIdentifier);
+          
+          if (shouldSetMessages) {
             setMessages(finalMessages);
             console.log(`[CHAT HISTORY] ✓ Loaded and set ${finalMessages.length} unique messages from history (was ${formattedMessages.length} before deduplication by URL and ID)`);
-        } else {
-            console.warn(`[CHAT HISTORY] Пропускаем установку messages - персонаж изменился во время загрузки. Текущий: ${isLoadingHistoryRef.current}, ожидался: ${identifier}`);
+          } else {
+            console.warn(`[CHAT HISTORY] Пропускаем установку messages - персонаж изменился во время загрузки. Текущий: ${isLoadingHistoryRef.current}, ожидался: ${loadIdentifier}`);
           }
         } else {
-          if (isLoadingHistoryRef.current === identifier) {
+          const shouldSetMessages = isLoadingHistoryRef.current === loadIdentifier || 
+                                    (isLoadingHistoryRef.current === null && currentCharacter && 
+                                     (currentCharacter.raw?.name || currentCharacter.name) === loadIdentifier);
+          if (shouldSetMessages) {
             console.log('[CHAT HISTORY] No chat history found - setting empty messages array');
-          setMessages([]);
+            setMessages([]);
           }
         }
       } else {
-        console.error('[CHAT HISTORY] Failed to load chat history:', response.status, 'for identifier:', identifier);
-        if (isLoadingHistoryRef.current === identifier) {
-        setMessages([]);
+        console.error('[CHAT HISTORY] Failed to load chat history:', response.status, 'for identifier:', loadIdentifier);
+        const shouldSetMessages = isLoadingHistoryRef.current === loadIdentifier || 
+                                  (isLoadingHistoryRef.current === null && currentCharacter && 
+                                   (currentCharacter.raw?.name || currentCharacter.name) === loadIdentifier);
+        if (shouldSetMessages) {
+          setMessages([]);
         }
       }
     } catch (error) {
-      console.error('[CHAT HISTORY] Error loading chat history:', error, 'for identifier:', identifier);
-      if (isLoadingHistoryRef.current === identifier) {
-      setMessages([]);
+      console.error('[CHAT HISTORY] Error loading chat history:', error, 'for identifier:', loadIdentifier);
+      const shouldSetMessages = isLoadingHistoryRef.current === loadIdentifier || 
+                                (isLoadingHistoryRef.current === null && currentCharacter && 
+                                 (currentCharacter.raw?.name || currentCharacter.name) === loadIdentifier);
+      if (shouldSetMessages) {
+        setMessages([]);
       }
     } finally {
       // Сбрасываем флаг загрузки только если это была загрузка для текущего идентификатора
-      if (isLoadingHistoryRef.current === identifier) {
+      if (isLoadingHistoryRef.current === loadIdentifier) {
         isLoadingHistoryRef.current = null;
       }
     }
@@ -1896,12 +1929,13 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       
       if (isNewCharacter) {
         console.log('[CHARACTER UPDATE] Новый персонаж - очищаем messages перед загрузкой истории');
-        isLoadingHistoryRef.current = null; // Сбрасываем флаг загрузки при смене персонажа
+        // НЕ сбрасываем isLoadingHistoryRef здесь - это вызовет race condition
+        // Вместо этого сбросим его только в самом начале loadChatHistory
         setMessages([]); // Очищаем только при реальной смене персонажа
       } else {
         console.log('[CHARACTER UPDATE] Персонаж не изменился - не очищаем messages');
       }
-      
+
       setCurrentCharacter(initialCharacter);
       loadCharacterData(characterIdentifier);
       // Загружаем историю всегда, даже если персонаж не изменился (на случай, если история обновилась)
