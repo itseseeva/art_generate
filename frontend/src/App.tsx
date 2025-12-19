@@ -592,33 +592,35 @@ function App() {
         );
       case 'chat':
         return (
-          <ChatContainer 
-            onBackToMain={handleBackToMain}
-            initialCharacter={selectedCharacter}
-            onShop={handleShop}
-            onProfile={handleProfile}
-            onOpenPaidAlbum={handlePaidAlbum}
-            onOpenPaidAlbumBuilder={(character) => {
-              setSelectedCharacter(character);
-              setCurrentPage('paid-album-builder');
-              if (character?.id) {
-                localStorage.setItem(`character_${character.id}`, JSON.stringify(character));
-                window.history.pushState({ page: 'paid-album-builder', character: character.id }, '', `/paid-album-builder?character=${character.id}`);
-              } else {
-                window.history.pushState({ page: 'paid-album-builder' }, '', '/paid-album-builder');
-              }
-            }}
-            onNavigate={(page, character) => {
-              setSelectedCharacter(character);
-              setCurrentPage(page as PageType);
-              if (character?.id) {
-                localStorage.setItem(`character_${character.id}`, JSON.stringify(character));
-                window.history.pushState({ page, character: character.id }, '', `/${page}?character=${character.id}`);
-              } else {
-                window.history.pushState({ page }, '', `/${page}`);
-              }
-            }}
-          />
+          <ErrorBoundary>
+            <ChatContainer 
+              onBackToMain={handleBackToMain}
+              initialCharacter={selectedCharacter}
+              onShop={handleShop}
+              onProfile={handleProfile}
+              onOpenPaidAlbum={handlePaidAlbum}
+              onOpenPaidAlbumBuilder={(character) => {
+                setSelectedCharacter(character);
+                setCurrentPage('paid-album-builder');
+                if (character?.id) {
+                  localStorage.setItem(`character_${character.id}`, JSON.stringify(character));
+                  window.history.pushState({ page: 'paid-album-builder', character: character.id }, '', `/paid-album-builder?character=${character.id}`);
+                } else {
+                  window.history.pushState({ page: 'paid-album-builder' }, '', '/paid-album-builder');
+                }
+              }}
+              onNavigate={(page, character) => {
+                setSelectedCharacter(character);
+                setCurrentPage(page as PageType);
+                if (character?.id) {
+                  localStorage.setItem(`character_${character.id}`, JSON.stringify(character));
+                  window.history.pushState({ page, character: character.id }, '', `/${page}?character=${character.id}`);
+                } else {
+                  window.history.pushState({ page }, '', `/${page}`);
+                }
+              }}
+            />
+          </ErrorBoundary>
         );
       case 'my-characters':
         return (

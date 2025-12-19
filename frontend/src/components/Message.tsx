@@ -371,8 +371,11 @@ const MessageComponent: React.FC<MessageProps> = ({
     minute: '2-digit'
   });
 
+  // Безопасная проверка imageUrl - должна быть выполнена до использования
+  const hasValidImageUrl = message.imageUrl && message.imageUrl.trim() !== '' && message.imageUrl !== 'null' && message.imageUrl !== 'undefined';
+  
   // Проверяем, является ли сообщение прогрессом генерации
-  const isGenerationProgress = message.content && /^\d+%$/.test(message.content.trim()) && !message.imageUrl;
+  const isGenerationProgress = message.content && /^\d+%$/.test(message.content.trim()) && !hasValidImageUrl;
   const progressMatch = isGenerationProgress ? message.content.match(/(\d+)%/) : null;
   const progressValue = progressMatch ? parseInt(progressMatch[1], 10) : 0;
 
@@ -431,13 +434,14 @@ const MessageComponent: React.FC<MessageProps> = ({
 
   const handleAddToPaidAlbumClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!message.imageUrl || !characterName || !onAddToPaidAlbum || !isAuthenticated) {
+    const hasValidImageUrl = message.imageUrl && message.imageUrl.trim() !== '' && message.imageUrl !== 'null' && message.imageUrl !== 'undefined';
+    if (!hasValidImageUrl || !characterName || !onAddToPaidAlbum || !isAuthenticated) {
       return;
     }
 
     setIsAddingToPaidAlbum(true);
     try {
-      await onAddToPaidAlbum(message.imageUrl, characterName);
+      await onAddToPaidAlbum(message.imageUrl!, characterName);
       setIsAddedToPaidAlbum(true);
       console.log('[MESSAGE] Фото добавлено в платный альбом, кнопка скрыта');
     } catch (error) {
@@ -450,7 +454,7 @@ const MessageComponent: React.FC<MessageProps> = ({
 
   // Для прогресса генерации - отображаем БЕЗ MessageContent контейнера (прозрачный фон)
   // Убираем аватар при генерации фото
-  if (isGenerationProgress && !message.imageUrl) {
+  if (isGenerationProgress && !hasValidImageUrl) {
     return (
       <>
       <div style={{
@@ -470,7 +474,7 @@ const MessageComponent: React.FC<MessageProps> = ({
   // Для фото без текста - чистое отображение (v2)
   // Проверяем, что content пустой или содержит только пробелы
   // Убираем аватар при генерации фото
-  const hasOnlyImage = message.imageUrl && (!message.content || message.content.trim() === '');
+  const hasOnlyImage = hasValidImageUrl && (!message.content || message.content.trim() === '');
   if (hasOnlyImage) {
     return (
       <>
@@ -511,9 +515,9 @@ const MessageComponent: React.FC<MessageProps> = ({
           }}
         >
           <img
-            src={message.imageUrl}
+            src={hasValidImageUrl ? message.imageUrl : undefined}
             alt="Generated image"
-            onClick={handleImageClick}
+            onClick={hasValidImageUrl ? handleImageClick : undefined}
             style={{
               maxWidth: '600px',
               maxHeight: '600px',
@@ -649,7 +653,7 @@ const MessageComponent: React.FC<MessageProps> = ({
             </MessageText>
           )}
           
-          {message.imageUrl && (
+          {hasValidImageUrl && (
             <ImageContainer 
               onClick={handleImageClick}
               style={{
@@ -660,7 +664,7 @@ const MessageComponent: React.FC<MessageProps> = ({
               }}
             >
               <MessageImage 
-                src={message.imageUrl} 
+                src={message.imageUrl!} 
                 alt="Generated image"
                 onClick={handleImageClick}
                 style={{
@@ -697,7 +701,7 @@ const MessageComponent: React.FC<MessageProps> = ({
           )}
           
           {/* Время не показываем если только фото без текста */}
-          {(message.content || !message.imageUrl) && (
+          {(message.content || !hasValidImageUrl) && (
           <MessageTime $isUser={isUser}>
             {timeString}
           </MessageTime>
@@ -705,14 +709,14 @@ const MessageComponent: React.FC<MessageProps> = ({
         </MessageContent>
         
         {/* Аватар пользователя справа */}
-        {isUser && (message.content || !message.imageUrl) && (
+        {isUser && (message.content || !hasValidImageUrl) && (
           <Avatar $isUser={true}>
             U
           </Avatar>
         )}
       </MessageContainer>
 
-      {isFullscreen && message.imageUrl && createPortal(
+      {isFullscreen && hasValidImageUrl && createPortal(
         <ModalOverlay onClick={handleCloseFullscreen}>
           <ModalContent onClick={(e) => e.stopPropagation()}>
           <CloseButton onClick={handleCloseFullscreen}>
@@ -720,7 +724,7 @@ const MessageComponent: React.FC<MessageProps> = ({
           </CloseButton>
             <ModalImageContainer>
               <ModalImage 
-            src={message.imageUrl} 
+            src={message.imageUrl!} 
             alt="Fullscreen image"
             onClick={(e) => e.stopPropagation()}
           />

@@ -2876,9 +2876,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   }, [paidAlbumStatus?.unlocked, paidAlbumStatus?.is_owner, normalizedSubscriptionType]);
   const canExpandAlbum = Boolean(paidAlbumStatus?.is_owner && canCreatePaidAlbum);
 
-  // Если персонаж не загружен, показываем только загрузку
-  // Если персонаж не загружен, показываем спиннер или сообщение об ошибке
-  if (!currentCharacter) {
+  // Если персонаж не загружен или идет загрузка, показываем спиннер или сообщение об ошибке
+  if (isLoading || !currentCharacter) {
     // Если есть ошибка (например, персонаж не найден), показываем сообщение с кнопкой "Назад"
     if (error && (error.includes('не найден') || error.includes('удален'))) {
       return (
@@ -2930,6 +2929,24 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     );
   }
 
+  // Дедупликация сообщений перед рендером - используем useMemo для оптимизации
+  const uniqueMessages = useMemo(() => {
+    try {
+      return deduplicateMessages(messages);
+    } catch (error) {
+      console.error('[CHAT] Ошибка дедупликации сообщений:', error);
+      // В случае ошибки возвращаем оригинальный массив, но фильтруем дубликаты по ID
+      const seenIds = new Set<string>();
+      return messages.filter(msg => {
+        if (seenIds.has(msg.id)) {
+          return false;
+        }
+        seenIds.add(msg.id);
+        return true;
+      });
+    }
+  }, [messages]);
+
   return (
     <Container>
       <MainContent>
@@ -2957,11 +2974,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         <ChatContentWrapper>
           <ChatMessagesArea>
             <ChatArea 
-              messages={messages}
+              messages={uniqueMessages}
               isLoading={isLoading}
               isGeneratingImage={activeGenerations.size > 0}
               characterSituation={characterSituation ?? undefined}
-              characterName={currentCharacter?.name}
+              characterName={currentCharacter.name}
               characterAvatar={characterPhotos && characterPhotos.length > 0 ? characterPhotos[0] : undefined}
               isCharacterOwner={paidAlbumStatus?.is_owner ?? false}
               isAuthenticated={isAuthenticated}
