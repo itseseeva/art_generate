@@ -155,20 +155,20 @@ async def youmoney_quickpay_notify(request: Request):
 				return {"ok": True, "user_id": user_id, "type": "topup", "package": package_id, "credits": package.credits}
 			else:
 				# Обычная подписка
-				min_amount = (cfg["min_premium"] if plan == "premium" else cfg["min_standard"])
-				if amount_val + 1e-6 < min_amount:
-					logging.warning("[YOUMONEY NOTIFY] amount too low: %s (min %s) for plan=%s", amount_val, min_amount, plan)
-					raise HTTPException(status_code=400, detail=f"amount too low ({amount_val} < {min_amount})")
+	min_amount = (cfg["min_premium"] if plan == "premium" else cfg["min_standard"])
+	if amount_val + 1e-6 < min_amount:
+		logging.warning("[YOUMONEY NOTIFY] amount too low: %s (min %s) for plan=%s", amount_val, min_amount, plan)
+		raise HTTPException(status_code=400, detail=f"amount too low ({amount_val} < {min_amount})")
 
-				sub = await service.activate_subscription(user_id, plan)
-				logging.info("[YOUMONEY NOTIFY] subscription activated: user_id=%s plan=%s", user_id, plan)
+		sub = await service.activate_subscription(user_id, plan)
+		logging.info("[YOUMONEY NOTIFY] subscription activated: user_id=%s plan=%s", user_id, plan)
 
 				# Помечаем транзакцию как обработанную
 				transaction.processed = True
 				transaction.processed_at = datetime.utcnow()
 				await db.commit()
 				
-				return {"ok": True, "user_id": user_id, "plan": plan}
+	return {"ok": True, "user_id": user_id, "plan": plan}
 		except Exception as e:
 			# В случае ошибки не помечаем транзакцию как обработанную
 			# Это позволит повторить обработку при повторном запросе от YooMoney

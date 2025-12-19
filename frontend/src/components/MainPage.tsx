@@ -489,7 +489,7 @@ export const MainPage: React.FC<MainPageProps> = ({
       await loadCharacters(true); // forceRefresh = true
       await loadCharacterPhotos();
     };
-
+    
     loadData();
     
     const interval = setInterval(() => {

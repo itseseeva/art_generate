@@ -188,9 +188,9 @@ class ChatHistoryService:
                 # Очищаем кэш при принудительном обновлении
                 await cache_delete(cache_key)
             else:
-                cached_characters = await cache_get(cache_key)
-                if cached_characters is not None:
-                    return cached_characters
+            cached_characters = await cache_get(cache_key)
+            if cached_characters is not None:
+                return cached_characters
 
             # Проверяем подписку пользователя
             subscription = await self.subscription_service.get_user_subscription(user_id)

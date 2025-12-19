@@ -1798,33 +1798,33 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     setError(null);
 
     try {
-      // Если это чужой профиль, сначала загружаем ID текущего пользователя
-      let myUserId: number | null = null;
-      if (profileUserId) {
+    // Если это чужой профиль, сначала загружаем ID текущего пользователя
+    let myUserId: number | null = null;
+    if (profileUserId) {
         try {
-          const myProfileData = await fetchCurrentUserProfile();
-          myUserId = myProfileData?.id ?? null;
+      const myProfileData = await fetchCurrentUserProfile();
+      myUserId = myProfileData?.id ?? null;
         } catch (error) {
           console.error('[PROFILE] Ошибка загрузки данных текущего пользователя:', error);
           // Продолжаем загрузку даже если не удалось получить ID текущего пользователя
         }
-      }
+    }
 
-      const results = await Promise.allSettled([
-        fetchUserInfo(authToken),
-        fetchSubscriptionStats(authToken), // Всегда загружаем статистику текущего пользователя (нужна для проверки подписки при разблокировке галереи)
-        profileUserId ? Promise.resolve(null) : loadPhotosCount(authToken), // Фото только для своего профиля
-        isViewingOwnProfile ? fetchProfileStats(authToken) : Promise.resolve(null) // Расширенная статистика только для своего профиля
-      ]);
+    const results = await Promise.allSettled([
+      fetchUserInfo(authToken),
+      fetchSubscriptionStats(authToken), // Всегда загружаем статистику текущего пользователя (нужна для проверки подписки при разблокировке галереи)
+      profileUserId ? Promise.resolve(null) : loadPhotosCount(authToken), // Фото только для своего профиля
+      isViewingOwnProfile ? fetchProfileStats(authToken) : Promise.resolve(null) // Расширенная статистика только для своего профиля
+    ]);
 
-      // Если это чужой профиль, загружаем количество сгенерированных фото
-      if (profileUserId && myUserId && profileUserId !== myUserId) {
-        try {
-          await loadGeneratedPhotosCount(authToken, profileUserId);
-        } catch (error) {
-          console.error('[PROFILE] Ошибка загрузки количества фото для чужого профиля:', error);
-        }
+    // Если это чужой профиль, загружаем количество сгенерированных фото
+    if (profileUserId && myUserId && profileUserId !== myUserId) {
+      try {
+        await loadGeneratedPhotosCount(authToken, profileUserId);
+      } catch (error) {
+        console.error('[PROFILE] Ошибка загрузки количества фото для чужого профиля:', error);
       }
+    }
 
       // Проверяем результат загрузки userInfo (первый промис)
       const userInfoResult = results[0];
@@ -1841,18 +1841,18 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           // Показываем предупреждение, но не критическую ошибку
           console.warn('[PROFILE] Ошибка загрузки дополнительных данных:', reason);
         }
-        setError(null);
-        setBalanceRefreshTrigger((prev) => prev + 1);
+      setError(null);
+      setBalanceRefreshTrigger((prev) => prev + 1);
       } else {
         // Если userInfo не загружен, но и ошибки нет
         setError('Не удалось загрузить данные профиля');
         setUserInfo(null);
-      }
+    }
     } catch (error) {
       console.error('[PROFILE] Критическая ошибка при загрузке данных профиля:', error);
       setError(error instanceof Error ? error.message : 'Не удалось загрузить данные профиля');
     } finally {
-      setIsLoading(false);
+    setIsLoading(false);
     }
   }, [authToken, fetchSubscriptionStats, fetchUserInfo, loadPhotosCount, profileUserId, currentUserId, loadGeneratedPhotosCount, fetchCurrentUserProfile, fetchProfileStats, isViewingOwnProfile]);
 

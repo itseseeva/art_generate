@@ -601,7 +601,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
 
     if (offset === 0) {
       isLoadingRef.current = true;
-      setIsLoading(true);
+    setIsLoading(true);
     } else {
       setIsLoadingMore(true);
     }
@@ -698,16 +698,16 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
 
     // Очищаем кеш при смене userId или при монтировании компонента
     if (lastLoadedUserIdRef.current !== currentUserIdKey) {
-      photosCacheRef.current.clear();
-      setPhotos([]);
-      setTotal(0);
-      setHasMore(true);
+    photosCacheRef.current.clear();
+    setPhotos([]);
+    setTotal(0);
+    setHasMore(true);
       lastLoadedUserIdRef.current = currentUserIdKey;
     }
     
     // Загружаем галерею только если есть токен авторизации
     if (authToken && !isLoadingRef.current) {
-      loadGallery(0, false);
+    loadGallery(0, false);
     } else if (!authToken) {
       setIsLoading(false);
       setError('Необходима авторизация');

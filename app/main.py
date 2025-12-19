@@ -3611,43 +3611,12 @@ async def get_generation_status(
                                         else:
                                             logger.warning(f"[IMAGE_HISTORY] Не удалось сохранить историю для task_id={task_id}")
                                     
-                                    # КРИТИЧЕСКИ ВАЖНО: Также сохраняем в ChatHistory с generation_time
-                                    # Это нужно, чтобы время генерации отображалось в чате после обновления страницы
-                                    try:
-                                        from app.chat_bot.models.models import CharacterDB
-                                        from sqlalchemy import select
-                                        async with async_session_maker() as chat_history_db:
-                                            # Получаем данные персонажа для сохранения в ChatHistory
-                                            char_result = await chat_history_db.execute(
-                                                select(CharacterDB).where(CharacterDB.name.ilike(character_name))
-                                            )
-                                            character = char_result.scalar_one_or_none()
-                                            
-                                            if character:
-                                                character_data = {
-                                                    "id": character.id,
-                                                    "name": character.name
-                                                }
-                                                
-                                                # Сохраняем в ChatHistory с generation_time
-                                                await process_chat_history_storage(
-                                                    subscription_type=None,  # Не важно для сохранения истории
-                                                    user_id=str(user_id),
-                                                    character_data=character_data,
-                                                    message="Генерация изображения",
-                                                    response="",  # Пустой ответ, так как это только фото
-                                                    image_url=image_url,
-                                                    image_filename=None,
-                                                    generation_time=generation_time
-                                                )
-                                                logger.info(f"[CHAT_HISTORY] ✓ История сохранена в ChatHistory с generation_time={generation_time} для task_id={task_id}")
-                                            else:
-                                                logger.warning(f"[CHAT_HISTORY] Персонаж {character_name} не найден, не сохраняем в ChatHistory")
-                                    except Exception as chat_history_error:
-                                        logger.error(f"[CHAT_HISTORY] Ошибка сохранения в ChatHistory: {chat_history_error}")
-                                        import traceback
-                                        logger.error(f"[CHAT_HISTORY] Трейсбек: {traceback.format_exc()}")
-                                        # Не прерываем выполнение, сохранение в ChatHistory - дополнительная функция
+                                    # КРИТИЧЕСКИ ВАЖНО: НЕ сохраняем в ChatHistory здесь!
+                                    # Chat API уже сохраняет сообщения через process_chat_history_storage.
+                                    # Сохранение здесь создает дублирующиеся сообщения.
+                                    # save_generation в ImageGenerationHistoryService сохраняет только в ImageGenerationHistory (галерея/статистика),
+                                    # но НЕ создает записи в ChatHistory - это правильно.
+                                    logger.info(f"[CHAT_HISTORY] Пропускаем сохранение в ChatHistory - Chat API уже обработал сообщение для task_id={task_id}")
                                 else:
                                     logger.warning(f"[IMAGE_HISTORY] Недостаточно данных для сохранения: user_id={user_id}, character={character_name}, image_url={bool(image_url)}, task_id={task_id}")
                             except Exception as history_error:

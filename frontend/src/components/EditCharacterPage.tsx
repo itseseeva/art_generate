@@ -1244,9 +1244,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const [customPrompt, setCustomPrompt] = useState('');
   const CHARACTER_EDIT_COST = 50; // Кредиты за редактирование персонажа
   // Безопасная инициализация characterIdentifier с fallback
+  // КРИТИЧНО: Используем name из character prop (это реальное имя из БД)
   const [characterIdentifier, setCharacterIdentifier] = useState<string>(() => {
     const name = character?.name || character?.id?.toString() || '';
-    console.log('[EDIT_CHAR] Initializing characterIdentifier:', name);
+    console.log('[EDIT_CHAR] Initializing characterIdentifier from character prop:', name);
+    console.log('[EDIT_CHAR] Character prop:', character);
     return name;
   });
   type SelectedPhoto = { id: string; url: string };
@@ -1338,7 +1340,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       console.warn('[EDIT_CHAR] Character name/id is missing!', character);
       setIsLoadingData(false);
     }
-  }, [character?.name, character?.id, characterIdentifier]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [character?.name, character?.id]); // Убираем characterIdentifier из зависимостей, чтобы избежать циклов
 
   const fetchCharacterPhotos = useCallback(async (targetName?: string) => {
     const effectiveName = (targetName ?? characterIdentifier)?.trim();
@@ -1438,17 +1441,20 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     }
   }, [characterIdentifier]);
 
-  // Загружаем фото при изменении characterIdentifier
+  // Загружаем фото при изменении characterIdentifier или character prop
   useEffect(() => {
-    if (characterIdentifier) {
-      console.log('[EDIT_CHAR] Loading photos for character:', characterIdentifier);
-      fetchCharacterPhotos(characterIdentifier);
+    // КРИТИЧНО: Используем name из character prop, так как API работает по имени
+    const photoIdentifier = character?.name || characterIdentifier;
+    if (photoIdentifier) {
+      console.log('[EDIT_CHAR] Loading photos for character:', photoIdentifier);
+      fetchCharacterPhotos(photoIdentifier);
     } else {
-      console.warn('[EDIT_CHAR] No characterIdentifier, skipping photo load');
+      console.warn('[EDIT_CHAR] No character name/identifier, skipping photo load');
       setIsLoadingPhotos(false);
       setGeneratedPhotos([]);
     }
-  }, [characterIdentifier, fetchCharacterPhotos]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [character?.name, characterIdentifier]); // Реагируем на изменения name из prop
 
   const togglePhotoSelection = async (photoId: string) => {
     const targetPhoto = generatedPhotos.find(photo => photo.id === photoId);
@@ -1547,19 +1553,39 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
   // Загружаем данные персонажа
   const loadCharacterData = useCallback(async (targetIdentifier?: string) => {
-    const identifier = targetIdentifier || characterIdentifier;
+    let identifier = targetIdentifier || characterIdentifier;
     
     console.log('[EDIT_CHAR] ========== loadCharacterData CALLED ==========');
     console.log('[EDIT_CHAR] targetIdentifier:', targetIdentifier);
     console.log('[EDIT_CHAR] characterIdentifier:', characterIdentifier);
-    console.log('[EDIT_CHAR] Final identifier:', identifier);
+    console.log('[EDIT_CHAR] Character prop:', character);
+    console.log('[EDIT_CHAR] Character name:', character?.name);
+    console.log('[EDIT_CHAR] Character id:', character?.id);
     
-    // Проверка на валидность идентификатора
-    if (!identifier || identifier.trim() === '') {
-      console.warn('[EDIT_CHAR] No valid characterIdentifier provided, setting isLoadingData to false');
-      setIsLoadingData(false);
-      return;
+    // КРИТИЧНО: Если identifier - это число (ID), но у нас есть character.name, используем name
+    // API endpoint /with-creator работает по имени, а не по ID
+    if (character?.name && (identifier === character.id?.toString() || identifier === String(character.id))) {
+      console.log('[EDIT_CHAR] Identifier is ID, but we have character.name, using name instead');
+      identifier = character.name;
     }
+    
+    // Если identifier все еще выглядит как число, но у нас нет name в prop, пытаемся загрузить по ID
+    if (!identifier || identifier.trim() === '') {
+      // Пытаемся использовать character.id или character.name из prop
+      if (character?.name) {
+        identifier = character.name;
+        console.log('[EDIT_CHAR] Using character.name from prop:', identifier);
+      } else if (character?.id) {
+        identifier = character.id.toString();
+        console.log('[EDIT_CHAR] Using character.id from prop:', identifier);
+      } else {
+        console.warn('[EDIT_CHAR] No valid characterIdentifier provided, setting isLoadingData to false');
+        setIsLoadingData(false);
+        return;
+      }
+    }
+    
+    console.log('[EDIT_CHAR] Final identifier for API request:', identifier);
     
     try {
       console.log('[EDIT_CHAR] Setting isLoadingData to true and clearing error');
@@ -1570,7 +1596,9 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       
       // Добавляем timestamp для обхода кеша
       const cacheBuster = `?t=${Date.now()}`;
-      const url = `/api/v1/characters/${encodeURIComponent(identifier)}${cacheBuster}`;
+      // Используем /with-creator endpoint для получения полных данных персонажа
+      // КРИТИЧНО: Этот endpoint работает по имени персонажа, не по ID
+      const url = `/api/v1/characters/${encodeURIComponent(identifier)}/with-creator${cacheBuster}`;
       console.log('[EDIT_CHAR] Request URL:', url);
       const response = await authManager.fetchWithAuth(url);
 
@@ -1619,18 +1647,28 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           situation: situation || '',
           instructions: instructions || '',
           style: style || '',
-          appearance: characterData?.character_appearance || '',
+          appearance: characterData?.character_appearance || characterData?.appearance || '',
           location: characterData?.location || ''
         };
         
         console.log('[EDIT_CHAR] ========== SETTING FORMDATA ==========');
+        console.log('[EDIT_CHAR] Character data received:', {
+          name: characterData?.name,
+          hasPrompt: !!characterData?.prompt,
+          promptLength: characterData?.prompt?.length || 0,
+          appearance: characterData?.character_appearance || characterData?.appearance,
+          location: characterData?.location
+        });
         console.log('[EDIT_CHAR] FormData name:', newFormData.name);
         console.log('[EDIT_CHAR] FormData personality length:', newFormData.personality.length);
         console.log('[EDIT_CHAR] FormData situation length:', newFormData.situation.length);
         console.log('[EDIT_CHAR] FormData instructions length:', newFormData.instructions.length);
+        console.log('[EDIT_CHAR] FormData appearance:', newFormData.appearance);
+        console.log('[EDIT_CHAR] FormData location:', newFormData.location);
         console.log('[EDIT_CHAR] Full formData object:', JSON.stringify(newFormData, null, 2));
         
         // КРИТИЧНО: Устанавливаем formData СРАЗУ перед установкой isLoadingData в false
+        // Это гарантирует, что поля формы будут заполнены до рендеринга
         setFormData(newFormData);
         
         // Обновляем characterIdentifier только если имя изменилось
@@ -1641,6 +1679,14 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         }
         
         console.log('[EDIT_CHAR] FormData set successfully, about to set isLoadingData to false');
+        
+        // После успешной загрузки данных загружаем фото
+        // Используем name из characterData (реальное имя из БД)
+        const photoIdentifier = characterData?.name || identifier;
+        if (photoIdentifier) {
+          console.log('[EDIT_CHAR] Loading photos after data load:', photoIdentifier);
+          fetchCharacterPhotos(photoIdentifier);
+        }
       } else {
         console.error('[EDIT_CHAR] Failed to load character data:', response.status);
         if (response.status === 404) {
@@ -1697,9 +1743,9 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     }
   };
 
-  // Инициализация при монтировании компонента
+  // Инициализация при монтировании компонента и изменении character prop
   useEffect(() => {
-    console.log('[EDIT_CHAR] ========== COMPONENT MOUNTED ==========');
+    console.log('[EDIT_CHAR] ========== COMPONENT MOUNTED/UPDATED ==========');
     console.log('[EDIT_CHAR] Initial characterIdentifier:', characterIdentifier);
     console.log('[EDIT_CHAR] Character prop:', character);
     console.log('[EDIT_CHAR] Character name:', character?.name);
@@ -1709,20 +1755,37 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     loadGenerationSettings();
     
     // КРИТИЧНО: Определяем идентификатор персонажа из prop или state
-    const effectiveIdentifier = characterIdentifier || character?.name || character?.id?.toString() || '';
+    // ПРИОРИТЕТ: Используем name из character prop (это реальное имя из БД)
+    // API endpoint /with-creator работает по имени, а не по ID
+    let effectiveIdentifier = '';
+    if (character?.name) {
+      effectiveIdentifier = character.name;
+      console.log('[EDIT_CHAR] Using character.name as identifier:', effectiveIdentifier);
+    } else if (character?.id) {
+      // Если нет name, но есть id, используем id как fallback
+      // Но loadCharacterData попытается загрузить по ID, что может не сработать
+      effectiveIdentifier = character.id.toString();
+      console.log('[EDIT_CHAR] Using character.id as identifier (fallback):', effectiveIdentifier);
+    } else if (characterIdentifier) {
+      effectiveIdentifier = characterIdentifier;
+      console.log('[EDIT_CHAR] Using characterIdentifier from state:', effectiveIdentifier);
+    }
+    
     console.log('[EDIT_CHAR] Effective identifier:', effectiveIdentifier);
     
-    // КРИТИЧНО: Загружаем данные персонажа сразу при монтировании
+    // КРИТИЧНО: Загружаем данные персонажа сразу при монтировании или изменении character
     if (effectiveIdentifier && effectiveIdentifier.trim() !== '') {
-      console.log('[EDIT_CHAR] Loading data immediately on mount:', effectiveIdentifier);
-      // Обновляем characterIdentifier если он был пустой
-      if (!characterIdentifier || characterIdentifier !== effectiveIdentifier) {
-        console.log('[EDIT_CHAR] Setting characterIdentifier from prop:', effectiveIdentifier);
-        setCharacterIdentifier(effectiveIdentifier);
+      console.log('[EDIT_CHAR] Loading data immediately:', effectiveIdentifier);
+      // Обновляем characterIdentifier если он был пустой или изменился
+      // КРИТИЧНО: Сохраняем name, а не ID, так как API работает по имени
+      const nameToStore = character?.name || effectiveIdentifier;
+      if (!characterIdentifier || characterIdentifier !== nameToStore) {
+        console.log('[EDIT_CHAR] Setting characterIdentifier from prop:', nameToStore);
+        setCharacterIdentifier(nameToStore);
       }
       // Устанавливаем isLoadingData в true перед загрузкой
       setIsLoadingData(true);
-      loadCharacterData(effectiveIdentifier).catch((error) => {
+      loadCharacterData(nameToStore).catch((error) => {
         console.error('[EDIT_CHAR] Error in loadCharacterData:', error);
         setIsLoadingData(false);
         setError('Ошибка при загрузке данных персонажа');
@@ -1759,18 +1822,25 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         fakeProgressTimeoutRef.current = null;
       }
     };
-  }, []); // Запускается только при монтировании
+  }, [character?.name, character?.id]); // Реагируем на изменения character prop
 
   // Загрузка данных персонажа при изменении characterIdentifier
+  // КРИТИЧНО: Этот useEffect не должен дублировать загрузку из основного useEffect
+  // Используем useRef для отслеживания последней загруженной версии
+  const lastLoadedIdentifierRef = useRef<string | null>(null);
+  
   useEffect(() => {
     console.log('[EDIT_CHAR] useEffect triggered, characterIdentifier:', characterIdentifier, 'isLoadingData:', isLoadingData);
-    if (characterIdentifier && characterIdentifier.trim() !== '') {
+    if (characterIdentifier && characterIdentifier.trim() !== '' && lastLoadedIdentifierRef.current !== characterIdentifier) {
       console.log('[EDIT_CHAR] characterIdentifier valid, calling loadCharacterData:', characterIdentifier);
+      lastLoadedIdentifierRef.current = characterIdentifier;
       loadCharacterData(characterIdentifier);
-    } else {
+    } else if (!characterIdentifier || characterIdentifier.trim() === '') {
       console.warn('[EDIT_CHAR] Invalid characterIdentifier, skipping load. Setting isLoadingData to false.');
       setIsLoadingData(false);
+      lastLoadedIdentifierRef.current = null;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [characterIdentifier]); // Убираем loadCharacterData из зависимостей, чтобы избежать бесконечных циклов
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -1978,7 +2048,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       if (!response.ok) {
         let errorMessage = 'Ошибка генерации фото';
         try {
-          const errorData = await response.json();
+        const errorData = await response.json();
           errorMessage = errorData.detail || errorData.message || errorMessage;
         } catch (e) {
           errorMessage = `Ошибка сервера: ${response.status} ${response.statusText}`;
@@ -2013,11 +2083,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       } else {
         // Синхронная генерация - изображение уже готово
         imageUrl = result.cloud_url || result.image_url;
-        if (!imageUrl) {
-          throw new Error('URL изображения не получен от сервера');
-        }
-        
-        const filename = result.filename || Date.now().toString();
+      if (!imageUrl) {
+        throw new Error('URL изображения не получен от сервера');
+      }
+      
+      const filename = result.filename || Date.now().toString();
         imageId = filename.replace('.png', '').replace('.jpg', '');
       }
       

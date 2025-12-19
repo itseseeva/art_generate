@@ -197,8 +197,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         // Прокручиваем только если пользователь был внизу И сейчас тоже внизу (или очень близко)
         // И только если это не начальная загрузка (когда сообщений еще нет)
         if (wasScrolledToBottomRef.current && isAtBottom && messages.length > 0) {
-          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-        }
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
       }
     }, 100); // Небольшая задержка для обновления DOM
 

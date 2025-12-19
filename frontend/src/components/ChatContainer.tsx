@@ -227,7 +227,7 @@ const CharacterCardWrapper = styled.div`
   align-items: flex-start;
   gap: ${theme.spacing.md};
   flex-wrap: wrap;
-
+  
   /* Ограничиваем ширину карточки как на главной странице (minmax(200px, 1fr)) */
   > *:first-child {
     width: 200px;
@@ -887,21 +887,27 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     loadChatHistory(characterIdentifier, currentCharacter); // Загружаем историю чатов при инициализации
   }, [currentCharacter?.name, currentCharacter?.raw?.name]); // Выполняем только при изменении имени персонажа, а не всего объекта
 
+  // Используем useRef для отслеживания последнего загруженного статуса альбома
+  const lastPaidAlbumStatusRef = useRef<string | null>(null);
+  
   useEffect(() => {
     if (!currentCharacter?.name) {
       setPaidAlbumStatus(null);
+      lastPaidAlbumStatusRef.current = null;
       return;
     }
 
     if (isAuthenticated) {
       const identifier = currentCharacter.raw?.name || currentCharacter.name;
-      if (identifier) {
+      if (identifier && lastPaidAlbumStatusRef.current !== identifier) {
+        lastPaidAlbumStatusRef.current = identifier;
         fetchPaidAlbumStatus(identifier);
       }
     } else {
       setPaidAlbumStatus(null);
+      lastPaidAlbumStatusRef.current = null;
     }
-  }, [currentCharacter?.name, isAuthenticated, fetchPaidAlbumStatus, balanceRefreshTrigger]);
+  }, [currentCharacter?.name, currentCharacter?.raw?.name, isAuthenticated, balanceRefreshTrigger]);
 
   // Загружаем состояние избранного при изменении персонажа или авторизации
   useEffect(() => {
@@ -1017,6 +1023,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     }
   };
 
+  // Используем useRef для отслеживания загрузки данных персонажа
+  const isLoadingCharacterDataRef = useRef<string | null>(null);
+  
   const loadCharacterData = async (characterIdentifier: string) => {
     try {
       // Проверяем, что identifier не пустой
@@ -1025,8 +1034,25 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         return;
       }
       
+      // Проверяем, не загружаем ли мы уже этого персонажа
+      if (isLoadingCharacterDataRef.current === characterIdentifier) {
+        console.log('[LOAD_CHARACTER_DATA] Already loading this character, skipping:', characterIdentifier);
+        return;
+      }
+      
+      isLoadingCharacterDataRef.current = characterIdentifier;
+      
       const safeIdentifier = encodeURIComponent(characterIdentifier);
       const response = await fetch(`http://localhost:8000/api/v1/characters/${safeIdentifier}/with-creator`);
+      
+      if (response.status === 404) {
+        console.warn(`[LOAD_CHARACTER_DATA] Персонаж "${characterIdentifier}" не найден (404)`);
+        setError(`Персонаж "${characterIdentifier}" не найден. Возможно, он был удален.`);
+        setCurrentCharacter(null);
+        isLoadingCharacterDataRef.current = null;
+        return;
+      }
+      
       if (response.ok) {
         const characterData = await response.json();
         const situation = extractRolePlayingSituation(characterData.prompt || '');
@@ -1042,16 +1068,16 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         
         // Создаем или обновляем объект персонажа
         const updatedCharacter = currentCharacter ? {
-          ...currentCharacter,
-          id: characterId || currentCharacter.id,
-          name: characterData.name || currentCharacter.name,
-          display_name: characterData.display_name || characterData.name || currentCharacter.display_name,
-          description: characterData.description || currentCharacter.description,
-          avatar: characterData.avatar || currentCharacter.avatar,
-          user_id: characterData.user_id || (currentCharacter as any).user_id,
-          character_appearance: characterData.character_appearance || '',
-          location: characterData.location || '',
-          raw: characterData // Сохраняем raw данные для правильной работы с именем
+            ...currentCharacter,
+            id: characterId || currentCharacter.id,
+            name: characterData.name || currentCharacter.name,
+            display_name: characterData.display_name || characterData.name || currentCharacter.display_name,
+            description: characterData.description || currentCharacter.description,
+            avatar: characterData.avatar || currentCharacter.avatar,
+            user_id: characterData.user_id || (currentCharacter as any).user_id,
+            character_appearance: characterData.character_appearance || '',
+            location: characterData.location || '',
+            raw: characterData // Сохраняем raw данные для правильной работы с именем
         } : {
           id: characterId || characterData.id?.toString() || '',
           name: characterData.name || '',
@@ -1085,6 +1111,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         } else {
           console.log('[LOAD_CHARACTER_DATA] Character data unchanged, skipping update to avoid infinite loop');
         }
+        
+        // Сбрасываем флаг загрузки после успешной загрузки
+        isLoadingCharacterDataRef.current = null;
         
         // Загружаем состояние избранного сразу после получения id
         if (characterData.id && isAuthenticated) {
@@ -1165,16 +1194,23 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           setCharacterPhotos([]);
         }
       } else {
-        console.warn(`Не удалось загрузить данные персонажа ${characterIdentifier}`);
+        console.warn(`[LOAD_CHARACTER_DATA] Не удалось загрузить данные персонажа ${characterIdentifier}, статус: ${response.status}`);
+        const errorText = await response.text().catch(() => 'Неизвестная ошибка');
+        setError(`Не удалось загрузить данные персонажа: ${errorText || `Ошибка ${response.status}`}`);
+        setCurrentCharacter(null);
         setCharacterSituation(null);
         setCreatorInfo(null);
         setCharacterPhotos([]);
       }
     } catch (error) {
-      console.error('Ошибка загрузки данных персонажа:', error);
+      console.error('[LOAD_CHARACTER_DATA] Error loading character data:', error);
+      setError(error instanceof Error ? error.message : 'Не удалось загрузить данные персонажа');
+      setCurrentCharacter(null);
       setCharacterSituation(null);
       setCreatorInfo(null);
       setCharacterPhotos([]);
+      // Сбрасываем флаг загрузки при ошибке
+      isLoadingCharacterDataRef.current = null;
     }
   };
 
@@ -1920,26 +1956,26 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 if (data.content) {
                   // Накопляем контент только если это не генерация изображения
                   if (!generateImage) {
-                    accumulatedContent += data.content;
-                    console.log('[STREAM] Получен чанк:', data.content.substring(0, 50), 'накоплено:', accumulatedContent.length, 'символов');
+                  accumulatedContent += data.content;
+                  console.log('[STREAM] Получен чанк:', data.content.substring(0, 50), 'накоплено:', accumulatedContent.length, 'символов');
+                  
+                  // Обновляем сообщение ассистента с накопленным контентом
+                  setMessages(prev => {
+                    const messageIndex = prev.findIndex(msg => msg.id === assistantMessageId);
+                    if (messageIndex === -1) {
+                      console.warn('[STREAM] Сообщение с id', assistantMessageId, 'не найдено в состоянии');
+                      return prev;
+                    }
                     
-                    // Обновляем сообщение ассистента с накопленным контентом
-                    setMessages(prev => {
-                      const messageIndex = prev.findIndex(msg => msg.id === assistantMessageId);
-                      if (messageIndex === -1) {
-                        console.warn('[STREAM] Сообщение с id', assistantMessageId, 'не найдено в состоянии');
-                        return prev;
-                      }
-                      
-                      const updated = [...prev];
-                      updated[messageIndex] = {
-                        ...updated[messageIndex],
-                        content: accumulatedContent
-                      };
-                      
-                      console.log('[STREAM] Обновлено сообщение:', assistantMessageId, 'новый content length:', accumulatedContent.length);
-                      return updated;
-                    });
+                    const updated = [...prev];
+                    updated[messageIndex] = {
+                      ...updated[messageIndex],
+                      content: accumulatedContent
+                    };
+                    
+                    console.log('[STREAM] Обновлено сообщение:', assistantMessageId, 'новый content length:', accumulatedContent.length);
+                    return updated;
+                  });
                   }
                 }
                 
@@ -1947,7 +1983,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   // Стриминг завершен
                   console.log('[STREAM] Стриминг завершен, финальный контент:', accumulatedContent.length, 'символов');
                   if (!generateImage) {
-                    setIsLoading(false);
+                  setIsLoading(false);
                   }
                   break;
                 }
@@ -2320,21 +2356,23 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       // Проверяем, не загружали ли мы уже этого персонажа
       if (lastLoadedCharacterRef.current !== characterIdentifier) {
         lastLoadedCharacterRef.current = characterIdentifier;
-        setCurrentCharacter(initialCharacter);
-        loadCharacterData(characterIdentifier);
-        // Загружаем историю всегда, даже если персонаж не изменился (на случай, если история обновилась)
-        loadChatHistory(characterIdentifier, initialCharacter); // Передаем initialCharacter для правильного identifier
-        fetchPaidAlbumStatus(characterIdentifier);
+      setCurrentCharacter(initialCharacter);
+      loadCharacterData(characterIdentifier);
+      // Загружаем историю всегда, даже если персонаж не изменился (на случай, если история обновилась)
+      loadChatHistory(characterIdentifier, initialCharacter); // Передаем initialCharacter для правильного identifier
+      fetchPaidAlbumStatus(characterIdentifier);
       } else {
         console.log('[CHARACTER UPDATE] Character already loaded, skipping reload:', characterIdentifier);
       }
     }
-  }, [initialCharacter?.name, initialCharacter?.raw?.name]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialCharacter?.name, initialCharacter?.raw?.name]); // loadCharacterData, loadChatHistory, fetchPaidAlbumStatus не должны быть в зависимостях
 
   // Загружаем персонажа из URL, если initialCharacter не передан
   useEffect(() => {
     console.log('[URL LOAD] useEffect triggered, initialCharacter:', initialCharacter ? { name: initialCharacter.name, id: initialCharacter.id } : null, 'currentCharacter:', currentCharacter ? { name: currentCharacter.name, id: currentCharacter.id } : null, 'isLoadingFromUrl:', isLoadingFromUrlRef.current);
     // Если initialCharacter не передан и currentCharacter тоже null, пытаемся загрузить из URL
+    // Также проверяем, что мы еще не загружали из URL
     if (!initialCharacter && !currentCharacter && !isLoadingFromUrlRef.current) {
       const urlParams = new URLSearchParams(window.location.search);
       const characterId = urlParams.get('character');
@@ -2470,7 +2508,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialCharacter]); // Выполняем при изменении initialCharacter
+  }, [initialCharacter?.name, initialCharacter?.id]); // Загружаем из URL только если initialCharacter изменился или отсутствует
 
   const handleAuthSuccess = async (accessToken: string, refreshToken?: string) => {
     // Сохраняем токены
@@ -2876,10 +2914,13 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   }, [paidAlbumStatus?.unlocked, paidAlbumStatus?.is_owner, normalizedSubscriptionType]);
   const canExpandAlbum = Boolean(paidAlbumStatus?.is_owner && canCreatePaidAlbum);
 
-  // Если персонаж не загружен или идет загрузка, показываем спиннер или сообщение об ошибке
-  if (isLoading || !currentCharacter) {
+  // КРИТИЧЕСКИ ВАЖНО: Guard clauses для предотвращения белого экрана
+  // Показываем спиннер только если персонаж еще не загружен И идет загрузка
+  // Если персонаж уже есть, показываем интерфейс даже при isLoading (например, при генерации изображения)
+  // Если персонаж не найден (есть ошибка), показываем сообщение об ошибке
+  if (!currentCharacter) {
     // Если есть ошибка (например, персонаж не найден), показываем сообщение с кнопкой "Назад"
-    if (error && (error.includes('не найден') || error.includes('удален'))) {
+    if (error && (error.includes('не найден') || error.includes('удален') || error.includes('не найден'))) {
       return (
         <div style={{ 
           display: 'flex', 
@@ -2914,25 +2955,78 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       );
     }
     
-    // Иначе показываем спиннер загрузки
-    return (
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        height: '100vh',
-        width: '100vw',
-        background: 'rgba(20, 20, 20, 1)'
-      }}>
-        <LoadingSpinner size="lg" text="Загрузка персонажа..." />
-      </div>
-    );
+    // Иначе показываем спиннер загрузки (только если нет ошибки)
+    if (!error) {
+      return (
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          height: '100vh',
+          width: '100vw',
+          background: 'rgba(20, 20, 20, 1)'
+        }}>
+          <LoadingSpinner size="lg" text="Загрузка персонажа..." />
+        </div>
+      );
+    }
+    
+    // Если есть ошибка, но персонаж не загружен, показываем ошибку
+    if (error) {
+      return (
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: 'column',
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          height: '100vh',
+          width: '100vw',
+          background: 'rgba(20, 20, 20, 1)',
+          padding: '2rem',
+          gap: '1.5rem'
+        }}>
+          <ErrorMessage message={error} onClose={() => setError(null)} />
+          {onBackToMain && (
+            <button
+              onClick={onBackToMain}
+              style={{
+                padding: '0.75rem 1.5rem',
+                background: 'rgba(80, 80, 80, 0.5)',
+                border: '1px solid rgba(150, 150, 150, 0.3)',
+                borderRadius: '0.5rem',
+                color: '#fff',
+                fontSize: '1rem',
+                cursor: 'pointer',
+                fontWeight: 600
+              }}
+            >
+              Вернуться на главную
+            </button>
+          )}
+        </div>
+      );
+    }
   }
 
   // Дедупликация сообщений перед рендером - используем useMemo для оптимизации
+  // Улучшенная дедупликация: для изображений используем content+imageUrl, для текста - id
   const uniqueMessages = useMemo(() => {
     try {
-      return deduplicateMessages(messages);
+      const seen = new Set<string>();
+      return messages.filter(m => {
+        // Для сообщений с изображением используем content + imageUrl для обнаружения дубликатов
+        // Для текстовых сообщений используем id
+        const key = m.imageUrl && m.imageUrl.trim() !== '' 
+          ? `${m.content || ''}_${m.imageUrl.split('?')[0].split('#')[0]}` 
+          : m.id;
+        
+        if (seen.has(key)) {
+          console.log(`[DEDUP] Дубликат пропущен: ${key.substring(0, 50)}...`);
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
     } catch (error) {
       console.error('[CHAT] Ошибка дедупликации сообщений:', error);
       // В случае ошибки возвращаем оригинальный массив, но фильтруем дубликаты по ID
