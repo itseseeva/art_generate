@@ -556,7 +556,7 @@ const MessageComponent: React.FC<MessageProps> = ({
               e.currentTarget.style.display = 'none';
             }}
           />
-          {message.generationTime !== undefined && (
+          {message.generationTime !== undefined && message.generationTime !== null && message.generationTime > 0 && (
             <div style={{
               position: 'absolute',
               bottom: '8px',

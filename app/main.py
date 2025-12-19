@@ -1284,8 +1284,8 @@ async def _write_chat_history(
                         assistant_message_content = f"[image:{image_url}]"
                     elif image_filename and not assistant_message_content:
                         assistant_message_content = f"[image:{image_filename}]"
-                    
-                    # Используем raw SQL для вставки без generation_time
+                
+                    # Сохраняем сообщение пользователя (без generation_time)
                     await db.execute(
                         text("""
                             INSERT INTO chat_history (user_id, character_name, session_id, message_type, message_content, image_url, image_filename, created_at)
@@ -1301,29 +1301,53 @@ async def _write_chat_history(
                             "image_filename": image_filename
                         }
                     )
-                    await db.execute(
-                        text("""
-                            INSERT INTO chat_history (user_id, character_name, session_id, message_type, message_content, image_url, image_filename, created_at)
-                            VALUES (:user_id, :character_name, :session_id, :message_type, :message_content, :image_url, :image_filename, NOW())
-                        """),
-                        {
-                            "user_id": user_id_int,
-                            "character_name": character_name,
-                            "session_id": str(chat_session.id),
-                            "message_type": "assistant",
-                            "message_content": assistant_message_content,
-                            "image_url": image_url,
-                            "image_filename": image_filename
-                        }
-                    )
+                    # Сохраняем сообщение ассистента с generation_time (если есть)
+                    # Пытаемся добавить generation_time, если оно передано
+                    if generation_time is not None and generation_time > 0:
+                        # Вставляем с generation_time
+                        await db.execute(
+                            text("""
+                                INSERT INTO chat_history (user_id, character_name, session_id, message_type, message_content, image_url, image_filename, generation_time, created_at)
+                                VALUES (:user_id, :character_name, :session_id, :message_type, :message_content, :image_url, :image_filename, :generation_time, NOW())
+                            """),
+                            {
+                                "user_id": user_id_int,
+                                "character_name": character_name,
+                                "session_id": str(chat_session.id),
+                                "message_type": "assistant",
+                                "message_content": assistant_message_content,
+                                "image_url": image_url,
+                                "image_filename": image_filename,
+                                "generation_time": int(round(generation_time))
+                            }
+                        )
+                    else:
+                        # Вставляем без generation_time
+                        await db.execute(
+                            text("""
+                                INSERT INTO chat_history (user_id, character_name, session_id, message_type, message_content, image_url, image_filename, created_at)
+                                VALUES (:user_id, :character_name, :session_id, :message_type, :message_content, :image_url, :image_filename, NOW())
+                            """),
+                            {
+                                "user_id": user_id_int,
+                                "character_name": character_name,
+                                "session_id": str(chat_session.id),
+                                "message_type": "assistant",
+                                "message_content": assistant_message_content,
+                                "image_url": image_url,
+                                "image_filename": image_filename
+                            }
+                        )
+
                     await db.commit()
-                    
+
                     logger.info(
-                        "[HISTORY] Сообщения сохранены в ChatHistory (user_id=%s, character=%s, session_id=%s, has_image=%s)",
+                        "[HISTORY] Сообщения сохранены в ChatHistory (user_id=%s, character=%s, session_id=%s, has_image=%s, generation_time=%s)",
                         user_id_int,
                         character_name,
                         str(chat_session.id),
-                        bool(image_url or image_filename)
+                        bool(image_url or image_filename),
+                        generation_time
                     )
                     
                     # Инвалидируем кэш списка персонажей, чтобы новый персонаж появился на странице /history
@@ -2932,7 +2956,7 @@ async def generate_image(
                         lora_scale=default_params.get("lora_scale", 0.5),  # Dramatic Lighting LoRA
                         model=selected_model
                     )
-
+                    
                     logger.info(f"[GENERATE] ✅ Задача запущена на RunPod, job_id: {job_id}, модель: {selected_model}")
                     # Seed уже залогирован в start_generation с сообщением "Generating random seed: {seed}"
                     
@@ -3399,7 +3423,7 @@ async def get_generation_status(
                             logger.warning(f"[RUNPOD STATUS] Найдена pending запись, но runpod_url_base не сохранен в БД")
                 except Exception as db_error:
                     logger.warning(f"[RUNPOD STATUS] Ошибка поиска в БД: {db_error}")
-
+            
             async with httpx.AsyncClient() as client:
                 try:
                     status_response = await check_status(client, task_id, runpod_url_base)
@@ -3586,6 +3610,44 @@ async def get_generation_status(
                                             logger.info(f"[IMAGE_HISTORY] ✓ История сохранена для task_id={task_id}")
                                         else:
                                             logger.warning(f"[IMAGE_HISTORY] Не удалось сохранить историю для task_id={task_id}")
+                                    
+                                    # КРИТИЧЕСКИ ВАЖНО: Также сохраняем в ChatHistory с generation_time
+                                    # Это нужно, чтобы время генерации отображалось в чате после обновления страницы
+                                    try:
+                                        from app.chat_bot.models.models import CharacterDB
+                                        from sqlalchemy import select
+                                        async with async_session_maker() as chat_history_db:
+                                            # Получаем данные персонажа для сохранения в ChatHistory
+                                            char_result = await chat_history_db.execute(
+                                                select(CharacterDB).where(CharacterDB.name.ilike(character_name))
+                                            )
+                                            character = char_result.scalar_one_or_none()
+                                            
+                                            if character:
+                                                character_data = {
+                                                    "id": character.id,
+                                                    "name": character.name
+                                                }
+                                                
+                                                # Сохраняем в ChatHistory с generation_time
+                                                await process_chat_history_storage(
+                                                    subscription_type=None,  # Не важно для сохранения истории
+                                                    user_id=str(user_id),
+                                                    character_data=character_data,
+                                                    message="Генерация изображения",
+                                                    response="",  # Пустой ответ, так как это только фото
+                                                    image_url=image_url,
+                                                    image_filename=None,
+                                                    generation_time=generation_time
+                                                )
+                                                logger.info(f"[CHAT_HISTORY] ✓ История сохранена в ChatHistory с generation_time={generation_time} для task_id={task_id}")
+                                            else:
+                                                logger.warning(f"[CHAT_HISTORY] Персонаж {character_name} не найден, не сохраняем в ChatHistory")
+                                    except Exception as chat_history_error:
+                                        logger.error(f"[CHAT_HISTORY] Ошибка сохранения в ChatHistory: {chat_history_error}")
+                                        import traceback
+                                        logger.error(f"[CHAT_HISTORY] Трейсбек: {traceback.format_exc()}")
+                                        # Не прерываем выполнение, сохранение в ChatHistory - дополнительная функция
                                 else:
                                     logger.warning(f"[IMAGE_HISTORY] Недостаточно данных для сохранения: user_id={user_id}, character={character_name}, image_url={bool(image_url)}, task_id={task_id}")
                             except Exception as history_error:

@@ -962,22 +962,32 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         
         console.log('[LOAD_CHARACTER_DATA] Updating currentCharacter with id:', characterData.id, 'converted to:', characterId);
         
-        if (currentCharacter) {
-          const updatedCharacter = {
-            ...currentCharacter,
-            id: characterId || currentCharacter.id,
-            name: characterData.name || currentCharacter.name,
-            display_name: characterData.display_name || characterData.name || currentCharacter.display_name,
-            description: characterData.description || currentCharacter.description,
-            avatar: characterData.avatar || currentCharacter.avatar,
-            user_id: characterData.user_id || (currentCharacter as any).user_id,
-            character_appearance: characterData.character_appearance || '',
-            location: characterData.location || '',
-            raw: characterData // Сохраняем raw данные для правильной работы с именем
-          };
-          console.log('[LOAD_CHARACTER_DATA] Setting currentCharacter with id:', updatedCharacter.id, 'name:', updatedCharacter.name, 'raw.name:', updatedCharacter.raw?.name);
-          setCurrentCharacter(updatedCharacter);
-        }
+        // Создаем или обновляем объект персонажа
+        const updatedCharacter = currentCharacter ? {
+          ...currentCharacter,
+          id: characterId || currentCharacter.id,
+          name: characterData.name || currentCharacter.name,
+          display_name: characterData.display_name || characterData.name || currentCharacter.display_name,
+          description: characterData.description || currentCharacter.description,
+          avatar: characterData.avatar || currentCharacter.avatar,
+          user_id: characterData.user_id || (currentCharacter as any).user_id,
+          character_appearance: characterData.character_appearance || '',
+          location: characterData.location || '',
+          raw: characterData // Сохраняем raw данные для правильной работы с именем
+        } : {
+          id: characterId || characterData.id?.toString() || '',
+          name: characterData.name || '',
+          display_name: characterData.display_name || characterData.name || '',
+          description: characterData.description || '',
+          avatar: characterData.avatar || '',
+          user_id: characterData.user_id,
+          character_appearance: characterData.character_appearance || '',
+          location: characterData.location || '',
+          raw: characterData // Сохраняем raw данные для правильной работы с именем
+        };
+        
+        console.log('[LOAD_CHARACTER_DATA] Setting currentCharacter with id:', updatedCharacter.id, 'name:', updatedCharacter.name, 'raw.name:', updatedCharacter.raw?.name);
+        setCurrentCharacter(updatedCharacter);
         
         // Загружаем состояние избранного сразу после получения id
         if (characterData.id && isAuthenticated) {
@@ -1722,10 +1732,13 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       console.log('[CHAT HISTORY] Fetching history for:', { 
         characterName, 
         identifier,
+        loadIdentifier,
         currentCharacterName: currentCharacter?.name,
+        currentCharacterRawName: currentCharacter?.raw?.name,
         expectedCharacterName: expectedCharacter?.name,
+        expectedCharacterRawName: expectedCharacter?.raw?.name,
         currentCharacterId: currentCharacter?.id,
-        rawName: expectedCharacter?.raw?.name || currentCharacter?.raw?.name,
+        expectedCharacterId: expectedCharacter?.id,
         displayName: expectedCharacter?.display_name || currentCharacter?.display_name
       });
       
@@ -1838,22 +1851,29 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           // Устанавливаем messages синхронно, чтобы избежать race condition
           // Проверяем, что мы все еще загружаем историю для того же персонажа (защита от race condition)
           // Используем loadIdentifier, сохраненный в начале функции
-          // Если isLoadingHistoryRef.current стал null или другим идентификатором, все равно устанавливаем,
-          // но только если текущий персонаж соответствует loadIdentifier
+          // Учитываем как currentCharacter, так и expectedCharacter (который может быть передан при загрузке)
+          const currentIdentifier = currentCharacter?.raw?.name || currentCharacter?.name;
+          const expectedIdentifier = expectedCharacter?.raw?.name || expectedCharacter?.name;
+          const matchesCurrent = currentIdentifier === loadIdentifier;
+          const matchesExpected = expectedIdentifier === loadIdentifier;
+          
           const shouldSetMessages = isLoadingHistoryRef.current === loadIdentifier || 
-                                    (isLoadingHistoryRef.current === null && currentCharacter && 
-                                     (currentCharacter.raw?.name || currentCharacter.name) === loadIdentifier);
+                                    (isLoadingHistoryRef.current === null && (matchesCurrent || matchesExpected));
           
           if (shouldSetMessages) {
             setMessages(finalMessages);
             console.log(`[CHAT HISTORY] ✓ Loaded and set ${finalMessages.length} unique messages from history (was ${formattedMessages.length} before deduplication by URL and ID)`);
           } else {
-            console.warn(`[CHAT HISTORY] Пропускаем установку messages - персонаж изменился во время загрузки. Текущий: ${isLoadingHistoryRef.current}, ожидался: ${loadIdentifier}`);
+            console.warn(`[CHAT HISTORY] Пропускаем установку messages - персонаж изменился во время загрузки. Текущий: ${isLoadingHistoryRef.current}, ожидался: ${loadIdentifier}, currentIdentifier: ${currentIdentifier}, expectedIdentifier: ${expectedIdentifier}`);
           }
         } else {
+          const currentIdentifier = currentCharacter?.raw?.name || currentCharacter?.name;
+          const expectedIdentifier = expectedCharacter?.raw?.name || expectedCharacter?.name;
+          const matchesCurrent = currentIdentifier === loadIdentifier;
+          const matchesExpected = expectedIdentifier === loadIdentifier;
+          
           const shouldSetMessages = isLoadingHistoryRef.current === loadIdentifier || 
-                                    (isLoadingHistoryRef.current === null && currentCharacter && 
-                                     (currentCharacter.raw?.name || currentCharacter.name) === loadIdentifier);
+                                    (isLoadingHistoryRef.current === null && (matchesCurrent || matchesExpected));
           if (shouldSetMessages) {
             console.log('[CHAT HISTORY] No chat history found - setting empty messages array');
             setMessages([]);
@@ -1861,18 +1881,26 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         }
       } else {
         console.error('[CHAT HISTORY] Failed to load chat history:', response.status, 'for identifier:', loadIdentifier);
+        const currentIdentifier = currentCharacter?.raw?.name || currentCharacter?.name;
+        const expectedIdentifier = expectedCharacter?.raw?.name || expectedCharacter?.name;
+        const matchesCurrent = currentIdentifier === loadIdentifier;
+        const matchesExpected = expectedIdentifier === loadIdentifier;
+        
         const shouldSetMessages = isLoadingHistoryRef.current === loadIdentifier || 
-                                  (isLoadingHistoryRef.current === null && currentCharacter && 
-                                   (currentCharacter.raw?.name || currentCharacter.name) === loadIdentifier);
+                                  (isLoadingHistoryRef.current === null && (matchesCurrent || matchesExpected));
         if (shouldSetMessages) {
           setMessages([]);
         }
       }
     } catch (error) {
       console.error('[CHAT HISTORY] Error loading chat history:', error, 'for identifier:', loadIdentifier);
+      const currentIdentifier = currentCharacter?.raw?.name || currentCharacter?.name;
+      const expectedIdentifier = expectedCharacter?.raw?.name || expectedCharacter?.name;
+      const matchesCurrent = currentIdentifier === loadIdentifier;
+      const matchesExpected = expectedIdentifier === loadIdentifier;
+      
       const shouldSetMessages = isLoadingHistoryRef.current === loadIdentifier || 
-                                (isLoadingHistoryRef.current === null && currentCharacter && 
-                                 (currentCharacter.raw?.name || currentCharacter.name) === loadIdentifier);
+                                (isLoadingHistoryRef.current === null && (matchesCurrent || matchesExpected));
       if (shouldSetMessages) {
         setMessages([]);
       }
@@ -1943,6 +1971,86 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       fetchPaidAlbumStatus(characterIdentifier);
     }
   }, [initialCharacter?.name, initialCharacter?.raw?.name]);
+
+  // Загружаем персонажа из URL, если initialCharacter не передан
+  useEffect(() => {
+    // Если initialCharacter не передан и currentCharacter тоже null, пытаемся загрузить из URL
+    if (!initialCharacter && !currentCharacter) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const characterId = urlParams.get('character');
+      
+      if (characterId) {
+        console.log('[CHAT] Загрузка персонажа из URL параметра:', characterId);
+        
+        // Функция для загрузки персонажа по ID
+        const loadCharacterFromUrl = async () => {
+          try {
+            // Сначала проверяем localStorage
+            const savedCharacter = localStorage.getItem(`character_${characterId}`);
+            if (savedCharacter) {
+              const character = JSON.parse(savedCharacter);
+              console.log('[CHAT] Персонаж найден в localStorage:', character);
+              setCurrentCharacter(character);
+              
+              // Используем raw.name (реальное имя из БД) для загрузки истории
+              // Если raw.name нет, используем name, но лучше загрузить полные данные через loadCharacterData
+              const characterIdentifier = character.raw?.name || character.name;
+              console.log('[CHAT] Используем identifier для истории из localStorage:', characterIdentifier);
+              
+              if (characterIdentifier) {
+                // loadCharacterData обновит данные персонажа, включая raw
+                loadCharacterData(characterIdentifier);
+                // Передаем character для правильного определения identifier в loadChatHistory
+                loadChatHistory(characterIdentifier, character);
+                fetchPaidAlbumStatus(characterIdentifier);
+              } else {
+                console.warn('[CHAT] Не удалось определить identifier для персонажа из localStorage');
+              }
+              return;
+            }
+
+            // Если не найден в localStorage, загружаем из API с полными данными
+            const response = await fetch(`http://localhost:8000/api/v1/characters/${encodeURIComponent(characterId)}/with-creator`);
+            if (response.ok) {
+              const characterData = await response.json();
+              console.log('[CHAT] Персонаж загружен из API:', characterData);
+              
+              // Создаем объект персонажа с правильной структурой
+              const character = {
+                id: characterData.id?.toString() || characterId,
+                name: characterData.name || '',
+                display_name: characterData.display_name || characterData.name || '',
+                description: characterData.description || '',
+                avatar: characterData.avatar || '',
+                raw: characterData // Сохраняем raw данные для правильной работы с именем
+              };
+              
+              setCurrentCharacter(character);
+              
+              // Используем raw.name (реальное имя из БД) для загрузки истории
+              const characterIdentifier = characterData.name || characterId;
+              console.log('[CHAT] Используем identifier для истории:', characterIdentifier);
+              
+              if (characterIdentifier) {
+                // loadCharacterData обновит данные персонажа, включая raw
+                loadCharacterData(characterIdentifier);
+                // Передаем character с raw данными для правильного определения identifier в loadChatHistory
+                loadChatHistory(characterIdentifier, character);
+                fetchPaidAlbumStatus(characterIdentifier);
+              }
+            } else {
+              console.error('[CHAT] Не удалось загрузить персонажа из API:', response.status);
+            }
+          } catch (error) {
+            console.error('[CHAT] Ошибка загрузки персонажа из URL:', error);
+          }
+        };
+
+        loadCharacterFromUrl();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Выполняем только при монтировании компонента
 
   const handleAuthSuccess = async (accessToken: string, refreshToken?: string) => {
     // Сохраняем токены

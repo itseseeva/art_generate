@@ -247,11 +247,11 @@ async def charge_for_photo_generation(user_id: int, db: AsyncSession) -> None:
                     status_code=403,
                     detail="Не удалось списать лимит генераций подписки. Попробуйте позже."
                 )
-        else:
-            logger.info(
-                "У пользователя %s закончился лимит генераций подписки, продолжаем за счет монет",
-                user_id,
-            )
+    else:
+        logger.info(
+            "У пользователя %s закончился лимит генераций подписки, продолжаем за счет монет",
+            user_id,
+        )
 
     await db.flush()
 
@@ -666,35 +666,75 @@ async def get_character_chat_history(
         # Если нет ChatSession, проверяем ChatHistory (для фото из генерации)
         if not chat_session:
             if current_user:
+                # Сохраняем user_id ДО выполнения запросов, чтобы избежать lazy loading после ошибок
+                user_id_for_history = current_user.id
                 from app.models.chat_history import ChatHistory
                 try:
-                    # Ищем сообщения в ChatHistory используя raw SQL, так как поле generation_time может отсутствовать в БД
+                    # Ищем сообщения в ChatHistory используя raw SQL, включая generation_time
                     from sqlalchemy import text
-                    result = await db.execute(
-                        text("""
-                            SELECT id, user_id, character_name, session_id, message_type, 
-                                   message_content, image_url, image_filename, created_at
-                            FROM chat_history
-                            WHERE user_id = :user_id 
-                              AND character_name ILIKE :character_name
-                            ORDER BY created_at ASC
-                            LIMIT 100
-                        """),
-                        {"user_id": current_user.id, "character_name": character_name}  # Используем character_name из URL
-                    )
-                    rows = result.fetchall()
-                    # Преобразуем в объекты для совместимости
-                    class HistoryRow:
-                        def __init__(self, row):
-                            self.id = row[0]
-                            self.message_type = row[4]
-                            self.message_content = row[5]
-                            self.image_url = row[6]
-                            self.created_at = row[8]
-                            self.generation_time = None
-                    history_list = [HistoryRow(row) for row in rows]
+                    # Пытаемся выбрать с generation_time, если поле существует
+                    history_list = []  # Инициализируем пустым списком
+                    try:
+                        result = await db.execute(
+                            text("""
+                                SELECT id, user_id, character_name, session_id, message_type, 
+                                       message_content, image_url, image_filename, generation_time, created_at
+                                FROM chat_history
+                                WHERE user_id = :user_id 
+                                  AND character_name ILIKE :character_name
+                                ORDER BY created_at ASC
+                                LIMIT 100
+                            """),
+                            {"user_id": user_id_for_history, "character_name": character_name}  # Используем сохраненный user_id
+                        )
+                        rows = result.fetchall()
+                        # Преобразуем в объекты для совместимости
+                        class HistoryRow:
+                            def __init__(self, row):
+                                self.id = row[0]
+                                self.message_type = row[4]
+                                self.message_content = row[5]
+                                self.image_url = row[6]
+                                self.created_at = row[9]  # created_at теперь на позиции 9
+                                # generation_time находится в индексе 8, конвертируем в число (float) если не None
+                                self.generation_time = float(row[8]) if row[8] is not None else None
+                        history_list = [HistoryRow(row) for row in rows]
+                    except Exception as gen_time_select_error:
+                        # Если поле generation_time отсутствует или произошла другая ошибка, выбираем без него
+                        logger.warning(f"[HISTORY] Ошибка при выборке с generation_time, выбираем без него: {gen_time_select_error}")
+                        try:
+                            await db.rollback()  # Откатываем транзакцию после ошибки
+                        except Exception:
+                            pass  # Игнорируем ошибки rollback
+                        try:
+                            result = await db.execute(
+                                text("""
+                                    SELECT id, user_id, character_name, session_id, message_type, 
+                                           message_content, image_url, image_filename, created_at
+                                    FROM chat_history
+                                    WHERE user_id = :user_id 
+                                      AND character_name ILIKE :character_name
+                                    ORDER BY created_at ASC
+                                    LIMIT 100
+                                """),
+                                {"user_id": user_id_for_history, "character_name": character_name}
+                            )
+                            rows = result.fetchall()
+                            # Преобразуем в объекты для совместимости
+                            class HistoryRow:
+                                def __init__(self, row):
+                                    self.id = row[0]
+                                    self.message_type = row[4]
+                                    self.message_content = row[5]
+                                    self.image_url = row[6]
+                                    self.created_at = row[8]
+                                    self.generation_time = None
+                            history_list = [HistoryRow(row) for row in rows]
+                        except Exception as fallback_error:
+                            logger.error(f"[HISTORY] Ошибка при fallback выборке без generation_time: {fallback_error}", exc_info=True)
+                            history_list = []  # Устанавливаем пустой список при ошибке
                     
-                    if history_list:
+                    if history_list and len(history_list) > 0:
                         # Форматируем сообщения из ChatHistory (уже в правильном порядке, не reversed)
                         formatted_messages = []
                         for msg in history_list:
@@ -704,20 +744,38 @@ async def get_character_chat_history(
                                 "content": msg.message_content or "",
                                 "timestamp": msg.created_at.isoformat(),
                                 "image_url": msg.image_url,
-                                "generation_time": getattr(msg, 'generation_time', None)  # Безопасно получаем generation_time
+                                "generation_time": getattr(msg, 'generation_time', None) if hasattr(msg, 'generation_time') else None  # Безопасно получаем generation_time
                             })
                         
-                        logger.info(f"Found {len(formatted_messages)} messages in ChatHistory for user {current_user.id}, character {character_name}")
+                        logger.info(f"Found {len(formatted_messages)} messages in ChatHistory for user {user_id_for_history}, character {character_name}")
                         return {
                             "messages": formatted_messages,
                             "session_id": None,
                             "character_name": character_name,  # Используем character_name из URL, так как character может быть None
                             "user_type": "authenticated"
                         }
+                    else:
+                        # Если history_list пустой, возвращаем пустой список сообщений
+                        logger.info(f"No messages found in ChatHistory for user {user_id_for_history}, character {character_name}")
+                        return {
+                            "messages": [],
+                            "session_id": None,
+                            "character_name": character_name,
+                            "user_type": "authenticated"
+                        }
                 except Exception as e:
                     logger.error(f"Error querying ChatHistory with raw SQL for character {character_name}: {e}", exc_info=True)
-                    await db.rollback()  # Откатываем транзакцию на случай ошибки
-                    # Продолжаем и возвращаем пустой список
+                    try:
+                        await db.rollback()  # Откатываем транзакцию на случай ошибки
+                    except Exception:
+                        pass  # Игнорируем ошибки rollback
+                    # Возвращаем пустой список при ошибке
+                    return {
+                        "messages": [],
+                        "session_id": None,
+                        "character_name": character_name,
+                        "user_type": "authenticated"
+                    }
             
             # Если персонаж не найден и нет истории, возвращаем пустой список
             return {
@@ -737,6 +795,11 @@ async def get_character_chat_history(
                 "user_type": "authenticated" if current_user else "guest"
             }
         
+        # Сохраняем все необходимые значения ДО выполнения запросов, чтобы избежать lazy loading после ошибок
+        session_id_str = str(chat_session.id)
+        user_id_value = current_user.id if current_user else None
+        character_name_final = character.name if character else character_name
+        
         messages = await db.execute(
             select(ChatMessageDB).where(ChatMessageDB.session_id == chat_session.id)
             .order_by(ChatMessageDB.timestamp.desc())
@@ -744,41 +807,91 @@ async def get_character_chat_history(
         )
         messages = messages.scalars().all()
         
+        # Загружаем все атрибуты сообщений заранее, чтобы избежать lazy loading
+        # Преобразуем в список и получаем все необходимые данные
+        messages_data = []
+        for msg in messages:
+            messages_data.append({
+                "id": msg.id,
+                "content": msg.content or "",  # Загружаем content сразу
+                "role": msg.role,
+                "timestamp": msg.timestamp
+            })
+        
         # Также получаем ChatHistory для этого session_id чтобы найти image_url для сообщений
         chat_history_dict = {}
         if current_user:
             from app.models.chat_history import ChatHistory
-            # Используем raw SQL сразу, так как поле generation_time может отсутствовать в БД
+            # Используем raw SQL с включением generation_time из БД
             from sqlalchemy import text
             try:
-                result = await db.execute(
-                    text("""
-                        SELECT id, user_id, character_name, session_id, message_type, 
-                               message_content, image_url, image_filename, created_at
-                        FROM chat_history
-                        WHERE user_id = :user_id 
-                          AND character_name ILIKE :character_name 
-                          AND session_id = :session_id
-                        ORDER BY created_at DESC
-                    """),
-                    {"user_id": current_user.id, "character_name": character_name, "session_id": str(chat_session.id)}  # Используем character_name из URL
-                )
-                history_list_rows = result.fetchall()
-                # Преобразуем результат в объекты для совместимости с кодом ниже
-                class HistoryRow:
-                    def __init__(self, row):
-                        self.id = row[0]
-                        self.user_id = row[1]
-                        self.character_name = row[2]
-                        self.session_id = row[3]
-                        self.message_type = row[4]
-                        self.message_content = row[5]
-                        self.image_url = row[6]
-                        self.image_filename = row[7]
-                        self.created_at = row[8]
-                        self.generation_time = None  # Поле отсутствует в БД
+                # Пытаемся выбрать с generation_time, если поле существует
+                try:
+                    result = await db.execute(
+                        text("""
+                            SELECT id, user_id, character_name, session_id, message_type, 
+                                   message_content, image_url, image_filename, created_at, generation_time
+                            FROM chat_history
+                            WHERE user_id = :user_id 
+                              AND character_name ILIKE :character_name 
+                              AND session_id = :session_id
+                            ORDER BY created_at DESC
+                        """),
+                        {"user_id": user_id_value, "character_name": character_name, "session_id": session_id_str}  # Используем сохраненные значения
+                    )
+                    history_list_rows = result.fetchall()
+                    # Преобразуем результат в объекты для совместимости с кодом ниже
+                    class HistoryRow:
+                        def __init__(self, row):
+                            self.id = row[0]
+                            self.user_id = row[1]
+                            self.character_name = row[2]
+                            self.session_id = row[3]
+                            self.message_type = row[4]
+                            self.message_content = row[5]
+                            self.image_url = row[6]
+                            self.image_filename = row[7]
+                            self.created_at = row[8]
+                            # generation_time находится в индексе 9, конвертируем в float если не None
+                            self.generation_time = float(row[9]) if row[9] is not None else None
+                    
+                    history_list = [HistoryRow(row) for row in history_list_rows]
+                except Exception as gen_time_error:
+                    # Если поле generation_time отсутствует, выбираем без него
+                    logger.warning(f"[HISTORY] Поле generation_time отсутствует в БД при выборке с session_id, выбираем без него: {gen_time_error}")
+                    try:
+                        await db.rollback()  # Откатываем транзакцию после ошибки
+                    except Exception:
+                        pass  # Игнорируем ошибки rollback
+                    result = await db.execute(
+                        text("""
+                            SELECT id, user_id, character_name, session_id, message_type, 
+                                   message_content, image_url, image_filename, created_at
+                            FROM chat_history
+                            WHERE user_id = :user_id 
+                              AND character_name ILIKE :character_name 
+                              AND session_id = :session_id
+                            ORDER BY created_at DESC
+                        """),
+                        {"user_id": user_id_value, "character_name": character_name, "session_id": session_id_str}
+                    )
+                    history_list_rows = result.fetchall()
+                    # Преобразуем результат в объекты для совместимости с кодом ниже
+                    class HistoryRow:
+                        def __init__(self, row):
+                            self.id = row[0]
+                            self.user_id = row[1]
+                            self.character_name = row[2]
+                            self.session_id = row[3]
+                            self.message_type = row[4]
+                            self.message_content = row[5]
+                            self.image_url = row[6]
+                            self.image_filename = row[7]
+                            self.created_at = row[8]
+                            self.generation_time = None
+                    
+                    history_list = [HistoryRow(row) for row in history_list_rows]
                 
-                history_list = [HistoryRow(row) for row in history_list_rows]
                 # Создаем словарь по timestamp для быстрого поиска
                 for hist_msg in history_list:
                     # Используем timestamp как ключ (округленный до секунды для совпадения)
@@ -788,14 +901,17 @@ async def get_character_chat_history(
             except Exception as e:
                 # Если и raw SQL не работает, логируем ошибку и продолжаем без chat_history_dict
                 logger.error(f"Error querying ChatHistory with raw SQL: {e}", exc_info=True)
-                await db.rollback()  # Откатываем транзакцию на случай ошибки
+                try:
+                    await db.rollback()  # Откатываем транзакцию на случай ошибки
+                except Exception:
+                    pass  # Игнорируем ошибки rollback
         
         # Форматируем сообщения для фронтенда (в хронологическом порядке)
         import re
         formatted_messages = []
-        for msg in reversed(messages):  # Разворачиваем для правильного порядка
+        for msg_data in reversed(messages_data):  # Разворачиваем для правильного порядка
             # Извлекаем image_url из content если он там есть
-            content = msg.content or ""
+            content = msg_data["content"]
             image_url = None
             
             # Проверяем формат [image:url] в content
@@ -806,9 +922,9 @@ async def get_character_chat_history(
             
             # Если не нашли в content, ищем в ChatHistory по timestamp и role
             if not image_url and current_user and chat_history_dict:
-                msg_timestamp_key = msg.timestamp.replace(microsecond=0) if msg.timestamp else None
+                msg_timestamp_key = msg_data["timestamp"].replace(microsecond=0) if msg_data["timestamp"] else None
                 if msg_timestamp_key:
-                    role_key = "user" if msg.role == "user" else "assistant"
+                    role_key = "user" if msg_data["role"] == "user" else "assistant"
                     # Пробуем точное совпадение
                     hist_msg = chat_history_dict.get((msg_timestamp_key, role_key))
                     if not hist_msg:
@@ -825,9 +941,9 @@ async def get_character_chat_history(
             # Ищем generation_time в ChatHistory (может не существовать в БД)
             generation_time = None
             if image_url and current_user and chat_history_dict:
-                msg_timestamp_key = msg.timestamp.replace(microsecond=0) if msg.timestamp else None
+                msg_timestamp_key = msg_data["timestamp"].replace(microsecond=0) if msg_data["timestamp"] else None
                 if msg_timestamp_key:
-                    role_key = "user" if msg.role == "user" else "assistant"
+                    role_key = "user" if msg_data["role"] == "user" else "assistant"
                     hist_msg = chat_history_dict.get((msg_timestamp_key, role_key))
                     if not hist_msg:
                         # Пробуем найти ближайшее по времени (в пределах 2 секунд)
@@ -842,10 +958,10 @@ async def get_character_chat_history(
                         generation_time = getattr(hist_msg, 'generation_time', None)
             
             formatted_messages.append({
-                "id": msg.id,
-                "type": msg.role,  # 'user' или 'assistant'
+                "id": msg_data["id"],
+                "type": msg_data["role"],  # 'user' или 'assistant'
                 "content": content,
-                "timestamp": msg.timestamp.isoformat(),
+                "timestamp": msg_data["timestamp"].isoformat() if msg_data["timestamp"] else "",
                 "image_url": image_url,  # Добавляем image_url если найден
                 "generation_time": generation_time  # Добавляем generation_time если найден
             })
@@ -853,8 +969,8 @@ async def get_character_chat_history(
         user_type = "authenticated" if current_user else "guest"
         return {
             "messages": formatted_messages,
-            "session_id": chat_session.id,
-            "character_name": character.name if character else character_name,  # Используем character.name если найден, иначе character_name из URL
+            "session_id": session_id_str,  # Используем сохраненный session_id
+            "character_name": character_name_final,  # Используем сохраненное имя персонажа
             "user_type": user_type
         }
         
