@@ -924,7 +924,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     loadCharacterData(characterIdentifier);
     loadChatHistory(characterIdentifier, effectiveCharacter); // Загружаем историю чатов при инициализации
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [(currentCharacter?.raw?.name || currentCharacter?.name) ?? '', (initialCharacter?.raw?.name || initialCharacter?.name) ?? '']); // Используем только идентификаторы персонажей, чтобы избежать лишних перезагрузок
+  }, [
+    (currentCharacter?.raw?.name || currentCharacter?.name) ?? '', 
+    (initialCharacter?.raw?.name || initialCharacter?.name) ?? ''
+  ]); // Используем только идентификаторы персонажей, функции мемоизированы
 
   // Используем useRef для отслеживания последнего загруженного статуса альбома
   const lastPaidAlbumStatusRef = useRef<string | null>(null);
@@ -1049,7 +1052,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     }
   };
 
-  const loadModelInfo = async () => {
+  const loadModelInfo = useCallback(async () => {
     try {
       const response = await fetch('http://localhost:8000/api/v1/models/');
       if (response.ok) {
@@ -1060,12 +1063,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       console.error('Ошибка загрузки информации о моделях:', error);
       setModelInfo('Информация недоступна');
     }
-  };
+  }, []);
 
   // Используем useRef для отслеживания загрузки данных персонажа
   const isLoadingCharacterDataRef = useRef<string | null>(null);
 
-  const loadCharacterData = async (characterIdentifier: string) => {
+  const loadCharacterData = useCallback(async (characterIdentifier: string) => {
     try {
       // Проверяем, что identifier не пустой
       if (!characterIdentifier || characterIdentifier.trim() === '') {
@@ -1251,7 +1254,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       // Сбрасываем флаг загрузки при ошибке
       isLoadingCharacterDataRef.current = null;
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]); // currentCharacter не в зависимостях, чтобы избежать циклов
 
   const [isImagePromptModalOpen, setIsImagePromptModalOpen] = useState(false);
   const [isPhotoGenerationHelpModalOpen, setIsPhotoGenerationHelpModalOpen] = useState(false);
@@ -2105,7 +2109,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     }
   };
 
-  const loadChatHistory = async (characterName: string, expectedCharacter?: Character | null) => {
+  const loadChatHistory = useCallback(async (characterName: string, expectedCharacter?: Character | null) => {
     // Используем raw.name из expectedCharacter если передан, иначе из currentCharacter, иначе используем переданный name
     // Важно: identifier должен быть реальным именем из БД, не display_name
     let identifier = characterName; // По умолчанию используем переданный name
@@ -2280,105 +2284,52 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           const matchesExpected = expectedIdentifier === loadIdentifier;
           
           // КРИТИЧНО: Всегда устанавливаем сообщения, если мы их загрузили
-          // Упрощаем логику - не проверяем race conditions, просто устанавливаем
-          // Это важно, потому что isLoadingHistoryRef может стать null из-за race conditions
-          const isStillLoadingThisCharacter = isLoadingHistoryRef.current === loadIdentifier;
-          const identifiersMatch = matchesCurrent || matchesExpected;
-          const noCurrentCharacter = !currentCharacter;
+          // Упрощаем логику до максимума - устанавливаем сообщения ВСЕГДА, если они есть
+          // Это важно, чтобы сообщения отображались даже при race conditions
+          console.log(`[CHAT HISTORY] Preparing to set ${finalMessages.length} messages`, {
+            loadIdentifier,
+            currentIdentifier,
+            expectedIdentifier,
+            matchesCurrent,
+            matchesExpected,
+            hasCurrentCharacter: !!currentCharacter,
+            hasExpectedCharacter: !!expectedCharacter,
+            isLoadingHistoryRef: isLoadingHistoryRef.current
+          });
           
-          // Устанавливаем сообщения ВСЕГДА, если:
-          // 1. Мы все еще загружаем этого персонажа, ИЛИ
-          // 2. Идентификаторы совпадают, ИЛИ
-          // 3. Персонаж еще не загружен и есть expectedCharacter, ИЛИ
-          // 4. Есть сообщения (fallback - лучше показать что-то, чем ничего)
-          const shouldSetMessages = isStillLoadingThisCharacter || 
-                                    identifiersMatch || 
-                                    (noCurrentCharacter && !!expectedCharacter) ||
-                                    finalMessages.length > 0; // КРИТИЧНО: если есть сообщения, устанавливаем их
-          
-          if (shouldSetMessages) {
-            console.log(`[CHAT HISTORY] Setting ${finalMessages.length} messages (was ${formattedMessages.length} before deduplication)`, {
-              isStillLoadingThisCharacter,
-              identifiersMatch,
-              noCurrentCharacter,
-              hasExpectedCharacter: !!expectedCharacter,
-              hasMessages: finalMessages.length > 0,
-              loadIdentifier,
-              currentIdentifier,
-              expectedIdentifier,
-              isLoadingHistoryRef: isLoadingHistoryRef.current
-            });
-            setMessages(finalMessages);
-            isLoadingHistoryRef.current = null; // Сбрасываем только после успешной установки
-            console.log(`[CHAT HISTORY] ✓ Loaded and set ${finalMessages.length} unique messages from history`);
-          } else {
-            // Это не должно происходить, но на всякий случай
-            console.warn(`[CHAT HISTORY] Пропускаем установку messages - персонаж изменился во время загрузки`, {
-              isLoadingHistoryRef: isLoadingHistoryRef.current,
-              loadIdentifier,
-              currentIdentifier,
-              expectedIdentifier,
-              finalMessagesLength: finalMessages.length,
-              matchesCurrent,
-              matchesExpected,
-              hasCurrentCharacter: !!currentCharacter,
-              hasExpectedCharacter: !!expectedCharacter
-            });
-          }
+          // КРИТИЧНО: Всегда устанавливаем сообщения, если они загружены
+          // Не проверяем условия - просто устанавливаем
+          setMessages(finalMessages);
+          isLoadingHistoryRef.current = null;
+          console.log(`[CHAT HISTORY] ✓ Loaded and set ${finalMessages.length} unique messages from history`);
         } else {
           const currentIdentifier = currentCharacter?.raw?.name || currentCharacter?.name;
           const expectedIdentifier = expectedCharacter?.raw?.name || expectedCharacter?.name;
           const matchesCurrent = currentIdentifier === loadIdentifier;
           const matchesExpected = expectedIdentifier === loadIdentifier;
           
-          // Упрощаем: устанавливаем пустой массив, если идентификаторы совпадают или персонаж еще не загружен
-          const shouldSetMessages = isLoadingHistoryRef.current === loadIdentifier || 
-                                    matchesCurrent || 
-                                    matchesExpected || 
-                                    (!currentCharacter && !!expectedCharacter);
-          if (shouldSetMessages) {
-            console.log('[CHAT HISTORY] No chat history found - setting empty messages array');
-            setMessages([]);
-            isLoadingHistoryRef.current = null;
-          } else if (!currentCharacter && expectedCharacter) {
-            // Если персонаж еще не загружен, но есть expectedCharacter, устанавливаем пустой массив
-            console.log('[CHAT HISTORY] Setting empty messages - no currentCharacter but have expectedCharacter');
-            setMessages([]);
-            isLoadingHistoryRef.current = null;
-          }
+          // КРИТИЧНО: Всегда устанавливаем пустой массив, если истории нет
+          console.log('[CHAT HISTORY] No chat history found - setting empty messages array');
+          setMessages([]);
+          isLoadingHistoryRef.current = null;
         }
       } else {
         console.error('[CHAT HISTORY] Failed to load chat history:', response.status, 'for identifier:', loadIdentifier);
-        const currentIdentifier = currentCharacter?.raw?.name || currentCharacter?.name;
-        const expectedIdentifier = expectedCharacter?.raw?.name || expectedCharacter?.name;
-        const matchesCurrent = currentIdentifier === loadIdentifier;
-        const matchesExpected = expectedIdentifier === loadIdentifier;
-        
-        const shouldSetMessages = isLoadingHistoryRef.current === loadIdentifier || 
-                                  (isLoadingHistoryRef.current === null && (matchesCurrent || matchesExpected));
-        if (shouldSetMessages) {
-          setMessages([]);
-        }
+        // КРИТИЧНО: Всегда устанавливаем пустой массив при ошибке
+        setMessages([]);
       }
     } catch (error) {
       console.error('[CHAT HISTORY] Error loading chat history:', error, 'for identifier:', loadIdentifier);
-      const currentIdentifier = currentCharacter?.raw?.name || currentCharacter?.name;
-      const expectedIdentifier = expectedCharacter?.raw?.name || expectedCharacter?.name;
-      const matchesCurrent = currentIdentifier === loadIdentifier;
-      const matchesExpected = expectedIdentifier === loadIdentifier;
-      
-      const shouldSetMessages = isLoadingHistoryRef.current === loadIdentifier || 
-                                (isLoadingHistoryRef.current === null && (matchesCurrent || matchesExpected));
-      if (shouldSetMessages) {
-        setMessages([]);
-      }
+      // КРИТИЧНО: Всегда устанавливаем пустой массив при ошибке
+      setMessages([]);
     } finally {
       // Сбрасываем флаг загрузки только если это была загрузка для текущего идентификатора
       if (isLoadingHistoryRef.current === loadIdentifier) {
         isLoadingHistoryRef.current = null;
       }
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Функция не зависит от внешних переменных, использует только параметры
 
   const handleCharacterSelect = (character: Character) => {
     const characterIdentifier = character.raw?.name || character.name;
@@ -2448,17 +2399,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       // Проверяем, не загружали ли мы уже этого персонажа
       if (lastLoadedCharacterRef.current !== characterIdentifier) {
         lastLoadedCharacterRef.current = characterIdentifier;
-      setCurrentCharacter(initialCharacter);
-      loadCharacterData(characterIdentifier);
-      // Загружаем историю всегда, даже если персонаж не изменился (на случай, если история обновилась)
-      loadChatHistory(characterIdentifier, initialCharacter); // Передаем initialCharacter для правильного identifier
-      fetchPaidAlbumStatus(characterIdentifier);
+        setCurrentCharacter(initialCharacter);
+        loadCharacterData(characterIdentifier);
+        // Загружаем историю всегда, даже если персонаж не изменился (на случай, если история обновилась)
+        loadChatHistory(characterIdentifier, initialCharacter); // Передаем initialCharacter для правильного identifier
+        fetchPaidAlbumStatus(characterIdentifier);
       } else {
         console.log('[CHARACTER UPDATE] Character already loaded, skipping reload:', characterIdentifier);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialCharacterIdentifier]); // Используем только идентификатор, чтобы избежать лишних перезагрузок
+  }, [initialCharacterIdentifier]); // Используем только идентификатор, функции мемоизированы
 
   // Загружаем персонажа из URL, если initialCharacter не передан
   useEffect(() => {
@@ -2498,7 +2449,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                     loadCharacterData(characterIdentifier);
                     // Передаем character для правильного определения identifier в loadChatHistory
                     loadChatHistory(characterIdentifier, character);
-                    fetchPaidAlbumStatus(characterIdentifier);
+                    if (fetchPaidAlbumStatus) {
+                      fetchPaidAlbumStatus(characterIdentifier);
+                    }
                   } else {
                     console.log('[URL LOAD] Character already loaded from localStorage, skipping reload:', characterIdentifier);
                     setCurrentCharacter(character); // Устанавливаем персонажа, но не загружаем данные повторно
@@ -3019,98 +2972,73 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   // Это важно, чтобы сообщения отображались даже если персонаж еще загружается
   const hasMessages = messages.length > 0;
   
-  if (!effectiveCharacterForRender && !hasMessages) {
-    // Если есть ошибка (например, персонаж не найден), показываем сообщение с кнопкой "Назад"
-    if (error && (error.includes('не найден') || error.includes('удален') || error.includes('Не удалось загрузить данные персонажа'))) {
-      console.log('[CHAT RENDER] Showing error message:', error);
-      return (
-        <div style={{ 
-          display: 'flex', 
-          flexDirection: 'column',
-          alignItems: 'center', 
-          justifyContent: 'center', 
-          height: '100vh',
-          width: '100vw',
-          background: 'rgba(20, 20, 20, 1)',
-          padding: '2rem',
-          gap: '1.5rem'
-        }}>
-          <ErrorMessage message={error} onClose={() => setError(null)} />
-          {onBackToMain && (
-            <button
-              onClick={onBackToMain}
-              style={{
-                padding: '0.75rem 1.5rem',
-                background: 'rgba(80, 80, 80, 0.5)',
-                border: '1px solid rgba(150, 150, 150, 0.3)',
-                borderRadius: '0.5rem',
-                color: '#fff',
-                fontSize: '1rem',
-                cursor: 'pointer',
-                fontWeight: 600
-              }}
-            >
-              Вернуться на главную
-            </button>
-          )}
-        </div>
-      );
-    }
-    
-    // Иначе показываем спиннер загрузки (только если нет ошибки)
-    if (!error) {
-      console.log('[CHAT RENDER] Showing loading spinner - no character, no error');
-  return (
+  // Показываем спиннер ТОЛЬКО если нет персонажа, нет сообщений И нет ошибки
+  // Если есть хотя бы что-то одно (персонаж ИЛИ сообщения) - показываем интерфейс
+  const shouldShowLoading = !effectiveCharacterForRender && !hasMessages && !error;
+  
+  if (shouldShowLoading) {
+    console.log('[CHAT RENDER] Showing loading - no character, no messages, no error');
+    return (
       <div style={{ 
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'center', 
-        height: '100vh',
+        height: '100vh', 
         width: '100vw',
-        background: 'rgba(20, 20, 20, 1)'
+        color: '#fff', 
+        flexDirection: 'column', 
+        gap: '1rem',
+        backgroundColor: '#0a0a0a'
       }}>
-        <LoadingSpinner size="lg" text="Загрузка персонажа..." />
+        <LoadingSpinner size="lg" text={isLoading ? 'Загрузка данных персонажа...' : 'Инициализация чата...'} />
       </div>
     );
   }
-    
-    // Если есть ошибка, но персонаж не загружен, показываем ошибку
-    if (error) {
-      console.log('[CHAT RENDER] Showing error - no character, has error:', error);
-      return (
-        <div style={{ 
-          display: 'flex', 
-          flexDirection: 'column',
-          alignItems: 'center', 
-          justifyContent: 'center', 
-          height: '100vh',
-          width: '100vw',
-          background: 'rgba(20, 20, 20, 1)',
-          padding: '2rem',
-          gap: '1.5rem'
-        }}>
-          <ErrorMessage message={error} onClose={() => setError(null)} />
-          {onBackToMain && (
-            <button
-              onClick={onBackToMain}
-              style={{
-                padding: '0.75rem 1.5rem',
-                background: 'rgba(80, 80, 80, 0.5)',
-                border: '1px solid rgba(150, 150, 150, 0.3)',
-                borderRadius: '0.5rem',
-                color: '#fff',
-                fontSize: '1rem',
-                cursor: 'pointer',
-                fontWeight: 600
-              }}
-            >
-              Вернуться на главную
-            </button>
-          )}
-        </div>
-      );
-    }
+  
+  // Если есть ошибка и нет персонажа/сообщений - показываем ошибку
+  if (error && !effectiveCharacterForRender && !hasMessages) {
+    console.log('[CHAT RENDER] Showing error - has error, no character, no messages');
+    return (
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        height: '100vh', 
+        width: '100vw',
+        color: '#fff', 
+        flexDirection: 'column', 
+        gap: '1rem',
+        backgroundColor: '#0a0a0a'
+      }}>
+        <ErrorMessage message={error} onClose={() => setError(null)} />
+        {onBackToMain && (
+          <button 
+            onClick={() => onBackToMain()}
+            style={{ 
+              marginTop: '1rem', 
+              padding: '0.5rem 1rem', 
+              cursor: 'pointer',
+              background: 'rgba(100, 100, 100, 0.3)',
+              border: '1px solid rgba(150, 150, 150, 0.3)',
+              borderRadius: '0.5rem',
+              color: '#fff',
+              fontSize: '1rem',
+              fontWeight: 600
+            }}
+          >
+            Вернуться на главную
+          </button>
+        )}
+      </div>
+    );
   }
+  
+  // Если дошли сюда - значит есть персонаж ИЛИ сообщения - показываем интерфейс
+  console.log('[CHAT RENDER] Rendering chat interface - has character or messages', {
+    hasCharacter: !!effectiveCharacterForRender,
+    hasMessages,
+    characterName: effectiveCharacterForRender?.name
+  });
   
   // Используем effectiveCharacterForRender для рендера
   const characterForRender = currentCharacter || initialCharacter;
@@ -3534,26 +3462,27 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                     }
                   }}
                 />
-                {/* Индикатор очереди генераций */}
-                <GenerationQueueIndicator>
-                  <QueueTitle>Очередь генераций</QueueTitle>
-                  <QueueItem>
-                    <span>Активных:</span>
-                    <QueueValue>{activeGenerations.size}</QueueValue>
-                  </QueueItem>
-                  <QueueItem>
-                    <span>Лимит:</span>
-                    <QueueValue $isLimit>{getGenerationQueueLimit}</QueueValue>
-                  </QueueItem>
-                  <QueueItem>
-                    <span>Осталось:</span>
-                    <QueueValue style={{ color: Math.max(0, getGenerationQueueLimit - activeGenerations.size) > 0 ? '#90ee90' : '#ff6b6b' }}>
-                      {Math.max(0, getGenerationQueueLimit - activeGenerations.size)}
-                    </QueueValue>
-                  </QueueItem>
-                </GenerationQueueIndicator>
               </CharacterCardWrapper>
             )}
+            
+            {/* Индикатор очереди генераций - в самом низу панели */}
+            <GenerationQueueIndicator>
+              <QueueTitle>Очередь генераций</QueueTitle>
+              <QueueItem>
+                <span>Активных:</span>
+                <QueueValue>{activeGenerations.size}</QueueValue>
+              </QueueItem>
+              <QueueItem>
+                <span>Лимит:</span>
+                <QueueValue $isLimit>{getGenerationQueueLimit}</QueueValue>
+              </QueueItem>
+              <QueueItem>
+                <span>Осталось:</span>
+                <QueueValue style={{ color: Math.max(0, getGenerationQueueLimit - activeGenerations.size) > 0 ? '#90ee90' : '#ff6b6b' }}>
+                  {Math.max(0, getGenerationQueueLimit - activeGenerations.size)}
+                </QueueValue>
+              </QueueItem>
+            </GenerationQueueIndicator>
           </PaidAlbumPanel>
         </ChatContentWrapper>
       </MainContent>
