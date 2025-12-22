@@ -45,9 +45,16 @@ const ActionButtons = styled.div<{ $alwaysVisible?: boolean }>`
   top: ${theme.spacing.sm};
   right: ${theme.spacing.sm};
   display: flex;
-  flex-direction: column;
-  gap: ${theme.spacing.sm};
+  flex-direction: row;
+  gap: ${theme.spacing.xs};
+  align-items: center;
   opacity: ${props => props.$alwaysVisible ? 1 : 0}; /* Видимы если $alwaysVisible=true */
+  z-index: 20;
+  transition: opacity 0.3s ease;
+  
+  ${CardContainer}:hover & {
+    opacity: 1; /* Показываем кнопки при наведении на карточку */
+  }
   transform: ${props => props.$alwaysVisible ? 'translateY(0)' : 'translateY(-10px)'}; /* Возвращаем анимацию */
   transition: all ${theme.transition.fast};
   pointer-events: auto; /* Включаем клики для кнопок */
@@ -127,28 +134,23 @@ const FavoriteButton = styled.button<{ $isFavorite: boolean }>`
 const ActionButton = styled.button<{ variant?: 'edit' | 'delete' }>`
   padding: ${theme.spacing.sm} ${theme.spacing.md};
   border-radius: ${theme.borderRadius.lg};
-  background: transparent;
-  border: 2px solid;
-  border-image: linear-gradient(45deg, #764ba2 50%, #4a0000 50%) 1;
-  color: #a8a8a8;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform ${theme.transition.fast};
+  transition: all ${theme.transition.fast};
   cursor: pointer;
   font-size: ${theme.fontSize.sm};
   font-weight: 600;
   text-align: center;
   white-space: nowrap;
-  min-width: 80px;
+  min-width: 40px;
+  min-height: 40px;
   z-index: 11;
   position: relative;
-  
-  /* Градиентный текст */
-  background: linear-gradient(135deg, #a8a8a8, #ffffff);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  backdrop-filter: blur(10px);
   
   /* Светящаяся линия снизу */
   &::after {
@@ -167,13 +169,10 @@ const ActionButton = styled.button<{ variant?: 'edit' | 'delete' }>`
   
   &:hover {
     transform: scale(1.05);
-    border-image: linear-gradient(45deg, #8b5cf6 50%, #7f1d1d 50%) 1;
-    
-    /* Более яркий градиент при hover */
-    background: linear-gradient(135deg, #ffffff, rgba(102, 126, 234, 0.9));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 1);
+    color: #ffffff;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
     
     /* Показываем светящуюся линию */
     &::after {
@@ -938,7 +937,17 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             </FavoriteButton>
           )}
           
-          <ActionButtons $alwaysVisible={!!onDelete}>
+          <ActionButtons $alwaysVisible={!!onDelete || !!onPaidAlbum}>
+          {onPaidAlbum && (
+            <AlbumButton 
+              onClick={(e) => {
+                e.stopPropagation();
+                onPaidAlbum(character);
+              }}
+            >
+              Альбом
+            </AlbumButton>
+          )}
           {onDelete && (
             <ActionButtonWithTooltip>
               <ActionButton
@@ -954,19 +963,6 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                 <FiTrash2 size={16} />
               </ActionButton>
               <Tooltip>Удалить персонажа</Tooltip>
-            </ActionButtonWithTooltip>
-          )}
-          {onPaidAlbum && (
-            <ActionButtonWithTooltip>
-                <AlbumButton 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onPaidAlbum(character);
-                }}
-              >
-                Альбом
-                </AlbumButton>
-              <Tooltip>Платный альбом (200 💎)</Tooltip>
             </ActionButtonWithTooltip>
           )}
         </ActionButtons>

@@ -210,6 +210,18 @@ class SubscriptionService:
             # БЕЗОПАСНОСТЬ: Логируем ПОСЛЕ изменения баланса
             print(f"💰 [CREDITS ADD] Баланс ПОСЛЕ = {user.coins} ({old_balance} + {credits})")
             
+            # Записываем историю баланса
+            try:
+                from app.utils.balance_history import record_balance_change
+                await record_balance_change(
+                    db=self.db,
+                    user_id=user_id,
+                    amount=credits,
+                    reason="Начисление кредитов при активации подписки"
+                )
+            except Exception as e:
+                print(f"[WARNING] Не удалось записать историю баланса: {e}")
+            
             await self.db.commit()
             # БЕЗОПАСНОСТЬ: Финальная проверка
             print(f"✅ [CREDITS ADD] Транзакция завершена! Финальный баланс: {user.coins}")

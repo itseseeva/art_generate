@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import { CharacterCard } from './CharacterCard';
@@ -101,9 +101,47 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authCheckComplete, setAuthCheckComplete] = useState(false);
   const [favoriteCharacterIds, setFavoriteCharacterIds] = useState<Set<number>>(new Set());
+  
+  // Используем ref для отслеживания, чтобы избежать повторных загрузок
+  const isLoadingRef = useRef(false);
+  const hasLoadedRef = useRef(false);
 
-  // Загрузка персонажей пользователя
-  const loadMyCharacters = async () => {
+  // Загрузка избранных персонажей (мемоизирована)
+  const loadFavorites = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        setFavoriteCharacterIds(new Set());
+        return;
+      }
+
+      const response = await fetch(API_CONFIG.FAVORITES, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const favorites = await response.json();
+        // Извлекаем ID избранных персонажей
+        const favoriteIds = new Set<number>(
+          favorites.map((char: any) => {
+            const id = typeof char.id === 'number' ? char.id : parseInt(char.id, 10);
+            return isNaN(id) ? null : id;
+          }).filter((id: number | null): id is number => id !== null)
+        );
+        setFavoriteCharacterIds(favoriteIds);
+      } else {
+        setFavoriteCharacterIds(new Set());
+      }
+    } catch (error) {
+      console.error('Error loading favorites:', error);
+      setFavoriteCharacterIds(new Set());
+    }
+  }, []);
+
+  // Загрузка персонажей пользователя (мемоизирована)
+  const loadMyCharacters = useCallback(async () => {
     try {
       setIsLoading(true);
       const token = localStorage.getItem('authToken');
@@ -125,7 +163,13 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
       }
 
       const userData = await userResponse.json();
-      const currentUserId = userData.id;
+      const currentUserId = userData?.id;
+      
+      if (!currentUserId) {
+        console.error('User ID not found in response');
+        setIsAuthenticated(false);
+        return;
+      }
 
       const response = await fetch('/api/v1/characters/', {
         headers: {
@@ -135,8 +179,22 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
 
       if (response.ok) {
         const charactersData = await response.json();
+        
+        // Защита от некорректных данных
+        if (!Array.isArray(charactersData)) {
+          console.error('Characters data is not an array:', charactersData);
+          setCharacters([]);
+          setIsAuthenticated(true);
+          return;
+        }
+        
         // Фильтруем только персонажей текущего пользователя по его ID
-        const myCharacters = charactersData.filter((char: any) => char.user_id === currentUserId);
+        const myCharacters = charactersData.filter((char: any) => {
+          if (!char || !char.id) {
+            return false;
+          }
+          return Number(char.user_id) === Number(currentUserId);
+        });
         
         // Загружаем фото из main_photos (как на главной странице)
         const photosMap: Record<string, string[]> = {};
@@ -196,21 +254,24 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
           }
         }
         
-        const formattedCharacters: Character[] = myCharacters.map((char: any) => {
-          const normalizedKey = (char.name || char.display_name || '').toLowerCase();
-          return {
-          id: char.id.toString(),
-            name: char.name || char.display_name,
-          description: char.character_appearance || 'No description available',
-            avatar: (char.name || char.display_name || '').charAt(0).toUpperCase(),
-            photos: photosMap[normalizedKey] || [],
-          tags: ['My Character'],
-          author: 'Me',
-          likes: 0,
-          views: 0,
-          comments: 0
-          };
-        });
+        const formattedCharacters: Character[] = myCharacters
+          .filter((char: any) => char && char.id != null) // Защита от null/undefined
+          .map((char: any) => {
+            const normalizedKey = (char.name || char.display_name || '').toLowerCase();
+            const charName = char.name || char.display_name || 'Unknown';
+            return {
+              id: String(char.id || ''),
+              name: charName,
+              description: char.character_appearance || 'No description available',
+              avatar: charName.charAt(0).toUpperCase(),
+              photos: photosMap[normalizedKey] || [],
+              tags: ['My Character'],
+              author: 'Me',
+              likes: 0,
+              views: 0,
+              comments: 0
+            };
+          });
         
         setCharacters(formattedCharacters);
         setIsAuthenticated(true);
@@ -223,45 +284,12 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
       setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
+      isLoadingRef.current = false;
     }
-  };
+  }, []);
 
-  // Загрузка избранных персонажей
-  const loadFavorites = async () => {
-    try {
-      const token = localStorage.getItem('authToken');
-      if (!token) {
-        setFavoriteCharacterIds(new Set());
-        return;
-      }
-
-      const response = await fetch(API_CONFIG.FAVORITES, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        const favorites = await response.json();
-        // Извлекаем ID избранных персонажей
-        const favoriteIds = new Set<number>(
-          favorites.map((char: any) => {
-            const id = typeof char.id === 'number' ? char.id : parseInt(char.id, 10);
-            return isNaN(id) ? null : id;
-          }).filter((id: number | null): id is number => id !== null)
-        );
-        setFavoriteCharacterIds(favoriteIds);
-      } else {
-        setFavoriteCharacterIds(new Set());
-      }
-    } catch (error) {
-      console.error('Error loading favorites:', error);
-      setFavoriteCharacterIds(new Set());
-    }
-  };
-
-  // Проверка авторизации
-  const checkAuth = async () => {
+  // Проверка авторизации (мемоизирована)
+  const checkAuth = useCallback(async () => {
     try {
       const token = localStorage.getItem('authToken');
       if (!token) {
@@ -294,34 +322,48 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
     } finally {
       setAuthCheckComplete(true);
     }
-  };
+  }, [loadFavorites]);
 
   // Обработчики
-  const handleCardClick = (character: Character) => {
+  const handleCardClick = useCallback((character: Character) => {
     onCharacterSelect(character);
-  };
+  }, [onCharacterSelect]);
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     // Удаляем токен из localStorage
     localStorage.removeItem('authToken');
     // Перезагружаем страницу для обновления состояния
     window.location.reload();
-  };
+  }, []);
 
-  // Загрузка данных при монтировании
+  // Загрузка данных при монтировании (только один раз)
   useEffect(() => {
+    // Предотвращаем повторную загрузку
+    if (hasLoadedRef.current || isLoadingRef.current) {
+      return;
+    }
+    
+    isLoadingRef.current = true;
+    hasLoadedRef.current = true;
+    
     const initPage = async () => {
-      await checkAuth();
-      
-      // Загружаем персонажей если есть токен
-      const token = localStorage.getItem('authToken');
-      if (token) {
-        await loadMyCharacters();
+      try {
+        await checkAuth();
+        
+        // Загружаем персонажей если есть токен
+        const token = localStorage.getItem('authToken');
+        if (token) {
+          await loadMyCharacters();
+        }
+      } catch (error) {
+        console.error('Error initializing page:', error);
+        setIsLoading(false);
+        isLoadingRef.current = false;
       }
     };
     
     initPage();
-  }, []);
+  }, [checkAuth, loadMyCharacters]);
 
   // Показываем модалку ТОЛЬКО один раз после проверки
   useEffect(() => {
@@ -329,7 +371,7 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
       setIsAuthModalOpen(true);
       setAuthMode('login');
     }
-  }, [authCheckComplete]);
+  }, [authCheckComplete, isAuthenticated, isAuthModalOpen]);
 
   if (!isAuthenticated) {
     return (
@@ -364,26 +406,29 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
               </CreateButton>
             </EmptyState>
           ) : (
-            characters.map((character) => {
-              // Проверяем, находится ли персонаж в избранном
-              const characterId = typeof character.id === 'number' 
-                ? character.id 
-                : parseInt(character.id, 10);
-              const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
-              
-              return (
-                <CharacterCard
-                  key={character.id}
-                  character={character}
-                onClick={handleCardClick}
-                isAuthenticated={isAuthenticated}
-                onPhotoGeneration={onPhotoGeneration}
-                onPaidAlbum={onPaidAlbum}
-                  isFavorite={isFavorite}
-                  onFavoriteToggle={loadFavorites}
-                />
-              );
-            })
+            characters
+              .filter((character) => character && character.id) // Защита от пустых персонажей
+              .map((character) => {
+                // Проверяем, находится ли персонаж в избранном
+                const characterId = typeof character.id === 'number' 
+                  ? character.id 
+                  : parseInt(String(character.id || ''), 10);
+                const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
+                
+                return (
+                  <CharacterCard
+                    key={character.id}
+                    character={character}
+                    onClick={handleCardClick}
+                    isAuthenticated={isAuthenticated}
+                    onPhotoGeneration={onPhotoGeneration}
+                    onPaidAlbum={onPaidAlbum}
+                    isFavorite={isFavorite}
+                    onFavoriteToggle={loadFavorites}
+                    onDelete={undefined}
+                  />
+                );
+              })
           )}
         </CharactersGrid>
 

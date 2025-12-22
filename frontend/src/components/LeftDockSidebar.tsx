@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { FiUserPlus, FiEdit, FiClock, FiHeart, FiUsers, FiHome, FiLogIn, FiUser, FiLogOut, FiShoppingBag, FiMessageSquare } from 'react-icons/fi';
+import { FiUserPlus, FiEdit, FiClock, FiHeart, FiUsers, FiHome, FiLogIn, FiUser, FiLogOut, FiShoppingBag, FiMessageSquare, FiTrendingUp } from 'react-icons/fi';
 import Switcher4 from './Switcher4';
 
 import Dock from './Dock';
@@ -17,6 +17,7 @@ interface LeftDockSidebarProps {
   onProfile?: () => void;
   onShop?: () => void;
   onMessages?: () => void;
+  onBalanceHistory?: () => void;
   isAuthenticated?: boolean;
   onLogin?: () => void;
   onRegister?: () => void;
@@ -122,6 +123,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   onProfile,
   onShop,
   onMessages,
+  onBalanceHistory,
   isAuthenticated = false,
   onLogin,
   onRegister,
@@ -166,6 +168,15 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
       onClick: () => onShop?.(),
     },
   ];
+
+  // Добавляем кнопку истории баланса для авторизованных пользователей
+  if (isAuthenticated && onBalanceHistory) {
+    dockItems.push({
+      icon: <FiTrendingUp size={22} />,
+      label: 'Balance History',
+      onClick: () => onBalanceHistory?.(),
+    });
+  }
 
   // Добавляем кнопки авторизации в зависимости от статуса
   if (!isAuthenticated) {

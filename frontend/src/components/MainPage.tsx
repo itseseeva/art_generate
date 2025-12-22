@@ -224,7 +224,7 @@ export const MainPage: React.FC<MainPageProps> = ({
   const [createdCharacter, setCreatedCharacter] = useState<any>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userCoins, setUserCoins] = useState(0);
-  const [userInfo, setUserInfo] = useState<{username: string, coins: number} | null>(null);
+  const [userInfo, setUserInfo] = useState<{username: string, coins: number, is_admin?: boolean, id?: number} | null>(null);
   const [characterPhotos, setCharacterPhotos] = useState<{[key: string]: string[]}>({});
   const [characters, setCharacters] = useState<Character[]>([]);
   const [isLoadingCharacters, setIsLoadingCharacters] = useState(true);
@@ -319,7 +319,8 @@ export const MainPage: React.FC<MainPageProps> = ({
           likes: Number(char.likes) || 0,
           views: Number(char.views) || 0,
             comments: Number(char.comments) || 0,
-            is_nsfw: char.is_nsfw === true // Явная проверка: только true считается NSFW
+            is_nsfw: char.is_nsfw === true, // Явная проверка: только true считается NSFW
+          raw: char // Сохраняем raw данные для доступа к user_id
         };
         })
         .filter((char: any) => {
@@ -611,7 +612,9 @@ export const MainPage: React.FC<MainPageProps> = ({
           setUserCoins(userData.coins || 0);
           setUserInfo({
             username: userData.username || userData.email || 'Пользователь',
-            coins: userData.coins || 0
+            coins: userData.coins || 0,
+            is_admin: userData.is_admin || false,
+            id: userData.id
           });
           // Загружаем избранные после успешной авторизации
           await loadFavorites();
@@ -646,6 +649,79 @@ export const MainPage: React.FC<MainPageProps> = ({
     if (onCharacterSelect) {
       onCharacterSelect(character);
     }
+  };
+
+  // Обработчик удаления персонажа (для админов и создателей персонажей)
+  const handleDeleteCharacter = async (character: Character) => {
+    const characterName = character.name || (character as any).raw?.name;
+    if (!characterName) {
+      console.error('[MAIN] Не удалось определить имя персонажа для удаления');
+      return;
+    }
+
+    if (!confirm(`Вы уверены, что хотите удалить персонажа "${characterName}"?`)) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        console.error('[MAIN] Нет токена для удаления персонажа');
+        return;
+      }
+
+      const response = await fetch(`http://localhost:8000/api/v1/characters/${encodeURIComponent(characterName)}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        console.log('[MAIN] Персонаж успешно удален:', characterName);
+        // Обновляем список персонажей
+        await loadCharacters(true);
+        // Отправляем событие для обновления других страниц
+        window.dispatchEvent(new CustomEvent('character-deleted', {
+          detail: { characterName }
+        }));
+      } else {
+        const errorData = await response.json().catch(() => ({ detail: 'Неизвестная ошибка' }));
+        console.error('[MAIN] Ошибка удаления персонажа:', errorData);
+        alert(`Ошибка удаления персонажа: ${errorData.detail || 'Неизвестная ошибка'}`);
+      }
+    } catch (error) {
+      console.error('[MAIN] Ошибка при удалении персонажа:', error);
+      alert('Ошибка при удалении персонажа. Попробуйте позже.');
+    }
+  };
+
+  // Проверяем, может ли пользователь удалить персонажа (админ или создатель)
+  const canDeleteCharacter = (character: Character): boolean => {
+    if (!userInfo || !isAuthenticated) {
+      return false;
+    }
+    
+    // Админы могут удалять всех персонажей
+    if (userInfo.is_admin === true) {
+      return true;
+    }
+    
+    // Создатели могут удалять только своих персонажей
+    const characterUserId = (character as any).raw?.user_id || (character as any).user_id;
+    const currentUserId = userInfo.id;
+    
+    // Проверяем совпадение ID (конвертируем в числа для надежности)
+    if (characterUserId !== undefined && currentUserId !== undefined) {
+      const charUserIdNum = Number(characterUserId);
+      const currUserIdNum = Number(currentUserId);
+      if (!isNaN(charUserIdNum) && !isNaN(currUserIdNum) && charUserIdNum === currUserIdNum) {
+        return true;
+      }
+    }
+    
+    return false;
   };
 
   const handleCreateCharacter = () => {
@@ -752,6 +828,10 @@ export const MainPage: React.FC<MainPageProps> = ({
                       : parseInt(character.id, 10);
                     const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
                     
+                    // Проверяем, может ли пользователь удалить персонажа
+                    const canDelete = canDeleteCharacter(character);
+                    const deleteHandler = canDelete ? handleDeleteCharacter : undefined;
+                    
                     return (
                       <CharacterCard
                         key={character.id}
@@ -763,6 +843,7 @@ export const MainPage: React.FC<MainPageProps> = ({
                         showPromptButton={true}
                         isFavorite={isFavorite}
                         onFavoriteToggle={loadFavorites}
+                        onDelete={deleteHandler}
                       />
                     );
                   })

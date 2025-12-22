@@ -434,6 +434,18 @@ async def _spend_photo_resources(user_id: int) -> None:
                 logger.error(f"[CELERY] Не удалось списать монеты для пользователя {user_id}")
                 return
             
+            # Записываем историю баланса
+            try:
+                from app.utils.balance_history import record_balance_change
+                await record_balance_change(
+                    db=db_session,
+                    user_id=user_id,
+                    amount=-10,
+                    reason="Генерация фото через Celery задачу"
+                )
+            except Exception as e:
+                logger.warning(f"Не удалось записать историю баланса: {e}")
+            
             photo_spent = await subscription_service.use_photo_generation(user_id, commit=False)
             if not photo_spent:
                 logger.error(f"[CELERY] Недостаточно лимита подписки для пользователя {user_id}")

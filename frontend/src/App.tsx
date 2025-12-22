@@ -17,6 +17,7 @@ import { PhotoGenerationPage3 } from './components/PhotoGenerationPage3';
 import { EditCharactersPage } from './components/EditCharactersPage';
 import { EditCharacterPage } from './components/EditCharacterPage';
 import { FavoritesPage } from './components/FavoritesPage';
+import { BalanceHistoryPage } from './components/BalanceHistoryPage';
 import { LeftDockSidebar } from './components/LeftDockSidebar';
 import { AuthModal } from './components/AuthModal';
 import { AgeVerificationModal } from './components/AgeVerificationModal';
@@ -62,6 +63,7 @@ type PageType =
   | 'edit-character'
   | 'favorites'
   | 'history'
+  | 'balance-history'
   | 'legal'
   | 'about'
   | 'tariffs'
@@ -72,6 +74,11 @@ function App() {
   const [selectedCharacter, setSelectedCharacter] = useState<any>(null);
   const [contentMode, setContentMode] = useState<'safe' | 'nsfw'>('safe');
   const [selectedSubscriptionType, setSelectedSubscriptionType] = useState<string>('');
+
+  // Мемоизируем initialCharacter для ChatContainer, чтобы избежать лишних перезагрузок
+  const memoizedInitialCharacter = React.useMemo(() => {
+    return selectedCharacter;
+  }, [selectedCharacter?.raw?.name, selectedCharacter?.name, selectedCharacter?.id]);
 
   // Функция загрузки персонажа по ID или имени
   const loadCharacterById = async (characterId: string | number): Promise<any | null> => {
@@ -565,6 +572,11 @@ function App() {
     window.history.pushState({ page: 'history' }, '', '/history');
   };
 
+  const handleBalanceHistory = () => {
+    setCurrentPage('balance-history');
+    window.history.pushState({ page: 'balance-history' }, '', '/balance-history');
+  };
+
   const handlePaymentMethod = (subscriptionType: string) => {
     // Этот метод больше не используется, так как кнопки оплаты теперь на странице магазина
   };
@@ -593,9 +605,9 @@ function App() {
       case 'chat':
         return (
           <ErrorBoundary>
-          <ChatContainer 
+          <ChatContainer
             onBackToMain={handleBackToMain}
-            initialCharacter={selectedCharacter}
+            initialCharacter={memoizedInitialCharacter}
             onShop={handleShop}
             onProfile={handleProfile}
             onOpenPaidAlbum={handlePaidAlbum}
@@ -862,6 +874,14 @@ function App() {
             onProfile={handleProfile}
             onCreateCharacter={handleCreateCharacter}
             onEditCharacters={handleEditCharacters}
+          />
+        );
+      case 'balance-history':
+        return (
+          <BalanceHistoryPage
+            onBackToMain={handleBackToMain}
+            onShop={handleShop}
+            onProfile={handleProfile}
           />
         );
       case 'favorites':
@@ -1273,6 +1293,7 @@ function App() {
           onMyCharacters={handleMyCharacters}
           onHome={handleBackToMain}
           onMessages={handleMessages}
+          onBalanceHistory={handleBalanceHistory}
           isAuthenticated={isAuthenticated}
           onLogin={handleLogin}
           onRegister={handleRegister}

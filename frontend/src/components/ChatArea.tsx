@@ -205,6 +205,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     return () => clearTimeout(timeoutId);
   }, [messages, isLoading]);
 
+  console.log('[CHAT AREA] Rendering:', { 
+    messagesCount: messages.length, 
+    isLoading, 
+    hasCharacterSituation: !!characterSituation,
+    messages: messages.map(m => ({ id: m.id, type: m.type, hasContent: !!m.content, hasImage: !!m.imageUrl }))
+  });
+
   return (
     <MessagesContainer ref={messagesContainerRef}>
       <MessagesList>
@@ -229,18 +236,23 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           </EmptyState>
         )}
         
-        {messages.map((message) => (
-          <Message 
-            key={message.id} 
-            message={message}
-            characterName={characterName}
-            characterAvatar={characterAvatar}
-            isAuthenticated={isAuthenticated}
-            isCharacterOwner={isCharacterOwner}
-            onAddToGallery={onAddToGallery}
-            onAddToPaidAlbum={onAddToPaidAlbum}
-          />
-        ))}
+        {messages.map((message) => {
+          if (messages.length > 0) {
+            console.log('[CHAT AREA] Rendering message:', { id: message.id, type: message.type, hasContent: !!message.content, hasImage: !!message.imageUrl, imageUrl: message.imageUrl });
+          }
+          return (
+            <Message 
+              key={message.id} 
+              message={message}
+              characterName={characterName}
+              characterAvatar={characterAvatar}
+              isAuthenticated={isAuthenticated}
+              isCharacterOwner={isCharacterOwner}
+              onAddToGallery={onAddToGallery}
+              onAddToPaidAlbum={onAddToPaidAlbum}
+            />
+          );
+        })}
         
         <div ref={messagesEndRef} />
       </MessagesList>

@@ -1242,7 +1242,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const [userInfo, setUserInfo] = useState<{username: string, coins: number, id: number} | null>(null);
   const [subscriptionStats, setSubscriptionStats] = useState<{credits_remaining: number} | null>(null);
   const [customPrompt, setCustomPrompt] = useState('');
-  const CHARACTER_EDIT_COST = 50; // Кредиты за редактирование персонажа
+  const CHARACTER_EDIT_COST = 30; // Кредиты за редактирование персонажа
+  const balanceUpdateInProgressRef = useRef(false); // Флаг для предотвращения перезаписи баланса
   // Безопасная инициализация characterIdentifier с fallback
   // КРИТИЧНО: Используем name из character prop (это реальное имя из БД)
   const [characterIdentifier, setCharacterIdentifier] = useState<string>(() => {
@@ -1579,9 +1580,9 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         identifier = character.id.toString();
         console.log('[EDIT_CHAR] Using character.id from prop:', identifier);
       } else {
-        console.warn('[EDIT_CHAR] No valid characterIdentifier provided, setting isLoadingData to false');
-        setIsLoadingData(false);
-        return;
+      console.warn('[EDIT_CHAR] No valid characterIdentifier provided, setting isLoadingData to false');
+      setIsLoadingData(false);
+      return;
       }
     }
     
@@ -1699,25 +1700,72 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       console.error('[EDIT_CHAR] Error loading character data:', error);
       console.error('[EDIT_CHAR] Error details:', error instanceof Error ? error.message : String(error));
       setError('Ошибка при загрузке данных персонажа');
+      // Устанавливаем пустой formData при ошибке, чтобы форма не была пустой
+      setFormData({
+        name: character?.name || identifier || '',
+        personality: '',
+        situation: '',
+        instructions: '',
+        style: '',
+        appearance: character?.appearance || '',
+        location: character?.location || ''
+      });
     } finally {
       console.log('[EDIT_CHAR] ========== FINALLY BLOCK ==========');
       console.log('[EDIT_CHAR] Setting isLoadingData to false');
       setIsLoadingData(false);
       console.log('[EDIT_CHAR] isLoadingData should now be false');
     }
-  }, [characterIdentifier]);
+  }, [characterIdentifier, character?.name]);
 
-  // Проверка авторизации
+  // Проверка авторизации (используем тот же метод, что и в ProfilePage)
   const checkAuth = async () => {
+    // НЕ обновляем баланс, если идет обновление после сохранения
+    if (balanceUpdateInProgressRef.current) {
+      console.log('[EDIT_CHAR] checkAuth пропущен - идет обновление баланса после сохранения');
+      return;
+    }
+    
     try {
-      const { isAuthenticated, userInfo } = await authManager.checkAuth();
-      
-      setIsAuthenticated(isAuthenticated);
-      if (isAuthenticated && userInfo) {
-        setUserInfo(userInfo);
+      const token = authManager.getToken();
+      if (!token) {
+        setIsAuthenticated(false);
+        setUserInfo(null);
+        return;
+      }
+
+      // Используем прямой fetch к /api/v1/auth/me/ как в ProfilePage для получения актуального баланса
+      const response = await fetch('http://localhost:8000/api/v1/auth/me/', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        cache: 'no-store'
+      });
+
+      if (response.ok) {
+        const userData = await response.json();
+        console.log('[EDIT_CHAR] User data loaded from /api/v1/auth/me/:', userData);
+        setIsAuthenticated(true);
+        setUserInfo(prev => {
+          // Обновляем только если баланс не обновляется после сохранения
+          if (balanceUpdateInProgressRef.current) {
+            console.log('[EDIT_CHAR] checkAuth пропустил обновление баланса - идет обновление после сохранения');
+            return prev;
+          }
+          return {
+            username: userData.username || userData.email || 'Пользователь',
+            coins: userData.coins || 0,
+            id: userData.id
+          };
+        });
+      } else {
+        console.error('[EDIT_CHAR] Auth check failed, status:', response.status);
+        authManager.clearTokens();
+        setIsAuthenticated(false);
+        setUserInfo(null);
       }
     } catch (error) {
-      console.error('Auth check error:', error);
+      console.error('[EDIT_CHAR] Auth check error:', error);
       setIsAuthenticated(false);
       setUserInfo(null);
     }
@@ -1743,6 +1791,91 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     }
   };
 
+  // Загружаем статистику подписки
+  const loadSubscriptionStats = async () => {
+    try {
+      const token = authManager.getToken();
+      if (!token) {
+        setSubscriptionStats(null);
+        return;
+      }
+
+      const response = await fetch('/api/v1/subscription/stats/', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const statsData = await response.json();
+        setSubscriptionStats(statsData);
+        console.log('[EDIT_CHAR] Subscription stats loaded:', statsData);
+      } else {
+        console.error('[EDIT_CHAR] Ошибка загрузки статистики подписки:', response.status);
+        setSubscriptionStats(null);
+      }
+    } catch (error) {
+      console.error('[EDIT_CHAR] Ошибка загрузки статистики подписки:', error);
+      setSubscriptionStats(null);
+    }
+  };
+
+  // Слушаем события обновления баланса
+  useEffect(() => {
+    const handleBalanceUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail && customEvent.detail.coins !== undefined) {
+        const newCoins = customEvent.detail.coins;
+        console.log('[EDIT_CHAR] Получено событие обновления баланса:', newCoins);
+        setUserInfo(prev => {
+          if (prev) {
+            const updated = { ...prev, coins: newCoins };
+            console.log('[EDIT_CHAR] Обновление баланса через событие:', { old: prev.coins, new: updated.coins });
+            return updated;
+          }
+          return prev;
+        });
+      }
+    };
+
+    const handleProfileUpdate = async () => {
+      console.log('[EDIT_CHAR] Получено событие profile-update, обновляем баланс');
+      // НЕ вызываем checkAuth здесь, чтобы не перезаписывать баланс после сохранения
+      // Вместо этого загружаем баланс напрямую
+      const token = authManager.getToken();
+      if (token) {
+        try {
+          const response = await fetch('http://localhost:8000/api/v1/auth/me/', {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            },
+            cache: 'no-store'
+          });
+          if (response.ok) {
+            const userData = await response.json();
+            setUserInfo(prev => prev ? { ...prev, coins: userData.coins } : {
+              username: userData.username || userData.email || 'Пользователь',
+              coins: userData.coins || 0,
+              id: userData.id
+            });
+          }
+        } catch (error) {
+          console.error('[EDIT_CHAR] Error in handleProfileUpdate:', error);
+        }
+      }
+    };
+
+    window.addEventListener('balance-update', handleBalanceUpdate);
+    window.addEventListener('profile-update', handleProfileUpdate);
+    window.addEventListener('subscription-update', handleProfileUpdate);
+
+    return () => {
+      window.removeEventListener('balance-update', handleBalanceUpdate);
+      window.removeEventListener('profile-update', handleProfileUpdate);
+      window.removeEventListener('subscription-update', handleProfileUpdate);
+    };
+  }, []); // Убираем userInfo из зависимостей, чтобы обработчик не пересоздавался
+
   // Инициализация при монтировании компонента и изменении character prop
   useEffect(() => {
     console.log('[EDIT_CHAR] ========== COMPONENT MOUNTED/UPDATED ==========');
@@ -1751,8 +1884,13 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     console.log('[EDIT_CHAR] Character name:', character?.name);
     console.log('[EDIT_CHAR] Character id:', character?.id);
     
+    // Загружаем данные только при первом монтировании
+    // НЕ вызываем checkAuth здесь, если идет обновление баланса после сохранения
+    if (!balanceUpdateInProgressRef.current) {
     checkAuth();
+    }
     loadGenerationSettings();
+    loadSubscriptionStats();
     
     // КРИТИЧНО: Определяем идентификатор персонажа из prop или state
     // ПРИОРИТЕТ: Используем name из character prop (это реальное имя из БД)
@@ -1828,20 +1966,29 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   // КРИТИЧНО: Этот useEffect не должен дублировать загрузку из основного useEffect
   // Используем useRef для отслеживания последней загруженной версии
   const lastLoadedIdentifierRef = useRef<string | null>(null);
+  const isLoadingRef = useRef<boolean>(false);
   
   useEffect(() => {
-    console.log('[EDIT_CHAR] useEffect triggered, characterIdentifier:', characterIdentifier, 'isLoadingData:', isLoadingData);
-    if (characterIdentifier && characterIdentifier.trim() !== '' && lastLoadedIdentifierRef.current !== characterIdentifier) {
-      console.log('[EDIT_CHAR] characterIdentifier valid, calling loadCharacterData:', characterIdentifier);
-      lastLoadedIdentifierRef.current = characterIdentifier;
-      loadCharacterData(characterIdentifier);
-    } else if (!characterIdentifier || characterIdentifier.trim() === '') {
+    console.log('[EDIT_CHAR] useEffect triggered, characterIdentifier:', characterIdentifier, 'isLoadingData:', isLoadingData, 'isLoadingRef:', isLoadingRef.current);
+    
+    // КРИТИЧНО: Используем name из character prop, так как API работает по имени
+    const effectiveIdentifier = character?.name || characterIdentifier;
+    
+    if (effectiveIdentifier && effectiveIdentifier.trim() !== '' && lastLoadedIdentifierRef.current !== effectiveIdentifier && !isLoadingRef.current) {
+      console.log('[EDIT_CHAR] characterIdentifier valid, calling loadCharacterData:', effectiveIdentifier);
+      lastLoadedIdentifierRef.current = effectiveIdentifier;
+      isLoadingRef.current = true;
+      loadCharacterData(effectiveIdentifier).finally(() => {
+        isLoadingRef.current = false;
+      });
+    } else if (!effectiveIdentifier || effectiveIdentifier.trim() === '') {
       console.warn('[EDIT_CHAR] Invalid characterIdentifier, skipping load. Setting isLoadingData to false.');
       setIsLoadingData(false);
       lastLoadedIdentifierRef.current = null;
+      isLoadingRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [characterIdentifier]); // Убираем loadCharacterData из зависимостей, чтобы избежать бесконечных циклов
+  }, [character?.name, characterIdentifier]); // Реагируем на изменения name из prop и characterIdentifier
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -1857,9 +2004,9 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     setSuccess(null);
 
     try {
-      // Проверяем кредиты перед отправкой
-      if (!subscriptionStats || subscriptionStats.credits_remaining < CHARACTER_EDIT_COST) {
-        throw new Error(`Недостаточно кредитов. Для редактирования персонажа требуется ${CHARACTER_EDIT_COST} кредитов.`);
+      // Проверяем кредиты перед отправкой (используем userInfo.coins, а не subscriptionStats.credits_remaining)
+      if (!userInfo || userInfo.coins < CHARACTER_EDIT_COST) {
+        throw new Error(`Недостаточно кредитов. Для редактирования персонажа требуется ${CHARACTER_EDIT_COST} кредитов. У вас: ${userInfo?.coins || 0} кредитов.`);
       }
       
       const requestData = {
@@ -1904,8 +2051,85 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       }));
       setSuccess('Персонаж успешно обновлен!');
       await fetchCharacterPhotos(updatedName);
-      // Обновляем статистику подписки после успешного сохранения
-      await loadSubscriptionStats();
+      
+      // КРИТИЧНО: Обновляем баланс из API после сохранения
+      balanceUpdateInProgressRef.current = true; // Устанавливаем флаг, чтобы предотвратить перезапись
+      
+      // Делаем несколько попыток с интервалом, чтобы гарантировать получение актуального баланса
+      const updateBalanceWithRetries = async (attempt: number = 1, maxAttempts: number = 3) => {
+        const token = authManager.getToken();
+        if (!token) {
+          balanceUpdateInProgressRef.current = false;
+          return;
+        }
+        
+        try {
+          const response = await fetch('http://localhost:8000/api/v1/auth/me/', {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            },
+            cache: 'no-store' // Отключаем кэш для получения актуальных данных
+          });
+          
+          if (response.ok) {
+            const userData = await response.json();
+            console.log(`[EDIT_CHAR] Попытка ${attempt}: Актуальный баланс из API после сохранения:`, userData.coins);
+            
+            // Проверяем, изменился ли баланс (должен быть меньше на CHARACTER_EDIT_COST)
+            const expectedBalance = userInfo ? userInfo.coins - CHARACTER_EDIT_COST : userData.coins;
+            const balanceChanged = userInfo && userData.coins !== userInfo.coins;
+            
+            if (balanceChanged || attempt === maxAttempts) {
+              // Баланс изменился или это последняя попытка - обновляем
+              console.log('[EDIT_CHAR] Баланс обновлен:', { old: userInfo?.coins, new: userData.coins, expected: expectedBalance });
+              
+              setUserInfo(prev => {
+                if (prev) {
+                  const updated = { ...prev, coins: userData.coins };
+                  console.log('[EDIT_CHAR] setUserInfo вызван с новым балансом:', { old: prev.coins, new: updated.coins });
+                  return updated;
+                }
+                return {
+                  username: userData.username || userData.email || 'Пользователь',
+                  coins: userData.coins || 0,
+                  id: userData.id
+                };
+              });
+              
+              // Диспатчим событие только с новым балансом (для других компонентов)
+              window.dispatchEvent(new CustomEvent('balance-update', { 
+                detail: { coins: userData.coins } 
+              }));
+              
+              // Сбрасываем флаг через 2 секунды после обновления
+              setTimeout(() => {
+                balanceUpdateInProgressRef.current = false;
+              }, 2000);
+            } else {
+              // Баланс еще не обновился, пробуем еще раз
+              console.log(`[EDIT_CHAR] Баланс еще не обновился (${userData.coins} == ${userInfo?.coins}), повтор через 1 секунду...`);
+              setTimeout(() => updateBalanceWithRetries(attempt + 1, maxAttempts), 1000);
+            }
+          } else {
+            console.error('[EDIT_CHAR] Failed to fetch balance, status:', response.status);
+            if (attempt < maxAttempts) {
+              setTimeout(() => updateBalanceWithRetries(attempt + 1, maxAttempts), 1000);
+            } else {
+              balanceUpdateInProgressRef.current = false;
+            }
+          }
+        } catch (error) {
+          console.error('[EDIT_CHAR] Error fetching balance:', error);
+          if (attempt < maxAttempts) {
+            setTimeout(() => updateBalanceWithRetries(attempt + 1, maxAttempts), 1000);
+          } else {
+            balanceUpdateInProgressRef.current = false;
+          }
+        }
+      };
+      
+      // Начинаем обновление баланса с задержкой 1.5 секунды
+      setTimeout(() => updateBalanceWithRetries(1, 3), 1500);
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка при редактировании персонажа');
@@ -2519,37 +2743,16 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                   />
                 </FormGroup>
 
-                {userInfo && (
-                  <CoinsDisplay>
-                    <CoinsText>Ваши монеты: {userInfo.coins}</CoinsText>
-                  </CoinsDisplay>
-                )}
-
                 {error && <ErrorMessage>{error}</ErrorMessage>}
                 {success && <SuccessMessage>{success}</SuccessMessage>}
 
                 <ButtonGroup>
                   <ActionButton 
                     type="submit" 
-                    disabled={isLoading || !subscriptionStats || subscriptionStats.credits_remaining < CHARACTER_EDIT_COST}
+                    disabled={isLoading || !userInfo || (userInfo && userInfo.coins < CHARACTER_EDIT_COST)}
                   >
                     {isLoading ? 'Обновление...' : 'Сохранить изменения'}
                   </ActionButton>
-                  <div style={{
-                    marginTop: '8px',
-                    fontSize: '12px',
-                    color: subscriptionStats && subscriptionStats.credits_remaining < CHARACTER_EDIT_COST 
-                      ? 'rgba(255, 100, 100, 0.9)' 
-                      : 'rgba(200, 200, 200, 0.7)',
-                    textAlign: 'center'
-                  }}>
-                    Стоимость: {CHARACTER_EDIT_COST} кредитов
-                    {subscriptionStats && (
-                      <span style={{ display: 'block', marginTop: '4px' }}>
-                        У вас: {subscriptionStats.credits_remaining} кредитов
-                      </span>
-                    )}
-                  </div>
                 </ButtonGroup>
               </ColumnContent>
             </LeftColumn>

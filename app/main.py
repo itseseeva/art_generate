@@ -430,6 +430,13 @@ except Exception as e:
 try:
     from app.api.endpoints.subscription_endpoints import router as subscription_router
     app.include_router(subscription_router, prefix="/api/v1/subscription", tags=["subscription"])
+    
+    # Подключаем роутер истории баланса
+    try:
+        from app.api.endpoints.balance_endpoints import router as balance_router
+        app.include_router(balance_router)
+    except Exception as e:
+        logger.error(f"[ERROR] Ошибка подключения balance_router: {e}")
     # Убрано логирование подключения
 except Exception as e:
     logger.error(f"[ERROR] Ошибка подключения старого роутера подписок: {e}")
@@ -1452,8 +1459,20 @@ async def spend_message_resources_async(user_id: int, use_credits: bool) -> None
             else:
                 from app.services.coins_service import CoinsService
                 coins_service = CoinsService(db)
-                coins_spent = await coins_service.spend_coins_for_message(user_id)
+                coins_spent = await coins_service.spend_coins_for_message(user_id, commit=False)
                 if coins_spent:
+                    # Записываем историю баланса
+                    try:
+                        from app.utils.balance_history import record_balance_change
+                        await record_balance_change(
+                            db=db,
+                            user_id=user_id,
+                            amount=-5,
+                            reason="Отправка сообщения в чате"
+                        )
+                    except Exception as e:
+                        logger.warning(f"Не удалось записать историю баланса: {e}")
+                    await db.commit()
                     logger.info(f"[STREAM] Списаны монеты за сообщение пользователя {user_id}")
     except Exception as e:
         logger.error(f"[STREAM] Ошибка списания ресурсов: {e}")
@@ -1508,6 +1527,18 @@ async def spend_photo_resources(user_id: int) -> None:
                         status_code=403,
                         detail="Недостаточно лимита подписки для генерации изображения."
                     )
+            
+            # Записываем историю баланса
+            try:
+                from app.utils.balance_history import record_balance_change
+                await record_balance_change(
+                    db=db,
+                    user_id=user_id,
+                    amount=-10,
+                    reason="Генерация изображения через API"
+                )
+            except Exception as e:
+                logger.warning(f"Не удалось записать историю баланса: {e}")
 
             await db.commit()
             await emit_profile_update(user_id, db)
@@ -2070,7 +2101,21 @@ async def chat_endpoint(
                     # Списываем монеты (fallback)
                     from app.services.coins_service import CoinsService
                     coins_service = CoinsService(db)
-                    coins_spent = await coins_service.spend_coins_for_message(coins_user_id)
+                    coins_spent = await coins_service.spend_coins_for_message(coins_user_id, commit=False)
+                    
+                    if coins_spent:
+                        # Записываем историю баланса
+                        try:
+                            from app.utils.balance_history import record_balance_change
+                            await record_balance_change(
+                                db=db,
+                                user_id=coins_user_id,
+                                amount=-5,
+                                reason="Отправка сообщения в чате (fallback)"
+                            )
+                        except Exception as e:
+                            logger.warning(f"Не удалось записать историю баланса: {e}")
+                        await db.commit()
                     
                     if not coins_spent:
                         logger.error(
@@ -2969,7 +3014,22 @@ async def generate_image(
                         
                         async with async_session_maker() as db:
                             coins_service = CoinsService(db)
-                            await coins_service.spend_coins(user_id, PHOTO_GENERATION_COST)
+                            await coins_service.spend_coins(user_id, PHOTO_GENERATION_COST, commit=False)
+                            
+                            # Записываем историю баланса
+                            try:
+                                from app.utils.balance_history import record_balance_change
+                                character_name_for_history = character_data_for_history.get("name", "неизвестный") if character_data_for_history else "неизвестный"
+                                await record_balance_change(
+                                    db=db,
+                                    user_id=user_id,
+                                    amount=-PHOTO_GENERATION_COST,
+                                    reason=f"Генерация фото для персонажа '{character_name_for_history}'"
+                                )
+                            except Exception as e:
+                                logger.warning(f"Не удалось записать историю баланса: {e}")
+                            
+                            await db.commit()
                             logger.info(f"[COINS] Списано {PHOTO_GENERATION_COST} монет за запуск генерации для user_id={user_id}")
                     
                     # КРИТИЧЕСКИ ВАЖНО: Сохраняем метаданные генерации в Redis для сохранения истории после завершения

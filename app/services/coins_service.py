@@ -95,9 +95,9 @@ class CoinsService:
                 return False
             raise
     
-    async def spend_coins_for_message(self, user_id: int) -> bool:
+    async def spend_coins_for_message(self, user_id: int, commit: bool = True) -> bool:
         """Тратит 5 монет за отправку сообщения."""
-        return await self.spend_coins(user_id, 5)
+        return await self.spend_coins(user_id, 5, commit=commit)
     
     async def spend_coins_for_photo(self, user_id: int) -> bool:
         """Тратит 10 монет за генерацию фото."""

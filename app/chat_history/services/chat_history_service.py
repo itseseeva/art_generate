@@ -184,11 +184,12 @@ class ChatHistoryService:
 
             # Проверяем кэш (если не запрошено принудительное обновление)
             cache_key = key_user_characters(user_id)
+            cached_characters = None
             if force_refresh:
                 # Очищаем кэш при принудительном обновлении
                 await cache_delete(cache_key)
             else:
-            cached_characters = await cache_get(cache_key)
+                cached_characters = await cache_get(cache_key)
             if cached_characters is not None:
                 return cached_characters
 

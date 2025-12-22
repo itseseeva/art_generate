@@ -1462,7 +1462,10 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       }
 
       console.log('Sending request to API...', requestData); // Добавляем отладку
-      const response = await fetch('/api/v1/characters/create/', {
+      // КРИТИЧНО: Используем полный URL с базовым адресом API
+      const apiUrl = 'http://localhost:8000/api/v1/characters/create/';
+      console.log('[CREATE_CHAR] API URL:', apiUrl);
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

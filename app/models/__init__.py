@@ -3,10 +3,11 @@ from .subscription import UserSubscription, SubscriptionType, SubscriptionStatus
 from .user_gallery_unlock import UserGalleryUnlock
 from .payment_transaction import PaymentTransaction
 from .image_generation_history import ImageGenerationHistory
+from .balance_history import BalanceHistory
 
 __all__ = [
     "Users", "RefreshToken", "EmailVerificationCode",
     "UserSubscription", "SubscriptionType", "SubscriptionStatus",
     "UserGalleryUnlock", "PaymentTransaction",
-    "ImageGenerationHistory"
+    "ImageGenerationHistory", "BalanceHistory"
 ]

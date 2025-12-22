@@ -475,6 +475,15 @@ const MessageComponent: React.FC<MessageProps> = ({
   // Проверяем, что content пустой или содержит только пробелы
   // Убираем аватар при генерации фото
   const hasOnlyImage = hasValidImageUrl && (!message.content || message.content.trim() === '');
+  console.log('[MESSAGE] Rendering message:', { 
+    id: message.id, 
+    type: message.type, 
+    hasValidImageUrl, 
+    hasContent: !!message.content, 
+    contentLength: message.content?.length || 0,
+    hasOnlyImage,
+    isGenerationProgress
+  });
   if (hasOnlyImage) {
     return (
       <>
@@ -536,7 +545,11 @@ const MessageComponent: React.FC<MessageProps> = ({
             }}
             onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.01)'}
             onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+            onLoad={() => {
+              console.log('[MESSAGE] Image loaded successfully:', message.imageUrl);
+            }}
             onError={(e) => {
+              console.error('[MESSAGE] Image failed to load:', message.imageUrl, e);
               e.currentTarget.style.display = 'none';
             }}
           />

@@ -492,8 +492,8 @@ const PromptCloseButton = styled.button`
   position: absolute;
   top: ${theme.spacing.lg};
   right: ${theme.spacing.lg};
-  background: rgba(0, 0, 0, 0.7);
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(40, 40, 40, 0.95);
+  border: 2px solid rgba(255, 255, 255, 0.5);
   border-radius: 50%;
   width: 48px;
   height: 48px;
@@ -502,14 +502,21 @@ const PromptCloseButton = styled.button`
   justify-content: center;
   cursor: pointer;
   color: rgba(240, 240, 240, 1);
-  font-size: ${theme.fontSize.xl};
-  transition: ${theme.transition.fast};
-  z-index: 10001;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+  transition: all 0.3s ease;
+  z-index: 100002;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 
   &:hover {
-    background: rgba(0, 0, 0, 0.9);
-    border-color: rgba(200, 200, 200, 0.8);
+    background: rgba(60, 60, 60, 1);
+    border-color: rgba(255, 255, 255, 0.8);
     transform: scale(1.1);
+  }
+
+  &:active {
+    transform: scale(0.95);
   }
 `;
 
@@ -1507,13 +1514,17 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
           setIsLoadingPrompt(false);
         }}>
           <PromptModalContent onClick={(e) => e.stopPropagation()}>
-            <PromptCloseButton onClick={() => {
+            <PromptCloseButton 
+              onClick={(e) => {
+                e.stopPropagation();
               setSelectedPhoto(null);
               setSelectedPrompt(null);
               setPromptError(null);
               setIsLoadingPrompt(false);
-            }}>
-              <CloseIcon />
+              }}
+              title="Закрыть (Esc)"
+            >
+              ×
             </PromptCloseButton>
             <PromptModalImageContainer>
               <PromptModalImage src={selectedPhoto} alt="Full size" />

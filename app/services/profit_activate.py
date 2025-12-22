@@ -302,6 +302,18 @@ class ProfitActivateService:
                 existing_subscription.expires_at = new_expires_at
                 existing_subscription.last_reset_at = datetime.utcnow()
                 
+                # Записываем историю баланса
+                try:
+                    from app.utils.balance_history import record_balance_change
+                    await record_balance_change(
+                        db=self.db,
+                        user_id=user_id,
+                        amount=total_credits_to_add,
+                        reason=f"Продление подписки {subscription_type.upper()} (кредиты подписки переведены на баланс)"
+                    )
+                except Exception as e:
+                    logger.warning(f"Не удалось записать историю баланса: {e}")
+                
                 logger.info(f"[RENEWAL] Добавлено кредитов: {total_credits_to_add}")
                 logger.info(f"[RENEWAL] Новая дата окончания: {new_expires_at}")
                 logger.info(f"[NEW BALANCE] Баланс пользователя: {old_user_balance} + {total_credits_to_add} = {user.coins} монет")
@@ -351,6 +363,18 @@ class ProfitActivateService:
                 total_credits_to_add = monthly_credits + old_credits_remaining
                 user.coins += total_credits_to_add
                 
+                # Записываем историю баланса
+                try:
+                    from app.utils.balance_history import record_balance_change
+                    await record_balance_change(
+                        db=self.db,
+                        user_id=user_id,
+                        amount=total_credits_to_add,
+                        reason=f"Смена подписки на {subscription_type.upper()} (кредиты подписки переведены на баланс)"
+                    )
+                except Exception as e:
+                    logger.warning(f"Не удалось записать историю баланса: {e}")
+                
                 logger.info(f"[NEW SUBSCRIPTION] Базовые лимиты: кредиты={monthly_credits}, фото={monthly_photos}")
                 logger.info(f"[CREDITS TRANSFER] ✅ Переведено на баланс: {monthly_credits} (новая) + {old_credits_remaining} (остаток) = {total_credits_to_add} кредитов")
                 if existing_subscription.subscription_type == SubscriptionType.FREE:
@@ -398,6 +422,18 @@ class ProfitActivateService:
         user.coins += credits
         new_balance = user.coins
         
+        # Записываем историю баланса
+        try:
+            from app.utils.balance_history import record_balance_change
+            await record_balance_change(
+                db=self.db,
+                user_id=user_id,
+                amount=credits,
+                reason="Пополнение баланса (топ-ап кредитов)"
+            )
+        except Exception as e:
+            logger.warning(f"Не удалось записать историю баланса: {e}")
+        
         await self.db.commit()
         await self.db.refresh(user)
         
@@ -439,6 +475,18 @@ class ProfitActivateService:
         # Начисляем кредиты на баланс при первой подписке
         old_user_balance = user.coins
         user.coins += monthly_credits
+        
+        # Записываем историю баланса
+        try:
+            from app.utils.balance_history import record_balance_change
+            await record_balance_change(
+                db=self.db,
+                user_id=user_id,
+                amount=monthly_credits,
+                reason=f"Активация подписки {subscription_type.upper()} (кредиты подписки переведены на баланс)"
+            )
+        except Exception as e:
+            logger.warning(f"Не удалось записать историю баланса: {e}")
         
         logger.info(f"[CREDITS TRANSFER] Переведено на баланс: {monthly_credits} кредитов")
         logger.info(f"[NEW BALANCE] Баланс пользователя: {old_user_balance} + {monthly_credits} = {user.coins} монет")

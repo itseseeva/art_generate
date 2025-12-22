@@ -608,7 +608,24 @@ async def add_coins(
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be positive")
     
+    old_balance = current_user.coins
     current_user.coins += amount
+    await db.flush()
+    
+    # Записываем историю баланса
+    try:
+        from app.utils.balance_history import record_balance_change
+        await record_balance_change(
+            db=db,
+            user_id=current_user.id,
+            amount=amount,
+            reason="Пополнение баланса через API"
+        )
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Не удалось записать историю баланса: {e}")
+    
     await db.commit()
     await db.refresh(current_user)
     await emit_profile_update(current_user.id, db)
@@ -629,7 +646,24 @@ async def spend_coins(
     if current_user.coins < amount:
         raise HTTPException(status_code=400, detail="Insufficient coins")
     
+    old_balance = current_user.coins
     current_user.coins -= amount
+    await db.flush()
+    
+    # Записываем историю баланса
+    try:
+        from app.utils.balance_history import record_balance_change
+        await record_balance_change(
+            db=db,
+            user_id=current_user.id,
+            amount=-amount,
+            reason="Списание баланса через API"
+        )
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Не удалось записать историю баланса: {e}")
+    
     await db.commit()
     await db.refresh(current_user)
     await emit_profile_update(current_user.id, db)
@@ -759,8 +793,33 @@ async def tip_character_creator(
             db.add(tip_message)
             logger.info(f"[TIP MESSAGE] Сообщение добавлено в транзакцию")
         
+        # Записываем историю баланса для отправителя
+        try:
+            from app.utils.balance_history import record_balance_change
+            await record_balance_change(
+                db=db,
+                user_id=sender_id,
+                amount=-tip_request.amount,
+                reason=f"Чаевые создателю персонажа '{character.display_name or character.name}'"
+            )
+        except Exception as e:
+            logger.warning(f"Не удалось записать историю баланса для отправителя: {e}")
+        
+        # Записываем историю баланса для получателя (если есть)
+        if creator_id:
+            try:
+                from app.utils.balance_history import record_balance_change
+                await record_balance_change(
+                    db=db,
+                    user_id=creator_id,
+                    amount=tip_request.amount,
+                    reason=f"Чаевые от пользователя за персонажа '{character.display_name or character.name}'"
+                )
+            except Exception as e:
+                logger.warning(f"Не удалось записать историю баланса для получателя: {e}")
+        
         # Один commit для всей транзакции
-            await db.commit()
+        await db.commit()
         logger.info(f"[TIP] Транзакция закоммичена")
         
         # Получаем обновлённые данные из БД ПОСЛЕ commit
@@ -1630,6 +1689,18 @@ async def unlock_user_gallery(
                 status_code=500,
                 detail="Не удалось списать кредиты"
             )
+        
+        # Записываем историю баланса
+        try:
+            from app.utils.balance_history import record_balance_change
+            await record_balance_change(
+                db=db,
+                user_id=current_user.id,
+                amount=-GALLERY_UNLOCK_COST,
+                reason=f"Разблокировка галереи пользователя (ID: {target_user_id})"
+            )
+        except Exception as e:
+            logger.warning(f"Не удалось записать историю баланса: {e}")
     
     # Сохраняем информацию о разблокировке
     unlock_record = UserGalleryUnlock(

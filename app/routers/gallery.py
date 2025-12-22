@@ -365,6 +365,31 @@ async def unlock_paid_gallery(
         )
     )
     
+    # Записываем историю баланса для покупателя
+    try:
+        from app.utils.balance_history import record_balance_change
+        await record_balance_change(
+            db=db,
+            user_id=current_user.id,
+            amount=-PAID_ALBUM_COST,
+            reason=f"Разблокировка платного альбома персонажа '{character_db.name}'"
+        )
+    except Exception as e:
+        logger.warning(f"Не удалось записать историю баланса для покупателя: {e}")
+    
+    # Записываем историю баланса для создателя (если есть)
+    if character_db.user_id and creator:
+        try:
+            from app.utils.balance_history import record_balance_change
+            await record_balance_change(
+                db=db,
+                user_id=creator.id,
+                amount=creator_profit,
+                reason=f"Доход от продажи альбома персонажа '{character_db.name}' (15%)"
+            )
+        except Exception as e:
+            logger.warning(f"Не удалось записать историю баланса для создателя: {e}")
+    
     # Коммитим все изменения (списание у покупателя, начисление создателю, запись о разблокировке)
     await db.commit()
     

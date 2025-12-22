@@ -34,11 +34,22 @@ try:
     from app.models.subscription import UserSubscription
     from app.models.payment_transaction import PaymentTransaction
     from app.models.image_generation_history import ImageGenerationHistory
+    from app.models.balance_history import BalanceHistory
     target_metadata = Base.metadata
 except Exception as e:
     # Avoid non-ASCII output to prevent Windows encoding issues
     print(f"Model import error: {e}")
     target_metadata = None
+
+
+def include_object(object, name, type_, reflected, compare_to):
+    """
+    Исключаем таблицы videos и video_snapshots из миграций,
+    так как они не определены в моделях, но используются в БД.
+    """
+    if type_ == "table" and name in ("videos", "video_snapshots"):
+        return False
+    return True
 
 
 def run_migrations_offline() -> None:
@@ -59,6 +70,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -80,7 +92,9 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection, 
+            target_metadata=target_metadata,
+            include_object=include_object
         )
 
         with context.begin_transaction():

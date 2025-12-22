@@ -14,7 +14,7 @@ from app.services.coins_service import CoinsService
 from app.services.profit_activate import ProfitActivateService, emit_profile_update
 from app.utils.redis_cache import (
     cache_get, cache_set, cache_delete, cache_delete_pattern,
-    key_characters_list, key_character,
+    key_characters_list, key_character, key_character_photos,
     TTL_CHARACTERS_LIST, TTL_CHARACTER
 )
 import logging
@@ -31,7 +31,7 @@ router = APIRouter(tags=["Characters"])
 
 CHARACTER_CREATION_COST = 50
 PHOTO_GENERATION_COST = 10
-CHARACTER_EDIT_COST = 50  # Кредиты за редактирование персонажа
+CHARACTER_EDIT_COST = 30  # Кредиты за редактирование персонажа
 
 
 def _get_gallery_metadata_dir() -> Path:
@@ -197,6 +197,18 @@ async def charge_for_character_creation(user_id: int, db: AsyncSession) -> None:
         )
 
     await coins_service.spend_coins(user_id, CHARACTER_CREATION_COST, commit=False)
+    
+    # Записываем историю баланса
+    try:
+        from app.utils.balance_history import record_balance_change
+        await record_balance_change(
+            db=db,
+            user_id=user_id,
+            amount=-CHARACTER_CREATION_COST,
+            reason="Создание нового персонажа"
+        )
+    except Exception as e:
+        logger.warning(f"Не удалось записать историю баланса: {e}")
 
     if await subscription_service.can_user_use_credits_amount(user_id, CHARACTER_CREATION_COST):
         credits_spent = await subscription_service.use_credits_amount(
@@ -219,7 +231,7 @@ async def charge_for_character_creation(user_id: int, db: AsyncSession) -> None:
     await db.flush()
 
 
-async def charge_for_photo_generation(user_id: int, db: AsyncSession) -> None:
+async def charge_for_photo_generation(user_id: int, db: AsyncSession, character_name: str = "неизвестный") -> None:
     """Списывает ресурсы за генерацию/загрузку фото персонажа. Для STANDARD/PREMIUM только кредиты, для FREE - также лимит подписки."""
     coins_service = CoinsService(db)
     subscription_service = ProfitActivateService(db)
@@ -252,6 +264,18 @@ async def charge_for_photo_generation(user_id: int, db: AsyncSession) -> None:
             "У пользователя %s закончился лимит генераций подписки, продолжаем за счет монет",
             user_id,
         )
+
+    # Записываем историю баланса
+    try:
+        from app.utils.balance_history import record_balance_change
+        await record_balance_change(
+            db=db,
+            user_id=user_id,
+            amount=-PHOTO_GENERATION_COST,
+            reason=f"Генерация фото для персонажа '{character_name}'"
+        )
+    except Exception as e:
+        logger.warning(f"Не удалось записать историю баланса: {e}")
 
     await db.flush()
 
@@ -827,33 +851,33 @@ async def get_character_chat_history(
                         # Если поле generation_time отсутствует или произошла другая ошибка, выбираем без него
                         logger.warning(f"[HISTORY] Ошибка при выборке с generation_time, выбираем без него: {gen_time_select_error}")
                         try:
-                        await db.rollback()  # Откатываем транзакцию после ошибки
+                            await db.rollback()  # Откатываем транзакцию после ошибки
                         except Exception:
                             pass  # Игнорируем ошибки rollback
                         try:
-                        result = await db.execute(
-                            text("""
-                                SELECT id, user_id, character_name, session_id, message_type, 
-                                       message_content, image_url, image_filename, created_at
-                                FROM chat_history
-                                WHERE user_id = :user_id 
-                                  AND character_name ILIKE :character_name
-                                ORDER BY created_at ASC
-                                LIMIT 100
-                            """),
+                            result = await db.execute(
+                                text("""
+                                    SELECT id, user_id, character_name, session_id, message_type, 
+                                           message_content, image_url, image_filename, created_at
+                                    FROM chat_history
+                                    WHERE user_id = :user_id 
+                                      AND character_name ILIKE :character_name
+                                    ORDER BY created_at ASC
+                                    LIMIT 100
+                                """),
                                 {"user_id": user_id_for_history, "character_name": character_name}
-                        )
-                        rows = result.fetchall()
-                        # Преобразуем в объекты для совместимости
-                        class HistoryRow:
-                            def __init__(self, row):
-                                self.id = row[0]
-                                self.message_type = row[4]
-                                self.message_content = row[5]
-                                self.image_url = row[6]
-                                self.created_at = row[8]
-                                self.generation_time = None
-                        history_list = [HistoryRow(row) for row in rows]
+                            )
+                            rows = result.fetchall()
+                            # Преобразуем в объекты для совместимости
+                            class HistoryRow:
+                                def __init__(self, row):
+                                    self.id = row[0]
+                                    self.message_type = row[4]
+                                    self.message_content = row[5]
+                                    self.image_url = row[6]
+                                    self.created_at = row[8]
+                                    self.generation_time = None
+                            history_list = [HistoryRow(row) for row in rows]
                         except Exception as fallback_error:
                             logger.error(f"[HISTORY] Ошибка при fallback выборке без generation_time: {fallback_error}", exc_info=True)
                             history_list = []  # Устанавливаем пустой список при ошибке
@@ -898,7 +922,7 @@ async def get_character_chat_history(
                 except Exception as e:
                     logger.error(f"Error querying ChatHistory with raw SQL for character {character_name}: {e}", exc_info=True)
                     try:
-                    await db.rollback()  # Откатываем транзакцию на случай ошибки
+                        await db.rollback()  # Откатываем транзакцию на случай ошибки
                     except Exception:
                         pass  # Игнорируем ошибки rollback
                     # Возвращаем пустой список при ошибке
@@ -958,43 +982,43 @@ async def get_character_chat_history(
             from sqlalchemy import text
             try:
                 # Пытаемся выбрать с generation_time, если поле существует
-                try:
-                    result = await db.execute(
-                        text("""
-                            SELECT id, user_id, character_name, session_id, message_type, 
-                                   message_content, image_url, image_filename, created_at, generation_time
-                            FROM chat_history
-                            WHERE user_id = :user_id 
-                              AND character_name ILIKE :character_name 
-                              AND session_id = :session_id
-                            ORDER BY created_at DESC
-                        """),
+                result = await db.execute(
+                    text("""
+                        SELECT id, user_id, character_name, session_id, message_type, 
+                               message_content, image_url, image_filename, created_at, generation_time
+                        FROM chat_history
+                        WHERE user_id = :user_id 
+                          AND character_name ILIKE :character_name 
+                          AND session_id = :session_id
+                        ORDER BY created_at DESC
+                    """),
                         {"user_id": user_id_value, "character_name": character_name, "session_id": session_id_str}  # Используем сохраненные значения
-                    )
-                    history_list_rows = result.fetchall()
-                    # Преобразуем результат в объекты для совместимости с кодом ниже
-                    class HistoryRow:
-                        def __init__(self, row):
-                            self.id = row[0]
-                            self.user_id = row[1]
-                            self.character_name = row[2]
-                            self.session_id = row[3]
-                            self.message_type = row[4]
-                            self.message_content = row[5]
-                            self.image_url = row[6]
-                            self.image_filename = row[7]
-                            self.created_at = row[8]
-                            # generation_time находится в индексе 9, конвертируем в float если не None
-                            self.generation_time = float(row[9]) if row[9] is not None else None
-                    
-                    history_list = [HistoryRow(row) for row in history_list_rows]
-                except Exception as gen_time_error:
-                    # Если поле generation_time отсутствует, выбираем без него
-                    logger.warning(f"[HISTORY] Поле generation_time отсутствует в БД при выборке с session_id, выбираем без него: {gen_time_error}")
-                    try:
-                        await db.rollback()  # Откатываем транзакцию после ошибки
-                    except Exception:
-                        pass  # Игнорируем ошибки rollback
+                )
+                history_list_rows = result.fetchall()
+                # Преобразуем результат в объекты для совместимости с кодом ниже
+                class HistoryRow:
+                    def __init__(self, row):
+                        self.id = row[0]
+                        self.user_id = row[1]
+                        self.character_name = row[2]
+                        self.session_id = row[3]
+                        self.message_type = row[4]
+                        self.message_content = row[5]
+                        self.image_url = row[6]
+                        self.image_filename = row[7]
+                        self.created_at = row[8]
+                        # generation_time находится в индексе 9, конвертируем в float если не None
+                        self.generation_time = float(row[9]) if row[9] is not None else None
+                
+                history_list = [HistoryRow(row) for row in history_list_rows]
+            except Exception as gen_time_error:
+                # Если поле generation_time отсутствует, выбираем без него
+                logger.warning(f"[HISTORY] Поле generation_time отсутствует в БД при выборке с session_id, выбираем без него: {gen_time_error}")
+                try:
+                    await db.rollback()  # Откатываем транзакцию после ошибки
+                except Exception:
+                    pass  # Игнорируем ошибки rollback
+                try:
                     result = await db.execute(
                         text("""
                             SELECT id, user_id, character_name, session_id, message_type, 
@@ -1023,13 +1047,17 @@ async def get_character_chat_history(
                             self.generation_time = None
                     
                     history_list = [HistoryRow(row) for row in history_list_rows]
+                except Exception as fallback_error:
+                    logger.error(f"[HISTORY] Ошибка при fallback выборке без generation_time: {fallback_error}", exc_info=True)
+                    history_list = []  # Устанавливаем пустой список при ошибке
                 
                 # Создаем словарь по timestamp для быстрого поиска
-                for hist_msg in history_list:
-                    # Используем timestamp как ключ (округленный до секунды для совпадения)
-                    if hist_msg.created_at:
-                        timestamp_key = hist_msg.created_at.replace(microsecond=0)
-                        chat_history_dict[(timestamp_key, hist_msg.message_type)] = hist_msg
+                if history_list:
+                    for hist_msg in history_list:
+                        # Используем timestamp как ключ (округленный до секунды для совпадения)
+                        if hist_msg.created_at:
+                            timestamp_key = hist_msg.created_at.replace(microsecond=0)
+                            chat_history_dict[(timestamp_key, hist_msg.message_type)] = hist_msg
             except Exception as e:
                 # Если и raw SQL не работает, логируем ошибку и продолжаем без chat_history_dict
                 logger.error(f"Error querying ChatHistory with raw SQL: {e}", exc_info=True)
@@ -1203,29 +1231,49 @@ async def update_user_character(
         await check_character_ownership(character_name, current_user, db)
         
         # Проверяем и списываем кредиты за редактирование
-        subscription_service = ProfitActivateService(db)
+        # КРИТИЧНО: Используем баланс пользователя (user.coins), а не кредиты подписки
         user_id = current_user.id
         
-        # Проверяем, достаточно ли кредитов
-        if not await subscription_service.can_user_use_credits_amount(user_id, CHARACTER_EDIT_COST):
+        # Загружаем актуальные данные пользователя из БД
+        from sqlalchemy import select
+        user_result = await db.execute(
+            select(Users).where(Users.id == user_id)
+        )
+        db_user = user_result.scalar_one_or_none()
+        
+        if not db_user:
             raise HTTPException(
-                status_code=400,
-                detail=f"Недостаточно кредитов. Для редактирования персонажа требуется {CHARACTER_EDIT_COST} кредитов."
+                status_code=404,
+                detail="Пользователь не найден"
             )
         
-        # Списываем кредиты
-        credits_spent = await subscription_service.use_credits_amount(
-            user_id, CHARACTER_EDIT_COST, commit=False
-        )
-        if not credits_spent:
+        # Проверяем баланс пользователя
+        if db_user.coins < CHARACTER_EDIT_COST:
             raise HTTPException(
                 status_code=400,
-                detail=f"Не удалось списать кредиты. Требуется {CHARACTER_EDIT_COST} кредитов."
+                detail=f"Недостаточно кредитов. Для редактирования персонажа требуется {CHARACTER_EDIT_COST} кредитов. У вас: {db_user.coins} кредитов."
             )
+        
+        # Списываем кредиты с баланса пользователя
+        old_balance = db_user.coins
+        db_user.coins -= CHARACTER_EDIT_COST
+        await db.flush()  # Сохраняем изменения, но не коммитим пока (коммит будет после обновления персонажа)
+        
+        # Записываем в историю баланса
+        try:
+            from app.utils.balance_history import record_balance_change
+            await record_balance_change(
+                db=db,
+                user_id=user_id,
+                amount=-CHARACTER_EDIT_COST,
+                reason=f"Редактирование персонажа '{character_name}'"
+            )
+        except Exception as e:
+            logger.warning(f"Не удалось записать историю баланса: {e}")
         
         logger.info(
             f"Списано {CHARACTER_EDIT_COST} кредитов у пользователя {user_id} "
-            f"за редактирование персонажа '{character_name}'"
+            f"за редактирование персонажа '{character_name}'. Баланс: {old_balance} -> {db_user.coins}"
         )
         
         # Find character
@@ -1290,13 +1338,17 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         
         await db.commit()
         await db.refresh(db_char)
+        await db.refresh(db_user)  # Обновляем данные пользователя после коммита
+        
+        # Обновляем профиль пользователя (для обновления баланса на фронтенде)
+        await emit_profile_update(user_id, db)
         
         # Инвалидируем кэш персонажей
         await cache_delete(key_character(character_name))
         await cache_delete(key_characters_list())
         await cache_delete_pattern("characters:list:*")
         
-        logger.info(f"User character '{character_name}' updated successfully by user {current_user.id}")
+        logger.info(f"User character '{character_name}' updated successfully by user {current_user.id}. New balance: {db_user.coins}")
         return db_char
         
     except HTTPException:
@@ -1314,7 +1366,7 @@ async def delete_character(
     current_user: Users = Depends(get_current_user)
 ):
     """Удаляет персонажа из базы данных. Только владелец может удалить персонажа."""
-    from app.chat_bot.models.models import CharacterDB
+    from app.chat_bot.models.models import CharacterDB, ChatSession, ChatMessageDB
     
     try:
         # Check character ownership
@@ -1326,6 +1378,28 @@ async def delete_character(
         )
         db_char = result.scalar_one_or_none()
         
+        if not db_char:
+            raise HTTPException(status_code=404, detail=f"Персонаж '{character_name}' не найден")
+        
+        # Явно удаляем связанные записи перед удалением персонажа
+        # (хотя каскадное удаление должно работать автоматически)
+        # Это гарантирует, что все связанные данные будут удалены
+        
+        # Удаляем все сессии чата с этим персонажем
+        sessions_result = await db.execute(
+            select(ChatSession).where(ChatSession.character_id == db_char.id)
+        )
+        sessions = sessions_result.scalars().all()
+        
+        for session in sessions:
+            # Удаляем все сообщения из сессии
+            await db.execute(
+                delete(ChatMessageDB).where(ChatMessageDB.session_id == session.id)
+            )
+            # Удаляем саму сессию
+            await db.delete(session)
+        
+        # Удаляем персонажа (каскадное удаление удалит остальные связанные записи)
         await db.delete(db_char)
         await db.commit()
         
@@ -1334,13 +1408,16 @@ async def delete_character(
         await cache_delete(key_characters_list())
         await cache_delete_pattern("characters:list:*")
         
+        logger.info(f"Персонаж '{character_name}' (ID: {db_char.id}) успешно удален вместе со всеми связанными данными")
+        
         return db_char
         
     except HTTPException:
         raise
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error(f"Ошибка при удалении персонажа '{character_name}': {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Ошибка при удалении персонажа: {str(e)}")
 
 
 @router.get("/my-characters", response_model=List[CharacterInDB])
@@ -1489,7 +1566,7 @@ async def upload_character_photo(
                 detail="Only image files are allowed"
             )
 
-        await charge_for_photo_generation(current_user.id, db)
+        await charge_for_photo_generation(current_user.id, db, character_name=character_name)
         
         # Создаем папку для фотографий персонажа, если её нет
         import os
@@ -1611,7 +1688,7 @@ async def generate_character_photo(
         # Убираем множественные запятые
         prompt = ', '.join([p.strip() for p in prompt.split(',') if p.strip()])
         
-        await charge_for_photo_generation(current_user.id, db)
+        await charge_for_photo_generation(current_user.id, db, character_name=character_name)
         
         # Генерируем фото через Stable Diffusion
         try:
