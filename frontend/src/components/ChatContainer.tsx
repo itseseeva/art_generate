@@ -227,6 +227,7 @@ const CharacterCardWrapper = styled.div`
   align-items: flex-start;
   gap: ${theme.spacing.md};
   flex-wrap: wrap;
+  padding-left: 0;
   
   /* Ограничиваем ширину карточки как на главной странице (minmax(200px, 1fr)) */
   > *:first-child {
@@ -245,9 +246,9 @@ const GenerationQueueIndicator = styled.div`
   backdrop-filter: blur(10px);
   border: 1px solid rgba(100, 100, 100, 0.3);
   border-radius: ${theme.borderRadius.md};
-  min-width: 150px;
-  flex: 1;
-  max-width: 200px;
+  min-width: 195px;
+  max-width: 260px;
+  margin: 0 auto;
 `;
 
 const QueueTitle = styled.div`
@@ -2972,9 +2973,86 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   // Это важно, чтобы сообщения отображались даже если персонаж еще загружается
   const hasMessages = messages.length > 0;
   
-  // Показываем спиннер ТОЛЬКО если нет персонажа, нет сообщений И нет ошибки
+  // Проверка на истекшую сессию: если загрузка завершена, но нет персонажа и сообщений - это потеря сессии
+  const isSessionExpired = !isLoading && !effectiveCharacterForRender && !hasMessages && !error;
+  
+  if (isSessionExpired) {
+    console.log('[CHAT RENDER] Session expired - no character, no messages, loading complete');
+    return (
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        height: '100vh', 
+        width: '100vw',
+        color: '#fff', 
+        flexDirection: 'column', 
+        gap: '1.5rem',
+        backgroundColor: '#0a0a0a',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        zIndex: 9999
+      }}>
+        <div style={{
+          textAlign: 'center',
+          padding: '2rem',
+          background: 'rgba(30, 30, 30, 0.95)',
+          borderRadius: '1rem',
+          border: '1px solid rgba(150, 150, 150, 0.3)',
+          maxWidth: '400px'
+        }}>
+          <h2 style={{
+            margin: '0 0 1rem 0',
+            fontSize: '1.5rem',
+            fontWeight: 600,
+            color: '#fff'
+          }}>
+            Время сессии истекло
+          </h2>
+          <p style={{
+            margin: '0 0 1.5rem 0',
+            fontSize: '1rem',
+            color: 'rgba(200, 200, 200, 1)',
+            lineHeight: 1.5
+          }}>
+            Для продолжения работы необходимо обновить страницу
+          </p>
+          <button 
+            onClick={() => window.location.reload()}
+            style={{ 
+              padding: '0.75rem 2rem', 
+              cursor: 'pointer',
+              background: 'rgba(100, 150, 255, 0.8)',
+              border: '1px solid rgba(100, 150, 255, 0.5)',
+              borderRadius: '0.5rem',
+              color: '#fff',
+              fontSize: '1rem',
+              fontWeight: 600,
+              transition: 'all 0.2s ease',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(100, 150, 255, 1)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.4)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(100, 150, 255, 0.8)';
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.3)';
+            }}
+          >
+            Перезагрузить страницу
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  // Показываем спиннер ТОЛЬКО если идет загрузка И нет персонажа, нет сообщений И нет ошибки
   // Если есть хотя бы что-то одно (персонаж ИЛИ сообщения) - показываем интерфейс
-  const shouldShowLoading = !effectiveCharacterForRender && !hasMessages && !error;
+  const shouldShowLoading = isLoading && !effectiveCharacterForRender && !hasMessages && !error;
   
   if (shouldShowLoading) {
     console.log('[CHAT RENDER] Showing loading - no character, no messages, no error');

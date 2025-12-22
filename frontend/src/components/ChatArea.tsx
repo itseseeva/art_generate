@@ -241,16 +241,16 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             console.log('[CHAT AREA] Rendering message:', { id: message.id, type: message.type, hasContent: !!message.content, hasImage: !!message.imageUrl, imageUrl: message.imageUrl });
           }
           return (
-            <Message 
-              key={message.id} 
-              message={message}
-              characterName={characterName}
-              characterAvatar={characterAvatar}
-              isAuthenticated={isAuthenticated}
-              isCharacterOwner={isCharacterOwner}
-              onAddToGallery={onAddToGallery}
-              onAddToPaidAlbum={onAddToPaidAlbum}
-            />
+          <Message 
+            key={message.id} 
+            message={message}
+            characterName={characterName}
+            characterAvatar={characterAvatar}
+            isAuthenticated={isAuthenticated}
+            isCharacterOwner={isCharacterOwner}
+            onAddToGallery={onAddToGallery}
+            onAddToPaidAlbum={onAddToPaidAlbum}
+          />
           );
         })}
         

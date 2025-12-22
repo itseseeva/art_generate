@@ -865,7 +865,7 @@ async def get_character_chat_history(
                                     ORDER BY created_at ASC
                                     LIMIT 100
                                 """),
-                                {"user_id": user_id_for_history, "character_name": character_name}
+                                    {"user_id": user_id_for_history, "character_name": character_name}
                             )
                             rows = result.fetchall()
                             # Преобразуем в объекты для совместимости

@@ -819,7 +819,7 @@ async def tip_character_creator(
                 logger.warning(f"Не удалось записать историю баланса для получателя: {e}")
         
         # Один commit для всей транзакции
-        await db.commit()
+            await db.commit()
         logger.info(f"[TIP] Транзакция закоммичена")
         
         # Получаем обновлённые данные из БД ПОСЛЕ commit

@@ -101,7 +101,7 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authCheckComplete, setAuthCheckComplete] = useState(false);
   const [favoriteCharacterIds, setFavoriteCharacterIds] = useState<Set<number>>(new Set());
-  
+
   // Используем ref для отслеживания, чтобы избежать повторных загрузок
   const isLoadingRef = useRef(false);
   const hasLoadedRef = useRef(false);
@@ -257,21 +257,21 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
         const formattedCharacters: Character[] = myCharacters
           .filter((char: any) => char && char.id != null) // Защита от null/undefined
           .map((char: any) => {
-            const normalizedKey = (char.name || char.display_name || '').toLowerCase();
+          const normalizedKey = (char.name || char.display_name || '').toLowerCase();
             const charName = char.name || char.display_name || 'Unknown';
-            return {
+          return {
               id: String(char.id || ''),
               name: charName,
-              description: char.character_appearance || 'No description available',
+          description: char.character_appearance || 'No description available',
               avatar: charName.charAt(0).toUpperCase(),
-              photos: photosMap[normalizedKey] || [],
-              tags: ['My Character'],
-              author: 'Me',
-              likes: 0,
-              views: 0,
-              comments: 0
-            };
-          });
+            photos: photosMap[normalizedKey] || [],
+          tags: ['My Character'],
+          author: 'Me',
+          likes: 0,
+          views: 0,
+          comments: 0
+          };
+        });
         
         setCharacters(formattedCharacters);
         setIsAuthenticated(true);
@@ -348,12 +348,12 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
     
     const initPage = async () => {
       try {
-        await checkAuth();
-        
-        // Загружаем персонажей если есть токен
-        const token = localStorage.getItem('authToken');
-        if (token) {
-          await loadMyCharacters();
+      await checkAuth();
+      
+      // Загружаем персонажей если есть токен
+      const token = localStorage.getItem('authToken');
+      if (token) {
+        await loadMyCharacters();
         }
       } catch (error) {
         console.error('Error initializing page:', error);
@@ -409,26 +409,26 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
             characters
               .filter((character) => character && character.id) // Защита от пустых персонажей
               .map((character) => {
-                // Проверяем, находится ли персонаж в избранном
-                const characterId = typeof character.id === 'number' 
-                  ? character.id 
+              // Проверяем, находится ли персонаж в избранном
+              const characterId = typeof character.id === 'number' 
+                ? character.id 
                   : parseInt(String(character.id || ''), 10);
-                const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
-                
-                return (
-                  <CharacterCard
-                    key={character.id}
-                    character={character}
-                    onClick={handleCardClick}
-                    isAuthenticated={isAuthenticated}
-                    onPhotoGeneration={onPhotoGeneration}
-                    onPaidAlbum={onPaidAlbum}
-                    isFavorite={isFavorite}
-                    onFavoriteToggle={loadFavorites}
+              const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
+              
+              return (
+                <CharacterCard
+                  key={character.id}
+                  character={character}
+                onClick={handleCardClick}
+                isAuthenticated={isAuthenticated}
+                onPhotoGeneration={onPhotoGeneration}
+                onPaidAlbum={onPaidAlbum}
+                  isFavorite={isFavorite}
+                  onFavoriteToggle={loadFavorites}
                     onDelete={undefined}
-                  />
-                );
-              })
+                />
+              );
+            })
           )}
         </CharactersGrid>
 
