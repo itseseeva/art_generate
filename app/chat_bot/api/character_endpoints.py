@@ -561,6 +561,40 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         
         full_prompt = ensure_unicode(full_prompt)
         
+        # Переводим поля appearance и location на английский перед сохранением
+        translated_appearance = None
+        translated_location = None
+        
+        if character.appearance:
+            appearance_text = ensure_unicode(character.appearance)
+            try:
+                import re
+                has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', appearance_text))
+                if has_cyrillic:
+                    from deep_translator import GoogleTranslator
+                    translator = GoogleTranslator(source='ru', target='en')
+                    translated_appearance = translator.translate(appearance_text)
+                else:
+                    translated_appearance = appearance_text
+            except (ImportError, Exception) as translate_error:
+                logger.error(f"[TRANSLATE] Ошибка перевода внешности: {translate_error}")
+                translated_appearance = appearance_text
+        
+        if character.location:
+            location_text = ensure_unicode(character.location)
+            try:
+                import re
+                has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', location_text))
+                if has_cyrillic:
+                    from deep_translator import GoogleTranslator
+                    translator = GoogleTranslator(source='ru', target='en')
+                    translated_location = translator.translate(location_text)
+                else:
+                    translated_location = location_text
+            except (ImportError, Exception) as translate_error:
+                logger.error(f"[TRANSLATE] Ошибка перевода локации: {translate_error}")
+                translated_location = location_text
+        
         # Списываем ресурсы за создание персонажа
         await charge_for_character_creation(current_user.id, db)
         
@@ -570,8 +604,8 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
             display_name=ensure_unicode(character.name),
             description=ensure_unicode(character.name),
             prompt=full_prompt,
-            character_appearance=ensure_unicode(character.appearance) if character.appearance else None,
-            location=ensure_unicode(character.location) if character.location else None,
+            character_appearance=translated_appearance,
+            location=translated_location,
             user_id=current_user.id,
             is_nsfw=False
         )
@@ -976,6 +1010,7 @@ async def get_character_chat_history(
         
         # Также получаем ChatHistory для этого session_id чтобы найти image_url для сообщений
         chat_history_dict = {}
+        history_list = []  # Инициализируем пустым списком
         if current_user:
             from app.models.chat_history import ChatHistory
             # Используем raw SQL с включением generation_time из БД
@@ -1050,14 +1085,6 @@ async def get_character_chat_history(
                 except Exception as fallback_error:
                     logger.error(f"[HISTORY] Ошибка при fallback выборке без generation_time: {fallback_error}", exc_info=True)
                     history_list = []  # Устанавливаем пустой список при ошибке
-                
-                # Создаем словарь по timestamp для быстрого поиска
-                if history_list:
-                    for hist_msg in history_list:
-                        # Используем timestamp как ключ (округленный до секунды для совпадения)
-                        if hist_msg.created_at:
-                            timestamp_key = hist_msg.created_at.replace(microsecond=0)
-                            chat_history_dict[(timestamp_key, hist_msg.message_type)] = hist_msg
             except Exception as e:
                 # Если и raw SQL не работает, логируем ошибку и продолжаем без chat_history_dict
                 logger.error(f"Error querying ChatHistory with raw SQL: {e}", exc_info=True)
@@ -1065,6 +1092,15 @@ async def get_character_chat_history(
                     await db.rollback()  # Откатываем транзакцию на случай ошибки
                 except Exception:
                     pass  # Игнорируем ошибки rollback
+                history_list = []  # Устанавливаем пустой список при ошибке
+            
+            # Создаем словарь по timestamp для быстрого поиска (выполняется всегда, когда history_list не пустой)
+            if history_list:
+                for hist_msg in history_list:
+                    # Используем timestamp как ключ (округленный до секунды для совпадения)
+                    if hist_msg.created_at:
+                        timestamp_key = hist_msg.created_at.replace(microsecond=0)
+                        chat_history_dict[(timestamp_key, hist_msg.message_type)] = hist_msg
         
         # Форматируем сообщения для фронтенда (в хронологическом порядке)
         import re

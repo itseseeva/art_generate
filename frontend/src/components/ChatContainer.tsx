@@ -13,6 +13,7 @@ import { GlobalHeader } from './GlobalHeader';
 import { PhotoGenerationHelpModal } from './PhotoGenerationHelpModal';
 import { extractRolePlayingSituation } from '../utils/characterUtils';
 import { authManager } from '../utils/auth';
+import { translateToEnglish } from '../utils/translate';
 import { FiUnlock, FiLock, FiImage } from 'react-icons/fi';
 import { CharacterCard } from './CharacterCard';
 import { API_CONFIG } from '../config/api';
@@ -199,6 +200,7 @@ const ChatMessagesArea = styled.div`
   margin: 0;
   padding: 0;
   position: relative;
+  z-index: 1;
 `;
 
 const ChatContentWrapper = styled.div`
@@ -1262,6 +1264,29 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const [isPhotoGenerationHelpModalOpen, setIsPhotoGenerationHelpModalOpen] = useState(false);
   const [imagePromptInput, setImagePromptInput] = useState('');
   const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime'>('anime-realism');
+  // Сохраняем отредактированные промпты для каждого персонажа (ключ - имя персонажа)
+  const [modifiedPrompts, setModifiedPrompts] = useState<Record<string, string>>({});
+  // Используем ref для синхронного доступа к промптам (чтобы избежать проблем с асинхронным обновлением state)
+  const modifiedPromptsRef = useRef<Record<string, string>>({});
+
+  // Синхронизируем ref с state при изменении modifiedPrompts
+  useEffect(() => {
+    modifiedPromptsRef.current = modifiedPrompts;
+  }, [modifiedPrompts]);
+
+  // Отслеживаем смену персонажа и сбрасываем промпт для нового персонажа (если он еще не был сохранен)
+  useEffect(() => {
+    const characterForData = currentCharacter || initialCharacter;
+    const characterName = characterForData?.name || '';
+    
+    // Если персонаж изменился и для него нет сохраненного промпта, промпт будет загружен из данных персонажа
+    // Это происходит автоматически в handleGenerateImage при открытии модалки
+    // Здесь мы просто логируем смену персонажа
+    if (characterName) {
+      const hasSavedPrompt = modifiedPromptsRef.current[characterName] || modifiedPrompts[characterName];
+      console.log('[PROMPT] Текущий персонаж:', characterName, hasSavedPrompt ? '(есть сохраненный промпт)' : '(используется промпт из базы)');
+    }
+  }, [currentCharacter?.name, initialCharacter?.name, modifiedPrompts]);
 
   // Функция для опроса статуса генерации изображения (используется из SSE потока)
   const pollImageGenerationStatus = async (taskId: string, messageId: string, token?: string) => {
@@ -1422,11 +1447,41 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const handleGenerateImage = async (userPrompt?: string) => {
     // Если промпт не передан - открываем модалку
     if (!userPrompt) {
-      // Предзаполняем промпт из базы
-      const appearance = (currentCharacter as any)?.character_appearance || '';
-      const location = (currentCharacter as any)?.location || '';
-      const defaultPrompt = `${appearance} ${location}`.trim() || 'portrait, high quality, detailed';
-      setImagePromptInput(defaultPrompt);
+      // Предзаполняем промпт: сначала проверяем сохраненный промпт, потом данные персонажа
+      const characterForData = currentCharacter || initialCharacter;
+      const characterName = characterForData?.name || '';
+      
+      console.log('[GENERATE_IMAGE] Открытие модалки для персонажа:', characterName);
+      console.log('[GENERATE_IMAGE] Все сохраненные промпты:', Object.keys(modifiedPrompts));
+      console.log('[GENERATE_IMAGE] Текущий modifiedPrompts:', modifiedPrompts);
+      
+      // Проверяем, есть ли сохраненный промпт для этого персонажа (используем ref для синхронного доступа)
+      const savedPrompt = modifiedPromptsRef.current[characterName] || modifiedPrompts[characterName];
+      
+      if (savedPrompt && savedPrompt.trim()) {
+        // Используем сохраненный промпт
+        console.log('[GENERATE_IMAGE] Используем сохраненный промпт для персонажа:', characterName, 'Длина:', savedPrompt.length, 'Превью:', savedPrompt.substring(0, 50));
+        setImagePromptInput(savedPrompt);
+      } else {
+        // Используем данные персонажа
+        const appearance = (characterForData as any)?.character_appearance 
+          || (characterForData as any)?.raw?.character_appearance 
+          || (characterForData as any)?.appearance 
+          || '';
+        const location = (characterForData as any)?.location 
+          || (characterForData as any)?.raw?.location 
+          || '';
+        const parts = [appearance, location].filter(p => p && p.trim());
+        const defaultPrompt = parts.length > 0 ? parts.join('\n') : '';
+        console.log('[GENERATE_IMAGE] Нет сохраненного промпта, используем данные персонажа:', { 
+          characterName,
+          appearance: appearance.substring(0, 50), 
+          location: location.substring(0, 50), 
+          defaultPrompt: defaultPrompt.substring(0, 50) 
+        });
+        setImagePromptInput(defaultPrompt);
+      }
+      
       setIsImagePromptModalOpen(true);
       return;
     }
@@ -1435,6 +1490,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     if (!trimmedPrompt) {
       return;
     }
+
+    // Промпт уже сохранен в обработчике кнопки перед вызовом handleGenerateImage
+    // Здесь мы только используем его для генерации
 
     // Проверяем лимит очереди генераций
     if (activeGenerations.size >= getGenerationQueueLimit) {
@@ -1476,10 +1534,13 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     let generationFailed = false;
 
     try {
+      // Переводим промпт на английский перед отправкой
+      const translatedPrompt = await translateToEnglish(trimmedPrompt);
+      
       const requestBody = {
-        prompt: trimmedPrompt,
+        prompt: translatedPrompt,
         character: currentCharacter.name,
-        use_default_prompts: true,
+        use_default_prompts: false, // Используем промпт как есть, без добавления данных персонажа
         user_id: userInfo?.id,
         model: selectedModel
         // Размеры берутся из generation_defaults.py (768x1344)
@@ -2300,29 +2361,29 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           
           // КРИТИЧНО: Всегда устанавливаем сообщения, если они загружены
           // Не проверяем условия - просто устанавливаем
-          setMessages(finalMessages);
+            setMessages(finalMessages);
           isLoadingHistoryRef.current = null;
           console.log(`[CHAT HISTORY] ✓ Loaded and set ${finalMessages.length} unique messages from history`);
-        } else {
+          } else {
           const currentIdentifier = currentCharacter?.raw?.name || currentCharacter?.name;
           const expectedIdentifier = expectedCharacter?.raw?.name || expectedCharacter?.name;
           const matchesCurrent = currentIdentifier === loadIdentifier;
           const matchesExpected = expectedIdentifier === loadIdentifier;
           
           // КРИТИЧНО: Всегда устанавливаем пустой массив, если истории нет
-          console.log('[CHAT HISTORY] No chat history found - setting empty messages array');
-          setMessages([]);
+            console.log('[CHAT HISTORY] No chat history found - setting empty messages array');
+            setMessages([]);
           isLoadingHistoryRef.current = null;
         }
       } else {
         console.error('[CHAT HISTORY] Failed to load chat history:', response.status, 'for identifier:', loadIdentifier);
         // КРИТИЧНО: Всегда устанавливаем пустой массив при ошибке
-        setMessages([]);
+          setMessages([]);
       }
     } catch (error) {
       console.error('[CHAT HISTORY] Error loading chat history:', error, 'for identifier:', loadIdentifier);
       // КРИТИЧНО: Всегда устанавливаем пустой массив при ошибке
-      setMessages([]);
+        setMessages([]);
     } finally {
       // Сбрасываем флаг загрузки только если это была загрузка для текущего идентификатора
       if (isLoadingHistoryRef.current === loadIdentifier) {
@@ -2400,11 +2461,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       // Проверяем, не загружали ли мы уже этого персонажа
       if (lastLoadedCharacterRef.current !== characterIdentifier) {
         lastLoadedCharacterRef.current = characterIdentifier;
-        setCurrentCharacter(initialCharacter);
-        loadCharacterData(characterIdentifier);
-        // Загружаем историю всегда, даже если персонаж не изменился (на случай, если история обновилась)
-        loadChatHistory(characterIdentifier, initialCharacter); // Передаем initialCharacter для правильного identifier
-        fetchPaidAlbumStatus(characterIdentifier);
+      setCurrentCharacter(initialCharacter);
+      loadCharacterData(characterIdentifier);
+      // Загружаем историю всегда, даже если персонаж не изменился (на случай, если история обновилась)
+      loadChatHistory(characterIdentifier, initialCharacter); // Передаем initialCharacter для правильного identifier
+      fetchPaidAlbumStatus(characterIdentifier);
       } else {
         console.log('[CHARACTER UPDATE] Character already loaded, skipping reload:', characterIdentifier);
       }
@@ -2973,143 +3034,69 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   // Это важно, чтобы сообщения отображались даже если персонаж еще загружается
   const hasMessages = messages.length > 0;
   
-  // Проверка на истекшую сессию: если загрузка завершена, но нет персонажа и сообщений - это потеря сессии
-  const isSessionExpired = !isLoading && !effectiveCharacterForRender && !hasMessages && !error;
   
-  if (isSessionExpired) {
-    console.log('[CHAT RENDER] Session expired - no character, no messages, loading complete');
-    return (
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        height: '100vh', 
-        width: '100vw',
-        color: '#fff', 
-        flexDirection: 'column', 
-        gap: '1.5rem',
-        backgroundColor: '#0a0a0a',
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        zIndex: 9999
-      }}>
-        <div style={{
-          textAlign: 'center',
-          padding: '2rem',
-          background: 'rgba(30, 30, 30, 0.95)',
-          borderRadius: '1rem',
-          border: '1px solid rgba(150, 150, 150, 0.3)',
-          maxWidth: '400px'
-        }}>
-          <h2 style={{
-            margin: '0 0 1rem 0',
-            fontSize: '1.5rem',
-            fontWeight: 600,
-            color: '#fff'
-          }}>
-            Время сессии истекло
-          </h2>
-          <p style={{
-            margin: '0 0 1.5rem 0',
-            fontSize: '1rem',
-            color: 'rgba(200, 200, 200, 1)',
-            lineHeight: 1.5
-          }}>
-            Для продолжения работы необходимо обновить страницу
-          </p>
-          <button 
-            onClick={() => window.location.reload()}
-            style={{ 
-              padding: '0.75rem 2rem', 
-              cursor: 'pointer',
-              background: 'rgba(100, 150, 255, 0.8)',
-              border: '1px solid rgba(100, 150, 255, 0.5)',
-              borderRadius: '0.5rem',
-              color: '#fff',
-              fontSize: '1rem',
-              fontWeight: 600,
-              transition: 'all 0.2s ease',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(100, 150, 255, 1)';
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.4)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(100, 150, 255, 0.8)';
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.3)';
-            }}
-          >
-            Перезагрузить страницу
-          </button>
-        </div>
-      </div>
-    );
-  }
-  
+  // УБРАНО: проверки, которые блокируют отображение чата
+  // Чат всегда должен отображаться, даже если персонаж еще загружается или есть ошибки
   // Показываем спиннер ТОЛЬКО если идет загрузка И нет персонажа, нет сообщений И нет ошибки
   // Если есть хотя бы что-то одно (персонаж ИЛИ сообщения) - показываем интерфейс
-  const shouldShowLoading = isLoading && !effectiveCharacterForRender && !hasMessages && !error;
+  // const shouldShowLoading = isLoading && !effectiveCharacterForRender && !hasMessages && !error;
   
-  if (shouldShowLoading) {
-    console.log('[CHAT RENDER] Showing loading - no character, no messages, no error');
-    return (
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        height: '100vh', 
-        width: '100vw',
-        color: '#fff', 
-        flexDirection: 'column', 
-        gap: '1rem',
-        backgroundColor: '#0a0a0a'
-      }}>
-        <LoadingSpinner size="lg" text={isLoading ? 'Загрузка данных персонажа...' : 'Инициализация чата...'} />
-      </div>
-    );
-  }
+  // if (shouldShowLoading) {
+  //   console.log('[CHAT RENDER] Showing loading - no character, no messages, no error');
+  //   return (
+  //     <div style={{ 
+  //       display: 'flex', 
+  //       alignItems: 'center', 
+  //       justifyContent: 'center', 
+  //       height: '100vh', 
+  //       width: '100vw',
+  //       color: '#fff', 
+  //       flexDirection: 'column', 
+  //       gap: '1rem',
+  //       backgroundColor: '#0a0a0a'
+  //     }}>
+  //       <LoadingSpinner size="lg" text={isLoading ? 'Загрузка данных персонажа...' : 'Инициализация чата...'} />
+  //     </div>
+  //   );
+  // }
   
   // Если есть ошибка и нет персонажа/сообщений - показываем ошибку
-  if (error && !effectiveCharacterForRender && !hasMessages) {
-    console.log('[CHAT RENDER] Showing error - has error, no character, no messages');
-    return (
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        height: '100vh', 
-        width: '100vw',
-        color: '#fff', 
-        flexDirection: 'column', 
-        gap: '1rem',
-        backgroundColor: '#0a0a0a'
-      }}>
-        <ErrorMessage message={error} onClose={() => setError(null)} />
-        {onBackToMain && (
-          <button 
-            onClick={() => onBackToMain()}
-            style={{ 
-              marginTop: '1rem', 
-              padding: '0.5rem 1rem', 
-              cursor: 'pointer',
-              background: 'rgba(100, 100, 100, 0.3)',
-              border: '1px solid rgba(150, 150, 150, 0.3)',
-              borderRadius: '0.5rem',
-              color: '#fff',
-              fontSize: '1rem',
-              fontWeight: 600
-            }}
-          >
-            Вернуться на главную
-          </button>
-        )}
-      </div>
-    );
-  }
+  // if (error && !effectiveCharacterForRender && !hasMessages) {
+  //   console.log('[CHAT RENDER] Showing error - has error, no character, no messages');
+  //   return (
+  //     <div style={{ 
+  //       display: 'flex', 
+  //       alignItems: 'center', 
+  //       justifyContent: 'center', 
+  //       height: '100vh', 
+  //       width: '100vw',
+  //       color: '#fff', 
+  //       flexDirection: 'column', 
+  //       gap: '1rem',
+  //       backgroundColor: '#0a0a0a'
+  //     }}>
+  //       <ErrorMessage message={error} onClose={() => setError(null)} />
+  //       {onBackToMain && (
+  //         <button 
+  //           onClick={() => onBackToMain()}
+  //           style={{ 
+  //             marginTop: '1rem', 
+  //             padding: '0.5rem 1rem', 
+  //             cursor: 'pointer',
+  //             background: 'rgba(100, 100, 100, 0.3)',
+  //             border: '1px solid rgba(150, 150, 150, 0.3)',
+  //             borderRadius: '0.5rem',
+  //             color: '#fff',
+  //             fontSize: '1rem',
+  //             fontWeight: 600
+  //           }}
+  //         >
+  //           Вернуться на главную
+  //         </button>
+  //       )}
+  //     </div>
+  //   );
+  // }
   
   // Если дошли сюда - значит есть персонаж ИЛИ сообщения - показываем интерфейс
   console.log('[CHAT RENDER] Rendering chat interface - has character or messages', {
@@ -3197,7 +3184,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         />
         
         <ChatContentWrapper>
-          <ChatMessagesArea>
+          <ChatMessagesArea style={{ zIndex: 10, position: 'relative' }}>
             <ChatArea 
               messages={uniqueMessages}
               isLoading={isLoading}
@@ -3224,10 +3211,18 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               targetLanguage={targetLanguage}
               onLanguageChange={handleLanguageChange}
               onGenerateImage={() => {
-                // Открываем модалку с предзаполненным промптом
-                const appearance = (currentCharacter as any)?.character_appearance || '';
-                const location = (currentCharacter as any)?.location || '';
-                const defaultPrompt = `${appearance} ${location}`.trim() || 'portrait, high quality, detailed';
+                // Открываем модалку с предзаполненным промптом из данных персонажа (проверяем несколько источников)
+                const characterForData = currentCharacter || initialCharacter;
+                const appearance = (characterForData as any)?.character_appearance 
+                  || (characterForData as any)?.raw?.character_appearance 
+                  || (characterForData as any)?.appearance 
+                  || '';
+                const location = (characterForData as any)?.location 
+                  || (characterForData as any)?.raw?.location 
+                  || '';
+                const parts = [appearance, location].filter(p => p && p.trim());
+                const defaultPrompt = parts.length > 0 ? parts.join('\n') : '';
+                console.log('[GENERATE_IMAGE] Предзаполнение промпта из кнопки:', { appearance, location, defaultPrompt });
                 setImagePromptInput(defaultPrompt);
                 setIsImagePromptModalOpen(true);
               }}
@@ -3544,23 +3539,23 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             )}
             
             {/* Индикатор очереди генераций - в самом низу панели */}
-            <GenerationQueueIndicator>
-              <QueueTitle>Очередь генераций</QueueTitle>
-              <QueueItem>
-                <span>Активных:</span>
-                <QueueValue>{activeGenerations.size}</QueueValue>
-              </QueueItem>
-              <QueueItem>
-                <span>Лимит:</span>
-                <QueueValue $isLimit>{getGenerationQueueLimit}</QueueValue>
-              </QueueItem>
-              <QueueItem>
-                <span>Осталось:</span>
-                <QueueValue style={{ color: Math.max(0, getGenerationQueueLimit - activeGenerations.size) > 0 ? '#90ee90' : '#ff6b6b' }}>
-                  {Math.max(0, getGenerationQueueLimit - activeGenerations.size)}
-                </QueueValue>
-              </QueueItem>
-            </GenerationQueueIndicator>
+                <GenerationQueueIndicator>
+                  <QueueTitle>Очередь генераций</QueueTitle>
+                  <QueueItem>
+                    <span>Активных:</span>
+                    <QueueValue>{activeGenerations.size}</QueueValue>
+                  </QueueItem>
+                  <QueueItem>
+                    <span>Лимит:</span>
+                    <QueueValue $isLimit>{getGenerationQueueLimit}</QueueValue>
+                  </QueueItem>
+                  <QueueItem>
+                    <span>Осталось:</span>
+                    <QueueValue style={{ color: Math.max(0, getGenerationQueueLimit - activeGenerations.size) > 0 ? '#90ee90' : '#ff6b6b' }}>
+                      {Math.max(0, getGenerationQueueLimit - activeGenerations.size)}
+                    </QueueValue>
+                  </QueueItem>
+                </GenerationQueueIndicator>
           </PaidAlbumPanel>
         </ChatContentWrapper>
       </MainContent>
@@ -3683,6 +3678,27 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                     return;
                   }
                   if (imagePromptInput.trim()) {
+                    // Сохраняем промпт перед генерацией (ДО перевода!)
+                    const characterForData = currentCharacter || initialCharacter;
+                    const characterName = characterForData?.name || '';
+                    const promptToSave = imagePromptInput.trim();
+                    
+                    console.log('[GENERATE_IMAGE] Сохранение промпта из кнопки:', {
+                      characterName,
+                      promptLength: promptToSave.length,
+                      promptPreview: promptToSave.substring(0, 50) + '...'
+                    });
+                    
+                    if (characterName) {
+                      // Обновляем и state, и ref для синхронного доступа
+                      const updated = {
+                        ...modifiedPromptsRef.current,
+                        [characterName]: promptToSave
+                      };
+                      modifiedPromptsRef.current = updated;
+                      setModifiedPrompts(updated);
+                      console.log('[GENERATE_IMAGE] Обновленный modifiedPrompts:', updated);
+                    }
                     setIsImagePromptModalOpen(false);
                     handleGenerateImage(imagePromptInput);
                   }

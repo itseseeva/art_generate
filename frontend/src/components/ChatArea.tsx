@@ -13,6 +13,7 @@ const MessagesContainer = styled.div`
   min-height: 0;
   height: 100%;
   max-height: 100%;
+  z-index: 1;
   
   /* Стилизация скроллбара */
   &::-webkit-scrollbar {
@@ -39,6 +40,10 @@ const MessagesList = styled.div`
   flex-direction: column;
   gap: ${theme.spacing.lg};
   min-height: min-content;
+  width: 100%;
+  position: relative;
+  z-index: 11;
+  flex: 1;
 `;
 
 const LoadingContainer = styled.div`
@@ -212,9 +217,16 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     messages: messages.map(m => ({ id: m.id, type: m.type, hasContent: !!m.content, hasImage: !!m.imageUrl }))
   });
 
+  // КРИТИЧНО: Всегда рендерим контейнер, даже если сообщений нет
+  if (!messages || messages.length === 0) {
+    console.log('[CHAT AREA] No messages, rendering empty state');
+  } else {
+    console.log('[CHAT AREA] Rendering', messages.length, 'messages');
+  }
+
   return (
-    <MessagesContainer ref={messagesContainerRef}>
-      <MessagesList>
+    <MessagesContainer ref={messagesContainerRef} style={{ position: 'relative', zIndex: 10 }}>
+      <MessagesList style={{ position: 'relative', zIndex: 11 }}>
         {messages.length === 0 && !isLoading && (
           <EmptyState>
             {characterSituation ? (
@@ -236,21 +248,19 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           </EmptyState>
         )}
         
-        {messages.map((message) => {
-          if (messages.length > 0) {
-            console.log('[CHAT AREA] Rendering message:', { id: message.id, type: message.type, hasContent: !!message.content, hasImage: !!message.imageUrl, imageUrl: message.imageUrl });
-          }
+        {messages && messages.length > 0 && messages.map((message) => {
+          console.log('[CHAT AREA] Rendering message:', { id: message.id, type: message.type, hasContent: !!message.content, hasImage: !!message.imageUrl, imageUrl: message.imageUrl });
           return (
-          <Message 
-            key={message.id} 
-            message={message}
-            characterName={characterName}
-            characterAvatar={characterAvatar}
-            isAuthenticated={isAuthenticated}
-            isCharacterOwner={isCharacterOwner}
-            onAddToGallery={onAddToGallery}
-            onAddToPaidAlbum={onAddToPaidAlbum}
-          />
+            <Message 
+              key={message.id} 
+              message={message}
+              characterName={characterName}
+              characterAvatar={characterAvatar}
+              isAuthenticated={isAuthenticated}
+              isCharacterOwner={isCharacterOwner}
+              onAddToGallery={onAddToGallery}
+              onAddToPaidAlbum={onAddToPaidAlbum}
+            />
           );
         })}
         

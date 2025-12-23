@@ -602,7 +602,11 @@ export const MainPhotoSelectionPage: React.FC<MainPhotoSelectionPageProps> = ({
     setError(null);
 
     try {
-      const effectivePrompt = prompt.trim() || `${character.appearance || ''} ${character.location || ''}`.trim() || 'portrait, high quality, detailed';
+      let effectivePrompt = prompt.trim();
+      if (!effectivePrompt) {
+        const parts = [character.appearance, character.location].filter(p => p && p.trim());
+        effectivePrompt = parts.length > 0 ? parts.join(' | ') : '';
+      }
 
       const response = await authManager.fetchWithAuth(API_CONFIG.GENERATE_IMAGE_FULL, {
         method: 'POST',

@@ -6,7 +6,9 @@ import { GlobalHeader } from './GlobalHeader';
 import { AuthModal } from './AuthModal';
 import { authManager } from '../utils/auth';
 import { LoadingSpinner } from './LoadingSpinner';
+import { CircularProgress } from './ui/CircularProgress';
 import { fetchPromptByImage } from '../utils/prompt';
+import { translateToEnglish } from '../utils/translate';
 import { FiX as CloseIcon } from 'react-icons/fi';
 
 const MainContainer = styled.div`
@@ -1265,6 +1267,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [fakeProgress, setFakeProgress] = useState(0);
+  const [generationProgress, setGenerationProgress] = useState<number | undefined>(undefined);
   const fakeProgressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fakeProgressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime'>('anime-realism');
@@ -2140,10 +2143,14 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
   // Ожидание завершения генерации через task_id
   const waitForGeneration = async (taskId: string, token: string): Promise<{ id: string; url: string } | null> => {
-    const maxAttempts = 120; // 2 минуты максимум
-    const delay = 2000; // 2 секунды между проверками
+    const maxAttempts = 60; // Максимум 2 минуты (60 * 2 секунды) - как в ChatContainer
+    const pollInterval = 2000; // Опрашиваем каждые 2 секунды - как в ChatContainer
+    let attempts = 0;
 
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    while (attempts < maxAttempts) {
+      // Задержка ПЕРЕД каждым запросом (как в ChatContainer)
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+
       try {
         const response = await fetch(`/api/v1/generation-status/${taskId}`, {
           headers: {
@@ -2157,9 +2164,32 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
         const status = await response.json();
         
+        // Извлекаем прогресс из ответа (как в ChatContainer)
+        let progressValue: number | undefined = undefined;
+        
+        if (status.status === 'generating' && status.result?.progress !== undefined) {
+          const rawProgress = typeof status.result.progress === 'number'
+            ? status.result.progress
+            : parseInt(String(status.result.progress).replace('%', ''), 10);
+          progressValue = Math.min(99, Math.max(0, rawProgress));
+        } else if (status.status === 'generating' && status.progress !== undefined && status.progress !== null) {
+          const rawProgress = typeof status.progress === 'number'
+            ? status.progress
+            : parseInt(String(status.progress).replace('%', ''), 10);
+          progressValue = Math.min(99, Math.max(0, rawProgress));
+        }
+        
+        // Обновляем прогресс в состоянии
+        if (progressValue !== undefined && !isNaN(progressValue)) {
+          setGenerationProgress(progressValue);
+        } else if (status.status === 'generating' || status.status === 'PROGRESS' || status.status === 'PENDING') {
+          // Если статус generating, но прогресс не указан, используем fakeProgress как fallback
+          setGenerationProgress(fakeProgress);
+        }
+        
         // Логируем только при изменении статуса или раз в 5 попыток
-        if (attempt % 5 === 0 || status.status === 'SUCCESS' || status.status === 'FAILURE') {
-          console.log(`[EDIT_CHAR] Generation status [attempt ${attempt + 1}]:`, status.status, status.message || '');
+        if (attempts % 5 === 0 || status.status === 'SUCCESS' || status.status === 'FAILURE') {
+          console.log(`[EDIT_CHAR] Generation status [attempt ${attempts + 1}]:`, status.status, status.message || '');
         }
 
         // Бэкенд возвращает результат в поле "result", а не "data"
@@ -2176,6 +2206,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           
           if (imageUrl) {
             console.log('[EDIT_CHAR] Photo generated successfully:', { imageUrl, imageId });
+            setGenerationProgress(100); // Устанавливаем 100% при завершении
             return {
               id: imageId,
               url: imageUrl
@@ -2186,11 +2217,10 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           }
         } else if (status.status === 'FAILURE') {
           throw new Error(status.error || 'Ошибка генерации изображения');
-        } else if (status.status === 'PENDING' || status.status === 'PROGRESS') {
-          // Продолжаем ждать - делаем задержку перед следующей проверкой
-          await new Promise(resolve => setTimeout(resolve, delay));
-          continue;
         }
+        
+        // Для всех остальных статусов (PENDING, PROGRESS, generating) продолжаем цикл
+        attempts++;
       } catch (err) {
         console.error('[EDIT_CHAR] Error checking generation status:', err);
         throw err;
@@ -2208,6 +2238,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
     setIsGeneratingPhoto(true);
     setError(null);
+    setGenerationProgress(0); // Сбрасываем прогресс
     startFakeProgress();
 
     let generationFailed = false;
@@ -2216,14 +2247,22 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     if (!token) {
       setError('Необходимо войти в систему');
       setIsGeneratingPhoto(false);
+      setGenerationProgress(undefined); // Сбрасываем прогресс
       stopFakeProgress(true);
       return;
     }
 
     try {
       
-      // Используем кастомный промпт или дефолтный
-      const prompt = customPrompt.trim() || `${formData.appearance || ''} ${formData.location || ''}`.trim() || 'portrait, high quality, detailed';
+      // Используем кастомный промпт или дефолтный из полей персонажа
+      let prompt = customPrompt.trim();
+      if (!prompt) {
+        const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
+        prompt = parts.length > 0 ? parts.join(' | ') : '';
+      }
+      
+      // Переводим промпт на английский перед отправкой
+      prompt = await translateToEnglish(prompt);
 
       // Используем настройки из API с fallback значениями
       console.log('Generation settings:', generationSettings);
@@ -2368,6 +2407,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       setError(err instanceof Error ? err.message : 'Ошибка генерации фото');
     } finally {
       setIsGeneratingPhoto(false);
+      setGenerationProgress(undefined); // Сбрасываем прогресс
       stopFakeProgress(generationFailed);
     }
   };
@@ -2800,11 +2840,18 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                     <GenerateButton 
                       onClick={generatePhoto}
                       disabled={isGeneratingPhoto || !userInfo || userInfo.coins < 30}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
                     >
                       {isGeneratingPhoto ? (
-                        <>
-                          <LoadingSpinner size="sm" /> Генерация... {fakeProgress}%
-                        </>
+                        <CircularProgress 
+                          progress={generationProgress !== undefined ? generationProgress : (fakeProgress || 0)} 
+                          size={48}
+                          showLabel={true}
+                        />
                       ) : (
                         'Сгенерировать фото (30 монет)'
                       )}
@@ -2847,7 +2894,10 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                     id="photo-prompt-unified"
                     value={customPrompt}
                     onChange={(e) => setCustomPrompt(e.target.value)}
-                    placeholder={`${formData.appearance || ''} ${formData.location || ''}`.trim() || 'portrait, high quality, detailed'}
+                    placeholder={(() => {
+                      const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
+                      return parts.length > 0 ? parts.join(' | ') : '';
+                    })()}
                   />
                 </PhotoGenerationBox>
 

@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { theme } from '../theme';
 import '../styles/ContentArea.css';
 import { AuthModal } from './AuthModal';
+import { translateToEnglish } from '../utils/translate';
 
 const MainContainer = styled.div`
   width: 100vw;
@@ -1444,6 +1445,17 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         throw new Error('Необходимо войти в систему для создания персонажей');
       }
 
+      // Переводим поля appearance и location на английский перед отправкой
+      let translatedAppearance = formData.appearance?.trim() || null;
+      let translatedLocation = formData.location?.trim() || null;
+      
+      if (translatedAppearance) {
+        translatedAppearance = await translateToEnglish(translatedAppearance);
+      }
+      if (translatedLocation) {
+        translatedLocation = await translateToEnglish(translatedLocation);
+      }
+
       // Преобразуем данные в формат UserCharacterCreate
       const requestData = {
         name: formData.name.trim(),
@@ -1451,8 +1463,8 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         situation: formData.situation.trim(),
         instructions: formData.instructions.trim(),
         style: formData.style?.trim() || null,
-        appearance: formData.appearance?.trim() || null,
-        location: formData.location?.trim() || null,
+        appearance: translatedAppearance,
+        location: translatedLocation,
         is_nsfw: contentMode === 'nsfw'
       };
 
@@ -1703,7 +1715,11 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       if (!token) throw new Error('Необходимо войти в систему');
 
       // Используем кастомный промпт или дефолтный
-      const prompt = customPrompt.trim() || `${createdCharacterData?.character_appearance || ''} ${createdCharacterData?.location || ''}`.trim() || 'portrait, high quality, detailed';
+      let prompt = customPrompt.trim();
+      if (!prompt && createdCharacterData) {
+        const parts = [createdCharacterData.character_appearance, createdCharacterData.location].filter(p => p && p.trim());
+        prompt = parts.length > 0 ? parts.join(' | ') : '';
+      }
 
       // Используем настройки из API, как в chat.html
       console.log('Generation settings:', generationSettings);

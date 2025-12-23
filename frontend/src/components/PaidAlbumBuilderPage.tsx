@@ -6,6 +6,7 @@ import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
 import { SuccessToast } from './SuccessToast';
 import { fetchPromptByImage } from '../utils/prompt';
+import { translateToEnglish } from '../utils/translate';
 
 const UpgradeOverlay = styled.div`
   position: fixed;
@@ -827,7 +828,14 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
       const token = localStorage.getItem('authToken');
       if (!token) throw new Error('Необходимо войти в систему');
 
-      const effectivePrompt = prompt.trim() || `${character.appearance || ''} ${character.location || ''}`.trim() || 'portrait, high quality, detailed';
+      let effectivePrompt = prompt.trim();
+      if (!effectivePrompt) {
+        const parts = [character.appearance, character.location].filter(p => p && p.trim());
+        effectivePrompt = parts.length > 0 ? parts.join(' | ') : '';
+      }
+      
+      // Переводим промпт на английский перед отправкой
+      effectivePrompt = await translateToEnglish(effectivePrompt);
 
       const response = await fetch('/api/v1/generate-image/', {
         method: 'POST',

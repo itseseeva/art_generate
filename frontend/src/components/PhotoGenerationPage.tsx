@@ -438,7 +438,11 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({
       if (!token) throw new Error('Необходимо войти в систему');
 
       // Используем кастомный промпт или дефолтный
-      const basePrompt = customPrompt.trim() || `${character.character_appearance || ''} ${character.location || ''}`.trim() || 'portrait, high quality, detailed';
+      let basePrompt = customPrompt.trim();
+      if (!basePrompt) {
+        const parts = [character.character_appearance, character.location].filter(p => p && p.trim());
+        basePrompt = parts.length > 0 ? parts.join(' | ') : '';
+      }
 
       // Генерируем 3 фото с разными вариациями промпта
       const prompts = [
@@ -708,7 +712,10 @@ useEffect(() => {
                   id="custom-prompt"
                   value={customPrompt}
                   onChange={(e) => setCustomPrompt(e.target.value)}
-                  placeholder={`${character.character_appearance || ''} ${character.location || ''}`.trim() || 'portrait, high quality, detailed'}
+                  placeholder={(() => {
+                    const parts = [character.character_appearance, character.location].filter(p => p && p.trim());
+                    return parts.length > 0 ? parts.join(' | ') : '';
+                  })()}
                 />
               </PromptContainer>
               

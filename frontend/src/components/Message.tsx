@@ -13,6 +13,8 @@ const MessageContainer = styled.div<{ $isUser: boolean }>`
   gap: ${theme.spacing.md};
   margin-bottom: ${theme.spacing.md};
   position: relative;
+  z-index: 1;
+  width: 100%;
 `;
 
 const MessageWithButtons = styled.div`

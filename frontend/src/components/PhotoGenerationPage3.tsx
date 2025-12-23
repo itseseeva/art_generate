@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react';
 import { FiX as CloseIcon } from 'react-icons/fi';
 import { theme } from '../theme';
 import { fetchPromptByImage } from '../utils/prompt';
+import { translateToEnglish } from '../utils/translate';
 
 const MainContainer = styled.div`
   width: 100vw;
@@ -702,7 +703,8 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
   // Установка дефолтного промпта
   useEffect(() => {
     if (character) {
-      const defaultPrompt = `${character.character_appearance || ''} ${character.location || ''}`.trim() || 'portrait, high quality, detailed';
+      const parts = [character.character_appearance, character.location].filter(p => p && p.trim());
+      const defaultPrompt = parts.length > 0 ? parts.join(' | ') : '';
       setPrompt(defaultPrompt);
     }
   }, [character]);
@@ -775,9 +777,12 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
         return;
       }
 
+      // Переводим промпт на английский перед отправкой
+      const translatedPrompt = await translateToEnglish(prompt.trim());
+      
       const requestBody: any = {
         character: character.name,
-        prompt: prompt.trim(),
+        prompt: translatedPrompt,
         negative_prompt: generationSettings?.negative_prompt,
         width: generationSettings?.width,
         height: generationSettings?.height,
@@ -1496,7 +1501,9 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
             <CloseButton onClick={(e) => {
               e.stopPropagation();
               setSelectedImage(null);
-            }}>×</CloseButton>
+            }} title="Закрыть (Esc)">
+              <CloseIcon size={24} />
+            </CloseButton>
             <ModalImage 
               src={selectedImage} 
               alt="Full size"
