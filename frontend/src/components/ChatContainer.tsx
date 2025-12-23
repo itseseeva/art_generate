@@ -1265,19 +1265,55 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const [imagePromptInput, setImagePromptInput] = useState('');
   const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime'>('anime-realism');
   // Сохраняем отредактированные промпты для каждого персонажа (ключ - имя персонажа)
-  const [modifiedPrompts, setModifiedPrompts] = useState<Record<string, string>>({});
-  // Используем ref для синхронного доступа к промптам (чтобы избежать проблем с асинхронным обновлением state)
-  const modifiedPromptsRef = useRef<Record<string, string>>({});
+  // Загружаем из localStorage при инициализации
+  const loadPromptsFromStorage = (): Record<string, string> => {
+    try {
+      const stored = localStorage.getItem('modifiedPrompts');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (e) {
+      console.error('[PROMPT] Ошибка загрузки промптов из localStorage:', e);
+    }
+    return {};
+  };
 
-  // Синхронизируем ref с state при изменении modifiedPrompts
+  const [modifiedPrompts, setModifiedPrompts] = useState<Record<string, string>>(loadPromptsFromStorage());
+  // Используем ref для синхронного доступа к промптам (чтобы избежать проблем с асинхронным обновлением state)
+  const modifiedPromptsRef = useRef<Record<string, string>>(loadPromptsFromStorage());
+
+  // Вспомогательная функция для получения имени персонажа (используем везде одинаково)
+  // НЕ используем useCallback, чтобы всегда получать актуальные значения
+  const getCharacterName = () => {
+    const characterForData = currentCharacter || initialCharacter;
+    // Используем ту же логику, что и для characterIdentifier в других местах
+    const name = characterForData?.name 
+      || (characterForData as any)?.raw?.name 
+      || '';
+    console.log('[getCharacterName] Определено имя персонажа:', name, {
+      currentCharacterName: currentCharacter?.name,
+      initialCharacterName: initialCharacter?.name,
+      currentCharacterRawName: (currentCharacter as any)?.raw?.name,
+      initialCharacterRawName: (initialCharacter as any)?.raw?.name
+    });
+    return name;
+  };
+
+  // Синхронизируем ref с state при изменении modifiedPrompts и сохраняем в localStorage
   useEffect(() => {
     modifiedPromptsRef.current = modifiedPrompts;
+    // Сохраняем в localStorage для надежности
+    try {
+      localStorage.setItem('modifiedPrompts', JSON.stringify(modifiedPrompts));
+      console.log('[PROMPT] Промпты сохранены в localStorage:', Object.keys(modifiedPrompts));
+    } catch (e) {
+      console.error('[PROMPT] Ошибка сохранения промптов в localStorage:', e);
+    }
   }, [modifiedPrompts]);
 
   // Отслеживаем смену персонажа и сбрасываем промпт для нового персонажа (если он еще не был сохранен)
   useEffect(() => {
-    const characterForData = currentCharacter || initialCharacter;
-    const characterName = characterForData?.name || '';
+    const characterName = getCharacterName();
     
     // Если персонаж изменился и для него нет сохраненного промпта, промпт будет загружен из данных персонажа
     // Это происходит автоматически в handleGenerateImage при открытии модалки
@@ -1285,6 +1321,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     if (characterName) {
       const hasSavedPrompt = modifiedPromptsRef.current[characterName] || modifiedPrompts[characterName];
       console.log('[PROMPT] Текущий персонаж:', characterName, hasSavedPrompt ? '(есть сохраненный промпт)' : '(используется промпт из базы)');
+      if (hasSavedPrompt) {
+        console.log('[PROMPT] Сохраненный промпт:', hasSavedPrompt.substring(0, 50) + '...');
+      }
     }
   }, [currentCharacter?.name, initialCharacter?.name, modifiedPrompts]);
 
@@ -1448,22 +1487,100 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     // Если промпт не передан - открываем модалку
     if (!userPrompt) {
       // Предзаполняем промпт: сначала проверяем сохраненный промпт, потом данные персонажа
+      const characterName = getCharacterName();
       const characterForData = currentCharacter || initialCharacter;
-      const characterName = characterForData?.name || '';
       
-      console.log('[GENERATE_IMAGE] Открытие модалки для персонажа:', characterName);
-      console.log('[GENERATE_IMAGE] Все сохраненные промпты:', Object.keys(modifiedPrompts));
-      console.log('[GENERATE_IMAGE] Текущий modifiedPrompts:', modifiedPrompts);
+      console.log('[GENERATE_IMAGE] ========== ОТКРЫТИЕ МОДАЛКИ ==========');
+      console.log('[GENERATE_IMAGE] Имя персонажа:', characterName);
+      console.log('[GENERATE_IMAGE] currentCharacter?.name:', currentCharacter?.name);
+      console.log('[GENERATE_IMAGE] initialCharacter?.name:', initialCharacter?.name);
+      console.log('[GENERATE_IMAGE] currentCharacter?.raw?.name:', (currentCharacter as any)?.raw?.name);
+      console.log('[GENERATE_IMAGE] initialCharacter?.raw?.name:', (initialCharacter as any)?.raw?.name);
+      console.log('[GENERATE_IMAGE] Все сохраненные промпты (ref):', Object.keys(modifiedPromptsRef.current));
+      console.log('[GENERATE_IMAGE] Все сохраненные промпты (state):', Object.keys(modifiedPrompts));
       
-      // Проверяем, есть ли сохраненный промпт для этого персонажа (используем ref для синхронного доступа)
-      const savedPrompt = modifiedPromptsRef.current[characterName] || modifiedPrompts[characterName];
+      // Загружаем из localStorage для проверки
+      let localStoragePrompts: Record<string, string> = {};
+      try {
+        const stored = localStorage.getItem('modifiedPrompts');
+        if (stored) {
+          localStoragePrompts = JSON.parse(stored);
+          console.log('[GENERATE_IMAGE] Промпты из localStorage (ключи):', Object.keys(localStoragePrompts));
+          console.log('[GENERATE_IMAGE] Промпты из localStorage (полностью):', localStoragePrompts);
+        }
+      } catch (e) {
+        console.error('[GENERATE_IMAGE] Ошибка загрузки из localStorage:', e);
+      }
+      
+      // Проверяем все возможные варианты имени персонажа
+      const possibleNames = [
+        characterName,
+        currentCharacter?.name,
+        initialCharacter?.name,
+        (currentCharacter as any)?.raw?.name,
+        (initialCharacter as any)?.raw?.name
+      ].filter(Boolean) as string[];
+      
+      console.log('[GENERATE_IMAGE] Все возможные имена персонажа:', possibleNames);
+      
+      // Проверяем, есть ли сохраненный промпт для любого из возможных имен
+      let savedPrompt: string | undefined = undefined;
+      let foundKey: string | undefined = undefined;
+      
+      for (const name of possibleNames) {
+        if (modifiedPromptsRef.current[name]) {
+          savedPrompt = modifiedPromptsRef.current[name];
+          foundKey = name;
+          console.log('[GENERATE_IMAGE] Найден промпт в ref по ключу:', name);
+          break;
+        }
+        if (modifiedPrompts[name]) {
+          savedPrompt = modifiedPrompts[name];
+          foundKey = name;
+          console.log('[GENERATE_IMAGE] Найден промпт в state по ключу:', name);
+          break;
+        }
+        if (localStoragePrompts[name]) {
+          savedPrompt = localStoragePrompts[name];
+          foundKey = name;
+          console.log('[GENERATE_IMAGE] Найден промпт в localStorage по ключу:', name);
+          // Обновляем ref и state для синхронизации
+          modifiedPromptsRef.current = { ...modifiedPromptsRef.current, [name]: savedPrompt };
+          setModifiedPrompts(prev => ({ ...prev, [name]: savedPrompt! }));
+          break;
+        }
+      }
+      
+      // Если нашли промпт по другому ключу, но не по текущему, сохраняем под текущим ключом
+      if (savedPrompt && foundKey && foundKey !== characterName && characterName) {
+        console.log('[GENERATE_IMAGE] Промпт найден по ключу', foundKey, 'но текущий ключ', characterName, '- сохраняем под текущим ключом');
+        modifiedPromptsRef.current = { ...modifiedPromptsRef.current, [characterName]: savedPrompt };
+        setModifiedPrompts(prev => ({ ...prev, [characterName]: savedPrompt! }));
+        try {
+          localStorage.setItem('modifiedPrompts', JSON.stringify({ ...localStoragePrompts, [characterName]: savedPrompt }));
+        } catch (e) {
+          console.error('[GENERATE_IMAGE] Ошибка сохранения в localStorage:', e);
+        }
+      }
+      
+      console.log('[GENERATE_IMAGE] Проверка сохраненного промпта:', {
+        characterName,
+        hasInRef: !!modifiedPromptsRef.current[characterName],
+        hasInState: !!modifiedPrompts[characterName],
+        savedPrompt: savedPrompt ? savedPrompt.substring(0, 100) + '...' : 'нет',
+        allKeysInRef: Object.keys(modifiedPromptsRef.current),
+        allKeysInState: Object.keys(modifiedPrompts),
+        refValue: modifiedPromptsRef.current[characterName]?.substring(0, 50),
+        stateValue: modifiedPrompts[characterName]?.substring(0, 50)
+      });
+      console.log('[GENERATE_IMAGE] ======================================');
       
       if (savedPrompt && savedPrompt.trim()) {
         // Используем сохраненный промпт
-        console.log('[GENERATE_IMAGE] Используем сохраненный промпт для персонажа:', characterName, 'Длина:', savedPrompt.length, 'Превью:', savedPrompt.substring(0, 50));
+        console.log('[GENERATE_IMAGE] ✓ Используем сохраненный промпт для персонажа:', characterName);
         setImagePromptInput(savedPrompt);
       } else {
-        // Используем данные персонажа
+        // Используем данные персонажа из БД
         const appearance = (characterForData as any)?.character_appearance 
           || (characterForData as any)?.raw?.character_appearance 
           || (characterForData as any)?.appearance 
@@ -1473,7 +1590,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           || '';
         const parts = [appearance, location].filter(p => p && p.trim());
         const defaultPrompt = parts.length > 0 ? parts.join('\n') : '';
-        console.log('[GENERATE_IMAGE] Нет сохраненного промпта, используем данные персонажа:', { 
+        console.log('[GENERATE_IMAGE] ✗ Нет сохраненного промпта, используем данные из БД:', { 
           characterName,
           appearance: appearance.substring(0, 50), 
           location: location.substring(0, 50), 
@@ -3679,11 +3796,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   }
                   if (imagePromptInput.trim()) {
                     // Сохраняем промпт перед генерацией (ДО перевода!)
-                    const characterForData = currentCharacter || initialCharacter;
-                    const characterName = characterForData?.name || '';
+                    const characterName = getCharacterName();
                     const promptToSave = imagePromptInput.trim();
                     
-                    console.log('[GENERATE_IMAGE] Сохранение промпта из кнопки:', {
+                    console.log('[GENERATE_IMAGE] Сохранение промпта из кнопки "Генерировать":', {
                       characterName,
                       promptLength: promptToSave.length,
                       promptPreview: promptToSave.substring(0, 50) + '...'
@@ -3697,7 +3813,23 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                       };
                       modifiedPromptsRef.current = updated;
                       setModifiedPrompts(updated);
-                      console.log('[GENERATE_IMAGE] Обновленный modifiedPrompts:', updated);
+                      
+                      // Также сохраняем в localStorage сразу для надежности
+                      try {
+                        localStorage.setItem('modifiedPrompts', JSON.stringify(updated));
+                        console.log('[GENERATE_IMAGE] ✓ Промпт сохранен для персонажа:', characterName);
+                        console.log('[GENERATE_IMAGE] ✓ Промпт также сохранен в localStorage');
+                        console.log('[GENERATE_IMAGE] Обновленный modifiedPrompts (ключи):', Object.keys(updated));
+                        console.log('[GENERATE_IMAGE] Сохраненный промпт (первые 100 символов):', updated[characterName]?.substring(0, 100));
+                        console.log('[GENERATE_IMAGE] Проверка сохранения - ref содержит ключ?', characterName in modifiedPromptsRef.current);
+                        console.log('[GENERATE_IMAGE] Проверка сохранения - значение в ref:', modifiedPromptsRef.current[characterName]?.substring(0, 50));
+                      } catch (e) {
+                        console.error('[GENERATE_IMAGE] Ошибка сохранения в localStorage:', e);
+                      }
+                    } else {
+                      console.error('[GENERATE_IMAGE] ✗ Не удалось определить имя персонажа для сохранения промпта!');
+                      console.error('[GENERATE_IMAGE] currentCharacter:', currentCharacter);
+                      console.error('[GENERATE_IMAGE] initialCharacter:', initialCharacter);
                     }
                     setIsImagePromptModalOpen(false);
                     handleGenerateImage(imagePromptInput);
