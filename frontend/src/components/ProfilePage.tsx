@@ -2361,23 +2361,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     </>
                   )}
 
-                  {stats && stats.monthly_credits > 0 && (
-                    <StatCard>
-                      <StatIcon color="rgba(59, 130, 246, 0.15)">
-                        <TrendingUpIcon />
-                      </StatIcon>
-                      <StatContent>
-                        <StatValue>{stats.credits_remaining} / {stats.monthly_credits}</StatValue>
-                        <StatLabel>Кредиты подписки</StatLabel>
-                        <ProgressBarContainer>
-                          <ProgressBar $percentage={(stats.credits_remaining / stats.monthly_credits) * 100} />
-                          <ProgressText>
-                            Использовано: {stats.used_credits} из {stats.monthly_credits}
-                          </ProgressText>
-                        </ProgressBarContainer>
-                      </StatContent>
-                    </StatCard>
-                  )}
                 </StatsGrid>
               </Section>
               </RightColumn>

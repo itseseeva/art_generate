@@ -69,14 +69,14 @@ class TestGetMaxTokens:
     """Тесты для функции get_max_tokens (лимит токенов для генерации ответа)."""
     
     def test_premium_max_tokens(self):
-        """PREMIUM подписка должна возвращать лимит 450 токенов для генерации."""
+        """PREMIUM подписка должна возвращать лимит 850 токенов для генерации."""
         limit = get_max_tokens(SubscriptionType.PREMIUM)
-        assert limit == 450, f"Ожидалось 450, получено {limit}"
+        assert limit == 850, f"Ожидалось 850, получено {limit}"
     
     def test_standard_max_tokens(self):
-        """STANDARD подписка должна возвращать лимит 200 токенов для генерации."""
+        """STANDARD подписка должна возвращать лимит 400 токенов для генерации."""
         limit = get_max_tokens(SubscriptionType.STANDARD)
-        assert limit == 200, f"Ожидалось 200, получено {limit}"
+        assert limit == 400, f"Ожидалось 400, получено {limit}"
     
     def test_free_max_tokens(self):
         """FREE подписка должна возвращать лимит 150 токенов для генерации."""
@@ -400,7 +400,7 @@ class TestIntegration:
         
         assert context_limit is None, "PREMIUM должен иметь None (без ограничений сообщений, обрезка только по токенам)"
         assert max_context_tokens == 8000, "PREMIUM должен иметь лимит 8000 токенов контекста"
-        assert max_tokens == 450, "PREMIUM должен иметь лимит 450 токенов для генерации"
+        assert max_tokens == 850, "PREMIUM должен иметь лимит 850 токенов для генерации"
         
         # Создаем сообщения
         messages = [
@@ -437,7 +437,7 @@ class TestIntegration:
         
         assert context_limit is None, "STANDARD должен иметь None (без ограничений сообщений, обрезка только по токенам)"
         assert max_context_tokens == 4000, "STANDARD должен иметь лимит 4000 токенов контекста"
-        assert max_tokens == 200, "STANDARD должен иметь лимит 200 токенов для генерации"
+        assert max_tokens == 400, "STANDARD должен иметь лимит 400 токенов для генерации"
         
         # Создаем сообщения
         messages = [

@@ -76,6 +76,9 @@ async def test_spend_photo_resources_success(monkeypatch: pytest.MonkeyPatch) ->
             calls["credits"].append(user_id)
             return True
 
+        async def get_user_subscription(self, user_id: int):
+            return None
+
     async def dummy_emit(user_id, db):
         calls["emit"].append(user_id)
 
@@ -86,9 +89,10 @@ async def test_spend_photo_resources_success(monkeypatch: pytest.MonkeyPatch) ->
 
     await spend_photo_resources(10)
 
-    assert calls["afford"] == [(10, 30)]
+    assert calls["afford"] == [(10, 10)]
     assert calls["coins"] == [10]
-    assert calls["credits"] == [10]
+    # credits не вызывается, так как get_user_subscription возвращает None (не FREE подписка)
+    assert calls["credits"] == []
     assert calls["emit"] == [10]
 
 
@@ -120,6 +124,9 @@ async def test_spend_photo_resources_failure(monkeypatch: pytest.MonkeyPatch) ->
 
         async def use_photo_generation(self, user_id: int, commit: bool = True) -> bool:
             return True
+
+        async def get_user_subscription(self, user_id: int):
+            return None
 
     monkeypatch.setattr("app.main.async_session_maker", lambda: _DummySession())
     monkeypatch.setattr("app.main.CoinsService", DummyCoinsService)
@@ -228,7 +235,7 @@ async def test_spend_coins_for_message_uses_expected_amount(monkeypatch: pytest.
     result = await service.spend_coins_for_message(7)
 
     assert result is True
-    assert calls == [(7, 2, True)]
+    assert calls == [(7, 5, True)]
 
 
 @pytest.mark.asyncio
@@ -246,7 +253,7 @@ async def test_spend_coins_for_photo_uses_expected_amount(monkeypatch: pytest.Mo
     result = await service.spend_coins_for_photo(9)
 
     assert result is True
-    assert calls == [(9, 30, True)]
+    assert calls == [(9, 10, True)]
 
 
 class _DummyExecuteResult:
@@ -293,6 +300,10 @@ class _DummyAsyncDB:
     async def refresh(self, obj: Any) -> None:
         self.refreshed.append(obj)
     
+    async def flush(self) -> None:
+        """Flush для сохранения объектов без коммита."""
+        pass
+    
     def add(self, obj: Any) -> None:
         """Добавляет объект в список добавленных (для TipMessage и других)."""
         self.added.append(obj)
@@ -310,13 +321,15 @@ async def test_tip_character_success(monkeypatch: pytest.MonkeyPatch) -> None:
     updated_creator = SimpleNamespace(id=2, coins=150, email="creator@test.dev")  # 50 + 100 = 150
 
     # Порядок execute в tip_character_creator:
-    # 1. SELECT character
-    # 2. SELECT creator
+    # 1. SELECT character (scalar_one_or_none)
+    # 2. SELECT creator (scalar_one_or_none)
     # 3. UPDATE sender (не возвращает результат)
     # 4. UPDATE creator (не возвращает результат)
-    # 5. SELECT updated_sender (после commit)
-    # 6. SELECT updated_creator (после commit)
-    db = _DummyAsyncDB([character, creator, updated_sender, updated_creator])
+    # 5. record_balance_change для sender: SELECT user (scalar_one_or_none) - sender
+    # 6. record_balance_change для creator: SELECT user (scalar_one_or_none) - creator
+    # 7. SELECT updated_sender (scalar_one после commit)
+    # 8. SELECT updated_creator (scalar_one после commit)
+    db = _DummyAsyncDB([character, creator, sender, creator, updated_sender, updated_creator])
 
     async def dummy_emit(user_id: int, _db: Any) -> None:
         pass

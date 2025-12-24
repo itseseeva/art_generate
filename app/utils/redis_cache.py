@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 # Глобальный клиент Redis
 _redis_client: Optional[Redis] = None
+_redis_unavailable: bool = False  # Флаг недоступности Redis
 
 
 async def get_redis_client() -> Optional[Redis]:
@@ -40,9 +41,9 @@ async def get_redis_client() -> Optional[Redis]:
     - Настроены оптимальные таймауты для production
     - Health check для автоматического восстановления соединений
     """
-    global _redis_client
+    global _redis_client, _redis_unavailable
     
-    if not REDIS_AVAILABLE:
+    if not REDIS_AVAILABLE or _redis_unavailable:
         return None
     
     if _redis_client is None:
@@ -60,24 +61,33 @@ async def get_redis_client() -> Optional[Redis]:
                 logger.info(f"[REDIS] Заменён Docker hostname 'redis' на 'localhost' для локальной разработки")
             
             # Оптимизированная конфигурация с connection pooling
+            # Определяем, локальная разработка или Docker
+            is_local = "localhost" in redis_url or "127.0.0.1" in redis_url
+            # Для локальной разработки увеличиваем таймауты, для Docker - быстрые
+            connect_timeout = 3.0 if is_local else 0.5
+            socket_timeout = 2.0 if is_local else 0.5
+            ping_timeout = 2.0 if is_local else 0.3
+            
             _redis_client = aioredis.from_url(
                 redis_url,
                 encoding="utf-8",
                 decode_responses=True,
-                # Таймауты для Windows Docker Desktop (сеть через Hyper-V медленнее)
-                socket_connect_timeout=3,  # Подключение через Docker может быть медленным
-                socket_timeout=3,  # Таймаут операций
+                # Таймауты зависят от окружения (локальное или Docker)
+                socket_connect_timeout=connect_timeout,  # Таймаут подключения
+                socket_timeout=socket_timeout,  # Таймаут операций
                 socket_keepalive=True,  # Keep-alive для долгих соединений
                 socket_keepalive_options={},  # Опции keep-alive
-                retry_on_timeout=True,  # Повтор при таймауте
+                retry_on_timeout=False,  # Не повторять при таймауте (быстрый fallback)
                 health_check_interval=30,  # Проверка здоровья каждые 30 секунд
                 # Connection pooling для эффективного переиспользования
                 max_connections=50,  # Максимум соединений в пуле
-                retry_on_error=[ConnectionError, TimeoutError],  # Повтор при ошибках
+                retry_on_error=[],  # Не повторять при ошибках (быстрый fallback)
             )
             try:
-                await asyncio.wait_for(_redis_client.ping(), timeout=5.0)
+                # Проверка доступности с таймаутом в зависимости от окружения
+                await asyncio.wait_for(_redis_client.ping(), timeout=ping_timeout)
                 logger.info("[OK] Redis подключен успешно с connection pooling")
+                _redis_unavailable = False
             except (asyncio.TimeoutError, Exception) as e:
                 logger.warning(f"[WARNING] Redis недоступен: {e}. Кэширование отключено.")
                 if _redis_client:
@@ -86,10 +96,12 @@ async def get_redis_client() -> Optional[Redis]:
                     except Exception:
                         pass
                 _redis_client = None
+                _redis_unavailable = True  # Помечаем как недоступный
                 return None
         except Exception as e:
             logger.warning(f"[WARNING] Redis недоступен: {e}. Кэширование отключено.")
             _redis_client = None
+            _redis_unavailable = True  # Помечаем как недоступный
             return None
     
     return _redis_client
@@ -104,21 +116,25 @@ async def close_redis_client():
         logger.info("[OK] Redis соединение закрыто")
 
 
-async def cache_get(key: str, timeout: float = 2.0) -> Optional[Any]:
+async def cache_get(key: str, timeout: float = 0.3) -> Optional[Any]:
     """
     Получает значение из кэша с таймаутом.
     
     Args:
         key: Ключ кэша
-        timeout: Таймаут в секундах (по умолчанию 2 секунды)
+        timeout: Таймаут в секундах (по умолчанию 0.3 секунды для быстрого fallback)
         
     Returns:
         Значение из кэша или None
     """
+    global _redis_unavailable
     try:
+        # Быстрая проверка: если Redis помечен как недоступный, сразу возвращаем None
+        if _redis_unavailable:
+            return None
+        
         client = await get_redis_client()
         if not client:
-            logger.debug(f"[REDIS] Клиент недоступен для чтения ключа: {key}")
             return None
         
         # Добавляем таймаут для Redis запроса
@@ -130,10 +146,14 @@ async def cache_get(key: str, timeout: float = 2.0) -> Optional[Any]:
                 return None
             logger.debug(f"[REDIS GET] ✓ Найден ключ: {key}")
         except asyncio.TimeoutError:
-            logger.warning(f"[REDIS GET] ⏱ Таймаут чтения ключа: {key} (>{timeout}с)")
+            # При таймауте помечаем Redis как недоступный для быстрого fallback в будущем
+            _redis_unavailable = True
+            logger.debug(f"[REDIS GET] ⏱ Таймаут чтения ключа: {key} (>{timeout}с)")
             return None
         except Exception as e:
-            logger.warning(f"[REDIS GET] ✗ Ошибка чтения ключа {key}: {e}")
+            # При ошибке помечаем Redis как недоступный
+            _redis_unavailable = True
+            logger.debug(f"[REDIS GET] ✗ Ошибка чтения ключа {key}: {e}")
             return None
         
         # Пытаемся распарсить JSON
@@ -154,7 +174,7 @@ async def cache_set(
     value: Any,
     ttl: Optional[int] = None,
     ttl_seconds: Optional[int] = None,
-    timeout: float = 2.0
+    timeout: float = 0.3
 ) -> bool:
     """
     Сохраняет значение в кэш с таймаутом.
@@ -164,15 +184,19 @@ async def cache_set(
         value: Значение для сохранения
         ttl: TTL в секундах (устаревший параметр, используйте ttl_seconds)
         ttl_seconds: TTL в секундах
-        timeout: Таймаут в секундах (по умолчанию 2 секунды)
+        timeout: Таймаут в секундах (по умолчанию 0.3 секунды для быстрого fallback)
         
     Returns:
         True если успешно, False иначе
     """
+    global _redis_unavailable
     try:
+        # Быстрая проверка: если Redis помечен как недоступный, сразу возвращаем False
+        if _redis_unavailable:
+            return False
+        
         client = await get_redis_client()
         if not client:
-            logger.debug(f"[REDIS] Клиент недоступен для записи ключа: {key}")
             return False
         
         # Сериализуем значение
@@ -202,10 +226,14 @@ async def cache_set(
             logger.debug(f"[REDIS SET] ✓ Сохранен ключ: {key}")
             return True
         except asyncio.TimeoutError:
-            logger.warning(f"[REDIS SET] ⏱ Таймаут записи ключа: {key} (>{timeout}с)")
+            # При таймауте помечаем Redis как недоступный для быстрого fallback в будущем
+            _redis_unavailable = True
+            logger.debug(f"[REDIS SET] ⏱ Таймаут записи ключа: {key} (>{timeout}с)")
             return False
         except Exception as e:
-            logger.warning(f"[REDIS SET] ✗ Ошибка записи ключа {key}: {e}")
+            # При ошибке помечаем Redis как недоступный
+            _redis_unavailable = True
+            logger.debug(f"[REDIS SET] ✗ Ошибка записи ключа {key}: {e}")
             return False
         
     except Exception as e:
@@ -213,7 +241,7 @@ async def cache_set(
         return False
 
 
-async def cache_delete(key: str, timeout: float = 2.0) -> bool:
+async def cache_delete(key: str, timeout: float = 0.3) -> bool:
     """
     Удаляет значение из кэша с таймаутом.
     
@@ -250,7 +278,7 @@ async def cache_delete(key: str, timeout: float = 2.0) -> bool:
         return False
 
 
-async def cache_delete_pattern(pattern: str, timeout: float = 5.0) -> int:
+async def cache_delete_pattern(pattern: str, timeout: float = 0.5) -> int:
     """
     Удаляет все ключи по паттерну с таймаутом.
     
@@ -292,7 +320,7 @@ async def cache_delete_pattern(pattern: str, timeout: float = 5.0) -> int:
         return 0
 
 
-async def cache_exists(key: str, timeout: float = 2.0) -> bool:
+async def cache_exists(key: str, timeout: float = 0.3) -> bool:
     """
     Проверяет существование ключа в кэше с таймаутом.
     
@@ -375,7 +403,7 @@ async def cache_set_json(
     key: str,
     value: Any,
     ttl_seconds: Optional[int] = None,
-    timeout: float = 2.0
+    timeout: float = 0.3
 ) -> bool:
     """
     Сохраняет JSON объект в кэш.
@@ -399,7 +427,7 @@ async def cache_set_json(
 
 async def cache_get_json(
     key: str,
-    timeout: float = 2.0
+    timeout: float = 0.3
 ) -> Optional[Any]:
     """
     Получает JSON объект из кэша.

@@ -15,7 +15,8 @@ async def test_history_saved_for_standard(monkeypatch):
         message: str,
         response: str,
         image_url: Optional[str],
-        image_filename: Optional[str]
+        image_filename: Optional[str],
+        generation_time: Optional[float] = None
     ) -> None:
         calls.append(
             {

@@ -1836,15 +1836,17 @@ async def get_character_photos(
                     existing_pairs.add(pair)
 
         # Загружаем фото из ChatHistory для этого персонажа
+        # ВАЖНО: Загружаем фотографии создателя персонажа, а не текущего пользователя
         chat_history_photos: list[dict] = []
-        if current_user:
-            try:
-                # Используем raw SQL чтобы избежать проблем с полем generation_time
-                from sqlalchemy import text
-                
-                # Загружаем фото где character_name точно совпадает
-                query = text("""
-                    SELECT id, user_id, character_name, image_url, created_at
+        # Используем user_id создателя персонажа для загрузки фотографий
+        owner_user_id = character.user_id
+        try:
+            # Используем raw SQL чтобы избежать проблем с полем generation_time
+            from sqlalchemy import text
+            
+            # Загружаем фото где character_name точно совпадает и user_id = создатель персонажа
+            query = text("""
+                SELECT id, user_id, character_name, image_url, message_content, created_at
                     FROM chat_history
                     WHERE character_name = :character_name 
                       AND user_id = :user_id 
@@ -1852,89 +1854,168 @@ async def get_character_photos(
                       AND image_url != ''
                     ORDER BY created_at DESC
                 """)
-                result = await db.execute(query, {
-                    "character_name": character_name,
-                    "user_id": current_user.id
-                })
-                rows = result.fetchall()
-                logger.info(f"Found {len(rows)} photos in ChatHistory for character {character_name}, user {current_user.id}")
-                
-                # Также загружаем фото где character_name может быть NULL или пустым
-                try:
-                    query_all = text("""
-                        SELECT id, user_id, character_name, image_url, created_at
-                        FROM chat_history
-                        WHERE user_id = :user_id 
-                          AND image_url IS NOT NULL 
-                          AND image_url != ''
-                          AND (character_name IS NULL OR character_name = '')
-                        ORDER BY created_at DESC
-                        LIMIT 100
-                    """)
-                    result_all = await db.execute(query_all, {"user_id": current_user.id})
-                    rows_all = result_all.fetchall()
-                    logger.info(f"Found {len(rows_all)} photos in ChatHistory without character_name for user {current_user.id}")
-                    rows = list(rows) + list(rows_all)
-                except Exception as e2:
-                    logger.warning(f"Error loading photos without character_name from ChatHistory: {e2}")
+            result = await db.execute(query, {
+                "character_name": character_name,
+                "user_id": owner_user_id
+            })
+            rows = result.fetchall()
+            logger.info(f"Found {len(rows)} photos in ChatHistory for character {character_name}, owner user_id={owner_user_id}")
+            
+            # Также загружаем фото где character_name может быть NULL или пустым
+            try:
+                query_all = text("""
+                SELECT id, user_id, character_name, image_url, message_content, created_at
+                    FROM chat_history
+                    WHERE user_id = :user_id 
+                      AND image_url IS NOT NULL 
+                      AND image_url != ''
+                      AND (character_name IS NULL OR character_name = '')
+                    ORDER BY created_at DESC
+                    LIMIT 100
+                """)
+                result_all = await db.execute(query_all, {"user_id": owner_user_id})
+                rows_all = result_all.fetchall()
+                logger.info(f"Found {len(rows_all)} photos in ChatHistory without character_name for owner user_id={owner_user_id}")
+                rows = list(rows) + list(rows_all)
+            except Exception as e2:
+                logger.warning(f"Error loading photos without character_name from ChatHistory: {e2}")
                 
                 for row in rows:
                     image_url = row.image_url if hasattr(row, 'image_url') else row[3]
-                    created_at = row.created_at if hasattr(row, 'created_at') else row[4]
-                    
-                    if image_url:
-                        photo_id = _derive_photo_id(image_url)
-                        # Проверяем, нет ли уже этого фото
-                        if not any(p["url"] == image_url for p in chat_history_photos):
-                            chat_history_photos.append({
-                                "id": photo_id,
-                                "url": image_url,
-                                "created_at": created_at.isoformat() + "Z" if created_at else None
-                            })
-                logger.info(f"Total unique photos from ChatHistory: {len(chat_history_photos)}")
-            except Exception as e:
-                logger.warning(f"Error loading photos from ChatHistory for character {character_name}: {e}")
-                import traceback
-                logger.warning(f"Traceback: {traceback.format_exc()}")
+                message_content = row.message_content if hasattr(row, 'message_content') else (row[4] if len(row) > 4 else None)
+                created_at = row.created_at if hasattr(row, 'created_at') else (row[5] if len(row) > 5 else row[4])
+                
+                if image_url:
+                    photo_id = _derive_photo_id(image_url)
+                    # Проверяем, нет ли уже этого фото
+                    if not any(p["url"] == image_url for p in chat_history_photos):
+                        chat_history_photos.append({
+                            "id": photo_id,
+                            "url": image_url,
+                            "prompt": message_content if message_content and message_content != "Генерация изображения" else None,
+                            "created_at": created_at.isoformat() + "Z" if created_at else None
+                        })
+            logger.info(f"Total unique photos from ChatHistory: {len(chat_history_photos)}")
             
-            # Также загружаем фото из UserGallery для этого персонажа
-            # Используем raw SQL чтобы избежать проблем с транзакциями и async контекстом
-            try:
-                from sqlalchemy import text
-                
-                query_gallery = text("""
-                    SELECT id, user_id, character_name, image_url, created_at
-                    FROM user_gallery
-                    WHERE user_id = :user_id 
-                      AND character_name = :character_name 
-                      AND image_url IS NOT NULL 
-                      AND image_url != ''
-                    ORDER BY created_at DESC
-                """)
-                result_gallery = await db.execute(query_gallery, {
-                    "user_id": current_user.id,
-                    "character_name": character_name
-                })
-                rows_gallery = result_gallery.fetchall()
-                logger.info(f"Found {len(rows_gallery)} photos in UserGallery for character {character_name}, user {current_user.id}")
-                
-                for row in rows_gallery:
-                    image_url = row.image_url if hasattr(row, 'image_url') else row[3]
-                    created_at = row.created_at if hasattr(row, 'created_at') else row[4]
+            # Загружаем промпты из ImageGenerationHistory для фотографий без промпта
+            if chat_history_photos:
+                try:
+                    from app.models.image_generation_history import ImageGenerationHistory
                     
-                    if image_url:
-                        photo_id = _derive_photo_id(image_url)
-                        # Проверяем, нет ли уже этого фото в chat_history_photos
-                        if not any(p["url"] == image_url for p in chat_history_photos):
-                            chat_history_photos.append({
-                                "id": photo_id,
-                                "url": image_url,
-                                "created_at": created_at.isoformat() + "Z" if created_at else None
+                    # Собираем все URL фотографий без промпта
+                    urls_without_prompt = [
+                        photo["url"] for photo in chat_history_photos 
+                        if not photo.get("prompt")
+                    ]
+                    
+                    if urls_without_prompt:
+                        # Нормализуем URL (убираем query параметры)
+                        normalized_urls = [url.split('?')[0].split('#')[0] for url in urls_without_prompt]
+                        
+                        # Загружаем промпты из ImageGenerationHistory для создателя персонажа
+                        prompts_query = select(ImageGenerationHistory).where(
+                            ImageGenerationHistory.user_id == owner_user_id
+                        )
+                        prompts_result = await db.execute(prompts_query)
+                        prompts_rows = prompts_result.scalars().all()
+                        
+                        # Создаем словарь для быстрого поиска промптов по нормализованному URL
+                        prompts_map = {}
+                        for row in prompts_rows:
+                            if row.image_url and row.prompt:
+                                normalized_url = row.image_url.split('?')[0].split('#')[0]
+                                prompts_map[normalized_url] = row.prompt
+                        
+                        # Обновляем промпты в chat_history_photos
+                        for photo in chat_history_photos:
+                            if not photo.get("prompt"):
+                                normalized_url = photo["url"].split('?')[0].split('#')[0]
+                                if normalized_url in prompts_map:
+                                    photo["prompt"] = prompts_map[normalized_url]
+                                    
+                    logger.info(f"Loaded prompts from ImageGenerationHistory for {len(urls_without_prompt)} photos")
+                except Exception as e:
+                    logger.warning(f"Error loading prompts from ImageGenerationHistory: {e}")
+        except Exception as e:
+            logger.warning(f"Error loading photos from ChatHistory for character {character_name}: {e}")
+            import traceback
+            logger.warning(f"Traceback: {traceback.format_exc()}")
+            
+        # Также загружаем фото из UserGallery для этого персонажа (создателя)
+        # Используем raw SQL чтобы избежать проблем с транзакциями и async контекстом
+        try:
+            from sqlalchemy import text
+            
+            query_gallery = text("""
+            SELECT id, user_id, character_name, image_url, created_at
+            FROM user_gallery
+            WHERE user_id = :user_id 
+              AND character_name = :character_name 
+              AND image_url IS NOT NULL 
+              AND image_url != ''
+            ORDER BY created_at DESC
+            """)
+            result_gallery = await db.execute(query_gallery, {
+                "user_id": owner_user_id,
+                "character_name": character_name
+            })
+            rows_gallery = result_gallery.fetchall()
+            logger.info(f"Found {len(rows_gallery)} photos in UserGallery for character {character_name}, owner user_id={owner_user_id}")
+            
+            for row in rows_gallery:
+                image_url = row.image_url if hasattr(row, 'image_url') else row[3]
+                created_at = row.created_at if hasattr(row, 'created_at') else row[4]
+                
+                if image_url:
+                    photo_id = _derive_photo_id(image_url)
+                    # Проверяем, нет ли уже этого фото в chat_history_photos
+                    if not any(p["url"] == image_url for p in chat_history_photos):
+                        chat_history_photos.append({
+                            "id": photo_id,
+                            "url": image_url,
+                            "created_at": created_at.isoformat() + "Z" if created_at else None
                             })
-            except Exception as e:
-                logger.warning(f"Error loading photos from UserGallery for character {character_name}: {e}")
-                import traceback
-                logger.warning(f"Traceback: {traceback.format_exc()}")
+        except Exception as e:
+            logger.warning(f"Error loading photos from UserGallery for character {character_name}: {e}")
+            import traceback
+            logger.warning(f"Traceback: {traceback.format_exc()}")
+        
+        # Также загружаем фото напрямую из ImageGenerationHistory для создателя персонажа
+        try:
+            from app.models.image_generation_history import ImageGenerationHistory
+            
+            image_history_query = select(ImageGenerationHistory).where(
+                ImageGenerationHistory.user_id == owner_user_id,
+                ImageGenerationHistory.character_name == character_name,
+                ImageGenerationHistory.image_url.isnot(None),
+                ImageGenerationHistory.image_url != '',
+                ~ImageGenerationHistory.image_url.like('pending:%')
+            ).order_by(ImageGenerationHistory.created_at.desc())
+            
+            image_history_result = await db.execute(image_history_query)
+            image_history_rows = image_history_result.scalars().all()
+            logger.info(f"Found {len(image_history_rows)} photos in ImageGenerationHistory for character {character_name}, owner user_id={owner_user_id}")
+            
+            for row in image_history_rows:
+                if row.image_url:
+                    # Нормализуем URL
+                    normalized_url = row.image_url.split('?')[0].split('#')[0]
+                    photo_id = _derive_photo_id(normalized_url)
+                    
+                    # Проверяем, нет ли уже этого фото
+                    if not any(p["url"] == normalized_url or p["url"] == row.image_url for p in chat_history_photos):
+                        chat_history_photos.append({
+                            "id": photo_id,
+                            "url": normalized_url,
+                            "prompt": row.prompt if row.prompt and row.prompt != "Генерация изображения" else None,
+                            "created_at": row.created_at.isoformat() + "Z" if row.created_at else None
+                        })
+            
+            logger.info(f"Total unique photos after adding ImageGenerationHistory: {len(chat_history_photos)}")
+        except Exception as e:
+            logger.warning(f"Error loading photos from ImageGenerationHistory for character {character_name}: {e}")
+            import traceback
+            logger.warning(f"Traceback: {traceback.format_exc()}")
 
         main_ids = {entry["id"] for entry in main_entries}
         main_urls = {entry["url"] for entry in main_entries}
@@ -1969,6 +2050,7 @@ async def get_character_photos(
                 {
                     "id": photo_id,
                     "url": photo_url,
+                    "prompt": entry.get("prompt"),
                     "is_main": (photo_id in main_ids) or (photo_url in main_urls),
                     "created_at": entry.get("created_at"),
                 }

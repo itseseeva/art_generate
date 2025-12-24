@@ -31,10 +31,27 @@ async def save_prompt_to_history(
     try:
         # Если есть task_id, ищем запись по task_id (в session_id)
         if task_id:
-            existing_query = select(ChatHistory).where(
-                ChatHistory.user_id == user_id,
-                ChatHistory.session_id == f"task_{task_id}"
-            ).order_by(ChatHistory.created_at.desc()).limit(1)
+            from sqlalchemy.orm import load_only
+            existing_query = (
+                select(ChatHistory)
+                .options(load_only(
+                    ChatHistory.id,
+                    ChatHistory.user_id,
+                    ChatHistory.character_name,
+                    ChatHistory.session_id,
+                    ChatHistory.message_type,
+                    ChatHistory.message_content,
+                    ChatHistory.image_url,
+                    ChatHistory.image_filename,
+                    ChatHistory.created_at
+                ))
+                .where(
+                    ChatHistory.user_id == user_id,
+                    ChatHistory.session_id == f"task_{task_id}"
+                )
+                .order_by(ChatHistory.created_at.desc())
+                .limit(1)
+            )
             existing_result = await db.execute(existing_query)
             existing = existing_result.scalars().first()
             
@@ -75,10 +92,27 @@ async def save_prompt_to_history(
                 f"normalized_url={normalized_url}, prompt_length={len(prompt)}"
             )
             
-            existing_query = select(ChatHistory).where(
-                ChatHistory.user_id == user_id,
-                ChatHistory.image_url == normalized_url
-            ).order_by(ChatHistory.created_at.desc()).limit(1)
+            from sqlalchemy.orm import load_only
+            existing_query = (
+                select(ChatHistory)
+                .options(load_only(
+                    ChatHistory.id,
+                    ChatHistory.user_id,
+                    ChatHistory.character_name,
+                    ChatHistory.session_id,
+                    ChatHistory.message_type,
+                    ChatHistory.message_content,
+                    ChatHistory.image_url,
+                    ChatHistory.image_filename,
+                    ChatHistory.created_at
+                ))
+                .where(
+                    ChatHistory.user_id == user_id,
+                    ChatHistory.image_url == normalized_url
+                )
+                .order_by(ChatHistory.created_at.desc())
+                .limit(1)
+            )
             existing_result = await db.execute(existing_query)
             existing = existing_result.scalars().first()
             

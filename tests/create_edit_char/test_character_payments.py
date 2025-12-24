@@ -142,6 +142,9 @@ async def test_charge_for_photo_generation_success(monkeypatch):
             calls["photo"].append(commit)
             return True
 
+        async def get_user_subscription(self, user_id: int):
+            return None
+
     monkeypatch.setattr("app.chat_bot.api.character_endpoints.CoinsService", DummyCoinsService)
     monkeypatch.setattr("app.chat_bot.api.character_endpoints.ProfitActivateService", DummyProfitService)
 
@@ -149,6 +152,8 @@ async def test_charge_for_photo_generation_success(monkeypatch):
     await charge_for_photo_generation(9, dummy_session)
 
     assert calls["afford"] == [PHOTO_GENERATION_COST]
-    assert calls["photo"] == [False]
+    # use_photo_generation вызывается только для FREE подписки, а мок возвращает None
+    # Поэтому calls["photo"] будет пустым для STANDARD/PREMIUM
+    assert calls["photo"] == []
     assert dummy_session.flushed is True
 

@@ -324,94 +324,107 @@ async def login_user(
     Returns:
     - TokenResponse: Access and refresh tokens.
     """
-    # Rate limiting
-    if not rate_limiter.is_allowed(user_credentials.email):
-        raise HTTPException(
-            status_code=429,
-            detail="Too many requests. Please try again later."
-        )
+    try:
+        # Rate limiting
+        if not rate_limiter.is_allowed(user_credentials.email):
+            raise HTTPException(
+                status_code=429,
+                detail="Too many requests. Please try again later."
+            )
     
-    # Find user
-    result = await db.execute(select(Users).filter(Users.email == user_credentials.email))
-    user = result.scalar_one_or_none()
-    if not user or not verify_password(user_credentials.password, user.password_hash):
-        raise HTTPException(
-            status_code=401,
-            detail="Incorrect email or password"
-        )
+        # Find user
+        result = await db.execute(select(Users).filter(Users.email == user_credentials.email))
+        user = result.scalar_one_or_none()
+        if not user or not verify_password(user_credentials.password, user.password_hash):
+            raise HTTPException(
+                status_code=401,
+                detail="Incorrect email or password"
+            )
     
-    if not user.is_active:
-        raise HTTPException(
-            status_code=400,
-            detail="Inactive user"
-        )
-    
-    if not user.is_verified and not user_credentials.verification_code:
-        raise HTTPException(
-            status_code=400,
-            detail="Подтвердите email: проверьте почту и введите код из письма"
-        )
-    
-    # Check verification code if provided
-    if user_credentials.verification_code:
-        result = await db.execute(select(EmailVerificationCode).filter(
-            EmailVerificationCode.user_id == user.id,
-            EmailVerificationCode.code == user_credentials.verification_code,
-            EmailVerificationCode.code_type == "email_verification",
-            EmailVerificationCode.is_used == False,
-            EmailVerificationCode.expires_at > datetime.now(timezone.utc).replace(tzinfo=None)
-        ))
-        verification = result.scalar_one_or_none()
-        
-        if not verification:
+        if not user.is_active:
             raise HTTPException(
                 status_code=400,
-                detail="Invalid or expired verification code"
+                detail="Inactive user"
             )
-        
-        # Mark verification code as used
-        verification.is_used = True
-        user.is_verified = True
+    
+        if not user.is_verified and not user_credentials.verification_code:
+            raise HTTPException(
+                status_code=400,
+                detail="Подтвердите email: проверьте почту и введите код из письма"
+            )
+    
+        # Check verification code if provided
+        if user_credentials.verification_code:
+            result = await db.execute(select(EmailVerificationCode).filter(
+                EmailVerificationCode.user_id == user.id,
+                EmailVerificationCode.code == user_credentials.verification_code,
+                EmailVerificationCode.code_type == "email_verification",
+                EmailVerificationCode.is_used == False,
+                EmailVerificationCode.expires_at > datetime.now(timezone.utc).replace(tzinfo=None)
+            ))
+            verification = result.scalar_one_or_none()
+            
+            if not verification:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid or expired verification code"
+                )
+            
+            # Mark verification code as used
+            verification.is_used = True
+            user.is_verified = True
+            await db.commit()
+    
+        # Create tokens
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_jwt_token(
+            data={"sub": user.email}, 
+            expires_delta=access_token_expires
+        )
+    
+        refresh_token = create_refresh_token()
+        refresh_token_hash = hash_token(refresh_token)
+        refresh_expires = get_token_expiry(REFRESH_TOKEN_EXPIRE_DAYS)
+    
+        # Save refresh token
+        db_refresh_token = RefreshToken(
+            user_id=user.id,
+            token_hash=refresh_token_hash,
+            expires_at=refresh_expires
+        )
+        db.add(db_refresh_token)
         await db.commit()
     
-    # Create tokens
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_jwt_token(
-        data={"sub": user.email}, 
-        expires_delta=access_token_expires
-    )
+        # Проверяем и активируем бесплатную подписку Free, если её нет
+        try:
+            subscription_service = SubscriptionService(db)
+            existing_subscription = await subscription_service.get_user_subscription(user.id)
+            if not existing_subscription:
+                logger.info(f"[DEBUG] У пользователя {user.email} нет подписки, активируем Free")
+                await subscription_service.create_subscription(user.id, "free")
+                logger.info(f"[OK] Подписка Free активирована для пользователя {user.email}")
+        except Exception as e:
+            logger.error(f"[ERROR] Ошибка проверки/активации подписки для пользователя {user.email}: {e}")
+            import traceback
+            logger.error(f"[ERROR] Traceback: {traceback.format_exc()}")
     
-    refresh_token = create_refresh_token()
-    refresh_token_hash = hash_token(refresh_token)
-    refresh_expires = get_token_expiry(REFRESH_TOKEN_EXPIRE_DAYS)
-    
-    # Save refresh token
-    db_refresh_token = RefreshToken(
-        user_id=user.id,
-        token_hash=refresh_token_hash,
-        expires_at=refresh_expires
-    )
-    db.add(db_refresh_token)
-    await db.commit()
-    
-    # Проверяем и активируем бесплатную подписку Free, если её нет
-    try:
-        subscription_service = SubscriptionService(db)
-        existing_subscription = await subscription_service.get_user_subscription(user.id)
-        if not existing_subscription:
-            print(f"[DEBUG] У пользователя {user.email} нет подписки, активируем Free")
-            await subscription_service.create_subscription(user.id, "free")
-            print(f"[OK] Подписка Free активирована для пользователя {user.email}")
+        logger.info(f"User {user.email} logged in successfully")
+        
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer"
+        )
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"[ERROR] Ошибка проверки/активации подписки для пользователя {user.email}: {e}")
-    
-    print(f"User {user.email} logged in successfully")
-    
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        token_type="bearer"
-    )
+        logger.error(f"[ERROR] Ошибка при логине пользователя {user_credentials.email}: {e}")
+        import traceback
+        logger.error(f"[ERROR] Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )
 
 
 @auth_router.post("/auth/refresh/", response_model=TokenResponse)

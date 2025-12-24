@@ -46,6 +46,13 @@ class OpenRouterService:
         self.model = chat_config.OPENROUTER_MODEL
         self._session: Optional[aiohttp.ClientSession] = None
         
+        # Настройка прокси из переменных окружения
+        self.proxy = os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY") or os.getenv("GLOBAL_PROXY")
+        if self.proxy:
+            logger.info(f"[OPENROUTER] Используется прокси: {self.proxy.split('@')[-1] if '@' in self.proxy else 'установлен'}")
+        else:
+            logger.info("[OPENROUTER] Прокси не настроен")
+        
         if not self.api_key:
             logger.warning("[OPENROUTER] OPENROUTER_KEY не установлен в переменных окружения")
         
@@ -54,8 +61,21 @@ class OpenRouterService:
     async def _get_session(self) -> aiohttp.ClientSession:
         """Получает или создает сессию aiohttp."""
         if self._session is None or self._session.closed:
-            timeout = aiohttp.ClientTimeout(total=300, connect=10, sock_read=120)
-            self._session = aiohttp.ClientSession(timeout=timeout)
+            # Увеличиваем таймауты для Docker (может быть медленное подключение)
+            timeout = aiohttp.ClientTimeout(total=300, connect=30, sock_read=120, sock_connect=30)
+            # Настройки для лучшей совместимости с Docker сетью
+            connector = aiohttp.TCPConnector(
+                limit=100,
+                limit_per_host=30,
+                ttl_dns_cache=300,
+                use_dns_cache=True,
+                keepalive_timeout=30
+            )
+            self._session = aiohttp.ClientSession(
+                timeout=timeout,
+                connector=connector,
+                trust_env=True  # Использует прокси из переменных окружения HTTP_PROXY/HTTPS_PROXY
+            )
         return self._session
     
     async def close(self):
@@ -85,7 +105,8 @@ class OpenRouterService:
             # Простой запрос для проверки подключения
             async with session.get(
                 f"{self.base_url}/models",
-                headers=headers
+                headers=headers,
+                proxy=self.proxy if self.proxy else None
             ) as response:
                 if response.status == 200:
                     logger.info("[OPENROUTER] Подключение успешно установлено")
@@ -196,7 +217,8 @@ class OpenRouterService:
             async with session.post(
                 f"{self.base_url}/chat/completions",
                 headers=headers,
-                json=payload
+                json=payload,
+                proxy=self.proxy if self.proxy else None
             ) as response:
                 if response.status == 200:
                     result = await response.json()
@@ -335,7 +357,8 @@ class OpenRouterService:
             async with session.post(
                 f"{self.base_url}/chat/completions",
                 headers=headers,
-                json=payload
+                json=payload,
+                proxy=self.proxy if self.proxy else None
             ) as response:
                 if response.status != 200:
                     error_text = await response.text()

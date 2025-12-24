@@ -83,8 +83,10 @@ async def test_get_chat_history_from_db(redis_client, mock_db, sample_messages):
     
     with patch.object(service, 'can_save_history', return_value=True):
         mock_result = MagicMock()
-        mock_result.scalars = MagicMock(return_value=MagicMock(all=MagicMock(return_value=sample_messages)))
-        mock_db.execute.return_value = mock_result
+        mock_scalars = MagicMock()
+        mock_scalars.all = MagicMock(return_value=sample_messages)
+        mock_result.scalars = MagicMock(return_value=mock_scalars)
+        mock_db.execute = AsyncMock(return_value=mock_result)
         
         history = await service.get_chat_history(123, "anna", "session1")
         

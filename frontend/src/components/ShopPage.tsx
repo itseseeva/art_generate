@@ -693,14 +693,17 @@ export const ShopPage: React.FC<ShopPageProps> = ({
 
     try {
       const receiverWallet = '4100119070489003';
-      const amount = subscriptionType === 'premium' ? 1499 : 699;
+      const amount = subscriptionType === 'premium' ? 1499 : 599;
       const label = `plan:${subscriptionType};uid:${currentUserId}`;
       // Используем относительный URL для возврата на страницу магазина
       const successURL = `${window.location.origin}/shop`;
+      // Формируем URL для YooMoney QuickPay
+      // Используем payment-type=AC для банковских карт (более надежный вариант)
       const quickPayUrl =
         `https://yoomoney.ru/quickpay/confirm.xml` +
         `?receiver=${encodeURIComponent(receiverWallet)}` +
         `&quickpay-form=shop` +
+        `&payment-type=AC` + // AC = банковская карта
         `&targets=${encodeURIComponent(
           subscriptionType === 'premium'
             ? 'Оплата подписки PREMIUM на 30 дней'
@@ -708,7 +711,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
         )}` +
         `&formcomment=${encodeURIComponent('Оплата подписки Spicychat')}` +
         `&short-dest=${encodeURIComponent('Подписка Spicychat')}` +
-        `&sum=${encodeURIComponent(amount.toFixed(2))}` +
+        `&sum=${amount.toFixed(2)}` + // Убираем encodeURIComponent для суммы, YooMoney ожидает число
         `&label=${encodeURIComponent(label)}` +
         `&successURL=${encodeURIComponent(successURL)}`;
 
@@ -764,7 +767,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             
             <PlanCard $isPopular>
               <PlanName>Standard</PlanName>
-              <PlanPrice>699₽</PlanPrice>
+              <PlanPrice>599₽</PlanPrice>
               <PlanFeatures>
                 <PlanFeature>1500 кредитов в месяц</PlanFeature>
                 <PlanFeature>Возможность создать своих персонажей</PlanFeature>

@@ -13,15 +13,15 @@ class TestContextWithSubscriptions:
     
     @pytest.mark.asyncio
     async def test_premium_context_limit(self):
-        """PREMIUM подписка должна использовать лимит 40 сообщений."""
+        """PREMIUM подписка должна возвращать None (без ограничений сообщений)."""
         limit = get_context_limit(SubscriptionType.PREMIUM)
-        assert limit == 40
+        assert limit is None
     
     @pytest.mark.asyncio
     async def test_standard_context_limit(self):
-        """STANDARD подписка должна использовать лимит 20 сообщений."""
+        """STANDARD подписка должна возвращать None (без ограничений сообщений)."""
         limit = get_context_limit(SubscriptionType.STANDARD)
-        assert limit == 20
+        assert limit is None
     
     @pytest.mark.asyncio
     async def test_free_context_limit(self):
@@ -30,14 +30,14 @@ class TestContextWithSubscriptions:
         assert limit == 10
     
     def test_context_limit_hierarchy(self):
-        """Проверка иерархии лимитов: PREMIUM > STANDARD > FREE."""
+        """Проверка иерархии лимитов: PREMIUM и STANDARD без ограничений, FREE - 10."""
         premium_limit = get_context_limit(SubscriptionType.PREMIUM)
         standard_limit = get_context_limit(SubscriptionType.STANDARD)
         free_limit = get_context_limit(SubscriptionType.FREE)
         
-        assert premium_limit > standard_limit
-        assert standard_limit > free_limit
-        assert premium_limit == 40
-        assert standard_limit == 20
+        # PREMIUM и STANDARD без ограничений (None)
+        assert premium_limit is None
+        assert standard_limit is None
+        # FREE имеет ограничение 10 сообщений
         assert free_limit == 10
 

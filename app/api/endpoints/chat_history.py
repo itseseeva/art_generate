@@ -230,7 +230,24 @@ async def get_prompt_by_image(
             }
 
         # Дополнительная диагностика: проверяем, есть ли вообще записи для этого пользователя
-        debug_stmt = select(ChatHistory).where(ChatHistory.user_id == user_id).order_by(ChatHistory.created_at.desc()).limit(10)
+        from sqlalchemy.orm import load_only
+        debug_stmt = (
+            select(ChatHistory)
+            .options(load_only(
+                ChatHistory.id,
+                ChatHistory.user_id,
+                ChatHistory.character_name,
+                ChatHistory.session_id,
+                ChatHistory.message_type,
+                ChatHistory.message_content,
+                ChatHistory.image_url,
+                ChatHistory.image_filename,
+                ChatHistory.created_at
+            ))
+            .where(ChatHistory.user_id == user_id)
+            .order_by(ChatHistory.created_at.desc())
+            .limit(10)
+        )
         debug_result = await db.execute(debug_stmt)
         debug_records = debug_result.scalars().all()
         logger.warning(

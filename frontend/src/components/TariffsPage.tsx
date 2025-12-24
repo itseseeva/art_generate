@@ -441,13 +441,16 @@ export const TariffsPage: React.FC = () => {
 
     try {
       const receiverWallet = '4100119070489003';
-      const amount = subscriptionType === 'premium' ? 1499 : 699;
+      const amount = subscriptionType === 'premium' ? 1499 : 599;
       const label = `plan:${subscriptionType};uid:${currentUserId}`;
       const successURL = `${window.location.origin}/frontend/payment/success/`;
+      // Формируем URL для YooMoney QuickPay
+      // Используем payment-type=AC для банковских карт (более надежный вариант)
       const quickPayUrl =
         `https://yoomoney.ru/quickpay/confirm.xml` +
         `?receiver=${encodeURIComponent(receiverWallet)}` +
         `&quickpay-form=shop` +
+        `&payment-type=AC` + // AC = банковская карта
         `&targets=${encodeURIComponent(
           subscriptionType === 'premium'
             ? 'Оплата подписки PREMIUM на 30 дней'
@@ -455,7 +458,7 @@ export const TariffsPage: React.FC = () => {
         )}` +
         `&formcomment=${encodeURIComponent('Оплата подписки Spicychat')}` +
         `&short-dest=${encodeURIComponent('Подписка Spicychat')}` +
-        `&sum=${encodeURIComponent(amount.toFixed(2))}` +
+        `&sum=${amount.toFixed(2)}` + // Убираем encodeURIComponent для суммы, YooMoney ожидает число
         `&label=${encodeURIComponent(label)}` +
         `&successURL=${encodeURIComponent(successURL)}`;
 
@@ -489,7 +492,7 @@ export const TariffsPage: React.FC = () => {
 
           <Card $highlight>
             <PlanName>Стандарт</PlanName>
-            <Price>699₽ <span>/ месяц</span></Price>
+            <Price>599₽ <span>/ месяц</span></Price>
             <FeatureList>
               <Feature>1000 кредитов</Feature>
               <Feature>Доступ ко всем персонажам</Feature>

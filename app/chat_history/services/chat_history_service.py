@@ -93,8 +93,20 @@ class ChatHistoryService:
             if cached_history is not None:
                 return cached_history
             
+            from sqlalchemy.orm import load_only
             result = await self.db.execute(
                 select(ChatHistory)
+                .options(load_only(
+                    ChatHistory.id,
+                    ChatHistory.user_id,
+                    ChatHistory.character_name,
+                    ChatHistory.session_id,
+                    ChatHistory.message_type,
+                    ChatHistory.message_content,
+                    ChatHistory.image_url,
+                    ChatHistory.image_filename,
+                    ChatHistory.created_at
+                ))
                 .where(
                     ChatHistory.user_id == user_id,
                     ChatHistory.character_name == character_name,
@@ -1113,8 +1125,20 @@ class ChatHistoryService:
                 return {"can_save_history": False}
             
             # Подсчитываем общее количество сообщений
+            from sqlalchemy.orm import load_only
             result = await self.db.execute(
                 select(ChatHistory)
+                .options(load_only(
+                    ChatHistory.id,
+                    ChatHistory.user_id,
+                    ChatHistory.character_name,
+                    ChatHistory.session_id,
+                    ChatHistory.message_type,
+                    ChatHistory.message_content,
+                    ChatHistory.image_url,
+                    ChatHistory.image_filename,
+                    ChatHistory.created_at
+                ))
                 .where(ChatHistory.user_id == user_id)
             )
             

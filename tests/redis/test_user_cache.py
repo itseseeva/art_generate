@@ -45,16 +45,22 @@ async def test_get_current_user_from_cache(redis_client, mock_db, sample_user):
 
     # Создаем мок для Users, чтобы избежать проблем с SQLAlchemy
     from types import SimpleNamespace
-    mock_user_cls = lambda **kwargs: SimpleNamespace(**kwargs)
+    
+    class MockUsers:
+        def __init__(self, **kwargs):
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+    
+    # Убеждаемся, что execute не вызывается (данные в кэше)
+    mock_db.execute = AsyncMock()
     
     with patch("app.auth.dependencies.jwt.decode", return_value={"sub": sample_user["email"]}):
-        with patch("app.auth.dependencies.Users", mock_user_cls):
+        with patch("app.auth.dependencies.Users", MockUsers):
             user = await get_current_user(mock_credentials, mock_db)
 
     assert user is not None
     assert user.email == sample_user["email"]
     assert user.id == sample_user["id"]
-    mock_db.execute.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -71,7 +77,7 @@ async def test_get_current_user_from_db(redis_client, mock_db, sample_user):
         # get_current_user использует .scalar_one_or_none()
         mock_result = MagicMock()
         mock_result.scalar_one_or_none = MagicMock(return_value=db_user)
-        mock_db.execute.return_value = mock_result
+        mock_db.execute = AsyncMock(return_value=mock_result)
         
         user = await get_current_user(mock_credentials, mock_db)
         

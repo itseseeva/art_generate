@@ -4,12 +4,51 @@ set -e
 echo "=== Запуск entrypoint скрипта ==="
 
 # Ждём готовности PostgreSQL
-echo "Ожидание готовности PostgreSQL..."
-until pg_isready -h postgres -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-art_generation} > /dev/null 2>&1; do
-  echo "PostgreSQL ещё не готов, ждём..."
+# Определяем хост PostgreSQL из DATABASE_URL или используем DB_HOST
+if [ -n "$DATABASE_URL" ]; then
+  # Парсим DATABASE_URL: postgresql://user:pass@host:port/db
+  # Удаляем префикс postgresql:// или postgresql+asyncpg://
+  URL_WITHOUT_PROTOCOL=$(echo "$DATABASE_URL" | sed 's|^.*://||')
+  # Извлекаем хост и порт: user:pass@host:port/db
+  DB_HOST=$(echo "$URL_WITHOUT_PROTOCOL" | sed -n 's/.*@\([^:]*\):.*/\1/p')
+  DB_PORT=$(echo "$URL_WITHOUT_PROTOCOL" | sed -n 's/.*:\([0-9]*\)\/.*/\1/p')
+  # Извлекаем пользователя: user:pass@ -> user
+  DB_USER=$(echo "$URL_WITHOUT_PROTOCOL" | sed -n 's/\([^:]*\):.*@.*/\1/p')
+  # Извлекаем базу данных: /db или /db?
+  DB_NAME=$(echo "$URL_WITHOUT_PROTOCOL" | sed -n 's/.*\/\([^?]*\).*/\1/p')
+else
+  # Используем переменные из .env
+  DB_HOST=${DB_HOST:-localhost}
+  DB_PORT=${DB_PORT:-5432}
+  DB_USER=${POSTGRES_USER:-postgres}
+  DB_NAME=${POSTGRES_DB:-art_generation}
+fi
+
+# Отладочный вывод для диагностики
+if [ "${DEBUG:-false}" = "true" ]; then
+  echo "DEBUG: DATABASE_URL=$DATABASE_URL"
+  echo "DEBUG: Parsed - Host: $DB_HOST, Port: $DB_PORT, User: $DB_USER, DB: $DB_NAME"
+fi
+
+echo "Ожидание готовности PostgreSQL (host: ${DB_HOST}, port: ${DB_PORT})..."
+# Пытаемся подключиться к PostgreSQL с таймаутом (максимум 30 секунд)
+TIMEOUT=30
+ELAPSED=0
+while [ $ELAPSED -lt $TIMEOUT ]; do
+  if pg_isready -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" > /dev/null 2>&1; then
+    echo "✓ PostgreSQL готов"
+    break
+  fi
+  echo "PostgreSQL ещё не готов, ждём... (${ELAPSED}/${TIMEOUT}с)"
   sleep 2
+  ELAPSED=$((ELAPSED + 2))
 done
-echo "✓ PostgreSQL готов"
+
+# Если после таймаута PostgreSQL все еще не готов, выводим предупреждение, но продолжаем
+if [ $ELAPSED -ge $TIMEOUT ]; then
+  echo "⚠ Предупреждение: PostgreSQL не доступен после ${TIMEOUT} секунд ожидания (host: ${DB_HOST}:${DB_PORT})"
+  echo "⚠ Продолжаем запуск, но миграции могут не выполниться"
+fi
 
 # Выполняем миграции Alembic
 echo "Выполнение миграций Alembic..."
@@ -29,7 +68,7 @@ from app.models.user import Users
 from sqlalchemy import create_engine
 import os
 
-db_url = os.getenv('DATABASE_URL', 'postgresql://postgres:postgres@postgres:5432/art_generation')
+db_url = os.getenv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/art_generation')
 if '+asyncpg' in db_url:
     db_url = db_url.replace('+asyncpg', '')
 
@@ -46,7 +85,7 @@ except Exception as e:
 if [ "${AUTO_MIGRATE_DATA:-false}" = "true" ] && [ -f "/app/Docker_all/migrate_data_to_docker.py" ]; then
     echo "Проверка необходимости миграции данных..."
     # Проверяем, есть ли данные в таблице characters
-    CHARACTER_COUNT=$(psql -h postgres -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-art_generation} -t -c "SELECT COUNT(*) FROM characters" 2>/dev/null || echo "0")
+    CHARACTER_COUNT=$(psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -t -c "SELECT COUNT(*) FROM characters" 2>/dev/null || echo "0")
     if [ "$CHARACTER_COUNT" -eq "0" ] || [ -z "$CHARACTER_COUNT" ]; then
         echo "База данных пустая, запуск миграции данных..."
         cd /app/Docker_all
@@ -54,7 +93,7 @@ if [ "${AUTO_MIGRATE_DATA:-false}" = "true" ] && [ -f "/app/Docker_all/migrate_d
         
         # Синхронизируем последовательности после миграции данных
         echo "Синхронизация последовательностей после миграции данных..."
-        psql -h postgres -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-art_generation} << 'SQL_EOF' || echo "⚠ Предупреждение: не удалось синхронизировать некоторые последовательности"
+        psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" << 'SQL_EOF' || echo "⚠ Предупреждение: не удалось синхронизировать некоторые последовательности"
 SELECT setval('refresh_tokens_id_seq', COALESCE((SELECT MAX(id) FROM refresh_tokens), 1), true);
 SELECT setval('users_id_seq', COALESCE((SELECT MAX(id) FROM users), 1), true);
 SELECT setval('characters_id_seq', COALESCE((SELECT MAX(id) FROM characters), 1), true);
@@ -82,7 +121,7 @@ fi
 
 # Всегда синхронизируем последовательности (на случай, если данные были добавлены вручную)
 echo "Проверка синхронизации последовательностей..."
-psql -h postgres -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-art_generation} << 'SQL_EOF' 2>/dev/null || true
+psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" << 'SQL_EOF' 2>/dev/null || true
 SELECT setval('refresh_tokens_id_seq', COALESCE((SELECT MAX(id) FROM refresh_tokens), 1), true);
 SELECT setval('users_id_seq', COALESCE((SELECT MAX(id) FROM users), 1), true);
 SELECT setval('characters_id_seq', COALESCE((SELECT MAX(id) FROM characters), 1), true);

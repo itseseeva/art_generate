@@ -1472,6 +1472,18 @@ async def spend_message_resources_async(user_id: int, use_credits: bool) -> None
                 subscription_service = ProfitActivateService(db)
                 credits_spent = await subscription_service.use_message_credits(user_id)
                 if credits_spent:
+                    # Записываем историю баланса (кредиты подписки, баланс не меняется)
+                    try:
+                        from app.utils.balance_history import record_balance_change
+                        await record_balance_change(
+                            db=db,
+                            user_id=user_id,
+                            amount=-5,
+                            reason="Отправка сообщения в чате (кредиты подписки)"
+                        )
+                    except Exception as e:
+                        logger.warning(f"Не удалось записать историю баланса за сообщение (кредиты подписки): {e}")
+                    await db.commit()
                     logger.info(f"[STREAM] Списаны кредиты подписки за сообщение пользователя {user_id}")
             else:
                 from app.services.coins_service import CoinsService
@@ -2140,6 +2152,26 @@ async def chat_endpoint(
                             status_code=500,
                             detail="Не удалось списать кредиты подписки за сообщение. Повторите попытку.",
                         )
+                    
+                    # Записываем историю баланса (кредиты подписки, баланс не меняется)
+                    try:
+                        from app.utils.balance_history import record_balance_change
+                        # Получаем текущий баланс пользователя для записи истории
+                        from app.models.user import Users
+                        from sqlalchemy import select
+                        user_result = await db.execute(select(Users).where(Users.id == coins_user_id))
+                        user = user_result.scalar_one_or_none()
+                        if user:
+                            await record_balance_change(
+                                db=db,
+                                user_id=coins_user_id,
+                                amount=-5,
+                                reason="Отправка сообщения в чате (кредиты подписки)"
+                            )
+                    except Exception as e:
+                        logger.warning(f"Не удалось записать историю баланса за сообщение (кредиты подписки): {e}")
+                    
+                    await db.commit()
                     logger.info(
                         "[OK] Списаны кредиты подписки за сообщение пользователя %s",
                         user_id,
@@ -2221,6 +2253,8 @@ async def chat_endpoint(
                 
                 # Получаем промпт для изображения
                 image_prompt = request.get("image_prompt") or message
+                # Сохраняем промпт для истории (будет использован при сохранении)
+                history_message = image_prompt if image_prompt else "Генерация изображения"
                 
                 # Получаем параметры генерации изображения
                 image_steps = request.get("image_steps")
@@ -2305,8 +2339,13 @@ async def chat_endpoint(
         # Подготавливаем данные для сохранения
         # КРИТИЧЕСКИ ВАЖНО: Убеждаемся, что history_message и history_response определены
         if 'history_message' not in locals() or not history_message:
-            history_message = message if message else "Генерация изображения"
-            logger.warning(f"[HISTORY] history_message не был установлен, используем message: '{history_message}'")
+            # Если была генерация изображения, используем реальный промпт из image_prompt
+            if generate_image and 'image_prompt' in locals() and image_prompt:
+                history_message = image_prompt
+                logger.info(f"[HISTORY] Используем реальный промпт генерации для истории: '{history_message[:50]}...'")
+            else:
+                history_message = message if message else "Генерация изображения"
+                logger.warning(f"[HISTORY] history_message не был установлен, используем message: '{history_message}'")
         
         if 'history_response' not in locals() or not history_response:
             history_response = response if response else ""
@@ -3614,6 +3653,7 @@ async def get_generation_status(
                 try:
                     from app.models.image_generation_history import ImageGenerationHistory
                     from sqlalchemy import select
+                    from app.database.db import async_session_maker
                     async with async_session_maker() as fallback_db:
                         stmt = select(ImageGenerationHistory).where(
                             ImageGenerationHistory.task_id == task_id
@@ -3626,6 +3666,36 @@ async def get_generation_status(
                             logger.warning(f"[RUNPOD STATUS] Найдена pending запись, но runpod_url_base не сохранен в БД")
                 except Exception as db_error:
                     logger.warning(f"[RUNPOD STATUS] Ошибка поиска в БД: {db_error}")
+            
+            # Если runpod_url_base не найден, пытаемся определить по модели из метаданных или используем дефолтный
+            if not runpod_url_base:
+                from app.services.runpod_client import RUNPOD_URL_BASE, RUNPOD_URL_BASE_2
+                # Пытаемся определить модель из метаданных
+                try:
+                    from app.utils.redis_cache import cache_get
+                    generation_metadata = await cache_get(f"generation:{task_id}")
+                    if generation_metadata:
+                        if isinstance(generation_metadata, str):
+                            import json
+                            try:
+                                generation_metadata = json.loads(generation_metadata)
+                            except json.JSONDecodeError:
+                                generation_metadata = None
+                        if generation_metadata and isinstance(generation_metadata, dict):
+                            model = generation_metadata.get("model", "anime")
+                            if model == "anime-realism":
+                                runpod_url_base = RUNPOD_URL_BASE_2
+                                logger.info(f"[RUNPOD STATUS] Определен runpod_url_base по модели 'anime-realism': {runpod_url_base}")
+                            else:
+                                runpod_url_base = RUNPOD_URL_BASE
+                                logger.info(f"[RUNPOD STATUS] Определен runpod_url_base по модели '{model}': {runpod_url_base}")
+                except Exception:
+                    pass
+                
+                # Если все еще не найден, используем дефолтный
+                if not runpod_url_base:
+                    runpod_url_base = RUNPOD_URL_BASE
+                    logger.warning(f"[RUNPOD STATUS] runpod_url_base не найден, используем дефолтный RUNPOD_URL_BASE: {runpod_url_base}")
             
             async with httpx.AsyncClient() as client:
                 try:
@@ -3950,9 +4020,24 @@ async def get_generation_status(
                         
                         logger.info(f"[PROMPT] Обновляем промпт с image_url: task_id={task_id}, image_url={image_url}")
                         
-                        existing_query = select(ChatHistory).where(
-                            ChatHistory.session_id == f"task_{task_id}"
-                        ).order_by(ChatHistory.created_at.desc()).limit(1)
+                        from sqlalchemy.orm import load_only
+                        existing_query = (
+                            select(ChatHistory)
+                            .options(load_only(
+                                ChatHistory.id,
+                                ChatHistory.user_id,
+                                ChatHistory.character_name,
+                                ChatHistory.session_id,
+                                ChatHistory.message_type,
+                                ChatHistory.message_content,
+                                ChatHistory.image_url,
+                                ChatHistory.image_filename,
+                                ChatHistory.created_at
+                            ))
+                            .where(ChatHistory.session_id == f"task_{task_id}")
+                            .order_by(ChatHistory.created_at.desc())
+                            .limit(1)
+                        )
                         existing_result = await db.execute(existing_query)
                         existing = existing_result.scalars().first()
                         
