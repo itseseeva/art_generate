@@ -6,6 +6,7 @@ import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
 import { FiImage as ImageIcon } from 'react-icons/fi';
 import { fetchPromptByImage } from '../utils/prompt';
+import { translateToRussian } from '../utils/translate';
 
 const PageContainer = styled.div`
   width: 100vw;
@@ -417,10 +418,15 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
     try {
       const { prompt, errorMessage } = await fetchPromptByImage(image.url);
       if (prompt) {
-        setSelectedPrompt(prompt);
+        // Переводим промпт на русский для отображения
+        const translatedPrompt = await translateToRussian(prompt);
+        setSelectedPrompt(translatedPrompt);
       } else {
         setPromptError(errorMessage || 'Промпт недоступен для этого изображения');
       }
+    } catch (error) {
+      console.error('[PaidAlbumPage] Ошибка загрузки/перевода промпта:', error);
+      setPromptError('Ошибка загрузки промпта');
     } finally {
       setIsLoadingPrompt(false);
     }

@@ -185,12 +185,15 @@ class ChatHistoryService:
             # Проверяем кэш (если не запрошено принудительное обновление)
             cache_key = key_user_characters(user_id)
             cached_characters = None
+            # КРИТИЧЕСКИ ВАЖНО: Всегда очищаем кэш при force_refresh, чтобы получить актуальные данные
             if force_refresh:
                 # Очищаем кэш при принудительном обновлении
                 await cache_delete(cache_key)
+                print(f"[DEBUG] Кэш очищен для user_id={user_id} (force_refresh=True)")
             else:
                 cached_characters = await cache_get(cache_key)
             if cached_characters is not None:
+                print(f"[DEBUG] Используем кэшированные данные для user_id={user_id}: {len(cached_characters)} персонажей")
                 return cached_characters
 
             # Проверяем подписку пользователя
@@ -271,7 +274,7 @@ class ChatHistoryService:
                         CharacterDB.name,
                         func.max(ChatMessageDB.timestamp).label("last_message_at"),
                         func.count(ChatMessageDB.id).label("message_count"),
-                        func.max(ChatSession.created_at).label("session_created_at")
+                        func.max(ChatSession.started_at).label("session_created_at")
                     )
                     .select_from(CharacterDB)
                     .join(ChatSession,
@@ -281,10 +284,16 @@ class ChatHistoryService:
                           )
                     )
                     # Используем outerjoin, чтобы не терять сессии без текстовых сообщений
-                    .outerjoin(ChatMessageDB, ChatMessageDB.session_id == ChatSession.id)
+                    # КРИТИЧЕСКИ ВАЖНО: Фильтруем сообщения по user_id через JOIN с ChatSession
+                    .outerjoin(ChatMessageDB, and_(
+                        ChatMessageDB.session_id == ChatSession.id,
+                        # Дополнительная проверка: сообщения должны быть из сессий этого пользователя
+                        # (уже отфильтровано в JOIN ChatSession выше через conditions)
+                    ))
                     .group_by(CharacterDB.name)
-                    # Убрали HAVING message_count > 0, чтобы ловить фото-диалоги
-                    .order_by(func.max(ChatMessageDB.timestamp).desc())
+                    # КРИТИЧЕСКИ ВАЖНО: Показываем только персонажей с реальными сообщениями ИЛИ фото
+                    # Используем COALESCE для сортировки: сначала по timestamp сообщений, потом по created_at сессии
+                    .order_by(func.coalesce(func.max(ChatMessageDB.timestamp), func.max(ChatSession.started_at)).desc())
                 )
 
                 rows = session_result.fetchall()
@@ -359,14 +368,15 @@ class ChatHistoryService:
                         continue
                     
                     # Определяем время для сортировки
+                    # Используем last_message_at если есть, иначе session_created_at, иначе текущее время
                     display_time = last_message_at if last_message_at else session_created_at
                     if display_time is None:
-                        # Если нет времени вообще, но есть фото - все равно добавляем
-                        if last_image_url:
+                        # Если нет времени вообще, но есть фото или сообщения - все равно добавляем
+                        if last_image_url or message_count > 0:
                             from datetime import datetime, timezone
                             display_time = datetime.now(timezone.utc)
                         else:
-                            print(f"[DEBUG] ПРОПУСК: персонаж {character_name} - нет времени и нет фото")
+                            print(f"[DEBUG] ПРОПУСК: персонаж {character_name} - нет времени, нет фото и нет сообщений")
                         continue
                     
                     # ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: проверяем реальные сообщения для этого персонажа
@@ -401,10 +411,33 @@ class ChatHistoryService:
                         print(f"[DEBUG] ПРОПУСК: персонаж {character_name} - ошибка парсинга last_message_at: {e}")
                         continue
                     
-                    # Финальная проверка: убеждаемся, что у нас действительно есть сообщения
-                    if message_count <= 0:
-                        print(f"[DEBUG] ПРОПУСК: персонаж {character_name} - message_count <= 0")
+                    # КРИТИЧЕСКИ ВАЖНО: Дополнительная проверка - убеждаемся, что сообщения действительно от этого пользователя
+                    # Проверяем реальные сообщения в сессиях этого пользователя
+                    try:
+                        from app.chat_bot.models.models import ChatMessageDB, ChatSession, CharacterDB
+                        real_message_check = await self.db.execute(
+                            select(func.count(ChatMessageDB.id))
+                            .select_from(ChatMessageDB)
+                            .join(ChatSession, ChatMessageDB.session_id == ChatSession.id)
+                            .join(CharacterDB, ChatSession.character_id == CharacterDB.id)
+                            .where(CharacterDB.name == character_name)
+                            .where(or_(*conditions))  # Фильтр по user_id
+                        )
+                        real_message_count = real_message_check.scalar() or 0
+                        print(f"[DEBUG] Проверка реальных сообщений для {character_name}: real_message_count={real_message_count}, message_count={message_count}")
+                    except Exception as check_err:
+                        print(f"[DEBUG] Ошибка проверки реальных сообщений для {character_name}: {check_err}")
+                        real_message_count = message_count
+                    
+                    # Финальная проверка: убеждаемся, что у нас действительно есть сообщения ИЛИ есть фото
+                    # КРИТИЧЕСКИ ВАЖНО: Проверяем реальные сообщения от этого пользователя
+                    if real_message_count <= 0 and not last_image_url:
+                        print(f"[DEBUG] ПРОПУСК: персонаж {character_name} - нет реальных сообщений от user_id={user_id} и нет фото (real_message_count={real_message_count}, message_count={message_count})")
                         continue
+                    
+                    # Используем реальное количество сообщений вместо message_count из группировки
+                    if real_message_count > 0:
+                        message_count = real_message_count
                     
                     key = character_name.lower()
                     characters[key] = {
@@ -420,6 +453,7 @@ class ChatHistoryService:
 
             # Дополнительно проверяем ChatHistory, включая записи с фото
             # УПРОЩЕННЫЙ ЗАПРОС: находим ВСЕХ персонажей с ЛЮБЫМИ сообщениями
+            # КРИТИЧЕСКИ ВАЖНО: Показываем только персонажей, которые существуют в таблице characters
             try:
                 history_result = await self.db.execute(
                     select(
@@ -427,6 +461,8 @@ class ChatHistoryService:
                         func.max(ChatHistory.created_at).label("last_message_at"),
                         func.count(func.distinct(ChatHistory.id)).label("message_count"),
                     )
+                    .select_from(ChatHistory)
+                    .join(CharacterDB, ChatHistory.character_name.ilike(CharacterDB.name))  # JOIN только с существующими персонажами
                     .where(ChatHistory.user_id == user_id)
                     .group_by(ChatHistory.character_name)
                     .having(func.count(func.distinct(ChatHistory.id)) > 0)
@@ -461,6 +497,7 @@ class ChatHistoryService:
                     last_message_at = row[1]
                     message_count = row[2]
                     
+                    # JOIN уже фильтрует только существующих персонажей, дополнительная проверка не нужна
                     key = character_name.lower()
                     
                     # Пропускаем только если персонаж уже добавлен из ChatSession
@@ -507,11 +544,14 @@ class ChatHistoryService:
                 from app.models.user_gallery import UserGallery
                 
                 # Получаем уникальных персонажей из UserGallery для этого пользователя
+                # КРИТИЧЕСКИ ВАЖНО: JOIN с CharacterDB, чтобы показывать только существующих персонажей
                 gallery_result = await self.db.execute(
                     select(
                         UserGallery.character_name,
                         func.max(UserGallery.created_at).label("last_image_at")
                     )
+                    .select_from(UserGallery)
+                    .join(CharacterDB, UserGallery.character_name.ilike(CharacterDB.name))  # JOIN только с существующими персонажами
                     .where(UserGallery.user_id == user_id)
                     .where(UserGallery.character_name.isnot(None))
                     .where(UserGallery.character_name != "")
@@ -529,6 +569,7 @@ class ChatHistoryService:
                     if not character_name or not last_image_at:
                         continue
                     
+                    # JOIN уже фильтрует только существующих персонажей, дополнительная проверка не нужна
                     key = character_name.lower()
                     
                     # Добавляем только если персонажа еще нет в списке
@@ -654,11 +695,14 @@ class ChatHistoryService:
                                 print(f"[DEBUG] Добавлено время для персонажа {character_name} с картинками: {last_message_at.isoformat()}")
                 
                 # Также проверяем ChatHistory на наличие сообщений ассистента с image_url
+                # КРИТИЧЕСКИ ВАЖНО: Используем JOIN с CharacterDB, чтобы показывать только существующих персонажей
                 history_image_result = await self.db.execute(
                     select(
                         ChatHistory.character_name,
                         func.max(ChatHistory.created_at).label("last_message_at"),
                     )
+                    .select_from(ChatHistory)
+                    .join(CharacterDB, ChatHistory.character_name.ilike(CharacterDB.name))  # JOIN только с существующими персонажами
                     .where(ChatHistory.user_id == user_id)
                     .where(ChatHistory.message_type == "assistant")  # Сообщения от ассистента
                     .where(ChatHistory.image_url.isnot(None))  # Есть картинка

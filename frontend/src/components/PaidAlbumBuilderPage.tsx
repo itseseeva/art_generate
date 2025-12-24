@@ -6,7 +6,7 @@ import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
 import { SuccessToast } from './SuccessToast';
 import { fetchPromptByImage } from '../utils/prompt';
-import { translateToEnglish } from '../utils/translate';
+import { translateToEnglish, translateToRussian } from '../utils/translate';
 
 const UpgradeOverlay = styled.div`
   position: fixed;
@@ -614,6 +614,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
   const [promptError, setPromptError] = useState<string | null>(null);
   const [userSubscription, setUserSubscription] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime'>('anime-realism');
+  const [promptLoadedFromDB, setPromptLoadedFromDB] = useState(false);
 
   // Проверка подписки пользователя
   useEffect(() => {
@@ -704,6 +705,109 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
       fakeProgressTimeoutRef.current = null;
     }, 500);
   }, []);
+
+  // Загружаем данные персонажа из БД и устанавливаем промпт по умолчанию
+  useEffect(() => {
+    const loadCharacterData = async () => {
+      if (!character?.name) {
+        return;
+      }
+
+      // Сбрасываем флаг при смене персонажа
+      setPromptLoadedFromDB(false);
+
+      // Сначала используем данные из props для быстрого отображения
+      const initialAppearance = character?.character_appearance 
+        || character?.appearance 
+        || '';
+      const initialLocation = character?.location || '';
+      
+      if (initialAppearance || initialLocation) {
+        const initialParts = [initialAppearance, initialLocation].filter(p => p && p.trim());
+        const initialPrompt = initialParts.length > 0 ? initialParts.join(' | ') : '';
+        if (initialPrompt) {
+          setPrompt(initialPrompt);
+        }
+      }
+
+      try {
+        // Загружаем данные персонажа из API для получения актуальных данных
+        const encodedName = encodeURIComponent(character.name);
+        const response = await authManager.fetchWithAuth(`/api/v1/characters/${encodedName}`);
+        if (response.ok) {
+          const characterData = await response.json();
+          
+          // Проверяем все возможные варианты названия поля appearance
+          const appearance = characterData?.character_appearance 
+            || characterData?.appearance 
+            || character?.appearance 
+            || character?.character_appearance
+            || '';
+          const location = characterData?.location || character?.location || '';
+          
+          // Переводим на русский параллельно, если данные на английском
+          const needsAppearanceTranslation = appearance && appearance.trim() && !/[а-яёА-ЯЁ]/.test(appearance);
+          const needsLocationTranslation = location && location.trim() && !/[а-яёА-ЯЁ]/.test(location);
+          
+          let translatedAppearance = appearance;
+          let translatedLocation = location;
+          
+          // Выполняем переводы параллельно для ускорения
+          if (needsAppearanceTranslation || needsLocationTranslation) {
+            const translations = await Promise.all([
+              needsAppearanceTranslation ? translateToRussian(appearance) : Promise.resolve(appearance),
+              needsLocationTranslation ? translateToRussian(location) : Promise.resolve(location)
+            ]);
+            translatedAppearance = translations[0];
+            translatedLocation = translations[1];
+          }
+          
+          // Устанавливаем промпт с переведенными данными
+          const parts = [translatedAppearance, translatedLocation].filter(p => p && p.trim());
+          const defaultPrompt = parts.length > 0 ? parts.join(' | ') : '';
+          
+          if (defaultPrompt) {
+            setPrompt(defaultPrompt);
+            setPromptLoadedFromDB(true);
+          }
+        }
+      } catch (error) {
+        console.error('Ошибка загрузки данных персонажа:', error);
+        // Если не удалось загрузить из API, используем данные из props
+        if (character.appearance || character.location) {
+          const appearance = character.appearance || '';
+          const location = character.location || '';
+          
+          // Переводим на русский параллельно, если данные на английском
+          const needsAppearanceTranslation = appearance && appearance.trim() && !/[а-яёА-ЯЁ]/.test(appearance);
+          const needsLocationTranslation = location && location.trim() && !/[а-яёА-ЯЁ]/.test(location);
+          
+          let translatedAppearance = appearance;
+          let translatedLocation = location;
+          
+          if (needsAppearanceTranslation || needsLocationTranslation) {
+            const translations = await Promise.all([
+              needsAppearanceTranslation ? translateToRussian(appearance) : Promise.resolve(appearance),
+              needsLocationTranslation ? translateToRussian(location) : Promise.resolve(location)
+            ]);
+            translatedAppearance = translations[0];
+            translatedLocation = translations[1];
+          }
+          
+          const parts = [translatedAppearance, translatedLocation].filter(p => p && p.trim());
+          const defaultPrompt = parts.length > 0 ? parts.join(' | ') : '';
+          
+          if (defaultPrompt) {
+            setPrompt(defaultPrompt);
+            setPromptLoadedFromDB(true);
+          }
+        }
+      }
+    };
+
+    loadCharacterData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [character?.name]);
 
   useEffect(() => {
     const loadExistingAlbum = async () => {
@@ -1036,10 +1140,15 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
     try {
       const { prompt, errorMessage } = await fetchPromptByImage(photo.url);
       if (prompt) {
-        setSelectedPrompt(prompt);
+        // Переводим промпт на русский для отображения
+        const translatedPrompt = await translateToRussian(prompt);
+        setSelectedPrompt(translatedPrompt);
       } else {
         setPromptError(errorMessage || 'Промпт недоступен для этого изображения');
       }
+    } catch (error) {
+      console.error('[PaidAlbumBuilderPage] Ошибка загрузки/перевода промпта:', error);
+      setPromptError('Ошибка загрузки промпта');
     } finally {
       setIsLoadingPrompt(false);
     }

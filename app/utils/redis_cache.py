@@ -47,12 +47,15 @@ async def get_redis_client() -> Optional[Redis]:
     
     if _redis_client is None:
         try:
-            # Приоритет: REDIS_LOCAL (для локалки) -> REDIS_URL (для Docker) -> дефолт
-            redis_url = os.getenv("REDIS_LOCAL") or os.getenv("REDIS_URL", "redis://localhost:6379/0")
+            # Приоритет: REDIS_URL (для Docker) -> REDIS_LOCAL (для локалки) -> дефолт
+            # В Docker контейнере всегда используем REDIS_URL, который указывает на имя сервиса "redis"
+            redis_url = os.getenv("REDIS_URL") or os.getenv("REDIS_LOCAL") or "redis://localhost:6379/0"
             
             # ФИКС для локальной разработки: если hostname "redis" - заменяем на "localhost"
             # Это нужно когда .env настроен для Docker (redis://redis:6379), но backend запущен локально
-            if "://redis:" in redis_url:
+            # НО: если мы в Docker контейнере (переменная DATABASE_URL содержит имя сервиса), используем имя сервиса "redis"
+            is_docker = os.getenv("DATABASE_URL", "").find("postgres:") != -1
+            if "://redis:" in redis_url and not is_docker and os.getenv("REDIS_URL") is None:
                 redis_url = redis_url.replace("://redis:", "://localhost:")
                 logger.info(f"[REDIS] Заменён Docker hostname 'redis' на 'localhost' для локальной разработки")
             

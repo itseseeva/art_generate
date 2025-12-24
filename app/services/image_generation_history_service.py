@@ -55,7 +55,9 @@ class ImageGenerationHistoryService:
                     # Если это временная запись (pending), обновляем её
                     if existing_record.image_url and existing_record.image_url.startswith("pending:"):
                         logger.info(f"[IMAGE_HISTORY] Найдена временная запись, обновляем: task_id={task_id}")
-                        existing_record.image_url = image_url
+                        # Нормализуем URL перед сохранением (убираем query параметры и якоря)
+                        normalized_image_url = image_url.split('?')[0].split('#')[0] if image_url and not image_url.startswith("pending:") else image_url
+                        existing_record.image_url = normalized_image_url
                         existing_record.generation_time = generation_time
                         await self.db.commit()
                         await self.db.refresh(existing_record)
@@ -65,25 +67,29 @@ class ImageGenerationHistoryService:
                         logger.info(f"[IMAGE_HISTORY] Генерация с task_id={task_id} уже сохранена, пропускаем")
                         return True
             
+            # Нормализуем URL перед сохранением (убираем query параметры и якоря)
+            # Это нужно для корректного поиска в get_prompt_by_image
+            # Но не нормализуем pending URL, так как они временные
+            normalized_image_url = image_url.split('?')[0].split('#')[0] if image_url and not image_url.startswith("pending:") else image_url
+            
             # Проверяем по image_url (на случай если task_id нет, но пропускаем pending записи)
-            if image_url and not image_url.startswith("pending:"):
-                normalized_url = image_url.split('?')[0].split('#')[0]
+            if normalized_image_url and not normalized_image_url.startswith("pending:"):
                 existing = await self.db.execute(
                     select(ImageGenerationHistory).where(
                         ImageGenerationHistory.user_id == user_id,
-                        ImageGenerationHistory.image_url == normalized_url
+                        ImageGenerationHistory.image_url == normalized_image_url
                     ).limit(1)
                 )
                 if existing.scalars().first():
                     logger.info(f"[IMAGE_HISTORY] Изображение с URL уже сохранено для user_id={user_id}")
                     return True
             
-            # Создаем новую запись
+            # Создаем новую запись с нормализованным URL
             history_entry = ImageGenerationHistory(
                 user_id=user_id,
                 character_name=character_name,
                 prompt=prompt or "Генерация изображения",
-                image_url=image_url,
+                image_url=normalized_image_url,
                 generation_time=generation_time,
                 task_id=task_id
             )

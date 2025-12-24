@@ -8,7 +8,7 @@ import { authManager } from '../utils/auth';
 import { LoadingSpinner } from './LoadingSpinner';
 import { CircularProgress } from './ui/CircularProgress';
 import { fetchPromptByImage } from '../utils/prompt';
-import { translateToEnglish } from '../utils/translate';
+import { translateToEnglish, translateToRussian } from '../utils/translate';
 import { FiX as CloseIcon } from 'react-icons/fi';
 
 const MainContainer = styled.div`
@@ -1376,7 +1376,10 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       });
 
       if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
         console.error('[EDIT_CHAR] Failed to load character photos:', response.status, response.statusText);
+        console.error('[EDIT_CHAR] Error response:', errorText);
+        console.error('[EDIT_CHAR] Request URL:', urlWithCache);
         // НЕ показываем ошибку - просто пустой массив
         setGeneratedPhotos([]);
         setSelectedPhotos([]);
@@ -1387,9 +1390,12 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       const photos = await response.json();
       console.log('[EDIT_CHAR] Raw photos from API:', photos);
       console.log('[EDIT_CHAR] Photos count:', Array.isArray(photos) ? photos.length : 'not array');
+      console.log('[EDIT_CHAR] Response status:', response.status);
+      console.log('[EDIT_CHAR] Response headers:', Object.fromEntries(response.headers.entries()));
       
       if (!Array.isArray(photos)) {
         console.error('[EDIT_CHAR] Photos is not an array:', typeof photos, photos);
+        console.error('[EDIT_CHAR] Full response:', JSON.stringify(photos, null, 2));
         setGeneratedPhotos([]);
         setSelectedPhotos([]);
         setIsLoadingPhotos(false);
@@ -1398,11 +1404,15 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
       if (photos.length === 0) {
         console.warn('[EDIT_CHAR] No photos returned from API');
+        console.warn('[EDIT_CHAR] Character name:', effectiveName);
+        console.warn('[EDIT_CHAR] API URL:', urlWithCache);
         setGeneratedPhotos([]);
         setSelectedPhotos([]);
         setIsLoadingPhotos(false);
         return;
       }
+      
+      console.log('[EDIT_CHAR] First photo example:', photos[0]);
 
       const formattedPhotos = photos.map((photo: any, index: number) => {
         const photoId = photo.id?.toString() ?? (photo.url ? `photo_${index}_${Date.now()}` : String(Date.now()));
@@ -1448,9 +1458,30 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   // Загружаем фото при изменении characterIdentifier или character prop
   useEffect(() => {
     // КРИТИЧНО: Используем name из character prop, так как API работает по имени
-    const photoIdentifier = character?.name || characterIdentifier;
+    let photoIdentifier = character?.name || characterIdentifier;
+    
+    // Если characterIdentifier - это ID, но у нас есть character.name, используем name
+    if (character?.name && (characterIdentifier === character.id?.toString() || characterIdentifier === String(character.id))) {
+      photoIdentifier = character.name;
+      console.log('[EDIT_CHAR] Using character.name for photos instead of ID:', photoIdentifier);
+    }
+    
+    // Если все еще нет идентификатора, пытаемся получить из URL
+    if (!photoIdentifier) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const characterIdFromUrl = urlParams.get('character');
+      if (characterIdFromUrl) {
+        console.log('[EDIT_CHAR] No identifier found, trying to load character from URL:', characterIdFromUrl);
+        // Если это число, нужно загрузить персонажа по ID, чтобы получить name
+        // Но пока просто используем ID
+        photoIdentifier = characterIdFromUrl;
+      }
+    }
+    
     if (photoIdentifier) {
       console.log('[EDIT_CHAR] Loading photos for character:', photoIdentifier);
+      console.log('[EDIT_CHAR] Character prop:', character);
+      console.log('[EDIT_CHAR] CharacterIdentifier state:', characterIdentifier);
       fetchCharacterPhotos(photoIdentifier);
     } else {
       console.warn('[EDIT_CHAR] No character name/identifier, skipping photo load');
@@ -1458,7 +1489,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       setGeneratedPhotos([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [character?.name, characterIdentifier]); // Реагируем на изменения name из prop
+  }, [character?.name, character?.id, characterIdentifier]); // Реагируем на изменения name и id из prop
 
   const togglePhotoSelection = async (photoId: string) => {
     const targetPhoto = generatedPhotos.find(photo => photo.id === photoId);
@@ -1645,14 +1676,29 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           }
         }
         
+        // Получаем данные appearance и location
+        let appearance = characterData?.character_appearance || characterData?.appearance || '';
+        let location = characterData?.location || '';
+        
+        // Переводим на русский для отображения, если данные на английском
+        const appearanceHasCyrillic = /[а-яёА-ЯЁ]/.test(appearance);
+        const locationHasCyrillic = /[а-яёА-ЯЁ]/.test(location);
+        
+        if (appearance && !appearanceHasCyrillic) {
+          appearance = await translateToRussian(appearance);
+        }
+        if (location && !locationHasCyrillic) {
+          location = await translateToRussian(location);
+        }
+        
         const newFormData = {
           name: characterData?.name || identifier || '',
           personality: personality || '',
           situation: situation || '',
           instructions: instructions || '',
           style: style || '',
-          appearance: characterData?.character_appearance || characterData?.appearance || '',
-          location: characterData?.location || ''
+          appearance: appearance,
+          location: location
         };
         
         console.log('[EDIT_CHAR] ========== SETTING FORMDATA ==========');
@@ -1689,7 +1735,10 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         const photoIdentifier = characterData?.name || identifier;
         if (photoIdentifier) {
           console.log('[EDIT_CHAR] Loading photos after data load:', photoIdentifier);
-          fetchCharacterPhotos(photoIdentifier);
+          // Загружаем фото сразу после загрузки данных персонажа
+          setTimeout(() => {
+            fetchCharacterPhotos(photoIdentifier);
+          }, 100); // Небольшая задержка, чтобы убедиться, что состояние обновилось
         }
       } else {
         console.error('[EDIT_CHAR] Failed to load character data:', response.status);
@@ -1720,6 +1769,20 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       console.log('[EDIT_CHAR] isLoadingData should now be false');
     }
   }, [characterIdentifier, character?.name]);
+
+  // Автоматически заполняем customPrompt на основе appearance и location после загрузки данных
+  useEffect(() => {
+    if (formData.appearance || formData.location) {
+      const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
+      if (parts.length > 0) {
+        const defaultPrompt = parts.join(' | ');
+        // Устанавливаем только если customPrompt пустой (чтобы не перезаписывать пользовательский ввод)
+        if (!customPrompt.trim()) {
+          setCustomPrompt(defaultPrompt);
+        }
+      }
+    }
+  }, [formData.appearance, formData.location]); // Зависимости только от appearance и location
 
   // Проверка авторизации (используем тот же метод, что и в ProfilePage)
   const checkAuth = async () => {
@@ -2828,81 +2891,85 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                 zIndex: 10,
                 boxSizing: 'border-box',
                 width: '100%',
-                maxWidth: '100%'
+                maxWidth: '100%',
+                justifyContent: 'space-between'
               }}>
-                <PhotoGenerationBox>
-                  <PhotoGenerationBoxTitle>Генерация фото персонажа</PhotoGenerationBoxTitle>
-                  <PhotoGenerationDescription>
-                    Сгенерируйте фото для вашего персонажа (30 монет). После генерации выберите до 3 фотографий для главной карточки.
-                  </PhotoGenerationDescription>
-                  
-                  <GenerateSection>
-                    <GenerateButton 
-                      onClick={generatePhoto}
-                      disabled={isGeneratingPhoto || !userInfo || userInfo.coins < 30}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      {isGeneratingPhoto ? (
-                        <CircularProgress 
-                          progress={generationProgress !== undefined ? generationProgress : (fakeProgress || 0)} 
-                          size={48}
-                          showLabel={true}
-                        />
-                      ) : (
-                        'Сгенерировать фото (30 монет)'
-                      )}
-                    </GenerateButton>
-                  </GenerateSection>
+                <div style={{ flex: '0 0 auto' }}>
+                  <PhotoGenerationBox>
+                    <PhotoGenerationBoxTitle>Генерация фото персонажа</PhotoGenerationBoxTitle>
+                    <PhotoGenerationDescription>
+                      Сгенерируйте фото для вашего персонажа (30 монет). После генерации выберите до 3 фотографий для главной карточки.
+                    </PhotoGenerationDescription>
+                    
+                    <GenerateSection>
+                      <GenerateButton 
+                        onClick={generatePhoto}
+                        disabled={isGeneratingPhoto || !userInfo || userInfo.coins < 30}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        {isGeneratingPhoto ? (
+                          <CircularProgress 
+                            progress={generationProgress !== undefined ? generationProgress : (fakeProgress || 0)} 
+                            size={48}
+                            showLabel={true}
+                          />
+                        ) : (
+                          'Сгенерировать фото (30 монет)'
+                        )}
+                      </GenerateButton>
+                    </GenerateSection>
 
-                  <div style={{ marginBottom: '1rem' }}>
-                    <label style={{ 
-                      display: 'block', 
-                      marginBottom: '0.5rem', 
-                      color: 'rgba(240, 240, 240, 1)', 
-                      fontSize: '0.875rem',
-                      fontWeight: 600
-                    }}>
-                      Модель генерации:
-                    </label>
-                    <select
-                      value={selectedModel}
-                      onChange={(e) => setSelectedModel(e.target.value as 'anime-realism' | 'anime')}
-                      style={{
-                        width: '100%',
-                        padding: '0.75rem',
-                        background: 'rgba(30, 30, 30, 0.8)',
-                        border: '1px solid rgba(150, 150, 150, 0.3)',
-                        borderRadius: '0.5rem',
-                        color: '#fff',
+                    <div style={{ marginBottom: '1rem' }}>
+                      <label style={{ 
+                        display: 'block', 
+                        marginBottom: '0.5rem', 
+                        color: 'rgba(240, 240, 240, 1)', 
                         fontSize: '0.875rem',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <option value="anime-realism">Больше реализма</option>
-                      <option value="anime">Больше аниме</option>
-                    </select>
-                  </div>
+                        fontWeight: 600
+                      }}>
+                        Модель генерации:
+                      </label>
+                      <select
+                        value={selectedModel}
+                        onChange={(e) => setSelectedModel(e.target.value as 'anime-realism' | 'anime')}
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem',
+                          background: 'rgba(30, 30, 30, 0.8)',
+                          border: '1px solid rgba(150, 150, 150, 0.3)',
+                          borderRadius: '0.5rem',
+                          color: '#fff',
+                          fontSize: '0.875rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <option value="anime-realism">Больше реализма</option>
+                        <option value="anime">Больше аниме</option>
+                      </select>
+                    </div>
 
-                  <LargeTextLabel htmlFor="photo-prompt-unified">
-                    Промпт для генерации фото:
-                  </LargeTextLabel>
-                  <LargeTextInput
-                    id="photo-prompt-unified"
-                    value={customPrompt}
-                    onChange={(e) => setCustomPrompt(e.target.value)}
-                    placeholder={(() => {
-                      const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
-                      return parts.length > 0 ? parts.join(' | ') : '';
-                    })()}
-                  />
-                </PhotoGenerationBox>
+                    <LargeTextLabel htmlFor="photo-prompt-unified">
+                      Промпт для генерации фото:
+                    </LargeTextLabel>
+                    <LargeTextInput
+                      id="photo-prompt-unified"
+                      value={customPrompt}
+                      onChange={(e) => setCustomPrompt(e.target.value)}
+                      placeholder={(() => {
+                        const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
+                        return parts.length > 0 ? parts.join(' | ') : '';
+                      })()}
+                    />
+                  </PhotoGenerationBox>
+                </div>
 
-                  {/* Область для отображения сгенерированных фото */}
-                  {console.log('[EDIT_CHAR] Render check - isLoadingPhotos:', isLoadingPhotos, 'photos count:', generatedPhotos?.length || 0)}
+                {/* Область для отображения сгенерированных фото - внизу контейнера */}
+                <div style={{ flex: '1 1 auto', marginTop: 'auto', paddingTop: theme.spacing.md }}>
+                  {console.log('[EDIT_CHAR] Render check - isLoadingPhotos:', isLoadingPhotos, 'photos count:', generatedPhotos?.length || 0, 'generatedPhotos:', generatedPhotos)}
                   
                   {isLoadingPhotos ? (
                     <div style={{ padding: '2rem', textAlign: 'center', color: '#fff', background: 'rgba(255,255,255,0.1)', borderRadius: '8px', margin: '1rem 0' }}>
@@ -2990,12 +3057,27 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                     </FullSizePhotoSlider>
                   ) : (
                     <PhotoGenerationPlaceholder>
-                      Фотографии будут здесь
-                      <div style={{ marginTop: theme.spacing.sm, fontSize: theme.fontSize.sm, color: theme.colors.text.muted }}>
-                        Сгенерируйте фото для персонажа или добавьте существующие
-                      </div>
+                      {isLoadingPhotos ? (
+                        'Загрузка фотографий...'
+                      ) : (
+                        <>
+                          Фотографии будут здесь
+                          <div style={{ marginTop: theme.spacing.sm, fontSize: theme.fontSize.sm, color: theme.colors.text.muted }}>
+                            {generatedPhotos && Array.isArray(generatedPhotos) && generatedPhotos.length === 0 
+                              ? 'Нет доступных фотографий. Сгенерируйте фото для персонажа или добавьте существующие.'
+                              : 'Сгенерируйте фото для персонажа или добавьте существующие'
+                            }
+                          </div>
+                          {character?.name && (
+                            <div style={{ marginTop: theme.spacing.xs, fontSize: theme.fontSize.xs, color: theme.colors.text.muted, opacity: 0.7 }}>
+                              Персонаж: {character.name} {character.id && `(ID: ${character.id})`}
+                            </div>
+                          )}
+                        </>
+                      )}
                     </PhotoGenerationPlaceholder>
                   )}
+                </div>
               </ColumnContent>
             </RightColumn>
           </Form>

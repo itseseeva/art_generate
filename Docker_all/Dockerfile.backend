@@ -1,0 +1,37 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Установка системных зависимостей
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Копирование файла зависимостей
+COPY requirements-docker.txt /app/requirements.txt
+
+# Установка Python зависимостей
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Копирование кода приложения
+COPY app/ /app/app/
+COPY alembic/ /app/alembic/
+COPY alembic.ini /app/
+
+# Создание необходимых директорий
+RUN mkdir -p /app/logs /app/outputs /app/images
+
+# Переменные окружения
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+
+# Открываем порт
+EXPOSE 8000
+
+# Команда запуска (переопределяется в docker-compose)
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+

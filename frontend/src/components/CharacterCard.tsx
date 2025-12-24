@@ -7,6 +7,7 @@ import { FiHeart, FiX as CloseIcon, FiTrash2 } from 'react-icons/fi';
 import { authManager } from '../utils/auth';
 import { API_CONFIG } from '../config/api';
 import { fetchPromptByImage } from '../utils/prompt';
+import { translateToRussian } from '../utils/translate';
 
 const CardContainer = styled.div`
   background: rgba(22, 33, 62, 0.3); /* Очень прозрачный */
@@ -45,15 +46,15 @@ const ActionButtons = styled.div<{ $alwaysVisible?: boolean }>`
   top: ${theme.spacing.sm};
   right: ${theme.spacing.sm};
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   gap: ${theme.spacing.xs};
-  align-items: center;
+  align-items: flex-end;
   opacity: ${props => props.$alwaysVisible ? 1 : 0}; /* Видимы если $alwaysVisible=true */
   z-index: 20;
   transition: opacity 0.3s ease;
   
   ${CardContainer}:hover & {
-    opacity: 1; /* Показываем кнопки при наведении на карточку */
+    opacity: 1 !important; /* Показываем кнопки при наведении на карточку */
   }
   transform: ${props => props.$alwaysVisible ? 'translateY(0)' : 'translateY(-10px)'}; /* Возвращаем анимацию */
   transition: all ${theme.transition.fast};
@@ -73,32 +74,30 @@ const FavoriteButton = styled.button<{ $isFavorite: boolean }>`
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: ${props => props.$isFavorite ? 'rgba(255, 59, 48, 0.9)' : 'rgba(0, 0, 0, 0.5)'};
-  border: 2px solid ${props => props.$isFavorite ? 'rgba(255, 59, 48, 1)' : 'rgba(255, 255, 255, 0.3)'};
-  color: rgba(255, 255, 255, 0.8);
+  background: ${props => props.$isFavorite ? 'rgba(255, 59, 48, 0.3)' : 'rgba(0, 0, 0, 0.2)'};
+  border: 2px solid ${props => props.$isFavorite ? 'rgba(255, 59, 48, 0.4)' : 'rgba(255, 255, 255, 0.15)'};
+  color: rgba(255, 255, 255, 0.9);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all ${theme.transition.fast};
   z-index: 11;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   outline: none !important;
-  box-shadow: ${props => props.$isFavorite ? '0 0 12px rgba(255, 59, 48, 0.6)' : 'none'};
+  box-shadow: ${props => props.$isFavorite ? '0 0 8px rgba(255, 59, 48, 0.3)' : 'none'};
   
   svg {
-    fill: ${props => props.$isFavorite ? 'rgba(255, 59, 48, 1)' : 'none'};
-    stroke: ${props => props.$isFavorite ? 'rgba(255, 59, 48, 1)' : 'rgba(255, 255, 255, 0.8)'};
+    fill: ${props => props.$isFavorite ? 'rgba(255, 59, 48, 0.8)' : 'none'};
+    stroke: ${props => props.$isFavorite ? 'rgba(255, 59, 48, 0.8)' : 'rgba(255, 255, 255, 0.9)'};
     stroke-width: ${props => props.$isFavorite ? '2.5' : '2'};
     transition: all ${theme.transition.fast};
   }
   
   &:hover {
     transform: scale(1.1);
-    background: ${props => props.$isFavorite ? 'rgba(255, 59, 48, 1)' : 'rgba(0, 0, 0, 0.7)'};
-    border-color: ${props => props.$isFavorite ? 'rgba(255, 59, 48, 1)' : 'rgba(255, 255, 255, 0.5)'};
-    box-shadow: ${props => props.$isFavorite ? '0 0 16px rgba(255, 59, 48, 0.8)' : '0 4px 12px rgba(255, 255, 255, 0.2)'};
+    background: ${props => props.$isFavorite ? 'rgba(255, 59, 48, 0.5)' : 'rgba(0, 0, 0, 0.4)'};
+    border-color: ${props => props.$isFavorite ? 'rgba(255, 59, 48, 0.6)' : 'rgba(255, 255, 255, 0.3)'};
+    box-shadow: ${props => props.$isFavorite ? '0 0 12px rgba(255, 59, 48, 0.5)' : '0 2px 8px rgba(255, 255, 255, 0.15)'};
     
     svg {
       fill: ${props => props.$isFavorite ? 'rgba(255, 59, 48, 1)' : 'none'};
@@ -124,8 +123,8 @@ const FavoriteButton = styled.button<{ $isFavorite: boolean }>`
   svg {
     width: 20px;
     height: 20px;
-    fill: ${props => props.$isFavorite ? '#ffffff' : 'none'};
-    stroke: ${props => props.$isFavorite ? '#ffffff' : 'rgba(255, 255, 255, 0.8)'};
+    fill: ${props => props.$isFavorite ? 'rgba(255, 59, 48, 0.8)' : 'none'};
+    stroke: ${props => props.$isFavorite ? 'rgba(255, 59, 48, 0.8)' : 'rgba(255, 255, 255, 0.9)'};
     stroke-width: ${props => props.$isFavorite ? '2.5' : '2'};
     transition: all ${theme.transition.fast};
   }
@@ -134,9 +133,9 @@ const FavoriteButton = styled.button<{ $isFavorite: boolean }>`
 const ActionButton = styled.button<{ variant?: 'edit' | 'delete' }>`
   padding: ${theme.spacing.sm} ${theme.spacing.md};
   border-radius: ${theme.borderRadius.lg};
-  background: rgba(255, 255, 255, 0.1);
-  border: 2px solid rgba(255, 255, 255, 0.8);
-  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.95);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -150,7 +149,6 @@ const ActionButton = styled.button<{ variant?: 'edit' | 'delete' }>`
   min-height: 40px;
   z-index: 11;
   position: relative;
-  backdrop-filter: blur(10px);
   
   /* Светящаяся линия снизу */
   &::after {
@@ -161,7 +159,7 @@ const ActionButton = styled.button<{ variant?: 'edit' | 'delete' }>`
     transform: translateX(-50%);
     width: 60%;
     height: 2px;
-    background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.8), transparent);
+    background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.5), transparent);
     opacity: 0;
     transition: opacity 0.3s ease;
     filter: blur(1px);
@@ -169,10 +167,10 @@ const ActionButton = styled.button<{ variant?: 'edit' | 'delete' }>`
   
   &:hover {
     transform: scale(1.05);
-    background: rgba(255, 255, 255, 0.2);
-    border-color: rgba(255, 255, 255, 1);
-    color: #ffffff;
-    box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.4);
+    color: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
     
     /* Показываем светящуюся линию */
     &::after {
@@ -188,9 +186,9 @@ const ActionButton = styled.button<{ variant?: 'edit' | 'delete' }>`
 const AlbumButton = styled.button`
   padding: ${theme.spacing.sm} ${theme.spacing.md};
   border-radius: ${theme.borderRadius.lg};
-  background: rgba(255, 255, 255, 0.1);
-  border: 2px solid rgba(255, 255, 255, 0.8);
-  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.95);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -203,19 +201,133 @@ const AlbumButton = styled.button`
   min-width: 80px;
   z-index: 11;
   position: relative;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   
   &:hover {
     transform: scale(1.05);
-    background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(255, 255, 255, 1);
-    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.4);
+    color: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2);
   }
   
   &:active {
     transform: scale(0.95);
   }
+`;
+
+const CharacterButton = styled.button`
+  padding: ${theme.spacing.sm} ${theme.spacing.md};
+  border-radius: ${theme.borderRadius.lg};
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all ${theme.transition.fast};
+  cursor: pointer;
+  font-size: ${theme.fontSize.sm};
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  min-width: 80px;
+  z-index: 11;
+  position: relative;
+  
+  &:hover {
+    transform: scale(1.05);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.4);
+    color: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2);
+  }
+  
+  &:active {
+    transform: scale(0.95);
+  }
+`;
+
+const PersonalityModal = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: ${theme.spacing.lg};
+`;
+
+const PersonalityModalContent = styled.div`
+  background: ${theme.colors.background.primary};
+  border-radius: ${theme.borderRadius.lg};
+  padding: ${theme.spacing.xl};
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+  position: relative;
+  border: 1px solid ${theme.colors.border.accent};
+  box-shadow: ${theme.colors.shadow.glow};
+`;
+
+const PersonalityModalHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: ${theme.spacing.lg};
+`;
+
+const PersonalityModalTitle = styled.h2`
+  color: ${theme.colors.text.primary};
+  font-size: ${theme.fontSize.xl};
+  font-weight: 600;
+  margin: 0;
+`;
+
+const PersonalityModalCloseButton = styled.button`
+  background: transparent;
+  border: none;
+  color: ${theme.colors.text.primary};
+  cursor: pointer;
+  padding: ${theme.spacing.sm};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: ${theme.borderRadius.md};
+  transition: all ${theme.transition.fast};
+  
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  
+  svg {
+    width: 24px;
+    height: 24px;
+  }
+`;
+
+const PersonalityText = styled.div`
+  color: ${theme.colors.text.secondary};
+  font-size: ${theme.fontSize.md};
+  line-height: 1.6;
+  white-space: pre-wrap;
+`;
+
+const PersonalityLoading = styled.div`
+  color: ${theme.colors.text.secondary};
+  font-size: ${theme.fontSize.md};
+  text-align: center;
+  padding: ${theme.spacing.xl};
+`;
+
+const PersonalityError = styled.div`
+  color: ${theme.colors.error};
+  font-size: ${theme.fontSize.md};
+  text-align: center;
+  padding: ${theme.spacing.xl};
 `;
 
 const Tooltip = styled.div`
@@ -675,6 +787,10 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   const [currentPhotoUrl, setCurrentPhotoUrl] = useState<string | null>(
     character.photos && character.photos.length > 0 ? character.photos[0] : null
   );
+  const [isPersonalityModalOpen, setIsPersonalityModalOpen] = useState(false);
+  const [personality, setPersonality] = useState<string | null>(null);
+  const [isLoadingPersonality, setIsLoadingPersonality] = useState(false);
+  const [personalityError, setPersonalityError] = useState<string | null>(null);
 
   // Загружаем состояние избранного из API при монтировании
   // КРИТИЧЕСКИ ВАЖНО: проверяем избранное только если isFavoriteProp не передан
@@ -767,6 +883,46 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     };
   }, [character.id, isFavoriteProp]);
 
+  // Функция для загрузки характера персонажа
+  const loadPersonality = async () => {
+    if (personality) {
+      return; // Уже загружен
+    }
+
+    setIsLoadingPersonality(true);
+    setPersonalityError(null);
+
+    try {
+      const encodedName = encodeURIComponent(character.name);
+      const response = await authManager.fetchWithAuth(`/api/v1/characters/${encodedName}`);
+      
+      if (response.ok) {
+        const characterData = await response.json();
+        const prompt = characterData?.prompt || '';
+        
+        // Извлекаем секцию "Personality and Character" из промпта
+        if (prompt) {
+          const personalityMatch = prompt.match(/Personality and Character:\s*(.*?)(?=\n\nRole-playing Situation:|$)/s);
+          if (personalityMatch && personalityMatch[1]) {
+            const extractedPersonality = personalityMatch[1].trim();
+            setPersonality(extractedPersonality);
+          } else {
+            setPersonalityError('Характер персонажа не найден');
+          }
+        } else {
+          setPersonalityError('Данные персонажа не найдены');
+        }
+      } else {
+        setPersonalityError('Ошибка загрузки данных персонажа');
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки характера:', error);
+      setPersonalityError('Ошибка загрузки характера персонажа');
+    } finally {
+      setIsLoadingPersonality(false);
+    }
+  };
+
   // Функция для переключения избранного
   const toggleFavorite = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -850,10 +1006,15 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     try {
       const { prompt, errorMessage } = await fetchPromptByImage(imageUrl);
       if (prompt) {
-        setSelectedPrompt(prompt);
+        // Переводим промпт на русский для отображения
+        const translatedPrompt = await translateToRussian(prompt);
+        setSelectedPrompt(translatedPrompt);
       } else {
         setPromptError(errorMessage || 'Промпт недоступен для этого изображения');
       }
+    } catch (error) {
+      console.error('[CharacterCard] Ошибка загрузки/перевода промпта:', error);
+      setPromptError('Ошибка загрузки промпта');
     } finally {
       setIsLoadingPrompt(false);
     }
@@ -861,16 +1022,21 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && selectedPhoto) {
+      if (e.key === 'Escape') {
+        if (selectedPhoto) {
         setSelectedPhoto(null);
         setSelectedPrompt(null);
         setPromptError(null);
         setIsLoadingPrompt(false);
+        }
+        if (isPersonalityModalOpen) {
+          setIsPersonalityModalOpen(false);
+        }
       }
     };
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
-  }, [selectedPhoto]);
+  }, [selectedPhoto, isPersonalityModalOpen]);
 
   const modalContent = selectedPhoto ? (
     <ModalOverlay onClick={() => {
@@ -948,6 +1114,15 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
               Альбом
             </AlbumButton>
           )}
+          <CharacterButton 
+            onClick={async (e) => {
+              e.stopPropagation();
+              setIsPersonalityModalOpen(true);
+              await loadPersonality();
+            }}
+          >
+            Характер
+          </CharacterButton>
           {onDelete && (
             <ActionButtonWithTooltip>
               <ActionButton
@@ -998,6 +1173,32 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
       </CardContainer>
     </ElectricBorder>
       {modalContent && createPortal(modalContent, document.body)}
+      {isPersonalityModalOpen && createPortal(
+        <PersonalityModal onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            setIsPersonalityModalOpen(false);
+          }
+        }}>
+          <PersonalityModalContent onClick={(e) => e.stopPropagation()}>
+            <PersonalityModalHeader>
+              <PersonalityModalTitle>Характер: {character.name}</PersonalityModalTitle>
+              <PersonalityModalCloseButton onClick={() => setIsPersonalityModalOpen(false)}>
+                <CloseIcon />
+              </PersonalityModalCloseButton>
+            </PersonalityModalHeader>
+            {isLoadingPersonality ? (
+              <PersonalityLoading>Загрузка характера...</PersonalityLoading>
+            ) : personalityError ? (
+              <PersonalityError>{personalityError}</PersonalityError>
+            ) : personality ? (
+              <PersonalityText>{personality}</PersonalityText>
+            ) : (
+              <PersonalityLoading>Характер не найден</PersonalityLoading>
+            )}
+          </PersonalityModalContent>
+        </PersonalityModal>,
+        document.body
+      )}
     </>
   );
 };

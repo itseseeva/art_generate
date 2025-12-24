@@ -96,6 +96,7 @@ from app.models.chat_history import ChatHistory
 # Схема для запроса генерации изображений
 class ImageGenerationRequest(BaseModel):
     prompt: str
+    custom_prompt: Optional[str] = None  # Отредактированный пользователем промпт (если есть, используется вместо prompt)
     negative_prompt: Optional[str] = None
     use_default_prompts: bool = True
     seed: Optional[int] = None
@@ -306,12 +307,20 @@ app.add_middleware(
 
 # Настройка CORS
 ALLOWED_ORIGINS: list[str] = [
+    "http://localhost",
+    "http://127.0.0.1",
+    "http://localhost:80",
+    "http://127.0.0.1:80",
+    "http://localhost:8000",  # Для прямых запросов к API в Docker
+    "http://127.0.0.1:8000",
     "http://localhost:5175",
     "http://127.0.0.1:5175",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    # Добавляем FRONTEND_URL из настроек, если он задан
+    *([settings.FRONTEND_URL] if settings.FRONTEND_URL and settings.FRONTEND_URL not in ["http://localhost:5175", "http://127.0.0.1:5175"] else []),
 ]
 
 app.add_middleware(
@@ -408,6 +417,10 @@ try:
     
     app.include_router(chat_router, prefix="/api/v1/chat", tags=["chat"])
     app.include_router(character_router, prefix="/api/v1/characters", tags=["characters"])
+    
+    # Роутер для комментариев к персонажам
+    from app.api.endpoints.character_comments import router as comments_router
+    app.include_router(comments_router, prefix="/api/v1/character-comments", tags=["character-comments"])
     # Убрано логирование подключения роутеров
 
 except Exception as e:
@@ -1072,7 +1085,7 @@ async def _write_chat_history(
     character_id = character_data.get("id")
     character_name = character_data.get("name")
     if not character_name:
-        logger.debug("[HISTORY] Пропуск сохранения: character_name отсутствует")
+        logger.warning(f"[HISTORY] Пропуск сохранения: character_name отсутствует. character_data={character_data}")
         return
 
     from sqlalchemy import select
@@ -1121,13 +1134,16 @@ async def _write_chat_history(
         
         # Если character_id отсутствует, пробуем найти его по имени в БД
         if not resolved_character_id:
+            logger.info(f"[HISTORY] character_id отсутствует, ищем по имени '{character_name}' в БД")
             character_result = await db.execute(
                 select(CharacterDB.id).where(CharacterDB.name.ilike(character_name))
             )
             resolved_character_id = character_result.scalar_one_or_none()
             if not resolved_character_id:
-                logger.debug("[HISTORY] Пропуск сохранения: character '%s' не найден в БД", character_name)
+                logger.warning(f"[HISTORY] Пропуск сохранения: character '{character_name}' не найден в БД. character_data={character_data}")
                 return
+            else:
+                logger.info(f"[HISTORY] Найден character_id={resolved_character_id} для character_name='{character_name}'")
 
         # Сохраняем ChatSession и ChatMessageDB только если подписка позволяет
         chat_session = None
@@ -1673,7 +1689,7 @@ async def chat_endpoint(
         user_id = str(body_user_id) if body_user_id is not None else None
         if token_user_id is not None:
             user_id = token_user_id
-        logger.info(f"[DEBUG] /chat: effective user_id for history = {user_id}")
+        logger.info(f"[DEBUG] /chat: effective user_id for history = {user_id}, current_user={current_user.email if current_user else 'None'}, current_user.id={current_user.id if current_user else 'None'}")
 
         def parse_int_user_id(value: Optional[str]) -> Optional[int]:
             if value is None:
@@ -1771,6 +1787,20 @@ async def chat_endpoint(
                     character_data = get_character_data(character_name)
                     if character_data:
                         logger.info(f"[OK] Fallback: данные персонажа '{character_name}' получены из файлов")
+                        # КРИТИЧЕСКИ ВАЖНО: Пытаемся найти ID в БД по имени, чтобы история сохранялась
+                        if not character_data.get("id"):
+                            try:
+                                character_id_result = await db.execute(
+                                    select(CharacterDB.id).where(CharacterDB.name.ilike(character_name))
+                                )
+                                character_id = character_id_result.scalar_one_or_none()
+                                if character_id:
+                                    character_data["id"] = character_id
+                                    logger.info(f"[OK] ID персонажа '{character_name}' найден в БД: {character_id}")
+                                else:
+                                    logger.warning(f"[WARNING] ID персонажа '{character_name}' не найден в БД, история может не сохраниться")
+                            except Exception as id_error:
+                                logger.warning(f"[WARNING] Ошибка поиска ID персонажа '{character_name}' в БД: {id_error}")
                     else:
                         logger.error(f"[ERROR] Персонаж '{character_name}' не найден ни в БД, ни в файлах")
                         raise HTTPException(
@@ -1786,6 +1816,20 @@ async def chat_endpoint(
                         status_code=404, 
                         detail=f"Персонаж '{character_name}' не найден"
                     )
+                # КРИТИЧЕСКИ ВАЖНО: Пытаемся найти ID в БД по имени, чтобы история сохранялась
+                if not character_data.get("id"):
+                    try:
+                        character_id_result = await db.execute(
+                            select(CharacterDB.id).where(CharacterDB.name.ilike(character_name))
+                        )
+                        character_id = character_id_result.scalar_one_or_none()
+                        if character_id:
+                            character_data["id"] = character_id
+                            logger.info(f"[OK] ID персонажа '{character_name}' найден в БД после ошибки: {character_id}")
+                        else:
+                            logger.warning(f"[WARNING] ID персонажа '{character_name}' не найден в БД, история может не сохраниться")
+                    except Exception as id_error:
+                        logger.warning(f"[WARNING] Ошибка поиска ID персонажа '{character_name}' в БД: {id_error}")
         
         # Специальная обработка для "continue the story"
         is_continue_story = message.lower().strip() == "continue the story briefly"
@@ -2074,8 +2118,10 @@ async def chat_endpoint(
         # Сохраняем только user сообщение здесь, assistant сохраним позже вместе с полной историей
         # Но сначала нужно подготовить данные для сохранения
         # ВАЖНО: history_message будет установлен ПОСЛЕ генерации фото (если нужно)
+        # КРИТИЧЕСКИ ВАЖНО: Определяем history_message и history_response сразу после генерации ответа
         history_message = message if message else ""
         history_response = response if response else ""
+        logger.info(f"[HISTORY] Определены переменные после генерации: history_message='{history_message[:50] if history_message else 'пустой'}...', history_response='{history_response[:50] if history_response else 'пустой'}...', response_length={len(response) if response else 0}")
         
         # Списываем ресурсы после успешной генерации ответа
         if user_id and coins_user_id is not None:
@@ -2137,6 +2183,11 @@ async def chat_endpoint(
         if not history_message and message:
             history_message = message
             logger.info(f"[HISTORY] Обновлен history_message из message: '{history_message}'")
+        
+        # КРИТИЧЕСКИ ВАЖНО: Убеждаемся, что history_response установлен
+        if not history_response and response:
+            history_response = response
+            logger.info(f"[HISTORY] Обновлен history_response из response: '{history_response[:50]}...'")
         
         image_url = None
         image_filename = None
@@ -2252,40 +2303,64 @@ async def chat_endpoint(
         # КРИТИЧЕСКИ ВАЖНО: Сохраняем историю чата СРАЗУ после генерации ответа
         # Это гарантирует, что следующий запрос получит полную историю с ответами модели
         # Подготавливаем данные для сохранения
-        # history_message уже должен быть установлен выше, но на всякий случай проверяем
-        if not history_message:
+        # КРИТИЧЕСКИ ВАЖНО: Убеждаемся, что history_message и history_response определены
+        if 'history_message' not in locals() or not history_message:
             history_message = message if message else "Генерация изображения"
-            logger.info(f"[HISTORY] history_message не был установлен, используем message: '{history_message}'")
+            logger.warning(f"[HISTORY] history_message не был установлен, используем message: '{history_message}'")
         
-        logger.info(f"[HISTORY] Сохраняем историю: user_message='{history_message}' ({len(history_message)} chars), assistant_response={len(history_response)} chars, image_url={bool(cloud_url or image_url)}")
+        if 'history_response' not in locals() or not history_response:
+            history_response = response if response else ""
+            logger.warning(f"[HISTORY] history_response не был установлен, используем response: '{history_response[:50] if history_response else 'пустой'}...'")
+        
+        # КРИТИЧЕСКИ ВАЖНО: Проверяем, что character_data содержит все необходимые поля
+        if not character_data:
+            logger.error(f"[HISTORY] ОШИБКА: character_data отсутствует! Не можем сохранить историю.")
+        elif not character_data.get("name"):
+            logger.error(f"[HISTORY] ОШИБКА: character_data не содержит 'name'! character_data={character_data}")
+        elif not character_data.get("id"):
+            logger.warning(f"[HISTORY] ПРЕДУПРЕЖДЕНИЕ: character_data не содержит 'id', попробуем найти по имени. character_data={character_data}")
+        
+        # КРИТИЧЕСКИ ВАЖНО: Проверяем, что history_response определен
+        if 'history_response' not in locals() or history_response is None:
+            history_response = response if response else ""
+            logger.warning(f"[HISTORY] history_response не был определен, используем response: '{history_response[:50] if history_response else 'пустой'}...'")
+        
+        logger.info(f"[HISTORY] Сохраняем историю: user_id={user_id}, character={character_data.get('name') if character_data else 'N/A'}, user_message='{history_message}' ({len(history_message)} chars), assistant_response={len(history_response)} chars, image_url={bool(cloud_url or image_url)}")
         logger.info(f"[HISTORY] history_message проходит фильтры? >=3: {len(history_message.strip()) >= 3}, <1000: {len(history_message.strip()) < 1000 if history_message else False}")
+        logger.info(f"[HISTORY] subscription_type={user_subscription_type}, can_save_history будет проверен в process_chat_history_storage")
+        logger.info(f"[HISTORY] Проверка перед сохранением: user_id={user_id} (type: {type(user_id).__name__}), character_data={character_data}, character_name={character_data.get('name') if character_data else 'N/A'}")
         
-        # Сохраняем историю в фоне через Celery для неблокирующего выполнения
-        try:
-            from app.tasks.chat_tasks import save_chat_history_async_task
-            save_chat_history_async_task.delay(
-                user_id=str(user_id) if user_id else None,
+        # Сохраняем историю только если есть user_id и character_data
+        if user_id and character_data and character_data.get("name"):
+            # Сохраняем историю в фоне через Celery для неблокирующего выполнения
+            try:
+                from app.tasks.chat_tasks import save_chat_history_async_task
+                save_chat_history_async_task.delay(
+                    user_id=str(user_id) if user_id else None,
+                    character_data=character_data,
+                    message=history_message,
+                    response=history_response,
+                    image_url=cloud_url or image_url,
+                    image_filename=image_filename
+                )
+                logger.info(f"[HISTORY] Задача сохранения истории отправлена в Celery")
+            except Exception as celery_error:
+                # Fallback: сохраняем синхронно если Celery недоступен
+                logger.warning(f"[HISTORY] Celery недоступен, сохраняем синхронно: {celery_error}")
+            
+            await process_chat_history_storage(
+                subscription_type=user_subscription_type,
+                user_id=user_id,
                 character_data=character_data,
                 message=history_message,
                 response=history_response,
                 image_url=cloud_url or image_url,
-                image_filename=image_filename
+                image_filename=image_filename,
+                generation_time=generation_time
             )
-            logger.info(f"[HISTORY] Задача сохранения истории отправлена в Celery")
-        except Exception as celery_error:
-            # Fallback: сохраняем синхронно если Celery недоступен
-            logger.warning(f"[HISTORY] Celery недоступен, сохраняем синхронно: {celery_error}")
-        await process_chat_history_storage(
-            subscription_type=user_subscription_type,
-            user_id=user_id,
-            character_data=character_data,
-            message=history_message,
-            response=history_response,
-            image_url=cloud_url or image_url,
-            image_filename=image_filename,
-            generation_time=generation_time
-        )
-        logger.info(f"[HISTORY] История успешно сохранена в БД (синхронно)")
+            logger.info(f"[HISTORY] История успешно сохранена в БД (синхронно)")
+        else:
+            logger.warning(f"[HISTORY] Пропуск сохранения истории: user_id={user_id}, character_data={character_data}, character_name={character_data.get('name') if character_data else 'N/A'}")
 
         return result
             
@@ -2886,48 +2961,64 @@ async def generate_image(
         })
         full_settings_for_logging["negative_prompt"] = generation_settings.negative_prompt
         
-        # Добавляем внешность и локацию персонажа в промпт ТОЛЬКО если use_default_prompts=True
-        prompt_parts = []
-        
-        if request.use_default_prompts and character_appearance:
-            # Очищаем от переносов строк
-            clean_appearance = character_appearance.replace('\n', ', ')
-            clean_appearance = ', '.join([p.strip() for p in clean_appearance.split(',') if p.strip()])
-            
-            # Переводим на английский
+        # Если пришел custom_prompt, используем его как есть (без добавления данных персонажа)
+        if request.custom_prompt and request.custom_prompt.strip():
+            logger.info(f"[CUSTOM_PROMPT] Используем отредактированный промпт от пользователя: {request.custom_prompt[:100]}...")
+            generation_settings.prompt = request.custom_prompt.strip()
+            # Переводим custom_prompt на английский если нужно
             try:
                 import re
-                has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', clean_appearance))
+                has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', generation_settings.prompt))
                 if has_cyrillic:
                     from deep_translator import GoogleTranslator
                     translator = GoogleTranslator(source='ru', target='en')
-                    clean_appearance = translator.translate(clean_appearance)
+                    generation_settings.prompt = translator.translate(generation_settings.prompt)
+                    logger.info(f"[CUSTOM_PROMPT] Промпт переведен на английский: {generation_settings.prompt[:100]}...")
             except (ImportError, Exception) as translate_error:
-                logger.error(f"[TRANSLATE] Ошибка перевода внешности: {translate_error}")
+                logger.error(f"[TRANSLATE] Ошибка перевода custom_prompt: {translate_error}")
+        else:
+            # Обычная логика: добавляем внешность и локацию персонажа в промпт ТОЛЬКО если use_default_prompts=True
+            prompt_parts = []
             
-            logger.info(f"👤 Добавляем внешность персонажа: {clean_appearance[:100]}...")
-            prompt_parts.append(clean_appearance)
-            full_settings_for_logging["character_appearance"] = clean_appearance
-        
-        if request.use_default_prompts and character_location:
-            # Очищаем от переносов строк
-            clean_location = character_location.replace('\n', ', ')
-            clean_location = ', '.join([p.strip() for p in clean_location.split(',') if p.strip()])
+            if request.use_default_prompts and character_appearance:
+                # Очищаем от переносов строк
+                clean_appearance = character_appearance.replace('\n', ', ')
+                clean_appearance = ', '.join([p.strip() for p in clean_appearance.split(',') if p.strip()])
+                
+                # Переводим на английский
+                try:
+                    import re
+                    has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', clean_appearance))
+                    if has_cyrillic:
+                        from deep_translator import GoogleTranslator
+                        translator = GoogleTranslator(source='ru', target='en')
+                        clean_appearance = translator.translate(clean_appearance)
+                except (ImportError, Exception) as translate_error:
+                    logger.error(f"[TRANSLATE] Ошибка перевода внешности: {translate_error}")
+                
+                logger.info(f"👤 Добавляем внешность персонажа: {clean_appearance[:100]}...")
+                prompt_parts.append(clean_appearance)
+                full_settings_for_logging["character_appearance"] = clean_appearance
             
-            # Переводим на английский
-            try:
-                import re
-                has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', clean_location))
-                if has_cyrillic:
-                    from deep_translator import GoogleTranslator
-                    translator = GoogleTranslator(source='ru', target='en')
-                    clean_location = translator.translate(clean_location)
-            except (ImportError, Exception) as translate_error:
-                logger.error(f"[TRANSLATE] Ошибка перевода локации: {translate_error}")
-            
-            logger.info(f"🏠 Добавляем локацию персонажа: {clean_location[:100]}...")
-            prompt_parts.append(clean_location)
-            full_settings_for_logging["character_location"] = clean_location
+            if request.use_default_prompts and character_location:
+                # Очищаем от переносов строк
+                clean_location = character_location.replace('\n', ', ')
+                clean_location = ', '.join([p.strip() for p in clean_location.split(',') if p.strip()])
+                
+                # Переводим на английский
+                try:
+                    import re
+                    has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', clean_location))
+                    if has_cyrillic:
+                        from deep_translator import GoogleTranslator
+                        translator = GoogleTranslator(source='ru', target='en')
+                        clean_location = translator.translate(clean_location)
+                except (ImportError, Exception) as translate_error:
+                    logger.error(f"[TRANSLATE] Ошибка перевода локации: {translate_error}")
+                
+                logger.info(f"🏠 Добавляем локацию персонажа: {clean_location[:100]}...")
+                prompt_parts.append(clean_location)
+                full_settings_for_logging["character_location"] = clean_location
         
         # Негативный промпт (стандартные позитивные промпты убраны)
         from app.config.default_prompts import get_default_negative_prompts
@@ -2946,31 +3037,33 @@ async def generate_image(
             generation_settings.negative_prompt = request.negative_prompt or "lowres, bad quality"
         
         # Формируем финальный промпт (БЕЗ стандартных позитивных промптов)
-        if request.use_default_prompts:
-            # Обычный режим: данные персонажа + пользовательский промпт (БЕЗ стандартных промптов)
-            final_prompt_parts = []
-            
-            # 1. Пользовательский промпт (СНАЧАЛА!)
-            if generation_settings.prompt:
-                # Очищаем от переносов строк
-                clean_user_prompt = generation_settings.prompt.replace('\n', ', ')
-                clean_user_prompt = ', '.join([p.strip() for p in clean_user_prompt.split(',') if p.strip()])
-                final_prompt_parts.append(clean_user_prompt)
-            
-            # 2. Данные персонажа (если есть)
-            if prompt_parts:
-                final_prompt_parts.extend(prompt_parts)
-            
-            # Объединяем все части (БЕЗ стандартных промптов)
-            enhanced_prompt = ", ".join(final_prompt_parts)
-            generation_settings.prompt = enhanced_prompt or (generation_settings.prompt or "")
-        else:
-            # Тестовый режим: ТОЛЬКО пользовательский промпт БЕЗ изменений
-            # Но всё равно очищаем от \n
-            generation_settings.prompt = generation_settings.prompt.replace('\n', ', ')
-            generation_settings.prompt = ', '.join([p.strip() for p in generation_settings.prompt.split(',') if p.strip()])
-            logger.info(f"[TEST] Финальный промпт (чистый): {generation_settings.prompt}")
-            enhanced_prompt = generation_settings.prompt  # Для логирования
+        # Только если НЕ использовался custom_prompt
+        if not (request.custom_prompt and request.custom_prompt.strip()):
+            if request.use_default_prompts:
+                # Обычный режим: данные персонажа + пользовательский промпт (БЕЗ стандартных промптов)
+                final_prompt_parts = []
+                
+                # 1. Пользовательский промпт (СНАЧАЛА!)
+                if generation_settings.prompt:
+                    # Очищаем от переносов строк
+                    clean_user_prompt = generation_settings.prompt.replace('\n', ', ')
+                    clean_user_prompt = ', '.join([p.strip() for p in clean_user_prompt.split(',') if p.strip()])
+                    final_prompt_parts.append(clean_user_prompt)
+                
+                # 2. Данные персонажа (если есть)
+                if prompt_parts:
+                    final_prompt_parts.extend(prompt_parts)
+                
+                # Объединяем все части (БЕЗ стандартных промптов)
+                enhanced_prompt = ", ".join(final_prompt_parts)
+                generation_settings.prompt = enhanced_prompt or (generation_settings.prompt or "")
+            else:
+                # Тестовый режим: ТОЛЬКО пользовательский промпт БЕЗ изменений
+                # Но всё равно очищаем от \n
+                generation_settings.prompt = generation_settings.prompt.replace('\n', ', ')
+                generation_settings.prompt = ', '.join([p.strip() for p in generation_settings.prompt.split(',') if p.strip()])
+                logger.info(f"[TEST] Финальный промпт (чистый): {generation_settings.prompt}")
+                enhanced_prompt = generation_settings.prompt  # Для логирования
         
         # ВАЖНО: Переводим промпт с русского на английский перед генерацией
         if generation_settings.prompt:
@@ -4013,23 +4106,48 @@ async def translate_ru_to_en(request: dict):
             # Если нет кириллицы, считаем что текст уже на английском
             return {"translated_text": text}
         
-        # Используем библиотеку deep-translator для перевода
-        try:
-            from deep_translator import GoogleTranslator
-            
-            # Создаем переводчик с явным указанием языков
-            translator = GoogleTranslator(source='ru', target='en')
-            
-            # Переводим текст с русского на английский
-            translated = translator.translate(text)
-            return {"translated_text": translated}
-        except ImportError:
-            # Если библиотека не установлена, возвращаем оригинальный текст
-            logger.error("[TRANSLATE] deep_translator не установлен! Установите: pip install deep-translator")
+        # Переводим с русского на английский
+        from deep_translator import GoogleTranslator
+        translator = GoogleTranslator(source='ru', target='en')
+        translated_text = translator.translate(text)
+        
+        return {"translated_text": translated_text}
+    except Exception as e:
+        logger.error(f"[TRANSLATE] Ошибка перевода ru->en: {e}")
+        return {"translated_text": request.get("text", "")}
+
+@app.post("/api/v1/translate/en-ru")
+async def translate_en_to_ru(request: dict):
+    """
+    Переводит текст с английского на русский.
+    
+    Args:
+        request: Словарь с ключом "text" - текст для перевода
+        
+    Returns:
+        dict: Словарь с ключом "translated_text" - переведенный текст
+    """
+    try:
+        text = request.get("text", "").strip()
+        if not text:
+            return {"translated_text": ""}
+        
+        # Проверяем, содержит ли текст кириллицу
+        import re
+        has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', text))
+        if has_cyrillic:
+            # Если есть кириллица, считаем что текст уже на русском
             return {"translated_text": text}
-        except Exception as translate_error:
-            logger.error(f"[TRANSLATE] Ошибка перевода: {translate_error}")
-            return {"translated_text": text}
+        
+        # Переводим с английского на русский
+        from deep_translator import GoogleTranslator
+        translator = GoogleTranslator(source='en', target='ru')
+        translated_text = translator.translate(text)
+        
+        return {"translated_text": translated_text}
+    except Exception as e:
+        logger.error(f"[TRANSLATE] Ошибка перевода en->ru: {e}")
+        return {"translated_text": request.get("text", "")}
             
     except Exception as e:
         logger.error(f"[TRANSLATE] Критическая ошибка: {e}")
@@ -4038,6 +4156,39 @@ async def translate_ru_to_en(request: dict):
         # В случае критической ошибки возвращаем оригинальный текст
         text = request.get("text", "")
         return {"translated_text": text}
+
+@app.post("/api/v1/translate/en-ru")
+async def translate_en_to_ru(request: dict):
+    """
+    Переводит текст с английского на русский.
+    
+    Args:
+        request: Словарь с ключом "text" - текст для перевода
+        
+    Returns:
+        dict: Словарь с ключом "translated_text" - переведенный текст
+    """
+    try:
+        text = request.get("text", "").strip()
+        if not text:
+            return {"translated_text": ""}
+        
+        # Проверяем, содержит ли текст кириллицу
+        import re
+        has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', text))
+        if has_cyrillic:
+            # Если есть кириллица, считаем что текст уже на русском
+            return {"translated_text": text}
+        
+        # Переводим с английского на русский
+        from deep_translator import GoogleTranslator
+        translator = GoogleTranslator(source='en', target='ru')
+        translated_text = translator.translate(text)
+        
+        return {"translated_text": translated_text}
+    except Exception as e:
+        logger.error(f"[TRANSLATE] Ошибка перевода en->ru: {e}")
+        return {"translated_text": request.get("text", "")}
 
 
 if __name__ == "__main__":

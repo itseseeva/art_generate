@@ -1,0 +1,223 @@
+services:
+  # PostgreSQL база данных
+  postgres:
+    image: postgres:15-alpine
+    container_name: art_generation_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-art_generation}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./fix_missing_image_urls.sql:/docker-entrypoint-initdb.d/99-fix_missing_image_urls.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app_network
+
+  # Инициализация базы данных (выполняет SQL скрипты после готовности postgres)
+  postgres_init:
+    image: postgres:15-alpine
+    container_name: art_generation_postgres_init
+    restart: "no"
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - ./fix_missing_image_urls.sql:/tmp/fix_missing_image_urls.sql:ro
+    command: >
+      sh -c "
+        echo 'Ожидание готовности PostgreSQL...' &&
+        until pg_isready -h postgres -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-art_generation}; do
+          sleep 1
+        done &&
+        echo 'PostgreSQL готов. Выполняю fix_missing_image_urls.sql...' &&
+        psql -h postgres -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-art_generation} -f /tmp/fix_missing_image_urls.sql &&
+        echo 'SQL скрипт выполнен успешно'
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app_network
+
+  # Redis - очередь задач и кэш
+  redis:
+    image: redis:7-alpine
+    container_name: art_generation_redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    networks:
+      - app_network
+
+  # Backend API
+  backend:
+    build:
+      context: ..
+      dockerfile: Docker_all/Dockerfile.backend
+    container_name: art_generation_backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    env_file:
+      - ../.env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-art_generation}
+      - REDIS_URL=redis://redis:6379/0
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ../app:/app/app:ro
+      - ../logs:/app/logs
+      - ../outputs:/app/outputs
+      - ../images:/app/images
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Celery Worker
+  celery_worker:
+    build:
+      context: ..
+      dockerfile: Docker_all/Dockerfile.celery
+    container_name: art_generation_celery_worker
+    restart: unless-stopped
+    command: >
+      celery -A app.celery_app worker
+      --loglevel=info
+      --concurrency=2
+      --queues=high_priority,normal_priority,low_priority
+      --max-tasks-per-child=50
+      --time-limit=600
+      --soft-time-limit=540
+    env_file:
+      - ../.env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-art_generation}
+      - REDIS_URL=redis://redis:6379/0
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ../app:/app/app:ro
+      - ../logs:/app/logs
+      - ../outputs:/app/outputs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.celery_app inspect ping -d celery@$$HOSTNAME || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Celery Beat (планировщик задач)
+  celery_beat:
+    build:
+      context: ..
+      dockerfile: Docker_all/Dockerfile.celery
+    container_name: art_generation_celery_beat
+    restart: unless-stopped
+    command: >
+      celery -A app.celery_app beat
+      --loglevel=info
+    env_file:
+      - ../.env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-art_generation}
+      - REDIS_URL=redis://redis:6379/0
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ../app:/app/app:ro
+      - ../logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app_network
+
+  # Flower (мониторинг Celery)
+  flower:
+    build:
+      context: ..
+      dockerfile: Docker_all/Dockerfile.celery
+    container_name: art_generation_flower
+    restart: unless-stopped
+    command: >
+      celery -A app.celery_app flower
+      --port=5555
+      --broker=redis://redis:6379/0
+      --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-change_this_password}
+    ports:
+      - "${FLOWER_PORT:-5555}:5555"
+    env_file:
+      - ../.env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - PYTHONPATH=/app
+    depends_on:
+      - redis
+    networks:
+      - app_network
+
+  # Frontend
+  frontend:
+    build:
+      context: ..
+      dockerfile: Docker_all/Dockerfile.frontend
+    container_name: art_generation_frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      - backend
+    networks:
+      - app_network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  app_network:
+    driver: bridge
+

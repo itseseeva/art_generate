@@ -140,6 +140,7 @@ interface MessageInputProps {
   onGenerateImage?: (message?: string) => void;
   onClearChat?: () => void;
   onTipCreator?: () => void;
+  onShowComments?: () => void;
   onShowHelp?: () => void;
   disabled?: boolean;
   disableImageGeneration?: boolean;
@@ -154,6 +155,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onGenerateImage,
   onClearChat,
   onTipCreator,
+  onShowComments,
   onShowHelp,
   disabled = false,
   disableImageGeneration = false,
@@ -244,6 +246,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       icon: <span style={{ fontSize: '20px' }}>💝</span>,
       label: 'Поблагодарить',
       onClick: onTipCreator,
+      className: '' 
+    }] : []),
+    ...(onShowComments ? [{
+      icon: <span style={{ fontSize: '20px' }}>💬</span>,
+      label: 'Комментарии',
+      onClick: onShowComments,
       className: '' 
     }] : [])
   ];

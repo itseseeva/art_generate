@@ -199,62 +199,55 @@ export const PhotoGenerationHelpModal: React.FC<PhotoGenerationHelpModalProps> =
         <Title>Как создать шедевр: Простая инструкция</Title>
         
         <Text>
-          Нейросеть — как художник с короткой памятью. Она запоминает только первые 40–50 слов вашего описания. Всё, что дальше, она скорее всего пропустит.
+          Нейросеть работает как художник с короткой памятью. Она запоминает только первые 40–50 слов вашего описания. Всё, что написано дальше, она скорее всего проигнорирует.
         </Text>
 
         <Section>
           <SectionTitle>1. Главное правило: Важное — вперёд!</SectionTitle>
           <Text>
-            Нейросеть читает слева направо.
+            Нейросеть читает ваш запрос слева направо, поэтому самое важное должно быть в начале.
           </Text>
           <List>
             <ListItem>
-              <Highlight>В НАЧАЛЕ (Первые 10 слов):</Highlight> Пишите, <Highlight>КОГО</Highlight> вы рисуете и <Highlight>ГДЕ</Highlight> он находится.
+              <Highlight>В НАЧАЛЕ (первые 10 слов):</Highlight> Обязательно укажите, <Highlight>КОГО</Highlight> вы рисуете и <Highlight>ГДЕ</Highlight> он находится.
             </ListItem>
             <ListItem>
-              <Highlight>В КОНЦЕ (Остальные слова):</Highlight> Пишите про свет, детали и качество.
+              <Highlight>В КОНЦЕ (остальные слова):</Highlight> Добавьте описание освещения, деталей и качества изображения.
             </ListItem>
           </List>
           <Text>
-            <strong>Схема:</strong> (Кто), Во что одет, Фон, Освещение и Детали
+            <strong>Правильная структура промпта:</strong> (Кто), Во что одет, Где находится, Фон, Освещение и Детали качества
           </Text>
         </Section>
 
         <Section>
-          <SectionTitle>2. Секрет скобок (Если нейросеть "не слышит")</SectionTitle>
+          <SectionTitle>2. Секрет скобок (если нейросеть "не слышит")</SectionTitle>
           <Text>
-            Если вы написали "синие глаза", а они карие — используйте усиление. Напишите слово в круглых скобках с цифрой 1.3:
+            Если вы написали "синие глаза", а на картинке они получились карие — используйте усиление важности. Напишите нужное слово в круглых скобках с цифрой 1.3:
           </Text>
-          <CodeBlock>(blue eyes:1.3)</CodeBlock>
+          <CodeBlock>(синие глаза:1.3)</CodeBlock>
           <Text>
-            Нейросеть поймет: "Это очень важно, сделай обязательно!"
+            Нейросеть поймет: "Это очень важно, сделай обязательно!" Цифра 1.3 означает усиление на 30%.
+          </Text>
+          <Text>
+            <strong>Примеры:</strong> (длинные волосы:1.3), (красное платье:1.5), (улыбка:1.2)
           </Text>
         </Section>
 
         <Section>
-          <SectionTitle>3. Слова-улучшайзеры (Писать в конце)</SectionTitle>
+          <SectionTitle>3. Слова-улучшайзеры (обязательно пишите в конце)</SectionTitle>
           <Text>
-            Чтобы картинка была сочной и объемной, всегда добавляйте эти слова в конец описания:
+            Чтобы картинка получилась сочной, объемной и профессиональной, всегда добавляйте эти слова в самый конец описания:
           </Text>
           <List>
-            <ListItem><Highlight>cinematic lighting</Highlight> — Киношный свет.</ListItem>
-            <ListItem><Highlight>volumetric lighting</Highlight> — Объемные лучи.</ListItem>
-            <ListItem><Highlight>dark shadows</Highlight> — Красивые глубокие тени.</ListItem>
-            <ListItem><Highlight>masterpiece</Highlight> — Шедевр.</ListItem>
+            <ListItem><Highlight>киношный свет</Highlight> — как в фильмах</ListItem>
+            <ListItem><Highlight>объемные световые лучи</Highlight> — создают глубину и атмосферу</ListItem>
+            <ListItem><Highlight>красивые глубокие тени</Highlight> — добавляют объем и реалистичность</ListItem>
+            <ListItem><Highlight>шедевр</Highlight> — высокое качество изображения</ListItem>
           </List>
-        </Section>
-
-        <Section>
-          <SectionTitle>Пример идеального запроса:</SectionTitle>
           <Text>
-            В этом примере мы сначала говорим "кто и где", а красоту наводим в конце:
+            Эти слова можно писать на русском или английском — нейросеть их понимает и они улучшают качество изображения.
           </Text>
-          <ExampleBox>
-            <ExampleLabel>Пример промпта:</ExampleLabel>
-            <ExampleText>
-              (1girl:1.3), white shirt, sitting in a cafe, window view, cinematic lighting, volumetric lighting, dark shadows, masterpiece
-            </ExampleText>
-          </ExampleBox>
         </Section>
 
         <CloseButton onClick={onClose}>

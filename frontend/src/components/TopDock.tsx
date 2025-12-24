@@ -3,6 +3,7 @@
 import React, { Children, cloneElement, useEffect, useRef, useState } from 'react';
 import { motion, useMotionValue, useSpring, useTransform, AnimatePresence } from 'motion/react';
 import Switcher4 from './Switcher4';
+import { NSFWWarningModal } from './NSFWWarningModal';
 
 import './TopDock.css';
 
@@ -110,6 +111,8 @@ export default function TopDock({
   const hasToggle = typeof mode !== 'undefined' && typeof onModeChange === 'function';
   const isNsfw = mode === 'nsfw';
   const [checked, setChecked] = useState(isNsfw);
+  const [showNSFWWarning, setShowNSFWWarning] = useState(false);
+  const [pendingMode, setPendingMode] = useState<ContentMode | null>(null);
 
   useEffect(() => {
     setChecked(isNsfw);
@@ -120,46 +123,75 @@ export default function TopDock({
       onRequireAuth?.();
       return;
     }
-    setChecked(nextChecked);
-    onModeChange?.(nextChecked ? 'nsfw' : 'safe');
+    
+    if (nextChecked && !isNsfw) {
+      // Показываем предупреждение при переключении на NSFW
+      setPendingMode('nsfw');
+      setShowNSFWWarning(true);
+    } else {
+      // Переключение обратно на SAFE не требует подтверждения
+      setChecked(nextChecked);
+      onModeChange?.(nextChecked ? 'nsfw' : 'safe');
+    }
   };
 
   return (
-    <motion.div style={{ height: panelHeight, scrollbarWidth: 'none' }} className="dock-outer">
-			{hasToggle && (
-				<div className="dock-toggle">
-					<Switcher4 checked={checked} onToggle={handleToggleChange} variant="pink" />
-					<span className="dock-toggle-label">NSFW</span>
-				</div>
-			)}
-      <motion.div
-        onMouseMove={({ pageX }) => {
-          mouseX.set(pageX);
-        }}
-        onMouseLeave={() => {
-          mouseX.set(Infinity);
-        }}
-        className={`dock-panel ${className}`}
-        style={{ height: panelHeight }}
-        role="toolbar"
-        aria-label="Application dock"
-      >
-        {items.map((item, index) => (
-          <DockItem
-            key={index}
-            onClick={item.onClick}
-            className={item.className}
-            mouseX={mouseX}
-            spring={spring}
-            distance={distance}
-            magnification={magnification}
-            baseItemSize={baseItemSize}
-          >
-            <DockIcon>{item.icon}</DockIcon>
-            <DockLabel>{item.label}</DockLabel>
-          </DockItem>
-        ))}
+    <>
+      <motion.div style={{ height: panelHeight, scrollbarWidth: 'none' }} className="dock-outer">
+        {hasToggle && (
+          <div className="dock-toggle">
+            <Switcher4 checked={checked} onToggle={handleToggleChange} variant="pink" />
+            <span className="dock-toggle-label">NSFW</span>
+          </div>
+        )}
+        <motion.div
+          onMouseMove={({ pageX }) => {
+            mouseX.set(pageX);
+          }}
+          onMouseLeave={() => {
+            mouseX.set(Infinity);
+          }}
+          className={`dock-panel ${className}`}
+          style={{ height: panelHeight }}
+          role="toolbar"
+          aria-label="Application dock"
+        >
+          {items.map((item, index) => (
+            <DockItem
+              key={index}
+              onClick={item.onClick}
+              className={item.className}
+              mouseX={mouseX}
+              spring={spring}
+              distance={distance}
+              magnification={magnification}
+              baseItemSize={baseItemSize}
+            >
+              <DockIcon>{item.icon}</DockIcon>
+              <DockLabel>{item.label}</DockLabel>
+            </DockItem>
+          ))}
+        </motion.div>
       </motion.div>
-    </motion.div>
+      
+      {showNSFWWarning && (
+        <NSFWWarningModal
+          onConfirm={() => {
+            setShowNSFWWarning(false);
+            if (pendingMode) {
+              setChecked(true);
+              onModeChange?.(pendingMode);
+              setPendingMode(null);
+            }
+          }}
+          onCancel={() => {
+            setShowNSFWWarning(false);
+            setPendingMode(null);
+            // Возвращаем переключатель в исходное состояние
+            setChecked(isNsfw);
+          }}
+        />
+      )}
+    </>
   );
 }

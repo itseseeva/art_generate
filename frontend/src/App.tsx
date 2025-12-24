@@ -18,6 +18,7 @@ import { EditCharactersPage } from './components/EditCharactersPage';
 import { EditCharacterPage } from './components/EditCharacterPage';
 import { FavoritesPage } from './components/FavoritesPage';
 import { BalanceHistoryPage } from './components/BalanceHistoryPage';
+import { CharacterCommentsPage } from './components/CharacterCommentsPage';
 import { LeftDockSidebar } from './components/LeftDockSidebar';
 import { AuthModal } from './components/AuthModal';
 import { AgeVerificationModal } from './components/AgeVerificationModal';
@@ -64,6 +65,7 @@ type PageType =
   | 'favorites'
   | 'history'
   | 'balance-history'
+  | 'character-comments'
   | 'legal'
   | 'about'
   | 'tariffs'
@@ -302,6 +304,27 @@ function App() {
           }
         });
         return; // Выходим, чтобы не устанавливать main
+      } else {
+        setCurrentPage('main');
+        window.history.replaceState({ page: 'main' }, '', '/');
+      }
+    } else if (path.includes('/character-comments')) {
+      const characterName = urlParams.get('character');
+      if (characterName) {
+        // Загружаем данные персонажа по имени или ID
+        loadCharacterById(characterName).then(char => {
+          if (char) {
+            setSelectedCharacter(char);
+            setCurrentPage('character-comments');
+            window.history.replaceState({ page: 'character-comments', character: characterName }, '', path);
+          } else {
+            // Если не удалось загрузить по ID, создаем минимальный объект с именем
+            setSelectedCharacter({ name: decodeURIComponent(characterName), id: characterName });
+            setCurrentPage('character-comments');
+            window.history.replaceState({ page: 'character-comments', character: characterName }, '', path);
+          }
+        });
+        return;
       } else {
         setCurrentPage('main');
         window.history.replaceState({ page: 'main' }, '', '/');
@@ -902,6 +925,22 @@ function App() {
         return <TariffsPage />;
       case 'how-it-works':
         return <HowItWorksPage />;
+      case 'character-comments':
+        return selectedCharacter ? (
+          <CharacterCommentsPage
+            characterName={selectedCharacter.name || selectedCharacter.id || ''}
+            onBack={() => {
+              // Возвращаемся на чат с тем же персонажем
+              setCurrentPage('chat');
+              const characterIdentifier = selectedCharacter?.id || selectedCharacter?.name || '';
+              if (characterIdentifier) {
+                window.history.pushState({ page: 'chat', character: characterIdentifier }, '', `/chat?character=${encodeURIComponent(characterIdentifier)}`);
+              }
+            }}
+            onShop={handleShop}
+            onProfile={handleProfile}
+          />
+        ) : null;
       default:
         return (
           <MainPage 

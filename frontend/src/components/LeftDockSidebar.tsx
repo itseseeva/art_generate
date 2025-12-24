@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { FiUserPlus, FiEdit, FiClock, FiHeart, FiUsers, FiHome, FiLogIn, FiUser, FiLogOut, FiShoppingBag, FiMessageSquare, FiTrendingUp } from 'react-icons/fi';
 import Switcher4 from './Switcher4';
+import { NSFWWarningModal } from './NSFWWarningModal';
 
 import Dock from './Dock';
 import { theme } from '../theme';
@@ -131,6 +132,9 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   contentMode = 'safe',
   onContentModeChange,
 }) => {
+  const [showNSFWWarning, setShowNSFWWarning] = useState(false);
+  const [pendingMode, setPendingMode] = useState<'safe' | 'nsfw' | null>(null);
+
   const dockItems = [
     {
       icon: <FiUserPlus size={22} />,
@@ -217,11 +221,34 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
         <Switcher4
           checked={contentMode === 'nsfw'}
           onToggle={(checked) => {
-            onContentModeChange?.(checked ? 'nsfw' : 'safe');
+            if (checked && contentMode === 'safe') {
+              // Показываем предупреждение при переключении на NSFW
+              setPendingMode('nsfw');
+              setShowNSFWWarning(true);
+            } else {
+              // Переключение обратно на SAFE не требует подтверждения
+              onContentModeChange?.(checked ? 'nsfw' : 'safe');
+            }
           }}
           variant="pink"
         />
       </SwitcherContainer>
+      
+      {showNSFWWarning && (
+        <NSFWWarningModal
+          onConfirm={() => {
+            setShowNSFWWarning(false);
+            if (pendingMode) {
+              onContentModeChange?.(pendingMode);
+              setPendingMode(null);
+            }
+          }}
+          onCancel={() => {
+            setShowNSFWWarning(false);
+            setPendingMode(null);
+          }}
+        />
+      )}
       <DockWrapper>
         <Dock
           items={dockItems}

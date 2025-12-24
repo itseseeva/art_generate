@@ -39,7 +39,7 @@ const Container = styled.div`
 const MainContent = styled.div`
   flex: 1;
   height: 100vh;
-  display: flex;
+  display: flex !important;
   flex-direction: column;
   background: transparent;
   border: none;
@@ -49,6 +49,8 @@ const MainContent = styled.div`
   overflow: hidden;
   position: relative;
   z-index: 1;
+  visibility: visible !important;
+  opacity: 1 !important;
 
   /* Адаптивность для мобильных устройств */
   @media (max-width: 1024px) {
@@ -190,10 +192,12 @@ const ClearChatButton = styled.button`
 
 const ChatMessagesArea = styled.div`
   flex: 1;
-  display: flex;
+  display: flex !important;
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
+  height: 100%;
+  max-height: 100%;
   background: transparent;
   border: none;
   box-shadow: none;
@@ -201,18 +205,27 @@ const ChatMessagesArea = styled.div`
   padding: 0;
   position: relative;
   z-index: 1;
+  visibility: visible !important;
+  opacity: 1 !important;
+  width: 100%;
 `;
 
 const ChatContentWrapper = styled.div`
   flex: 1;
-  display: flex;
+  display: flex !important;
   gap: ${theme.spacing.lg};
   min-height: 0;
+  height: 100%;
+  max-height: 100%;
   background: transparent;
   border: none;
   box-shadow: none;
   margin: 0;
   padding: 0;
+  visibility: visible !important;
+  opacity: 1 !important;
+  overflow: hidden;
+  width: 100%;
 
   @media (max-width: 1280px) {
     flex-direction: column;
@@ -474,6 +487,8 @@ interface UserInfo {
   id: number;
   username: string;
   coins: number;
+  avatar_url?: string | null;
+  email?: string | null;
 }
 
 interface PaidAlbumStatus {
@@ -559,6 +574,14 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     initialCharacter || null
   );
   const isLoadingFromUrlRef = useRef(false); // Флаг для отслеживания загрузки из URL
+  
+  // Состояние для хранения отредактированного промпта в рамках сессии (для текущего персонажа)
+  const [sessionPrompt, setSessionPrompt] = useState<string | null>(null);
+  
+  // Сбрасываем sessionPrompt при смене персонажа
+  useEffect(() => {
+    setSessionPrompt(null);
+  }, [currentCharacter?.id]);
   const [isLoading, setIsLoading] = useState(false);
   // Очередь активных генераций: Set с ID сообщений, которые генерируются
   const [activeGenerations, setActiveGenerations] = useState<Set<string>>(new Set());
@@ -1031,7 +1054,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         const info: UserInfo = {
           id: userData.id,
           username: userData.username || 'Пользователь',
-          coins: userData.coins || 0
+          coins: userData.coins || 0,
+          avatar_url: userData.avatar_url || null,
+          email: userData.email || null
         };
         setUserInfo(info);
         setIsAuthenticated(true);
@@ -1290,12 +1315,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     const name = characterForData?.name 
       || (characterForData as any)?.raw?.name 
       || '';
-    console.log('[getCharacterName] Определено имя персонажа:', name, {
-      currentCharacterName: currentCharacter?.name,
-      initialCharacterName: initialCharacter?.name,
-      currentCharacterRawName: (currentCharacter as any)?.raw?.name,
-      initialCharacterRawName: (initialCharacter as any)?.raw?.name
-    });
     return name;
   };
 
@@ -1305,27 +1324,61 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     // Сохраняем в localStorage для надежности
     try {
       localStorage.setItem('modifiedPrompts', JSON.stringify(modifiedPrompts));
-      console.log('[PROMPT] Промпты сохранены в localStorage:', Object.keys(modifiedPrompts));
     } catch (e) {
       console.error('[PROMPT] Ошибка сохранения промптов в localStorage:', e);
     }
   }, [modifiedPrompts]);
 
-  // Отслеживаем смену персонажа и сбрасываем промпт для нового персонажа (если он еще не был сохранен)
-  useEffect(() => {
-    const characterName = getCharacterName();
+  // Функция для получения начального промпта (sessionPrompt или данные из БД)
+  const getInitialPrompt = (): string => {
+    // Если есть сохраненный промпт в сессии, используем его
+    if (sessionPrompt && sessionPrompt.trim()) {
+      return sessionPrompt;
+    }
     
-    // Если персонаж изменился и для него нет сохраненного промпта, промпт будет загружен из данных персонажа
-    // Это происходит автоматически в handleGenerateImage при открытии модалки
-    // Здесь мы просто логируем смену персонажа
-    if (characterName) {
-      const hasSavedPrompt = modifiedPromptsRef.current[characterName] || modifiedPrompts[characterName];
-      console.log('[PROMPT] Текущий персонаж:', characterName, hasSavedPrompt ? '(есть сохраненный промпт)' : '(используется промпт из базы)');
-      if (hasSavedPrompt) {
-        console.log('[PROMPT] Сохраненный промпт:', hasSavedPrompt.substring(0, 50) + '...');
+    // Иначе формируем из данных персонажа
+    const characterForData = currentCharacter || initialCharacter;
+    const appearance = (characterForData as any)?.character_appearance 
+      || (characterForData as any)?.raw?.character_appearance 
+      || (characterForData as any)?.appearance 
+      || '';
+    const location = (characterForData as any)?.location 
+      || (characterForData as any)?.raw?.location 
+      || '';
+    
+    const parts: string[] = [];
+    if (appearance && appearance.trim()) {
+      parts.push(appearance.trim());
+    }
+    if (location && location.trim()) {
+      parts.push(location.trim());
+    }
+    
+    return parts.length > 0 ? parts.join('\n') : '';
+  };
+
+  // Обновляем imagePromptInput при открытии модального окна, чтобы использовать актуальный sessionPrompt
+  useEffect(() => {
+    if (isImagePromptModalOpen) {
+      // Используем sessionPrompt напрямую, если он есть, иначе данные из БД
+      if (sessionPrompt && sessionPrompt.trim()) {
+        setImagePromptInput(sessionPrompt);
+      } else {
+        // Формируем из данных персонажа
+        const characterForData = currentCharacter || initialCharacter;
+        const appearance = (characterForData as any)?.character_appearance 
+          || (characterForData as any)?.raw?.character_appearance 
+          || (characterForData as any)?.appearance 
+          || '';
+        const location = (characterForData as any)?.location 
+          || (characterForData as any)?.raw?.location 
+          || '';
+        const parts = [appearance, location].filter(p => p && p.trim());
+        const defaultPrompt = parts.length > 0 ? parts.join('\n') : '';
+        setImagePromptInput(defaultPrompt);
       }
     }
-  }, [currentCharacter?.name, initialCharacter?.name, modifiedPrompts]);
+  }, [isImagePromptModalOpen, sessionPrompt, currentCharacter?.id, currentCharacter?.character_appearance, currentCharacter?.location]);
 
   // Функция для опроса статуса генерации изображения (используется из SSE потока)
   const pollImageGenerationStatus = async (taskId: string, messageId: string, token?: string) => {
@@ -1486,119 +1539,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const handleGenerateImage = async (userPrompt?: string) => {
     // Если промпт не передан - открываем модалку
     if (!userPrompt) {
-      // Предзаполняем промпт: сначала проверяем сохраненный промпт, потом данные персонажа
-      const characterName = getCharacterName();
-      const characterForData = currentCharacter || initialCharacter;
-      
-      console.log('[GENERATE_IMAGE] ========== ОТКРЫТИЕ МОДАЛКИ ==========');
-      console.log('[GENERATE_IMAGE] Имя персонажа:', characterName);
-      console.log('[GENERATE_IMAGE] currentCharacter?.name:', currentCharacter?.name);
-      console.log('[GENERATE_IMAGE] initialCharacter?.name:', initialCharacter?.name);
-      console.log('[GENERATE_IMAGE] currentCharacter?.raw?.name:', (currentCharacter as any)?.raw?.name);
-      console.log('[GENERATE_IMAGE] initialCharacter?.raw?.name:', (initialCharacter as any)?.raw?.name);
-      console.log('[GENERATE_IMAGE] Все сохраненные промпты (ref):', Object.keys(modifiedPromptsRef.current));
-      console.log('[GENERATE_IMAGE] Все сохраненные промпты (state):', Object.keys(modifiedPrompts));
-      
-      // Загружаем из localStorage для проверки
-      let localStoragePrompts: Record<string, string> = {};
-      try {
-        const stored = localStorage.getItem('modifiedPrompts');
-        if (stored) {
-          localStoragePrompts = JSON.parse(stored);
-          console.log('[GENERATE_IMAGE] Промпты из localStorage (ключи):', Object.keys(localStoragePrompts));
-          console.log('[GENERATE_IMAGE] Промпты из localStorage (полностью):', localStoragePrompts);
-        }
-      } catch (e) {
-        console.error('[GENERATE_IMAGE] Ошибка загрузки из localStorage:', e);
-      }
-      
-      // Проверяем все возможные варианты имени персонажа
-      const possibleNames = [
-        characterName,
-        currentCharacter?.name,
-        initialCharacter?.name,
-        (currentCharacter as any)?.raw?.name,
-        (initialCharacter as any)?.raw?.name
-      ].filter(Boolean) as string[];
-      
-      console.log('[GENERATE_IMAGE] Все возможные имена персонажа:', possibleNames);
-      
-      // Проверяем, есть ли сохраненный промпт для любого из возможных имен
-      let savedPrompt: string | undefined = undefined;
-      let foundKey: string | undefined = undefined;
-      
-      for (const name of possibleNames) {
-        if (modifiedPromptsRef.current[name]) {
-          savedPrompt = modifiedPromptsRef.current[name];
-          foundKey = name;
-          console.log('[GENERATE_IMAGE] Найден промпт в ref по ключу:', name);
-          break;
-        }
-        if (modifiedPrompts[name]) {
-          savedPrompt = modifiedPrompts[name];
-          foundKey = name;
-          console.log('[GENERATE_IMAGE] Найден промпт в state по ключу:', name);
-          break;
-        }
-        if (localStoragePrompts[name]) {
-          savedPrompt = localStoragePrompts[name];
-          foundKey = name;
-          console.log('[GENERATE_IMAGE] Найден промпт в localStorage по ключу:', name);
-          // Обновляем ref и state для синхронизации
-          modifiedPromptsRef.current = { ...modifiedPromptsRef.current, [name]: savedPrompt };
-          setModifiedPrompts(prev => ({ ...prev, [name]: savedPrompt! }));
-          break;
-        }
-      }
-      
-      // Если нашли промпт по другому ключу, но не по текущему, сохраняем под текущим ключом
-      if (savedPrompt && foundKey && foundKey !== characterName && characterName) {
-        console.log('[GENERATE_IMAGE] Промпт найден по ключу', foundKey, 'но текущий ключ', characterName, '- сохраняем под текущим ключом');
-        modifiedPromptsRef.current = { ...modifiedPromptsRef.current, [characterName]: savedPrompt };
-        setModifiedPrompts(prev => ({ ...prev, [characterName]: savedPrompt! }));
-        try {
-          localStorage.setItem('modifiedPrompts', JSON.stringify({ ...localStoragePrompts, [characterName]: savedPrompt }));
-        } catch (e) {
-          console.error('[GENERATE_IMAGE] Ошибка сохранения в localStorage:', e);
-        }
-      }
-      
-      console.log('[GENERATE_IMAGE] Проверка сохраненного промпта:', {
-        characterName,
-        hasInRef: !!modifiedPromptsRef.current[characterName],
-        hasInState: !!modifiedPrompts[characterName],
-        savedPrompt: savedPrompt ? savedPrompt.substring(0, 100) + '...' : 'нет',
-        allKeysInRef: Object.keys(modifiedPromptsRef.current),
-        allKeysInState: Object.keys(modifiedPrompts),
-        refValue: modifiedPromptsRef.current[characterName]?.substring(0, 50),
-        stateValue: modifiedPrompts[characterName]?.substring(0, 50)
-      });
-      console.log('[GENERATE_IMAGE] ======================================');
-      
-      if (savedPrompt && savedPrompt.trim()) {
-        // Используем сохраненный промпт
-        console.log('[GENERATE_IMAGE] ✓ Используем сохраненный промпт для персонажа:', characterName);
-        setImagePromptInput(savedPrompt);
-      } else {
-        // Используем данные персонажа из БД
-        const appearance = (characterForData as any)?.character_appearance 
-          || (characterForData as any)?.raw?.character_appearance 
-          || (characterForData as any)?.appearance 
-          || '';
-        const location = (characterForData as any)?.location 
-          || (characterForData as any)?.raw?.location 
-          || '';
-        const parts = [appearance, location].filter(p => p && p.trim());
-        const defaultPrompt = parts.length > 0 ? parts.join('\n') : '';
-        console.log('[GENERATE_IMAGE] ✗ Нет сохраненного промпта, используем данные из БД:', { 
-          characterName,
-          appearance: appearance.substring(0, 50), 
-          location: location.substring(0, 50), 
-          defaultPrompt: defaultPrompt.substring(0, 50) 
-        });
-        setImagePromptInput(defaultPrompt);
-      }
-      
+      // Используем getInitialPrompt() для получения начального промпта
+      // Это может быть sessionPrompt (если был отредактирован) или данные из БД
+      const initialPrompt = getInitialPrompt();
+      setImagePromptInput(initialPrompt);
       setIsImagePromptModalOpen(true);
       return;
     }
@@ -1656,6 +1600,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       
       const requestBody = {
         prompt: translatedPrompt,
+        custom_prompt: translatedPrompt, // Передаем отредактированный промпт как custom_prompt
         character: currentCharacter.name,
         use_default_prompts: false, // Используем промпт как есть, без добавления данных персонажа
         user_id: userInfo?.id,
@@ -3142,7 +3087,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   // Показываем спиннер только если персонаж еще не загружен И идет загрузка
   // Если персонаж уже есть, показываем интерфейс даже при isLoading (например, при генерации изображения)
   // Если персонаж не найден (есть ошибка), показываем сообщение об ошибке
-  console.log('[CHAT RENDER] currentCharacter:', currentCharacter, 'initialCharacter:', initialCharacter, 'error:', error, 'isLoading:', isLoading, 'messages.length:', messages.length);
   
   // Используем currentCharacter или initialCharacter для проверки
   const effectiveCharacterForRender = currentCharacter || initialCharacter;
@@ -3216,27 +3160,19 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   // }
   
   // Если дошли сюда - значит есть персонаж ИЛИ сообщения - показываем интерфейс
-  console.log('[CHAT RENDER] Rendering chat interface - has character or messages', {
-    hasCharacter: !!effectiveCharacterForRender,
-    hasMessages,
-    characterName: effectiveCharacterForRender?.name
-  });
-  
   // Используем effectiveCharacterForRender для рендера
   const characterForRender = currentCharacter || initialCharacter;
-  
-  console.log('[CHAT RENDER] Rendering chat interface for character:', currentCharacter?.name);
-  console.log('[CHAT RENDER] Messages state:', { 
-    messagesCount: messages.length, 
-    messages: messages.map(m => ({ id: m.id, type: m.type, hasContent: !!m.content, hasImage: !!m.imageUrl }))
-  });
 
   // Дедупликация сообщений перед рендером - используем useMemo для оптимизации
   // Улучшенная дедупликация: для изображений используем content+imageUrl, для текста - id
   const uniqueMessages = useMemo(() => {
     try {
+      if (!messages || !Array.isArray(messages)) {
+        return [];
+      }
       const seen = new Set<string>();
       return messages.filter(m => {
+        if (!m) return false;
         // Для сообщений с изображением используем content + imageUrl для обнаружения дубликатов
         // Для текстовых сообщений используем id
         const key = m.imageUrl && m.imageUrl.trim() !== '' 
@@ -3252,10 +3188,13 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       });
     } catch (error) {
       console.error('[CHAT] Ошибка дедупликации сообщений:', error);
-      // В случае ошибки возвращаем оригинальный массив, но фильтруем дубликаты по ID
+      // В случае ошибки возвращаем пустой массив или оригинальный массив, если он валиден
+      if (!messages || !Array.isArray(messages)) {
+        return [];
+      }
       const seenIds = new Set<string>();
       return messages.filter(msg => {
-        if (seenIds.has(msg.id)) {
+        if (!msg || seenIds.has(msg.id)) {
           return false;
         }
         seenIds.add(msg.id);
@@ -3263,18 +3202,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       });
     }
   }, [messages]);
-  
-  console.log('[CHAT RENDER] Unique messages after deduplication:', { 
-    uniqueCount: uniqueMessages.length, 
-    uniqueMessages: uniqueMessages.map(m => ({ id: m.id, type: m.type, hasContent: !!m.content, hasImage: !!m.imageUrl }))
-  });
-  
-  console.log('[CHAT RENDER] ChatArea will receive:', { 
-    uniqueMessagesCount: uniqueMessages.length, 
-    isLoading, 
-    characterName: characterForRender?.name,
-    hasCharacterPhotos: characterPhotos && characterPhotos.length > 0
-  });
 
   return (
     <Container>
@@ -3309,6 +3236,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               characterSituation={characterSituation ?? undefined}
               characterName={characterForRender?.name || ''}
               characterAvatar={characterPhotos && characterPhotos.length > 0 ? characterPhotos[0] : undefined}
+              userAvatar={userInfo?.avatar_url || undefined}
+              userUsername={userInfo?.username || undefined}
+              userEmail={userInfo?.email || undefined}
               isCharacterOwner={paidAlbumStatus?.is_owner ?? false}
               isAuthenticated={isAuthenticated}
               onAddToPaidAlbum={handleAddToPaidAlbum}
@@ -3358,6 +3288,23 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 } else {
                   console.log('[TIP BUTTON] Пользователь авторизован - открываем TipModal');
                   setIsTipModalOpen(true);
+                }
+              }}
+              onShowComments={() => {
+                if (!isAuthenticated) {
+                  setAuthMode('login');
+                  setIsAuthModalOpen(true);
+                } else {
+                  const characterForComments = currentCharacter || initialCharacter;
+                  if (characterForComments && onNavigate) {
+                    onNavigate('character-comments', characterForComments);
+                  } else {
+                    // Fallback: переход через URL
+                    const characterName = characterForComments?.name || characterForComments?.id || '';
+                    if (characterName) {
+                      window.location.href = `/character-comments?character=${encodeURIComponent(characterName)}`;
+                    }
+                  }
                 }
               }}
               disabled={isLoading && activeGenerations.size === 0}
@@ -3789,50 +3736,49 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button
                 onClick={() => {
+                  // Сброс промпта к дефолтным данным из БД
+                  const characterForData = currentCharacter || initialCharacter;
+                  const appearance = (characterForData as any)?.character_appearance 
+                    || (characterForData as any)?.raw?.character_appearance 
+                    || (characterForData as any)?.appearance 
+                    || '';
+                  const location = (characterForData as any)?.location 
+                    || (characterForData as any)?.raw?.location 
+                    || '';
+                  const parts = [appearance, location].filter(p => p && p.trim());
+                  const defaultPrompt = parts.length > 0 ? parts.join('\n') : '';
+                  setImagePromptInput(defaultPrompt);
+                  setSessionPrompt(null); // Сбрасываем сохраненный промпт
+                }}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  background: 'rgba(80, 80, 80, 0.8)',
+                  border: '2px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  fontSize: '1rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(100, 100, 100, 0.9)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(80, 80, 80, 0.8)'}
+              >
+                Сбросить
+              </button>
+              <button
+                onClick={() => {
                   // Проверяем очередь только при клике
                   if (activeGenerations.size >= getGenerationQueueLimit) {
                     setError(`Максимум ${getGenerationQueueLimit} ${getGenerationQueueLimit === 1 ? 'фото может' : 'фото могут'} генерироваться одновременно. Дождитесь завершения текущих генераций.`);
                     return;
                   }
                   if (imagePromptInput.trim()) {
-                    // Сохраняем промпт перед генерацией (ДО перевода!)
-                    const characterName = getCharacterName();
+                    // Сохраняем промпт в sessionPrompt перед генерацией
                     const promptToSave = imagePromptInput.trim();
-                    
-                    console.log('[GENERATE_IMAGE] Сохранение промпта из кнопки "Генерировать":', {
-                      characterName,
-                      promptLength: promptToSave.length,
-                      promptPreview: promptToSave.substring(0, 50) + '...'
-                    });
-                    
-                    if (characterName) {
-                      // Обновляем и state, и ref для синхронного доступа
-                      const updated = {
-                        ...modifiedPromptsRef.current,
-                        [characterName]: promptToSave
-                      };
-                      modifiedPromptsRef.current = updated;
-                      setModifiedPrompts(updated);
-                      
-                      // Также сохраняем в localStorage сразу для надежности
-                      try {
-                        localStorage.setItem('modifiedPrompts', JSON.stringify(updated));
-                        console.log('[GENERATE_IMAGE] ✓ Промпт сохранен для персонажа:', characterName);
-                        console.log('[GENERATE_IMAGE] ✓ Промпт также сохранен в localStorage');
-                        console.log('[GENERATE_IMAGE] Обновленный modifiedPrompts (ключи):', Object.keys(updated));
-                        console.log('[GENERATE_IMAGE] Сохраненный промпт (первые 100 символов):', updated[characterName]?.substring(0, 100));
-                        console.log('[GENERATE_IMAGE] Проверка сохранения - ref содержит ключ?', characterName in modifiedPromptsRef.current);
-                        console.log('[GENERATE_IMAGE] Проверка сохранения - значение в ref:', modifiedPromptsRef.current[characterName]?.substring(0, 50));
-                      } catch (e) {
-                        console.error('[GENERATE_IMAGE] Ошибка сохранения в localStorage:', e);
-                      }
-                    } else {
-                      console.error('[GENERATE_IMAGE] ✗ Не удалось определить имя персонажа для сохранения промпта!');
-                      console.error('[GENERATE_IMAGE] currentCharacter:', currentCharacter);
-                      console.error('[GENERATE_IMAGE] initialCharacter:', initialCharacter);
-                    }
+                    setSessionPrompt(promptToSave);
                     setIsImagePromptModalOpen(false);
-                    handleGenerateImage(imagePromptInput);
+                    handleGenerateImage(promptToSave);
                   }
                 }}
                 disabled={!imagePromptInput.trim()}
@@ -3871,7 +3817,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               <button
                 onClick={() => setIsImagePromptModalOpen(false)}
                 style={{
-                  flex: 1,
                   padding: '0.75rem 1.5rem',
                   background: 'rgba(80, 80, 80, 0.8)',
                   border: '2px solid rgba(255, 255, 255, 0.2)',

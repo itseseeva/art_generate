@@ -443,7 +443,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
           : [];
 
         console.log('[HISTORY] Загружено персонажей из истории:', historyList.length);
-        console.log('[HISTORY] Список персонажей:', historyList.map(e => e.name));
+        console.log('[HISTORY] Список персонажей из истории:', historyList.map(e => e.name));
 
         const charactersArray = Array.isArray(charactersData) ? charactersData : [];
         const charactersMap = new Map<string, any>();
@@ -470,7 +470,9 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
         });
 
         console.log('[HISTORY] Загружено персонажей из API:', charactersArray.length);
+        console.log('[HISTORY] Список персонажей из API:', charactersArray.slice(0, 10).map((c: any) => c.name));
         console.log('[HISTORY] characterPhotos keys:', Object.keys(characterPhotos).length, 'keys:', Object.keys(characterPhotos).slice(0, 10));
+        console.log('[HISTORY] charactersMap keys:', Array.from(charactersMap.keys()).slice(0, 20));
 
         // Создаем данные персонажей, используя characterPhotos как на MainPage
         const formatted = historyList
@@ -496,10 +498,40 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
             }
             
             // КРИТИЧЕСКИ ВАЖНО: Если персонаж не найден в списке существующих персонажей,
-            // значит он был удален - не показываем его в истории
+            // проверяем, может быть проблема с сопоставлением имен
             if (!finalMatch) {
-              console.log('[HISTORY] Персонаж удален, пропускаем:', entryName);
-              return null;
+              console.warn('[HISTORY] Персонаж не найден в основном списке:', entryName);
+              console.warn('[HISTORY] Доступные ключи в charactersMap:', Array.from(charactersMap.keys()).slice(0, 20));
+              console.warn('[HISTORY] Ищем похожие имена...');
+              
+              // Пробуем найти по частичному совпадению (без учета регистра и пробелов)
+              const normalizedEntryName = entryName.toLowerCase().replace(/\s+/g, '');
+              let foundByPartial = false;
+              for (const [mapKey, char] of charactersMap.entries()) {
+                const normalizedMapName = (char.name || '').toLowerCase().replace(/\s+/g, '');
+                if (normalizedMapName === normalizedEntryName || normalizedMapName.includes(normalizedEntryName) || normalizedEntryName.includes(normalizedMapName)) {
+                  console.log('[HISTORY] Найдено частичное совпадение:', entryName, '->', char.name);
+                  finalMatch = char;
+                  foundByPartial = true;
+                  break;
+                }
+              }
+              
+              // Если все равно не нашли, создаем базовый объект персонажа из данных истории
+              if (!foundByPartial) {
+                console.warn('[HISTORY] Персонаж не найден в основном списке, создаем базовый объект из истории:', entryName);
+                // Создаем минимальный объект персонажа из данных истории
+                finalMatch = {
+                  name: entryName,
+                  display_name: entryName,
+                  id: null,
+                  prompt: '',
+                  appearance: '',
+                  location: '',
+                  is_nsfw: false,
+                  photos: entry.last_image_url ? [entry.last_image_url] : []
+                };
+              }
             }
             
             const char = buildCharacterData(entry, finalMatch, characterPhotos);

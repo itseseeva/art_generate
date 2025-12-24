@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react';
 import { FiX as CloseIcon } from 'react-icons/fi';
 import { theme } from '../theme';
 import { fetchPromptByImage } from '../utils/prompt';
-import { translateToEnglish } from '../utils/translate';
+import { translateToEnglish, translateToRussian } from '../utils/translate';
 
 const MainContainer = styled.div`
   width: 100vw;
@@ -44,7 +44,7 @@ const Subtitle = styled.p`
 
 const GridContainer = styled.div`
   display: grid;
-  grid-template-columns: 1fr 400px;
+  grid-template-columns: 1fr 600px;
   gap: 2rem;
   width: 100%;
   min-width: 0;
@@ -95,26 +95,44 @@ const ModalImage = styled.img`
 `;
 
 const CloseButton = styled.button`
-  position: absolute;
-  top: 2rem;
-  right: 2rem;
-  background: rgba(40, 40, 40, 0.8);
-  border: 1px solid rgba(150, 150, 150, 0.3);
-  color: rgba(240, 240, 240, 1);
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
+  position: fixed !important;
+  top: 2rem !important;
+  right: 2rem !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 2px solid rgba(255, 255, 255, 1) !important;
+  color: rgba(20, 20, 20, 1) !important;
+  width: 48px !important;
+  height: 48px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
   font-size: 1.5rem;
   transition: all 0.3s ease;
-  z-index: 10001;
+  z-index: 100001 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
   
   &:hover {
-    background: rgba(60, 60, 60, 0.9);
-    border-color: rgba(180, 180, 180, 0.5);
+    background: rgba(255, 255, 255, 1) !important;
+    transform: scale(1.1) !important;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.7) !important;
+  }
+  
+  &:active {
+    transform: scale(0.95) !important;
+  }
+  
+  svg {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: none !important;
   }
 `;
 
@@ -229,7 +247,7 @@ const PromptSection = styled.div`
   flex-direction: column;
   gap: 1rem;
   width: 100%;
-  min-width: 350px;
+  min-width: 600px;
   
   @media (max-width: 1200px) {
     min-width: 100%;
@@ -389,63 +407,82 @@ const ModalOverlay = styled.div`
 `;
 
 const PromptModalOverlay = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(70px);
-  -webkit-backdrop-filter: blur(70px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 99999;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background: rgba(0, 0, 0, 0.95) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 99999 !important;
   padding: ${theme.spacing.xl};
+  visibility: visible !important;
+  opacity: 1 !important;
 `;
 
 const PromptModalContent = styled.div`
-  position: relative;
+  position: relative !important;
   max-width: 95vw;
   max-height: 95vh;
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
+  display: flex !important;
+  align-items: stretch !important;
+  justify-content: center !important;
   gap: ${theme.spacing.xl};
   width: 100%;
+  overflow: visible !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 `;
 
 const PromptModalImageContainer = styled.div`
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 300px;
   max-width: 70%;
+  padding: ${theme.spacing.lg};
+  overflow: visible !important;
+  background: transparent !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 `;
 
 const PromptModalImage = styled.img`
   max-width: 100%;
   max-height: 95vh;
+  width: auto;
+  height: auto;
+  min-width: 300px;
+  min-height: 300px;
   object-fit: contain;
   border-radius: ${theme.borderRadius.lg};
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 `;
 
 const PromptPanel = styled.div`
-  width: 400px;
-  min-width: 350px;
-  max-width: 30%;
-  background: rgba(30, 30, 30, 0.95);
-  border: 2px solid rgba(150, 150, 150, 0.5);
+  width: 600px;
+  min-width: 525px;
+  max-width: 45%;
+  background: rgba(30, 30, 30, 0.95) !important;
+  border: 2px solid rgba(150, 150, 150, 0.5) !important;
   border-radius: ${theme.borderRadius.xl};
   padding: ${theme.spacing.xl};
   overflow-y: auto;
   max-height: 95vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
+  display: flex !important;
+  flex-direction: column !important;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8) !important;
   backdrop-filter: blur(10px);
+  visibility: visible !important;
+  opacity: 1 !important;
 `;
 
 const PromptPanelHeader = styled.div`
@@ -490,25 +527,27 @@ const PromptError = styled.div`
 `;
 
 const PromptCloseButton = styled.button`
-  position: absolute;
-  top: ${theme.spacing.lg};
-  right: ${theme.spacing.lg};
-  background: rgba(40, 40, 40, 0.95);
-  border: 2px solid rgba(255, 255, 255, 0.5);
-  border-radius: 50%;
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: rgba(240, 240, 240, 1);
-  font-size: 24px;
-  font-weight: 700;
-  line-height: 1;
+  position: absolute !important;
+  top: ${theme.spacing.lg} !important;
+  right: ${theme.spacing.lg} !important;
+  background: rgba(40, 40, 40, 0.95) !important;
+  border: 2px solid rgba(255, 255, 255, 0.5) !important;
+  border-radius: 50% !important;
+  width: 48px !important;
+  height: 48px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  color: rgba(240, 240, 240, 1) !important;
+  font-size: 24px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
   transition: all 0.3s ease;
-  z-index: 100002;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  z-index: 100002 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 
   &:hover {
     background: rgba(60, 60, 60, 1);
@@ -700,12 +739,28 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
     checkAuth();
   }, []);
 
-  // Установка дефолтного промпта
+  // Установка дефолтного промпта (переводим на русский для отображения, если данные на английском)
   useEffect(() => {
     if (character) {
-      const parts = [character.character_appearance, character.location].filter(p => p && p.trim());
-      const defaultPrompt = parts.length > 0 ? parts.join(' | ') : '';
-      setPrompt(defaultPrompt);
+      const loadDefaultPrompt = async () => {
+        const parts = [character.character_appearance, character.location].filter(p => p && p.trim());
+        if (parts.length > 0) {
+          const defaultPrompt = parts.join(' | ');
+          // Проверяем, содержит ли текст кириллицу
+          const hasCyrillic = /[а-яёА-ЯЁ]/.test(defaultPrompt);
+          if (!hasCyrillic) {
+            // Если нет кириллицы, переводим на русский для отображения
+            const translatedPrompt = await translateToRussian(defaultPrompt);
+            setPrompt(translatedPrompt);
+          } else {
+            // Если есть кириллица, используем как есть
+            setPrompt(defaultPrompt);
+          }
+        } else {
+          setPrompt('');
+        }
+      };
+      loadDefaultPrompt();
     }
   }, [character]);
 
@@ -719,8 +774,8 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
     
     if (!prompt.trim()) return;
 
-    if (!userInfo || userInfo.coins < 30) {
-      setError('Недостаточно монет! Нужно 30 монет для генерации 1 фото.');
+    if (!userInfo || userInfo.coins < 10) {
+      setError('Недостаточно кредитов! Нужно 10 кредитов для генерации 1 фото.');
       return;
     }
 
@@ -764,8 +819,8 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
       }
       
       const userData = await userResponse.json();
-      if (userData.coins < 30) {
-        setError('Недостаточно монет! Нужно 30 монет для генерации 1 фото.');
+      if (userData.coins < 10) {
+        setError('Недостаточно кредитов! Нужно 10 кредитов для генерации 1 фото.');
         setUserInfo({ 
           coins: userData.coins || 0,
           subscription_type: userData.subscription?.subscription_type || userData.subscription_type || 'free'
@@ -778,11 +833,18 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
       }
 
       // Переводим промпт на английский перед отправкой
-      const translatedPrompt = await translateToEnglish(prompt.trim());
+      // Если промпт был переведен на русский для отображения, переводим обратно на английский
+      let finalPrompt = prompt.trim();
+      const hasCyrillic = /[а-яёА-ЯЁ]/.test(finalPrompt);
+      if (hasCyrillic) {
+        // Если есть кириллица, переводим на английский
+        finalPrompt = await translateToEnglish(finalPrompt);
+      }
+      // Если нет кириллицы, используем как есть (уже на английском)
       
       const requestBody: any = {
         character: character.name,
-        prompt: translatedPrompt,
+        prompt: finalPrompt,
         negative_prompt: generationSettings?.negative_prompt,
         width: generationSettings?.width,
         height: generationSettings?.height,
@@ -809,10 +871,10 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
 
       const result = await response.json();
       
-      // Оптимистичное обновление монет сразу после успешной отправки запроса
+      // Оптимистичное обновление кредитов сразу после успешной отправки запроса
       if (userInfo) {
         setUserInfo(prev => prev ? { 
-          coins: Math.max(0, prev.coins - 30),
+          coins: Math.max(0, prev.coins - 10),
           subscription_type: prev.subscription_type
         } : null);
       }
@@ -1183,6 +1245,7 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
 
   const handleOpenPhoto = async (e: React.MouseEvent, imageUrl: string) => {
     e.stopPropagation();
+    console.log('[PhotoGenerationPage3] handleOpenPhoto called with URL:', imageUrl);
     setSelectedPhoto(imageUrl);
     setSelectedPrompt(null);
     setPromptError(null);
@@ -1190,15 +1253,25 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
 
     try {
       const { prompt, errorMessage } = await fetchPromptByImage(imageUrl);
+      console.log('[PhotoGenerationPage3] Prompt loaded:', { prompt, errorMessage });
       if (prompt) {
-        setSelectedPrompt(prompt);
+        // Переводим промпт на русский для отображения
+        const translatedPrompt = await translateToRussian(prompt);
+        setSelectedPrompt(translatedPrompt);
       } else {
         setPromptError(errorMessage || 'Промпт недоступен для этого изображения');
       }
+    } catch (error) {
+      console.error('[PhotoGenerationPage3] Error loading prompt:', error);
+      setPromptError('Ошибка загрузки промпта');
     } finally {
       setIsLoadingPrompt(false);
     }
   };
+
+  useEffect(() => {
+    console.log('[PhotoGenerationPage3] selectedPhoto changed:', selectedPhoto);
+  }, [selectedPhoto]);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -1337,8 +1410,9 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
                       key={image.id} 
                       $isSelected={!!image.isAdded}
                       onClick={(e) => {
-                        const fakeEvent = { stopPropagation: () => {} } as React.MouseEvent;
-                        handleOpenPhoto(fakeEvent, image.url);
+                        e.stopPropagation();
+                        console.log('[PhotoGenerationPage3] ImageCard clicked, image URL:', image.url);
+                        handleOpenPhoto(e, image.url);
                       }}
                       style={{ cursor: 'pointer' }}
                     >
@@ -1429,7 +1503,7 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
 
                 <GenerateButton
                   onClick={handleGenerate}
-                  disabled={isGenerating || !prompt.trim() || !!(userInfo && userInfo.coins < 30)}
+                  disabled={isGenerating || !prompt.trim() || !!(userInfo && userInfo.coins < 10)}
                 >
                   {isGenerating ? (
                     <>
@@ -1451,7 +1525,7 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
 
                 {userInfo && (
                   <div style={{ fontSize: '0.875rem', color: 'rgba(160, 160, 160, 1)', transition: 'color 0.3s ease' }}>
-                    Ваши монеты: <span style={{ fontWeight: 600, color: userInfo.coins < 30 ? 'rgba(255, 100, 100, 1)' : 'rgba(200, 200, 200, 1)' }}>{userInfo.coins}</span> (нужно 30 для генерации 1 фото)
+                    Ваши кредиты: <span style={{ fontWeight: 600, color: userInfo.coins < 10 ? 'rgba(255, 100, 100, 1)' : 'rgba(200, 200, 200, 1)' }}>{userInfo.coins}</span> (нужно 10 кредитов для генерации 1 фото)
                   </div>
                 )}
 
@@ -1492,26 +1566,31 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
       )}
 
       {/* Модальное окно для просмотра фото в полном размере */}
-      <ImageModal 
-        $isOpen={!!selectedImage}
-        onClick={() => setSelectedImage(null)}
-      >
-        {selectedImage && (
-          <>
-            <CloseButton onClick={(e) => {
-              e.stopPropagation();
-              setSelectedImage(null);
-            }} title="Закрыть (Esc)">
-              <CloseIcon size={24} />
-            </CloseButton>
+      {selectedImage && createPortal(
+        <>
+          <ImageModal 
+            $isOpen={!!selectedImage}
+            onClick={() => setSelectedImage(null)}
+          >
             <ModalImage 
               src={selectedImage} 
               alt="Full size"
               onClick={(e) => e.stopPropagation()}
             />
-          </>
-        )}
-      </ImageModal>
+          </ImageModal>
+          <CloseButton 
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              setSelectedImage(null);
+            }} 
+            title="Закрыть (Esc)"
+          >
+            <CloseIcon size={24} />
+          </CloseButton>
+        </>,
+        document.body
+      )}
       
       {selectedPhoto && createPortal(
         <PromptModalOverlay onClick={() => {

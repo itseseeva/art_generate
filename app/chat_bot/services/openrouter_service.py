@@ -181,6 +181,8 @@ class OpenRouterService:
                 "temperature": temperature,
                 "top_p": top_p,
                 "presence_penalty": presence_penalty,
+                "repetition_penalty": 1.15,
+                "frequency_penalty": 0.5,
             }
             
             # Добавляем дополнительные параметры, если они есть
@@ -321,6 +323,8 @@ class OpenRouterService:
                 "temperature": temperature,
                 "top_p": top_p,
                 "presence_penalty": presence_penalty,
+                "repetition_penalty": 1.15,
+                "frequency_penalty": 0.5,
                 "stream": True  # Включаем стриминг
             }
             

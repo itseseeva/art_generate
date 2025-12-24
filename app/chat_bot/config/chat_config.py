@@ -173,8 +173,8 @@ class ChatConfig(BaseSettings):
         description="MythoMax L2 13B: оптимальный rep penalty для ролевых игр"
     )
     DEFAULT_PRESENCE_PENALTY: float = Field(
-        default=0.0, 
-        description="Нейтральный для MythoMax - естественный flow"
+        default=0.5, 
+        description="Штраф за присутствие токенов для предотвращения цикличных сценариев"
     )
     
     DEFAULT_FREQUENCY_PENALTY: float = Field(

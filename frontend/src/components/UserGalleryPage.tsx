@@ -4,6 +4,7 @@ import { theme } from '../theme';
 import { GlobalHeader } from './GlobalHeader';
 import { FiX as CloseIcon, FiPlus as PlusIcon, FiTrash2 as TrashIcon } from 'react-icons/fi';
 import { fetchPromptByImage } from '../utils/prompt';
+import { translateToRussian } from '../utils/translate';
 import { OptimizedImage } from './ui/OptimizedImage';
 
 const MainContainer = styled.div`
@@ -405,10 +406,15 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
     try {
       const { prompt, errorMessage } = await fetchPromptByImage(imageUrl);
       if (prompt) {
-        setSelectedPrompt(prompt);
+        // Переводим промпт на русский для отображения
+        const translatedPrompt = await translateToRussian(prompt);
+        setSelectedPrompt(translatedPrompt);
       } else {
         setPromptError(errorMessage || 'Промпт недоступен для этого изображения');
       }
+    } catch (error) {
+      console.error('[UserGalleryPage] Ошибка загрузки/перевода промпта:', error);
+      setPromptError('Ошибка загрузки промпта');
     } finally {
       setIsLoadingPrompt(false);
     }

@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { theme } from '../theme';
 import { FiX, FiImage, FiFolder } from 'react-icons/fi';
 import { fetchPromptByImage } from '../utils/prompt';
+import { translateToRussian } from '../utils/translate';
 import { CircularProgress } from './ui/CircularProgress';
 
 const MessageContainer = styled.div<{ $isUser: boolean }>`
@@ -346,6 +347,9 @@ interface MessageProps {
   };
   characterName?: string;
   characterAvatar?: string;
+  userAvatar?: string;
+  userUsername?: string;
+  userEmail?: string;
   isAuthenticated?: boolean;
   isCharacterOwner?: boolean;
   onAddToGallery?: (imageUrl: string, characterName: string) => Promise<void>;
@@ -356,11 +360,24 @@ const MessageComponent: React.FC<MessageProps> = ({
   message, 
   characterName,
   characterAvatar,
+  userAvatar,
+  userUsername,
+  userEmail,
   isAuthenticated,
   isCharacterOwner,
   onAddToGallery,
   onAddToPaidAlbum
 }) => {
+  // Функция для получения первой буквы из username или email
+  const getUserInitial = (): string => {
+    if (userUsername) {
+      return userUsername.charAt(0).toUpperCase();
+    }
+    if (userEmail) {
+      return userEmail.charAt(0).toUpperCase();
+    }
+    return 'U';
+  };
   const isUser = message.type === 'user';
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isAddingToPaidAlbum, setIsAddingToPaidAlbum] = useState(false);
@@ -396,7 +413,9 @@ const MessageComponent: React.FC<MessageProps> = ({
         const { prompt, errorMessage } = await fetchPromptByImage(message.imageUrl);
         console.log('[MESSAGE] Результат загрузки промпта:', { prompt: prompt ? 'получен' : 'не получен', errorMessage });
         if (prompt) {
-          setSelectedPrompt(prompt);
+          // Переводим промпт на русский для отображения
+          const translatedPrompt = await translateToRussian(prompt);
+          setSelectedPrompt(translatedPrompt);
         } else {
           setPromptError(errorMessage || 'Промпт недоступен для этого изображения');
         }
@@ -725,8 +744,12 @@ const MessageComponent: React.FC<MessageProps> = ({
         
         {/* Аватар пользователя справа */}
         {isUser && (message.content || !hasValidImageUrl) && (
-          <Avatar $isUser={true}>
-            U
+          <Avatar $isUser={true} $avatarUrl={userAvatar}>
+            {userAvatar ? (
+              <AvatarImage src={userAvatar} alt="User" />
+            ) : (
+              getUserInitial()
+            )}
           </Avatar>
         )}
       </MessageContainer>
