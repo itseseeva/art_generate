@@ -10,16 +10,18 @@ services:
     restart: always
     networks:
       - art_net
+    env_file: .env
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-Kohkau11999}
-      POSTGRES_DB: ${POSTGRES_DB:-art_generate_db}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      # Упростили, чтобы не было ошибки "role -d"
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -52,17 +54,15 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
-    env_file: .env # Ищем .env прямо в папке Docker_all
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@art_generation_postgres:5432/${POSTGRES_DB}
-      - REDIS_URL=redis://art_generation_redis:6379/0
-      - DB_HOST=art_generation_postgres
-      - HTTP_PROXY=${GLOBAL_PROXY}
-      - HTTPS_PROXY=${GLOBAL_PROXY}
+    env_file: .env
     volumes:
       - ../app:/app/app
       - ../alembic:/app/alembic
       - ../alembic.ini:/app/alembic.ini
+    # Принудительно передаем прокси
+    environment:
+      - HTTP_PROXY=${GLOBAL_PROXY}
+      - HTTPS_PROXY=${GLOBAL_PROXY}
 
   # --- ВОРКЕР (Celery) ---
   art_generation_celery_worker:
@@ -82,22 +82,19 @@ services:
         condition: service_healthy
     env_file: .env
     environment:
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@art_generation_postgres:5432/${POSTGRES_DB}
-      - CELERY_BROKER_URL=redis://art_generation_redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://art_generation_redis:6379/0
-      - REDIS_URL=redis://art_generation_redis:6379/0
+      - CELERY_BROKER_URL=${REDIS_URL}
+      - CELERY_RESULT_BACKEND=${REDIS_URL}
       - HTTP_PROXY=${GLOBAL_PROXY}
       - HTTPS_PROXY=${GLOBAL_PROXY}
     volumes:
       - ../app:/app/app
 
-  # --- ФРОНТЕНД (React + Nginx) ---
+  # --- ФРОНТЕНД ---
   art_generation_frontend:
     build:
       context: ..
       dockerfile: Docker_all/Dockerfile.frontend
       args:
-        # Критически важно для сборки React:
         - VITE_API_URL=http://${VPS_IP:-localhost}:8000
     container_name: art_generation_frontend
     restart: always
