@@ -127,9 +127,9 @@ def import_to_docker(dump_file):
     """Импортирует данные в Docker контейнер."""
     print("\n2. Импорт данных в Docker контейнер...")
     
-    docker_db_name = "art_generation"
-    docker_db_user = "postgres"
-    docker_db_password = "postgres"
+    docker_db_name = "art_generate_db"
+    docker_db_user = os.getenv("POSTGRES_USER", "postgres")
+    docker_db_password = os.getenv("POSTGRES_PASSWORD", "Kohkau11999")
     
     # Копируем дамп в контейнер
     container_path = "/tmp/dump.sql"

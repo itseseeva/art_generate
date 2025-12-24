@@ -3,7 +3,28 @@ networks:
     driver: bridge
 
 services:
-  # --- CACHE ---
+  # --- БАЗА ДАННЫХ ---
+  art_generation_postgres:
+    image: postgres:15-alpine
+    container_name: art_generation_postgres
+    restart: always
+    networks:
+      - art_net
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-Kohkau11999}
+      POSTGRES_DB: ${POSTGRES_DB:-art_generate_db}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # --- КЭШ ---
   art_generation_redis:
     image: redis:7-alpine
     container_name: art_generation_redis
@@ -14,11 +35,8 @@ services:
       - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
 
-  # --- MAIN BACKEND ---
+  # --- БЭКЕНД ---
   art_generation_backend:
     build:
       context: ..
@@ -27,33 +45,26 @@ services:
     restart: always
     networks:
       - art_net
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-    dns_search: []
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     depends_on:
+      art_generation_postgres:
+        condition: service_healthy
       art_generation_redis:
         condition: service_healthy
     ports:
       - "8000:8000"
-    env_file:
-      - ../.env
+    env_file: .env # Ищем .env прямо в папке Docker_all
     environment:
-      - REDIS_HOST=art_generation_redis
-      - DATABASE_URL=${DATABASE_URL}
-      # Прокси для обхода блокировок OpenRouter/API
-      - GLOBAL_PROXY=${GLOBAL_PROXY:-}
-      - HTTP_PROXY=${GLOBAL_PROXY:-}
-      - HTTPS_PROXY=${GLOBAL_PROXY:-}
-      - NO_PROXY=art_generation_redis,localhost,127.0.0.1
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@art_generation_postgres:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://art_generation_redis:6379/0
+      - DB_HOST=art_generation_postgres
+      - HTTP_PROXY=${GLOBAL_PROXY}
+      - HTTPS_PROXY=${GLOBAL_PROXY}
     volumes:
       - ../app:/app/app
       - ../alembic:/app/alembic
       - ../alembic.ini:/app/alembic.ini
 
-  # --- CELERY WORKER ---
+  # --- ВОРКЕР (Celery) ---
   art_generation_celery_worker:
     build:
       context: ..
@@ -62,51 +73,31 @@ services:
     restart: always
     networks:
       - art_net
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    entrypoint: []
     command: celery -A app.celery_app worker --loglevel=info --pool=solo
     depends_on:
       art_generation_redis:
         condition: service_healthy
-    env_file:
-      - ../.env
-    environment:
-      - REDIS_HOST=art_generation_redis
-      - DATABASE_URL=${DATABASE_URL}
-      - HTTP_PROXY=${GLOBAL_PROXY:-}
-      - HTTPS_PROXY=${GLOBAL_PROXY:-}
-    volumes:
-      - ../app:/app/app
-
-  # --- CELERY BEAT (Periodic Tasks) ---
-  art_generation_celery_beat:
-    build:
-      context: ..
-      dockerfile: Docker_all/Dockerfile.backend
-    container_name: art_generation_celery_beat
-    restart: always
-    networks:
-      - art_net
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    command: celery -A app.celery_app beat --loglevel=info
-    depends_on:
-      art_generation_redis:
+      art_generation_postgres:
         condition: service_healthy
-    env_file:
-      - ../.env
+    env_file: .env
     environment:
-      - REDIS_HOST=art_generation_redis
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@art_generation_postgres:5432/${POSTGRES_DB}
+      - CELERY_BROKER_URL=redis://art_generation_redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://art_generation_redis:6379/0
+      - REDIS_URL=redis://art_generation_redis:6379/0
+      - HTTP_PROXY=${GLOBAL_PROXY}
+      - HTTPS_PROXY=${GLOBAL_PROXY}
     volumes:
       - ../app:/app/app
 
-  # --- FRONTEND (NGINX) ---
+  # --- ФРОНТЕНД (React + Nginx) ---
   art_generation_frontend:
     build:
       context: ..
       dockerfile: Docker_all/Dockerfile.frontend
       args:
+        # Критически важно для сборки React:
         - VITE_API_URL=http://${VPS_IP:-localhost}:8000
     container_name: art_generation_frontend
     restart: always
@@ -116,8 +107,7 @@ services:
       - "80:80"
     depends_on:
       - art_generation_backend
-    environment:
-      - VPS_IP=${VPS_IP:-localhost}
+    env_file: .env
 
-# volumes:
-  # pgdata:
+volumes:
+  pgdata:

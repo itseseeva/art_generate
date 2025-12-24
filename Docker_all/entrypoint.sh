@@ -1,24 +1,23 @@
 #!/bin/bash
 set -e
 
-# Функция для ожидания доступности порта
-wait_for_port() {
-    local host=$1
-    local port=$2
-    echo "Waiting for $host:$port..."
-    while ! nc -z $host $port; do
-      sleep 1
-    done
-    echo "$host:$port is available"
-}
+# Используем значения из окружения или дефолты
+DB_HOST="art_generation_postgres"
+DB_USER="${POSTGRES_USER:-postgres}"
+DB_NAME="${POSTGRES_DB:-art_generate_db}"
 
-# Ждем базу и редис
-wait_for_port "art_generation_postgres" 5432
-wait_for_port "art_generation_redis" 6379
+echo "=== Запуск entrypoint скрипта ==="
 
-echo "--- Running Database Migrations ---"
-# Пытаемся применить миграции
-alembic upgrade head
+# 1. Ждем базу
+echo "Ожидание базы $DB_HOST:5432..."
+until nc -z $DB_HOST 5432; do
+  sleep 2
+done
+echo "✓ База доступна!"
 
-echo "--- Starting Uvicorn Server ---"
+# 2. Применяем миграции
+echo "--- Применяем миграции Alembic ---"
+alembic upgrade head || echo "⚠ Миграции уже применены или возникла ошибка"
+
+echo "--- Запуск сервера ---"
 exec uvicorn app.main:app --host 0.0.0.0 --port 8000
