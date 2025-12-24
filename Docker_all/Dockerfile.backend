@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     libpq-dev \
+    postgresql-client \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -25,12 +26,19 @@ COPY alembic.ini /app/
 # Создание необходимых директорий
 RUN mkdir -p /app/logs /app/outputs /app/images
 
+# Копирование entrypoint скрипта (контекст сборки - родительская директория)
+COPY Docker_all/docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
 # Переменные окружения
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
 # Открываем порт
 EXPOSE 8000
+
+# Установка entrypoint
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
 # Команда запуска (переопределяется в docker-compose)
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

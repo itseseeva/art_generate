@@ -22,10 +22,13 @@ services:
       - app_network
 
   # Инициализация базы данных (выполняет SQL скрипты после готовности postgres)
+  # Запускается только один раз при первом запуске или при явном вызове
   postgres_init:
     image: postgres:15-alpine
     container_name: art_generation_postgres_init
     restart: "no"
+    profiles:
+      - init  # Запускается только с профилем init: docker-compose --profile init up postgres_init
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
     volumes:
@@ -45,6 +48,7 @@ services:
         condition: service_healthy
     networks:
       - app_network
+
 
   # Redis - очередь задач и кэш
   redis:
@@ -86,8 +90,15 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-art_generation}
+      - AUTO_MIGRATE_DATA=${AUTO_MIGRATE_DATA:-false}
     volumes:
       - ../app:/app/app:ro
+      - ../alembic:/app/alembic:ro
+      - ../alembic.ini:/app/alembic.ini:ro
+      - ../Docker_all:/app/Docker_all:ro
       - ../logs:/app/logs
       - ../outputs:/app/outputs
       - ../images:/app/images
