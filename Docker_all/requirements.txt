@@ -57,7 +57,8 @@ flower>=2.0.0
 tiktoken>=0.5.0
 
 # Replicate API (опционально)
-replicate
+replicate>=0.25.0
+itsdangerous>=2.1.2
 
 # Тестирование (опционально)
 pytest>=7.4.0
