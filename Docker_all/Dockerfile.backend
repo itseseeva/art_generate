@@ -30,6 +30,7 @@
     # Устанавливаем только runtime библиотеки (легкие)
     RUN apt-get update && apt-get install -y --no-install-recommends \
         libpq-dev \
+        postgresql-client \
         netcat-openbsd \
         curl \
         && rm -rf /var/lib/apt/lists/*
@@ -43,9 +44,7 @@
     # Копируем код приложения
     COPY . .
     
-    # Даем права
-    RUN chmod +x ./Docker_all/docker-entrypoint.sh
-    
     EXPOSE 8000
     
-    ENTRYPOINT ["./Docker_all/docker-entrypoint.sh"]
+    # Команда по умолчанию (переопределяется в docker-compose.yml)
+    CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
