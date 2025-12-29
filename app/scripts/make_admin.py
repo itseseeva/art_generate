@@ -3,7 +3,6 @@
 """
 import asyncio
 import sys
-import os
 from pathlib import Path
 
 # Устанавливаем UTF-8 кодировку для вывода
@@ -37,10 +36,18 @@ async def make_admin(email: str):
             
             # Устанавливаем роль администратора
             user.is_admin = True
+            
+            # Начисляем 10 000 кредитов администратору
+            user.coins = 10000
+            
             await db.commit()
             await db.refresh(user)
             
-            print(f"Admin role successfully granted to user {email} (ID: {user.id})")
+            print(
+                f"Admin role successfully granted to user {email} "
+                f"(ID: {user.id})"
+            )
+            print(f"User balance set to {user.coins} coins")
             return True
             
         except Exception as e:
@@ -50,7 +57,7 @@ async def make_admin(email: str):
 
 
 if __name__ == "__main__":
-    email = "yitifupi@mailfrs.com"
+    email = "eseeva228@gmail.com"
     print(f"Granting admin role to user {email}...")
     success = asyncio.run(make_admin(email))
     sys.exit(0 if success else 1)

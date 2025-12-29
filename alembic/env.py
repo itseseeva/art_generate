@@ -52,6 +52,21 @@ def include_object(object, name, type_, reflected, compare_to):
     return True
 
 
+def render_item(type_, obj, autogen_context):
+    """
+    Обрабатывает кастомные TypeDecorator типы при автогенерации миграций.
+    Заменяет TypeDecorator на их impl типы для корректной генерации SQL.
+    """
+    from sqlalchemy.types import TypeDecorator
+    
+    if isinstance(type_, TypeDecorator):
+        # Возвращаем impl тип вместо TypeDecorator
+        return type_.impl
+    
+    # Для стандартных типов возвращаем False - autogen обработает их сам
+    return False
+
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
 
@@ -66,12 +81,20 @@ def run_migrations_offline() -> None:
     """
     # Используем DATABASE_URL из переменных окружения, если доступен
     url = os.getenv("DATABASE_URL") or config.get_main_option("sqlalchemy.url")
+    
+    # Для локального запуска заменяем имя Docker контейнера на localhost
+    if url:
+        is_in_docker = os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER") == "true"
+        if not is_in_docker and "art_generation_postgres" in url:
+            url = url.replace("art_generation_postgres", "localhost")
+    
     context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         include_object=include_object,
+        render_item=render_item
     )
 
     with context.begin_transaction():
@@ -91,6 +114,14 @@ def run_migrations_online() -> None:
         # Преобразуем asyncpg URL в синхронный для Alembic
         if "asyncpg" in database_url:
             database_url = database_url.replace("+asyncpg", "")
+        
+        # Для локального запуска заменяем имя Docker контейнера на localhost
+        # Проверяем, не находимся ли мы в Docker (через переменную окружения или файл)
+        is_in_docker = os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER") == "true"
+        if not is_in_docker and "art_generation_postgres" in database_url:
+            # Заменяем хост Docker контейнера на localhost для локального запуска
+            database_url = database_url.replace("art_generation_postgres", "localhost")
+        
         from sqlalchemy import create_engine
         connectable = create_engine(
             database_url,
@@ -107,7 +138,8 @@ def run_migrations_online() -> None:
         context.configure(
             connection=connection, 
             target_metadata=target_metadata,
-            include_object=include_object
+            include_object=include_object,
+            render_item=render_item
         )
 
         with context.begin_transaction():

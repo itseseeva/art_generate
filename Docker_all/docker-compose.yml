@@ -1,9 +1,10 @@
+version: '3.8'
+
 networks:
   art_net:
     driver: bridge
 
 services:
-  # --- БАЗА ДАННЫХ ---
   art_generation_postgres:
     image: postgres:15-alpine
     container_name: art_generation_postgres
@@ -20,13 +21,12 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      # Упростили, чтобы не было ошибки "role -d"
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      # Используем переменные, чтобы healthcheck знал, кого ждать
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  # --- КЭШ ---
   art_generation_redis:
     image: redis:7-alpine
     container_name: art_generation_redis
@@ -38,7 +38,6 @@ services:
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
 
-  # --- БЭКЕНД ---
   art_generation_backend:
     build:
       context: ..
@@ -55,27 +54,39 @@ services:
     ports:
       - "8000:8000"
     env_file: .env
+    environment:
+      # Явно передаем переменные внутрь, чтобы Python их видел
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - HTTP_PROXY=${GLOBAL_PROXY}
+      - HTTPS_PROXY=${GLOBAL_PROXY}
+      - VPS_IP=${VPS_IP}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-}
     volumes:
       - ../app:/app/app
       - ../alembic:/app/alembic
       - ../alembic.ini:/app/alembic.ini
-    environment:
-      - HTTP_PROXY=${GLOBAL_PROXY}
-      - HTTPS_PROXY=${GLOBAL_PROXY}
-    # Ждем PostgreSQL и запускаем приложение (миграции выполняются автоматически через SQLAlchemy)
     command: >
       sh -c "
       echo 'Ожидание готовности PostgreSQL...' &&
-      until pg_isready -h art_generation_postgres -p 5432 -U postgres > /dev/null 2>&1; do
-        echo 'PostgreSQL ещё не готов, ждём...' &&
+      until pg_isready -h art_generation_postgres -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-art_generate_db}; do
+        echo 'PostgreSQL недоступен, ждём...' &&
         sleep 2
       done &&
-      echo 'PostgreSQL готов' &&
+      echo 'PostgreSQL готов!' &&
+      echo 'Запуск миграций Alembic...' &&
+      alembic upgrade head &&
+      echo 'Миграции успешно выполнены!' &&
+      if [ -n "${ADMIN_EMAIL}" ]; then
+        echo 'Инициализация администратора...' &&
+        python -m app.scripts.init_admin || echo 'Предупреждение: не удалось инициализировать администратора'
+      else
+        echo 'ADMIN_EMAIL не задан, пропускаем инициализацию администратора'
+      fi &&
       echo 'Запуск приложения...' &&
       uvicorn app.main:app --host 0.0.0.0 --port 8000
       "
 
-  # --- ВОРКЕР (Celery) ---
   art_generation_celery_worker:
     build:
       context: ..
@@ -93,20 +104,21 @@ services:
         condition: service_healthy
     env_file: .env
     environment:
+      - DATABASE_URL=${DATABASE_URL}
       - CELERY_BROKER_URL=${REDIS_URL}
       - CELERY_RESULT_BACKEND=${REDIS_URL}
+      - REDIS_URL=${REDIS_URL}
       - HTTP_PROXY=${GLOBAL_PROXY}
       - HTTPS_PROXY=${GLOBAL_PROXY}
     volumes:
       - ../app:/app/app
 
-  # --- ФРОНТЕНД ---
   art_generation_frontend:
     build:
       context: ..
       dockerfile: Docker_all/Dockerfile.frontend
       args:
-        - VITE_API_URL=http://${VPS_IP:-localhost}:8000
+        - VITE_API_URL=http://${VPS_IP}:8000
     container_name: art_generation_frontend
     restart: always
     networks:
