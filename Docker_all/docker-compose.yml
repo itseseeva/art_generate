@@ -1,5 +1,3 @@
-version: '3.8'
-
 networks:
   art_net:
     driver: bridge
@@ -54,6 +52,7 @@ services:
       - REDIS_URL=${REDIS_URL}
       - HTTP_PROXY=${GLOBAL_PROXY}
       - HTTPS_PROXY=${GLOBAL_PROXY}
+      - PYTHONPATH=/app # Важно для поиска модулей
     volumes:
       - ../app:/app/app
       - ../alembic:/app/alembic
