@@ -6,6 +6,7 @@ import { FiArrowLeft, FiEdit2, FiTrash2, FiSend, FiMessageSquare } from 'react-i
 import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
 import { GlobalHeader } from './GlobalHeader';
+import { API_CONFIG } from '../config/api';
 
 const PageContainer = styled.div`
   width: 100vw;
@@ -384,7 +385,7 @@ export const CharacterCommentsPage: React.FC<CharacterCommentsPageProps> = ({
         throw new Error('Необходима авторизация');
       }
 
-      const response = await fetch('http://localhost:8000/api/v1/character-comments/create', {
+      const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/character-comments/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -435,7 +436,7 @@ export const CharacterCommentsPage: React.FC<CharacterCommentsPageProps> = ({
         throw new Error('Необходима авторизация');
       }
 
-      const response = await fetch(`http://localhost:8000/api/v1/character-comments/${commentId}`, {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/character-comments/${commentId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -475,7 +476,7 @@ export const CharacterCommentsPage: React.FC<CharacterCommentsPageProps> = ({
         throw new Error('Необходима авторизация');
       }
 
-      const response = await fetch(`http://localhost:8000/api/v1/character-comments/${commentId}`, {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/character-comments/${commentId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`

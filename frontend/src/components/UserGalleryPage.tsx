@@ -6,6 +6,7 @@ import { FiX as CloseIcon, FiPlus as PlusIcon, FiTrash2 as TrashIcon } from 'rea
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToRussian } from '../utils/translate';
 import { OptimizedImage } from './ui/OptimizedImage';
+import { API_CONFIG } from '../config/api';
 
 const MainContainer = styled.div`
   display: flex;
@@ -428,7 +429,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
       return;
     }
 
-    const imageUrl = photo.image_url || (photo.image_filename ? `http://localhost:8000/paid_gallery/${photo.image_filename}` : null);
+    const imageUrl = photo.image_url || (photo.image_filename ? `${API_CONFIG.BASE_URL}/paid_gallery/${photo.image_filename}` : null);
     if (!imageUrl) {
       setError('Не удалось определить URL изображения');
       return;
@@ -437,7 +438,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
     setAddingPhotoIds(prev => new Set(prev).add(photo.id));
 
     try {
-      const response = await fetch('http://localhost:8000/api/v1/auth/user-gallery/add/', {
+      const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/add/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -481,7 +482,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
     setDeletingPhotoIds(prev => new Set(prev).add(photo.id));
 
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/auth/user-gallery/${photo.id}/`, {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/${photo.id}/`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${authToken}`
@@ -516,7 +517,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
       if (!authToken) return;
       
       try {
-        const response = await fetch('http://localhost:8000/api/v1/auth/me/', {
+        const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/me/', {
           headers: {
             'Authorization': `Bearer ${authToken}`
           }
@@ -552,7 +553,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
       }
 
       try {
-        const galleryResponse = await fetch('http://localhost:8000/api/v1/auth/user-gallery/', {
+        const galleryResponse = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/', {
           headers: {
             'Authorization': `Bearer ${authToken}`
           }
@@ -570,7 +571,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
           // Добавляем в addedPhotoIds те фото, которые уже есть в нашей галерее
           const alreadyAddedIds = new Set<number>();
           currentPhotos.forEach(photo => {
-            const photoUrl = photo.image_url || (photo.image_filename ? `http://localhost:8000/paid_gallery/${photo.image_filename}` : null);
+            const photoUrl = photo.image_url || (photo.image_filename ? `${API_CONFIG.BASE_URL}/paid_gallery/${photo.image_filename}` : null);
             if (photoUrl && myGalleryUrls.has(photoUrl)) {
               alreadyAddedIds.add(photo.id);
             }
@@ -620,8 +621,8 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
       // Если передан userId, загружаем галерею конкретного пользователя
       // Иначе загружаем свою галерею
       const baseUrl = userId 
-        ? `http://localhost:8000/api/v1/auth/user-generated-photos/${userId}/`
-        : 'http://localhost:8000/api/v1/auth/user-gallery/';
+        ? `${API_CONFIG.BASE_URL}/api/v1/auth/user-generated-photos/${userId}/`
+        : '${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/';
       
       // Добавляем параметры пагинации только для своей галереи
       const url = userId 
@@ -775,7 +776,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
             <>
             <GalleryGrid>
               {photos.map((photo, index) => {
-                const imageUrl = photo.image_url || (photo.image_filename ? `http://localhost:8000/paid_gallery/${photo.image_filename}` : null);
+                const imageUrl = photo.image_url || (photo.image_filename ? `${API_CONFIG.BASE_URL}/paid_gallery/${photo.image_filename}` : null);
                 if (!imageUrl) {
                   console.warn('[USER_GALLERY] Photo without URL:', photo);
                   return null;

@@ -7,6 +7,7 @@ import { ErrorMessage } from './ErrorMessage';
 import { FiImage as ImageIcon } from 'react-icons/fi';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToRussian } from '../utils/translate';
+import { API_CONFIG } from '../config/api';
 
 const PageContainer = styled.div`
   width: 100vw;
@@ -539,7 +540,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
 
     setAddingToGallery(imageId);
     try {
-      const response = await fetch('http://localhost:8000/api/v1/auth/user-gallery/add/', {
+      const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/add/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

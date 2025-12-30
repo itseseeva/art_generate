@@ -649,7 +649,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           return;
         }
 
-        const response = await fetch('http://localhost:8000/api/v1/profit/stats/', {
+        const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/profit/stats/', {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -1082,7 +1082,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
   const loadModelInfo = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/v1/models/');
+      const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/models/');
       if (response.ok) {
         const models = await response.json();
         setModelInfo(`${models.length} модель(ей) доступно`);
@@ -1113,7 +1113,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       isLoadingCharacterDataRef.current = characterIdentifier;
       
       const safeIdentifier = encodeURIComponent(characterIdentifier);
-      const response = await fetch(`http://localhost:8000/api/v1/characters/${safeIdentifier}/with-creator`);
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${safeIdentifier}/with-creator`);
       
       if (response.status === 404) {
         console.warn(`[LOAD_CHARACTER_DATA] Персонаж "${characterIdentifier}" не найден (404)`);
@@ -1998,7 +1998,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
       // Включаем стриминг для всех запросов
       console.log('[STREAM] Отправка запроса с stream=true, targetLanguage:', targetLanguage);
-      const response = await fetch('http://localhost:8000/chat', {
+      const response = await fetch('${API_CONFIG.BASE_URL}/chat', {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -2277,7 +2277,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       });
       
       const token = authManager.getToken();
-      const response = await fetch(`http://localhost:8000/api/v1/characters/${encodeURIComponent(identifier)}/chat-history`, {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${encodeURIComponent(identifier)}/chat-history`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined
       });
       
@@ -2593,7 +2593,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             }
 
             // Если не найден в localStorage или ошибка парсинга, загружаем из API с полными данными
-            const response = await fetch(`http://localhost:8000/api/v1/characters/${encodeURIComponent(characterId)}/with-creator`);
+            const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${encodeURIComponent(characterId)}/with-creator`);
             if (response.ok) {
               const characterData = await response.json();
               console.log('[CHAT] Персонаж загружен из API:', characterData);
@@ -2830,7 +2830,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     try {
       // Получаем текущие фото из платного альбома
       const currentPhotosResponse = await fetch(
-        `http://localhost:8000/api/v1/paid-gallery/${characterName}`,
+        `${API_CONFIG.BASE_URL}/api/v1/paid-gallery/${characterName}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -2870,7 +2870,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
       // Отправляем обновленный список фото
       const saveResponse = await fetch(
-        `http://localhost:8000/api/v1/paid-gallery/${characterName}/photos`,
+        `${API_CONFIG.BASE_URL}/api/v1/paid-gallery/${characterName}/photos`,
         {
           method: 'POST',
           headers: {
@@ -2915,7 +2915,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
     try {
       const response = await fetch(
-        'http://localhost:8000/api/v1/auth/user-gallery/add/',
+        '${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/add/',
         {
           method: 'POST',
           headers: {

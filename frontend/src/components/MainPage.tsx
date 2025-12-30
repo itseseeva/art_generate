@@ -670,7 +670,7 @@ export const MainPage: React.FC<MainPageProps> = ({
         return;
       }
 
-      const response = await fetch(`http://localhost:8000/api/v1/characters/${encodeURIComponent(characterName)}`, {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${encodeURIComponent(characterName)}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

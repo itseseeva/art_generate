@@ -1801,7 +1801,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       }
 
       // Используем прямой fetch к /api/v1/auth/me/ как в ProfilePage для получения актуального баланса
-      const response = await fetch('http://localhost:8000/api/v1/auth/me/', {
+      const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/me/', {
         headers: {
           'Authorization': `Bearer ${token}`
         },
@@ -1911,7 +1911,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       const token = authManager.getToken();
       if (token) {
         try {
-          const response = await fetch('http://localhost:8000/api/v1/auth/me/', {
+          const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/me/', {
             headers: {
               'Authorization': `Bearer ${token}`
             },
@@ -2130,7 +2130,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         }
         
         try {
-          const response = await fetch('http://localhost:8000/api/v1/auth/me/', {
+          const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/me/', {
             headers: {
               'Authorization': `Bearer ${token}`
             },

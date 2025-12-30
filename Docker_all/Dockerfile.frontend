@@ -10,9 +10,11 @@
     # Копируем весь фронтенд
     COPY frontend/ .
     
-    # Аргументы сборки для Vite (подставляем URL нашего бэкенда на VPS)
+    # Аргументы сборки для Vite (подставляем домен из .env)
     ARG VITE_API_URL
+    ARG VITE_DOMAIN
     ENV VITE_API_URL=$VITE_API_URL
+    ENV VITE_DOMAIN=$VITE_DOMAIN
     
     RUN npm run build
     

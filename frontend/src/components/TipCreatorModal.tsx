@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import { FiHeart, FiX } from 'react-icons/fi';
+import { API_CONFIG } from '../config/api';
 
 const ModalOverlay = styled.div`
   position: fixed;
@@ -361,7 +362,7 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
         message: message || undefined
       });
 
-      const response = await fetch('http://localhost:8000/api/v1/auth/coins/tip-creator/', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/coins/tip-creator/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

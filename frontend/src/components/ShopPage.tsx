@@ -656,7 +656,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     let currentUserId = userInfo?.id;
     if (!currentUserId) {
       try {
-        const response = await fetch('http://localhost:8000/api/v1/auth/me/', {
+        const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/me/', {
           headers: {
             'Authorization': `Bearer ${token}`
           }

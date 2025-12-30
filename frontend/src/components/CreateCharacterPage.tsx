@@ -4,6 +4,7 @@ import { theme } from '../theme';
 import '../styles/ContentArea.css';
 import { AuthModal } from './AuthModal';
 import { translateToEnglish } from '../utils/translate';
+import { API_CONFIG } from '../config/api';
 
 const MainContainer = styled.div`
   width: 100vw;
@@ -1475,7 +1476,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
       console.log('Sending request to API...', requestData); // Добавляем отладку
       // КРИТИЧНО: Используем полный URL с базовым адресом API
-      const apiUrl = 'http://localhost:8000/api/v1/characters/create/';
+      const apiUrl = `${API_CONFIG.BASE_URL}/api/v1/characters/create/`;
       console.log('[CREATE_CHAR] API URL:', apiUrl);
       const response = await fetch(apiUrl, {
         method: 'POST',

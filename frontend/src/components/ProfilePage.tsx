@@ -4,6 +4,7 @@ import { theme } from '../theme';
 import { GlobalHeader } from './GlobalHeader';
 import SplitText from './SplitText';
 import { AuthModal } from './AuthModal';
+import { API_CONFIG } from '../config/api';
 import { LoadingSpinner } from './LoadingSpinner';
 import {
   FiAward as AwardIcon,
@@ -1110,7 +1111,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, authToken, 
     setIsLoading(true);
     setMessage(null);
     try {
-      const response = await fetch('http://localhost:8000/api/v1/auth/update-username/', {
+      const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/update-username/', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -1143,7 +1144,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, authToken, 
     setIsLoading(true);
     setMessage(null);
     try {
-      const response = await fetch('http://localhost:8000/api/v1/auth/request-password-change-with-old/', {
+      const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/request-password-change-with-old/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1173,7 +1174,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, authToken, 
     setIsLoading(true);
     setMessage(null);
     try {
-      const response = await fetch('http://localhost:8000/api/v1/auth/confirm-password-change-with-code/', {
+      const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/confirm-password-change-with-code/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1368,8 +1369,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     // Если передан profileUserId, загружаем данные этого пользователя
     // Иначе загружаем данные текущего пользователя
     const url = profileUserId 
-      ? `http://localhost:8000/api/v1/auth/users/${profileUserId}/`
-      : 'http://localhost:8000/api/v1/auth/me/';
+      ? `${API_CONFIG.BASE_URL}/api/v1/auth/users/${profileUserId}/`
+      : '${API_CONFIG.BASE_URL}/api/v1/auth/me/';
     
     console.log('[PROFILE] fetchUserInfo called with profileUserId:', profileUserId);
     console.log('[PROFILE] Fetching from URL:', url);
@@ -1406,7 +1407,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   }, [profileUserId]);
 
   const fetchSubscriptionStats = useCallback(async (token: string) => {
-    const response = await fetch('http://localhost:8000/api/v1/profit/stats/', {
+    const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/profit/stats/', {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -1426,7 +1427,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       return null;
     }
     try {
-      const response = await fetch('http://localhost:8000/api/v1/auth/me/', {
+      const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/me/', {
         headers: {
           Authorization: `Bearer ${authToken}`
         }
@@ -1446,7 +1447,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
   const loadPhotosCount = useCallback(async (token: string) => {
     try {
-      const response = await fetch('http://localhost:8000/api/v1/auth/user-gallery/', {
+      const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -1464,7 +1465,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
   const fetchProfileStats = useCallback(async (token: string) => {
     try {
-      const response = await fetch('http://localhost:8000/api/v1/auth/profile-stats/', {
+      const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/profile-stats/', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -1485,7 +1486,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
 
   const unlockUserGallery = useCallback(async (token: string, targetUserId: number) => {
-    const response = await fetch('http://localhost:8000/api/v1/auth/unlock-user-gallery/', {
+    const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/unlock-user-gallery/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1508,7 +1509,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
   const loadGeneratedPhotosCount = useCallback(async (token: string, userId: number) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/auth/user-generated-photos/${userId}/`, {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/user-generated-photos/${userId}/`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -1535,7 +1536,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       return false;
     }
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/auth/user-generated-photos/${profileUserId}/?limit=1`, {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/user-generated-photos/${profileUserId}/?limit=1`, {
         headers: {
           Authorization: `Bearer ${authToken}`
         }
@@ -1645,7 +1646,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     if (!currentUserInfo?.subscription?.subscription_type || currentUserInfo?.id !== currentUserId) {
       console.log('[PROFILE] Загружаем данные текущего пользователя для проверки подписки...');
       try {
-        const response = await fetch('http://localhost:8000/api/v1/auth/me/', {
+        const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/me/', {
           headers: {
             Authorization: `Bearer ${authToken}`
           }
@@ -2103,7 +2104,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     formData.append('avatar', file);
                     
                     try {
-                      const response = await fetch('http://localhost:8000/api/v1/auth/avatar/', {
+                      const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/avatar/', {
                         method: 'POST',
                         headers: {
                           Authorization: `Bearer ${authToken}`

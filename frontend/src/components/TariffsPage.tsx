@@ -4,6 +4,7 @@ import { theme } from '../theme';
 
 import { Footer } from './Footer';
 import { AuthModal } from './AuthModal';
+import { API_CONFIG } from '../config/api';
 
 const Container = styled.div`
   padding: 4rem 2rem;
@@ -346,7 +347,7 @@ export const TariffsPage: React.FC = () => {
         return;
       }
 
-      const response = await fetch('http://localhost:8000/api/v1/auth/me/', {
+      const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/me/', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -380,7 +381,7 @@ export const TariffsPage: React.FC = () => {
       const token = localStorage.getItem('authToken');
       if (!token) return;
 
-      const response = await fetch('http://localhost:8000/api/v1/profit/stats/', {
+      const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/profit/stats/', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -407,7 +408,7 @@ export const TariffsPage: React.FC = () => {
     let currentUserId = userInfo?.id;
     if (!currentUserId) {
       try {
-        const response = await fetch('http://localhost:8000/api/v1/auth/me/', {
+        const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/me/', {
           headers: {
             'Authorization': `Bearer ${token}`
           }

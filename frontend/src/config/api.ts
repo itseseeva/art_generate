@@ -1,11 +1,21 @@
 // API конфигурация для фронтенда
-// Используем переменную окружения VITE_API_URL, если она задана, иначе fallback на localhost
+// Используем переменную окружения VITE_API_URL или VITE_DOMAIN из .env
 const getApiBaseUrl = (): string => {
   const viteApiUrl = import.meta.env.VITE_API_URL;
+  const viteDomain = import.meta.env.VITE_DOMAIN;
   
   // Если VITE_API_URL явно задан (даже пустая строка), используем его
   if (viteApiUrl !== undefined) {
+    // Если пустая строка - используем относительный путь
+    if (viteApiUrl === '') {
+      return '';
+    }
     return viteApiUrl;
+  }
+  
+  // Если задан домен, формируем URL с https
+  if (viteDomain && import.meta.env.PROD) {
+    return `https://${viteDomain}`;
   }
   
   // В production используем относительный путь (через nginx proxy)

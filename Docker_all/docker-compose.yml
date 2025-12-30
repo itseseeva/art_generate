@@ -74,7 +74,10 @@ services:
       context: ..
       dockerfile: Docker_all/Dockerfile.frontend
       args:
-        - VITE_API_URL=
+        # Используем DOMAIN из .env для формирования URL
+        # Если DOMAIN задан, используем https://DOMAIN, иначе пустая строка (относительный путь)
+        - VITE_API_URL=${DOMAIN:+https://${DOMAIN}}
+        - VITE_DOMAIN=${DOMAIN:-cherrylust.art}
     container_name: art_generation_frontend
     restart: always
     networks:
