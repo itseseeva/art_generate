@@ -79,7 +79,6 @@ text-generation-webui/
 outputs/
 temp/
 cache/
-models/
 reports/
 *.egg-info/
 avatars/
