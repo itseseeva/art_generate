@@ -10,6 +10,10 @@ services:
     networks:
       - art_net
     env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
@@ -52,11 +56,12 @@ services:
       - REDIS_URL=${REDIS_URL}
       - HTTP_PROXY=${GLOBAL_PROXY}
       - HTTPS_PROXY=${GLOBAL_PROXY}
-      - PYTHONPATH=/app # Важно для поиска модулей
+      - PYTHONPATH=/app
     volumes:
       - ../app:/app/app
       - ../alembic:/app/alembic
       - ../alembic.ini:/app/alembic.ini
+      - ../paid_gallery:/app/paid_gallery # Папка, куда бэкенд пишет картинки
     command: >
       sh -c "
       alembic upgrade head &&
@@ -82,6 +87,7 @@ services:
     volumes:
       - ./nginx-docker.conf:/etc/nginx/conf.d/default.conf:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ../paid_gallery:/app/paid_gallery:ro # Папка, откуда Nginx читает картинки
     env_file: .env
 
 volumes:
