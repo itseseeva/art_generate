@@ -75,15 +75,16 @@ function DockItem({
     }
   );
 
-  const targetSize = useTransform(mouseDistance, [-distance, 0, distance], [baseItemSize, magnification, baseItemSize]);
-  const size = useSpring(targetSize, spring);
+  const targetScale = useTransform(mouseDistance, [-distance, 0, distance], [1, magnification / baseItemSize, 1]);
+  const scale = useSpring(targetScale, spring);
 
   return (
     <motion.div
       ref={ref}
       style={{
-        width: size,
-        height: size
+        width: baseItemSize,
+        height: baseItemSize,
+        scale: scale
       }}
       onHoverStart={() => {
         isHovered.set(1);
@@ -109,10 +110,11 @@ function DockItem({
     >
       {Children.map(children, child =>
         React.isValidElement(child)
-          ? cloneElement(child as React.ReactElement<{ isHovered?: MotionValue<number>; isLocalHovered?: boolean; vertical?: boolean }>, { 
+          ? cloneElement(child as React.ReactElement<{ isHovered?: MotionValue<number>; isLocalHovered?: boolean; vertical?: boolean; itemClassName?: string }>, { 
               isHovered,
               isLocalHovered,
-              vertical
+              vertical,
+              itemClassName: className
             })
           : child
       )}
@@ -126,24 +128,37 @@ type DockLabelProps = {
   isHovered?: MotionValue<number>;
   isLocalHovered?: boolean;
   vertical?: boolean;
+  itemClassName?: string;
 };
 
-function DockLabel({ children, className = '', isHovered, isLocalHovered = false, vertical = false }: DockLabelProps) {
-  // Для горизонтального dock показываем tooltip при наведении
-  // Для вертикального dock лейблы всегда видимы
-  const isVisible = vertical ? true : isLocalHovered;
+function DockLabel({ children, className = '', isHovered, isLocalHovered = false, vertical = false, itemClassName = '' }: DockLabelProps) {
+  const isVisible = isLocalHovered === true;
+  const isCharactersButton = itemClassName?.includes('dock-item-characters');
+  const animationY = vertical && isCharactersButton ? -5 : (vertical ? 5 : 5);
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: isVisible ? 1 : 0 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.2 }}
-      className={`dock-label ${vertical ? 'dock-label-vertical' : ''} ${className}`}
-      role="tooltip"
-    >
-      {children}
-    </motion.div>
+    <AnimatePresence>
+      {isVisible && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8, y: animationY }}
+          animate={{ 
+            opacity: 1,
+            scale: 1,
+            y: 0
+          }}
+          exit={{ opacity: 0, scale: 0.8, y: animationY }}
+          transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+          className={`dock-label ${vertical ? 'dock-label-vertical' : ''} ${className}`}
+          role="tooltip"
+          style={{ 
+            pointerEvents: 'none',
+            color: '#ffffff'
+          }}
+        >
+          <span style={{ color: '#ffffff', display: 'inline-block' }}>{children}</span>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
@@ -214,7 +229,7 @@ export default function Dock({
             vertical={vertical}
           >
             <DockIcon>{item.icon}</DockIcon>
-            <DockLabel vertical={vertical}>{item.label}</DockLabel>
+            <DockLabel vertical={vertical} itemClassName={item.className}>{item.label}</DockLabel>
           </DockItem>
         ))}
       </motion.div>

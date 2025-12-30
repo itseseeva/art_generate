@@ -1595,12 +1595,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     let generationFailed = false;
 
     try {
-      // Переводим промпт на английский перед отправкой
-      const translatedPrompt = await translateToEnglish(trimmedPrompt);
-      
+      // Используем оригинальный промпт на русском языке
       const requestBody = {
-        prompt: translatedPrompt,
-        custom_prompt: translatedPrompt, // Передаем отредактированный промпт как custom_prompt
+        prompt: trimmedPrompt,
+        custom_prompt: trimmedPrompt, // Передаем отредактированный промпт как custom_prompt
         character: currentCharacter.name,
         use_default_prompts: false, // Используем промпт как есть, без добавления данных персонажа
         user_id: userInfo?.id,
@@ -1998,7 +1996,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
       // Включаем стриминг для всех запросов
       console.log('[STREAM] Отправка запроса с stream=true, targetLanguage:', targetLanguage);
-      const response = await fetch('${API_CONFIG.BASE_URL}/chat', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
         method: 'POST',
         headers,
         body: JSON.stringify({

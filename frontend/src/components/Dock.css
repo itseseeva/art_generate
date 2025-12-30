@@ -52,6 +52,7 @@
   box-shadow: none;
   cursor: pointer;
   outline: none;
+  overflow: visible;
 }
 
 .dock-item:focus {
@@ -103,10 +104,20 @@
 .dock-label-vertical {
   display: block;
   position: absolute;
-  top: 50%;
-  left: 100%;
-  transform: translateY(-50%);
-  margin-left: 0.5rem;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
   white-space: nowrap;
   pointer-events: none;
+  z-index: 10000;
+  color: #ffffff;
+  font-size: 0.585rem;
+  font-weight: 500;
+  text-align: center;
+  opacity: 1;
+}
+
+.dock-item-characters .dock-label-vertical {
+  bottom: auto;
+  top: calc(100% + 4px);
 }
