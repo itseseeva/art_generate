@@ -74,7 +74,7 @@ services:
       context: ..
       dockerfile: Docker_all/Dockerfile.frontend
       args:
-        - VITE_API_URL=https://cherrylust.art/api
+        - VITE_API_URL=
     container_name: art_generation_frontend
     restart: always
     networks:

@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { AuthModal } from './AuthModal';
 import { SuccessToast } from './SuccessToast';
 import SplitText from './SplitText';
+import { API_CONFIG } from '../config/api';
 
 const MainContainer = styled.div`
   width: 100vw;
@@ -525,7 +526,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
         return;
       }
 
-      const response = await fetch('http://localhost:8000/api/v1/auth/me/', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -562,7 +563,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       if (!token) return;
 
       console.log('[SHOP] Загрузка статистики подписки...');
-      const response = await fetch('http://localhost:8000/api/v1/profit/stats/', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/profit/stats/`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -587,7 +588,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     try {
       setIsLoadingPackages(true);
       console.log('[SHOP] Загрузка пакетов кредитов...');
-      const response = await fetch('http://localhost:8000/api/v1/subscription/credit-packages/');
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/subscription/credit-packages/`);
       console.log('[SHOP] Ответ сервера:', response.status, response.statusText);
       
       if (response.ok) {

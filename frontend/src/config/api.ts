@@ -1,6 +1,24 @@
 // API конфигурация для фронтенда
+// Используем переменную окружения VITE_API_URL, если она задана, иначе fallback на localhost
+const getApiBaseUrl = (): string => {
+  const viteApiUrl = import.meta.env.VITE_API_URL;
+  
+  // Если VITE_API_URL явно задан (даже пустая строка), используем его
+  if (viteApiUrl !== undefined) {
+    return viteApiUrl;
+  }
+  
+  // В production используем относительный путь (через nginx proxy)
+  if (import.meta.env.PROD) {
+    return ''; // Пустая строка означает относительный путь - nginx проксирует /api на бэкенд
+  }
+  
+  // В development используем localhost по умолчанию
+  return 'http://localhost:8000';
+};
+
 export const API_CONFIG = {
-  BASE_URL: 'http://localhost:8000',
+  BASE_URL: getApiBaseUrl(),
   
   // Аутентификация
   LOGIN: '/api/v1/auth/login/',

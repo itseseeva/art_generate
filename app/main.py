@@ -319,6 +319,11 @@ ALLOWED_ORIGINS: list[str] = [
     "http://127.0.0.1:5173",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    # Production домены
+    "http://cherrylust.art",
+    "https://cherrylust.art",
+    "http://www.cherrylust.art",
+    "https://www.cherrylust.art",
     # Добавляем FRONTEND_URL из настроек, если он задан
     *([settings.FRONTEND_URL] if settings.FRONTEND_URL and settings.FRONTEND_URL not in ["http://localhost:5175", "http://127.0.0.1:5175"] else []),
 ]
