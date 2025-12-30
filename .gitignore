@@ -305,3 +305,14 @@ venv/
 # Игнорируем картинки, если они там валяются
 *.png
 *.jpg
+
+# Исключаем папку frontend/public и всё её содержимое из игнорирования
+!frontend/public/
+!frontend/public/**
+!frontend/public/**/*.png
+!frontend/public/**/*.jpg
+!frontend/public/**/*.jpeg
+!frontend/public/**/*.gif
+!frontend/public/**/*.svg
+!frontend/public/**/*.webp
+!frontend/public/**/*.ico
