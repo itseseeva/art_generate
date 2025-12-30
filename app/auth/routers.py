@@ -39,7 +39,6 @@ from app.auth.dependencies import get_current_user
 from app.services.subscription_service import SubscriptionService
 from app.services.profit_activate import emit_profile_update
 import jwt
-import os
 import time
 import logging
 

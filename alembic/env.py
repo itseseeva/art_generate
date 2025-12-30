@@ -28,13 +28,18 @@ try:
     from app.database.db import Base
     from app.chat_bot.models.models import (
         CharacterDB, ChatMessageDB, FavoriteCharacter,
-        PaidAlbumPhoto, CharacterMainPhoto, TipMessage
+        PaidAlbumPhoto, CharacterMainPhoto, TipMessage,
+        PaidAlbumUnlock, ChatSession
     )
     from app.models.user import Users, RefreshToken, EmailVerificationCode
     from app.models.subscription import UserSubscription
     from app.models.payment_transaction import PaymentTransaction
     from app.models.image_generation_history import ImageGenerationHistory
     from app.models.balance_history import BalanceHistory
+    from app.models.user_gallery import UserGallery
+    from app.models.user_gallery_unlock import UserGalleryUnlock
+    from app.models.chat_history import ChatHistory
+    from app.models.character_comment import CharacterComment
     target_metadata = Base.metadata
 except Exception as e:
     # Avoid non-ASCII output to prevent Windows encoding issues
@@ -134,12 +139,42 @@ def run_migrations_online() -> None:
             poolclass=pool.NullPool,
         )
 
+    def process_revision_directives(context, revision, directives):
+        """
+        Обрабатывает директивы миграций после autogenerate.
+        Заменяет кастомные TypeDecorator типы на их impl типы через обработку текста миграции.
+        """
+        if directives and len(directives) == 1:
+            from sqlalchemy.types import TypeDecorator
+            
+            script = directives[0]
+            
+            def fix_typedecorator_in_col(col):
+                """Исправляет TypeDecorator в определении колонки."""
+                if hasattr(col, 'type') and isinstance(col.type, TypeDecorator):
+                    col.type = col.type.impl
+            
+            def fix_typedecorator_in_op(op):
+                """Исправляет TypeDecorator в операциях."""
+                # Для CreateTable операций
+                if hasattr(op, 'columns'):
+                    for col in op.columns:
+                        fix_typedecorator_in_col(col)
+                
+                # Для AlterColumn операций
+                if hasattr(op, 'modify_type') and isinstance(op.modify_type, TypeDecorator):
+                    op.modify_type = op.modify_type.impl
+            
+            if script.upgrade_ops:
+                for op in script.upgrade_ops.ops:
+                    fix_typedecorator_in_op(op)
+
     with connectable.connect() as connection:
         context.configure(
             connection=connection, 
             target_metadata=target_metadata,
             include_object=include_object,
-            render_item=render_item
+            process_revision_directives=process_revision_directives
         )
 
         with context.begin_transaction():

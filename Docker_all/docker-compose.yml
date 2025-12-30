@@ -61,7 +61,6 @@ services:
       - HTTP_PROXY=${GLOBAL_PROXY}
       - HTTPS_PROXY=${GLOBAL_PROXY}
       - VPS_IP=${VPS_IP}
-      - ADMIN_EMAIL=${ADMIN_EMAIL:-}
     volumes:
       - ../app:/app/app
       - ../alembic:/app/alembic
@@ -77,12 +76,8 @@ services:
       echo 'Запуск миграций Alembic...' &&
       alembic upgrade head &&
       echo 'Миграции успешно выполнены!' &&
-      if [ -n "${ADMIN_EMAIL}" ]; then
-        echo 'Инициализация администратора...' &&
-        python -m app.scripts.init_admin || echo 'Предупреждение: не удалось инициализировать администратора'
-      else
-        echo 'ADMIN_EMAIL не задан, пропускаем инициализацию администратора'
-      fi &&
+      echo 'Создание администратора...' &&
+      python -m app.scripts.init_admin || echo 'Предупреждение: не удалось создать администратора' &&
       echo 'Запуск приложения...' &&
       uvicorn app.main:app --host 0.0.0.0 --port 8000
       "

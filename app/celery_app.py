@@ -300,47 +300,12 @@ def purge_queues():
         logger.warning(f"[CELERY] Не удалось выполнить очистку очередей: {e}")
 
 
-def init_database_tables():
-    """
-    Инициализирует таблицы базы данных при запуске worker.
-    Необходимо для работы с БД в Celery worker.
-    """
-    try:
-        from app.database.db import engine, Base
-        import asyncio
-        
-        # Импортируем все модели, чтобы они были зарегистрированы в Base.metadata
-        from app.models.user import Users, RefreshToken, EmailVerificationCode
-        from app.models.subscription import UserSubscription
-        from app.models.chat_history import ChatHistory
-        from app.models.user_gallery import UserGallery
-        from app.models.user_gallery_unlock import UserGalleryUnlock
-        
-        # Создаем таблицы синхронно
-        async def create_tables():
-            async with engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
-        
-        # Запускаем создание таблиц
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(create_tables())
-            logger.warning("[CELERY] Таблицы БД инициализированы")
-        finally:
-            loop.close()
-            
-    except Exception as e:
-        logger.warning(f"[CELERY] Не удалось инициализировать таблицы БД: {e}")
-
-
 @worker_ready.connect
 def on_worker_ready(sender=None, **kwargs):
     """Вызывается при готовности worker к работе."""
     logger.warning("[CELERY] Worker готов к работе")
     
-    # Инициализируем таблицы БД
-    init_database_tables()
+    # Таблицы БД создаются через миграции Alembic в backend контейнере
     
     cleanup_old_celery_results()
     
