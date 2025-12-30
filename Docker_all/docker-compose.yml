@@ -12,17 +12,12 @@ services:
     networks:
       - art_net
     env_file: .env
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      # Используем переменные, чтобы healthcheck знал, кого ждать
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -55,73 +50,39 @@ services:
       - "8000:8000"
     env_file: .env
     environment:
-      # Явно передаем переменные внутрь, чтобы Python их видел
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
       - HTTP_PROXY=${GLOBAL_PROXY}
       - HTTPS_PROXY=${GLOBAL_PROXY}
-      - VPS_IP=${VPS_IP}
     volumes:
       - ../app:/app/app
       - ../alembic:/app/alembic
       - ../alembic.ini:/app/alembic.ini
     command: >
       sh -c "
-      echo 'Ожидание готовности PostgreSQL...' &&
-      until pg_isready -h art_generation_postgres -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-art_generate_db}; do
-        echo 'PostgreSQL недоступен, ждём...' &&
-        sleep 2
-      done &&
-      echo 'PostgreSQL готов!' &&
-      echo 'Запуск миграций Alembic...' &&
       alembic upgrade head &&
-      echo 'Миграции успешно выполнены!' &&
-      echo 'Создание администратора...' &&
-      python -m app.scripts.init_admin || echo 'Предупреждение: не удалось создать администратора' &&
-      echo 'Запуск приложения...' &&
+      python -m app.scripts.init_admin || true &&
       uvicorn app.main:app --host 0.0.0.0 --port 8000
       "
-
-  art_generation_celery_worker:
-    build:
-      context: ..
-      dockerfile: Docker_all/Dockerfile.backend
-    container_name: art_generation_celery_worker
-    restart: always
-    networks:
-      - art_net
-    entrypoint: []
-    command: celery -A app.celery_app worker --loglevel=info --pool=solo
-    depends_on:
-      art_generation_redis:
-        condition: service_healthy
-      art_generation_postgres:
-        condition: service_healthy
-    env_file: .env
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - CELERY_BROKER_URL=${REDIS_URL}
-      - CELERY_RESULT_BACKEND=${REDIS_URL}
-      - REDIS_URL=${REDIS_URL}
-      - HTTP_PROXY=${GLOBAL_PROXY}
-      - HTTPS_PROXY=${GLOBAL_PROXY}
-    volumes:
-      - ../app:/app/app
 
   art_generation_frontend:
     build:
       context: ..
       dockerfile: Docker_all/Dockerfile.frontend
       args:
-        - VITE_API_URL=http://${VPS_IP}:8000
+        - VITE_API_URL=https://cherrylust.art/api
     container_name: art_generation_frontend
     restart: always
     networks:
       - art_net
     ports:
       - "80:80"
+      - "443:443"
     depends_on:
       - art_generation_backend
+    volumes:
+      - ./nginx-docker.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     env_file: .env
 
 volumes:
