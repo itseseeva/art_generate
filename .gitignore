@@ -137,8 +137,6 @@ dmypy.json
 
 # FastAPI specific
 .pytest_cache/
-alembic/versions/*.py
-!alembic/versions/.gitkeep
 
 # Media files (generated images, audio, etc.)
 media/
