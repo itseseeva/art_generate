@@ -145,8 +145,8 @@ alembic/versions/*.py
 media/
 uploads/
 downloads/
-generated/
-samples/
+samples
+generated//
 thumbnails/
 
 # Images and photos (18+ content)
