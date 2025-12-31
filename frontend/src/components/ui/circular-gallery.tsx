@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { cn } from "@/lib/utils"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
 interface CircularGalleryItem {
@@ -175,7 +174,7 @@ export function CircularGallery({
   return (
     <div 
       ref={containerRef}
-      className={cn("relative w-full flex items-center justify-center", className)}
+      className={`relative w-full flex items-center justify-center${className ? ` ${className}` : ''}`}
     >
       <button
         onClick={() => rotateItems('left')}
