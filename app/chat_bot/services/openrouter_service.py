@@ -71,10 +71,12 @@ class OpenRouterService:
                 use_dns_cache=True,
                 keepalive_timeout=30
             )
+            # Используем trust_env=False, так как мы явно передаем proxy в каждый запрос
+            # Это гарантирует, что используется именно GLOBAL_PROXY, а не HTTP_PROXY/HTTPS_PROXY из окружения
             self._session = aiohttp.ClientSession(
                 timeout=timeout,
                 connector=connector,
-                trust_env=True  # Использует прокси из переменных окружения HTTP_PROXY/HTTPS_PROXY
+                trust_env=False  # Отключаем автоматическое использование HTTP_PROXY/HTTPS_PROXY, используем только GLOBAL_PROXY
             )
         return self._session
     
@@ -251,6 +253,10 @@ class OpenRouterService:
                     
                     return None
                     
+        except aiohttp.ClientProxyConnectionError as e:
+            logger.error(f"[OPENROUTER] Ошибка подключения к прокси: {e}")
+            logger.error(f"[OPENROUTER] Используемый прокси: {self.proxy}")
+            return "__CONNECTION_ERROR__"
         except aiohttp.ClientError as e:
             error_str = str(e).lower()
             # Проверяем, является ли это ошибкой подключения
@@ -432,6 +438,10 @@ class OpenRouterService:
                 
                 logger.info("[OPENROUTER STREAM] Поток завершен успешно")
                 
+        except aiohttp.ClientProxyConnectionError as e:
+            logger.error(f"[OPENROUTER STREAM] Ошибка подключения к прокси: {e}")
+            logger.error(f"[OPENROUTER STREAM] Используемый прокси: {self.proxy}")
+            yield json.dumps({"error": "__CONNECTION_ERROR__"})
         except aiohttp.ClientError as e:
             error_str = str(e).lower()
             if any(keyword in error_str for keyword in [

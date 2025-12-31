@@ -60,51 +60,58 @@ const MainContainer = styled.div`
 
 const MainContent = styled.div`
   flex: 1;
-  padding: 2rem;
-  overflow-y: auto;
+  display: flex;
+  height: calc(100vh - 80px);
+  maxHeight: calc(100vh - 80px);
+  overflow: hidden;
+  padding: ${theme.spacing.lg};
+  gap: ${theme.spacing.lg};
+  visibility: visible;
+  opacity: 1;
   width: 100%;
-  height: 100%;
-  position: relative;
-  z-index: 10;
-  color: #ffffff;
+  box-sizing: border-box;
 `;
 
 const LeftColumn = styled.div`
-  width: 100%;
-  min-height: calc(150vh - 80px);
-  background: linear-gradient(135deg, rgba(12, 12, 12, 0.95) 0%, rgba(20, 20, 20, 0.98) 100%);
-  border-radius: ${theme.borderRadius.xl};
-  padding: ${theme.spacing.lg};
-  border: 2px solid rgba(60, 60, 60, 0.9);
-  box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 0 0 1px rgba(0, 0, 0, 0.3);
+  flex: 1;
   display: flex;
-  flex-direction: column;
-  position: relative;
+  flexDirection: column;
+  minWidth: 300px;
+  height: 100%;
+  maxHeight: 100%;
+  visibility: visible;
+  opacity: 1;
+  padding: ${theme.spacing.lg};
+  background: linear-gradient(135deg, rgba(12, 12, 12, 0.95) 0%, rgba(20, 20, 20, 0.98) 100%);
+  border: 2px solid rgba(60, 60, 60, 0.9);
+  borderRadius: ${theme.borderRadius.xl};
   overflow: hidden;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(100, 100, 100, 0.3), transparent);
-    pointer-events: none;
-  }
+  boxSizing: border-box;
 `;
 
 
-const ThirdColumn = styled.div`
-  display: none; /* Скрываем третий столбец */
+const RightColumn = styled.div`
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border-radius: ${theme.borderRadius.lg};
+  padding: ${theme.spacing.md};
+  border: 1px solid rgba(130, 130, 130, 0.3);
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  visibility: visible;
+  opacity: 1;
 `;
 
 const Form = styled.form`
+  display: flex;
+  flex: 1;
   width: 100%;
-  height: 100%;
+  gap: ${theme.spacing.lg};
+  min-height: 0;
+  visibility: visible;
+  opacity: 1;
 `;
 
 const ColumnContent = styled.div`
@@ -523,12 +530,279 @@ const CoinsText = styled.span`
 `;
 
 const PhotoGenerationBox = styled.div`
-  background: transparent;
-  border: 1px solid rgba(150, 150, 150, 0.3);
-  border-radius: ${theme.borderRadius.lg};
-  padding: ${theme.spacing.lg};
+  background: rgba(30, 30, 30, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(120, 120, 120, 0.3);
+  border-radius: ${theme.borderRadius.xl};
+  padding: ${theme.spacing.xl};
   margin: ${theme.spacing.lg} 0;
   text-align: center;
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.5);
+`;
+
+const GenerateSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: ${theme.spacing.md};
+  margin-bottom: ${theme.spacing.lg};
+`;
+
+const GenerateButton = styled.button`
+  background: linear-gradient(135deg, rgba(50, 50, 50, 0.9), rgba(40, 40, 40, 0.9));
+  border: 1px solid rgba(120, 120, 120, 0.4);
+  color: ${theme.colors.text.primary};
+  padding: ${theme.spacing.md} ${theme.spacing.lg};
+  border-radius: ${theme.borderRadius.lg};
+  font-size: ${theme.fontSize.base};
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(200, 200, 200, 0.15), transparent);
+    transition: left 0.5s ease;
+  }
+
+  &:hover {
+    transform: translateY(-2px);
+    border-color: rgba(150, 150, 150, 0.5);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6);
+
+    &::before {
+      left: 100%;
+    }
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+`;
+
+const LargeTextLabel = styled.label`
+  display: block;
+  color: ${theme.colors.text.primary};
+  font-size: ${theme.fontSize.lg};
+  font-weight: 600;
+  margin-bottom: ${theme.spacing.md};
+`;
+
+const LargeTextInput = styled.textarea`
+  background: rgba(40, 40, 40, 0.6);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(120, 120, 120, 0.3);
+  border-radius: ${theme.borderRadius.lg};
+  padding: ${theme.spacing.lg};
+  color: ${theme.colors.text.primary};
+  font-size: ${theme.fontSize.base};
+  font-family: inherit;
+  resize: vertical;
+  flex: 1;
+  width: 100%;
+  min-height: 200px;
+  transition: all 0.3s ease;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+  
+  &::placeholder {
+    color: ${theme.colors.text.secondary};
+    opacity: 0.7;
+  }
+  
+  &:focus {
+    outline: none;
+    border-color: rgba(150, 150, 150, 0.5);
+    box-shadow: 0 0 0 2px rgba(120, 120, 120, 0.3), inset 0 2px 6px rgba(0, 0, 0, 0.4);
+  }
+`;
+
+const FullSizePhotoSlider = styled.div`
+  position: relative;
+  width: 100%;
+  background: rgba(30, 30, 30, 0.8);
+  border-radius: ${theme.borderRadius.xl};
+  border: 1px solid rgba(120, 120, 120, 0.3);
+  padding: ${theme.spacing.xl};
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: ${theme.spacing.md};
+  overflow: visible;
+`;
+
+const GeneratedPhotosHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: ${theme.spacing.md};
+`;
+
+const GeneratedPhotosTitle = styled.h3`
+  margin: 0;
+  font-size: ${theme.fontSize.lg};
+  font-weight: 700;
+  color: ${theme.colors.text.primary};
+`;
+
+const PhotosCounter = styled.div<{ $limitReached: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: ${theme.spacing.xs};
+  padding: ${theme.spacing.xs} ${theme.spacing.sm};
+  border-radius: ${theme.borderRadius.md};
+  font-size: ${theme.fontSize.sm};
+  font-weight: 600;
+  color: ${({ $limitReached }) =>
+    $limitReached ? 'rgba(180, 180, 180, 0.9)' : theme.colors.text.secondary};
+  background: rgba(40, 40, 40, 0.6);
+  border: 1px solid ${({ $limitReached }) =>
+    $limitReached ? 'rgba(150, 150, 150, 0.5)' : 'rgba(120, 120, 120, 0.3)'};
+`;
+
+const PhotoList = styled.div`
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
+  gap: ${theme.spacing.sm} !important;
+  margin-top: ${theme.spacing.md};
+  padding: ${theme.spacing.md};
+  visibility: visible !important;
+  opacity: 1 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  align-content: start !important;
+  grid-auto-rows: min-content !important;
+`;
+
+const PhotoTile = styled.div`
+  position: relative;
+  border-radius: ${theme.borderRadius.lg};
+  overflow: hidden;
+  border: 2px solid rgba(120, 120, 120, 0.3);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  background: rgba(30, 30, 30, 0.95);
+  transition: all 0.3s ease;
+  height: 300px;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  cursor: pointer;
+  z-index: 1;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: ${theme.colors.shadow.glow};
+    border-color: rgba(180, 180, 180, 0.5);
+    z-index: 10;
+  }
+`;
+
+const PhotoImage = styled.img`
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  background: #333;
+  cursor: pointer;
+  user-select: none;
+`;
+
+const PhotoOverlay = styled.div`
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: ${theme.spacing.sm};
+  display: flex !important;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: ${theme.spacing.xs};
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.9) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  height: 60px;
+  
+  ${PhotoTile}:hover & {
+    opacity: 1;
+    pointer-events: auto;
+  }
+`;
+
+const OverlayActions = styled.div`
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: ${theme.spacing.md};
+  width: 100%;
+  padding: ${theme.spacing.sm} 0;
+`;
+
+const OverlayButton = styled.button<{ $variant: 'primary' | 'danger' }>`
+  padding: ${theme.spacing.xs} ${theme.spacing.sm};
+  border-radius: ${theme.borderRadius.sm};
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-size: ${theme.fontSize.xs};
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: ${({ $variant }) =>
+    $variant === 'primary'
+      ? 'rgba(59, 130, 246, 0.9)'
+      : 'rgba(239, 68, 68, 0.9)'};
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+  min-width: 80px;
+
+  &:hover:not(:disabled) {
+    background: ${({ $variant }) =>
+      $variant === 'primary'
+        ? 'rgba(59, 130, 246, 1)'
+        : 'rgba(239, 68, 68, 1)'};
+    transform: scale(1.05);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const SliderDescription = styled.div`
+  margin-top: ${theme.spacing.lg};
+  padding: ${theme.spacing.lg};
+  background: rgba(40, 40, 40, 0.3);
+  border-radius: ${theme.borderRadius.lg};
+`;
+
+const DescriptionTitle = styled.h3`
+  color: ${theme.colors.text.primary};
+  font-size: ${theme.fontSize.lg};
+  margin: 0 0 ${theme.spacing.md} 0;
+`;
+
+const DescriptionText = styled.p`
+  color: ${theme.colors.text.secondary};
+  font-size: ${theme.fontSize.base};
+  margin: 0 0 ${theme.spacing.lg} 0;
+  line-height: 1.5;
 `;
 
 const PhotoGenerationBoxTitle = styled.h3`
@@ -602,36 +876,78 @@ const PhotoModal = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.9);
-  display: flex;
+  background: rgba(0, 0, 0, 0.95);
+  display: flex !important;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 10000;
   padding: ${theme.spacing.xl};
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  animation: fadeIn 0.2s ease;
+  
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
 `;
 
 const PhotoModalContent = styled.div`
   position: relative;
-  max-width: 90vw;
-  max-height: 90vh;
+  max-width: 95vw;
+  max-height: 95vh;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: ${theme.spacing.xl};
+  cursor: default;
+  flex-wrap: wrap;
+`;
+
+const ModalImageContainer = styled.div`
+  flex: 1;
+  min-width: 300px;
+  max-width: 60%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 `;
 
 const PhotoModalImage = styled.img`
-  width: 100%;
-  height: 100%;
+  max-width: 100%;
+  max-height: 90vh;
+  width: auto;
+  height: auto;
   object-fit: contain;
-  border-radius: ${theme.borderRadius.lg};
+  border-radius: ${theme.borderRadius.xl};
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
+  display: block !important;
+  visibility: visible !important;
 `;
 
 const PhotoModalClose = styled.button`
   position: absolute;
-  top: -40px;
-  right: 0;
-  background: rgba(255, 255, 255, 0.2);
-  border: none;
-  color: white;
+  top: ${theme.spacing.xl};
+  right: ${theme.spacing.xl};
+  background: rgba(0, 0, 0, 0.7);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: ${theme.colors.text.primary};
   font-size: ${theme.fontSize.xl};
-  width: 40px;
+  transition: ${theme.transition.fast};
+  z-index: 10001;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.9);
+    border-color: ${theme.colors.accent?.primary || 'rgba(255, 255, 255, 0.5)'};
+    transform: scale(1.1);
+  }
   height: 40px;
   border-radius: 50%;
   cursor: pointer;
@@ -699,12 +1015,6 @@ const SwiperButton = styled.button<{ direction: 'left' | 'right' }>`
     opacity: 0.5;
     cursor: not-allowed;
   }
-`;
-
-const FullSizePhotoSlider = styled.div`
-  position: relative;
-  width: 100%;
-  height: 700px; /* Высота для описания без превью */
 `;
 
 const SliderButton = styled.button<{ direction: 'left' | 'right' }>`
@@ -777,30 +1087,6 @@ const FullSizePhoto = styled.img`
     box-shadow: 0 0 20px rgba(150, 150, 150, 0.3);
     transform: scale(1.02);
   }
-`;
-
-const SliderDescription = styled.div`
-  position: absolute;
-  bottom: -100px;
-  left: 0;
-  right: 0;
-  padding: ${theme.spacing.md};
-`;
-
-const DescriptionTitle = styled.h3`
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.lg};
-  font-weight: 600;
-  margin: 0 0 ${theme.spacing.sm} 0;
-  text-align: center;
-`;
-
-const DescriptionText = styled.p`
-  color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.sm};
-  margin: 0 0 ${theme.spacing.sm} 0;
-  text-align: center;
-  line-height: 1.5;
 `;
 
 const SavePhotosButton = styled.button`
@@ -1031,122 +1317,6 @@ const PromptInput = styled.textarea`
   }
 `;
 
-const GenerateSection = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${theme.spacing.lg};
-  min-width: 180px;
-  align-items: center;
-`;
-
-const GenerateButton = styled.button`
-  background: linear-gradient(135deg, rgba(100, 100, 100, 0.1), rgba(80, 80, 80, 0.1));
-  backdrop-filter: blur(8px);
-  border: 2px solid;
-  border-image: linear-gradient(45deg, rgba(150, 150, 150, 1), rgba(100, 100, 100, 1)) 1;
-  color: ${theme.colors.text.primary};
-  padding: ${theme.spacing.md} ${theme.spacing.lg};
-  border-radius: ${theme.borderRadius.lg};
-  font-size: ${theme.fontSize.sm};
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 16px rgba(100, 100, 100, 0.2);
-  position: relative;
-  overflow: hidden;
-  min-width: 160px;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-    transition: left 0.5s ease;
-  }
-  
-  &:hover {
-    transform: translateY(-2px) scale(1.02);
-    box-shadow: 
-      0 8px 32px rgba(100, 100, 100, 0.3),
-      0 0 0 1px rgba(100, 100, 100, 0.3);
-    border-image: linear-gradient(45deg, rgba(150, 150, 150, 1), rgba(100, 100, 100, 1)) 1;
-    
-    &::before {
-      left: 100%;
-    }
-  }
-  
-  &:active {
-    transform: translateY(0) scale(0.98);
-  }
-  
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  }
-`;
-
-const LargeTextInputArea = styled.div`
-  background: rgba(22, 33, 62, 0.2);
-  backdrop-filter: blur(8px);
-  border-radius: ${theme.borderRadius.xl};
-  padding: ${theme.spacing.xl};
-  border: 1px solid rgba(150, 150, 150, 0.3);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-  margin-top: ${theme.spacing.xl};
-  flex: 1;
-  min-height: 300px;
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-`;
-
-const LargeTextInput = styled.textarea`
-  background: rgba(22, 33, 62, 0.3);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(150, 150, 150, 0.4);
-  border-radius: ${theme.borderRadius.lg};
-  padding: ${theme.spacing.lg};
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.base};
-  font-family: inherit;
-  resize: vertical;
-  flex: 1;
-  width: 100%;
-  min-height: 200px;
-  transition: all 0.3s ease;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
-  
-  &::placeholder {
-    color: ${theme.colors.text.secondary};
-    opacity: 0.7;
-  }
-  
-  &:focus {
-    outline: none;
-    border-color: rgba(150, 150, 150, 1);
-    box-shadow: 
-      inset 0 2px 4px rgba(0, 0, 0, 0.1),
-      0 0 0 2px rgba(150, 150, 150, 0.2);
-  }
-`;
-
-const LargeTextLabel = styled.label`
-  display: block;
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.lg};
-  font-weight: 600;
-  margin-bottom: ${theme.spacing.md};
-  background: linear-gradient(135deg, rgba(150, 150, 150, 1), rgba(100, 100, 100, 1));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-`;
 
 const PhotoCard = styled.div<{ isSelected?: boolean }>`
   position: relative;
@@ -1187,15 +1357,6 @@ const PhotoCard = styled.div<{ isSelected?: boolean }>`
       opacity: 1;
     }
   }
-`;
-
-const PhotoImage = styled.img`
-  width: 100%;
-  height: 200px;
-  object-fit: cover;
-  border-radius: ${theme.borderRadius.lg};
-  margin-bottom: ${theme.spacing.md};
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 `;
 
 const PhotoActions = styled.div`
@@ -1265,6 +1426,8 @@ interface CreateCharacterPageProps {
   contentMode?: 'safe' | 'nsfw';
 }
 
+const MAX_MAIN_PHOTOS = 3;
+
 export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   onBackToMain,
   onShop,
@@ -1298,10 +1461,15 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [isCharacterCreated, setIsCharacterCreated] = useState(false); // Новое состояние
   const [selectedPhotoForView, setSelectedPhotoForView] = useState<any>(null); // Для модального окна просмотра фото
   const [swiperTranslateX, setSwiperTranslateX] = useState(0); // Для swiper
-  const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]); // Выбранные фото для карточки
+  const [selectedPhotos, setSelectedPhotos] = useState<any[]>([]); // Выбранные фото для карточки
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authCheckComplete, setAuthCheckComplete] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime'>('anime-realism');
+  const [fakeProgress, setFakeProgress] = useState(0);
+  const [generationProgress, setGenerationProgress] = useState<number | undefined>(undefined);
+  const fakeProgressIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const fakeProgressTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Валидация имени персонажа
   const validateCharacterName = (name: string): string | null => {
@@ -1391,6 +1559,17 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     };
     
     initPage();
+
+    return () => {
+      if (fakeProgressIntervalRef.current) {
+        clearInterval(fakeProgressIntervalRef.current);
+        fakeProgressIntervalRef.current = null;
+      }
+      if (fakeProgressTimeoutRef.current) {
+        clearTimeout(fakeProgressTimeoutRef.current);
+        fakeProgressTimeoutRef.current = null;
+      }
+    };
   }, []);
 
   // Показываем модалку ТОЛЬКО один раз после проверки
@@ -1599,28 +1778,103 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   };
 
   // Генерация фото
-  const togglePhotoSelection = (photoId: string) => {
+  const startFakeProgress = React.useCallback(() => {
+    if (fakeProgressIntervalRef.current) {
+      clearInterval(fakeProgressIntervalRef.current);
+      fakeProgressIntervalRef.current = null;
+    }
+    if (fakeProgressTimeoutRef.current) {
+      clearTimeout(fakeProgressTimeoutRef.current);
+      fakeProgressTimeoutRef.current = null;
+    }
+    setFakeProgress(0);
+    
+    const duration = 30000;
+    const interval = 300;
+    const steps = duration / interval;
+    const increment = 99 / steps;
+    
+    let currentProgress = 0;
+    fakeProgressIntervalRef.current = setInterval(() => {
+      currentProgress += increment;
+      if (currentProgress >= 99) {
+        currentProgress = 99;
+      }
+      setFakeProgress(Math.min(99, Math.round(currentProgress)));
+    }, interval);
+  }, []);
+
+  const stopFakeProgress = React.useCallback((immediate: boolean) => {
+    if (fakeProgressIntervalRef.current) {
+      clearInterval(fakeProgressIntervalRef.current);
+      fakeProgressIntervalRef.current = null;
+    }
+    if (fakeProgressTimeoutRef.current) {
+      clearTimeout(fakeProgressTimeoutRef.current);
+      fakeProgressTimeoutRef.current = null;
+    }
+    if (immediate) {
+      setFakeProgress(0);
+      return;
+    }
+    setFakeProgress(100);
+    fakeProgressTimeoutRef.current = setTimeout(() => {
+      setFakeProgress(0);
+      fakeProgressTimeoutRef.current = null;
+    }, 500);
+  }, []);
+
+  const togglePhotoSelection = async (photoId: string) => {
+    const targetPhoto = generatedPhotos.find(photo => photo.id === photoId);
+    if (!targetPhoto) return;
+    
+    const alreadySelected = targetPhoto.isSelected;
+    
+    if (!alreadySelected) {
+      if (selectedPhotos.length >= MAX_MAIN_PHOTOS) {
+        setError(`Можно выбрать до ${MAX_MAIN_PHOTOS} фото`);
+        return;
+      }
+    }
+
     setGeneratedPhotos(prev => 
       prev.map(photo => 
         photo.id === photoId 
-          ? { ...photo, isSelected: !photo.isSelected }
+          ? { ...photo, isSelected: !alreadySelected }
           : photo
       )
     );
     
-    // Обновляем список выбранных фото
     setSelectedPhotos(prev => {
-      if (prev.includes(photoId)) {
-        return prev.filter(id => id !== photoId);
+      if (alreadySelected) {
+        return prev.filter(p => p.id !== photoId);
       } else {
-        // Ограничиваем до 3 фото
-        if (prev.length >= 3) {
-          return prev;
-        }
-        return [...prev, photoId];
+        return [...prev, { id: targetPhoto.id, url: targetPhoto.url }];
       }
     });
   };
+
+  const handleAddPhoto = async (photoId: string) => {
+    const targetPhoto = generatedPhotos.find(photo => photo.id === photoId);
+    if (!targetPhoto || targetPhoto.isSelected) {
+      return;
+    }
+    if (selectedPhotos.length >= MAX_MAIN_PHOTOS) {
+      setError(`Можно выбрать до ${MAX_MAIN_PHOTOS} фото`);
+      return;
+    }
+    await togglePhotoSelection(photoId);
+  };
+
+  const handleRemovePhoto = async (photoId: string) => {
+    const targetPhoto = generatedPhotos.find(photo => photo.id === photoId);
+    if (!targetPhoto || !targetPhoto.isSelected) {
+      return;
+    }
+    await togglePhotoSelection(photoId);
+  };
+
+  const isLimitReached = selectedPhotos.length >= MAX_MAIN_PHOTOS;
 
   // Сохранение выбранных фото
   const saveSelectedPhotos = async () => {
@@ -1710,6 +1964,8 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
     setIsGeneratingPhoto(true);
     setError(null);
+    setGenerationProgress(0);
+    startFakeProgress();
 
     try {
       const token = localStorage.getItem('authToken');
@@ -1717,34 +1973,39 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
       // Используем кастомный промпт или дефолтный
       let prompt = customPrompt.trim();
-      if (!prompt && createdCharacterData) {
-        const parts = [createdCharacterData.character_appearance, createdCharacterData.location].filter(p => p && p.trim());
+      if (!prompt) {
+        const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
         prompt = parts.length > 0 ? parts.join(' | ') : '';
       }
 
-      // Используем настройки из API, как в chat.html
-      console.log('Generation settings:', generationSettings);
-      console.log('Using steps:', generationSettings?.steps || 20);
-      console.log('Using cfg_scale:', generationSettings?.cfg_scale || 4);
-      
-      const requestBody: any = {
-        character: createdCharacterData?.name || 'character',
-        prompt: prompt,
-        negative_prompt: generationSettings?.negative_prompt || 'blurry, low quality, distorted, bad anatomy',
-        width: generationSettings?.width || 512,
-        height: generationSettings?.height || 512,
+      if (!prompt) {
+        throw new Error('Заполните поля "Внешность" и "Локация" или введите промпт вручную');
+      }
+
+      // Переводим промпт на английский перед отправкой
+      prompt = await translateToEnglish(prompt);
+
+      const effectiveSettings = {
         steps: generationSettings?.steps || 20,
+        width: generationSettings?.width || 768,
+        height: generationSettings?.height || 1344,
         cfg_scale: generationSettings?.cfg_scale || 4,
-        use_default_prompts: false,
-        model: 'anime-realism'  // Дефолтная модель для CreateCharacterPage
+        sampler_name: generationSettings?.sampler_name,
+        negative_prompt: generationSettings?.negative_prompt || 'blurry, low quality, distorted, bad anatomy'
       };
       
-      console.log('Request body:', requestBody);
-      
-      // Добавляем user_id если пользователь авторизован
-      if (token && userInfo) {
-        requestBody.user_id = userInfo.id;
-      }
+      const requestBody: any = {
+        character: createdCharacterData?.name || formData.name || 'character',
+        prompt: prompt,
+        negative_prompt: effectiveSettings.negative_prompt,
+        width: effectiveSettings.width,
+        height: effectiveSettings.height,
+        steps: effectiveSettings.steps,
+        cfg_scale: effectiveSettings.cfg_scale,
+        use_default_prompts: false,
+        model: selectedModel,
+        user_id: userInfo.id
+      };
 
       const response = await fetch('/api/v1/generate-image/', {
         method: 'POST',
@@ -1761,27 +2022,68 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       }
 
       const result = await response.json();
-      console.log('API Response:', result);
-      console.log('Image URL:', result.image_url);
-      console.log('Image filename:', result.filename);
       
-      // Проверяем URL изображения
-      if (!result.image_url) {
-        throw new Error('URL изображения не получен от сервера');
+      let imageUrl: string | undefined;
+      let imageId: string | undefined;
+      
+      if (result.task_id) {
+        // Асинхронная генерация - ждем завершения
+        const maxAttempts = 120;
+        const delay = 2000;
+        let attempts = 0;
+        
+        while (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, delay));
+          attempts++;
+          
+          try {
+            const statusResponse = await fetch(`/api/v1/generation-status/${result.task_id}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            if (statusResponse.ok) {
+              const statusData = await statusResponse.json();
+              
+              if (statusData.status === 'generating' && statusData.result?.progress !== undefined) {
+                const progress = typeof statusData.result.progress === 'number'
+                  ? statusData.result.progress
+                  : parseInt(String(statusData.result.progress).replace('%', ''), 10);
+                setGenerationProgress(Math.min(99, Math.max(0, progress)));
+              }
+              
+              if (statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED') {
+                imageUrl = statusData.result?.image_url || statusData.result?.cloud_url || statusData.image_url || statusData.cloud_url;
+                const filename = statusData.result?.filename || statusData.filename || Date.now().toString();
+                imageId = filename.replace('.png', '').replace('.jpg', '');
+                break;
+              }
+              
+              if (statusData.status === 'FAILED' || statusData.status === 'ERROR') {
+                throw new Error(statusData.error || 'Генерация завершилась с ошибкой');
+              }
+            }
+          } catch (statusError) {
+            console.error('Error checking status:', statusError);
+          }
+        }
+        
+        if (!imageUrl) {
+          throw new Error('Превышено время ожидания генерации');
+        }
+      } else {
+        imageUrl = result.cloud_url || result.image_url;
+        if (!imageUrl) {
+          throw new Error('URL изображения не получен от сервера');
+        }
+        const filename = result.filename || Date.now().toString();
+        imageId = filename.replace('.png', '').replace('.jpg', '');
       }
       
-      // Добавляем новое фото в список
-      const filename = result.filename || Date.now().toString();
-      const photoId = filename.replace('.png', '').replace('.jpg', ''); // Убираем расширение
-      
       const newPhoto = {
-        id: photoId,
-        url: result.image_url,
+        id: imageId || Date.now().toString(),
+        url: imageUrl,
         isSelected: false
       };
-      
-      console.log('New photo object:', newPhoto);
-      console.log('Photo URL for display:', newPhoto.url);
       
       // КРИТИЧЕСКИ ВАЖНО: Добавляем фото в галерею пользователя
       try {
@@ -1793,7 +2095,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
               'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({
-              image_url: result.image_url,
+              image_url: imageUrl,
               character_name: formData.name || null
             })
           });
@@ -1806,19 +2108,17 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         console.warn('[CreateCharacterPage] Не удалось добавить фото в галерею:', galleryError);
       }
       
-              setGeneratedPhotos(prev => [...prev, newPhoto]);
-              setSuccess('Фото успешно сгенерировано!');
-              
-              // Сбрасываем позицию swiper если добавили второе фото
-              if (generatedPhotos.length === 1) {
-                setSwiperTranslateX(0);
-              }
+      setGeneratedPhotos(prev => [...prev, newPhoto]);
+      setSuccess('Фото успешно сгенерировано!');
+      stopFakeProgress(false);
+      setGenerationProgress(100);
       
       // Обновляем информацию о пользователе
       await checkAuth();
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка генерации фото');
+      stopFakeProgress(true);
     } finally {
       setIsGeneratingPhoto(false);
     }
@@ -1853,10 +2153,41 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   
   return (
     <MainContainer>
-        <MainContent style={{ background: 'rgba(20, 20, 30, 0.9)', minHeight: '100vh' }}>
+        <MainContent>
           <Form onSubmit={isCharacterCreated ? handleEditCharacter : handleSubmit}>
-            <LeftColumn>
-              <ColumnContent>
+            <LeftColumn style={{ 
+              flex: 1, 
+              display: 'flex', 
+              flexDirection: 'column', 
+              minWidth: '300px',
+              height: '100%',
+              maxHeight: '100%',
+              visibility: 'visible', 
+              opacity: 1,
+              padding: theme.spacing.lg,
+              background: 'linear-gradient(135deg, rgba(12, 12, 12, 0.95) 0%, rgba(20, 20, 20, 0.98) 100%)',
+              border: '2px solid rgba(60, 60, 60, 0.9)',
+              borderRadius: theme.borderRadius.xl,
+              overflow: 'hidden',
+              boxSizing: 'border-box'
+            }}>
+              <ColumnContent style={{ 
+                flex: 1, 
+                display: 'flex', 
+                flexDirection: 'column', 
+                visibility: 'visible', 
+                opacity: 1,
+                padding: theme.spacing.sm,
+                height: '100%',
+                overflowY: 'auto',
+                overflowX: 'hidden',
+                position: 'relative',
+                zIndex: 10,
+                boxSizing: 'border-box',
+                width: '100%',
+                maxWidth: '100%',
+                gap: theme.spacing.md
+              }}>
                 <FormGroup>
                 <Label htmlFor="name" data-icon="👤">Имя персонажа:</Label>
                 <Input
@@ -1890,7 +2221,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
                   name="personality"
                   value={formData.personality}
                   onChange={handleInputChange}
-                  placeholder="Опишите характер и личность персонажа..."
+                  placeholder="Опишите характер персонажа: какие у него черты личности? Например: она строгая и целеустремленная, но в то же время добрая к близким. Или: он веселый и общительный, всегда готов поддержать разговор. Опишите внешность: цвет глаз, волос, рост, телосложение. Укажите основные черты характера, что мотивирует персонажа, какие у него ценности и принципы."
                   rows={4}
                   required
                 />
@@ -1903,7 +2234,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
                   name="situation"
                   value={formData.situation}
                   onChange={handleInputChange}
-                  placeholder="Опишите ситуацию, в которой находится персонаж..."
+                  placeholder="Опишите ситуацию, в которой находится персонаж. Где он живет? Что происходит в его мире? Например: она работает в престижной компании в большом городе, живет одна в современной квартире. Или: он студент университета, живет в общежитии с друзьями, часто посещает кафе и библиотеки. Опишите окружение персонажа, его повседневную жизнь и текущие обстоятельства."
                   rows={3}
                   required
                 />
@@ -1916,7 +2247,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
                   name="instructions"
                   value={formData.instructions}
                   onChange={handleInputChange}
-                  placeholder="Как должен вести себя персонаж, что говорить..."
+                  placeholder="Как должен вести себя персонаж в разговоре? Какие правила соблюдать? Например: отвечай на вопросы естественно и дружелюбно, используй эмодзи для выражения эмоций. Или: персонаж должен быть профессиональным в деловых вопросах, но расслабленным в личных темах. Опишите стиль общения, манеру речи, как персонаж реагирует на разные ситуации. Укажите, что можно говорить, а чего следует избегать."
                   rows={4}
                   required
                 />
@@ -1941,7 +2272,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
                   name="appearance"
                   value={formData.appearance}
                   onChange={handleInputChange}
-                  placeholder="Опишите внешность персонажа для генерации фото..."
+                  placeholder="Опишите внешность персонажа для генерации фото: цвет волос (например: длинные темные волосы), цвет глаз (например: карие), рост и телосложение (например: среднего роста, стройная), стиль одежды (например: деловой костюм или casual одежда), отличительные особенности (например: очки, татуировки, аксессуары). Чем подробнее описание, тем точнее будет результат генерации."
                   rows={3}
                 />
               </FormGroup>
@@ -1953,7 +2284,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
                   name="location"
                   value={formData.location}
                   onChange={handleInputChange}
-                  placeholder="Опишите локацию персонажа для генерации фото..."
+                  placeholder="Опишите локацию для генерации фото: где находится персонаж? Например: современный офис с большими окнами, уютное кафе с мягким освещением, парк в солнечный день, квартира с современным интерьером, библиотека с высокими стеллажами. Опишите атмосферу, освещение, детали окружения. Это поможет создать более реалистичные и атмосферные фотографии."
                   rows={3}
                 />
               </FormGroup>
@@ -1983,19 +2314,235 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
               </ButtonGroup>
               </ColumnContent>
             </LeftColumn>
+
+            <RightColumn style={{ 
+              flex: 1, 
+              display: 'flex', 
+              flexDirection: 'column', 
+              minWidth: '300px',
+              height: '100%',
+              maxHeight: '100%',
+              visibility: 'visible', 
+              opacity: 1,
+              padding: theme.spacing.md,
+              background: 'rgba(30, 30, 30, 0.2)',
+              border: '1px solid rgba(130, 130, 130, 0.3)',
+              borderRadius: theme.borderRadius.lg,
+              overflow: 'visible',
+              boxSizing: 'border-box'
+            }}>
+              <ColumnContent style={{ 
+                flex: 1, 
+                display: 'flex', 
+                flexDirection: 'column', 
+                visibility: 'visible', 
+                opacity: 1,
+                padding: theme.spacing.md,
+                minHeight: '100%',
+                height: 'auto',
+                overflowY: 'auto',
+                overflowX: 'hidden',
+                position: 'relative',
+                zIndex: 10,
+                boxSizing: 'border-box',
+                width: '100%',
+                maxWidth: '100%',
+                justifyContent: 'space-between'
+              }}>
+                <div style={{ flex: '0 0 auto' }}>
+                  <PhotoGenerationBox>
+                    <PhotoGenerationBoxTitle>Генерация фото персонажа</PhotoGenerationBoxTitle>
+                    <PhotoGenerationDescription>
+                      Сгенерируйте до 3 фотографий для вашего персонажа (30 монет за каждое фото). После создания персонажа вы сможете выбрать до 3 фотографий для главной карточки.
+                    </PhotoGenerationDescription>
+                    
+                    <GenerateSection>
+                      <GenerateButton 
+                        onClick={generatePhoto}
+                        disabled={isGeneratingPhoto || !userInfo || userInfo.coins < 30 || !formData.name.trim()}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        {isGeneratingPhoto ? (
+                          <CircularProgress 
+                            progress={generationProgress !== undefined ? generationProgress : (fakeProgress || 0)} 
+                            size={48}
+                            showLabel={true}
+                          />
+                        ) : (
+                          'Сгенерировать фото (30 монет)'
+                        )}
+                      </GenerateButton>
+                    </GenerateSection>
+
+                    <div style={{ marginBottom: '1rem' }}>
+                      <label style={{ 
+                        display: 'block', 
+                        marginBottom: '0.5rem', 
+                        color: 'rgba(240, 240, 240, 1)', 
+                        fontSize: '0.875rem',
+                        fontWeight: 600
+                      }}>
+                        Модель генерации:
+                      </label>
+                      <select
+                        value={selectedModel}
+                        onChange={(e) => setSelectedModel(e.target.value as 'anime-realism' | 'anime')}
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem',
+                          background: 'rgba(30, 30, 30, 0.8)',
+                          border: '1px solid rgba(150, 150, 150, 0.3)',
+                          borderRadius: '0.5rem',
+                          color: '#fff',
+                          fontSize: '0.875rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <option value="anime-realism">Больше реализма</option>
+                        <option value="anime">Больше аниме</option>
+                      </select>
+                    </div>
+
+                    <LargeTextLabel htmlFor="photo-prompt-unified">
+                      Промпт для генерации фото:
+                    </LargeTextLabel>
+                    <LargeTextInput
+                      id="photo-prompt-unified"
+                      value={customPrompt}
+                      onChange={(e) => setCustomPrompt(e.target.value)}
+                      placeholder={(() => {
+                        const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
+                        return parts.length > 0 ? parts.join(' | ') : 'Опишите внешность персонажа и локацию для генерации фото...';
+                      })()}
+                    />
+                  </PhotoGenerationBox>
+                </div>
+
+                {/* Область для отображения сгенерированных фото - внизу контейнера */}
+                {generatedPhotos && Array.isArray(generatedPhotos) && generatedPhotos.length > 0 && (
+                  <div style={{ flex: '1 1 auto', marginTop: 'auto', paddingTop: theme.spacing.md }}>
+                    <FullSizePhotoSlider style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', margin: '1rem 0' }}>
+                      <GeneratedPhotosHeader>
+                        <GeneratedPhotosTitle>Сгенерированные фото ({generatedPhotos.length})</GeneratedPhotosTitle>
+                        <PhotosCounter $limitReached={isLimitReached}>
+                          {selectedPhotos?.length || 0} из {MAX_MAIN_PHOTOS}
+                        </PhotosCounter>
+                      </GeneratedPhotosHeader>
+
+                      <PhotoList>
+                        {generatedPhotos.map((photo, index) => {
+                          if (!photo || !photo.url) {
+                            return null;
+                          }
+                          
+                          const isSelected = Boolean(photo?.isSelected);
+
+                          return (
+                            <PhotoTile key={photo?.id || `photo-${index}`}>
+                              <PhotoImage
+                                src={photo.url}
+                                alt={`Photo ${index + 1}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (photo) {
+                                    openPhotoModal(photo);
+                                  }
+                                }}
+                              />
+                              <PhotoOverlay>
+                                <OverlayActions>
+                                  <OverlayButton
+                                    $variant="primary"
+                                    disabled={isSelected || isLimitReached}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (photo?.id) {
+                                        handleAddPhoto(photo.id);
+                                      }
+                                    }}
+                                  >
+                                    Добавить
+                                  </OverlayButton>
+                                  <OverlayButton
+                                    $variant="danger"
+                                    disabled={!isSelected}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (photo?.id) {
+                                        handleRemovePhoto(photo.id);
+                                      }
+                                    }}
+                                  >
+                                    Удалить
+                                  </OverlayButton>
+                                </OverlayActions>
+                              </PhotoOverlay>
+                            </PhotoTile>
+                          );
+                        }).filter(Boolean)}
+                      </PhotoList>
+
+                      <SliderDescription>
+                        <DescriptionTitle>Выбор главных фото</DescriptionTitle>
+                        <DescriptionText>
+                          Можно добавить максимум {MAX_MAIN_PHOTOS} фотографий. Используйте кнопки «Добавить»
+                          и «Удалить», чтобы управлять карточкой персонажа.
+                        </DescriptionText>
+                      </SliderDescription>
+                    </FullSizePhotoSlider>
+                  </div>
+                )}
+
+                {(!generatedPhotos || generatedPhotos.length === 0) && (
+                  <PhotoGenerationPlaceholder>
+                    Фотографии будут здесь
+                    <div style={{ marginTop: theme.spacing.sm, fontSize: theme.fontSize.sm, color: theme.colors.text.muted }}>
+                      Сгенерируйте фото для персонажа или добавьте существующие
+                    </div>
+                  </PhotoGenerationPlaceholder>
+                )}
+              </ColumnContent>
+            </RightColumn>
           </Form>
         </MainContent>
       
       {/* Модальное окно для просмотра фото в полный размер */}
       {selectedPhotoForView && (
-        <PhotoModal onClick={closePhotoModal}>
-          <PhotoModalContent onClick={(e) => e.stopPropagation()}>
-            <PhotoModalClose onClick={closePhotoModal}>×</PhotoModalClose>
-            <PhotoModalImage 
-              src={selectedPhotoForView.url} 
-              alt="Generated photo full size"
-              onLoad={() => console.log('Modal image loaded:', selectedPhotoForView.url)}
-            />
+        <PhotoModal 
+          onClick={(e) => {
+            console.log('[MODAL] Click on PhotoModal background');
+            closePhotoModal();
+          }}
+        >
+          <PhotoModalContent 
+            onClick={(e) => {
+              console.log('[MODAL] Click on PhotoModalContent - stopping propagation');
+              e.stopPropagation();
+            }}
+          >
+            <PhotoModalClose 
+              onClick={(e) => {
+                console.log('[MODAL] Click on close button');
+                e.stopPropagation();
+                closePhotoModal();
+              }}
+            >
+              <CloseIcon />
+            </PhotoModalClose>
+            <ModalImageContainer>
+              <PhotoModalImage 
+                src={selectedPhotoForView.url} 
+                alt="Generated photo full size"
+                onLoad={() => console.log('Modal image loaded:', selectedPhotoForView.url)}
+                onError={(e) => {
+                  console.error('[CREATE_CHAR] Ошибка загрузки изображения:', selectedPhotoForView?.url);
+                }}
+              />
+            </ModalImageContainer>
           </PhotoModalContent>
         </PhotoModal>
       )}
