@@ -649,7 +649,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           return;
         }
 
-        const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/profit/stats/', {
+        const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/profit/stats/`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }

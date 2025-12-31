@@ -40,6 +40,7 @@ try:
     from app.models.user_gallery_unlock import UserGalleryUnlock
     from app.models.chat_history import ChatHistory
     from app.models.character_comment import CharacterComment
+    from app.models.bug_report import BugReport, BugComment
     target_metadata = Base.metadata
 except Exception as e:
     # Avoid non-ASCII output to prevent Windows encoding issues

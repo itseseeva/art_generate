@@ -67,7 +67,13 @@
   opacity: 1 !important;
 }
 
-.left-dock-panel .dock-item-characters .dock-label-vertical {
+/* Текст снизу для конкретных кнопок */
+.left-dock-panel .dock-item-profile .dock-label-vertical,
+.left-dock-panel .dock-item-shop .dock-label-vertical,
+.left-dock-panel .dock-item-balance .dock-label-vertical,
+.left-dock-panel .dock-item-messages .dock-label-vertical,
+.left-dock-panel .dock-item-logout .dock-label-vertical,
+.left-dock-panel .dock-item-bug .dock-label-vertical {
   bottom: auto !important;
   top: calc(100% + 8px) !important;
 }

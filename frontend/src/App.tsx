@@ -19,6 +19,7 @@ import { EditCharacterPage } from './components/EditCharacterPage';
 import { FavoritesPage } from './components/FavoritesPage';
 import { BalanceHistoryPage } from './components/BalanceHistoryPage';
 import { CharacterCommentsPage } from './components/CharacterCommentsPage';
+import { BugReportPage } from './components/BugReportPage';
 import { LeftDockSidebar } from './components/LeftDockSidebar';
 import { AuthModal } from './components/AuthModal';
 import { AgeVerificationModal } from './components/AgeVerificationModal';
@@ -69,7 +70,8 @@ type PageType =
   | 'legal'
   | 'about'
   | 'tariffs'
-  | 'how-it-works';
+  | 'how-it-works'
+  | 'bug-report';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<PageType>('main');
@@ -196,6 +198,9 @@ function App() {
     } else if (path.includes('/how-it-works')) {
       setCurrentPage('how-it-works');
       window.history.replaceState({ page: 'how-it-works' }, '', path);
+    } else if (path.includes('/bug-report')) {
+      setCurrentPage('bug-report');
+      window.history.replaceState({ page: 'bug-report' }, '', path);
     } else if (path.includes('/history')) {
       setCurrentPage('history');
       window.history.replaceState({ page: 'history' }, '', path);
@@ -230,7 +235,11 @@ function App() {
       window.history.replaceState({ page: 'edit-characters' }, '', path);
     } else if (path.includes('/shop')) {
       setCurrentPage('shop');
-      window.history.replaceState({ page: 'shop' }, '', path);
+      // Всегда устанавливаем состояние shop при загрузке страницы
+      const currentState = window.history.state;
+      if (!currentState || currentState.page !== 'shop') {
+        window.history.replaceState({ page: 'shop' }, '', path);
+      }
       
       // Проверяем, вернулись ли мы с оплаты
       const urlParams = new URLSearchParams(window.location.search);
@@ -352,9 +361,17 @@ function App() {
           }
         }
       } else {
-        // Если нет состояния, возвращаемся на главную
-        setCurrentPage('main');
-        setSelectedCharacter(null);
+        // Если нет состояния, проверяем текущий путь
+        const path = window.location.pathname;
+        if (path.includes('/shop')) {
+          // Если мы на /shop, восстанавливаем состояние shop
+          setCurrentPage('shop');
+          window.history.replaceState({ page: 'shop' }, '', '/shop');
+        } else {
+          // Иначе возвращаемся на главную
+          setCurrentPage('main');
+          setSelectedCharacter(null);
+        }
       }
     };
 
@@ -600,6 +617,11 @@ function App() {
     window.history.pushState({ page: 'balance-history' }, '', '/balance-history');
   };
 
+  const handleBugReport = () => {
+    setCurrentPage('bug-report');
+    window.history.pushState({ page: 'bug-report' }, '', '/bug-report');
+  };
+
   const handlePaymentMethod = (subscriptionType: string) => {
     // Этот метод больше не используется, так как кнопки оплаты теперь на странице магазина
   };
@@ -676,6 +698,20 @@ function App() {
             onBackToMain={handleBackToMain}
             onShop={handleShop}
             onMyCharacters={handleMyCharacters}
+            onOpenPaidAlbumBuilder={(character) => {
+              setSelectedCharacter(character);
+              setCurrentPage('paid-album-builder');
+              if (character?.id) {
+                localStorage.setItem(`character_${character.id}`, JSON.stringify(character));
+                window.history.pushState({ page: 'paid-album-builder', character: character.id }, '', `/paid-album-builder?character=${character.id}`);
+              } else if (character?.name) {
+                localStorage.setItem(`character_${character.name}`, JSON.stringify(character));
+                window.history.pushState({ page: 'paid-album-builder', character: character.name }, '', `/paid-album-builder?character=${encodeURIComponent(character.name)}`);
+              } else {
+                window.history.pushState({ page: 'paid-album-builder' }, '', '/paid-album-builder');
+              }
+            }}
+            onOpenChat={handleCharacterSelect}
             onPhotoGeneration={handlePhotoGeneration}
             contentMode={contentMode}
           />
@@ -926,6 +962,8 @@ function App() {
         return <TariffsPage />;
       case 'how-it-works':
         return <HowItWorksPage />;
+      case 'bug-report':
+        return <BugReportPage onBackToMain={handleBackToMain} onProfile={handleProfile} />;
       case 'character-comments':
         return selectedCharacter ? (
           <CharacterCommentsPage
@@ -1334,6 +1372,7 @@ function App() {
           onHome={handleBackToMain}
           onMessages={handleMessages}
           onBalanceHistory={handleBalanceHistory}
+          onBugReport={handleBugReport}
           isAuthenticated={isAuthenticated}
           onLogin={handleLogin}
           onRegister={handleRegister}

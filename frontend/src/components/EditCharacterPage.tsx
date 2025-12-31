@@ -13,19 +13,12 @@ import { FiX as CloseIcon } from 'react-icons/fi';
 
 const MainContainer = styled.div`
   width: 100vw;
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
-  flex-direction: column;
-  background: linear-gradient(to bottom right, rgba(20, 20, 20, 1), rgba(30, 30, 30, 0.95), rgba(50, 50, 50, 0.1));
+  background: linear-gradient(to bottom right, rgba(8, 8, 18, 1), rgba(8, 8, 18, 0.95), rgba(40, 40, 40, 0.1));
   overflow: visible;
   box-sizing: border-box;
   position: relative;
-  z-index: 1;
-  
-  & > * {
-    position: relative;
-    z-index: 2;
-  }
   
   &::before {
     content: '';
@@ -34,7 +27,7 @@ const MainContainer = styled.div`
     left: 40px;
     width: 288px;
     height: 288px;
-    background: rgba(60, 60, 60, 0.15);
+    background: rgba(80, 80, 80, 0.15);
     border-radius: 50%;
     filter: blur(96px);
     animation: float 6s ease-in-out infinite;
@@ -49,7 +42,7 @@ const MainContainer = styled.div`
     right: 40px;
     width: 384px;
     height: 384px;
-    background: rgba(50, 50, 50, 0.15);
+    background: rgba(60, 60, 60, 0.15);
     border-radius: 50%;
     filter: blur(96px);
     animation: float 8s ease-in-out infinite;
@@ -202,49 +195,33 @@ const AuthButton = styled.button`
 
 const MainContent = styled.div`
   flex: 1;
-  padding: ${theme.spacing.lg} !important;
-  overflow: hidden !important;
-  display: flex !important;
-  gap: ${theme.spacing.lg} !important;
-  width: 100% !important;
-  height: calc(100vh - 80px) !important;
-  max-height: calc(100vh - 80px) !important;
-  position: relative !important;
-  z-index: 10 !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  background: transparent !important;
-  box-sizing: border-box !important;
+  display: flex;
+  height: calc(100vh - 80px);
+  max-height: calc(100vh - 80px);
+  overflow: hidden;
+  padding: ${theme.spacing.lg};
+  gap: ${theme.spacing.lg};
+  visibility: visible;
+  opacity: 1;
+  width: 100%;
+  box-sizing: border-box;
 `;
 
 const LeftColumn = styled.div`
   flex: 1;
-  min-width: 0;
-  background: linear-gradient(135deg, rgba(12, 12, 12, 0.95) 0%, rgba(20, 20, 20, 0.98) 100%);
-  border-radius: ${theme.borderRadius.xl};
-  padding: ${theme.spacing.lg};
-  border: 2px solid rgba(60, 60, 60, 0.9);
-  box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 0 0 1px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
+  min-width: 300px;
+  height: 100%;
+  max-height: 100%;
   visibility: visible;
   opacity: 1;
-  position: relative;
+  padding: ${theme.spacing.lg};
+  background: linear-gradient(135deg, rgba(12, 12, 12, 0.95) 0%, rgba(20, 20, 20, 0.98) 100%);
+  border: 2px solid rgba(60, 60, 60, 0.9);
+  border-radius: ${theme.borderRadius.xl};
   overflow: hidden;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(100, 100, 100, 0.3), transparent);
-    pointer-events: none;
-  }
+  box-sizing: border-box;
 `;
 
 const RightColumn = styled.div`
@@ -1801,7 +1778,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       }
 
       // Используем прямой fetch к /api/v1/auth/me/ как в ProfilePage для получения актуального баланса
-      const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/me/', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`, {
         headers: {
           'Authorization': `Bearer ${token}`
         },
@@ -1911,7 +1888,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       const token = authManager.getToken();
       if (token) {
         try {
-          const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/me/', {
+          const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`, {
             headers: {
               'Authorization': `Bearer ${token}`
             },
@@ -2725,39 +2702,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
             position: 'relative',
             zIndex: 10
           }}>
-            <LeftColumn style={{ 
-              flex: 1, 
-              display: 'flex', 
-              flexDirection: 'column', 
-              minWidth: '300px',
-              height: '100%',
-              maxHeight: '100%',
-              visibility: 'visible', 
-              opacity: 1,
-              padding: theme.spacing.lg,
-              background: 'linear-gradient(135deg, rgba(12, 12, 12, 0.95) 0%, rgba(20, 20, 20, 0.98) 100%)',
-              border: '2px solid rgba(60, 60, 60, 0.9)',
-              borderRadius: theme.borderRadius.xl,
-              overflow: 'hidden',
-              boxSizing: 'border-box'
-            }}>
-              <ColumnContent style={{ 
-                flex: 1, 
-                display: 'flex', 
-                flexDirection: 'column', 
-                visibility: 'visible', 
-                opacity: 1,
-                padding: theme.spacing.sm,
-                height: '100%',
-                overflowY: 'auto',
-                overflowX: 'hidden',
-                position: 'relative',
-                zIndex: 10,
-                boxSizing: 'border-box',
-                width: '100%',
-                maxWidth: '100%',
-                gap: theme.spacing.md
-              }}>
+            <LeftColumn>
+              <ColumnContent>
                 <FormGroup>
                   <Label htmlFor="name" data-icon="👤">Имя персонажа:</Label>
                   <Input
@@ -2860,40 +2806,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
               </ColumnContent>
             </LeftColumn>
 
-            <RightColumn style={{ 
-              flex: 1, 
-              display: 'flex', 
-              flexDirection: 'column', 
-              minWidth: '300px',
-              height: '100%',
-              maxHeight: '100%',
-              visibility: 'visible', 
-              opacity: 1,
-              padding: theme.spacing.md,
-              background: 'rgba(30, 30, 30, 0.2)',
-              border: '1px solid rgba(130, 130, 130, 0.3)',
-              borderRadius: theme.borderRadius.lg,
-              overflow: 'visible',
-              boxSizing: 'border-box'
-            }}>
-              <ColumnContent style={{ 
-                flex: 1, 
-                display: 'flex', 
-                flexDirection: 'column', 
-                visibility: 'visible', 
-                opacity: 1,
-                padding: theme.spacing.md,
-                minHeight: '100%',
-                height: 'auto',
-                overflowY: 'auto',
-                overflowX: 'hidden',
-                position: 'relative',
-                zIndex: 10,
-                boxSizing: 'border-box',
-                width: '100%',
-                maxWidth: '100%',
-                justifyContent: 'space-between'
-              }}>
+            <RightColumn>
+              <ColumnContent>
                 <div style={{ flex: '0 0 auto' }}>
                   <PhotoGenerationBox>
                     <PhotoGenerationBoxTitle>Генерация фото персонажа</PhotoGenerationBoxTitle>

@@ -465,8 +465,8 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     const paymentSuccess = urlParams.get('payment') === 'success';
     
     if (paymentSuccess) {
-      // Очищаем URL от параметров
-      window.history.replaceState({}, document.title, window.location.pathname);
+      // Очищаем URL от параметров и восстанавливаем правильное состояние
+      window.history.replaceState({ page: 'shop' }, '', '/shop');
       
       // Обновляем баланс и статистику подписки
       if (isAuthenticated) {
@@ -479,7 +479,27 @@ export const ShopPage: React.FC<ShopPageProps> = ({
         setTimeout(() => setShowSuccessToast(false), 5000);
       }
     }
-  }, []);
+    
+    // Обработка кнопки "назад" в браузере
+    const handlePopState = (event: PopStateEvent) => {
+      // Если вернулись с оплаты (из внешнего сайта), восстанавливаем состояние shop
+      if (event.state && event.state.page === 'shop') {
+        // Страница уже должна быть shop, просто обновляем данные
+        if (isAuthenticated) {
+          loadSubscriptionStats();
+          loadCreditPackages();
+        }
+      } else if (!event.state || !event.state.page) {
+        // Если нет состояния, но мы на /shop, восстанавливаем состояние
+        if (window.location.pathname.includes('/shop')) {
+          window.history.replaceState({ page: 'shop' }, '', '/shop');
+        }
+      }
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -707,6 +727,10 @@ export const ShopPage: React.FC<ShopPageProps> = ({
         `&label=${encodeURIComponent(label)}` +
         `&successURL=${encodeURIComponent(successURL)}`;
 
+      // Сохраняем состояние перед переходом на оплату, чтобы при возврате назад можно было восстановить страницу
+      window.history.pushState({ page: 'shop', fromPayment: true }, '', '/shop');
+      
+      // Переходим на страницу оплаты
       window.location.href = quickPayUrl;
     } catch (err) {
       console.error('[SHOP] Ошибка формирования ссылки QuickPay:', err);

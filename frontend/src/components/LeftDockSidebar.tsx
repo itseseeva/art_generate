@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { FiPlusCircle, FiEdit, FiClock, FiHeart, FiGrid, FiHome, FiLogIn, FiUser, FiLogOut, FiShoppingBag, FiMessageSquare, FiTrendingUp, FiMail, FiChevronRight } from 'react-icons/fi';
+import { FiPlusCircle, FiEdit, FiClock, FiHeart, FiGrid, FiHome, FiLogIn, FiUser, FiLogOut, FiShoppingBag, FiMessageSquare, FiTrendingUp, FiMail, FiChevronRight, FiAlertTriangle } from 'react-icons/fi';
 import Switcher4 from './Switcher4';
 import { NSFWWarningModal } from './NSFWWarningModal';
 
@@ -19,6 +19,7 @@ interface LeftDockSidebarProps {
   onShop?: () => void;
   onMessages?: () => void;
   onBalanceHistory?: () => void;
+  onBugReport?: () => void;
   isAuthenticated?: boolean;
   onLogin?: () => void;
   onRegister?: () => void;
@@ -189,6 +190,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   onShop,
   onMessages,
   onBalanceHistory,
+  onBugReport,
   isAuthenticated = false,
   onLogin,
   onRegister,
@@ -234,11 +236,19 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
       icon: <FiUser size={22} />,
       label: 'Профиль',
       onClick: () => onProfile?.(),
+      className: 'dock-item-profile',
     },
     {
       icon: <FiShoppingBag size={22} />,
       label: 'Магазин',
       onClick: () => onShop?.(),
+      className: 'dock-item-shop',
+    },
+    {
+      icon: <FiAlertTriangle size={22} />,
+      label: 'Жалоба',
+      onClick: () => onBugReport?.(),
+      className: 'dock-item-bug',
     },
   ];
 
@@ -248,6 +258,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
       icon: <FiTrendingUp size={22} />,
       label: 'Списания',
       onClick: () => onBalanceHistory?.(),
+      className: 'dock-item-balance',
     });
   }
 
@@ -272,12 +283,14 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
         icon: <FiMessageSquare size={22} />,
         label: 'Сообщения',
         onClick: () => onMessages?.(),
+        className: 'dock-item-messages',
       });
     }
     bottomDockItems.push({
       icon: <FiLogOut size={22} />,
       label: 'Выйти',
       onClick: () => onLogout?.(),
+      className: 'dock-item-logout',
     });
   }
 

@@ -434,6 +434,16 @@ except Exception as e:
     import traceback
     logger.error(f"Traceback: {traceback.format_exc()}")
 
+# Роутер для баг-репортов (отдельный блок для надежности)
+try:
+    from app.api.endpoints.bug_reports import router as bug_reports_router
+    app.include_router(bug_reports_router, prefix="/api/v1/bug-reports", tags=["bug-reports"])
+    logger.info("[ROUTER] Bug reports router подключен")
+except Exception as e:
+    logger.error(f"[ERROR] Ошибка подключения роутера bug_reports: {e}")
+    import traceback
+    logger.error(f"Traceback: {traceback.format_exc()}")
+
 # Подключаем роутер подписок (исправленная версия)
 try:
     from app.api.endpoints.profit_activate_endpoints import router as profit_activate_router

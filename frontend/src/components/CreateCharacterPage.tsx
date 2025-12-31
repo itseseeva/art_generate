@@ -5,6 +5,11 @@ import '../styles/ContentArea.css';
 import { AuthModal } from './AuthModal';
 import { translateToEnglish } from '../utils/translate';
 import { API_CONFIG } from '../config/api';
+import { motion, AnimatePresence } from 'motion/react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { CircularProgress } from './ui/CircularProgress';
+import { FiX as CloseIcon } from 'react-icons/fi';
+import { fetchPromptByImage } from '../utils/prompt';
 
 const MainContainer = styled.div`
   width: 100vw;
@@ -548,20 +553,203 @@ const GenerateSection = styled.div`
   margin-bottom: ${theme.spacing.lg};
 `;
 
-const GenerateButton = styled.button`
-  background: linear-gradient(135deg, rgba(50, 50, 50, 0.9), rgba(40, 40, 40, 0.9));
-  border: 1px solid rgba(120, 120, 120, 0.4);
+// ВАРИАНТ 2: Градиентная анимация (не используется)
+const GenerateButton2 = styled.button`
+  position: relative;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2), rgba(236, 72, 153, 0.2));
+  background-size: 200% 200%;
+  border: 1px solid rgba(139, 92, 246, 0.5);
   color: ${theme.colors.text.primary};
   padding: ${theme.spacing.md} ${theme.spacing.lg};
   border-radius: ${theme.borderRadius.lg};
   font-size: ${theme.fontSize.base};
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.4s ease;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  width: 100%;
+  animation: gradientShift 3s ease infinite;
+  
+  @keyframes gradientShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  
+  &:hover:not(:disabled) {
+    background-position: 100% 50%;
+    border-color: rgba(139, 92, 246, 0.8);
+    box-shadow: 0 8px 30px rgba(139, 92, 246, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px) scale(1.02);
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(0) scale(1);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    animation: none;
+  }
+`;
+
+// ВАРИАНТ 3: Минималистичный элегантный
+const GenerateButton3 = styled.button`
+  background: rgba(30, 30, 30, 0.8);
+  border: 1px solid rgba(200, 200, 200, 0.2);
+  color: ${theme.colors.text.primary};
+  padding: ${theme.spacing.md} ${theme.spacing.xl};
+  border-radius: 8px;
+  font-size: ${theme.fontSize.base};
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(6px);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+  transition: all 0.25s ease;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  width: 100%;
+  letter-spacing: 0.5px;
+  
+  &:hover:not(:disabled) {
+    border-color: rgba(200, 200, 200, 0.4);
+    background: rgba(40, 40, 40, 0.9);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    transform: translateY(-1px);
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    border-color: rgba(100, 100, 100, 0.2);
+  }
+`;
+
+// ВАРИАНТ 4: 3D эффект с тенями
+const GenerateButton4 = styled.button`
   position: relative;
+  background: linear-gradient(145deg, rgba(50, 50, 50, 0.95), rgba(30, 30, 30, 0.95));
+  border: none;
+  color: ${theme.colors.text.primary};
+  padding: ${theme.spacing.md} ${theme.spacing.xl};
+  border-radius: 12px;
+  font-size: ${theme.fontSize.base};
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+  box-shadow: 
+    0 8px 16px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+  width: 100%;
+  
+  &:hover:not(:disabled) {
+    background: linear-gradient(145deg, rgba(60, 60, 60, 0.95), rgba(40, 40, 40, 0.95));
+    box-shadow: 
+      0 12px 24px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+    transform: translateY(-2px);
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 
+      0 4px 8px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.5);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+`;
+
+// ВАРИАНТ 5: Glassmorphism с градиентной рамкой (активен)
+const GenerateButton = styled.button`
+  position: relative;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid transparent;
+  color: ${theme.colors.text.primary};
+  padding: ${theme.spacing.md} ${theme.spacing.xl};
+  border-radius: ${theme.borderRadius.xl};
+  font-size: ${theme.fontSize.base};
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(20px);
+  width: 100%;
   overflow: hidden;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 2px;
+    background: linear-gradient(135deg, rgba(236, 72, 153, 0.6), rgba(139, 92, 246, 0.6), rgba(59, 130, 246, 0.6));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0.6;
+    transition: opacity 0.4s ease;
+  }
+  
+  & > span {
+    display: block;
+    transition: opacity 0.3s ease;
+  }
+  
+  &:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px rgba(236, 72, 153, 0.3);
+    transform: translateY(-2px);
+    
+    &::before {
+      opacity: 1;
+    }
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    background: rgba(255, 255, 255, 0.03);
+    
+    &::before {
+      opacity: 0.4;
+    }
+  }
+`;
+
+const ContinueButton = styled(motion.button)`
+  position: relative;
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.9), rgba(251, 191, 36, 0.9));
+  border: 1px solid rgba(251, 191, 36, 0.6);
+  color: #1a1a1a;
+  padding: ${theme.spacing.md} ${theme.spacing.xl};
+  border-radius: ${theme.borderRadius.lg};
+  font-size: ${theme.fontSize.base};
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 20px rgba(234, 179, 8, 0.4), 0 4px 12px rgba(0, 0, 0, 0.4);
+  width: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: ${theme.spacing.sm};
 
   &::before {
     content: '';
@@ -570,25 +758,30 @@ const GenerateButton = styled.button`
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(200, 200, 200, 0.15), transparent);
-    transition: left 0.5s ease;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    transition: left 0.6s ease;
   }
 
-  &:hover {
+  &:hover:not(:disabled) {
+    border-color: rgba(251, 191, 36, 0.8);
+    background: linear-gradient(135deg, rgba(234, 179, 8, 1), rgba(251, 191, 36, 1));
+    box-shadow: 0 0 30px rgba(234, 179, 8, 0.6), 0 8px 24px rgba(0, 0, 0, 0.5);
     transform: translateY(-2px);
-    border-color: rgba(150, 150, 150, 0.5);
-    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6);
-
+    
     &::before {
       left: 100%;
     }
   }
+  
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
 
   &:disabled {
-    opacity: 0.45;
+    opacity: 0.5;
     cursor: not-allowed;
-    transform: none;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    border-color: rgba(150, 150, 150, 0.3);
+    box-shadow: none;
   }
 `;
 
@@ -911,6 +1104,144 @@ const ModalImageContainer = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
+`;
+
+const PromptPanel = styled.div`
+  width: 400px;
+  min-width: 350px;
+  max-width: 30%;
+  background: rgba(30, 30, 30, 0.95);
+  border: 2px solid rgba(150, 150, 150, 0.5);
+  border-radius: ${theme.borderRadius.xl};
+  padding: ${theme.spacing.xl};
+  overflow-y: auto;
+  max-height: 95vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+`;
+
+const PromptPanelHeader = styled.div`
+  margin-bottom: ${theme.spacing.lg};
+  padding-bottom: ${theme.spacing.md};
+  border-bottom: 1px solid rgba(150, 150, 150, 0.3);
+`;
+
+const PromptPanelTitle = styled.h3`
+  color: rgba(240, 240, 240, 1);
+  font-size: ${theme.fontSize.xl};
+  font-weight: 800;
+  margin: 0;
+`;
+
+const PromptPanelText = styled.div`
+  color: rgba(200, 200, 200, 1);
+  font-size: ${theme.fontSize.sm};
+  line-height: 1.8;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  padding: ${theme.spacing.md};
+  background: rgba(40, 40, 40, 0.5);
+  border-radius: ${theme.borderRadius.lg};
+  border: 1px solid rgba(150, 150, 150, 0.3);
+  font-family: 'Courier New', monospace;
+  flex: 1;
+`;
+
+const PromptLoading = styled.div`
+  color: rgba(200, 200, 200, 1);
+  font-size: ${theme.fontSize.sm};
+  text-align: center;
+  padding: ${theme.spacing.xl};
+`;
+
+const PromptError = styled.div`
+  color: ${theme.colors.error || '#ff6b6b'};
+  font-size: ${theme.fontSize.sm};
+  text-align: center;
+  padding: ${theme.spacing.xl};
+`;
+
+const SubscriptionModal = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10001;
+  padding: ${theme.spacing.xl};
+  backdrop-filter: blur(8px);
+  animation: fadeIn 0.2s ease;
+  
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+`;
+
+const SubscriptionModalContent = styled.div`
+  background: linear-gradient(135deg, rgba(15, 15, 15, 0.98) 0%, rgba(22, 22, 22, 1) 100%);
+  border: 2px solid rgba(120, 120, 120, 0.5);
+  border-radius: ${theme.borderRadius.xl};
+  padding: ${theme.spacing.xl};
+  max-width: 500px;
+  width: 100%;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+`;
+
+const SubscriptionModalTitle = styled.h2`
+  color: rgba(240, 240, 240, 1);
+  font-size: ${theme.fontSize.xl};
+  font-weight: 700;
+  margin: 0 0 ${theme.spacing.lg} 0;
+  text-align: center;
+`;
+
+const SubscriptionModalText = styled.p`
+  color: rgba(200, 200, 200, 1);
+  font-size: ${theme.fontSize.base};
+  line-height: 1.6;
+  margin: 0 0 ${theme.spacing.xl} 0;
+  text-align: center;
+`;
+
+const SubscriptionModalButtons = styled.div`
+  display: flex;
+  gap: ${theme.spacing.md};
+  justify-content: center;
+`;
+
+const SubscriptionModalButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
+  flex: 1;
+  padding: ${theme.spacing.md} ${theme.spacing.lg};
+  border-radius: ${theme.borderRadius.lg};
+  font-size: ${theme.fontSize.base};
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid ${props => props.$variant === 'primary' ? 'rgba(251, 191, 36, 0.6)' : 'rgba(120, 120, 120, 0.5)'};
+  background: ${props => props.$variant === 'primary' 
+    ? 'linear-gradient(135deg, rgba(234, 179, 8, 0.9), rgba(251, 191, 36, 0.9))'
+    : 'rgba(60, 60, 60, 0.5)'};
+  color: ${props => props.$variant === 'primary' ? '#1a1a1a' : 'rgba(240, 240, 240, 1)'};
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: ${props => props.$variant === 'primary' 
+      ? '0 8px 24px rgba(234, 179, 8, 0.4)'
+      : '0 4px 12px rgba(0, 0, 0, 0.4)'};
+    border-color: ${props => props.$variant === 'primary' ? 'rgba(251, 191, 36, 0.8)' : 'rgba(120, 120, 120, 0.7)'};
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
 `;
 
 const PhotoModalImage = styled.img`
@@ -1423,6 +1754,8 @@ interface CreateCharacterPageProps {
   onShop?: () => void;
   onMyCharacters?: () => void;
   onPhotoGeneration?: (character: any) => void;
+  onOpenPaidAlbumBuilder?: (character: any) => void;
+  onOpenChat?: (character: any) => void;
   contentMode?: 'safe' | 'nsfw';
 }
 
@@ -1433,6 +1766,8 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   onShop,
   onMyCharacters,
   onPhotoGeneration,
+  onOpenPaidAlbumBuilder,
+  onOpenChat,
   contentMode = 'safe'
 }) => {
   const [formData, setFormData] = useState({
@@ -1450,7 +1785,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [success, setSuccess] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userInfo, setUserInfo] = useState<{username: string, coins: number, id: number} | null>(null);
+  const [userInfo, setUserInfo] = useState<{username: string, coins: number, id: number, subscription?: {subscription_type?: string}} | null>(null);
   const [isPhotoGenerationExpanded, setIsPhotoGenerationExpanded] = useState(false);
   const [createdCharacterData, setCreatedCharacterData] = useState<any>(null);
   const [customPrompt, setCustomPrompt] = useState('');
@@ -1460,16 +1795,28 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [generationSettings, setGenerationSettings] = useState<any>(null);
   const [isCharacterCreated, setIsCharacterCreated] = useState(false); // Новое состояние
   const [selectedPhotoForView, setSelectedPhotoForView] = useState<any>(null); // Для модального окна просмотра фото
+  const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
+  const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
+  const [promptError, setPromptError] = useState<string | null>(null);
   const [swiperTranslateX, setSwiperTranslateX] = useState(0); // Для swiper
   const [selectedPhotos, setSelectedPhotos] = useState<any[]>([]); // Выбранные фото для карточки
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authCheckComplete, setAuthCheckComplete] = useState(false);
+  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime'>('anime-realism');
   const [fakeProgress, setFakeProgress] = useState(0);
   const [generationProgress, setGenerationProgress] = useState<number | undefined>(undefined);
   const fakeProgressIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
   const fakeProgressTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Пошаговая логика - какие поля показывать
+  const [showPersonalityAndSituation, setShowPersonalityAndSituation] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
+  const [showAppearanceAndLocation, setShowAppearanceAndLocation] = useState(false);
+  
+  // Индекс для слайдера сгенерированных фото
+  const [examplePhotoIndex, setExamplePhotoIndex] = useState(0);
 
   // Валидация имени персонажа
   const validateCharacterName = (name: string): string | null => {
@@ -1522,6 +1869,8 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       if (response.ok) {
         const userData = await response.json();
         console.log('User data:', userData);
+        console.log('User subscription:', userData.subscription);
+        console.log('User subscription_type:', userData.subscription?.subscription_type);
         setIsAuthenticated(true);
         setUserInfo(userData);
         console.log('Authentication successful, isAuthenticated set to true');
@@ -1609,8 +1958,55 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     if (name === 'name') {
       const error = validateCharacterName(value);
       setNameError(error);
+      // Показываем поля "Личность" и "Ролевая ситуация" когда имя валидно
+      if (!error && value.trim().length >= 2) {
+        setShowPersonalityAndSituation(true);
+      }
+    }
+    
+    // Показываем поле "Инструкции" когда заполнена личность
+    if (name === 'personality' && value.trim().length > 0) {
+      setShowInstructions(true);
+    }
+    
+    // Показываем поля "Внешность" и "Локация" когда заполнены инструкции
+    if (name === 'instructions' && value.trim().length > 0) {
+      setShowAppearanceAndLocation(true);
     }
   };
+  
+  // Вычисляем прогресс заполнения формы
+  const calculateProgress = () => {
+    let progress = 0;
+    if (formData.name.trim().length >= 2) progress += 20;
+    if (formData.personality.trim().length > 0) progress += 20;
+    if (formData.situation.trim().length > 0) progress += 20;
+    if (formData.instructions.trim().length > 0) progress += 20;
+    if (formData.appearance.trim().length > 0 && formData.location.trim().length > 0) progress += 20;
+    return progress;
+  };
+  
+  const formProgress = calculateProgress();
+  
+  // Функции для слайдера сгенерированных фото
+  const nextExamplePhoto = () => {
+    if (generatedPhotos && generatedPhotos.length > 0) {
+      setExamplePhotoIndex((prev) => (prev + 1) % generatedPhotos.length);
+    }
+  };
+  
+  const prevExamplePhoto = () => {
+    if (generatedPhotos && generatedPhotos.length > 0) {
+      setExamplePhotoIndex((prev) => (prev - 1 + generatedPhotos.length) % generatedPhotos.length);
+    }
+  };
+  
+  // Сброс индекса когда фото обновляются
+  useEffect(() => {
+    if (generatedPhotos && generatedPhotos.length > 0 && examplePhotoIndex >= generatedPhotos.length) {
+      setExamplePhotoIndex(0);
+    }
+  }, [generatedPhotos, examplePhotoIndex]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1898,12 +2294,17 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
       const requestData = {
         character_name: createdCharacterData.name,
-        photo_ids: selectedPhotos
+        photo_ids: selectedPhotos.map(photo => ({
+          id: photo.id,
+          url: photo.url
+        }))
       };
       
       console.log('Sending request to API:', requestData);
+      console.log('Selected photos (full):', selectedPhotos);
+      console.log('Photo IDs with URLs:', selectedPhotos.map(photo => ({ id: photo.id, url: photo.url })));
 
-      const response = await fetch('/api/v1/characters/set-main-photos/', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/set-main-photos/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1920,10 +2321,12 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         setSuccess('Главные фото успешно сохранены!');
         console.log('Main photos saved:', selectedPhotos);
         
-        // Принудительно обновляем главный экран
-        setTimeout(() => {
-          window.location.href = '/';
-        }, 2000);
+        // Отправляем событие для обновления главной страницы
+        const event = new CustomEvent('character-photos-updated', { 
+          detail: { character: createdCharacterData, photos: selectedPhotos.map(p => p.id) } 
+        });
+        window.dispatchEvent(event);
+        console.log('Событие character-photos-updated отправлено');
       } else {
         const errorData = await response.json();
         console.error('API error:', errorData);
@@ -1935,14 +2338,43 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     }
   };
 
-  const openPhotoModal = (photo: any) => {
-    console.log('Opening photo modal for:', photo);
+  const openPhotoModal = async (photo: any) => {
+    console.log('[MODAL] Opening photo modal for:', photo);
+    console.log('[MODAL] Photo URL:', photo.url);
     setSelectedPhotoForView(photo);
+    setSelectedPrompt(null);
+    setPromptError(null);
+    setIsLoadingPrompt(true);
+
+    try {
+      const { prompt, errorMessage } = await fetchPromptByImage(photo.url);
+      if (prompt) {
+        setSelectedPrompt(prompt);
+      } else {
+        setPromptError(errorMessage || 'Промпт недоступен для этого изображения');
+      }
+    } finally {
+      setIsLoadingPrompt(false);
+    }
   };
 
   const closePhotoModal = () => {
+    console.log('[MODAL] Closing photo modal');
     setSelectedPhotoForView(null);
+    setSelectedPrompt(null);
+    setPromptError(null);
+    setIsLoadingPrompt(false);
   };
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectedPhotoForView) {
+        closePhotoModal();
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [selectedPhotoForView]);
 
   const nextSwiperSlide = () => {
     const maxTranslate = -(generatedPhotos.length - 1) * 100; // Процентное смещение
@@ -1967,7 +2399,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
     setIsGeneratingPhoto(true);
     setError(null);
-    setGenerationProgress(0);
+    setGenerationProgress(undefined);
     startFakeProgress();
 
     try {
@@ -2078,7 +2510,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         if (!imageUrl) {
           throw new Error('URL изображения не получен от сервера');
         }
-        const filename = result.filename || Date.now().toString();
+      const filename = result.filename || Date.now().toString();
         imageId = filename.replace('.png', '').replace('.jpg', '');
       }
       
@@ -2111,8 +2543,8 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         console.warn('[CreateCharacterPage] Не удалось добавить фото в галерею:', galleryError);
       }
       
-      setGeneratedPhotos(prev => [...prev, newPhoto]);
-      setSuccess('Фото успешно сгенерировано!');
+              setGeneratedPhotos(prev => [...prev, newPhoto]);
+              setSuccess('Фото успешно сгенерировано!');
       stopFakeProgress(false);
       setGenerationProgress(100);
       
@@ -2155,45 +2587,34 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   }
   
   return (
-    <MainContainer>
-        <MainContent>
-          <Form onSubmit={isCharacterCreated ? handleEditCharacter : handleSubmit}>
-            <LeftColumn style={{ 
-              flex: 1, 
-              display: 'flex', 
-              flexDirection: 'column', 
-              minWidth: '300px',
-              height: '100%',
-              maxHeight: '100%',
-              visibility: 'visible', 
-              opacity: 1,
-              padding: theme.spacing.lg,
-              background: 'linear-gradient(135deg, rgba(12, 12, 12, 0.95) 0%, rgba(20, 20, 20, 0.98) 100%)',
-              border: '2px solid rgba(60, 60, 60, 0.9)',
-              borderRadius: theme.borderRadius.xl,
-              overflow: 'hidden',
-              boxSizing: 'border-box'
-            }}>
-              <ColumnContent style={{ 
-                flex: 1, 
-                display: 'flex', 
-                flexDirection: 'column', 
-                visibility: 'visible', 
-                opacity: 1,
-                padding: theme.spacing.sm,
-                height: '100%',
-                overflowY: 'auto',
-                overflowX: 'hidden',
-                position: 'relative',
-                zIndex: 10,
-                boxSizing: 'border-box',
-                width: '100%',
-                maxWidth: '100%',
-                gap: theme.spacing.md
-              }}>
-                <FormGroup>
-                <Label htmlFor="name" data-icon="👤">Имя персонажа:</Label>
-                <Input
+    <div className="w-full h-screen bg-black flex flex-col overflow-hidden">
+      <div className="flex-1 flex h-[calc(100vh-80px)] overflow-hidden p-6 gap-6">
+        <form onSubmit={isCharacterCreated ? handleEditCharacter : handleSubmit} className="flex-1 flex gap-6 h-full">
+          {/* Левая колонка - Форма */}
+          <div className="flex-1 flex flex-col min-w-[400px] bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 overflow-y-auto">
+            {/* Индикатор прогресса */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-zinc-400">Прогресс заполнения</span>
+                <span className="text-sm text-zinc-400">{formProgress}%</span>
+              </div>
+              <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+                <motion.div 
+                  className="h-full bg-yellow-500"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${formProgress}%` }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
+                />
+              </div>
+            </div>
+            
+            <div className="flex flex-col gap-6">
+              {/* Имя персонажа - всегда видно */}
+              <div>
+                <label htmlFor="name" className="block text-sm font-medium text-zinc-200 mb-2">
+                  Имя персонажа
+                </label>
+                <input
                   type="text"
                   id="name"
                   name="name"
@@ -2201,305 +2622,390 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
                   onChange={handleInputChange}
                   placeholder="Введите имя персонажа..."
                   required
-                  style={{ borderColor: nameError ? '#ff4444' : undefined }}
+                  className="w-full px-4 py-3 bg-black border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition-colors"
                 />
                 {nameError && (
-                  <div style={{ 
-                    color: '#ff4444', 
-                    fontSize: '0.875rem', 
-                    marginTop: '0.5rem',
-                    padding: '0.5rem',
-                    background: 'rgba(255, 68, 68, 0.1)',
-                    borderRadius: '8px'
-                  }}>
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-2 text-sm text-red-400 bg-red-400/10 p-2 rounded"
+                  >
                     {nameError}
-                  </div>
+                  </motion.div>
                 )}
-              </FormGroup>
+              </div>
               
-              <FormGroup>
-                <Label htmlFor="personality" data-icon="🧠">Личность и характер:</Label>
-                <Textarea
+              {/* Личность и характер - появляется вместе с ролевой ситуацией после ввода имени */}
+              <AnimatePresence>
+                {showPersonalityAndSituation && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -20, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: "auto" }}
+                    exit={{ opacity: 0, y: -20, height: 0 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                  >
+                    <label htmlFor="personality" className="block text-sm font-medium text-zinc-200 mb-2">
+                      Личность и характер
+                    </label>
+                    <textarea
                   id="personality"
                   name="personality"
                   value={formData.personality}
                   onChange={handleInputChange}
-                  placeholder="Опишите характер персонажа: какие у него черты личности? Например: она строгая и целеустремленная, но в то же время добрая к близким. Или: он веселый и общительный, всегда готов поддержать разговор. Опишите внешность: цвет глаз, волос, рост, телосложение. Укажите основные черты характера, что мотивирует персонажа, какие у него ценности и принципы."
+                      placeholder="Опишите характер персонажа: какие у него черты личности? Например: она строгая и целеустремленная, но в то же время добрая к близким..."
                   rows={4}
                   required
-                />
-              </FormGroup>
+                      className="w-full px-4 py-3 bg-black border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition-colors resize-none"
+                    />
+                    <p className="mt-1 text-xs text-zinc-500">Опишите основные черты характера, что мотивирует персонажа, его ценности и принципы.</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
               
-              <FormGroup>
-                <Label htmlFor="situation" data-icon="💬">Ролевая ситуация:</Label>
-                <Textarea
+              {/* Ролевая ситуация - появляется вместе с личностью после ввода имени */}
+              <AnimatePresence>
+                {showPersonalityAndSituation && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -20, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: "auto" }}
+                    exit={{ opacity: 0, y: -20, height: 0 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                  >
+                    <label htmlFor="situation" className="block text-sm font-medium text-zinc-200 mb-2">
+                      Ролевая ситуация
+                    </label>
+                    <textarea
                   id="situation"
                   name="situation"
                   value={formData.situation}
                   onChange={handleInputChange}
-                  placeholder="Опишите ситуацию, в которой находится персонаж. Где он живет? Что происходит в его мире? Например: она работает в престижной компании в большом городе, живет одна в современной квартире. Или: он студент университета, живет в общежитии с друзьями, часто посещает кафе и библиотеки. Опишите окружение персонажа, его повседневную жизнь и текущие обстоятельства."
+                      placeholder="Опишите ситуацию, в которой находится персонаж. Где он живет? Что происходит в его мире?"
                   rows={3}
                   required
-                />
-              </FormGroup>
+                      className="w-full px-4 py-3 bg-black border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition-colors resize-none"
+                    />
+                    <p className="mt-1 text-xs text-zinc-500">Где он живет? Что происходит в его мире? Опишите окружение и повседневную жизнь.</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
               
-              <FormGroup>
-                <Label htmlFor="instructions" data-icon="📋">Инструкции для персонажа:</Label>
-                <Textarea
+              {/* Инструкции для персонажа - появляется после заполнения личности */}
+              <AnimatePresence>
+                {showInstructions && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -20, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: "auto" }}
+                    exit={{ opacity: 0, y: -20, height: 0 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                  >
+                    <label htmlFor="instructions" className="block text-sm font-medium text-zinc-200 mb-2">
+                      Инструкции для персонажа
+                    </label>
+                    <textarea
                   id="instructions"
                   name="instructions"
                   value={formData.instructions}
                   onChange={handleInputChange}
-                  placeholder="Как должен вести себя персонаж в разговоре? Какие правила соблюдать? Например: отвечай на вопросы естественно и дружелюбно, используй эмодзи для выражения эмоций. Или: персонаж должен быть профессиональным в деловых вопросах, но расслабленным в личных темах. Опишите стиль общения, манеру речи, как персонаж реагирует на разные ситуации. Укажите, что можно говорить, а чего следует избегать."
+                      placeholder="Как должен вести себя персонаж в разговоре? Какие правила соблюдать?"
                   rows={4}
                   required
-                />
-              </FormGroup>
+                      className="w-full px-4 py-3 bg-black border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition-colors resize-none"
+                    />
+                    <p className="mt-1 text-xs text-zinc-500">Опишите стиль общения, манеру речи, как персонаж реагирует на разные ситуации.</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-              <FormGroup>
-                <Label htmlFor="appearance" data-icon="🎨">Внешность (для фото):</Label>
-                <Textarea
+              {/* Внешность и Локация - появляются вместе после заполнения инструкций */}
+              <AnimatePresence>
+                {showAppearanceAndLocation && (
+                  <>
+                    <motion.div
+                      initial={{ opacity: 0, y: -20, height: 0 }}
+                      animate={{ opacity: 1, y: 0, height: "auto" }}
+                      exit={{ opacity: 0, y: -20, height: 0 }}
+                      transition={{ duration: 0.3, ease: "easeOut" }}
+                    >
+                      <label htmlFor="appearance" className="block text-sm font-medium text-zinc-200 mb-2">
+                        Внешность (для фото)
+                      </label>
+                      <textarea
                   id="appearance"
                   name="appearance"
                   value={formData.appearance}
                   onChange={handleInputChange}
-                  placeholder="Опишите внешность персонажа для генерации фото: цвет волос (например: длинные темные волосы), цвет глаз (например: карие), рост и телосложение (например: среднего роста, стройная), стиль одежды (например: деловой костюм или casual одежда), отличительные особенности (например: очки, татуировки, аксессуары). Чем подробнее описание, тем точнее будет результат генерации."
+                        placeholder="Опишите внешность персонажа для генерации фото: цвет волос, цвет глаз, рост, телосложение, стиль одежды..."
                   rows={3}
-                />
-              </FormGroup>
-              
-              <FormGroup>
-                <Label htmlFor="location" data-icon="📍">Локация (для фото):</Label>
-                <Textarea
+                        className="w-full px-4 py-3 bg-black border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition-colors resize-none"
+                      />
+                      <p className="mt-1 text-xs text-zinc-500">Опишите детали лица, одежду и позу. Чем подробнее описание, тем точнее будет результат.</p>
+                    </motion.div>
+                    
+                    <motion.div
+                      initial={{ opacity: 0, y: -20, height: 0 }}
+                      animate={{ opacity: 1, y: 0, height: "auto" }}
+                      exit={{ opacity: 0, y: -20, height: 0 }}
+                      transition={{ duration: 0.3, ease: "easeOut" }}
+                    >
+                      <label htmlFor="location" className="block text-sm font-medium text-zinc-200 mb-2">
+                        Локация (для фото)
+                      </label>
+                      <textarea
                   id="location"
                   name="location"
                   value={formData.location}
                   onChange={handleInputChange}
-                  placeholder="Опишите локацию для генерации фото: где находится персонаж? Например: современный офис с большими окнами, уютное кафе с мягким освещением, парк в солнечный день, квартира с современным интерьером, библиотека с высокими стеллажами. Опишите атмосферу, освещение, детали окружения. Это поможет создать более реалистичные и атмосферные фотографии."
+                        placeholder="Опишите локацию для генерации фото: где находится персонаж?"
                   rows={3}
-                />
-              </FormGroup>
+                        className="w-full px-4 py-3 bg-black border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition-colors resize-none"
+                      />
+                      <p className="mt-1 text-xs text-zinc-500">Где находится персонаж? Опишите атмосферу, освещение, детали окружения.</p>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
 
               {userInfo && (
-                <CoinsDisplay>
-                  <CoinsText>Ваши монеты: {userInfo.coins}</CoinsText>
-                </CoinsDisplay>
+                <div className="text-sm text-zinc-400">
+                  Ваши монеты: <span className="text-zinc-200 font-medium">{userInfo.coins}</span>
+                </div>
               )}
 
-              {error && <ErrorMessage>{error}</ErrorMessage>}
-              {success && <SuccessMessage>{success}</SuccessMessage>}
+              {error && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm"
+                >
+                  {error}
+                </motion.div>
+              )}
+              {success && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg text-green-400 text-sm"
+                >
+                  {success}
+                </motion.div>
+              )}
 
-              <ButtonGroup>
-                <Button type="button" $variant="secondary" onClick={onBackToMain} disabled={isLoading}>
+              <div className="flex gap-4 mt-4">
+                <button 
+                  type="button" 
+                  onClick={onBackToMain} 
+                  disabled={isLoading}
+                  className="flex-1 px-6 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   Отмена
-                </Button>
-                <Button type="submit" $variant="primary" disabled={isLoading}>
-                  {isLoading ? (
-                    <>
-                      <LoadingSpinner /> {isCharacterCreated ? 'Обновление...' : 'Создание...'}
-                    </>
-                  ) : (
-                    isCharacterCreated ? 'Редактировать' : 'Создать персонажа'
-                  )}
-                </Button>
-              </ButtonGroup>
-              </ColumnContent>
-            </LeftColumn>
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={isLoading}
+                  className="flex-1 px-6 py-3 bg-zinc-700 border border-zinc-600 rounded-lg text-white hover:bg-zinc-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                >
+                  {isLoading ? (isCharacterCreated ? 'Обновление...' : 'Создание...') : (isCharacterCreated ? 'Редактировать' : 'Создать персонажа')}
+                </button>
+              </div>
+            </div>
+          </div>
 
-            <RightColumn style={{ 
-              flex: 1, 
-              display: 'flex', 
-              flexDirection: 'column', 
-              minWidth: '300px',
-              height: '100%',
-              maxHeight: '100%',
-              visibility: 'visible', 
-              opacity: 1,
-              padding: theme.spacing.md,
-              background: 'rgba(30, 30, 30, 0.2)',
-              border: '1px solid rgba(130, 130, 130, 0.3)',
-              borderRadius: theme.borderRadius.lg,
-              overflow: 'visible',
-              boxSizing: 'border-box'
-            }}>
-              <ColumnContent style={{ 
-                flex: 1, 
-                display: 'flex', 
-                flexDirection: 'column', 
-                visibility: 'visible', 
-                opacity: 1,
-                padding: theme.spacing.md,
-                minHeight: '100%',
-                height: 'auto',
-                overflowY: 'auto',
-                overflowX: 'hidden',
-                position: 'relative',
-                zIndex: 10,
-                boxSizing: 'border-box',
-                width: '100%',
-                maxWidth: '100%',
-                justifyContent: 'space-between'
-              }}>
-                <div style={{ flex: '0 0 auto' }}>
-                  <PhotoGenerationBox>
-                    <PhotoGenerationBoxTitle>Генерация фото персонажа</PhotoGenerationBoxTitle>
-                    <PhotoGenerationDescription>
-                      Сгенерируйте до 3 фотографий для вашего персонажа (30 монет за каждое фото). После создания персонажа вы сможете выбрать до 3 фотографий для главной карточки.
-                    </PhotoGenerationDescription>
-                    
-                    <GenerateSection>
-                      <GenerateButton 
-                        onClick={generatePhoto}
-                        disabled={isGeneratingPhoto || !userInfo || userInfo.coins < 30 || !createdCharacterData}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
+          {/* Правая колонка - Генерация фото */}
+          <div className="flex-1 flex flex-col min-w-[400px] bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 overflow-y-auto">
+            {createdCharacterData && (
+              <div className="flex flex-col">
+                <div className="mb-4">
+                  <h3 className="text-lg font-medium text-zinc-200 mb-2">Генерация фото персонажа</h3>
+                  <p className="text-sm text-zinc-500">
+                    Сгенерируйте до 3 фотографий для вашего персонажа (30 монет за каждое фото).
+                  </p>
+                </div>
+                
+                <GenerateButton
+                  onClick={generatePhoto}
+                  disabled={isGeneratingPhoto || !userInfo || userInfo.coins < 30 || !createdCharacterData}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    position: 'relative',
+                    minHeight: '48px'
+                  }}
+                >
+                  <span>
+                    {isGeneratingPhoto 
+                      ? `Генерация фото: ${Math.round(generationProgress !== undefined && generationProgress > 0 ? generationProgress : (fakeProgress || 0))}%`
+                      : 'Сгенерировать фото (30 монет)'
+                    }
+                  </span>
+                </GenerateButton>
+
+                {/* Кнопка "Продолжить" появляется после добавления хотя бы 1 фото */}
+                {(() => {
+                  const selectedCount = generatedPhotos.filter(photo => photo?.isSelected).length;
+                  const hasAtLeastOneSelected = selectedCount >= 1;
+                  
+                  if (hasAtLeastOneSelected && createdCharacterData) {
+                    return (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.4, ease: "easeOut" }}
+                        className="mt-4"
                       >
-                        {isGeneratingPhoto ? (
-                          <CircularProgress 
-                            progress={generationProgress !== undefined ? generationProgress : (fakeProgress || 0)} 
-                            size={48}
-                            showLabel={true}
-                          />
-                        ) : (
-                          'Сгенерировать фото (30 монет)'
-                        )}
-                      </GenerateButton>
-                    </GenerateSection>
+                        <ContinueButton
+                          onClick={async () => {
+                            // Сначала сохраняем выбранные фото как главные
+                            if (selectedPhotos.length > 0) {
+                              try {
+                                await saveSelectedPhotos();
+                              } catch (err) {
+                                console.error('[CREATE_CHAR] Error saving photos:', err);
+                                setError('Ошибка при сохранении фото. Попробуйте еще раз.');
+                                return;
+                              }
+                            }
+                            
+                            const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type;
+                            let subscriptionType = 'free';
+                            
+                            if (rawSubscriptionType) {
+                              if (typeof rawSubscriptionType === 'string') {
+                                subscriptionType = rawSubscriptionType.toLowerCase().trim();
+                              } else {
+                                subscriptionType = String(rawSubscriptionType).toLowerCase().trim();
+                              }
+                            }
+                            
+                            console.log('[CREATE_CHAR] Checking subscription:', {
+                              rawSubscriptionType,
+                              subscriptionType,
+                              userInfo: userInfo,
+                              subscription: userInfo?.subscription
+                            });
+                            
+                            const canCreatePaidAlbum = subscriptionType === 'standard' || subscriptionType === 'premium';
+                            
+                            if (canCreatePaidAlbum && onOpenPaidAlbumBuilder) {
+                              onOpenPaidAlbumBuilder(createdCharacterData);
+                            } else {
+                              // Показываем модальное окно для пользователей без подписки
+                              setIsSubscriptionModalOpen(true);
+                            }
+                          }}
+                        >
+                          Продолжить
+                        </ContinueButton>
+                      </motion.div>
+                    );
+                  }
+                  return null;
+                })()}
 
-                    <div style={{ marginBottom: '1rem' }}>
-                      <label style={{ 
-                        display: 'block', 
-                        marginBottom: '0.5rem', 
-                        color: 'rgba(240, 240, 240, 1)', 
-                        fontSize: '0.875rem',
-                        fontWeight: 600
-                      }}>
-                        Модель генерации:
-                      </label>
-                      <select
-                        value={selectedModel}
-                        onChange={(e) => setSelectedModel(e.target.value as 'anime-realism' | 'anime')}
-                        style={{
-                          width: '100%',
-                          padding: '0.75rem',
-                          background: 'rgba(30, 30, 30, 0.8)',
-                          border: '1px solid rgba(150, 150, 150, 0.3)',
-                          borderRadius: '0.5rem',
-                          color: '#fff',
-                          fontSize: '0.875rem',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <option value="anime-realism">Больше реализма</option>
-                        <option value="anime">Больше аниме</option>
-                      </select>
-                    </div>
-
-                    <LargeTextLabel htmlFor="photo-prompt-unified">
-                      Промпт для генерации фото:
-                    </LargeTextLabel>
-                    <LargeTextInput
-                      id="photo-prompt-unified"
-                      value={customPrompt}
-                      onChange={(e) => setCustomPrompt(e.target.value)}
-                      placeholder={(() => {
-                        const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
-                        return parts.length > 0 ? parts.join(' | ') : 'Опишите внешность персонажа и локацию для генерации фото...';
-                      })()}
-                    />
-                  </PhotoGenerationBox>
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-zinc-200 mb-2">
+                    Модель генерации:
+                  </label>
+                  <select
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value as 'anime-realism' | 'anime')}
+                    className="w-full px-4 py-2 bg-black border border-zinc-700 rounded-lg text-zinc-200 text-sm focus:outline-none focus:border-zinc-500"
+                  >
+                    <option value="anime-realism">Больше реализма</option>
+                    <option value="anime">Больше аниме</option>
+                  </select>
                 </div>
 
-                {/* Область для отображения сгенерированных фото - внизу контейнера */}
+                <div className="mt-4">
+                  <label htmlFor="photo-prompt-unified" className="block text-sm font-medium text-zinc-200 mb-2">
+                    Промпт для генерации фото:
+                  </label>
+                  <textarea
+                    id="photo-prompt-unified"
+                    value={customPrompt}
+                    onChange={(e) => setCustomPrompt(e.target.value)}
+                    placeholder={(() => {
+                      const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
+                      return parts.length > 0 ? parts.join(' | ') : 'Опишите внешность персонажа и локацию для генерации фото...';
+                    })()}
+                    className="w-full px-4 py-3 bg-black border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition-colors resize-none"
+                    rows={4}
+                  />
+                </div>
+
+                {/* Сгенерированные фото показываем внизу под промптом */}
                 {generatedPhotos && Array.isArray(generatedPhotos) && generatedPhotos.length > 0 && (
-                  <div style={{ flex: '1 1 auto', marginTop: 'auto', paddingTop: theme.spacing.md }}>
-                    <FullSizePhotoSlider style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', margin: '1rem 0' }}>
-                      <GeneratedPhotosHeader>
-                        <GeneratedPhotosTitle>Сгенерированные фото ({generatedPhotos.length})</GeneratedPhotosTitle>
-                        <PhotosCounter $limitReached={isLimitReached}>
-                          {selectedPhotos?.length || 0} из {MAX_MAIN_PHOTOS}
-                        </PhotosCounter>
-                      </GeneratedPhotosHeader>
+                  <div className="mt-6">
+                    <div className="mb-4">
+                      <h4 className="text-base font-medium text-zinc-200 mb-1">Сгенерированные фото ({generatedPhotos.length})</h4>
+                    </div>
+                    
+                    <PhotoList>
+                      {generatedPhotos.map((photo, index) => {
+                        if (!photo || !photo.url) {
+                          return null;
+                        }
+                        
+                        const isSelected = Boolean(photo?.isSelected);
 
-                      <PhotoList>
-                        {generatedPhotos.map((photo, index) => {
-                          if (!photo || !photo.url) {
-                            return null;
-                          }
-                          
-                          const isSelected = Boolean(photo?.isSelected);
+                        return (
+                          <PhotoTile key={photo?.id || `photo-${index}`}>
+                            <PhotoImage
+                              src={photo.url}
+                              alt={`Photo ${index + 1}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (photo) {
+                                  openPhotoModal(photo);
+                                }
+                              }}
+                            />
+                            <PhotoOverlay>
+                              <OverlayActions>
+                                <OverlayButton
+                                  $variant="primary"
+                                  disabled={isSelected || isLimitReached}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (photo?.id) {
+                                      handleAddPhoto(photo.id);
+                                    }
+                                  }}
+                                >
+                                  Добавить
+                                </OverlayButton>
+                                <OverlayButton
+                                  $variant="danger"
+                                  disabled={!isSelected}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (photo?.id) {
+                                      handleRemovePhoto(photo.id);
+                                    }
+                                  }}
+                                >
+                                  Удалить
+                                </OverlayButton>
+                              </OverlayActions>
+                            </PhotoOverlay>
+                          </PhotoTile>
+                        );
+                      }).filter(Boolean)}
+                    </PhotoList>
 
-                          return (
-                            <PhotoTile key={photo?.id || `photo-${index}`}>
-                              <PhotoImage
-                                src={photo.url}
-                                alt={`Photo ${index + 1}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (photo) {
-                                    openPhotoModal(photo);
-                                  }
-                                }}
-                              />
-                              <PhotoOverlay>
-                                <OverlayActions>
-                                  <OverlayButton
-                                    $variant="primary"
-                                    disabled={isSelected || isLimitReached}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (photo?.id) {
-                                        handleAddPhoto(photo.id);
-                                      }
-                                    }}
-                                  >
-                                    Добавить
-                                  </OverlayButton>
-                                  <OverlayButton
-                                    $variant="danger"
-                                    disabled={!isSelected}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (photo?.id) {
-                                        handleRemovePhoto(photo.id);
-                                      }
-                                    }}
-                                  >
-                                    Удалить
-                                  </OverlayButton>
-                                </OverlayActions>
-                              </PhotoOverlay>
-                            </PhotoTile>
-                          );
-                        }).filter(Boolean)}
-                      </PhotoList>
-
-                      <SliderDescription>
-                        <DescriptionTitle>Выбор главных фото</DescriptionTitle>
-                        <DescriptionText>
-                          Можно добавить максимум {MAX_MAIN_PHOTOS} фотографий. Используйте кнопки «Добавить»
-                          и «Удалить», чтобы управлять карточкой персонажа.
-                        </DescriptionText>
-                      </SliderDescription>
-                    </FullSizePhotoSlider>
+                    <SliderDescription>
+                      <DescriptionTitle>Выбор главных фото</DescriptionTitle>
+                      <DescriptionText>
+                        Можно добавить максимум {MAX_MAIN_PHOTOS} фотографий. Используйте кнопки «Добавить»
+                        и «Удалить», чтобы управлять карточкой персонажа.
+                      </DescriptionText>
+                    </SliderDescription>
                   </div>
                 )}
-
-                {(!generatedPhotos || generatedPhotos.length === 0) && (
-                  <PhotoGenerationPlaceholder>
-                    Фотографии будут здесь
-                    <div style={{ marginTop: theme.spacing.sm, fontSize: theme.fontSize.sm, color: theme.colors.text.muted }}>
-                      Сгенерируйте фото для персонажа или добавьте существующие
-                    </div>
-                  </PhotoGenerationPlaceholder>
-                )}
-              </ColumnContent>
-            </RightColumn>
-          </Form>
-        </MainContent>
+              </div>
+            )}
+          </div>
+        </form>
       
       {/* Модальное окно для просмотра фото в полный размер */}
       {selectedPhotoForView && (
@@ -2528,12 +3034,22 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
               <PhotoModalImage 
                 src={selectedPhotoForView.url} 
                 alt="Generated photo full size"
-                onLoad={() => console.log('Modal image loaded:', selectedPhotoForView.url)}
-                onError={(e) => {
-                  console.error('[CREATE_CHAR] Ошибка загрузки изображения:', selectedPhotoForView?.url);
-                }}
+                onLoad={() => console.log('[MODAL] Image loaded in modal:', selectedPhotoForView.url)}
+                onError={() => console.error('[MODAL] Error loading image in modal:', selectedPhotoForView.url)}
               />
             </ModalImageContainer>
+            <PromptPanel>
+              <PromptPanelHeader>
+                <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+              </PromptPanelHeader>
+              {isLoadingPrompt ? (
+                <PromptLoading>Загрузка промпта...</PromptLoading>
+              ) : promptError ? (
+                <PromptError>{promptError}</PromptError>
+              ) : selectedPrompt ? (
+                <PromptPanelText>{selectedPrompt}</PromptPanelText>
+              ) : null}
+            </PromptPanel>
           </PhotoModalContent>
         </PhotoModal>
       )}
@@ -2568,6 +3084,50 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
           }}
         />
       )}
-    </MainContainer>
+      
+      {isSubscriptionModalOpen && (
+        <SubscriptionModal onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            setIsSubscriptionModalOpen(false);
+          }
+        }}>
+          <SubscriptionModalContent onClick={(e) => e.stopPropagation()}>
+            <SubscriptionModalTitle>Создание платного альбома</SubscriptionModalTitle>
+            <SubscriptionModalText>
+              Для создания платного альбома персонажа необходима подписка STANDARD или PREMIUM.
+              Вы можете закончить создание персонажа сейчас или приобрести подписку.
+            </SubscriptionModalText>
+            <SubscriptionModalButtons>
+              <SubscriptionModalButton
+                $variant="secondary"
+                onClick={() => {
+                  setIsSubscriptionModalOpen(false);
+                  // Перенаправляем в чат с персонажем
+                  if (createdCharacterData && onOpenChat) {
+                    onOpenChat(createdCharacterData);
+                  } else {
+                    onBackToMain(); // Fallback if chat cannot be opened
+                  }
+                }}
+              >
+                Закончить создание
+              </SubscriptionModalButton>
+              <SubscriptionModalButton
+                $variant="primary"
+                onClick={() => {
+                  setIsSubscriptionModalOpen(false);
+                  if (onShop) {
+                    onShop();
+                  }
+                }}
+              >
+                Купить подписку
+              </SubscriptionModalButton>
+            </SubscriptionModalButtons>
+          </SubscriptionModalContent>
+        </SubscriptionModal>
+      )}
+      </div>
+    </div>
   );
 }
