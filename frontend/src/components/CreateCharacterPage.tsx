@@ -1679,6 +1679,14 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       setIsCharacterCreated(true); // Устанавливаем состояние создания персонажа
       setSuccess('Персонаж успешно создан!');
 
+      // Автоматически заполняем промпт для генерации фото данными о внешности и локации
+      const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
+      if (parts.length > 0) {
+        const autoPrompt = parts.join(' | ');
+        setCustomPrompt(autoPrompt);
+        console.log('[CREATE] Автоматически заполнен промпт для генерации фото:', autoPrompt);
+      }
+
       // Обновляем информацию о пользователе
       await checkAuth();
       
@@ -1694,13 +1702,8 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       window.dispatchEvent(event);
       console.log('Событие отправлено. Персонаж должен появиться на главной странице.');
       
-      // Даем время главной странице обновиться перед переходом
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Переход на страницу генерации фото
-      if (onPhotoGeneration && result) {
-        onPhotoGeneration(result);
-      }
+      // Остаемся на странице создания - правая часть (генерация фото) уже активна
+      // Не переходим на отдельную страницу генерации фото
       
     } catch (err) {
       console.error('Error creating character:', err); // Добавляем отладку
@@ -2254,18 +2257,6 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
               </FormGroup>
 
               <FormGroup>
-                <Label htmlFor="style" data-icon="✨">Стиль ответа (необязательно):</Label>
-                <Input
-                  type="text"
-                  id="style"
-                  name="style"
-                  value={formData.style}
-                  onChange={handleInputChange}
-                  placeholder="Например: формальный, дружелюбный, загадочный..."
-                />
-              </FormGroup>
-              
-              <FormGroup>
                 <Label htmlFor="appearance" data-icon="🎨">Внешность (для фото):</Label>
                 <Textarea
                   id="appearance"
@@ -2359,7 +2350,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
                     <GenerateSection>
                       <GenerateButton 
                         onClick={generatePhoto}
-                        disabled={isGeneratingPhoto || !userInfo || userInfo.coins < 30 || !formData.name.trim()}
+                        disabled={isGeneratingPhoto || !userInfo || userInfo.coins < 30 || !createdCharacterData}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
