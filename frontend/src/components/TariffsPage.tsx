@@ -442,7 +442,7 @@ export const TariffsPage: React.FC = () => {
 
     try {
       const receiverWallet = '4100119070489003';
-      const amount = subscriptionType === 'premium' ? 1499 : 599;
+      const amount = subscriptionType === 'premium' ? 11 : 599;
       const label = `plan:${subscriptionType};uid:${currentUserId}`;
       const successURL = `${window.location.origin}/frontend/payment/success/`;
       // Формируем URL для YooMoney QuickPay
@@ -520,7 +520,7 @@ export const TariffsPage: React.FC = () => {
 
           <Card>
             <PlanName>Премиум</PlanName>
-            <Price>1499₽ <span>/ месяц</span></Price>
+            <Price>11₽ <span>/ месяц</span></Price>
             <FeatureList>
               <Feature>5000 кредитов</Feature>
               <Feature>Доступ ко всем персонажам</Feature>

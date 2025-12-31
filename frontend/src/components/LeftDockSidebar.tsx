@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { FiPlusCircle, FiEdit, FiClock, FiHeart, FiGrid, FiHome, FiLogIn, FiSettings, FiLogOut, FiShoppingBag, FiMessageSquare, FiTrendingUp, FiMail, FiChevronRight } from 'react-icons/fi';
+import { FiPlusCircle, FiEdit, FiClock, FiHeart, FiGrid, FiHome, FiLogIn, FiUser, FiLogOut, FiShoppingBag, FiMessageSquare, FiTrendingUp, FiMail, FiChevronRight } from 'react-icons/fi';
 import Switcher4 from './Switcher4';
 import { NSFWWarningModal } from './NSFWWarningModal';
 
@@ -120,7 +120,7 @@ const SwitcherContainer = styled.div`
   justify-content: center;
   align-items: center;
   padding: 0.75rem 0;
-  margin-top: 0.5rem;
+  margin-top: calc(0.5rem - 4px);
 `;
 
 const ToggleArrowButton = styled.button<{ $isCollapsed?: boolean }>`
@@ -145,7 +145,7 @@ const ToggleArrowButton = styled.button<{ $isCollapsed?: boolean }>`
   z-index: 20;
   position: fixed;
   top: 50%;
-  left: ${props => props.$isCollapsed ? '8px' : '40px'};
+  left: ${props => props.$isCollapsed ? '-8px' : '40px'};
   transform: ${props => props.$isCollapsed ? 'translateY(-50%) rotate(0deg)' : 'translateY(-50%) rotate(180deg)'};
 
   &:hover {
@@ -231,7 +231,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
       className: 'dock-item-characters',
     },
     {
-      icon: <FiSettings size={22} />,
+      icon: <FiUser size={22} />,
       label: 'Профиль',
       onClick: () => onProfile?.(),
     },
@@ -246,7 +246,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   if (isAuthenticated && onBalanceHistory) {
     bottomDockItems.push({
       icon: <FiTrendingUp size={22} />,
-      label: 'История баланса',
+      label: 'Списания',
       onClick: () => onBalanceHistory?.(),
     });
   }

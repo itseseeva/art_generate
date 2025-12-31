@@ -85,7 +85,7 @@ async def create_admin_user() -> bool:
                     UserSubscription.user_id == admin_user.id
                 ).order_by(UserSubscription.activated_at.desc())
             )
-            subscription = subscription_result.scalar_one_or_none()
+            subscription = subscription_result.scalars().first()
             user_id = admin_user.id
 
             if subscription:

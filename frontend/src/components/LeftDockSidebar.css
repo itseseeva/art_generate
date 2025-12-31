@@ -46,7 +46,7 @@
   border: none !important;
   color: #ffffff !important;
   top: auto !important;
-  bottom: calc(100% + 4px) !important;
+  bottom: calc(100% + 2px) !important;
   left: 50% !important;
   transform: translateX(-50%) !important;
   max-width: 120px !important;
@@ -69,6 +69,6 @@
 
 .left-dock-panel .dock-item-characters .dock-label-vertical {
   bottom: auto !important;
-  top: calc(100% + 4px) !important;
+  top: calc(100% + 8px) !important;
 }
 

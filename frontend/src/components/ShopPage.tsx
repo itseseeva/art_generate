@@ -9,7 +9,7 @@ const MainContainer = styled.div`
   width: 100vw;
   min-height: 100vh;
   background: linear-gradient(145deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%);
-  padding: 4rem 2rem;
+  padding: 1.5rem 1rem;
   overflow-y: auto;
   position: relative;
   
@@ -29,32 +29,30 @@ const ContentWrapper = styled.div`
   margin: 0 auto;
   position: relative;
   z-index: 1;
+  padding-top: 3rem;
 `;
 
 const PageTitle = styled.div`
   text-align: center;
-  margin-bottom: 3rem;
+  margin-bottom: 1.5rem;
   
   h1 {
-    font-size: 3.5rem;
+    font-size: 2rem;
     font-weight: 700;
-    background: linear-gradient(135deg, #ffffff 0%, #a78bfa 50%, #8b5cf6 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: #ffffff;
     letter-spacing: -0.02em;
     margin: 0;
     position: relative;
-    margin-bottom: 1rem;
+    margin-bottom: 0.5rem;
     
     &::after {
       content: '';
       position: absolute;
-      bottom: -10px;
+      bottom: -6px;
       left: 50%;
       transform: translateX(-50%);
-      width: 150px;
-      height: 3px;
+      width: 100px;
+      height: 2px;
       background: linear-gradient(90deg, transparent, #8b5cf6, transparent);
       border-radius: 2px;
     }
@@ -62,8 +60,8 @@ const PageTitle = styled.div`
   
   p {
     color: #b8b8b8;
-    font-size: 1.3rem;
-    margin-top: 2rem;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
     font-weight: 300;
   }
 `;
@@ -75,9 +73,9 @@ const SubscriptionSection = styled.div`
 
 const SectionTitle = styled.h4`
   color: #ffffff;
-  font-size: 2rem;
+  font-size: 1.25rem;
   font-weight: 600;
-  margin-bottom: 3rem;
+  margin-bottom: 1.25rem;
   text-align: center;
   background: linear-gradient(135deg, #ffffff 0%, #a78bfa 100%);
   -webkit-background-clip: text;
@@ -87,12 +85,17 @@ const SectionTitle = styled.h4`
 
 const SubscriptionPlans = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 2.5rem;
-  margin-bottom: 4rem;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 2rem;
+  
+  @media (max-width: 1024px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
   
   @media (max-width: 768px) {
     grid-template-columns: 1fr;
+    gap: 0.75rem;
   }
 `;
 
@@ -103,14 +106,14 @@ const PlanCard = styled.div<{ $isPopular?: boolean }>`
   border: 2px solid ${props => props.$isPopular 
     ? 'rgba(139, 92, 246, 0.4)' 
     : 'rgba(255, 255, 255, 0.1)'};
-  border-radius: 20px;
-  padding: 2.5rem;
+  border-radius: 12px;
+  padding: 1.25rem;
   text-align: center;
   position: relative;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: ${props => props.$isPopular 
-    ? '0 20px 60px rgba(139, 92, 246, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)' 
-    : '0 10px 40px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)'};
+    ? '0 10px 30px rgba(139, 92, 246, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)' 
+    : '0 5px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)'};
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -121,7 +124,7 @@ const PlanCard = styled.div<{ $isPopular?: boolean }>`
     top: 0;
     left: 0;
     right: 0;
-    height: 3px;
+    height: 2px;
     background: ${props => props.$isPopular 
       ? 'linear-gradient(90deg, #8b5cf6, #6366f1, #8b5cf6)' 
       : 'transparent'};
@@ -130,36 +133,36 @@ const PlanCard = styled.div<{ $isPopular?: boolean }>`
   }
   
   &:hover {
-    transform: translateY(-8px) scale(1.02);
+    transform: translateY(-4px) scale(1.01);
     border-color: ${props => props.$isPopular 
       ? 'rgba(139, 92, 246, 0.6)' 
       : 'rgba(255, 255, 255, 0.2)'};
     box-shadow: ${props => props.$isPopular 
-      ? '0 25px 70px rgba(139, 92, 246, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.15)' 
-      : '0 15px 50px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)'};
+      ? '0 15px 40px rgba(139, 92, 246, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.15)' 
+      : '0 10px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)'};
   }
   
   ${props => props.$isPopular && `
     &::after {
       content: 'ПОПУЛЯРНЫЙ';
       position: absolute;
-      top: 20px;
-      right: -35px;
+      top: 12px;
+      right: -30px;
       background: linear-gradient(135deg, #8b5cf6, #6366f1);
       color: white;
-      padding: 5px 40px;
-      font-size: 0.75rem;
+      padding: 3px 32px;
+      font-size: 0.65rem;
       font-weight: 700;
       transform: rotate(45deg);
-      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+      box-shadow: 0 3px 8px rgba(139, 92, 246, 0.4);
     }
   `}
 `;
 
 const PlanName = styled.h5`
-  font-size: 1.75rem;
+  font-size: 1.1rem;
   font-weight: 700;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
   margin-top: 0;
   background: linear-gradient(135deg, #ffffff 0%, #d1d5db 100%);
   -webkit-background-clip: text;
@@ -168,9 +171,9 @@ const PlanName = styled.h5`
 `;
 
 const PlanPrice = styled.div`
-  font-size: 3rem;
+  font-size: 1.75rem;
   font-weight: 800;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   background: linear-gradient(135deg, #ffffff 0%, #a78bfa 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -181,7 +184,7 @@ const PlanPrice = styled.div`
 const PlanFeatures = styled.ul`
   list-style: none;
   padding: 0;
-  margin: 0 0 2rem 0;
+  margin: 0 0 1rem 0;
   text-align: left;
   flex: 1;
 `;
@@ -192,32 +195,22 @@ const PlanFeature = styled.li<{ $isAvailable?: boolean; $isHighlighted?: boolean
     if (props.$isHighlighted) return '#ffffff';
     return '#d1d1d1';
   }};
-  font-size: ${props => props.$isHighlighted ? '1.2rem' : '1.05rem'};
-  font-weight: ${props => props.$isHighlighted ? '700' : '400'};
-  margin-bottom: 1.25rem;
+  font-size: ${props => props.$isHighlighted ? '0.85rem' : '0.75rem'};
+  font-weight: ${props => props.$isHighlighted ? '600' : '400'};
+  margin-bottom: 0.5rem;
   display: flex;
   align-items: flex-start;
-  line-height: 1.5;
+  line-height: 1.4;
   
   ${props => props.$isHighlighted && `
     background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(99, 102, 241, 0.15) 100%);
-    padding: 0.75rem 1rem;
-    border-radius: 10px;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
     border: 1px solid rgba(139, 92, 246, 0.4);
-    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.2);
-    margin-top: 0.5rem;
-    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.2);
+    margin-top: 0.25rem;
+    margin-bottom: 0.75rem;
     position: relative;
-    
-    &::after {
-      content: '⭐';
-      position: absolute;
-      right: 1rem;
-      top: 50%;
-      transform: translateY(-50%);
-      font-size: 1.3rem;
-      filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.8));
-    }
   `}
   
   &::before {
@@ -227,15 +220,15 @@ const PlanFeature = styled.li<{ $isAvailable?: boolean; $isHighlighted?: boolean
       if (props.$isHighlighted) return '#a78bfa';
       return '#8b5cf6';
     }};
-    margin-right: 0.75rem;
+    margin-right: 0.5rem;
     font-weight: bold;
-    font-size: ${props => props.$isHighlighted ? '1.4rem' : '1.2rem'};
+    font-size: ${props => props.$isHighlighted ? '0.9rem' : '0.8rem'};
     flex-shrink: 0;
-    margin-top: 2px;
+    margin-top: 1px;
     text-shadow: ${props => {
       if (props.$isAvailable === false) return 'none';
-      if (props.$isHighlighted) return '0 0 15px rgba(139, 92, 246, 0.8)';
-      return '0 0 10px rgba(139, 92, 246, 0.5)';
+      if (props.$isHighlighted) return '0 0 10px rgba(139, 92, 246, 0.8)';
+      return '0 0 8px rgba(139, 92, 246, 0.5)';
     }};
   }
 `;
@@ -243,8 +236,8 @@ const PlanFeature = styled.li<{ $isAvailable?: boolean; $isHighlighted?: boolean
 const PaymentButtonsContainer = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin-top: 1rem;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
   animation: fadeIn 0.3s ease;
   
   @keyframes fadeIn {
@@ -255,17 +248,17 @@ const PaymentButtonsContainer = styled.div`
 
 const PaymentButton = styled.button`
   width: 100%;
-  padding: 1rem;
+  padding: 0.625rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
+  border-radius: 8px;
   color: white;
   font-weight: 600;
-  font-size: 1rem;
+  font-size: 0.875rem;
   cursor: pointer;
   transition: all 0.3s ease;
   backdrop-filter: blur(10px);
@@ -273,18 +266,18 @@ const PaymentButton = styled.button`
   &:hover {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.1) 100%);
     border-color: rgba(255, 255, 255, 0.3);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
   }
 `;
 
 const PaymentLogo = styled.img`
-  width: 24px;
-  height: 24px;
+  width: 18px;
+  height: 18px;
   object-fit: contain;
   background: white;
-  border-radius: 4px;
-  padding: 2px;
+  border-radius: 3px;
+  padding: 1px;
 `;
 
 const RenewalInfo = styled.div`
@@ -301,21 +294,21 @@ const RenewalInfo = styled.div`
 
 const ActivateButton = styled.button`
   width: 100%;
-  padding: 1rem 1.5rem;
+  padding: 0.625rem 1rem;
   background: linear-gradient(135deg, rgba(139, 92, 246, 0.8) 0%, rgba(99, 102, 241, 0.8) 100%);
   color: #ffffff;
   border: 1px solid rgba(139, 92, 246, 0.5);
-  border-radius: 12px;
+  border-radius: 8px;
   font-weight: 600;
-  font-size: 1.05rem;
+  font-size: 0.875rem;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+  box-shadow: 0 3px 10px rgba(139, 92, 246, 0.3);
   
   &:hover:not(:disabled) {
     background: linear-gradient(135deg, rgba(139, 92, 246, 1) 0%, rgba(99, 102, 241, 1) 100%);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
   }
   
   &:disabled {
@@ -343,16 +336,14 @@ const ErrorMessage = styled.div`
 const CurrentSubscriptionCard = styled.div`
   background: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(99, 102, 241, 0.05) 100%);
   border: 1px solid rgba(139, 92, 246, 0.2);
-  border-radius: 20px;
-  padding: 2.5rem;
-  margin-bottom: 3rem;
-  max-width: 600px;
-  margin-left: auto;
-  margin-right: auto;
+  border-radius: 8px;
+  padding: 0.5rem 0.875rem;
   text-align: center;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), 
               inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  position: relative;
+  position: absolute;
+  top: 0;
+  right: 0;
   overflow: hidden;
   
   &::before {
@@ -368,10 +359,10 @@ const CurrentSubscriptionCard = styled.div`
 
 const CurrentSubscriptionLabel = styled.div`
   color: #888888;
-  font-size: 0.875rem;
+  font-size: 0.55rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.25rem;
   font-weight: 600;
 `;
 
@@ -380,7 +371,7 @@ const CurrentSubscriptionValue = styled.div`
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  font-size: 2.5rem;
+  font-size: 0.875rem;
   font-weight: 700;
 `;
 
@@ -694,7 +685,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
 
     try {
       const receiverWallet = '4100119070489003';
-      const amount = subscriptionType === 'premium' ? 1499 : 599;
+      const amount = subscriptionType === 'premium' ? 11 : 599;
       const label = `plan:${subscriptionType};uid:${currentUserId}`;
       // Используем относительный URL для возврата на страницу магазина
       const successURL = `${window.location.origin}/shop`;
@@ -726,19 +717,19 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   return (
     <MainContainer>
       <ContentWrapper>
-        <PageTitle>
-          <h1>
-            <SplitText text="Магазин" delay={50} />
-          </h1>
-          <p>Выберите подписку и получите доступ ко всем возможностям</p>
-        </PageTitle>
-        
         <CurrentSubscriptionCard>
           <CurrentSubscriptionLabel>Текущая подписка</CurrentSubscriptionLabel>
           <CurrentSubscriptionValue>
             {(stats?.subscription_type || 'free').toUpperCase()}
           </CurrentSubscriptionValue>
         </CurrentSubscriptionCard>
+        
+        <PageTitle>
+          <h1>
+            <SplitText text="Магазин" delay={50} />
+          </h1>
+          <p>Выберите подписку и получите доступ ко всем возможностям</p>
+        </PageTitle>
         
         <SubscriptionSection>
           <SectionTitle>
@@ -817,7 +808,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             
             <PlanCard>
               <PlanName>Premium</PlanName>
-              <PlanPrice>1499₽</PlanPrice>
+              <PlanPrice>11₽</PlanPrice>
               <PlanFeatures>
                 <PlanFeature>5000 кредитов в месяц</PlanFeature>
                 <PlanFeature>Возможность создать своих персонажей</PlanFeature>

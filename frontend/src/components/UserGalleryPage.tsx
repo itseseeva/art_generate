@@ -438,7 +438,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
     setAddingPhotoIds(prev => new Set(prev).add(photo.id));
 
     try {
-      const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/add/', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/add/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -517,7 +517,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
       if (!authToken) return;
       
       try {
-        const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/me/', {
+        const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`, {
           headers: {
             'Authorization': `Bearer ${authToken}`
           }
@@ -553,7 +553,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
       }
 
       try {
-        const galleryResponse = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/', {
+        const galleryResponse = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/`, {
           headers: {
             'Authorization': `Bearer ${authToken}`
           }
@@ -622,7 +622,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
       // Иначе загружаем свою галерею
       const baseUrl = userId 
         ? `${API_CONFIG.BASE_URL}/api/v1/auth/user-generated-photos/${userId}/`
-        : '${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/';
+        : `${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/`;
       
       // Добавляем параметры пагинации только для своей галереи
       const url = userId 

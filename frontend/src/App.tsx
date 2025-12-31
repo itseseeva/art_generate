@@ -709,6 +709,7 @@ function App() {
             onHistory={handleHistory}
             onCreateCharacter={handleCreateCharacter}
             onEditCharacters={handleEditCharacters}
+            onCharacterSelect={handleCharacterSelect}
           />
         );
       case 'messages':

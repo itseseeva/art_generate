@@ -1,0 +1,8 @@
+{
+  "devDependencies": {
+    "shadcn": "^3.6.2"
+  },
+  "dependencies": {
+    "framer-motion": "^12.23.26"
+  }
+}

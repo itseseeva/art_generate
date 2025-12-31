@@ -209,15 +209,15 @@ export const BalanceHistoryPage: React.FC<BalanceHistoryPageProps> = ({
       <ContentContainer>
         <PageTitle>
           <FiDollarSign size={32} />
-          История баланса
+          Списания
         </PageTitle>
 
         {isLoading ? (
-          <LoadingSpinner size="lg" text="Загрузка истории баланса..." />
+          <LoadingSpinner size="lg" text="Загрузка списаний..." />
         ) : error ? (
           <ErrorMessage message={error} />
         ) : history.length === 0 ? (
-          <EmptyState>История баланса пуста</EmptyState>
+          <EmptyState>Списания отсутствуют</EmptyState>
         ) : (
           <>
             <div style={{ marginBottom: theme.spacing.lg, color: 'rgba(160, 160, 160, 1)', fontSize: theme.fontSize.sm }}>

@@ -32,6 +32,9 @@ import {
   FiSettings as SettingsIcon,
   FiArrowLeft as ArrowLeftIcon
 } from 'react-icons/fi';
+import { User, Coins, Crown, History, LogOut } from 'lucide-react';
+import { motion } from 'motion/react';
+import { CircularGallery } from './ui/circular-gallery';
 
 const UNLOCKED_USER_GALLERIES_KEY = 'userGalleryUnlocked';
 
@@ -185,6 +188,8 @@ interface ProfilePageProps {
   onMyCharacters?: () => void;
   onMessages?: () => void;
   onHistory?: () => void;
+  onBalanceHistory?: () => void;
+  onCharacterSelect?: (character: any) => void;
   userId?: number; // ID пользователя, профиль которого показывается (если не указан - показывается свой профиль)
 }
 
@@ -1301,6 +1306,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   onMyCharacters,
   onMessages,
   onHistory,
+  onBalanceHistory,
+  onCharacterSelect,
   userId: profileUserId
 }) => {
   console.log('[PROFILE] ProfilePage rendered with profileUserId:', profileUserId);
@@ -1330,8 +1337,144 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     created_at: string | null;
   } | null>(null);
   const [showSettingsPage, setShowSettingsPage] = useState(false);
+  const [userCharacters, setUserCharacters] = useState<any[]>([]);
+  const [selectedCharacterIndex, setSelectedCharacterIndex] = useState(0);
+  const [rawCharactersData, setRawCharactersData] = useState<any[]>([]);
 
   const isViewingOwnProfile = !profileUserId || (currentUserId !== null && profileUserId === currentUserId);
+  
+  // Загрузка персонажей пользователя
+  const loadUserCharacters = useCallback(async () => {
+    if (!authToken || !isViewingOwnProfile) {
+      setUserCharacters([]);
+      return;
+    }
+
+    try {
+      const token = authToken;
+      
+      // Получаем ID текущего пользователя
+      const userResponse = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!userResponse.ok) {
+        return;
+      }
+
+      const userData = await userResponse.json();
+      const currentUserIdValue = userData?.id;
+      
+      if (!currentUserIdValue) {
+        return;
+      }
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const charactersData = await response.json();
+        
+        if (!Array.isArray(charactersData)) {
+          setUserCharacters([]);
+          return;
+        }
+        
+        // Фильтруем только персонажей текущего пользователя
+        const myCharacters = charactersData.filter((char: any) => {
+          if (!char || !char.id) {
+            return false;
+          }
+          return Number(char.user_id) === Number(currentUserIdValue);
+        });
+        
+        // Загружаем фото из main_photos
+        const photosMap: Record<string, string[]> = {};
+        
+        for (const char of myCharacters) {
+          if (!char || !char.main_photos) {
+            continue;
+          }
+
+          const canonicalName = char.name || char.display_name;
+          if (!canonicalName) {
+            continue;
+          }
+
+          let parsedPhotos: any[] = [];
+
+          if (Array.isArray(char.main_photos)) {
+            parsedPhotos = char.main_photos;
+          } else if (typeof char.main_photos === 'string') {
+            try {
+              parsedPhotos = JSON.parse(char.main_photos);
+            } catch (e) {
+              console.error('Error parsing main_photos for character:', canonicalName, e);
+              parsedPhotos = [];
+            }
+          } else {
+            parsedPhotos = [char.main_photos];
+          }
+
+          const normalizedKey = canonicalName.toLowerCase();
+          const photoUrls = parsedPhotos
+            .map((photo: any) => {
+              if (!photo) {
+                return null;
+              }
+
+              if (typeof photo === 'string') {
+                return photo.startsWith('http')
+                  ? photo
+                  : `/static/photos/${normalizedKey}/${photo}.png`;
+              }
+
+              if (photo.url) {
+                return photo.url;
+              }
+
+              if (photo.id) {
+                return `/static/photos/${normalizedKey}/${photo.id}.png`;
+              }
+
+              return null;
+            })
+            .filter((url): url is string => Boolean(url));
+
+          if (photoUrls.length) {
+            photosMap[normalizedKey] = photoUrls;
+          }
+        }
+        
+        // Сохраняем raw данные персонажей
+        setRawCharactersData(myCharacters);
+        
+        // Форматируем персонажей для CircularGallery
+        const formattedCharacters = myCharacters
+          .filter((char: any) => char && char.id != null)
+          .map((char: any) => {
+            const normalizedKey = (char.name || char.display_name || '').toLowerCase();
+            const charName = char.name || char.display_name || 'Unknown';
+            return {
+              id: String(char.id || ''),
+              name: charName,
+              photos: photosMap[normalizedKey] || [],
+            };
+          });
+        
+        setUserCharacters(formattedCharacters);
+        setSelectedCharacterIndex(0); // Сбрасываем индекс при загрузке новых персонажей
+      }
+    } catch (error) {
+      console.error('[PROFILE] Ошибка загрузки персонажей:', error);
+      setUserCharacters([]);
+    }
+  }, [authToken, isViewingOwnProfile]);
   const viewedUserName = userInfo?.username || userInfo?.email?.split('@')[0] || 'Пользователь';
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -1862,6 +2005,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     console.log('[PROFILE] profileUserId changed to:', profileUserId);
   }, [profileUserId]);
 
+  // Загружаем персонажей пользователя
+  useEffect(() => {
+    if (isViewingOwnProfile && authToken) {
+      loadUserCharacters();
+    } else {
+      setUserCharacters([]);
+    }
+  }, [isViewingOwnProfile, authToken, loadUserCharacters]);
+
   const startRealtimeConnection = useCallback(() => {
     if (!authToken || !isViewingOwnProfile) {
       return;
@@ -1990,21 +2142,17 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const renderContent = () => {
     if (!hasAuthToken) {
       return (
-        <ErrorBanner>
+        <div className="w-full min-h-screen bg-black p-6 md:p-8 flex items-center justify-center">
+          <div className="p-6 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 backdrop-blur-md max-w-md text-center">
           Для просмотра профиля необходимо войти в систему.
-        </ErrorBanner>
+          </div>
+        </div>
       );
     }
 
     if (isLoading) {
       return (
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          minHeight: '400px',
-          padding: theme.spacing.xxl
-        }}>
+        <div className="w-full min-h-screen bg-black p-6 md:p-8 flex items-center justify-center">
           <LoadingSpinner size="lg" text="Загрузка профиля..." />
         </div>
       );
@@ -2013,42 +2161,46 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     // Если открыта страница настроек, показываем её
     if (showSettingsPage && isViewingOwnProfile) {
       return (
-        <>
-          {error && <ErrorBanner>{error}</ErrorBanner>}
-          <Section>
-            <SectionHeader>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: theme.spacing.lg }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: theme.spacing.md }}>
-                  <QuickActionButton 
+        <div className="w-full min-h-screen bg-black p-6 md:p-8">
+          {error && (
+            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 backdrop-blur-md">
+              {error}
+            </div>
+          )}
+          <div className="max-w-4xl mx-auto">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-8 shadow-lg shadow-pink-500/5"
+            >
+              <div className="flex items-center gap-4 mb-6">
+                <button
                     onClick={() => setShowSettingsPage(false)}
-                    style={{ 
-                      background: 'rgba(60, 60, 60, 0.5)',
-                      padding: theme.spacing.sm,
-                      minWidth: 'auto'
-                    }}
-                  >
-                    <QuickActionLabel>
-                      <ArrowLeftIcon />
-                      Назад
-                    </QuickActionLabel>
-                  </QuickActionButton>
-                  <SplitText text="Настройки профиля" delay={25} />
+                  className="p-2 bg-white/10 hover:bg-white/20 rounded-lg border border-white/10 transition-colors"
+                >
+                  <ArrowLeftIcon className="w-5 h-5 text-white" />
+                </button>
+                <div>
+                  <h2 className="text-2xl font-bold text-white">Настройки профиля</h2>
+                  <p className="text-white/60 text-sm mt-1">Изменить данные учетной записи</p>
                 </div>
               </div>
-              <SectionSubtitle>Изменить данные учетной записи</SectionSubtitle>
-            </SectionHeader>
             <EditProfileForm userInfo={userInfo} authToken={authToken} onUpdate={loadProfileData} />
-          </Section>
-        </>
+            </motion.div>
+          </div>
+        </div>
       );
     }
 
     // Если данные не загрузились, показываем сообщение
     if (!userInfo && !error) {
       return (
-        <ErrorBanner>
+        <div className="w-full min-h-screen bg-black p-6 md:p-8 flex items-center justify-center">
+          <div className="p-6 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 backdrop-blur-md max-w-md text-center">
           Не удалось загрузить данные профиля. Пожалуйста, обновите страницу.
-        </ErrorBanner>
+          </div>
+        </div>
       );
     }
 
@@ -2063,65 +2215,76 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     });
 
 
-    return (
-      <>
-        {error && <ErrorBanner>{error}</ErrorBanner>}
+    const subscriptionTypeUpper = subscriptionType && subscriptionType !== '—' ? subscriptionType.toUpperCase() : null;
+    const isPremium = subscriptionTypeUpper === 'PREMIUM';
+    const progressPercentage = stats?.monthly_credits 
+      ? Math.min(100, Math.round((stats.used_credits / stats.monthly_credits) * 100))
+      : 0;
 
-        <ProfileHeader>
-          <HeaderContent>
-            <UserInfoSection>
-              <AvatarContainer
-                title={isViewingOwnProfile ? 'Нажмите для загрузки фото' : undefined}
-                $isReadOnly={!isViewingOwnProfile}
-              >
+    return (
+      <div className="w-full min-h-screen bg-black p-6 md:p-8">
+        {error && (
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 backdrop-blur-md">
+            {error}
+          </div>
+        )}
+
+        {isViewingOwnProfile ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 max-w-7xl mx-auto">
+            {/* Блок 1 (2x1): Карточка пользователя */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="md:col-span-2 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 md:p-8 hover:border-pink-500/30 transition-all duration-300 shadow-lg shadow-pink-500/5"
+            >
+              <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
+                <div className="relative">
+                  <div className={`w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden border-2 ${
+                    isPremium 
+                      ? 'border-yellow-400/50 shadow-[0_0_20px_rgba(250,204,21,0.3)]' 
+                      : 'border-pink-500/50 shadow-[0_0_20px_rgba(236,72,153,0.3)]'
+                  } relative ${isViewingOwnProfile ? 'cursor-pointer' : ''}`}>
                 {userInfo?.avatar_url ? (
-                  <AvatarImage src={userInfo.avatar_url} alt="Avatar" />
+                      <img src={userInfo.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
                 ) : userInfo?.username || userInfo?.email ? (
-                  <span>{getInitials(userInfo.username, userInfo.email)}</span>
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-500/20 to-purple-500/20 text-3xl md:text-4xl font-bold text-white">
+                        {getInitials(userInfo.username, userInfo.email)}
+                      </div>
                 ) : (
-                  <UserIcon />
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-500/20 to-purple-500/20">
+                        <User className="w-12 h-12 text-white/70" />
+                      </div>
                 )}
                 {isViewingOwnProfile && (
-                  <AvatarInput
+                      <input
                     id="avatar-upload"
                     type="file"
                     accept="image/*"
                     onChange={async (e) => {
-                    // Защита от двойного вызова
                     if (isUploadingRef.current) {
                       e.target.value = '';
                       return;
                     }
-                    
                     const file = e.target.files?.[0];
                     if (!file || !authToken) {
-                      // Очищаем input даже если файл не выбран
                       e.target.value = '';
                       return;
                     }
-                    
-                    // Устанавливаем флаг загрузки
                     isUploadingRef.current = true;
-                    
                     console.log('[AVATAR] Начало загрузки аватара:', file.name, file.size, 'байт');
-                    
                     const formData = new FormData();
                     formData.append('avatar', file);
-                    
                     try {
                       const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/avatar/`, {
                         method: 'POST',
-                        headers: {
-                          Authorization: `Bearer ${authToken}`
-                        },
+                              headers: { Authorization: `Bearer ${authToken}` },
                         body: formData
                       });
-                      
                       if (response.ok) {
                         const data = await response.json();
                         console.log('[AVATAR] Аватар успешно загружен:', data.avatar_url);
                         setUserInfo(prev => prev ? { ...prev, avatar_url: data.avatar_url } : null);
-                        // Не вызываем loadProfileData, так как WebSocket обновит данные автоматически
                       } else {
                         const errorData = await response.json().catch(() => ({ detail: 'Неизвестная ошибка' }));
                         console.error('[AVATAR] Ошибка загрузки:', errorData);
@@ -2131,278 +2294,234 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       console.error('[AVATAR] Исключение при загрузке:', err);
                       setError('Ошибка при загрузке фото');
                     } finally {
-                      // Сбрасываем флаг загрузки и очищаем input
                       isUploadingRef.current = false;
                       e.target.value = '';
                     }
                     }}
-                  />
-                )}
-              </AvatarContainer>
-              <UserDetails>
-                <UserName>{viewedUserName}</UserName>
-                <UserEmail>{userInfo?.email || '—'}</UserEmail>
-                {subscriptionType && subscriptionType !== '—' && (
-                  <BadgeContainer>
-                    <Badge>
-                      <AwardIcon />
-                      {subscriptionType.toUpperCase()}
-                    </Badge>
-                  </BadgeContainer>
-                )}
-              </UserDetails>
-            </UserInfoSection>
-            <HeaderActions>
-              {hasAuthToken && (
-                <>
-                  {/* Если это свой профиль - показываем "Моя галерея" */}
-                  {isViewingOwnProfile && (
-                    <GalleryButtonContainer style={{ marginBottom: '1rem' }}>
-                      <ActionButton onClick={() => onOpenUserGallery?.()} style={{ background: 'rgba(80, 80, 80, 0.5)' }}>
-                        <ImageIcon />
-                        Моя галерея ({photosCount} фото)
-                      </ActionButton>
-                      <GalleryButtonDescription>
-                        Просмотр всех ваших сгенерированных фото
-                      </GalleryButtonDescription>
-                    </GalleryButtonContainer>
-                  )}
-                  {/* Если это чужой профиль - показываем кнопку для открытия альбома за 500 кредитов */}
-                  {profileUserId && currentUserId && profileUserId !== currentUserId && (() => {
-                    const subscriptionTypeRaw = stats?.subscription_type || userInfo?.subscription?.subscription_type || '';
-                    const currentSubscription = subscriptionTypeRaw ? subscriptionTypeRaw.toLowerCase() : '';
-                    const isPremium = currentSubscription === 'premium';
-                    
-                    return (
-                      <GalleryButtonContainer style={{ marginBottom: '1rem' }}>
-                        <ActionButton 
-                          onClick={(e) => {
-                            console.log('[PROFILE] Кнопка "Купить доступ к галерее" нажата');
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleOpenUserGallery();
-                          }} 
-                          disabled={isLoadingGallery}
-                          style={!hasUnlockedGallery && !isPremium ? { background: 'rgba(80, 80, 80, 0.9)' } : undefined}
-                        >
-                          {isPremium ? <AwardIcon /> : <ImageIcon />}
-                          {hasUnlockedGallery
-                            ? 'Открыть галерею'
-                            : isPremium
-                            ? 'Открыть!'
-                            : `Купить доступ к галерее за 500 кредитов`}
-                        </ActionButton>
-                        {!hasUnlockedGallery && !isPremium && (
-                          <GalleryButtonPrice>
-                            Стоимость открытия: 500 кредитов
-                          </GalleryButtonPrice>
-                        )}
-                        <GalleryButtonDescription>
-                          {hasUnlockedGallery
-                            ? 'Галерея уже разблокирована. Нажмите, чтобы открыть.'
-                            : isPremium
-                            ? 'Вы премиум пользователь у вас доступ ко всем галереям пользователей!'
-                            : `Вы откроете доступ ко всем ${generatedPhotosCount} сгенерированным фото пользователя. После покупки галерея будет доступна всегда.`}
-                        </GalleryButtonDescription>
-                      </GalleryButtonContainer>
-                    );
-                  })()}
-                </>
-              )}
-            </HeaderActions>
-          </HeaderContent>
-        </ProfileHeader>
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                      />
+                    )}
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">{viewedUserName}</h1>
+                  <p className="text-white/60 mb-4">{userInfo?.email || '—'}</p>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {subscriptionTypeUpper && (
+                      <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm ${
+                        isPremium
+                          ? 'bg-gradient-to-r from-yellow-400/20 to-yellow-600/20 text-yellow-300 border border-yellow-400/30 shadow-[0_0_15px_rgba(250,204,21,0.2)]'
+                          : 'bg-gradient-to-r from-pink-500/20 to-rose-500/20 text-pink-300 border border-pink-500/30 shadow-[0_0_15px_rgba(236,72,153,0.2)]'
+                      }`}>
+                        <Crown className={`w-4 h-4 ${isPremium ? 'text-yellow-400' : 'text-pink-400'}`} />
+                        {subscriptionTypeUpper}
+                      </div>
+                    )}
+                    <button
+                      onClick={handleOpenUserGallery}
+                      className="px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-600 rounded-lg text-white font-semibold text-sm hover:from-pink-600 hover:to-rose-700 transition-all duration-200 shadow-lg shadow-pink-500/25"
+                    >
+                      Галерея пользователя
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
 
-        {isViewingOwnProfile ? (
-          <>
-            <TwoColumnLayout>
-              <LeftColumn>
-                <Section>
-                  <SectionHeader>
-                    <SplitText text="Навигация" delay={25} />
-                    <SectionSubtitle>Быстрый доступ к разделам</SectionSubtitle>
-                  </SectionHeader>
-                  <QuickActionsContainer>
-                    {onHome && (
-                      <QuickActionButton onClick={onHome}>
-                        <QuickActionLabel>
-                          <HomeIcon />
-                          Главная
-                        </QuickActionLabel>
-                        <ArrowRightIcon />
-                      </QuickActionButton>
-                    )}
-                    {onCreateCharacter && (
-                      <QuickActionButton onClick={onCreateCharacter}>
-                        <QuickActionLabel>
-                          <UserPlusIcon />
-                          Создать персонажа
-                        </QuickActionLabel>
-                        <ArrowRightIcon />
-                      </QuickActionButton>
-                    )}
-                    {onEditCharacters && (
-                      <QuickActionButton onClick={onEditCharacters}>
-                        <QuickActionLabel>
-                          <EditIcon />
-                          Редактировать персонажей
-                        </QuickActionLabel>
-                        <ArrowRightIcon />
-                      </QuickActionButton>
-                    )}
-                    {onHistory && (
-                      <QuickActionButton onClick={onHistory}>
-                        <QuickActionLabel>
-                          <ClockIcon />
-                          История чатов
-                        </QuickActionLabel>
-                        <ArrowRightIcon />
-                      </QuickActionButton>
-                    )}
-                    {onFavorites && (
-                      <QuickActionButton onClick={onFavorites}>
-                        <QuickActionLabel>
-                          <HeartIcon />
-                          Избранное
-                        </QuickActionLabel>
-                        <ArrowRightIcon />
-                      </QuickActionButton>
-                    )}
-                    {onMyCharacters && (
-                      <QuickActionButton onClick={onMyCharacters}>
-                        <QuickActionLabel>
-                          <UsersIcon />
-                          Мои персонажи
-                        </QuickActionLabel>
-                        <ArrowRightIcon />
-                      </QuickActionButton>
-                    )}
-                    {onProfile && (
-                      <QuickActionButton onClick={() => onProfile(undefined)}>
-                        <QuickActionLabel>
-                          <UserIcon />
-                          Профиль
-                        </QuickActionLabel>
-                        <ArrowRightIcon />
-                      </QuickActionButton>
-                    )}
+            {/* Блок 2 (1x1): Виджет баланса */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 hover:border-pink-500/30 transition-all duration-300 shadow-lg shadow-pink-500/5 flex flex-col justify-between"
+            >
+              <div>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-lg bg-pink-500/20 flex items-center justify-center border border-pink-500/30">
+                    <Coins className="w-5 h-5 text-pink-400" />
+                  </div>
+                  <span className="text-white/60 text-sm">Баланс</span>
+                </div>
+                <div className="text-4xl font-bold text-white mb-2">{coinBalance}</div>
+                <div className="text-white/40 text-xs">кредитов</div>
+              </div>
                     {onShop && (
-                      <QuickActionButton onClick={onShop}>
-                        <QuickActionLabel>
-                          <ShopIcon />
-                          Магазин
-                        </QuickActionLabel>
-                        <ArrowRightIcon />
-                      </QuickActionButton>
-                    )}
-                    {onMessages && (
-                      <QuickActionButton onClick={onMessages}>
-                        <QuickActionLabel>
-                          <MessageIcon />
-                          Сообщения
-                        </QuickActionLabel>
-                        <ArrowRightIcon />
-                      </QuickActionButton>
-                    )}
-                    {isViewingOwnProfile && (
-                      <QuickActionButton onClick={() => setShowSettingsPage(true)}>
-                        <QuickActionLabel>
-                          <SettingsIcon />
-                          Сменить данные
-                        </QuickActionLabel>
-                        <ArrowRightIcon />
-                      </QuickActionButton>
-                    )}
-                  </QuickActionsContainer>
-                </Section>
-              </LeftColumn>
-              <RightColumn>
-                <Section>
-                  <StatsGrid>
-                  <StatCard>
-                    <StatIcon color="rgba(59, 130, 246, 0.15)">
-                      <CoinsIcon />
-                    </StatIcon>
-                    <StatContent>
-                      <StatValue>{coinBalance}</StatValue>
-                      <StatLabel>Баланс монет</StatLabel>
-                      <StatDescription>Обновляется после любого списания или пополнения</StatDescription>
-                    </StatContent>
-                  </StatCard>
+                <button
+                  onClick={onShop}
+                  className="mt-4 w-full px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-600 rounded-lg text-white font-semibold hover:from-pink-600 hover:to-rose-700 transition-all duration-200 shadow-lg shadow-pink-500/25"
+                >
+                  Пополнить
+                </button>
+              )}
+            </motion.div>
 
-                  <StatCard>
-                    <StatIcon color="rgba(34, 197, 94, 0.15)">
-                      <ClockIcon />
-                    </StatIcon>
-                    <StatContent>
-                      <StatValue>{stats?.days_left ?? '—'}</StatValue>
-                      <StatLabel>Дней до обновления</StatLabel>
-                      <StatDescription>Срок действия текущей подписки</StatDescription>
-                    </StatContent>
-                  </StatCard>
+            {/* Блок 3 (1x1): Прогресс подписки */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 hover:border-pink-500/30 transition-all duration-300 shadow-lg shadow-pink-500/5"
+            >
+              <div className="mb-4">
+                <span className="text-white/60 text-sm">Использовано кредитов</span>
+                <div className="text-2xl font-bold text-white mt-2">
+                  {stats?.used_credits ?? 0} / {stats?.monthly_credits ?? 0}
+                </div>
+              </div>
+              <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progressPercentage}%` }}
+                  transition={{ duration: 1, delay: 0.3 }}
+                  className={`h-full rounded-full ${
+                    isPremium
+                      ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 shadow-[0_0_10px_rgba(250,204,21,0.5)]'
+                      : 'bg-gradient-to-r from-pink-500 to-rose-600 shadow-[0_0_10px_rgba(236,72,153,0.5)]'
+                  }`}
+                />
+              </div>
+              <div className="text-white/40 text-xs mt-2">{progressPercentage}% использовано</div>
+            </motion.div>
 
-                  {profileStats && (
-                    <>
-                      <StatCard>
-                        <StatIcon color="rgba(139, 92, 246, 0.15)">
-                          <UsersIcon />
-                        </StatIcon>
-                        <StatContent>
-                          <StatValue>{profileStats.characters_count}</StatValue>
-                          <StatLabel>Создано персонажей</StatLabel>
-                          <StatDescription>Всего персонажей в вашей коллекции</StatDescription>
-                        </StatContent>
-                      </StatCard>
+            {/* Блок 4 (1x1): История транзакций */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 hover:border-blue-500/30 transition-all duration-300 shadow-lg shadow-blue-500/5 cursor-pointer group"
+              onClick={onBalanceHistory}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center border border-blue-500/30 group-hover:bg-blue-500/30 transition-colors">
+                  <History className="w-5 h-5 text-blue-400" />
+                </div>
+                <span className="text-white/60 text-sm">История транзакций</span>
+              </div>
+              <div className="text-white/40 text-xs">Просмотр всех операций</div>
+            </motion.div>
 
-                      <StatCard>
-                        <StatIcon color="rgba(236, 72, 153, 0.15)">
-                          <MessageIcon />
-                        </StatIcon>
-                        <StatContent>
-                          <StatValue>{profileStats.messages_count}</StatValue>
-                          <StatLabel>Сообщений в чате</StatLabel>
-                          <StatDescription>Всего отправлено сообщений</StatDescription>
-                        </StatContent>
-                      </StatCard>
-                    </>
+            {/* Блок 5 (1x1): Выход */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.4 }}
+              className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 hover:border-red-500/50 transition-all duration-300 shadow-lg shadow-red-500/5 cursor-pointer group"
+              onClick={() => {
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('refreshToken');
+                setAuthToken(null);
+                window.location.reload();
+              }}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center border border-red-500/30 group-hover:bg-red-500/30 transition-colors">
+                  <LogOut className="w-5 h-5 text-red-400" />
+                </div>
+                <span className="text-white/60 text-sm">Выход</span>
+              </div>
+              <div className="text-white/40 text-xs">Выйти из аккаунта</div>
+            </motion.div>
+
+            {/* Блок 6 (3x1): Галерея персонажей */}
+            {userCharacters.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.5 }}
+                className="md:col-span-3 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 hover:border-pink-500/30 transition-all duration-300 shadow-lg shadow-pink-500/5"
+              >
+                <div className="flex flex-col items-center gap-4">
+                  <h3 className="text-xl font-bold text-white text-center">Персонажи</h3>
+                  <CircularGallery
+                    items={userCharacters}
+                    itemHeight={300}
+                    itemWidth={200}
+                    visibleCount={5}
+                    onIndexChange={(index) => setSelectedCharacterIndex(index)}
+                    onItemClick={(item) => {
+                      if (onMyCharacters) {
+                        onMyCharacters();
+                      }
+                    }}
+                    className="min-h-[400px]"
+                  />
+                  {userCharacters.length > 0 && onCharacterSelect && (
+                    <button
+                      onClick={() => {
+                        const selectedItem = userCharacters[selectedCharacterIndex];
+                        if (!selectedItem) return;
+                        
+                        // Находим raw данные выбранного персонажа
+                        const rawChar = rawCharactersData.find(
+                          (char: any) => String(char.id) === selectedItem.id
+                        );
+                        
+                        if (rawChar) {
+                          const charName = rawChar.name || rawChar.display_name || selectedItem.name;
+                          const normalizedId = (rawChar.id ?? charName).toString();
+                          
+                          const character = {
+                            id: normalizedId,
+                            name: charName,
+                            description: rawChar.description || rawChar.character_appearance || 'No description available',
+                            avatar: charName.charAt(0).toUpperCase(),
+                            photos: selectedItem.photos || [],
+                            tags: Array.isArray(rawChar.tags) && rawChar.tags.length ? rawChar.tags : ['User Created'],
+                            author: 'User',
+                            likes: Number(rawChar.likes) || 0,
+                            views: Number(rawChar.views) || 0,
+                            comments: Number(rawChar.comments) || 0,
+                            is_nsfw: rawChar.is_nsfw === true,
+                            raw: rawChar,
+                          };
+                          
+                          onCharacterSelect(character);
+                        }
+                      }}
+                      className="px-6 py-2.5 bg-gradient-to-r from-pink-500 to-rose-600 rounded-lg text-white font-semibold text-sm hover:from-pink-600 hover:to-rose-700 transition-all duration-200 shadow-lg shadow-pink-500/25 hover:shadow-pink-500/40"
+                    >
+                      В чат
+                    </button>
                   )}
-
-                </StatsGrid>
-              </Section>
-              </RightColumn>
-            </TwoColumnLayout>
-          </>
+                </div>
+              </motion.div>
+            )}
+          </div>
         ) : (
           userInfo && (
-            <Section>
-              <SectionHeader>
-                <SplitText text="Информация о пользователе" delay={25} />
-                <SectionSubtitle>Основные данные создателя персонажа</SectionSubtitle>
-              </SectionHeader>
-              <InfoGrid>
-                <InfoCard>
-                  <InfoLabel>Имя пользователя</InfoLabel>
-                  <InfoValue>{viewedUserName}</InfoValue>
-                </InfoCard>
-                <InfoCard>
-                  <InfoLabel>Email</InfoLabel>
-                  <InfoValue>{userInfo.email ?? '—'}</InfoValue>
-                </InfoCard>
-                <InfoCard>
-                  <InfoLabel>Статус</InfoLabel>
-                  <InfoValue>{userInfo.is_active ? 'Активен' : 'Неактивен'}</InfoValue>
-                </InfoCard>
-              </InfoGrid>
-            </Section>
+            <div className="max-w-4xl mx-auto">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-8 shadow-lg shadow-pink-500/5"
+              >
+                <h2 className="text-2xl font-bold text-white mb-6">Информация о пользователе</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                    <div className="text-white/60 text-sm mb-2">Имя пользователя</div>
+                    <div className="text-white text-lg font-semibold">{viewedUserName}</div>
+                  </div>
+                  <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                    <div className="text-white/60 text-sm mb-2">Email</div>
+                    <div className="text-white text-lg font-semibold">{userInfo.email ?? '—'}</div>
+                  </div>
+                  <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                    <div className="text-white/60 text-sm mb-2">Статус</div>
+                    <div className="text-white text-lg font-semibold">{userInfo.is_active ? 'Активен' : 'Неактивен'}</div>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
           )
         )}
-      </>
+      </div>
     );
   };
 
   return (
-    <MainContainer>
-      <div className="content-area vertical">
+    <div className="w-screen h-screen flex overflow-hidden bg-black">
+      <div className="content-area vertical flex-1 flex flex-col">
         <GlobalHeader
           onShop={onShop}
           onLogin={() => {
@@ -2420,12 +2539,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             window.location.reload();
           }}
           onProfile={() => {
-            // При клике на кнопку профиля в GlobalHeader открываем свой профиль
             console.log('[PROFILE] GlobalHeader onProfile clicked, calling onProfile(undefined)');
             if (onProfile) {
               onProfile(undefined);
             } else {
-              // Если onProfile не передан, используем глобальное событие
               window.dispatchEvent(new CustomEvent('navigate-to-profile', { detail: { userId: undefined } }));
             }
           }}
@@ -2433,7 +2550,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           refreshTrigger={balanceRefreshTrigger}
         />
 
-        <MainContent>{renderContent()}</MainContent>
+        <div className="flex-1 overflow-y-auto">{renderContent()}</div>
       </div>
 
       {isAuthModalOpen && (
@@ -2488,6 +2605,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           }}
         />
       )}
-    </MainContainer>
+    </div>
   );
 };
