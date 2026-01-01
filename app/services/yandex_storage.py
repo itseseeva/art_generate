@@ -485,6 +485,45 @@ class YandexCloudStorageService:
         # Возвращаем путь через прокси Nginx, который перенаправляет на Yandex.Бакет
         return f"https://cherrylust.art/media/{object_key}"
     
+    @staticmethod
+    def convert_yandex_url_to_proxy(url: str) -> str:
+        """
+        Преобразует старый URL Яндекс.Бакета в новый URL через прокси.
+        
+        Args:
+            url: Старый URL (может быть уже новый или старый)
+            
+        Returns:
+            str: URL через прокси cherrylust.art/media/
+        """
+        if not url:
+            return url
+        
+        # Если URL уже использует прокси, возвращаем как есть
+        if 'cherrylust.art/media/' in url:
+            return url
+        
+        # Извлекаем object_key из старого URL
+        # Форматы: 
+        # https://bucket-name.storage.yandexcloud.net/path/to/file
+        # https://storage.yandexcloud.net/bucket-name/path/to/file
+        if '.storage.yandexcloud.net/' in url:
+            # Формат: https://bucket-name.storage.yandexcloud.net/path/to/file
+            object_key = url.split('.storage.yandexcloud.net/')[-1]
+            return f"https://cherrylust.art/media/{object_key}"
+        elif 'storage.yandexcloud.net/' in url:
+            # Формат: https://storage.yandexcloud.net/bucket-name/path/to/file
+            parts = url.split('storage.yandexcloud.net/')
+            if len(parts) > 1:
+                # Пропускаем bucket-name и берем остальное
+                path_parts = parts[1].split('/', 1)
+                if len(path_parts) > 1:
+                    object_key = path_parts[1]
+                    return f"https://cherrylust.art/media/{object_key}"
+        
+        # Если не удалось распарсить, возвращаем как есть
+        return url
+    
     def get_presigned_url(self, object_key: str, expiration: int = 3600) -> str:
         """
         Получает подписанный URL файла с временным доступом.

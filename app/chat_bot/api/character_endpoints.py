@@ -44,10 +44,12 @@ def _get_gallery_metadata_dir() -> Path:
     return gallery_dir
 
 try:
-    from app.services.yandex_storage import transliterate_cyrillic_to_ascii
+    from app.services.yandex_storage import transliterate_cyrillic_to_ascii, YandexCloudStorageService
 except ImportError:  # pragma: no cover - fallback для окружений без сервисa
     def transliterate_cyrillic_to_ascii(value: str) -> str:
         return value.lower().replace(" ", "_")
+    def YandexCloudStorageService():
+        pass
 
 
 def _character_slug(character_name: str) -> str:
@@ -903,12 +905,17 @@ async def get_character_chat_history(
                                 except (ValueError, TypeError):
                                     generation_time_value = None
                             
+                            # Конвертируем старые URL Яндекс.Бакета в новые через прокси
+                            image_url_converted = None
+                            if msg.image_url:
+                                image_url_converted = YandexCloudStorageService.convert_yandex_url_to_proxy(msg.image_url)
+                            
                             formatted_messages.append({
                                 "id": msg.id,
                                 "type": msg.message_type,  # 'user' или 'assistant'
                                 "content": msg.message_content or "",
                                 "timestamp": msg.created_at.isoformat(),
-                                "image_url": msg.image_url,
+                                "image_url": image_url_converted,
                                 "generation_time": generation_time_value  # Безопасно получаем generation_time
                             })
                         
@@ -1135,6 +1142,10 @@ async def get_character_chat_history(
                                 generation_time = None
                         else:
                             generation_time = None
+            
+            # Конвертируем старые URL Яндекс.Бакета в новые через прокси
+            if image_url:
+                image_url = YandexCloudStorageService.convert_yandex_url_to_proxy(image_url)
             
             formatted_messages.append({
                 "id": msg_data["id"],
@@ -1852,13 +1863,15 @@ async def get_character_photos(
                 rows = list(rows) + list(rows_all)
             except Exception as e2:
                 logger.warning(f"Error loading photos without character_name from ChatHistory: {e2}")
-                
-                for row in rows:
-                    image_url = row.image_url if hasattr(row, 'image_url') else row[3]
+            
+            for row in rows:
+                image_url = row.image_url if hasattr(row, 'image_url') else row[3]
                 message_content = row.message_content if hasattr(row, 'message_content') else (row[4] if len(row) > 4 else None)
                 created_at = row.created_at if hasattr(row, 'created_at') else (row[5] if len(row) > 5 else row[4])
                 
                 if image_url:
+                    # Конвертируем старые URL Яндекс.Бакета в новые через прокси
+                    image_url = YandexCloudStorageService.convert_yandex_url_to_proxy(image_url)
                     photo_id = _derive_photo_id(image_url)
                     # Проверяем, нет ли уже этого фото
                     if not any(p["url"] == image_url for p in chat_history_photos):
@@ -1940,6 +1953,8 @@ async def get_character_photos(
                 created_at = row.created_at if hasattr(row, 'created_at') else row[4]
                 
                 if image_url:
+                    # Конвертируем старые URL Яндекс.Бакета в новые через прокси
+                    image_url = YandexCloudStorageService.convert_yandex_url_to_proxy(image_url)
                     photo_id = _derive_photo_id(image_url)
                     # Проверяем, нет ли уже этого фото в chat_history_photos
                     if not any(p["url"] == image_url for p in chat_history_photos):
@@ -1973,6 +1988,8 @@ async def get_character_photos(
                 if row.image_url:
                     # Нормализуем URL
                     normalized_url = row.image_url.split('?')[0].split('#')[0]
+                    # Конвертируем старые URL Яндекс.Бакета в новые через прокси
+                    normalized_url = YandexCloudStorageService.convert_yandex_url_to_proxy(normalized_url)
                     photo_id = _derive_photo_id(normalized_url)
                     
                     # Проверяем, нет ли уже этого фото
@@ -2002,6 +2019,8 @@ async def get_character_photos(
             photo_url = entry.get("url")
             if not photo_url or photo_url in seen_urls:
                 continue
+            # Конвертируем старые URL Яндекс.Бакета в новые через прокси
+            photo_url = YandexCloudStorageService.convert_yandex_url_to_proxy(photo_url)
             seen_urls.add(photo_url)
             photos.append(
                 {
@@ -2018,6 +2037,8 @@ async def get_character_photos(
             photo_url = entry.get("url")
             if not photo_url or photo_url in seen_urls:
                 continue
+            # Конвертируем старые URL Яндекс.Бакета в новые через прокси
+            photo_url = YandexCloudStorageService.convert_yandex_url_to_proxy(photo_url)
             seen_urls.add(photo_url)
             photos.append(
                 {
@@ -2031,16 +2052,20 @@ async def get_character_photos(
 
         # Добавляем главные фото, если их еще нет
         for entry in main_entries:
-            if entry.get("url") not in seen_urls:
-                seen_urls.add(entry.get("url"))
-                photos.append(
-                    {
-                        "id": entry["id"],
-                        "url": entry["url"],
-                        "is_main": True,
-                        "created_at": entry.get("created_at"),
-                    }
-                )
+            entry_url = entry.get("url")
+            if not entry_url or entry_url in seen_urls:
+                continue
+            # Конвертируем старые URL Яндекс.Бакета в новые через прокси
+            entry_url = YandexCloudStorageService.convert_yandex_url_to_proxy(entry_url)
+            seen_urls.add(entry_url)
+            photos.append(
+                {
+                    "id": entry["id"],
+                    "url": entry_url,
+                    "is_main": True,
+                    "created_at": entry.get("created_at"),
+                }
+            )
 
         photos.sort(key=lambda item: item.get("created_at") or "", reverse=True)
         

@@ -500,8 +500,10 @@ async def generate_image_async(
                             ACL='public-read'
                         )
                         
-                        # Формируем публичный URL
-                        public_url = f"https://{bucket_name}.storage.yandexcloud.net/{filename}"
+                        # Формируем публичный URL через прокси Nginx
+                        from app.services.yandex_storage import get_yandex_storage_service
+                        storage_service = get_yandex_storage_service()
+                        public_url = storage_service.get_public_url(filename)
                         
                         logger.success(f"[RUNPOD] Base64 загружен в S3: {public_url}")
                         return public_url
