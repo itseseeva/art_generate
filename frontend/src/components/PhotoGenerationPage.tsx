@@ -774,7 +774,8 @@ useEffect(() => {
                     >
                       <PhotoImage 
                         src={photo.url} 
-                        alt="Generated photo" 
+                        alt="Generated photo"
+                        loading="lazy"
                         onError={(e) => {
                           console.error('Error loading image:', photo.url);
                           e.currentTarget.style.display = 'none';

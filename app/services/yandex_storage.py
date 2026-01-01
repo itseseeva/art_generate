@@ -474,18 +474,16 @@ class YandexCloudStorageService:
     
     def get_public_url(self, object_key: str) -> str:
         """
-        Получает публичный URL файла.
+        Получает публичный URL файла через прокси Nginx.
         
         Args:
             object_key: Ключ объекта
             
         Returns:
-            str: Публичный URL
+            str: Публичный URL через домен cherrylust.art
         """
-        # Для Yandex Cloud Storage правильный формат URL:
-        # https://storage.yandexcloud.net/bucket-name/object-key
-        # Альтернативный формат: https://bucket-name.storage.yandexcloud.net/object-key
-        return f"https://{self.bucket_name}.storage.yandexcloud.net/{object_key}"
+        # Возвращаем путь через прокси Nginx, который перенаправляет на Yandex.Бакет
+        return f"https://cherrylust.art/media/{object_key}"
     
     def get_presigned_url(self, object_key: str, expiration: int = 3600) -> str:
         """

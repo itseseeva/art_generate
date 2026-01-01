@@ -2437,6 +2437,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     itemHeight={300}
                     itemWidth={200}
                     visibleCount={5}
+                    bend={10}
+                    borderRadius={0.22}
+                    scrollSpeed={3.4}
+                    scrollEase={0.11}
                     onIndexChange={(index) => setSelectedCharacterIndex(index)}
                     onItemClick={(item) => {
                       if (onMyCharacters) {

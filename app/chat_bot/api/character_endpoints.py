@@ -562,39 +562,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         
         full_prompt = ensure_unicode(full_prompt)
         
-        # Переводим поля appearance и location на английский перед сохранением
-        translated_appearance = None
-        translated_location = None
-        
-        if character.appearance:
-            appearance_text = ensure_unicode(character.appearance)
-            try:
-                import re
-                has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', appearance_text))
-                if has_cyrillic:
-                    from deep_translator import GoogleTranslator
-                    translator = GoogleTranslator(source='ru', target='en')
-                    translated_appearance = translator.translate(appearance_text)
-                else:
-                    translated_appearance = appearance_text
-            except (ImportError, Exception) as translate_error:
-                logger.error(f"[TRANSLATE] Ошибка перевода внешности: {translate_error}")
-                translated_appearance = appearance_text
-        
-        if character.location:
-            location_text = ensure_unicode(character.location)
-            try:
-                import re
-                has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', location_text))
-                if has_cyrillic:
-                    from deep_translator import GoogleTranslator
-                    translator = GoogleTranslator(source='ru', target='en')
-                    translated_location = translator.translate(location_text)
-                else:
-                    translated_location = location_text
-            except (ImportError, Exception) as translate_error:
-                logger.error(f"[TRANSLATE] Ошибка перевода локации: {translate_error}")
-                translated_location = location_text
+        # Сохраняем оригинальные данные на русском языке
+        # Перевод на английский будет выполняться при генерации изображения в main.py
+        appearance_text = ensure_unicode(character.appearance) if character.appearance else None
+        location_text = ensure_unicode(character.location) if character.location else None
         
         # Списываем ресурсы за создание персонажа
         await charge_for_character_creation(current_user.id, db)
@@ -608,8 +579,8 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
             display_name=ensure_unicode(character.name),
             description=ensure_unicode(character.name),
             prompt=full_prompt,
-            character_appearance=translated_appearance,
-            location=translated_location,
+            character_appearance=appearance_text,
+            location=location_text,
             user_id=current_user.id,
             is_nsfw=is_nsfw_value
         )

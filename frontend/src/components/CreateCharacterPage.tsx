@@ -1811,9 +1811,11 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const fakeProgressTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Пошаговая логика - какие поля показывать
-  const [showPersonalityAndSituation, setShowPersonalityAndSituation] = useState(false);
+  const [showPersonality, setShowPersonality] = useState(false);
+  const [showSituation, setShowSituation] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
-  const [showAppearanceAndLocation, setShowAppearanceAndLocation] = useState(false);
+  const [showAppearance, setShowAppearance] = useState(false);
+  const [showLocation, setShowLocation] = useState(false);
   
   // Индекс для слайдера сгенерированных фото
   const [examplePhotoIndex, setExamplePhotoIndex] = useState(0);
@@ -1958,20 +1960,30 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     if (name === 'name') {
       const error = validateCharacterName(value);
       setNameError(error);
-      // Показываем поля "Личность" и "Ролевая ситуация" когда имя валидно
+      // Показываем поле "Личность" когда имя валидно
       if (!error && value.trim().length >= 2) {
-        setShowPersonalityAndSituation(true);
+        setShowPersonality(true);
       }
     }
     
-    // Показываем поле "Инструкции" когда заполнена личность
+    // Показываем поле "Ситуация" когда заполнена личность
     if (name === 'personality' && value.trim().length > 0) {
+      setShowSituation(true);
+    }
+    
+    // Показываем поле "Инструкции" когда заполнена ситуация
+    if (name === 'situation' && value.trim().length > 0) {
       setShowInstructions(true);
     }
     
-    // Показываем поля "Внешность" и "Локация" когда заполнены инструкции
+    // Показываем поле "Внешность" когда заполнены инструкции
     if (name === 'instructions' && value.trim().length > 0) {
-      setShowAppearanceAndLocation(true);
+      setShowAppearance(true);
+    }
+    
+    // Показываем поле "Локация" когда заполнена внешность
+    if (name === 'appearance' && value.trim().length > 0) {
+      setShowLocation(true);
     }
   };
   
@@ -2635,13 +2647,13 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
                 )}
               </div>
               
-              {/* Личность и характер - появляется вместе с ролевой ситуацией после ввода имени */}
+              {/* Личность и характер - появляется после ввода имени */}
               <AnimatePresence>
-                {showPersonalityAndSituation && (
+                {showPersonality && (
                   <motion.div
-                    initial={{ opacity: 0, y: -20, height: 0 }}
-                    animate={{ opacity: 1, y: 0, height: "auto" }}
-                    exit={{ opacity: 0, y: -20, height: 0 }}
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.3, ease: "easeOut" }}
                   >
                     <label htmlFor="personality" className="block text-sm font-medium text-zinc-200 mb-2">
@@ -2662,13 +2674,13 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
                 )}
               </AnimatePresence>
               
-              {/* Ролевая ситуация - появляется вместе с личностью после ввода имени */}
+              {/* Ролевая ситуация - появляется после заполнения личности */}
               <AnimatePresence>
-                {showPersonalityAndSituation && (
+                {showSituation && (
                   <motion.div
-                    initial={{ opacity: 0, y: -20, height: 0 }}
-                    animate={{ opacity: 1, y: 0, height: "auto" }}
-                    exit={{ opacity: 0, y: -20, height: 0 }}
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.3, ease: "easeOut" }}
                   >
                     <label htmlFor="situation" className="block text-sm font-medium text-zinc-200 mb-2">
@@ -2689,13 +2701,13 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
                 )}
               </AnimatePresence>
               
-              {/* Инструкции для персонажа - появляется после заполнения личности */}
+              {/* Инструкции для персонажа - появляется после заполнения ситуации */}
               <AnimatePresence>
                 {showInstructions && (
                   <motion.div
-                    initial={{ opacity: 0, y: -20, height: 0 }}
-                    animate={{ opacity: 1, y: 0, height: "auto" }}
-                    exit={{ opacity: 0, y: -20, height: 0 }}
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.3, ease: "easeOut" }}
                   >
                     <label htmlFor="instructions" className="block text-sm font-medium text-zinc-200 mb-2">
@@ -2716,20 +2728,19 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
                 )}
               </AnimatePresence>
 
-              {/* Внешность и Локация - появляются вместе после заполнения инструкций */}
+              {/* Внешность - появляется после заполнения инструкций */}
               <AnimatePresence>
-                {showAppearanceAndLocation && (
-                  <>
-                    <motion.div
-                      initial={{ opacity: 0, y: -20, height: 0 }}
-                      animate={{ opacity: 1, y: 0, height: "auto" }}
-                      exit={{ opacity: 0, y: -20, height: 0 }}
-                      transition={{ duration: 0.3, ease: "easeOut" }}
-                    >
-                      <label htmlFor="appearance" className="block text-sm font-medium text-zinc-200 mb-2">
-                        Внешность (для фото)
-                      </label>
-                      <textarea
+                {showAppearance && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                  >
+                    <label htmlFor="appearance" className="block text-sm font-medium text-zinc-200 mb-2">
+                      Внешность (для фото)
+                    </label>
+                    <textarea
                   id="appearance"
                   name="appearance"
                   value={formData.appearance}
@@ -2740,17 +2751,22 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
                       />
                       <p className="mt-1 text-xs text-zinc-500">Опишите детали лица, одежду и позу. Чем подробнее описание, тем точнее будет результат.</p>
                     </motion.div>
-                    
-                    <motion.div
-                      initial={{ opacity: 0, y: -20, height: 0 }}
-                      animate={{ opacity: 1, y: 0, height: "auto" }}
-                      exit={{ opacity: 0, y: -20, height: 0 }}
-                      transition={{ duration: 0.3, ease: "easeOut" }}
-                    >
-                      <label htmlFor="location" className="block text-sm font-medium text-zinc-200 mb-2">
-                        Локация (для фото)
-                      </label>
-                      <textarea
+                )}
+              </AnimatePresence>
+              
+              {/* Локация - появляется после заполнения внешности */}
+              <AnimatePresence>
+                {showLocation && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                  >
+                    <label htmlFor="location" className="block text-sm font-medium text-zinc-200 mb-2">
+                      Локация (для фото)
+                    </label>
+                    <textarea
                   id="location"
                   name="location"
                   value={formData.location}
@@ -2761,7 +2777,6 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
                       />
                       <p className="mt-1 text-xs text-zinc-500">Где находится персонаж? Опишите атмосферу, освещение, детали окружения.</p>
                     </motion.div>
-                  </>
                 )}
               </AnimatePresence>
 
@@ -2953,6 +2968,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
                             <PhotoImage
                               src={photo.url}
                               alt={`Photo ${index + 1}`}
+                              loading="lazy"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (photo) {

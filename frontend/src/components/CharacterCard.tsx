@@ -737,7 +737,7 @@ const SlideShow: React.FC<{
   return (
     <>
       <PhotoBackground 
-        $imageUrl={photos[currentSlide]} 
+        $imageUrl={photos[currentSlide] || ''} 
         $clickable={false}
       />
       {photos.length > 1 && (

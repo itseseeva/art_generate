@@ -269,11 +269,13 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
         icon: <FiLogIn size={22} />,
         label: 'Войти',
         onClick: () => onLogin?.(),
+        className: 'dock-item-login',
       },
       {
         icon: <FiMail size={22} />,
         label: 'Регистрация',
         onClick: () => onRegister?.(),
+        className: 'dock-item-register',
       }
     );
   } else {

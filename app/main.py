@@ -3026,7 +3026,24 @@ async def generate_image(
                 if has_cyrillic:
                     from deep_translator import GoogleTranslator
                     translator = GoogleTranslator(source='ru', target='en')
-                    generation_settings.prompt = translator.translate(generation_settings.prompt)
+                    # Разбиваем длинный текст на части для более надежного перевода
+                    # Разделяем по переносам строк или запятым, если текст очень длинный
+                    prompt_text = generation_settings.prompt
+                    if len(prompt_text) > 4000:
+                        # Если текст очень длинный, разбиваем по переносам строк
+                        parts = prompt_text.split('\n')
+                        translated_parts = []
+                        for part in parts:
+                            if part.strip():
+                                if bool(re.search(r'[а-яёА-ЯЁ]', part)):
+                                    translated_part = translator.translate(part)
+                                    translated_parts.append(translated_part)
+                                else:
+                                    # Если часть уже на английском, оставляем как есть
+                                    translated_parts.append(part)
+                        generation_settings.prompt = '\n'.join(translated_parts)
+                    else:
+                        generation_settings.prompt = translator.translate(prompt_text)
                     logger.info(f"[CUSTOM_PROMPT] Промпт переведен на английский: {generation_settings.prompt[:100]}...")
             except (ImportError, Exception) as translate_error:
                 logger.error(f"[TRANSLATE] Ошибка перевода custom_prompt: {translate_error}")
