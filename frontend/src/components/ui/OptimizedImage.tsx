@@ -108,6 +108,61 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
     setHasError(false);
   }, [src]);
 
+  // Проверяем, загружено ли изображение уже (например, из кеша)
+  useEffect(() => {
+    if (imgRef.current) {
+      const img = imgRef.current;
+      // Если изображение уже загружено (из кеша), сразу показываем его
+      if (img.complete && img.naturalWidth > 0) {
+        setIsLoading(false);
+        setHasLoaded(true);
+        if (onLoad) {
+          onLoad();
+        }
+      }
+    }
+  }, [src, onLoad]);
+
+  // Intersection Observer для принудительной загрузки lazy изображений
+  useEffect(() => {
+    if (imgRef.current) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting && imgRef.current) {
+              const img = imgRef.current;
+              // Если изображение уже загружено, но hasLoaded еще false
+              if (img.complete && img.naturalWidth > 0 && !hasLoaded && !hasError) {
+                setIsLoading(false);
+                setHasLoaded(true);
+                if (onLoad) {
+                  onLoad();
+                }
+              }
+              // Для lazy изображений принудительно загружаем
+              if (!eager && img.src && !img.complete) {
+                img.loading = 'eager';
+              }
+              observer.unobserve(entry.target);
+            }
+          });
+        },
+        {
+          rootMargin: '100px', // Увеличиваем отступ для более ранней загрузки
+          threshold: 0.01
+        }
+      );
+
+      observer.observe(imgRef.current);
+
+      return () => {
+        if (imgRef.current) {
+          observer.unobserve(imgRef.current);
+        }
+      };
+    }
+  }, [eager, hasLoaded, hasError, onLoad]);
+
   return (
     <ImageContainer 
       $isLoading={isLoading} 

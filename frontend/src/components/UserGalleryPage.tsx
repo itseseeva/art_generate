@@ -379,7 +379,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
   const isLoadingRef = useRef(false);
   const lastLoadedUserIdRef = useRef<string | number | undefined>(undefined);
   
-  const PAGE_SIZE = 20;
+  const PAGE_SIZE = 12;
 
   // Обновляем authToken при изменении в localStorage
   useEffect(() => {
