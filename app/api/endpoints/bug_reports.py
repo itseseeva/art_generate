@@ -217,7 +217,8 @@ async def update_bug_status(
     db: AsyncSession = Depends(get_db)
 ):
     """Обновляет статус баг-репорта (только для админов)."""
-    if not current_user.is_admin:
+    is_admin = bool(current_user.is_admin) if current_user.is_admin is not None else False
+    if not is_admin:
         raise HTTPException(status_code=403, detail="Только администраторы могут изменять статус баг-репорта")
     
     # Валидация статуса
@@ -303,7 +304,8 @@ async def delete_bug_report(
             raise HTTPException(status_code=404, detail="Баг-репорт не найден")
         
         # Проверяем права: админ или создатель
-        if not current_user.is_admin and bug_report.user_id != current_user.id:
+        is_admin = bool(current_user.is_admin) if current_user.is_admin is not None else False
+        if not is_admin and bug_report.user_id != current_user.id:
             raise HTTPException(status_code=403, detail="У вас нет прав для удаления этого баг-репорта")
         
         # Удаляем баг-репорт (комментарии удалятся автоматически из-за cascade)
