@@ -513,13 +513,19 @@ class YandexCloudStorageService:
             return f"https://cherrylust.art/media/{object_key}"
         elif 'storage.yandexcloud.net/' in url:
             # Формат: https://storage.yandexcloud.net/bucket-name/path/to/file
+            # или: https://storage.yandexcloud.net/jfpohpdofnhd/generated/file.png
             parts = url.split('storage.yandexcloud.net/')
             if len(parts) > 1:
                 # Пропускаем bucket-name и берем остальное
                 path_parts = parts[1].split('/', 1)
                 if len(path_parts) > 1:
+                    # path_parts[0] - это bucket-name, path_parts[1] - это путь к файлу
                     object_key = path_parts[1]
                     return f"https://cherrylust.art/media/{object_key}"
+                elif len(path_parts) == 1:
+                    # Если нет слеша после bucket-name, значит весь путь после storage.yandexcloud.net/ это object_key
+                    # Но это маловероятно, оставляем как есть
+                    pass
         
         # Если не удалось распарсить, возвращаем как есть
         return url

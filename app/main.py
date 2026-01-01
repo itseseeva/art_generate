@@ -3402,6 +3402,10 @@ async def stream_generation_status(
                                     generation_time = output.get("generation_time")
                                     
                                     if image_url:
+                                        # Конвертируем URL через прокси
+                                        from app.services.yandex_storage import YandexCloudStorageService
+                                        image_url = YandexCloudStorageService.convert_yandex_url_to_proxy(image_url)
+                                        
                                         result = {
                                             "image_url": image_url,
                                             "cloud_url": image_url,
@@ -3837,6 +3841,10 @@ async def get_generation_status(
                     logger.info(f"[RUNPOD STATUS] 🎲 SEED использованный для генерации: {seed_used}")
                 
                 if image_url:
+                    # Конвертируем URL через прокси
+                    from app.services.yandex_storage import YandexCloudStorageService
+                    image_url = YandexCloudStorageService.convert_yandex_url_to_proxy(image_url)
+                    
                     result = {
                         "image_url": image_url,
                         "cloud_url": image_url,
@@ -4090,6 +4098,19 @@ async def get_generation_status(
                 import traceback
                 logger.error(f"[PROMPT] Трейсбек: {traceback.format_exc()}")
                 # Не прерываем выполнение, промпт - дополнительная функция
+            
+            # Конвертируем URL в результате через прокси
+            if isinstance(result, dict):
+                from app.services.yandex_storage import YandexCloudStorageService
+                if "image_url" in result and result["image_url"]:
+                    result["image_url"] = YandexCloudStorageService.convert_yandex_url_to_proxy(result["image_url"])
+                if "cloud_url" in result and result["cloud_url"]:
+                    result["cloud_url"] = YandexCloudStorageService.convert_yandex_url_to_proxy(result["cloud_url"])
+                if "cloud_urls" in result and isinstance(result["cloud_urls"], list):
+                    result["cloud_urls"] = [
+                        YandexCloudStorageService.convert_yandex_url_to_proxy(url) 
+                        for url in result["cloud_urls"]
+                    ]
             
             response = {
                 "task_id": task_id,
