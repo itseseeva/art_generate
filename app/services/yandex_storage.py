@@ -8,13 +8,15 @@ import logging
 from typing import Optional, Union, BinaryIO
 from pathlib import Path
 import boto3
-from botocore.exceptions import ClientError, NoCredentialsError
+from botocore.exceptions import ClientError
 from botocore.config import Config
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import mimetypes
 import re
+from io import BytesIO
+from PIL import Image
 
 logger = logging.getLogger(__name__)
 
@@ -201,12 +203,51 @@ class YandexCloudStorageService:
         
         logger.info(f"YandexCloudStorageService инициализирован для бакета: {self.bucket_name}")
     
+    def _convert_to_webp(self, image_data: bytes) -> bytes:
+        """
+        Конвертирует изображение в формат WebP.
+        
+        Args:
+            image_data: Байты изображения в любом формате
+            
+        Returns:
+            bytes: Байты изображения в формате WebP
+        """
+        try:
+            # Открываем изображение из bytes
+            image = Image.open(BytesIO(image_data))
+            
+            # Конвертируем RGBA в RGB, если нужно (WebP поддерживает RGBA, но для лучшей совместимости)
+            if image.mode in ('RGBA', 'LA', 'P'):
+                # Создаем белый фон для изображений с прозрачностью
+                rgb_image = Image.new('RGB', image.size, (255, 255, 255))
+                if image.mode == 'P':
+                    image = image.convert('RGBA')
+                rgb_image.paste(image, mask=image.split()[-1] if image.mode == 'RGBA' else None)
+                image = rgb_image
+            elif image.mode != 'RGB':
+                image = image.convert('RGB')
+            
+            # Сохраняем в WebP формат с хорошим качеством
+            webp_buffer = BytesIO()
+            image.save(webp_buffer, format='WEBP', quality=85, method=6)
+            webp_bytes = webp_buffer.getvalue()
+            
+            logger.debug(f"Изображение конвертировано в WebP: {len(image_data)} -> {len(webp_bytes)} байт")
+            return webp_bytes
+            
+        except Exception as e:
+            logger.error(f"Ошибка конвертации в WebP: {e}")
+            # Если конвертация не удалась, возвращаем оригинал
+            return image_data
+    
     async def upload_file(
         self,
         file_data: Union[bytes, BinaryIO, str],
         object_key: str,
         content_type: Optional[str] = None,
-        metadata: Optional[dict] = None
+        metadata: Optional[dict] = None,
+        convert_to_webp: bool = True
     ) -> str:
         """
         Загружает файл в бакет Yandex Cloud Storage.
@@ -216,6 +257,7 @@ class YandexCloudStorageService:
             object_key: Ключ объекта в бакете (путь к файлу)
             content_type: MIME-тип файла
             metadata: Дополнительные метаданные
+            convert_to_webp: Если True, конвертирует изображения в WebP формат
             
         Returns:
             str: Публичный URL загруженного файла
@@ -225,6 +267,32 @@ class YandexCloudStorageService:
             NoCredentialsError: Ошибка аутентификации
         """
         try:
+            # Если указано конвертировать в WebP и это изображение
+            if convert_to_webp and content_type and content_type.startswith('image/'):
+                # Читаем данные файла в bytes если нужно
+                if isinstance(file_data, str):
+                    with open(file_data, 'rb') as f:
+                        image_bytes = f.read()
+                elif hasattr(file_data, 'read'):
+                    image_bytes = file_data.read()
+                    if hasattr(file_data, 'seek'):
+                        file_data.seek(0)
+                else:
+                    image_bytes = file_data
+                
+                # Конвертируем в WebP
+                webp_bytes = self._convert_to_webp(image_bytes)
+                file_data = webp_bytes
+                
+                # Обновляем content_type и object_key
+                content_type = 'image/webp'
+                if not object_key.endswith('.webp'):
+                    # Заменяем расширение на .webp
+                    object_key = (
+                        object_key.rsplit('.', 1)[0] + '.webp'
+                        if '.' in object_key else object_key + '.webp'
+                    )
+            
             # Определяем тип контента если не указан
             if not content_type:
                 content_type, _ = mimetypes.guess_type(object_key)
@@ -324,10 +392,11 @@ class YandexCloudStorageService:
     ) -> str:
         """
         Загружает изображение из base64 строки в бакет.
+        Автоматически конвертирует в WebP формат.
         
         Args:
             base64_data: Base64 строка с изображением
-            filename: Имя файла
+            filename: Имя файла (будет заменено на .webp)
             folder: Папка в бакете
             metadata: Дополнительные метаданные
             
@@ -336,14 +405,15 @@ class YandexCloudStorageService:
         """
         try:
             import base64
-            from io import BytesIO
             
             # Декодируем base64
             image_bytes = base64.b64decode(base64_data)
             
-            # Формируем ключ объекта
+            # Формируем ключ объекта с расширением .webp
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            object_key = f"{folder}/{timestamp}_{filename}"
+            # Заменяем расширение на .webp
+            base_filename = filename.rsplit('.', 1)[0] if '.' in filename else filename
+            object_key = f"{folder}/{timestamp}_{base_filename}.webp"
             
             # Подготавливаем метаданные
             upload_metadata = {
@@ -352,12 +422,13 @@ class YandexCloudStorageService:
                 **(metadata or {})
             }
             
-            # Загружаем файл
+            # Загружаем файл (автоматически конвертируется в WebP)
             return await self.upload_file(
                 file_data=image_bytes,
                 object_key=object_key,
-                content_type='image/png',
-                metadata=upload_metadata
+                content_type='image/webp',
+                metadata=upload_metadata,
+                convert_to_webp=True
             )
             
         except Exception as e:
@@ -389,15 +460,15 @@ class YandexCloudStorageService:
             if not file_path.exists():
                 raise FileNotFoundError(f"Файл не найден: {file_path}")
             
-            # Определяем имя файла
+            # Определяем имя файла без расширения
             if custom_filename:
-                filename = custom_filename
+                base_filename = custom_filename.rsplit('.', 1)[0] if '.' in custom_filename else custom_filename
             else:
-                filename = file_path.name
+                base_filename = file_path.stem  # Имя без расширения
             
-            # Формируем ключ объекта
+            # Формируем ключ объекта с расширением .webp
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            object_key = f"{folder}/{timestamp}_{filename}"
+            object_key = f"{folder}/{timestamp}_{base_filename}.webp"
             
             # Подготавливаем метаданные
             upload_metadata = {
@@ -407,12 +478,16 @@ class YandexCloudStorageService:
                 **(metadata or {})
             }
             
-            # Загружаем файл
+            # Читаем файл и загружаем (автоматически конвертируется в WebP)
+            with open(file_path, 'rb') as f:
+                file_data_bytes = f.read()
+            
             return await self.upload_file(
-                file_data=str(file_path),
+                file_data=file_data_bytes,
                 object_key=object_key,
-                content_type='image/png',
-                metadata=upload_metadata
+                content_type='image/webp',
+                metadata=upload_metadata,
+                convert_to_webp=True
             )
             
         except Exception as e:

@@ -1608,16 +1608,22 @@ async def upload_character_photo(
         try:
             from app.services.yandex_storage import get_yandex_storage_service
             service = get_yandex_storage_service()
+            
+            # Обновляем расширение файла на .webp
+            base_filename = filename.rsplit('.', 1)[0] if '.' in filename else filename
+            webp_filename = f"{base_filename}.webp"
+            
             cloud_url = await service.upload_file(
                 file_data=content,
-                object_key=f"character_uploads/{character_folder}/{filename}",
-                content_type=file.content_type or "image/png",
+                object_key=f"character_uploads/{character_folder}/{webp_filename}",
+                content_type='image/webp',
                 metadata={
                     "character_name": character_folder,
                     "character_original": character_name,
                     "uploaded_at": time.strftime("%Y-%m-%d %H:%M:%S"),
                     "source": "character_manual_upload",
                 },
+                convert_to_webp=True
             )
         except Exception as upload_error:
             logger.error("Cloud upload error: %s", upload_error)
@@ -2256,9 +2262,9 @@ async def generate_image_with_sd(prompt: str, character_name: str) -> tuple[str,
                 image_data = base64.b64decode(images[0])
                 image = Image.open(BytesIO(image_data))
                 
-                # Формируем имя файла
+                # Формируем имя файла с расширением .webp
                 timestamp = int(time.time() * 1000)
-                filename = f"generated_{timestamp}.png"
+                filename = f"generated_{timestamp}.webp"
                 
                 # Загружаем в облако
                 try:
@@ -2275,16 +2281,21 @@ async def generate_image_with_sd(prompt: str, character_name: str) -> tuple[str,
                     image.save(buffer, format="PNG")
                     image_bytes = buffer.getvalue()
                     
+                    # Обновляем расширение на .webp
+                    base_filename = filename.rsplit('.', 1)[0] if '.' in filename else filename
+                    webp_filename = f"{base_filename}.webp"
+                    
                     cloud_url = await service.upload_file(
                         file_data=image_bytes,
-                        object_key=f"generated_images/{character_name_ascii}/{filename}",
-                        content_type='image/png',
+                        object_key=f"generated_images/{character_name_ascii}/{webp_filename}",
+                        content_type='image/webp',
                         metadata={
                             "character_name": character_name_ascii,  # Используем только ASCII
                             "character_original": character_name,   # Оригинальное имя в метаданных
                             "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
                             "source": "chat_bot_generation"
-                        }
+                        },
+                        convert_to_webp=True
                     )
                     
                     logger.info(f"Image uploaded to cloud: {cloud_url}")

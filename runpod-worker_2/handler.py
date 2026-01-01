@@ -32,12 +32,17 @@ def upload_to_s3(file_path: str) -> str:
     if not YANDEX_ACCESS_KEY or not YANDEX_SECRET_KEY:
         raise ValueError("S3 credentials not configured.")
     
-    file_ext = os.path.splitext(file_path)[1] or ".png"
+    file_ext = os.path.splitext(file_path)[1] or ".webp"
     unique_name = f"generated/{uuid.uuid4().hex}{file_ext}"
     
     try:
         s3 = get_s3_client()
-        content_type = "image/png" if file_ext.lower() == ".png" else "image/jpeg"
+        # Определяем MIME-тип для WebP
+        if file_ext.lower() == ".webp":
+            content_type = "image/webp"
+        else:
+            content_type = "image/png"
+            
         s3.upload_file(
             file_path,
             YANDEX_BUCKET_NAME,
@@ -155,35 +160,33 @@ def handler(job):
 
         if return_type == "url":
             try:
-                image_url = upload_to_s3(output_path)
+                image_url = upload_to_s3(str(output_path))
                 resp["image_url"] = image_url
                 s3_uploaded = True
                 print("INFO | Job completed successfully (S3 URL).")
                 return resp
             except Exception as s3_err:
                 print(f"WARNING | S3 upload failed: {s3_err}. Falling back to base64.")
-                raw_b64 = image_to_base64(output_path)
-                resp["image"] = f"data:image/png;base64,{raw_b64}"
+                raw_b64 = image_to_base64(str(output_path))
+                resp["image"] = f"data:image/webp;base64,{raw_b64}"
                 resp["s3_error"] = str(s3_err)
                 return resp
 
         if return_type in ("file", "both"):
             resp["file"] = str(output_path)
-            if not _is_running_locally():
-                resp["note"] = "Worker returned internal file path."
 
         if return_type in ("base64", "both"):
-            raw_b64 = image_to_base64(output_path)
-            resp["image"] = f"data:image/png;base64,{raw_b64}"
+            raw_b64 = image_to_base64(str(output_path))
+            resp["image"] = f"data:image/webp;base64,{raw_b64}"
 
         if return_type not in ("file", "base64", "both", "url"):
             try:
-                image_url = upload_to_s3(output_path)
+                image_url = upload_to_s3(str(output_path))
                 resp["image_url"] = image_url
                 s3_uploaded = True
             except Exception:
-                raw_b64 = image_to_base64(output_path)
-                resp["image"] = f"data:image/png;base64,{raw_b64}"
+                raw_b64 = image_to_base64(str(output_path))
+                resp["image"] = f"data:image/webp;base64,{raw_b64}"
                 resp["file"] = str(output_path)
         
         print("INFO | Job completed successfully.")
@@ -199,8 +202,8 @@ def handler(job):
             keep_local = _is_running_locally()
             should_keep = keep_local and return_type == "file" and not s3_uploaded
             if not should_keep:
-                if output_path and os.path.exists(output_path):
-                    os.remove(output_path)
+                if output_path and os.path.exists(str(output_path)):
+                    os.remove(str(output_path))
                     print("INFO | Local file cleaned up.")
         except Exception:
             pass

@@ -137,22 +137,23 @@ async def save_image_cloud_only(
         else:
             image_bytes = image_data
         
-        # Формируем имя файла
+        # Формируем имя файла с расширением .webp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{prefix}_{timestamp}.png"
+        filename = f"{prefix}_{timestamp}.webp"
         
-        # Загружаем в облако
+        # Загружаем в облако (автоматически конвертируется в WebP в upload_file)
         cloud_url = await service.upload_file(
             file_data=image_bytes,
             object_key=f"{folder}/{filename}",
-            content_type='image/png',
+            content_type='image/webp',
             metadata={
                 "character_name": character_name_ascii if character_name else "unknown",  # Используем только ASCII
                 "character_original": character_name or "unknown",  # Оригинальное имя в метаданных
                 "prefix": prefix,
                 "generated_at": datetime.now().isoformat(),
                 "source": "stable_diffusion_generation"
-            }
+            },
+            convert_to_webp=True
         )
         
         logger.info(f"Изображение загружено в облако: {cloud_url}")

@@ -193,18 +193,19 @@ def generate_image_task(
             # Определяем имя персонажа и транслитерируем его для URL
             character_name_ascii = transliterate_cyrillic_to_ascii(character_name or "character")
             
-            # Формируем имя файла
+            # Формируем имя файла с расширением .webp
             import time
-            filename = f"generated_{int(time.time())}.png"
+            filename = f"generated_{int(time.time())}.webp"
             
             # Загружаем в облако (передаем bytes, а не base64 строку)
             service = get_yandex_storage_service()
             object_key = f"generated_images/{character_name_ascii}/{filename}"
+            
             # Убираем детальное логирование загрузки
             
-            # Загружаем изображение в облако с метаданными
+            # Загружаем изображение в облако с метаданными (автоматически конвертируется в WebP)
             logger.info(f"[CELERY TASK] ========================================")
-            logger.info(f"[CELERY TASK] Загрузка в Yandex Cloud Storage")
+            logger.info(f"[CELERY TASK] Загрузка в Yandex Cloud Storage (WebP)")
             logger.info(f"[CELERY TASK] Object key: {object_key}")
             logger.info(f"[CELERY TASK] Размер: {len(image_bytes)} байт")
             logger.info(f"[CELERY TASK] ========================================")
@@ -214,13 +215,14 @@ def generate_image_task(
                 service.upload_file(
                     file_data=image_bytes,
                     object_key=object_key,
-                    content_type='image/png',
+                    content_type='image/webp',
                     metadata={
                         "character_name": character_name_ascii,
                         "generated_at": datetime.now().isoformat(),
                         "source": "api_generation",
                         "task_id": task_id
-                    }
+                    },
+                    convert_to_webp=True
                 )
             )
             upload_time = time.time() - upload_start
@@ -569,17 +571,17 @@ def save_images_to_cloud_task(
                     # Декодируем base64
                     image_bytes = base64.b64decode(image_base64)
                     
-                    # Формируем имя файла
+                    # Формируем имя файла с расширением .webp
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    filename = f"gen_{seed}_{i}_{timestamp}.png"
+                    filename = f"gen_{seed}_{i}_{timestamp}.webp"
                     object_key = f"{folder}/{filename}"
                     
-                    # Загружаем в облако асинхронно
+                    # Загружаем в облако асинхронно (автоматически конвертируется в WebP)
                     cloud_url = loop.run_until_complete(
                         service.upload_file(
                             file_data=image_bytes,
                             object_key=object_key,
-                            content_type='image/png',
+                            content_type='image/webp',
                             metadata={
                                 "character_name": character_name_ascii if character_name else "unknown",
                                 "character_original": character_name or "unknown",
@@ -587,7 +589,8 @@ def save_images_to_cloud_task(
                                 "index": str(i),
                                 "generated_at": datetime.now().isoformat(),
                                 "source": "background_save"
-                            }
+                            },
+                            convert_to_webp=True
                         )
                     )
                     

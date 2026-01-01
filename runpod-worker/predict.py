@@ -11,13 +11,12 @@ from diffusers import (
 from compel import Compel, ReturnedEmbeddingsType
 
 # === НАСТРОЙКИ ===
-# Убедись, что имя файла совпадает с тем, что лежит в папке!
 MODEL_FILENAME = "perfectdeliberate_v50.safetensors" 
 
 DEFAULT_WIDTH = 832
 DEFAULT_HEIGHT = 1216
-DEFAULT_STEPS = 30        # 40 шагов для лучшей прорисовки
-DEFAULT_GUIDANCE = 7.0    # 7.0 - золотая середина для SDXL
+DEFAULT_STEPS = 30
+DEFAULT_GUIDANCE = 7.0
 
 DEFAULT_NEGATIVE_PROMPTS = "poorly_detailed, worst_quality, bad_quality, extra fingers, missing fingers, lowres, bad anatomy, extra digits, jpeg artifacts, signature, watermark, username, conjoined, deformed fingers, short legs, body disproportion, bad ai-generated, text, halo, multiple views, displeasing, messy composition, clones"
 
@@ -34,7 +33,6 @@ class Predictor(BasePredictor):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.torch_dtype = torch.float16 if self.device == "cuda" else torch.float32
 
-        # 1. Загрузка Pipeline
         try:
             print("Loading SDXL pipeline...")
             self.pipe = StableDiffusionXLPipeline.from_single_file(
@@ -47,7 +45,6 @@ class Predictor(BasePredictor):
         except Exception as e:
             raise RuntimeError(f"Failed to load model: {e}")
 
-        # 2. Настройка семплера (DPM++ 2M Karras)
         self.pipe.scheduler = DPMSolverMultistepScheduler.from_config(
             self.pipe.scheduler.config,
             use_karras_sigmas=True,
@@ -57,28 +54,24 @@ class Predictor(BasePredictor):
         
         self.pipe.to(self.device)
 
-        # 3. FreeU (Улучшение контраста и деталей)
-        # Параметры s1/s2/b1/b2 подобраны для общего улучшения SDXL
         try:
             self.pipe.enable_freeu(s1=0.9, s2=0.2, b1=1.1, b2=1.2)
             print("FreeU Enabled.")
         except Exception:
             print("FreeU not available in this diffusers version, skipping.")
 
-        # 4. Compel (Обработка длинных промптов)
         try:
             self.compel = Compel(
                 tokenizer=[self.pipe.tokenizer, self.pipe.tokenizer_2],
                 text_encoder=[self.pipe.text_encoder, self.pipe.text_encoder_2],
                 returned_embeddings_type=ReturnedEmbeddingsType.PENULTIMATE_HIDDEN_STATES_NON_NORMALIZED,
                 requires_pooled=[False, True],
-                truncate_long_prompts=False # Не обрезать, а нарезать кусками!
+                truncate_long_prompts=False 
             )
         except Exception as e:
             print(f"Warning: Compel init failed: {e}")
             self.compel = None
 
-        # 5. Загрузка LORA
         self._load_loras()
         print("Pipeline ready.")
 
@@ -87,7 +80,6 @@ class Predictor(BasePredictor):
         active_adapters = []
         adapter_weights = []
         
-        # Исправленный список (добавлены запятые)
         lora_configs = [
             ("add-detail-xl.safetensors", "details", 1.0),
             ("sdxl_offset_example_v10.safetensors", "offset", 0.6),
@@ -149,21 +141,16 @@ class Predictor(BasePredictor):
 
         cross_attention_kwargs = {"scale": lora_scale} if self.lora_loaded else None
 
-        # Настройки для HD-четкости (обман модели, будто исходник был 4K)
         target_size = (width, height)
         original_size = (width * 2, height * 2) 
         crops_coords_top_left = (0, 0)
 
         try:
             with torch.inference_mode():
-                # 1. Сценарий с Compel (Длинные промпты)
                 if self.compel:
-                    # Генерируем эмбеддинги
                     conditioning, pooled = self.compel(prompt)
                     neg_conditioning, neg_pooled = self.compel(negative_prompt)
                     
-                    # === ВАЖНО: АВТО-ВЫРАВНИВАНИЕ РАЗМЕРОВ (PADDING) ===
-                    # Это предотвращает ошибку "shape mismatch", если промпты разной длины
                     max_len = max(conditioning.shape[1], neg_conditioning.shape[1])
                     
                     if conditioning.shape[1] < max_len:
@@ -181,7 +168,6 @@ class Predictor(BasePredictor):
                             dtype=neg_conditioning.dtype, device=neg_conditioning.device
                         )
                         neg_conditioning = torch.cat([neg_conditioning, pad_tensor], dim=1)
-                    # ====================================================
 
                     out = self.pipe(
                         prompt_embeds=conditioning,
@@ -195,13 +181,12 @@ class Predictor(BasePredictor):
                         generator=generator,
                         cross_attention_kwargs=cross_attention_kwargs,
                         callback_on_step_end=step_callback if progress_callback else None,
-                        clip_skip=2,  # Важно для аниме/артов
-                        original_size=original_size,       # HD настройки
+                        clip_skip=2,
+                        original_size=original_size,
                         target_size=target_size,
                         crops_coords_top_left=crops_coords_top_left
                     )
                 else:
-                    # 2. Запасной сценарий (если Compel не загрузился)
                     out = self.pipe(
                         prompt=prompt,
                         negative_prompt=negative_prompt,
@@ -226,8 +211,9 @@ class Predictor(BasePredictor):
         if not out.images:
             raise RuntimeError("No images returned.")
 
-        out_path = "/tmp/output.png"
-        out.images[0].save(out_path)
-        print(f"Saved to {out_path}")
+        # --- СОХРАНЯЕМ В WEBP КАЧЕСТВО 100 ---
+        out_path = "/tmp/output.webp"
+        out.images[0].save(out_path, format="webp", quality=100, method=6)
+        print(f"Saved to {out_path} as WebP (Quality 100)")
 
         return Path(out_path)

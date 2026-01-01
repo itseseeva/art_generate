@@ -488,22 +488,32 @@ async def generate_image_async(
                         if not bucket_name:
                             raise ValueError("YANDEX_BUCKET_NAME не установлен")
                         
-                        # Генерируем уникальное имя файла
-                        filename = f"runpod_{uuid.uuid4()}.png"
+                        # Генерируем уникальное имя файла с расширением .webp
+                        filename = f"generated/runpod_{uuid.uuid4()}.webp"
                         
-                        # Загружаем в S3
-                        s3_client.put_object(
-                            Bucket=bucket_name,
-                            Key=filename,
-                            Body=image_bytes,
-                            ContentType='image/png',
-                            ACL='public-read'
-                        )
-                        
-                        # Формируем публичный URL через прокси Nginx
+                        # Используем storage service для автоматической конвертации в WebP
                         from app.services.yandex_storage import get_yandex_storage_service
                         storage_service = get_yandex_storage_service()
-                        public_url = storage_service.get_public_url(filename)
+                        
+                        # Загружаем через upload_file для автоматической конвертации
+                        import asyncio
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        try:
+                            public_url = loop.run_until_complete(
+                                storage_service.upload_file(
+                                    file_data=image_bytes,
+                                    object_key=filename,
+                                    content_type='image/webp',
+                                    metadata={
+                                        "source": "runpod_direct_upload",
+                                        "format": "webp"
+                                    },
+                                    convert_to_webp=True
+                                )
+                            )
+                        finally:
+                            loop.close()
                         
                         logger.success(f"[RUNPOD] Base64 загружен в S3: {public_url}")
                         return public_url

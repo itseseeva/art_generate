@@ -59,6 +59,10 @@ def upload_to_cloud_task(
         # Загружаем в облако
         service = get_yandex_storage_service()
         
+        # Обновляем object_key для использования .webp расширения
+        if not object_key.endswith('.webp'):
+            object_key = object_key.rsplit('.', 1)[0] + '.webp' if '.' in object_key else object_key + '.webp'
+        
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
@@ -67,8 +71,9 @@ def upload_to_cloud_task(
                 service.upload_file(
                     file_data=image_bytes,
                     object_key=object_key,
-                    content_type='image/png',
-                    metadata=metadata or {}
+                    content_type='image/webp',
+                    metadata=metadata or {},
+                    convert_to_webp=True
                 )
             )
             

@@ -48,15 +48,15 @@ async def create_admin_user() -> bool:
 
             if existing_user:
                 # Пользователь уже существует - обновляем его данные
-                if not existing_user.is_admin:
-                    existing_user.is_admin = True
+                # ВАЖНО: Всегда устанавливаем is_admin = True, даже если пользователь был создан через регистрацию
+                existing_user.is_admin = True
                 if existing_user.coins < ADMIN_COINS:
                     existing_user.coins = ADMIN_COINS
                 await db.commit()
                 await db.refresh(existing_user)
                 print(
                     f"[INIT_ADMIN] Admin user {ADMIN_EMAIL} already exists, "
-                    f"updated (coins: {existing_user.coins})"
+                    f"updated (is_admin: {existing_user.is_admin}, coins: {existing_user.coins})"
                 )
                 admin_user = existing_user
             else:
