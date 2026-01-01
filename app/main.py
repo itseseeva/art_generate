@@ -890,29 +890,29 @@ async def get_fallback_settings():
         from app.config.generation_defaults import get_fallback_values
         return get_fallback_values()
     except Exception as e:
-        logger.error(f"Ошибка получения fallback настроек: {e}")
+        logger.error(f"Ошибка получения fallback настроек: {e}", exc_info=True)
         # Последний резерв - используем default_prompts.py
         try:
             from app.config.default_prompts import get_default_negative_prompts
             from app.config.generation_defaults import DEFAULT_GENERATION_PARAMS
             return {
-                "steps": DEFAULT_GENERATION_PARAMS.get("steps"),
-                "width": DEFAULT_GENERATION_PARAMS.get("width"),
-                "height": DEFAULT_GENERATION_PARAMS.get("height"),
-                "cfg_scale": DEFAULT_GENERATION_PARAMS.get("cfg_scale"),
-                "sampler_name": DEFAULT_GENERATION_PARAMS.get("sampler_name", "Euler"),
+                "steps": DEFAULT_GENERATION_PARAMS.get("steps", 28),
+                "width": DEFAULT_GENERATION_PARAMS.get("width", 832),
+                "height": DEFAULT_GENERATION_PARAMS.get("height", 1216),
+                "cfg_scale": DEFAULT_GENERATION_PARAMS.get("cfg_scale", 4),
+                "sampler_name": DEFAULT_GENERATION_PARAMS.get("sampler_name", "DPM++ 2M Karras"),
                 "negative_prompt": get_default_negative_prompts()
             }
         except Exception as final_error:
-            logger.error(f"Критическая ошибка загрузки промптов: {final_error}")
+            logger.error(f"Критическая ошибка загрузки промптов: {final_error}", exc_info=True)
             # Последний резерв - минимальные значения
             return {
-                "steps": None,
-                "width": None,
-                "height": None,
-                "cfg_scale": None,
-                "sampler_name": None,
-                "negative_prompt": None
+                "steps": 28,
+                "width": 832,
+                "height": 1216,
+                "cfg_scale": 4,
+                "sampler_name": "DPM++ 2M Karras",
+                "negative_prompt": ""
             }
 
 @app.get("/api/v1/prompts/")
@@ -1035,7 +1035,9 @@ async def fallback_characters():
         await cache_set(cache_key, fallback_characters, ttl_seconds=TTL_CHARACTERS_LIST)
         return fallback_characters
     except Exception as e:
-        logger.error(f"Критическая ошибка загрузки персонажей: {e}")
+        logger.error(f"Критическая ошибка загрузки персонажей: {e}", exc_info=True)
+        import traceback
+        logger.error(f"Трейсбек: {traceback.format_exc()}")
         return []
 
 @app.get("/api/characters/")
@@ -4160,11 +4162,16 @@ async def get_generation_status(
         return response
         
     except Exception as e:
-        logger.error(f"[ERROR] Ошибка получения статуса задачи {task_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Ошибка получения статуса задачи: {str(e)}"
-        )
+        logger.error(f"[ERROR] Ошибка получения статуса задачи {task_id}: {e}", exc_info=True)
+        import traceback
+        logger.error(f"[ERROR] Трейсбек: {traceback.format_exc()}")
+        # Возвращаем ошибку вместо raise HTTPException, чтобы фронтенд мог обработать
+        return {
+            "task_id": task_id,
+            "status": "ERROR",
+            "message": "Ошибка получения статуса задачи",
+            "error": str(e)
+        }
 
 
 @app.get("/api/v1/cloud-save-status/{task_id}")

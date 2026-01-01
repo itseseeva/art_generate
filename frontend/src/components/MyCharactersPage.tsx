@@ -312,12 +312,45 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
         setIsAuthenticated(true);
         // Загружаем избранные после успешной авторизации
         await loadFavorites();
-      } else {
+      } else if (response.status === 401) {
+        // Только при 401 пытаемся обновить токен
+        const refreshToken = localStorage.getItem('refreshToken');
+        if (refreshToken) {
+          try {
+            const refreshResponse = await fetch('/api/v1/auth/refresh/', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ refresh_token: refreshToken })
+            });
+            
+            if (refreshResponse.ok) {
+              const tokenData = await refreshResponse.json();
+              localStorage.setItem('authToken', tokenData.access_token);
+              if (tokenData.refresh_token) {
+                localStorage.setItem('refreshToken', tokenData.refresh_token);
+              }
+              // Повторяем проверку с новым токеном
+              await checkAuth();
+              return;
+            }
+          } catch (refreshError) {
+            console.error('Ошибка обновления токена:', refreshError);
+          }
+        }
+        // Если refresh не удался, удаляем токены
         setIsAuthenticated(false);
         localStorage.removeItem('authToken');
+        localStorage.removeItem('refreshToken');
+      } else {
+        // Для других ошибок не удаляем токены
+        console.warn('Auth check failed with status:', response.status, '- keeping tokens');
+        setIsAuthenticated(false);
       }
     } catch (error) {
-      console.error('Auth check error:', error);
+      // При сетевых ошибках не удаляем токены
+      console.warn('Auth check error (network error):', error, '- keeping tokens');
       setIsAuthenticated(false);
     } finally {
       setAuthCheckComplete(true);

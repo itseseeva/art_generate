@@ -77,8 +77,8 @@
 }
 
 .switcher4-track {
-  width: 56px;
-  height: 32px;
+  width: 45px;
+  height: 26px;
   border-radius: 999px;
   position: relative;
   transition: background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
@@ -86,10 +86,10 @@
 
 .switcher4-thumb {
   position: absolute;
-  top: 4px;
-  left: 4px;
-  width: 24px;
-  height: 24px;
+  top: 3px;
+  left: 3px;
+  width: 19px;
+  height: 19px;
   border-radius: 999px;
   background: #ffffff;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -101,7 +101,7 @@
   inset: 0;
   display: grid;
   place-items: center;
-  font-size: 8px;
+  font-size: 6px;
   font-weight: 700;
   color: #111827; /* почти чёрный для контраста на белом */
   letter-spacing: 0.2px;

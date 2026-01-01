@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { FiPlusCircle, FiEdit, FiClock, FiHeart, FiGrid, FiHome, FiLogIn, FiUser, FiLogOut, FiShoppingBag, FiMessageSquare, FiTrendingUp, FiMail, FiChevronRight, FiAlertTriangle } from 'react-icons/fi';
+import { FiPlusCircle, FiEdit, FiClock, FiHeart, FiGrid, FiHome, FiMessageSquare, FiTrendingUp, FiChevronRight, FiAlertTriangle, FiUser, FiLogIn, FiUserPlus, FiLogOut, FiShoppingBag } from 'react-icons/fi';
 import Switcher4 from './Switcher4';
 import { NSFWWarningModal } from './NSFWWarningModal';
 
@@ -15,15 +15,15 @@ interface LeftDockSidebarProps {
   onFavorites?: () => void;
   onMyCharacters?: () => void;
   onHome?: () => void;
-  onProfile?: () => void;
-  onShop?: () => void;
   onMessages?: () => void;
   onBalanceHistory?: () => void;
   onBugReport?: () => void;
-  isAuthenticated?: boolean;
+  onProfile?: () => void;
+  onShop?: () => void;
   onLogin?: () => void;
   onRegister?: () => void;
   onLogout?: () => void;
+  isAuthenticated?: boolean;
   contentMode?: 'safe' | 'nsfw';
   onContentModeChange?: (mode: 'safe' | 'nsfw') => void;
 }
@@ -35,8 +35,8 @@ const SidebarWrapper = styled.div`
 `;
 
 const SidebarContainer = styled.aside<{ $isCollapsed?: boolean }>`
-  width: ${props => props.$isCollapsed ? '0' : '72px'};
-  min-width: ${props => props.$isCollapsed ? '0' : '72px'};
+  width: ${props => props.$isCollapsed ? '0' : '79px'};
+  min-width: ${props => props.$isCollapsed ? '0' : '79px'};
   height: 100%;
   padding: ${props => props.$isCollapsed ? '0' : '1.5rem 0.75rem'};
   background: rgba(8, 8, 18, 0.85);
@@ -53,12 +53,12 @@ const SidebarContainer = styled.aside<{ $isCollapsed?: boolean }>`
 `;
 
 const HomeButton = styled.button`
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
   background: rgba(12, 12, 24, 0.85);
   color: rgba(240, 240, 240, 1);
-  font-size: 1rem;
+  font-size: 0.8rem;
   font-weight: 600;
   border: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
@@ -111,8 +111,25 @@ const DockWrapper = styled.div`
   align-items: center;
   justify-content: flex-start;
   position: relative;
-  gap: 0.5rem;
-  overflow: visible;
+  gap: 1rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  
+  &::-webkit-scrollbar {
+    width: 0;
+    display: none;
+  }
+  
+  &::-webkit-scrollbar-track {
+    display: none;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    display: none;
+  }
+  
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 `;
 
 const SwitcherContainer = styled.div`
@@ -140,13 +157,13 @@ const ToggleArrowButton = styled.button<{ $isCollapsed?: boolean }>`
     border-color 0.2s ease,
     background 0.2s ease,
     color 0.2s ease,
-    left 0.3s ease;
+    left 0.3s ease,
+    top 0.3s ease;
   flex-shrink: 0;
   outline: none;
   z-index: 20;
   position: fixed;
-  top: 50%;
-  left: ${props => props.$isCollapsed ? '-8px' : '40px'};
+  left: ${props => props.$isCollapsed ? '-8px' : '44px'};
   transform: ${props => props.$isCollapsed ? 'translateY(-50%) rotate(0deg)' : 'translateY(-50%) rotate(180deg)'};
 
   &:hover {
@@ -158,11 +175,18 @@ const ToggleArrowButton = styled.button<{ $isCollapsed?: boolean }>`
 
   &:active {
     transform: ${props => props.$isCollapsed ? 'translateY(-50%) scale(0.95) rotate(0deg)' : 'translateY(-50%) scale(0.95) rotate(180deg)'};
+    outline: none;
+    box-shadow: none;
   }
 
   &:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
+    box-shadow: none;
+  }
+  
+  &:focus {
+    outline: none;
+    box-shadow: none;
   }
 `;
 
@@ -176,7 +200,8 @@ const SidebarContent = styled.div<{ $isCollapsed?: boolean }>`
   visibility: ${props => props.$isCollapsed ? 'hidden' : 'visible'};
   transition: opacity 0.3s ease, visibility 0.3s ease;
   flex: 1;
-  overflow: visible;
+  overflow: hidden;
+  min-height: 0;
 `;
 
 export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
@@ -186,66 +211,57 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   onFavorites,
   onMyCharacters,
   onHome,
-  onProfile,
-  onShop,
   onMessages,
   onBalanceHistory,
   onBugReport,
-  isAuthenticated = false,
+  onProfile,
+  onShop,
   onLogin,
   onRegister,
   onLogout,
+  isAuthenticated = false,
   contentMode = 'safe',
   onContentModeChange,
 }) => {
   const [showNSFWWarning, setShowNSFWWarning] = useState(false);
   const [pendingMode, setPendingMode] = useState<'safe' | 'nsfw' | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [arrowTop, setArrowTop] = useState<string>('50%');
+  const dockWrapperRef = useRef<HTMLDivElement>(null);
 
   const topDockItems = [
     {
-      icon: <FiPlusCircle size={22} />,
+      icon: <FiPlusCircle size={18} />,
       label: 'Создать',
       onClick: () => onCreateCharacter?.(),
     },
     {
-      icon: <FiEdit size={22} />,
+      icon: <FiEdit size={18} />,
       label: 'Редактор',
       onClick: () => onEditCharacters?.(),
     },
     {
-      icon: <FiClock size={22} />,
+      icon: <FiClock size={18} />,
       label: 'История',
       onClick: () => onHistory?.(),
     },
     {
-      icon: <FiHeart size={22} />,
+      icon: <FiHeart size={18} />,
       label: 'Избранное',
       onClick: () => onFavorites?.(),
     },
   ];
 
-  const bottomDockItems = [
+  // Основные кнопки (всегда видимые)
+  const mainBottomDockItems = [
     {
-      icon: <FiGrid size={22} />,
+      icon: <FiGrid size={18} />,
       label: 'Персонажи',
       onClick: () => onMyCharacters?.(),
       className: 'dock-item-characters',
     },
     {
-      icon: <FiUser size={22} />,
-      label: 'Профиль',
-      onClick: () => onProfile?.(),
-      className: 'dock-item-profile',
-    },
-    {
-      icon: <FiShoppingBag size={22} />,
-      label: 'Магазин',
-      onClick: () => onShop?.(),
-      className: 'dock-item-shop',
-    },
-    {
-      icon: <FiAlertTriangle size={22} />,
+      icon: <FiAlertTriangle size={18} />,
       label: 'Жалоба',
       onClick: () => onBugReport?.(),
       className: 'dock-item-bug',
@@ -254,47 +270,141 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
 
   // Добавляем кнопку истории баланса для авторизованных пользователей
   if (isAuthenticated && onBalanceHistory) {
-    bottomDockItems.push({
-      icon: <FiTrendingUp size={22} />,
+    mainBottomDockItems.push({
+      icon: <FiTrendingUp size={18} />,
       label: 'Списания',
       onClick: () => onBalanceHistory?.(),
       className: 'dock-item-balance',
     });
   }
 
-  // Добавляем кнопки авторизации в зависимости от статуса
-  if (!isAuthenticated) {
-    bottomDockItems.push(
-      {
-        icon: <FiLogIn size={22} />,
-        label: 'Войти',
-        onClick: () => onLogin?.(),
-        className: 'dock-item-login',
-      },
-      {
-        icon: <FiMail size={22} />,
-        label: 'Регистрация',
-        onClick: () => onRegister?.(),
-        className: 'dock-item-register',
-      }
-    );
-  } else {
-    // Для авторизованных пользователей добавляем Messages вместо Register
+  // Для авторизованных пользователей добавляем Messages
+  if (isAuthenticated) {
     if (onMessages) {
-      bottomDockItems.push({
-        icon: <FiMessageSquare size={22} />,
+      mainBottomDockItems.push({
+        icon: <FiMessageSquare size={18} />,
         label: 'Сообщения',
         onClick: () => onMessages?.(),
         className: 'dock-item-messages',
       });
     }
-    bottomDockItems.push({
-      icon: <FiLogOut size={22} />,
-      label: 'Выйти',
-      onClick: () => onLogout?.(),
-      className: 'dock-item-logout',
+  }
+
+  // Дополнительные кнопки (скрытые по умолчанию)
+  const additionalDockItems = [];
+
+  // Добавляем кнопки из правой верхней панели
+  // Профиль - только для авторизованных
+  if (isAuthenticated && onProfile) {
+    additionalDockItems.push({
+      icon: <FiUser size={18} />,
+      label: 'Профиль',
+      onClick: () => onProfile?.(),
+      className: 'dock-item-profile',
     });
   }
+
+  // Магазин - всегда
+  if (onShop) {
+    additionalDockItems.push({
+      icon: <FiShoppingBag size={18} />,
+      label: 'Магазин',
+      onClick: () => onShop?.(),
+      className: 'dock-item-shop',
+    });
+  }
+
+  // Кнопки авторизации - для неавторизованных
+  if (!isAuthenticated) {
+    if (onLogin) {
+      additionalDockItems.push({
+        icon: <FiLogIn size={18} />,
+        label: 'Войти',
+        onClick: () => onLogin?.(),
+        className: 'dock-item-login',
+      });
+    }
+    if (onRegister) {
+      additionalDockItems.push({
+        icon: <FiUserPlus size={18} />,
+        label: 'Регистрация',
+        onClick: () => onRegister?.(),
+        className: 'dock-item-register',
+      });
+    }
+  } else {
+    // Кнопка выхода - для авторизованных
+    if (onLogout) {
+      additionalDockItems.push({
+        icon: <FiLogOut size={18} />,
+        label: 'Выйти',
+        onClick: () => onLogout?.(),
+        className: 'dock-item-logout',
+      });
+    }
+  }
+
+  useEffect(() => {
+    if (dockWrapperRef.current && !isCollapsed) {
+      // Небольшая задержка для того, чтобы DOM обновился
+      const timeoutId = setTimeout(() => {
+        const dockWrapper = dockWrapperRef.current;
+        if (!dockWrapper) return;
+        
+        const dockPanel = dockWrapper.querySelector('.dock-panel-vertical');
+        if (!dockPanel) return;
+        
+        const items = dockPanel.querySelectorAll('.dock-item');
+        if (items.length === 0) return;
+        
+        // Находим кнопку "Персонажи" и следующую за ней кнопку "Жалоба"
+        let charactersElement: Element | null = null;
+        let bugReportElement: Element | null = null;
+        
+        // Сначала находим "Персонажи"
+        items.forEach((item) => {
+          const label = item.querySelector('.dock-label-vertical')?.textContent?.trim();
+          if (label === 'Персонажи' && !charactersElement) {
+            charactersElement = item;
+          }
+        });
+        
+        // Затем ищем "Жалоба" после "Персонажи"
+        if (charactersElement) {
+          let foundCharacters = false;
+          items.forEach((item) => {
+            if (item === charactersElement) {
+              foundCharacters = true;
+              return;
+            }
+            if (foundCharacters && !bugReportElement) {
+              const label = item.querySelector('.dock-label-vertical')?.textContent?.trim();
+              if (label === 'Жалоба') {
+                bugReportElement = item;
+              }
+            }
+          });
+        }
+        
+        if (charactersElement && bugReportElement) {
+          const charactersRect = charactersElement.getBoundingClientRect();
+          const bugReportRect = bugReportElement.getBoundingClientRect();
+          
+          // Вычисляем точно середину пустого пространства между кнопками
+          // bottom кнопки "Персонажи" - это конец первой кнопки
+          // top кнопки "Жалоба" - это начало второй кнопки
+          // Середина между ними - это центр gap между кнопками
+          const spaceStart = charactersRect.bottom;
+          const spaceEnd = bugReportRect.top;
+          const middleY = (spaceStart + spaceEnd) / 2;
+          
+          setArrowTop(`${middleY}px`);
+        }
+      }, 50);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isCollapsed, isAuthenticated, onBalanceHistory, onMessages]);
 
   return (
     <SidebarWrapper>
@@ -302,13 +412,14 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
         onClick={() => setIsCollapsed(!isCollapsed)}
         title={isCollapsed ? "Развернуть панель" : "Свернуть панель"}
         $isCollapsed={isCollapsed}
+        style={{ top: isCollapsed ? '50%' : arrowTop }}
       >
-        <FiChevronRight size={18} />
+        <FiChevronRight size={14} />
       </ToggleArrowButton>
       <SidebarContainer $isCollapsed={isCollapsed}>
         <SidebarContent $isCollapsed={isCollapsed}>
           <HomeButton onClick={onHome} title="Главная">
-            <FiHome size={20} />
+            <FiHome size={16} />
           </HomeButton>
           <SwitcherContainer>
             <Switcher4
@@ -342,15 +453,15 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
               }}
             />
           )}
-          <DockWrapper>
+          <DockWrapper ref={dockWrapperRef}>
             <Dock
-              items={[...topDockItems, ...bottomDockItems]}
+              items={[...topDockItems, ...mainBottomDockItems, ...additionalDockItems]}
               vertical
               dockHeight={420}
               panelHeight={90}
-              baseItemSize={43}
-              magnification={56}
-              distance={120}
+              baseItemSize={34}
+              magnification={45}
+              distance={150}
               spring={{ mass: 0.15, stiffness: 180, damping: 35 }}
               className="left-dock-panel"
             />

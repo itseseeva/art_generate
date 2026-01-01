@@ -5,6 +5,7 @@ import { CharacterCard } from './CharacterCard';
 import { ShopModal } from './ShopModal';
 import { AuthModal } from './AuthModal';
 import { PhotoGenerationPage } from './PhotoGenerationPage';
+import { Footer } from './Footer';
 import { API_CONFIG } from '../config/api';
 import '../styles/ContentArea.css';
 
@@ -72,32 +73,6 @@ const NavButton = styled.button`
   }
 `;
 
-const HeaderLinks = styled.div<{ $isVisible: boolean }>`
-  display: ${props => props.$isVisible ? 'flex' : 'none'};
-  gap: 1.5rem;
-  padding: 1rem 2rem;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(10px);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  width: 100%;
-  transition: all 0.3s ease-in-out;
-`;
-
-const HeaderLink = styled.a`
-  color: ${theme.colors.text.secondary};
-  text-decoration: none;
-  font-size: ${theme.fontSize.sm};
-  font-weight: 600;
-  transition: color ${theme.transition.fast};
-  
-  &:hover {
-    color: ${theme.colors.text.primary};
-  }
-`;
-
 const CharactersGrid = styled.div`
   flex: 1;
   padding: ${theme.spacing.xs} ${theme.spacing.sm};
@@ -107,7 +82,7 @@ const CharactersGrid = styled.div`
   gap: ${theme.spacing.sm};
   align-content: start;
   width: 100%;
-  height: 100%;
+  min-height: 0;
 `;
 
 const ContentArea = styled.div`
@@ -229,8 +204,6 @@ export const MainPage: React.FC<MainPageProps> = ({
   const [characters, setCharacters] = useState<Character[]>([]);
   const [isLoadingCharacters, setIsLoadingCharacters] = useState(true);
   const [cachedRawCharacters, setCachedRawCharacters] = useState<any[]>([]);
-  const [isHeaderVisible, setIsHeaderVisible] = useState(true);
-  const lastScrollY = useRef(0);
   const charactersGridRef = useRef<HTMLDivElement>(null);
   const [favoriteCharacterIds, setFavoriteCharacterIds] = useState<Set<number>>(new Set());
 
@@ -444,45 +417,6 @@ export const MainPage: React.FC<MainPageProps> = ({
     }
   };
 
-  // Отслеживание скролла для скрытия/показа панели
-  useEffect(() => {
-    const handleScroll = () => {
-      const charactersGrid = charactersGridRef.current;
-      if (!charactersGrid) return;
-      
-      const currentScrollY = charactersGrid.scrollTop;
-      
-      // ЕДИНСТВЕННОЕ условие для показа панели - доскроллили до самого верха (в пределах 10px)
-      if (currentScrollY <= 10) {
-        setIsHeaderVisible(true);
-      } 
-      // Если скроллим вниз и прошли больше 100px - скрываем панель
-      else if (currentScrollY > 100) {
-        setIsHeaderVisible(false);
-      }
-      // Во всех остальных случаях (скроллим вверх, но не дошли до верха, или скроллим вниз, но еще не прошли 100px) - НЕ меняем состояние
-      
-      lastScrollY.current = currentScrollY;
-    };
-
-    const charactersGrid = charactersGridRef.current;
-    if (charactersGrid) {
-      // Проверяем начальное состояние
-      const initialScrollY = charactersGrid.scrollTop;
-      if (initialScrollY <= 10) {
-        setIsHeaderVisible(true);
-      } else {
-        setIsHeaderVisible(false);
-      }
-      lastScrollY.current = initialScrollY;
-      
-      charactersGrid.addEventListener('scroll', handleScroll, { passive: true });
-      return () => {
-        charactersGrid.removeEventListener('scroll', handleScroll);
-      };
-    }
-  }, []);
-
   // Автоматическое обновление фотографий каждые 30 секунд
   React.useEffect(() => {
     const loadData = async () => {
@@ -624,18 +558,50 @@ export const MainPage: React.FC<MainPageProps> = ({
           setUserInfo(null);
           setFavoriteCharacterIds(new Set());
         }
-      } else {
-        // Токен недействителен
+      } else if (response.status === 401) {
+        // Только при 401 (Unauthorized) пытаемся обновить токен
+        const refreshToken = localStorage.getItem('refreshToken');
+        if (refreshToken) {
+          try {
+            const refreshResponse = await fetch('/api/v1/auth/refresh/', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ refresh_token: refreshToken })
+            });
+            
+            if (refreshResponse.ok) {
+              const tokenData = await refreshResponse.json();
+              localStorage.setItem('authToken', tokenData.access_token);
+              if (tokenData.refresh_token) {
+                localStorage.setItem('refreshToken', tokenData.refresh_token);
+              }
+              // Повторяем проверку авторизации с новым токеном
+              await checkAuth();
+              return;
+            }
+          } catch (refreshError) {
+            console.error('Ошибка обновления токена:', refreshError);
+          }
+        }
+        // Если refresh не удался, удаляем токены
         localStorage.removeItem('authToken');
         localStorage.removeItem('refreshToken');
         setIsAuthenticated(false);
         setUserInfo(null);
         setFavoriteCharacterIds(new Set());
+      } else {
+        // Для других ошибок (500, 502, и т.д.) не удаляем токены, только сбрасываем состояние
+        console.warn('Auth check failed with status:', response.status, '- keeping tokens');
+        setIsAuthenticated(false);
+        setUserInfo(null);
+        setFavoriteCharacterIds(new Set());
       }
     } catch (error) {
-      // Только логируем ошибку, не показываем в консоли для неавторизованных пользователей
+      // При сетевых ошибках не удаляем токены
       if (localStorage.getItem('authToken')) {
-        console.error('Ошибка проверки авторизации:', error);
+        console.warn('Ошибка проверки авторизации (сетевая ошибка):', error, '- keeping tokens');
       }
       setIsAuthenticated(false);
       setUserInfo(null);
@@ -800,12 +766,6 @@ export const MainPage: React.FC<MainPageProps> = ({
   return (
     <MainContainer>
       <ContentArea>
-      <HeaderLinks $isVisible={isHeaderVisible}>
-        <HeaderLink href="/how-it-works">Как это работает</HeaderLink>
-        <HeaderLink href="/about">О сервисе</HeaderLink>
-        <HeaderLink href="/tariffs">Тарифы</HeaderLink>
-        <HeaderLink href="/legal">Оферта / Реквизиты</HeaderLink>
-      </HeaderLinks>
       {isPhotoGenerationOpen && createdCharacter ? (
         <PhotoGenerationPage
           character={createdCharacter}
@@ -869,6 +829,8 @@ export const MainPage: React.FC<MainPageProps> = ({
               mode={authModalMode}
             />
           )}
+          
+          <Footer />
         </>
       )}
       </ContentArea>

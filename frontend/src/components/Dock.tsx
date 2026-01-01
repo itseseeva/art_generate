@@ -133,32 +133,33 @@ type DockLabelProps = {
 
 function DockLabel({ children, className = '', isHovered, isLocalHovered = false, vertical = false, itemClassName = '' }: DockLabelProps) {
   const isVisible = isLocalHovered === true;
-  const isCharactersButton = itemClassName?.includes('dock-item-characters');
-  const animationY = vertical && isCharactersButton ? -5 : (vertical ? 5 : 5);
 
   return (
-    <AnimatePresence>
+    <>
       {isVisible && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8, y: animationY }}
-          animate={{ 
-            opacity: 1,
-            scale: 1,
-            y: 0
-          }}
-          exit={{ opacity: 0, scale: 0.8, y: animationY }}
-          transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+        <div
           className={`dock-label ${vertical ? 'dock-label-vertical' : ''} ${className}`}
           role="tooltip"
           style={{ 
             pointerEvents: 'none',
-            color: '#ffffff'
+            color: '#ffffff',
+            opacity: 1,
+            transform: 'translateX(-50%) scale(1)',
+            transformOrigin: 'center center',
+            transition: 'none',
+            animation: 'none',
+            willChange: 'auto'
           }}
         >
-          <span style={{ color: '#ffffff', display: 'inline-block' }}>{children}</span>
-        </motion.div>
+          <span style={{ 
+            color: '#ffffff', 
+            display: 'inline-block',
+            transform: 'scale(1)',
+            transformOrigin: 'center center'
+          }}>{children}</span>
+        </div>
       )}
-    </AnimatePresence>
+    </>
   );
 }
 

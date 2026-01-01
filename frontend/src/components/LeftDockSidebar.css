@@ -48,11 +48,16 @@
   top: auto !important;
   bottom: calc(100% + 2px) !important;
   left: 50% !important;
-  transform: translateX(-50%) !important;
-  max-width: 120px !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
+  transform: translateX(-50%) scale(0.756) !important;
+  transform-origin: center center !important;
+  max-width: none !important;
+  min-width: max-content !important;
+  width: max-content !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+  word-wrap: break-word !important;
+  word-break: normal !important;
   font-size: 0.585rem !important;
   font-weight: 500 !important;
   padding: 0 !important;
@@ -64,7 +69,16 @@
   box-shadow: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+  opacity: 0 !important;
+  transition: opacity 0s !important;
+  animation: none !important;
+  will-change: auto !important;
+}
+
+.left-dock-panel .dock-item:hover .dock-label-vertical {
   opacity: 1 !important;
+  transform: translateX(-50%) scale(0.756) !important;
+  transition: opacity 0s !important;
 }
 
 /* Текст снизу для конкретных кнопок */

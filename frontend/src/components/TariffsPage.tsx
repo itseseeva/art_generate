@@ -307,6 +307,81 @@ const PaymentLogo = styled.img`
   padding: 2px;
 `;
 
+const SubscriptionSection = styled.div`
+  max-width: 1200px;
+  margin: 2rem auto 0;
+`;
+
+const SectionTitle = styled.h4`
+  color: #ffffff;
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin-bottom: 1.25rem;
+  text-align: center;
+  background: linear-gradient(135deg, #ffffff 0%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+`;
+
+const SubscriptionPlans = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  
+  @media (max-width: 1024px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+`;
+
+const PackageCard = styled.div`
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 1.5rem;
+  text-align: center;
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  
+  &:hover {
+    transform: translateY(-4px) scale(1.01);
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 15px 50px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+`;
+
+const PackageName = styled.h5`
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+  margin-top: 0;
+  background: linear-gradient(135deg, #ffffff 0%, #d1d5db 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+`;
+
+const PackagePrice = styled.div`
+  font-size: 2rem;
+  font-weight: 800;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, #ffffff 0%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+`;
+
 interface SubscriptionStats {
   subscription_type: string;
   monthly_credits: number;
@@ -327,6 +402,8 @@ export const TariffsPage: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [selectedPlanForPayment, setSelectedPlanForPayment] = useState<string | null>(null);
+  const [creditPackages, setCreditPackages] = useState<Array<{id: string; name: string; credits: number; price: number; price_per_credit: number; description: string}>>([]);
+  const [isLoadingPackages, setIsLoadingPackages] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -337,6 +414,10 @@ export const TariffsPage: React.FC = () => {
       loadSubscriptionStats();
     }
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    loadCreditPackages();
+  }, []);
 
   const checkAuth = async () => {
     try {
@@ -469,6 +550,53 @@ export const TariffsPage: React.FC = () => {
     }
   };
 
+  const loadCreditPackages = async () => {
+    try {
+      setIsLoadingPackages(true);
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/subscription/credit-packages/`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.packages) {
+          setCreditPackages(data.packages);
+        }
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки пакетов кредитов:', error);
+    } finally {
+      setIsLoadingPackages(false);
+    }
+  };
+
+  const handleCreditTopUpPayment = (packageId: string, price: number, credits: number) => {
+    const currentUserId = userInfo?.id;
+    if (!currentUserId) {
+      setAuthMode('login');
+      setIsAuthModalOpen(true);
+      return;
+    }
+
+    try {
+      const receiverWallet = '4100119070489003';
+      const label = `type:topup;package:${packageId};uid:${currentUserId}`;
+      const successURL = `${window.location.origin}/tariffs`;
+      const quickPayUrl =
+        `https://yoomoney.ru/quickpay/confirm.xml` +
+        `?receiver=${encodeURIComponent(receiverWallet)}` +
+        `&quickpay-form=shop` +
+        `&targets=${encodeURIComponent(`Покупка ${credits} кредитов`)}` +
+        `&formcomment=${encodeURIComponent('Пополнение баланса Spicychat')}` +
+        `&short-dest=${encodeURIComponent('Пополнение баланса')}` +
+        `&sum=${encodeURIComponent(price.toFixed(2))}` +
+        `&label=${encodeURIComponent(label)}` +
+        `&successURL=${encodeURIComponent(successURL)}`;
+
+      window.location.href = quickPayUrl;
+    } catch (err) {
+      console.error('Ошибка формирования ссылки QuickPay для пакета:', err);
+    }
+  };
+
   return (
     <Container>
       <Content>
@@ -555,6 +683,79 @@ export const TariffsPage: React.FC = () => {
             Никаких дополнительных действий не требуется. История ваших генераций и баланс обновляются мгновенно.
           </InfoText>
         </InfoBlock>
+
+        {/* Секция разовой докупки кредитов */}
+        {isAuthenticated && stats?.is_active && (
+          <SubscriptionSection>
+            <SectionTitle>Докупить кредиты</SectionTitle>
+            <p style={{ 
+              textAlign: 'center', 
+              color: '#b8b8b8', 
+              fontSize: '1.1rem', 
+              marginBottom: '2rem',
+              maxWidth: '800px',
+              margin: '0 auto 2rem'
+            }}>
+              Закончились кредиты? Докупите пакет и продолжайте общение! Кредиты суммируются с текущим балансом.
+            </p>
+            
+            <SubscriptionPlans>
+              {isLoadingPackages ? (
+                <div style={{ textAlign: 'center', color: '#888', padding: '2rem', gridColumn: '1 / -1' }}>
+                  Загрузка пакетов...
+                </div>
+              ) : (() => {
+                  try {
+                    const safePackages = Array.isArray(creditPackages) ? creditPackages : [];
+                    if (safePackages.length > 0) {
+                      return safePackages.map((pkg: any) => (
+                        <PackageCard key={pkg.id}>
+                          <PackageName>{pkg.name}</PackageName>
+                          <PackagePrice>{pkg.price}₽</PackagePrice>
+                          <div style={{ 
+                            fontSize: '1rem', 
+                            color: '#a78bfa', 
+                            marginBottom: '1rem',
+                            textAlign: 'center',
+                            fontWeight: 600
+                          }}>
+                            {pkg.credits} кредитов
+                          </div>
+                          <div style={{ 
+                            fontSize: '0.9rem', 
+                            color: '#888', 
+                            marginBottom: '1.5rem',
+                            textAlign: 'center',
+                            fontStyle: 'italic'
+                          }}>
+                            {pkg.description}
+                          </div>
+                          <ActivateButton
+                            onClick={() => handleCreditTopUpPayment(pkg.id, pkg.price, pkg.credits)}
+                            disabled={isLoadingPackages}
+                          >
+                            Купить за {pkg.price}₽
+                          </ActivateButton>
+                        </PackageCard>
+                      ));
+                    } else {
+                      return (
+                        <div style={{ textAlign: 'center', color: '#888', padding: '2rem', gridColumn: '1 / -1' }}>
+                          Пакеты временно недоступны
+                        </div>
+                      );
+                    }
+                  } catch (e) {
+                    return (
+                      <div style={{ textAlign: 'center', color: '#888', padding: '2rem', gridColumn: '1 / -1' }}>
+                        Ошибка загрузки пакетов
+                      </div>
+                    );
+                  }
+                })()}
+            </SubscriptionPlans>
+          </SubscriptionSection>
+        )}
       </Content>
       <Footer />
 

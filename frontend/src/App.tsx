@@ -714,6 +714,8 @@ function App() {
             onOpenChat={handleCharacterSelect}
             onPhotoGeneration={handlePhotoGeneration}
             contentMode={contentMode}
+            isAuthenticated={isAuthenticated}
+            userInfo={userInfo}
           />
           </ErrorBoundary>
         );
@@ -1362,8 +1364,6 @@ function App() {
       <GlobalStyles />
       <AppContainer>
         <LeftDockSidebar
-          onProfile={handleProfile}
-          onShop={handleShop}
           onCreateCharacter={handleCreateCharacter}
           onEditCharacters={handleEditCharacters}
           onHistory={handleHistory}
@@ -1373,10 +1373,12 @@ function App() {
           onMessages={handleMessages}
           onBalanceHistory={handleBalanceHistory}
           onBugReport={handleBugReport}
-          isAuthenticated={isAuthenticated}
+          onProfile={handleProfile}
+          onShop={handleShop}
           onLogin={handleLogin}
           onRegister={handleRegister}
           onLogout={handleLogout}
+          isAuthenticated={isAuthenticated}
           contentMode={contentMode}
           onContentModeChange={setContentMode}
         />

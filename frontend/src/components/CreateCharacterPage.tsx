@@ -1757,6 +1757,8 @@ interface CreateCharacterPageProps {
   onOpenPaidAlbumBuilder?: (character: any) => void;
   onOpenChat?: (character: any) => void;
   contentMode?: 'safe' | 'nsfw';
+  isAuthenticated?: boolean;
+  userInfo?: {username: string, coins: number, id?: number, subscription?: {subscription_type?: string}} | null;
 }
 
 const MAX_MAIN_PHOTOS = 3;
@@ -1768,7 +1770,9 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   onPhotoGeneration,
   onOpenPaidAlbumBuilder,
   onOpenChat,
-  contentMode = 'safe'
+  contentMode = 'safe',
+  isAuthenticated: propIsAuthenticated,
+  userInfo: propUserInfo
 }) => {
   const [formData, setFormData] = useState({
     name: '',
@@ -1784,9 +1788,18 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userInfo, setUserInfo] = useState<{username: string, coins: number, id: number, subscription?: {subscription_type?: string}} | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(propIsAuthenticated ?? false);
+  const [userInfo, setUserInfo] = useState<{username: string, coins: number, id: number, subscription?: {subscription_type?: string}} | null>(propUserInfo ?? null);
   const [isPhotoGenerationExpanded, setIsPhotoGenerationExpanded] = useState(false);
+  
+  // Синхронизируем состояние авторизации с пропсами
+  useEffect(() => {
+    if (propIsAuthenticated !== undefined) {
+      setIsAuthenticated(propIsAuthenticated);
+      setUserInfo(propUserInfo ?? null);
+      setAuthCheckComplete(true);
+    }
+  }, [propIsAuthenticated, propUserInfo]);
   const [createdCharacterData, setCreatedCharacterData] = useState<any>(null);
   const [customPrompt, setCustomPrompt] = useState('');
   const [largeTextInput, setLargeTextInput] = useState('');
@@ -1876,9 +1889,43 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         setIsAuthenticated(true);
         setUserInfo(userData);
         console.log('Authentication successful, isAuthenticated set to true');
-      } else {
-        console.log('Auth failed, removing token');
+      } else if (response.status === 401) {
+        // Только при 401 пытаемся обновить токен
+        console.log('Auth failed with 401, attempting token refresh');
+        const refreshToken = localStorage.getItem('refreshToken');
+        if (refreshToken) {
+          try {
+            const refreshResponse = await fetch('/api/v1/auth/refresh/', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ refresh_token: refreshToken })
+            });
+            
+            if (refreshResponse.ok) {
+              const tokenData = await refreshResponse.json();
+              localStorage.setItem('authToken', tokenData.access_token);
+              if (tokenData.refresh_token) {
+                localStorage.setItem('refreshToken', tokenData.refresh_token);
+              }
+              // Повторяем проверку с новым токеном
+              await checkAuth();
+              return;
+            }
+          } catch (refreshError) {
+            console.error('Ошибка обновления токена:', refreshError);
+          }
+        }
+        // Если refresh не удался, удаляем токены
+        console.log('Token refresh failed, removing tokens');
         localStorage.removeItem('authToken');
+        localStorage.removeItem('refreshToken');
+        setIsAuthenticated(false);
+        setUserInfo(null);
+      } else {
+        // Для других ошибок не удаляем токены
+        console.warn('Auth check failed with status:', response.status, '- keeping tokens');
         setIsAuthenticated(false);
         setUserInfo(null);
       }
@@ -1893,12 +1940,20 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   useEffect(() => {
     const initPage = async () => {
       console.log('[CREATE_CHAR] Инициализация страницы...');
-      try {
-        await checkAuth();
-        console.log('[CREATE_CHAR] checkAuth завершён');
-      } catch (error) {
-        console.error('[CREATE_CHAR] Ошибка checkAuth:', error);
+      
+      // Если авторизация уже передана из пропсов, пропускаем проверку
+      if (propIsAuthenticated !== undefined) {
+        console.log('[CREATE_CHAR] Используется авторизация из пропсов, пропускаем checkAuth');
         setAuthCheckComplete(true);
+      } else {
+        // Иначе делаем свою проверку (для обратной совместимости)
+        try {
+          await checkAuth();
+          console.log('[CREATE_CHAR] checkAuth завершён');
+        } catch (error) {
+          console.error('[CREATE_CHAR] Ошибка checkAuth:', error);
+          setAuthCheckComplete(true);
+        }
       }
       
       try {
@@ -1924,12 +1979,20 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   }, []);
 
   // Показываем модалку ТОЛЬКО один раз после проверки
+  // Если авторизация передана из пропсов и пользователь не авторизован - показываем модалку сразу
   useEffect(() => {
-    if (authCheckComplete && !isAuthenticated && !isAuthModalOpen) {
+    if (propIsAuthenticated !== undefined) {
+      // Используем авторизацию из пропсов
+      if (!propIsAuthenticated && !isAuthModalOpen) {
+        setIsAuthModalOpen(true);
+        setAuthMode('login');
+      }
+    } else if (authCheckComplete && !isAuthenticated && !isAuthModalOpen) {
+      // Используем локальную проверку авторизации
       setIsAuthModalOpen(true);
       setAuthMode('login');
     }
-  }, [authCheckComplete]);
+  }, [authCheckComplete, propIsAuthenticated, isAuthenticated, isAuthModalOpen]);
 
   // Загружаем настройки генерации из API
   const loadGenerationSettings = async () => {
