@@ -10,6 +10,9 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  overflow: visible;
+  overflow-x: visible;
+  overflow-y: visible;
 }
 
 .left-dock-panel .dock-item {
@@ -28,6 +31,8 @@
   -webkit-backface-visibility: hidden;
   position: relative;
   overflow: visible;
+  overflow-x: visible;
+  overflow-y: visible;
 }
 
 .left-dock-panel .dock-item:focus,
@@ -73,9 +78,12 @@
   transition: opacity 0s !important;
   animation: none !important;
   will-change: auto !important;
+  visibility: visible !important;
 }
 
-.left-dock-panel .dock-item:hover .dock-label-vertical {
+.left-dock-panel .dock-item:hover .dock-label-vertical,
+.left-dock-panel .dock-item:focus .dock-label-vertical,
+.left-dock-panel .dock-item:focus-within .dock-label-vertical {
   opacity: 1 !important;
   transform: translateX(-50%) scale(0.756) !important;
   transition: opacity 0s !important;

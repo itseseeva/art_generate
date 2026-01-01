@@ -113,7 +113,8 @@ const DockWrapper = styled.div`
   position: relative;
   gap: 1rem;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: visible;
+  overflow: visible;
   
   &::-webkit-scrollbar {
     width: 0;
@@ -139,6 +140,8 @@ const SwitcherContainer = styled.div`
   align-items: center;
   padding: 0.75rem 0;
   margin-top: calc(0.5rem - 4px);
+  transform: translateY(-20%);
+  position: relative;
 `;
 
 const ToggleArrowButton = styled.button<{ $isCollapsed?: boolean }>`
@@ -200,7 +203,8 @@ const SidebarContent = styled.div<{ $isCollapsed?: boolean }>`
   visibility: ${props => props.$isCollapsed ? 'hidden' : 'visible'};
   transition: opacity 0.3s ease, visibility 0.3s ease;
   flex: 1;
-  overflow: hidden;
+  overflow: visible;
+  overflow-y: auto;
   min-height: 0;
 `;
 
