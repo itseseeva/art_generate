@@ -681,7 +681,7 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
   const [success, setSuccess] = useState<string | null>(null);
   const [userInfo, setUserInfo] = useState<{coins: number; subscription_type?: string} | null>(null);
   const [generationSettings, setGenerationSettings] = useState<any>(null);
-  const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime'>('anime-realism');
+  const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime' | 'realism'>('anime-realism');
   const [addedPhotos, setAddedPhotos] = useState<string[]>([]);
   const [showFreeSubscriptionModal, setShowFreeSubscriptionModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -1484,7 +1484,7 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
                 <select
                   id="model"
                   value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value as 'anime-realism' | 'anime')}
+                  onChange={(e) => setSelectedModel(e.target.value as 'anime-realism' | 'anime' | 'realism')}
                   disabled={isGenerating}
                   style={{
                     padding: '0.75rem',
@@ -1497,8 +1497,9 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
                     width: '100%'
                   }}
                 >
-                  <option value="anime-realism">Больше реализма</option>
-                  <option value="anime">Больше аниме</option>
+                  <option value="anime-realism">Аниме реализм</option>
+                  <option value="anime">Аниме</option>
+                  <option value="realism">Реализм</option>
                 </select>
 
                 <GenerateButton

@@ -254,16 +254,32 @@ const CharacterCardWrapper = styled.div`
 
 const GenerationQueueIndicator = styled.div`
   display: flex;
-  flex-direction: column;
-  gap: ${theme.spacing.xs};
-  padding: ${theme.spacing.md};
+  flex-direction: row;
+  gap: 4px;
+  padding: 8px 12px;
   background: rgba(30, 30, 30, 0.8);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(100, 100, 100, 0.3);
   border-radius: ${theme.borderRadius.md};
-  min-width: 195px;
-  max-width: 260px;
+  align-items: center;
+  justify-content: center;
   margin: 0 auto;
+`;
+
+const QueueBar = styled.div<{ $isFilled: boolean }>`
+  width: 8px;
+  height: 20px;
+  background: ${props => props.$isFilled ? '#FFD700' : 'rgba(150, 150, 150, 0.5)'};
+  border-radius: 2px;
+  transition: background 0.2s ease;
+`;
+
+const QueueLabel = styled.div`
+  font-size: ${theme.fontSize.xs};
+  color: rgba(160, 160, 160, 1);
+  text-align: center;
+  margin-top: 8px;
+  font-weight: 500;
 `;
 
 const QueueTitle = styled.div`
@@ -1288,7 +1304,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const [isImagePromptModalOpen, setIsImagePromptModalOpen] = useState(false);
   const [isPhotoGenerationHelpModalOpen, setIsPhotoGenerationHelpModalOpen] = useState(false);
   const [imagePromptInput, setImagePromptInput] = useState('');
-  const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime'>('anime-realism');
+  const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime' | 'realism'>('anime-realism');
   // Сохраняем отредактированные промпты для каждого персонажа (ключ - имя персонажа)
   // Загружаем из localStorage при инициализации
   const loadPromptsFromStorage = (): Record<string, string> => {
@@ -1596,15 +1612,23 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
     try {
       // Используем оригинальный промпт на русском языке
+      // Убеждаемся, что модель валидна
+      const validModel = selectedModel === 'anime' || selectedModel === 'anime-realism' || selectedModel === 'realism' 
+        ? selectedModel 
+        : 'anime-realism';
+      
       const requestBody = {
         prompt: trimmedPrompt,
         custom_prompt: trimmedPrompt, // Передаем отредактированный промпт как custom_prompt
         character: currentCharacter.name,
         use_default_prompts: false, // Используем промпт как есть, без добавления данных персонажа
         user_id: userInfo?.id,
-        model: selectedModel
+        model: validModel
         // Размеры берутся из generation_defaults.py (768x1344)
       };
+      
+      console.log('[GENERATE_IMAGE] Отправка запроса с моделью:', validModel, 'selectedModel:', selectedModel, 'type:', typeof selectedModel);
+      console.log('[GENERATE_IMAGE] Полный requestBody:', JSON.stringify(requestBody, null, 2));
 
       // Запоминаем время начала генерации СРАЗУ после создания сообщения (до отправки запроса)
       // Это нужно для правильного отображения прогресса заглушки
@@ -1612,6 +1636,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       // Запускаем интервал для плавного обновления прогресса заглушки
       startPlaceholderProgress(assistantMessageId);
 
+      console.log('[GENERATE_IMAGE] Отправка запроса:', JSON.stringify(requestBody, null, 2));
+      
       const response = await fetch('/api/v1/generate-image/', {
         method: 'POST',
         headers: {
@@ -1622,8 +1648,30 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Ошибка генерации изображения');
+        let errorData;
+        try {
+          errorData = await response.json();
+          console.error('[GENERATE_IMAGE] Ошибка ответа:', response.status, errorData);
+        } catch (e) {
+          const text = await response.text();
+          console.error('[GENERATE_IMAGE] Ошибка парсинга ответа:', response.status, text);
+          errorData = { detail: text || 'Ошибка генерации изображения' };
+        }
+        
+        // Если это ошибка валидации, показываем детали
+        if (response.status === 422 && errorData.detail) {
+          const validationErrors = Array.isArray(errorData.detail) ? errorData.detail : [errorData.detail];
+          const errorMessages = validationErrors.map((err: any) => {
+            if (typeof err === 'string') return err;
+            if (err.loc && err.msg) {
+              return `${err.loc.join('.')}: ${err.msg}`;
+            }
+            return JSON.stringify(err);
+          }).join('; ');
+          throw new Error(`Ошибка валидации: ${errorMessages}`);
+        }
+        
+        throw new Error(errorData.detail || errorData.message || 'Ошибка генерации изображения');
       }
 
       const data = await response.json();
@@ -3602,22 +3650,14 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             
             {/* Индикатор очереди генераций - в самом низу панели */}
                 <GenerationQueueIndicator>
-                  <QueueTitle>Очередь генераций</QueueTitle>
-                  <QueueItem>
-                    <span>Активных:</span>
-                    <QueueValue>{activeGenerations.size}</QueueValue>
-                  </QueueItem>
-                  <QueueItem>
-                    <span>Лимит:</span>
-                    <QueueValue $isLimit>{getGenerationQueueLimit}</QueueValue>
-                  </QueueItem>
-                  <QueueItem>
-                    <span>Осталось:</span>
-                    <QueueValue style={{ color: Math.max(0, getGenerationQueueLimit - activeGenerations.size) > 0 ? '#90ee90' : '#ff6b6b' }}>
-                      {Math.max(0, getGenerationQueueLimit - activeGenerations.size)}
-                    </QueueValue>
-                  </QueueItem>
+                  {Array.from({ length: getGenerationQueueLimit }).map((_, index) => (
+                    <QueueBar 
+                      key={index} 
+                      $isFilled={index < activeGenerations.size}
+                    />
+                  ))}
                 </GenerationQueueIndicator>
+                <QueueLabel>Очередь генерации</QueueLabel>
           </PaidAlbumPanel>
         </ChatContentWrapper>
       </MainContent>
@@ -3696,7 +3736,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               </label>
               <select
                 value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value as 'anime-realism' | 'anime')}
+                onChange={(e) => setSelectedModel(e.target.value as 'anime-realism' | 'anime' | 'realism')}
                 style={{
                   width: '100%',
                   padding: '0.75rem',
@@ -3708,8 +3748,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   cursor: 'pointer'
                 }}
               >
-                <option value="anime-realism">Больше реализма</option>
-                <option value="anime">Больше аниме</option>
+                <option value="anime-realism">Аниме реализм</option>
+                <option value="anime">Аниме</option>
+                <option value="realism">Реализм</option>
               </select>
             </div>
             <textarea

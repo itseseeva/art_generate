@@ -107,7 +107,19 @@ class ImageGenerationRequest(BaseModel):
     sampler_name: Optional[str] = None
     character: Optional[str] = None
     user_id: Optional[int] = None  # ID пользователя для проверки подписки
-    model: Optional[Literal["anime", "anime-realism"]] = Field(default="anime-realism", description="Модель для генерации: 'anime' или 'anime-realism'")
+    # Модель: anime, anime-realism или realism (точно так же как для anime и anime-realism)
+    model: Optional[Literal["anime", "anime-realism", "realism"]] = Field(
+        default="anime-realism", 
+        description="Модель для генерации: 'anime', 'anime-realism' или 'realism'"
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "prompt": "beautiful girl",
+                "model": "realism"
+            }
+        }
 
 # Настраиваем логирование с правильной кодировкой
 # Создаем папку для логов только при необходимости (не блокируем импорт)
@@ -694,6 +706,10 @@ async def validation_exception_handler(
 ):
     error_msg = f"Validation error: {exc.errors()}"
     logger.error(error_msg)
+    # Логируем полную информацию об ошибке для отладки
+    import json
+    logger.error(f"Validation errors details: {json.dumps(exc.errors(), indent=2, ensure_ascii=False)}")
+    logger.error(f"Request body: {await request.body() if hasattr(request, 'body') else 'N/A'}")
     
     return JSONResponse(
         status_code=422,
@@ -2799,6 +2815,11 @@ async def generate_image(
     logger.info(f"[ENDPOINT IMG] Character: {request.character}")
     logger.info(f"[ENDPOINT IMG] Steps: {request.steps}, CFG: {request.cfg_scale}, Size: {request.width}x{request.height}, Model: {request.model}")
     logger.info(f"[ENDPOINT IMG] Промпт (первые 100 символов): {request.prompt[:100] if request.prompt else 'None'}...")
+    logger.info(f"[ENDPOINT IMG] Тип модели: {type(request.model)}, Значение: {repr(request.model)}")
+    # Проверяем валидность модели
+    valid_models = ["anime", "anime-realism", "realism"]
+    if request.model and request.model not in valid_models:
+        logger.error(f"[ENDPOINT IMG] ОШИБКА: Недопустимая модель '{request.model}'. Допустимые значения: {valid_models}")
     logger.info(f"[ENDPOINT IMG] ========================================")
     
     # ВРЕМЕННАЯ ЗАГЛУШКА ДЛЯ ПРОВЕРКИ ФРОНТЕНДА
@@ -3195,7 +3216,14 @@ async def generate_image(
                 try:
                     # Запускаем генерацию и получаем job_id
                     selected_model = getattr(generation_settings, 'model', None) or (getattr(request, 'model', None) or "anime-realism")
-                    logger.info(f"[GENERATE] 🎯 Выбранная модель: '{selected_model}' -> будет использован {'RUNPOD_URL_2 (k1eeffsqd0hnr0)' if selected_model == 'anime-realism' else 'RUNPOD_URL (eyulcfjcdh4h3u)'}")
+                    # Определяем какой URL будет использован для логирования
+                    if selected_model == "anime-realism":
+                        url_info = "RUNPOD_URL_2 (Аниме реализм)"
+                    elif selected_model == "realism":
+                        url_info = "RUNPOD_URL_3 (Реализм)"
+                    else:
+                        url_info = "RUNPOD_URL (Аниме)"
+                    logger.info(f"[GENERATE] 🎯 Выбранная модель: '{selected_model}' -> будет использован {url_info}")
                     # Подготавливаем seed для передачи
                     # Если seed не указан или равен -1, передаем None, чтобы start_generation сгенерировал случайный seed
                     seed_to_send = None
@@ -3707,7 +3735,7 @@ async def get_generation_status(
             
             # Если runpod_url_base не найден, пытаемся определить по модели из метаданных или используем дефолтный
             if not runpod_url_base:
-                from app.services.runpod_client import RUNPOD_URL_BASE, RUNPOD_URL_BASE_2
+                from app.services.runpod_client import RUNPOD_URL_BASE, RUNPOD_URL_BASE_2, RUNPOD_URL_BASE_3
                 # Пытаемся определить модель из метаданных
                 try:
                     from app.utils.redis_cache import cache_get
@@ -3724,6 +3752,9 @@ async def get_generation_status(
                             if model == "anime-realism":
                                 runpod_url_base = RUNPOD_URL_BASE_2
                                 logger.info(f"[RUNPOD STATUS] Определен runpod_url_base по модели 'anime-realism': {runpod_url_base}")
+                            elif model == "realism":
+                                runpod_url_base = RUNPOD_URL_BASE_3
+                                logger.info(f"[RUNPOD STATUS] Определен runpod_url_base по модели 'realism': {runpod_url_base}")
                             else:
                                 runpod_url_base = RUNPOD_URL_BASE
                                 logger.info(f"[RUNPOD STATUS] Определен runpod_url_base по модели '{model}': {runpod_url_base}")
@@ -3754,7 +3785,16 @@ async def get_generation_status(
                         logger.debug(f"[RUNPOD STATUS] Traceback: {traceback.format_exc()}")
                 except Exception as check_error:
                     logger.error(f"[RUNPOD STATUS] Ошибка проверки статуса: {check_error}")
-                    raise check_error
+                    import traceback
+                    logger.error(f"[RUNPOD STATUS] Трейсбек: {traceback.format_exc()}")
+                    # Возвращаем ошибку вместо проброса исключения
+                    return {
+                        "task_id": task_id,
+                        "status": "ERROR",
+                        "message": "Ошибка проверки статуса генерации",
+                        "error": str(check_error),
+                        "progress": 0
+                    }
             
             # Если статус IN_PROGRESS и есть прогресс, возвращаем его
             if status == "IN_PROGRESS" and progress is not None:

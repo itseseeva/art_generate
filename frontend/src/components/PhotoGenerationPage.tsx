@@ -328,7 +328,7 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
   const [customPrompt, setCustomPrompt] = useState('');
   const [generationSettings, setGenerationSettings] = useState<any>(null);
-  const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime'>('anime-realism');
+  const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime' | 'realism'>('anime-realism');
   const fakeProgressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fakeProgressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -756,7 +756,7 @@ useEffect(() => {
                 <select
                   id="model-select"
                   value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value as 'anime-realism' | 'anime')}
+                  onChange={(e) => setSelectedModel(e.target.value as 'anime-realism' | 'anime' | 'realism')}
                   style={{
                     width: '100%',
                     padding: '0.75rem',
@@ -768,8 +768,9 @@ useEffect(() => {
                     cursor: 'pointer'
                   }}
                 >
-                  <option value="anime-realism">Больше реализма</option>
-                  <option value="anime">Больше аниме</option>
+                  <option value="anime-realism">Аниме реализм</option>
+                  <option value="anime">Аниме</option>
+                  <option value="realism">Реализм</option>
                 </select>
               </PromptContainer>
               

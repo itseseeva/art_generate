@@ -1817,7 +1817,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authCheckComplete, setAuthCheckComplete] = useState(false);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime'>('anime-realism');
+  const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime' | 'realism'>('anime-realism');
   const [fakeProgress, setFakeProgress] = useState(0);
   const [generationProgress, setGenerationProgress] = useState<number | undefined>(undefined);
   const fakeProgressIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
@@ -2986,11 +2986,12 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
                   </label>
                   <select
                     value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value as 'anime-realism' | 'anime')}
+                    onChange={(e) => setSelectedModel(e.target.value as 'anime-realism' | 'anime' | 'realism')}
                     className="w-full px-4 py-2 bg-black border border-zinc-700 rounded-lg text-zinc-200 text-sm focus:outline-none focus:border-zinc-500"
                   >
-                    <option value="anime-realism">Больше реализма</option>
-                    <option value="anime">Больше аниме</option>
+                    <option value="anime-realism">Аниме реализм</option>
+                    <option value="anime">Аниме</option>
+                    <option value="realism">Реализм</option>
                   </select>
                 </div>
 

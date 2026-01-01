@@ -59,8 +59,9 @@ load_dotenv()
 
 # Константы для подключения к RunPod
 RUNPOD_API_KEY = os.getenv("RUNPOD_API_KEY")
-RUNPOD_URL = os.getenv("RUNPOD_URL")  # Модель "Больше аниме" (OneObsession/anime) - должен заканчиваться на '/run' или '/runsync'
-RUNPOD_URL_2 = os.getenv("RUNPOD_URL_2")  # Модель "Больше реализма" (PerfectDeliberate/anime-realism) - должен заканчиваться на '/run' или '/runsync'
+RUNPOD_URL = os.getenv("RUNPOD_URL")  # Модель "Аниме" (OneObsession/anime) - должен заканчиваться на '/run' или '/runsync'
+RUNPOD_URL_2 = os.getenv("RUNPOD_URL_2")  # Модель "Аниме реализм" (PerfectDeliberate/anime-realism) - должен заканчиваться на '/run' или '/runsync'
+RUNPOD_URL_3 = os.getenv("RUNPOD_URL_3")  # Модель "Реализм" - должен заканчиваться на '/run' или '/runsync'
 
 # Извлекаем базовый URL и ENDPOINT_ID из RUNPOD_URL (дефолтная модель)
 # Формат: https://api.runpod.ai/v2/{ENDPOINT_ID}/run
@@ -82,6 +83,16 @@ if RUNPOD_URL_2:
 else:
     RUNPOD_URL_BASE_2 = None
     ENDPOINT_ID_2 = None
+
+# Извлекаем базовый URL и ENDPOINT_ID из RUNPOD_URL_3 (модель "Реализм")
+if RUNPOD_URL_3:
+    # Убираем '/run' или '/runsync' с конца
+    RUNPOD_URL_BASE_3 = RUNPOD_URL_3.rstrip('/').replace('/run', '').replace('/runsync', '')
+    # Извлекаем ENDPOINT_ID
+    ENDPOINT_ID_3 = RUNPOD_URL_BASE_3.split('/')[-1] if '/' in RUNPOD_URL_BASE_3 else None
+else:
+    RUNPOD_URL_BASE_3 = None
+    ENDPOINT_ID_3 = None
 
 # Таймауты
 DEFAULT_TIMEOUT = 300  # 5 минут
@@ -119,7 +130,7 @@ async def start_generation(
         scheduler: Планировщик
         negative_prompt: Негативный промпт
         use_enhanced_prompts: Использовать ли дефолтные промпты
-        model: Модель для генерации ('anime' или 'anime-realism')
+        model: Модель для генерации ('anime', 'anime-realism' или 'realism')
         
     Returns:
         Tuple[Job ID, base_url]: Job ID для отслеживания статуса и базовый URL для проверки статуса
@@ -132,20 +143,27 @@ async def start_generation(
         raise ValueError("RUNPOD_API_KEY не установлен в переменных окружения")
     
     # Определяем какой URL использовать на основе модели
-    # anime -> RUNPOD_URL (OneObsession, "Больше аниме")
-    # anime-realism -> RUNPOD_URL_2 (PerfectDeliberate, "Больше реализма")
+    # anime -> RUNPOD_URL (OneObsession, "Аниме")
+    # anime-realism -> RUNPOD_URL_2 (PerfectDeliberate, "Аниме реализм")
+    # realism -> RUNPOD_URL_3 ("Реализм")
     if model == "anime-realism":
         runpod_url = RUNPOD_URL_2
         runpod_url_base = RUNPOD_URL_BASE_2
         if not RUNPOD_URL_2:
-            raise ValueError("RUNPOD_URL_2 не установлен в переменных окружения (требуется для модели 'anime-realism' / 'Больше реализма')")
-        logger.info(f"[RUNPOD] ✓ Модель 'anime-realism' ('Больше реализма') -> используем RUNPOD_URL_2: {runpod_url}")
+            raise ValueError("RUNPOD_URL_2 не установлен в переменных окружения (требуется для модели 'anime-realism' / 'Аниме реализм')")
+        logger.info(f"[RUNPOD] ✓ Модель 'anime-realism' ('Аниме реализм') -> используем RUNPOD_URL_2: {runpod_url}")
+    elif model == "realism":
+        runpod_url = RUNPOD_URL_3
+        runpod_url_base = RUNPOD_URL_BASE_3
+        if not RUNPOD_URL_3:
+            raise ValueError("RUNPOD_URL_3 не установлен в переменных окружения (требуется для модели 'realism' / 'Реализм')")
+        logger.info(f"[RUNPOD] ✓ Модель 'realism' ('Реализм') -> используем RUNPOD_URL_3: {runpod_url}")
     else:  # anime или дефолт
         runpod_url = RUNPOD_URL
         runpod_url_base = RUNPOD_URL_BASE
         if not RUNPOD_URL:
-            raise ValueError("RUNPOD_URL не установлен в переменных окружения (требуется для модели 'anime' / 'Больше аниме')")
-        logger.info(f"[RUNPOD] ✓ Модель 'anime' ('Больше аниме') -> используем RUNPOD_URL: {runpod_url}")
+            raise ValueError("RUNPOD_URL не установлен в переменных окружения (требуется для модели 'anime' / 'Аниме')")
+        logger.info(f"[RUNPOD] ✓ Модель 'anime' ('Аниме') -> используем RUNPOD_URL: {runpod_url}")
     
     # Обрабатываем промпты
     if use_enhanced_prompts:
@@ -268,9 +286,11 @@ async def check_status(
     logger.info(f"[RUNPOD] Проверка статуса job_id={job_id} на URL: {status_url}")
     # Показываем какой URL используется и откуда он взят
     if base_url == RUNPOD_URL_BASE_2:
-        url_source = "RUNPOD_URL_2 (модель 'anime-realism' / 'Больше реализма')"
+        url_source = "RUNPOD_URL_2 (модель 'anime-realism' / 'Аниме реализм')"
+    elif base_url == RUNPOD_URL_BASE_3:
+        url_source = "RUNPOD_URL_3 (модель 'realism' / 'Реализм')"
     elif base_url == RUNPOD_URL_BASE:
-        url_source = "RUNPOD_URL (модель 'anime' / 'Больше аниме')"
+        url_source = "RUNPOD_URL (модель 'anime' / 'Аниме')"
     else:
         url_source = f"переданный явно ({base_url})"
     logger.info(f"[RUNPOD] Используемый base_url: {base_url} (источник: {url_source})")
@@ -301,7 +321,15 @@ async def check_status(
         if e.response.status_code == 404 and runpod_url_base:
             logger.warning(f"[RUNPOD] Job не найден на {base_url}, пробуем альтернативный endpoint...")
             # Пробуем другой endpoint
-            alternative_base = RUNPOD_URL_BASE_2 if base_url == RUNPOD_URL_BASE else RUNPOD_URL_BASE
+            # Пробуем альтернативные базовые URL
+            if base_url == RUNPOD_URL_BASE:
+                alternative_base = RUNPOD_URL_BASE_2 or RUNPOD_URL_BASE_3
+            elif base_url == RUNPOD_URL_BASE_2:
+                alternative_base = RUNPOD_URL_BASE or RUNPOD_URL_BASE_3
+            elif base_url == RUNPOD_URL_BASE_3:
+                alternative_base = RUNPOD_URL_BASE or RUNPOD_URL_BASE_2
+            else:
+                alternative_base = RUNPOD_URL_BASE
             if alternative_base:
                 alternative_url = f"{alternative_base}/status/{job_id}"
                 logger.info(f"[RUNPOD] Пробуем альтернативный URL: {alternative_url}")
