@@ -2654,18 +2654,20 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       }
     }
     
-    const maxPhotos = subscriptionType === 'premium' ? 5 : 3;
-    const currentPhotosCount = generatedPhotos.length;
-    const remainingSlots = maxPhotos - currentPhotosCount;
-    
-    if (remainingSlots <= 0) {
-      setError(`Достигнут лимит фото для вашей подписки: ${maxPhotos} фото (${subscriptionType === 'premium' ? 'PREMIUM' : 'STANDARD'}).`);
-      return;
-    }
+    const queueLimit = subscriptionType === 'premium' ? 5 : 3;
     
     // Проверяем кредиты (10 монет за одно фото)
     if (!userInfo || userInfo.coins < 10) {
       setError('Недостаточно монет! Нужно 10 монет для генерации одного фото.');
+      return;
+    }
+
+    // Проверяем лимит очереди (текущая генерация + очередь)
+    const queueCount = generationQueueRef.current || 0;
+    const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
+    
+    if (activeGenerations >= queueLimit) {
+      setError(`Очередь генерации заполнена! Максимум ${queueLimit} задач одновременно (${subscriptionType === 'premium' ? 'PREMIUM' : 'STANDARD'}). Дождитесь завершения текущих генераций.`);
       return;
     }
 
@@ -3001,10 +3003,12 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
                         ? rawSubscriptionType.toLowerCase().trim() 
                         : String(rawSubscriptionType).toLowerCase().trim();
                     }
-                    const maxPhotos = subscriptionType === 'premium' ? 5 : 3;
-                    const currentPhotosCount = generatedPhotos.length;
-                    const remainingSlots = maxPhotos - currentPhotosCount;
-                    return remainingSlots <= 0 || userInfo.coins < 10;
+                    const queueLimit = subscriptionType === 'premium' ? 5 : 3;
+                    // Проверяем только размер очереди и монеты
+                    const queueCount = generationQueueRef.current || 0;
+                    const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
+                    const isQueueFull = activeGenerations >= queueLimit;
+                    return isQueueFull || userInfo.coins < 10;
                   })()}
                   style={{
                     display: 'flex',
@@ -3023,13 +3027,16 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
                           ? rawSubscriptionType.toLowerCase().trim() 
                           : String(rawSubscriptionType).toLowerCase().trim();
                       }
-                      const maxPhotos = subscriptionType === 'premium' ? 5 : 3;
-                      const currentPhotosCount = generatedPhotos.length;
-                      const remainingSlots = maxPhotos - currentPhotosCount;
+                      const queueLimit = subscriptionType === 'premium' ? 5 : 3;
+                      const queueCount = generationQueueRef.current || 0;
+                      const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
+                      const isQueueFull = activeGenerations >= queueLimit;
                       const progress = isGeneratingPhoto 
                         ? (generationProgress !== undefined && generationProgress > 0 ? generationProgress : (fakeProgress || 0))
                         : 0;
-                      const baseText = `Сгенерировать фото (10 монет)${remainingSlots > 0 ? ` • Осталось: ${remainingSlots}` : ' • Лимит достигнут'}`;
+                      const baseText = isQueueFull 
+                        ? `Сгенерировать фото (10 монет) • Очередь заполнена`
+                        : `Сгенерировать фото (10 монет)`;
                       return isGeneratingPhoto 
                         ? `${baseText} • Генерация: ${Math.round(progress)}%`
                         : baseText;
@@ -3049,7 +3056,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
                   const queueLimit = subscriptionType === 'premium' ? 5 : 3;
                   // Активные генерации = текущая генерация (если есть) + очередь
                   const queueCount = generationQueueRef.current || 0;
-                  const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
+                  const activeGenerations = Math.min((isGeneratingPhoto ? 1 : 0) + queueCount, queueLimit);
                   if (activeGenerations > 0 && queueLimit > 0) {
                     return (
                       <div style={{ marginTop: '12px' }}>

@@ -2444,17 +2444,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         : String(rawSubscriptionType).toLowerCase().trim();
     }
     
-    const maxPhotos = subscriptionType === 'premium' ? 5 : 3;
-    // Считаем только новые фото, сгенерированные в этой сессии
-    const initialCount = initialPhotosCountRef.current || 0;
-    const currentCount = Array.isArray(generatedPhotos) ? generatedPhotos.length : 0;
-    const newPhotosCount = Math.max(0, currentCount - initialCount);
-    const remainingSlots = maxPhotos - newPhotosCount;
-    
-    if (remainingSlots <= 0) {
-      setError(`Достигнут лимит фото для вашей подписки: ${maxPhotos} фото (${subscriptionType === 'premium' ? 'PREMIUM' : 'STANDARD'}).`);
-      return;
-    }
+    const queueLimit = subscriptionType === 'premium' ? 5 : 3;
     
     // Проверяем кредиты (10 монет за одно фото)
     if (!userInfo || (userInfo.coins || 0) < 10) {
@@ -2462,7 +2452,16 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       return;
     }
 
-    // Если уже идет генерация, добавляем в очередь и продолжаем
+    // Проверяем лимит очереди (текущая генерация + очередь)
+    const queueCount = generationQueueRef.current || 0;
+    const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
+    
+    if (activeGenerations >= queueLimit) {
+      setError(`Очередь генерации заполнена! Максимум ${queueLimit} задач одновременно (${subscriptionType === 'premium' ? 'PREMIUM' : 'STANDARD'}). Дождитесь завершения текущих генераций.`);
+      return;
+    }
+
+    // Если уже идет генерация, добавляем в очередь
     if (isGeneratingPhoto) {
       generationQueueRef.current += 1;
       return;
@@ -2913,22 +2912,20 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                               ? rawSubscriptionType.toLowerCase().trim() 
                               : String(rawSubscriptionType).toLowerCase().trim();
                           }
-                          const maxPhotos = subscriptionType === 'premium' ? 5 : 3;
-                          // Считаем только новые фото, сгенерированные в этой сессии
-                          const initialCount = initialPhotosCountRef.current || 0;
-                          const currentCount = Array.isArray(generatedPhotos) ? generatedPhotos.length : 0;
-                          const newPhotosCount = Math.max(0, currentCount - initialCount);
-                          const remainingSlots = maxPhotos - newPhotosCount;
+                          const queueLimit = subscriptionType === 'premium' ? 5 : 3;
+                          // Проверяем только размер очереди и монеты
+                          const queueCount = generationQueueRef.current || 0;
+                          const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
                           const hasEnoughCoins = (userInfo?.coins || 0) >= 10;
-                          const isDisabled = remainingSlots <= 0 || !hasEnoughCoins;
+                          const isQueueFull = activeGenerations >= queueLimit;
+                          const isDisabled = isQueueFull || !hasEnoughCoins;
                           console.log('[EDIT_CHAR] Button disabled check:', {
                             userInfo: !!userInfo,
                             subscriptionType,
-                            maxPhotos,
-                            currentCount: currentCount,
-                            newPhotosCount: newPhotosCount,
-                            initialCount: initialCount,
-                            remainingSlots,
+                            queueLimit,
+                            activeGenerations,
+                            queueCount,
+                            isGeneratingPhoto,
                             hasEnoughCoins,
                             coins: userInfo?.coins,
                             isDisabled
@@ -2945,16 +2942,16 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                 ? rawSubscriptionType.toLowerCase().trim() 
                                 : String(rawSubscriptionType).toLowerCase().trim();
                             }
-                            const maxPhotos = subscriptionType === 'premium' ? 5 : 3;
-                            // Считаем только новые фото, сгенерированные в этой сессии
-                            const initialCount = initialPhotosCountRef.current || 0;
-                            const currentCount = Array.isArray(generatedPhotos) ? generatedPhotos.length : 0;
-                            const newPhotosCount = Math.max(0, currentCount - initialCount);
-                            const remainingSlots = maxPhotos - newPhotosCount;
+                            const queueLimit = subscriptionType === 'premium' ? 5 : 3;
+                            const queueCount = generationQueueRef.current || 0;
+                            const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
+                            const isQueueFull = activeGenerations >= queueLimit;
                             const progress = isGeneratingPhoto 
                               ? (generationProgress !== undefined && generationProgress > 0 ? generationProgress : (fakeProgress || 0))
                               : 0;
-                            const baseText = `Сгенерировать фото (10 монет)${remainingSlots > 0 ? ` • Осталось: ${remainingSlots}` : ' • Лимит достигнут'}`;
+                            const baseText = isQueueFull 
+                              ? `Сгенерировать фото (10 монет) • Очередь заполнена`
+                              : `Сгенерировать фото (10 монет)`;
                             return isGeneratingPhoto 
                               ? `${baseText} • Генерация: ${Math.round(progress)}%`
                               : baseText;
@@ -2974,7 +2971,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                         const queueLimit = subscriptionType === 'premium' ? 5 : 3;
                         // Активные генерации = текущая генерация (если есть) + очередь
                         const queueCount = generationQueueRef.current || 0;
-                        const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
+                        const activeGenerations = Math.min((isGeneratingPhoto ? 1 : 0) + queueCount, queueLimit);
                         if (activeGenerations > 0 && queueLimit > 0) {
                           return (
                             <div style={{ marginTop: '12px' }}>
