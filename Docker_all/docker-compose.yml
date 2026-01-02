@@ -16,6 +16,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
+    # Порты УДАЛЕНЫ. Доступ только внутри сети Docker.
     expose:
       - "5432"
     healthcheck:
@@ -30,10 +31,15 @@ services:
     restart: always
     networks:
       - art_net
+    # Добавляем пароль для Redis для внутренней безопасности
+    command: redis-server --requirepass ${REDIS_PASSWORD:-default_password}
     expose:
       - "6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-default_password}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   art_generation_backend:
     build:
@@ -48,12 +54,14 @@ services:
         condition: service_healthy
       art_generation_redis:
         condition: service_healthy
-    ports:
-      - "8000:8000"
+    # КРИТИЧНО: Убрал ports (8000:8000). Теперь бэкенд не виден из интернета.
+    expose:
+      - "8000"
     env_file: .env
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-default_password}
       - HTTP_PROXY=${GLOBAL_PROXY}
       - HTTPS_PROXY=${GLOBAL_PROXY}
       - PYTHONPATH=/app
@@ -61,7 +69,7 @@ services:
       - ../app:/app/app
       - ../alembic:/app/alembic
       - ../alembic.ini:/app/alembic.ini
-      - ../paid_gallery:/app/paid_gallery # Папка, куда бэкенд пишет картинки
+      - ../paid_gallery:/app/paid_gallery
     command: >
       sh -c "
       alembic upgrade head &&
@@ -74,8 +82,6 @@ services:
       context: ..
       dockerfile: Docker_all/Dockerfile.frontend
       args:
-        # Используем DOMAIN из .env для формирования URL
-        # Если DOMAIN задан, используем https://DOMAIN, иначе пустая строка (относительный путь)
         - VITE_API_URL=${DOMAIN:+https://${DOMAIN}}
         - VITE_DOMAIN=${DOMAIN:-cherrylust.art}
     container_name: art_generation_frontend
@@ -84,14 +90,14 @@ services:
       - art_net
     ports:
       - "80:80"
-      - "443:443"
+      - "443:443" # Единственная "входная дверь" в твой сервер
     depends_on:
       - art_generation_backend
     volumes:
       - ./nginx-docker.conf:/etc/nginx/conf.d/default.conf:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
-      - ../paid_gallery:/app/paid_gallery:ro # Папка, откуда Nginx читает картинки
-      - nginx_cache:/var/cache/nginx/s3_cache # Кэш для файлов из Яндекс.Бакета
+      - ../paid_gallery:/app/paid_gallery:ro
+      - nginx_cache:/var/cache/nginx/s3_cache
     env_file: .env
 
 volumes:
