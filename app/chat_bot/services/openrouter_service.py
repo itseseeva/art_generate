@@ -46,12 +46,9 @@ class OpenRouterService:
         self.model = chat_config.OPENROUTER_MODEL
         self._session: Optional[aiohttp.ClientSession] = None
         
-        # Настройка прокси из переменных окружения
-        self.proxy = os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY") or os.getenv("GLOBAL_PROXY")
-        if self.proxy:
-            logger.info(f"[OPENROUTER] Используется прокси: {self.proxy.split('@')[-1] if '@' in self.proxy else 'установлен'}")
-        else:
-            logger.info("[OPENROUTER] Прокси не настроен")
+        # Прокси отключен для текстовой модели
+        self.proxy = None
+        logger.info("[OPENROUTER] Прокси отключен для текстовой модели")
         
         if not self.api_key:
             logger.warning("[OPENROUTER] OPENROUTER_KEY не установлен в переменных окружения")
@@ -71,12 +68,12 @@ class OpenRouterService:
                 use_dns_cache=True,
                 keepalive_timeout=30
             )
-            # Используем trust_env=False, так как мы явно передаем proxy в каждый запрос
-            # Это гарантирует, что используется именно GLOBAL_PROXY, а не HTTP_PROXY/HTTPS_PROXY из окружения
+            # Отключаем автоматическое использование HTTP_PROXY/HTTPS_PROXY из окружения
+            # Прокси не используется для текстовой модели
             self._session = aiohttp.ClientSession(
                 timeout=timeout,
                 connector=connector,
-                trust_env=False  # Отключаем автоматическое использование HTTP_PROXY/HTTPS_PROXY, используем только GLOBAL_PROXY
+                trust_env=False  # Отключаем автоматическое использование HTTP_PROXY/HTTPS_PROXY
             )
         return self._session
     
