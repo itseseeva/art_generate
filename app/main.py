@@ -221,6 +221,30 @@ async def lifespan(app: FastAPI):
     # Redis будет подключен при первом использовании, если доступен
     logger.info("[INFO] Redis кэш будет инициализирован при первом использовании")
     
+    # Проверяем переменные окружения RunPod
+    try:
+        from app.services.runpod_client import RUNPOD_URL, RUNPOD_URL_2, RUNPOD_URL_3
+        if RUNPOD_URL:
+            logger.info("[INFO] RUNPOD_URL установлен (модель 'Аниме')")
+        else:
+            logger.warning("[WARNING] RUNPOD_URL не установлен - модель 'Аниме' будет недоступна")
+        
+        if RUNPOD_URL_2:
+            logger.info("[INFO] RUNPOD_URL_2 установлен (модель 'Аниме реализм')")
+        else:
+            logger.warning("[WARNING] RUNPOD_URL_2 не установлен - модель 'Аниме реализм' будет недоступна")
+        
+        if RUNPOD_URL_3:
+            logger.info("[INFO] RUNPOD_URL_3 установлен (модель 'Реализм')")
+        else:
+            logger.warning(
+                "[WARNING] RUNPOD_URL_3 не установлен - модель 'Реализм' будет недоступна. "
+                "Добавьте RUNPOD_URL_3=https://api.runpod.ai/v2/YOUR_ENDPOINT_ID/run в файл .env в папке Docker_all/ "
+                "и перезапустите контейнеры: docker compose down && docker compose up -d"
+            )
+    except Exception as e:
+        logger.warning(f"[WARNING] Ошибка проверки переменных RunPod: {e}")
+    
     # Keep Alive скрипт отключен
     # keep_alive_task = None
     # try:

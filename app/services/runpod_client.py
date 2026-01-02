@@ -63,6 +63,13 @@ RUNPOD_URL = os.getenv("RUNPOD_URL")  # Модель "Аниме" (OneObsession/
 RUNPOD_URL_2 = os.getenv("RUNPOD_URL_2")  # Модель "Аниме реализм" (PerfectDeliberate/anime-realism) - должен заканчиваться на '/run' или '/runsync'
 RUNPOD_URL_3 = os.getenv("RUNPOD_URL_3")  # Модель "Реализм" - должен заканчиваться на '/run' или '/runsync'
 
+# Логируем загруженные переменные для отладки (без чувствительных данных)
+logger.debug(f"[RUNPOD] RUNPOD_URL загружен: {'Да' if RUNPOD_URL else 'Нет'}")
+logger.debug(f"[RUNPOD] RUNPOD_URL_2 загружен: {'Да' if RUNPOD_URL_2 else 'Нет'}")
+logger.debug(f"[RUNPOD] RUNPOD_URL_3 загружен: {'Да' if RUNPOD_URL_3 else 'Нет'}")
+if RUNPOD_URL_3:
+    logger.debug(f"[RUNPOD] RUNPOD_URL_3 значение (первые 30 символов): {RUNPOD_URL_3[:30]}...")
+
 # Извлекаем базовый URL и ENDPOINT_ID из RUNPOD_URL (дефолтная модель)
 # Формат: https://api.runpod.ai/v2/{ENDPOINT_ID}/run
 if RUNPOD_URL:
@@ -153,10 +160,26 @@ async def start_generation(
             raise ValueError("RUNPOD_URL_2 не установлен в переменных окружения (требуется для модели 'anime-realism' / 'Аниме реализм')")
         logger.info(f"[RUNPOD] ✓ Модель 'anime-realism' ('Аниме реализм') -> используем RUNPOD_URL_2: {runpod_url}")
     elif model == "realism":
+        # Детальное логирование для отладки
+        logger.info(f"[RUNPOD] Проверка RUNPOD_URL_3 для модели 'realism':")
+        logger.info(f"[RUNPOD] RUNPOD_URL_3 из os.getenv: {os.getenv('RUNPOD_URL_3')}")
+        logger.info(f"[RUNPOD] RUNPOD_URL_3 переменная: {RUNPOD_URL_3}")
+        logger.info(f"[RUNPOD] RUNPOD_URL_3 тип: {type(RUNPOD_URL_3)}")
+        logger.info(f"[RUNPOD] RUNPOD_URL_3 длина: {len(RUNPOD_URL_3) if RUNPOD_URL_3 else 0}")
+        logger.info(f"[RUNPOD] RUNPOD_URL_BASE_3: {RUNPOD_URL_BASE_3}")
+        
         runpod_url = RUNPOD_URL_3
         runpod_url_base = RUNPOD_URL_BASE_3
-        if not RUNPOD_URL_3:
-            raise ValueError("RUNPOD_URL_3 не установлен в переменных окружения (требуется для модели 'realism' / 'Реализм')")
+        
+        # Проверяем и пустую строку тоже
+        if not RUNPOD_URL_3 or RUNPOD_URL_3.strip() == "":
+            error_msg = (
+                f"RUNPOD_URL_3 не установлен в переменных окружения (требуется для модели 'realism' / 'Реализм'). "
+                f"Текущее значение: '{RUNPOD_URL_3}'. "
+                f"Проверьте, что RUNPOD_URL_3 установлен в .env файле и контейнер перезапущен."
+            )
+            logger.error(f"[RUNPOD] {error_msg}")
+            raise ValueError(error_msg)
         logger.info(f"[RUNPOD] ✓ Модель 'realism' ('Реализм') -> используем RUNPOD_URL_3: {runpod_url}")
     else:  # anime или дефолт
         runpod_url = RUNPOD_URL
