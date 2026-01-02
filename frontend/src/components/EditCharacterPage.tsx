@@ -1101,52 +1101,61 @@ const PhotoGenerationDescription = styled.p`
 `;
 
 const GenerateButton = styled.button`
-  background: linear-gradient(135deg, rgba(50, 50, 50, 0.9), rgba(40, 40, 40, 0.9));
-  border: 1px solid rgba(120, 120, 120, 0.4);
-  color: ${theme.colors.text.primary};
-  padding: ${theme.spacing.md} ${theme.spacing.lg};
-  border-radius: ${theme.borderRadius.lg};
-  font-size: ${theme.fontSize.sm};
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(6px);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
   position: relative;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid transparent;
+  color: ${theme.colors.text.primary};
+  padding: ${theme.spacing.md} ${theme.spacing.xl};
+  border-radius: ${theme.borderRadius.xl};
+  font-size: ${theme.fontSize.base};
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(20px);
+  width: 100%;
   overflow: hidden;
-
+  
   &::before {
     content: '';
     position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(200, 200, 200, 0.15), transparent);
-    transition: left 0.5s ease;
+    inset: 0;
+    border-radius: inherit;
+    padding: 2px;
+    background: linear-gradient(135deg, rgba(236, 72, 153, 0.6), rgba(139, 92, 246, 0.6), rgba(59, 130, 246, 0.6));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0.6;
+    transition: opacity 0.4s ease;
   }
-
-  &:hover {
+  
+  & > span {
+    display: block;
+    transition: opacity 0.3s ease;
+  }
+  
+  &:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px rgba(236, 72, 153, 0.3);
     transform: translateY(-2px);
-    border-color: rgba(150, 150, 150, 0.5);
-    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6);
-
+    
     &::before {
-      left: 100%;
+      opacity: 1;
     }
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(0);
   }
 
   &:disabled {
-    opacity: 0.45;
+    opacity: 0.7;
     cursor: not-allowed;
-    transform: none;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-    pointer-events: none;
-  }
-  
-  &:not(:disabled) {
-    pointer-events: auto;
-    cursor: pointer;
+    background: rgba(255, 255, 255, 0.03);
+    
+    &::before {
+      opacity: 0.4;
+    }
   }
 `;
 
@@ -1273,9 +1282,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const [isGeneratingPhoto, setIsGeneratingPhoto] = useState(false);
   const [isLoadingPhotos, setIsLoadingPhotos] = useState(true);
   const [generationSettings, setGenerationSettings] = useState<any>(null);
-  const [generationQueue, setGenerationQueue] = useState<number>(0); // Количество фото в очереди
-  const [isProcessingQueue, setIsProcessingQueue] = useState(false); // Обрабатывается ли очередь
-  const [currentGeneratingIndex, setCurrentGeneratingIndex] = useState<number>(0); // Индекс текущего генерируемого фото
   const [selectedPhotos, setSelectedPhotos] = useState<SelectedPhoto[]>([]);
   const [selectedPhotoForView, setSelectedPhotoForView] = useState<any>(null);
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
@@ -1287,6 +1293,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const [generationProgress, setGenerationProgress] = useState<number | undefined>(undefined);
   const fakeProgressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fakeProgressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const generationQueueRef = useRef<number>(0); // Счетчик задач в очереди
+  const initialPhotosCountRef = useRef<number>(0); // Количество фото при загрузке страницы
   const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime' | 'realism'>('anime-realism');
 
   const startFakeProgress = useCallback(() => {
@@ -1452,6 +1460,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       console.log('[EDIT_CHAR] Main photos (isSelected=true):', formattedPhotos.filter(p => p.isSelected));
 
       setGeneratedPhotos(formattedPhotos);
+      initialPhotosCountRef.current = formattedPhotos.length; // Сохраняем начальное количество фото
       console.log('[EDIT_CHAR] setGeneratedPhotos called with', formattedPhotos.length, 'photos');
       
       const selected = formattedPhotos
@@ -2424,84 +2433,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     };
   };
 
-  // Обработчик очереди генерации
-  const processGenerationQueue = async () => {
-    if (isProcessingQueue || generationQueue === 0) {
-      return;
-    }
-
-    setIsProcessingQueue(true);
-    setIsGeneratingPhoto(true);
-    setError(null);
-    setGenerationProgress(0);
-    startFakeProgress();
-
-    try {
-      const token = authManager.getToken();
-      if (!token) throw new Error('Необходимо войти в систему');
-
-      // Определяем тип подписки и максимальное количество фото
-      const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type;
-      let subscriptionType = 'free';
-      if (rawSubscriptionType) {
-        subscriptionType = typeof rawSubscriptionType === 'string' 
-          ? rawSubscriptionType.toLowerCase().trim() 
-          : String(rawSubscriptionType).toLowerCase().trim();
-      }
-      const maxPhotos = subscriptionType === 'premium' ? 5 : 3;
-      // Лимит на количество одновременных генераций, а не на общее количество фото
-      // Обрабатываем очередь до лимита одновременных генераций
-      let processed = 0;
-      while (generationQueue > 0 && processed < maxPhotos) {
-        setCurrentGeneratingIndex(processed + 1);
-        setSuccess(`Генерация фото ${currentPhotosCount + processed + 1}...`);
-        
-        try {
-          const photo = await generateSinglePhoto();
-          if (photo) {
-            setGeneratedPhotos(prev => {
-              const exists = prev.some(p => p.url === photo.url);
-              if (exists) {
-                return prev;
-              }
-              return [{ ...photo, isSelected: false }, ...prev];
-            });
-            processed++;
-          }
-        } catch (photoError) {
-          console.error(`Ошибка генерации фото:`, photoError);
-          setError(`Ошибка генерации фото: ${photoError instanceof Error ? photoError.message : 'Неизвестная ошибка'}`);
-        }
-        
-        // Уменьшаем очередь
-        setGenerationQueue(prev => Math.max(0, prev - 1));
-      }
-
-      if (processed > 0) {
-        setSuccess(`Успешно сгенерировано ${processed} фото!`);
-      }
-      
-      await checkAuth();
-      
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка генерации фото');
-      stopFakeProgress(true);
-    } finally {
-      setIsGeneratingPhoto(false);
-      setGenerationProgress(undefined);
-      setIsProcessingQueue(false);
-      setCurrentGeneratingIndex(0);
-      stopFakeProgress(false);
-    }
-  };
-
-  // Запускаем обработку очереди при изменении
-  useEffect(() => {
-    if (generationQueue > 0 && !isProcessingQueue && formData.name) {
-      processGenerationQueue();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [generationQueue, isProcessingQueue, formData.name]);
 
   const generatePhoto = async () => {
     // Определяем тип подписки и максимальное количество фото
@@ -2514,24 +2445,74 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     }
     
     const maxPhotos = subscriptionType === 'premium' ? 5 : 3;
-    // Лимит на количество фото, которые можно сгенерировать за раз, а не на общее количество
-    // Проверяем только очередь и текущую генерацию
-    const currentQueueAndProcessing = generationQueue + (isProcessingQueue ? 1 : 0);
-    const maxConcurrentGenerations = maxPhotos;
+    // Считаем только новые фото, сгенерированные в этой сессии
+    const initialCount = initialPhotosCountRef.current || 0;
+    const currentCount = Array.isArray(generatedPhotos) ? generatedPhotos.length : 0;
+    const newPhotosCount = Math.max(0, currentCount - initialCount);
+    const remainingSlots = maxPhotos - newPhotosCount;
     
-    if (currentQueueAndProcessing >= maxConcurrentGenerations) {
-      setError(`Достигнут лимит одновременных генераций для вашей подписки: ${maxConcurrentGenerations} фото (${subscriptionType === 'premium' ? 'PREMIUM' : 'STANDARD'}). Дождитесь завершения текущих генераций.`);
+    if (remainingSlots <= 0) {
+      setError(`Достигнут лимит фото для вашей подписки: ${maxPhotos} фото (${subscriptionType === 'premium' ? 'PREMIUM' : 'STANDARD'}).`);
       return;
     }
     
     // Проверяем кредиты (10 монет за одно фото)
-    if (!userInfo || userInfo.coins < 10) {
+    if (!userInfo || (userInfo.coins || 0) < 10) {
       setError('Недостаточно монет! Нужно 10 монет для генерации одного фото.');
       return;
     }
 
-    // Добавляем одно фото в очередь
-    setGenerationQueue(prev => prev + 1);
+    // Если уже идет генерация, добавляем в очередь и продолжаем
+    if (isGeneratingPhoto) {
+      generationQueueRef.current += 1;
+      return;
+    }
+
+    // Генерируем одно фото сразу
+    setIsGeneratingPhoto(true);
+    setError(null);
+    setGenerationProgress(0);
+    startFakeProgress();
+
+    const processGeneration = async () => {
+      try {
+        const photo = await generateSinglePhoto();
+        if (photo) {
+          setGeneratedPhotos(prev => {
+            // Проверяем, нет ли уже фото с таким же id
+            const existingIds = new Set(prev.map(p => p.id));
+            if (existingIds.has(photo.id)) {
+              console.warn('[EDIT_CHAR] Photo with same id already exists, skipping:', photo.id);
+              return prev;
+            }
+            return [{ ...photo, isSelected: false }, ...prev];
+          });
+          setSuccess('Фото успешно сгенерировано!');
+        }
+        stopFakeProgress(false);
+        setGenerationProgress(100);
+        
+        // Обновляем информацию о пользователе
+        await checkAuth();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Ошибка генерации фото');
+        stopFakeProgress(true);
+      } finally {
+        setIsGeneratingPhoto(false);
+        setGenerationProgress(0);
+        
+        // Если есть задачи в очереди, запускаем следующую
+        if (generationQueueRef.current > 0) {
+          generationQueueRef.current -= 1;
+          // Небольшая задержка перед следующей генерацией
+          setTimeout(() => {
+            generatePhoto();
+          }, 500);
+        }
+      }
+    };
+
+    processGeneration();
   };
 
 
@@ -2720,13 +2701,18 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   console.log('[EDIT_CHAR] Will render form:', !isLoadingData && !!formData);
   console.log('[EDIT_CHAR] =========================================');
   
-  // Дополнительная проверка: если formData пустой, но isLoadingData false, показываем ошибку
-  if (!isLoadingData && formData && (!formData.name || formData.name.trim() === '')) {
-    console.warn('[EDIT_CHAR] FormData is empty but isLoadingData is false. This might indicate a loading issue.');
-    // Не показываем ошибку, просто логируем - возможно данные еще загружаются
+  // Дополнительная проверка безопасности
+  if (!formData) {
+    console.warn('[EDIT_CHAR] formData is null or undefined');
+    return <div>Загрузка...</div>;
   }
   
-  console.log('[EDIT_CHAR] Rendering main form. formData.name:', formData.name, 'formData.personality length:', formData.personality.length);
+  if (!formData.name) {
+    console.warn('[EDIT_CHAR] formData.name is null or undefined');
+    return <div>Загрузка...</div>;
+  }
+  
+  console.log('[EDIT_CHAR] Rendering main form. formData.name:', formData.name, 'formData.personality length:', formData.personality?.length || 0);
   
   return (
     <MainContainer style={{ 
@@ -2911,10 +2897,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                     
                     <GenerateSection>
                       <GenerateButton 
-                        onClick={(e) => {
+                        onClick={() => {
                           console.log('[EDIT_CHAR] Generate button clicked');
-                          e.preventDefault();
-                          e.stopPropagation();
                           generatePhoto();
                         }}
                         disabled={(() => {
@@ -2930,39 +2914,30 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                               : String(rawSubscriptionType).toLowerCase().trim();
                           }
                           const maxPhotos = subscriptionType === 'premium' ? 5 : 3;
-                          // Лимит на количество одновременных генераций, а не на общее количество фото
-                          const currentQueueAndProcessing = generationQueue + (isProcessingQueue ? 1 : 0);
-                          const remainingSlots = maxPhotos - currentQueueAndProcessing;
-                          const hasEnoughCoins = userInfo.coins >= 10;
+                          // Считаем только новые фото, сгенерированные в этой сессии
+                          const initialCount = initialPhotosCountRef.current || 0;
+                          const currentCount = Array.isArray(generatedPhotos) ? generatedPhotos.length : 0;
+                          const newPhotosCount = Math.max(0, currentCount - initialCount);
+                          const remainingSlots = maxPhotos - newPhotosCount;
+                          const hasEnoughCoins = (userInfo?.coins || 0) >= 10;
                           const isDisabled = remainingSlots <= 0 || !hasEnoughCoins;
                           console.log('[EDIT_CHAR] Button disabled check:', {
+                            userInfo: !!userInfo,
                             subscriptionType,
                             maxPhotos,
-                            generationQueue,
-                            isProcessingQueue,
-                            currentQueueAndProcessing,
+                            currentCount: currentCount,
+                            newPhotosCount: newPhotosCount,
+                            initialCount: initialCount,
                             remainingSlots,
-                            coins: userInfo.coins,
                             hasEnoughCoins,
-                            isDisabled,
-                            userInfo: userInfo
+                            coins: userInfo?.coins,
+                            isDisabled
                           });
                           return isDisabled;
                         })()}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
                       >
-                        {isGeneratingPhoto ? (
-                          <CircularProgress 
-                            progress={generationProgress !== undefined ? generationProgress : (fakeProgress || 0)} 
-                            size={48}
-                            showLabel={true}
-                          />
-                        ) : (
-                          (() => {
+                        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {(() => {
                             const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type;
                             let subscriptionType = 'free';
                             if (rawSubscriptionType) {
@@ -2971,11 +2946,20 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                 : String(rawSubscriptionType).toLowerCase().trim();
                             }
                             const maxPhotos = subscriptionType === 'premium' ? 5 : 3;
-                            const currentQueueAndProcessing = generationQueue + (isProcessingQueue ? 1 : 0);
-                            const remainingSlots = maxPhotos - currentQueueAndProcessing;
-                            return `Сгенерировать фото (10 монет)${remainingSlots > 0 ? ` • Осталось слотов: ${remainingSlots}` : ' • Лимит достигнут'}`;
-                          })()
-                        )}
+                            // Считаем только новые фото, сгенерированные в этой сессии
+                            const initialCount = initialPhotosCountRef.current || 0;
+                            const currentCount = Array.isArray(generatedPhotos) ? generatedPhotos.length : 0;
+                            const newPhotosCount = Math.max(0, currentCount - initialCount);
+                            const remainingSlots = maxPhotos - newPhotosCount;
+                            const progress = isGeneratingPhoto 
+                              ? (generationProgress !== undefined && generationProgress > 0 ? generationProgress : (fakeProgress || 0))
+                              : 0;
+                            const baseText = `Сгенерировать фото (10 монет)${remainingSlots > 0 ? ` • Осталось: ${remainingSlots}` : ' • Лимит достигнут'}`;
+                            return isGeneratingPhoto 
+                              ? `${baseText} • Генерация: ${Math.round(progress)}%`
+                              : baseText;
+                          })()}
+                        </span>
                       </GenerateButton>
 
                       {/* Индикатор очереди генерации */}
@@ -2987,13 +2971,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                             ? rawSubscriptionType.toLowerCase().trim() 
                             : String(rawSubscriptionType).toLowerCase().trim();
                         }
-                        console.log('[EDIT_CHAR] Queue indicator - rawSubscriptionType:', rawSubscriptionType, 'subscriptionType:', subscriptionType, 'userInfo subscription:', userInfo?.subscription);
                         const queueLimit = subscriptionType === 'premium' ? 5 : 3;
                         // Активные генерации = текущая генерация (если есть) + очередь
-                        const activeGenerations = generationQueue + (isProcessingQueue ? 1 : 0);
-                        console.log('[EDIT_CHAR] Queue indicator - queueLimit:', queueLimit, 'activeGenerations:', activeGenerations, 'generationQueue:', generationQueue, 'isProcessingQueue:', isProcessingQueue);
-                        
-                        if (queueLimit > 0) {
+                        const queueCount = generationQueueRef.current || 0;
+                        const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
+                        if (activeGenerations > 0 && queueLimit > 0) {
                           return (
                             <div style={{ marginTop: '12px' }}>
                               <GenerationQueueIndicator>
@@ -3005,7 +2987,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                 ))}
                               </GenerationQueueIndicator>
                               <QueueLabel>
-                                Очередь генерации {activeGenerations > 0 ? `(${activeGenerations}/${queueLimit})` : `(0/${queueLimit})`}
+                                Очередь генерации ({activeGenerations}/{queueLimit})
                               </QueueLabel>
                             </div>
                           );
@@ -3088,7 +3070,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                           const isSelected = Boolean(photo?.isSelected);
 
                           return (
-                            <PhotoTile key={photo?.id || `photo-${index}`}>
+                            <PhotoTile key={`${photo?.id || `photo-${index}`}-${index}`}>
                               <PhotoImage
                                 src={photo.url}
                                 alt={`Photo ${index + 1}`}

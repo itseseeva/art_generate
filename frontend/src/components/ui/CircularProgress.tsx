@@ -13,6 +13,7 @@ const CircularProgressContainer = styled.div`
   border: none;
   gap: 0;
   box-shadow: none;
+  pointer-events: none;
 `;
 
 const CircularProgressWrapper = styled.div`

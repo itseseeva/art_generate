@@ -1706,8 +1706,12 @@ async def generate_character_photo(
                 clean_appearance = character_appearance.replace('\n', ', ')
                 prompt_parts.append(clean_appearance)
             if location:
-                # Очищаем от переносов строк
-                clean_location = location.replace('\n', ', ')
+                # Очищаем от переносов строк и других пробельных символов
+                clean_location = location.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
+                # Убираем множественные пробелы
+                clean_location = ' '.join(clean_location.split())
+                # Разбиваем по запятым и очищаем каждую часть
+                clean_location = ', '.join([p.strip() for p in clean_location.split(',') if p.strip()])
                 prompt_parts.append(f"in {clean_location}")
             
             prompt = ", ".join(prompt_parts) if prompt_parts else "portrait, high quality"

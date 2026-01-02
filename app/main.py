@@ -3126,8 +3126,11 @@ async def generate_image(
                 full_settings_for_logging["character_appearance"] = clean_appearance
             
             if request.use_default_prompts and character_location:
-                # Очищаем от переносов строк
-                clean_location = character_location.replace('\n', ', ')
+                # Очищаем от переносов строк и других пробельных символов
+                clean_location = character_location.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
+                # Убираем множественные пробелы
+                clean_location = ' '.join(clean_location.split())
+                # Разбиваем по запятым и очищаем каждую часть
                 clean_location = ', '.join([p.strip() for p in clean_location.split(',') if p.strip()])
                 
                 # Переводим на английский
