@@ -1218,6 +1218,8 @@ async def update_character(
             db_char.character_appearance = character.character_appearance
         if character.location is not None:
             db_char.location = character.location
+        if character.is_nsfw is not None:
+            db_char.is_nsfw = character.is_nsfw
         
         await db.commit()
         await db.refresh(db_char)
@@ -1235,6 +1237,57 @@ async def update_character(
     except Exception as e:
         await db.rollback()
         logger.error(f"Error updating character '{character_name}': {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.patch("/{character_name}/toggle-nsfw", response_model=CharacterInDB)
+async def toggle_character_nsfw(
+    character_name: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """Переключает флаг is_nsfw персонажа. Только для админов."""
+    from app.chat_bot.models.models import CharacterDB
+    
+    # Проверяем, что пользователь - админ
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="Только администраторы могут изменять статус NSFW персонажа"
+        )
+    
+    try:
+        # Находим персонажа
+        result = await db.execute(
+            select(CharacterDB).where(CharacterDB.name == character_name)
+        )
+        db_char = result.scalar_one_or_none()
+        
+        if not db_char:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Character '{character_name}' not found"
+            )
+        
+        # Переключаем флаг
+        db_char.is_nsfw = not db_char.is_nsfw
+        
+        await db.commit()
+        await db.refresh(db_char)
+        
+        # Инвалидируем кэш персонажей
+        await cache_delete(key_character(character_name))
+        await cache_delete(key_characters_list())
+        await cache_delete_pattern("characters:list:*")
+        
+        logger.info(f"Character '{character_name}' NSFW status toggled to {db_char.is_nsfw} by admin {current_user.id}")
+        return db_char
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error toggling NSFW status for character '{character_name}': {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
 
 

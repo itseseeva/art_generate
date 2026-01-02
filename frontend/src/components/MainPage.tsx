@@ -804,6 +804,11 @@ export const MainPage: React.FC<MainPageProps> = ({
                         isFavorite={isFavorite}
                         onFavoriteToggle={loadFavorites}
                         onDelete={deleteHandler}
+                        userInfo={userInfo}
+                        onNsfwToggle={async () => {
+                          // Перезагружаем список персонажей после изменения NSFW статуса
+                          await loadCharacters();
+                        }}
                       />
                     );
                   })

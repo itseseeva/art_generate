@@ -81,7 +81,36 @@
   height: 26px;
   border-radius: 999px;
   position: relative;
-  transition: background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  cursor: pointer;
+}
+
+.switcher4-toggle:hover .switcher4-track {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(236, 72, 153, 0.4), 0 0 20px rgba(236, 72, 153, 0.2) !important;
+  animation: switcher-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes switcher-pulse {
+  0%, 100% {
+    box-shadow: 0 4px 12px rgba(236, 72, 153, 0.4), 0 0 20px rgba(236, 72, 153, 0.2);
+  }
+  50% {
+    box-shadow: 0 4px 16px rgba(236, 72, 153, 0.6), 0 0 30px rgba(236, 72, 153, 0.4);
+  }
+}
+
+.switcher4-toggle:hover .switcher4-thumb {
+  animation: switcher-thumb-bounce 1.5s ease-in-out infinite;
+}
+
+@keyframes switcher-thumb-bounce {
+  0%, 100% {
+    transform: translateX(var(--thumb-x, 0px)) scale(1);
+  }
+  50% {
+    transform: translateX(var(--thumb-x, 0px)) scale(1.1);
+  }
 }
 
 .switcher4-thumb {

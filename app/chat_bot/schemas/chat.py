@@ -173,6 +173,7 @@ class CharacterUpdate(BaseModel):
     prompt: Optional[str] = Field(None, description="Полный промпт персонажа в формате Alpaca")
     character_appearance: Optional[str] = Field(None, description="Описание внешности персонажа")
     location: Optional[str] = Field(None, description="Описание локации персонажа")
+    is_nsfw: Optional[bool] = Field(None, description="Флаг контента 18+ (True = NSFW, False = SAFE)")
     
     model_config = ConfigDict(from_attributes=True)
 

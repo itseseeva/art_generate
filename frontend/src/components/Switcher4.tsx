@@ -159,8 +159,9 @@ export default function Switcher4({
           style={{
             background: currentChecked ? theme.on.background : theme.off.background,
             border: `1px solid ${currentChecked ? theme.on.border : theme.off.border}`,
-            boxShadow: currentChecked ? theme.on.shadow : theme.off.shadow
-          }}
+            boxShadow: currentChecked ? theme.on.shadow : theme.off.shadow,
+            '--thumb-x': `${currentChecked ? 19 : 0}px`
+          } as React.CSSProperties}
         >
           <div
             className="switcher4-thumb"

@@ -8,6 +8,7 @@ import { authManager } from '../utils/auth';
 import { API_CONFIG } from '../config/api';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToRussian } from '../utils/translate';
+import Switcher4 from './Switcher4';
 
 const CardContainer = styled.div`
   background: rgba(22, 33, 62, 0.3); /* Очень прозрачный */
@@ -700,6 +701,8 @@ interface CharacterCardProps {
   showPromptButton?: boolean; // Показывать кнопку "Show Prompt" только на главной странице
   isFavorite?: boolean; // Если true, персонаж считается в избранном (для страницы favorites)
   onFavoriteToggle?: () => void; // Callback при изменении статуса избранного
+  userInfo?: { is_admin?: boolean } | null; // Информация о пользователе для проверки прав админа
+  onNsfwToggle?: () => void; // Callback при изменении статуса NSFW (для обновления списка)
 }
 
 // Компонент слайд-шоу
@@ -764,13 +767,19 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   onPaidAlbum,
   showPromptButton = false, // По умолчанию не показываем кнопку
   isFavorite: isFavoriteProp = false, // Проп для установки начального состояния избранного
-  onFavoriteToggle // Callback при изменении статуса избранного
+  onFavoriteToggle, // Callback при изменении статуса избранного
+  userInfo = null, // Информация о пользователе
+  onNsfwToggle // Callback при изменении статуса NSFW
 }) => {
   // КРИТИЧЕСКИ ВАЖНО: если isFavoriteProp не передан, начинаем с false
   // Это нужно для главной страницы, где проверка выполняется через API
   const [isFavorite, setIsFavorite] = useState(isFavoriteProp ?? false);
   // Если передан isFavoriteProp, сразу отключаем проверку (персонаж уже в избранном)
   const [isChecking, setIsChecking] = useState(isFavoriteProp === undefined);
+  // Локальное состояние для отслеживания NSFW статуса
+  const [isNsfw, setIsNsfw] = useState(
+    character?.is_nsfw === true || (character as any)?.raw?.is_nsfw === true
+  );
   
   // Обновляем состояние избранного при изменении пропа
   // КРИТИЧЕСКИ ВАЖНО: если передан isFavoriteProp, используем его значение и отключаем проверку через API
@@ -780,6 +789,12 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
       setIsChecking(false); // Отключаем проверку, так как значение уже известно
     }
   }, [isFavoriteProp]);
+
+  // Обновляем локальное состояние NSFW при изменении character
+  useEffect(() => {
+    const newNsfw = character?.is_nsfw === true || (character as any)?.raw?.is_nsfw === true;
+    setIsNsfw(newNsfw);
+  }, [character?.is_nsfw, (character as any)?.raw?.is_nsfw]);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
@@ -987,6 +1002,57 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     }
   };
 
+  // Функция для переключения NSFW статуса (только для админов)
+  const toggleNsfw = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    console.log('[CharacterCard] toggleNsfw вызван');
+    
+    const token = authManager.getToken();
+    if (!token) {
+      console.error('[CharacterCard] Нет токена авторизации');
+      return;
+    }
+
+    try {
+      const characterName = character.name || (character as any).raw?.name;
+      if (!characterName) {
+        console.error('[CharacterCard] Не удалось определить имя персонажа для переключения NSFW');
+        return;
+      }
+
+      console.log('[CharacterCard] Отправка запроса на переключение NSFW для:', characterName);
+      const response = await authManager.fetchWithAuth(
+        `${API_CONFIG.BASE_URL}/api/v1/characters/${encodeURIComponent(characterName)}/toggle-nsfw`,
+        { method: 'PATCH' }
+      );
+      
+      console.log('[CharacterCard] Ответ получен, status:', response.status);
+
+      if (response.ok) {
+        const updatedCharacter = await response.json();
+        console.log('[CharacterCard] NSFW статус обновлен:', updatedCharacter.is_nsfw);
+        // Обновляем локальное состояние
+        setIsNsfw(updatedCharacter.is_nsfw === true);
+        // Обновляем локальное состояние персонажа
+        (character as any).is_nsfw = updatedCharacter.is_nsfw;
+        if ((character as any).raw) {
+          (character as any).raw.is_nsfw = updatedCharacter.is_nsfw;
+        }
+        // Вызываем callback для обновления списка
+        if (onNsfwToggle) {
+          await onNsfwToggle();
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[CharacterCard] Error toggling NSFW status:', response.status, errorData);
+        alert(`Ошибка переключения статуса: ${errorData.detail || 'Неизвестная ошибка'}`);
+      }
+    } catch (error) {
+      console.error('Error toggling NSFW status:', error);
+    }
+  };
+
   const formatNumber = (num: number): string => {
     if (num >= 1000000) {
       return `${(num / 1000000).toFixed(1)}M`;
@@ -1103,7 +1169,40 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             </FavoriteButton>
           )}
           
-          <ActionButtons $alwaysVisible={!!onDelete || !!onPaidAlbum}>
+          <ActionButtons $alwaysVisible={!!onDelete || !!onPaidAlbum || (userInfo && userInfo.is_admin === true)}>
+          {userInfo && userInfo.is_admin === true && (
+            <div 
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '4px 8px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                borderRadius: '8px',
+                zIndex: 10,
+                position: 'relative'
+              }}
+            >
+              <div onClick={(e) => e.stopPropagation()}>
+                <Switcher4
+                  checked={isNsfw}
+                  onToggle={async (checked) => {
+                    console.log('[CharacterCard] Switcher4 onToggle вызван, checked:', checked);
+                    // Вызываем toggleNsfw при клике на переключатель
+                    const syntheticEvent = {
+                      stopPropagation: () => {},
+                      preventDefault: () => {}
+                    } as React.MouseEvent;
+                    await toggleNsfw(syntheticEvent);
+                  }}
+                  variant="pink"
+                />
+              </div>
+              <span style={{ fontSize: '11px', color: '#fff', whiteSpace: 'nowrap' }}>
+                {isNsfw ? '18+' : 'SAFE'}
+              </span>
+            </div>
+          )}
           {onPaidAlbum && (
             <AlbumButton 
               onClick={(e) => {
