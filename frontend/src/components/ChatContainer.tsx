@@ -1637,7 +1637,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       startPlaceholderProgress(assistantMessageId);
 
       console.log('[GENERATE_IMAGE] Отправка запроса:', JSON.stringify(requestBody, null, 2));
-      
+
       const response = await fetch('/api/v1/generate-image/', {
         method: 'POST',
         headers: {

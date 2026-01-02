@@ -13,7 +13,8 @@ from app.config.settings import settings
 logger = logging.getLogger(__name__)
 
 # Получаем URL Redis из переменных окружения или используем дефолтный
-redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+# Приоритет: REDIS_LOCAL > REDIS_URL > дефолт
+redis_url = os.getenv("REDIS_LOCAL") or os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 
 class SafeRedisBackend(RedisBackend):

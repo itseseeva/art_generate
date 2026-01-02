@@ -1749,6 +1749,37 @@ const ActionButtons = styled.div`
   margin-top: ${theme.spacing.xl};
 `;
 
+const GenerationQueueIndicator = styled.div`
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+  padding: 8px 12px;
+  background: rgba(30, 30, 30, 0.8);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(100, 100, 100, 0.3);
+  border-radius: ${theme.borderRadius.md};
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  margin-top: ${theme.spacing.md};
+`;
+
+const QueueBar = styled.div<{ $isFilled: boolean }>`
+  width: 8px;
+  height: 20px;
+  background: ${props => props.$isFilled ? '#FFD700' : 'rgba(150, 150, 150, 0.5)'};
+  border-radius: 2px;
+  transition: background 0.2s ease;
+`;
+
+const QueueLabel = styled.div`
+  font-size: ${theme.fontSize.xs};
+  color: rgba(160, 160, 160, 1);
+  text-align: center;
+  margin-top: 8px;
+  font-weight: 500;
+`;
+
 interface CreateCharacterPageProps {
   onBackToMain: () => void;
   onShop?: () => void;
@@ -1806,6 +1837,9 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [generatedPhotos, setGeneratedPhotos] = useState<any[]>([]);
   const [isGeneratingPhoto, setIsGeneratingPhoto] = useState(false);
   const [generationSettings, setGenerationSettings] = useState<any>(null);
+  const [generationQueue, setGenerationQueue] = useState<number>(0); // Количество фото в очереди
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false); // Обрабатывается ли очередь
+  const [currentGeneratingIndex, setCurrentGeneratingIndex] = useState<number>(0); // Индекс текущего генерируемого фото
   const [isCharacterCreated, setIsCharacterCreated] = useState(false); // Новое состояние
   const [selectedPhotoForView, setSelectedPhotoForView] = useState<any>(null); // Для модального окна просмотра фото
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
@@ -2466,12 +2500,13 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     });
   };
 
-  const generatePhoto = async () => {
-    if (!userInfo || userInfo.coins < 30) {
-      setError('Недостаточно монет! Нужно 30 монет для генерации фото.');
+  // Обработчик очереди генерации
+  const processGenerationQueue = async () => {
+    if (isProcessingQueue || generationQueue === 0) {
       return;
     }
 
+    setIsProcessingQueue(true);
     setIsGeneratingPhoto(true);
     setError(null);
     setGenerationProgress(undefined);
@@ -2481,145 +2516,43 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       const token = localStorage.getItem('authToken');
       if (!token) throw new Error('Необходимо войти в систему');
 
-      // Используем кастомный промпт или дефолтный
-      let prompt = customPrompt.trim();
-      if (!prompt) {
-        const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
-        prompt = parts.length > 0 ? parts.join(' | ') : '';
+      // Определяем тип подписки и максимальное количество фото
+      const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type;
+      let subscriptionType = 'free';
+      if (rawSubscriptionType) {
+        subscriptionType = typeof rawSubscriptionType === 'string' 
+          ? rawSubscriptionType.toLowerCase().trim() 
+          : String(rawSubscriptionType).toLowerCase().trim();
       }
+      const maxPhotos = subscriptionType === 'premium' ? 5 : 3;
+      const currentPhotosCount = generatedPhotos.length;
+      const remainingSlots = maxPhotos - currentPhotosCount;
 
-      if (!prompt) {
-        throw new Error('Заполните поля "Внешность" и "Локация" или введите промпт вручную');
-      }
-
-      // Переводим промпт на английский перед отправкой
-      prompt = await translateToEnglish(prompt);
-
-      const effectiveSettings = {
-        steps: generationSettings?.steps || 20,
-        width: generationSettings?.width || 768,
-        height: generationSettings?.height || 1344,
-        cfg_scale: generationSettings?.cfg_scale || 4,
-        sampler_name: generationSettings?.sampler_name,
-        negative_prompt: generationSettings?.negative_prompt || 'blurry, low quality, distorted, bad anatomy'
-      };
-      
-      const requestBody: any = {
-        character: createdCharacterData?.name || formData.name || 'character',
-        prompt: prompt,
-        negative_prompt: effectiveSettings.negative_prompt,
-        width: effectiveSettings.width,
-        height: effectiveSettings.height,
-        steps: effectiveSettings.steps,
-        cfg_scale: effectiveSettings.cfg_scale,
-        use_default_prompts: false,
-        model: selectedModel,
-        user_id: userInfo.id
-      };
-
-      const response = await fetch('/api/v1/generate-image/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Ошибка генерации фото');
-      }
-
-      const result = await response.json();
-      
-      let imageUrl: string | undefined;
-      let imageId: string | undefined;
-      
-      if (result.task_id) {
-        // Асинхронная генерация - ждем завершения
-        const maxAttempts = 120;
-        const delay = 2000;
-        let attempts = 0;
+      // Обрабатываем очередь, но не больше доступных слотов
+      let processed = 0;
+      while (generationQueue > 0 && processed < remainingSlots) {
+        setCurrentGeneratingIndex(processed + 1);
+        setSuccess(`Генерация фото ${currentPhotosCount + processed + 1}...`);
         
-        while (attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, delay));
-          attempts++;
-          
-          try {
-            const statusResponse = await fetch(`/api/v1/generation-status/${result.task_id}`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
-            
-            if (statusResponse.ok) {
-              const statusData = await statusResponse.json();
-              
-              if (statusData.status === 'generating' && statusData.result?.progress !== undefined) {
-                const progress = typeof statusData.result.progress === 'number'
-                  ? statusData.result.progress
-                  : parseInt(String(statusData.result.progress).replace('%', ''), 10);
-                setGenerationProgress(Math.min(99, Math.max(0, progress)));
-              }
-              
-              if (statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED') {
-                imageUrl = statusData.result?.image_url || statusData.result?.cloud_url || statusData.image_url || statusData.cloud_url;
-                const filename = statusData.result?.filename || statusData.filename || Date.now().toString();
-                imageId = filename.replace('.png', '').replace('.jpg', '');
-                break;
-              }
-              
-              if (statusData.status === 'FAILED' || statusData.status === 'ERROR') {
-                throw new Error(statusData.error || 'Генерация завершилась с ошибкой');
-              }
-            }
-          } catch (statusError) {
-            console.error('Error checking status:', statusError);
+        try {
+          const photo = await generateSinglePhoto();
+          if (photo) {
+            setGeneratedPhotos(prev => [...prev, { ...photo, isSelected: false }]);
+            processed++;
           }
+        } catch (photoError) {
+          console.error(`Ошибка генерации фото:`, photoError);
+          setError(`Ошибка генерации фото: ${photoError instanceof Error ? photoError.message : 'Неизвестная ошибка'}`);
         }
         
-        if (!imageUrl) {
-          throw new Error('Превышено время ожидания генерации');
-        }
-      } else {
-        imageUrl = result.cloud_url || result.image_url;
-        if (!imageUrl) {
-          throw new Error('URL изображения не получен от сервера');
-        }
-      const filename = result.filename || Date.now().toString();
-        imageId = filename.replace('.png', '').replace('.jpg', '');
+        // Уменьшаем очередь
+        setGenerationQueue(prev => Math.max(0, prev - 1));
+      }
+
+      if (processed > 0) {
+        setSuccess(`Успешно сгенерировано ${processed} фото!`);
       }
       
-      const newPhoto = {
-        id: imageId || Date.now().toString(),
-        url: imageUrl,
-        isSelected: false
-      };
-      
-      // КРИТИЧЕСКИ ВАЖНО: Добавляем фото в галерею пользователя
-      try {
-        if (token) {
-          const addToGalleryResponse = await fetch('/api/v1/auth/user-gallery/add/', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              image_url: imageUrl,
-              character_name: formData.name || null
-            })
-          });
-          
-          if (addToGalleryResponse.ok) {
-            console.log('[CreateCharacterPage] Фото добавлено в галерею пользователя');
-          }
-        }
-      } catch (galleryError) {
-        console.warn('[CreateCharacterPage] Не удалось добавить фото в галерею:', galleryError);
-      }
-      
-              setGeneratedPhotos(prev => [...prev, newPhoto]);
-              setSuccess('Фото успешно сгенерировано!');
       stopFakeProgress(false);
       setGenerationProgress(100);
       
@@ -2631,7 +2564,191 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       stopFakeProgress(true);
     } finally {
       setIsGeneratingPhoto(false);
+      setIsProcessingQueue(false);
+      setCurrentGeneratingIndex(0);
     }
+  };
+
+  // Запускаем обработку очереди при изменении
+  useEffect(() => {
+    if (generationQueue > 0 && !isProcessingQueue && createdCharacterData) {
+      processGenerationQueue();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generationQueue, isProcessingQueue, createdCharacterData]);
+
+  // Функция для генерации одного фото
+  const generateSinglePhoto = async (): Promise<{ id: string; url: string } | null> => {
+    const token = localStorage.getItem('authToken');
+    if (!token) throw new Error('Необходимо войти в систему');
+
+    // Используем кастомный промпт или дефолтный
+    let prompt = customPrompt.trim();
+    if (!prompt) {
+      const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
+      prompt = parts.length > 0 ? parts.join(' | ') : '';
+    }
+
+    if (!prompt) {
+      throw new Error('Заполните поля "Внешность" и "Локация" или введите промпт вручную');
+    }
+
+    // Переводим промпт на английский перед отправкой
+    prompt = await translateToEnglish(prompt);
+
+    const effectiveSettings = {
+      steps: generationSettings?.steps || 20,
+      width: generationSettings?.width || 768,
+      height: generationSettings?.height || 1344,
+      cfg_scale: generationSettings?.cfg_scale || 4,
+      sampler_name: generationSettings?.sampler_name,
+      negative_prompt: generationSettings?.negative_prompt || 'blurry, low quality, distorted, bad anatomy'
+    };
+    
+    const requestBody: any = {
+      character: createdCharacterData?.name || formData.name || 'character',
+      prompt: prompt,
+      negative_prompt: effectiveSettings.negative_prompt,
+      width: effectiveSettings.width,
+      height: effectiveSettings.height,
+      steps: effectiveSettings.steps,
+      cfg_scale: effectiveSettings.cfg_scale,
+      use_default_prompts: false,
+      model: selectedModel,
+      user_id: userInfo?.id
+    };
+
+    const response = await fetch('/api/v1/generate-image/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Ошибка генерации фото');
+    }
+
+    const result = await response.json();
+    
+    let imageUrl: string | undefined;
+    let imageId: string | undefined;
+    
+    if (result.task_id) {
+      // Асинхронная генерация - ждем завершения
+      const maxAttempts = 120;
+      const delay = 2000;
+      let attempts = 0;
+      
+      while (attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, delay));
+        attempts++;
+        
+        try {
+          const statusResponse = await fetch(`/api/v1/generation-status/${result.task_id}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          
+          if (statusResponse.ok) {
+            const statusData = await statusResponse.json();
+            
+            if (statusData.status === 'generating' && statusData.result?.progress !== undefined) {
+              const progress = typeof statusData.result.progress === 'number'
+                ? statusData.result.progress
+                : parseInt(String(statusData.result.progress).replace('%', ''), 10);
+              setGenerationProgress(Math.min(99, Math.max(0, progress)));
+            }
+            
+            if (statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED') {
+              imageUrl = statusData.result?.image_url || statusData.result?.cloud_url || statusData.image_url || statusData.cloud_url;
+              const filename = statusData.result?.filename || statusData.filename || Date.now().toString();
+              imageId = filename.replace('.png', '').replace('.jpg', '');
+              break;
+            }
+            
+            if (statusData.status === 'FAILED' || statusData.status === 'ERROR') {
+              throw new Error(statusData.error || 'Генерация завершилась с ошибкой');
+            }
+          }
+        } catch (statusError) {
+          console.error('Error checking status:', statusError);
+        }
+      }
+      
+      if (!imageUrl) {
+        throw new Error('Превышено время ожидания генерации');
+      }
+    } else {
+      imageUrl = result.cloud_url || result.image_url;
+      if (!imageUrl) {
+        throw new Error('URL изображения не получен от сервера');
+      }
+      const filename = result.filename || Date.now().toString();
+      imageId = filename.replace('.png', '').replace('.jpg', '');
+    }
+    
+    // КРИТИЧЕСКИ ВАЖНО: Добавляем фото в галерею пользователя
+    try {
+      if (token) {
+        const addToGalleryResponse = await fetch('/api/v1/auth/user-gallery/add/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            image_url: imageUrl,
+            character_name: formData.name || null
+          })
+        });
+        
+        if (addToGalleryResponse.ok) {
+          console.log('[CreateCharacterPage] Фото добавлено в галерею пользователя');
+        }
+      }
+    } catch (galleryError) {
+      console.warn('[CreateCharacterPage] Не удалось добавить фото в галерею:', galleryError);
+    }
+    
+    return {
+      id: imageId || Date.now().toString(),
+      url: imageUrl
+    };
+  };
+
+  const generatePhoto = async () => {
+    // Определяем тип подписки и максимальное количество фото
+    const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type;
+    let subscriptionType = 'free';
+    
+    if (rawSubscriptionType) {
+      if (typeof rawSubscriptionType === 'string') {
+        subscriptionType = rawSubscriptionType.toLowerCase().trim();
+      } else {
+        subscriptionType = String(rawSubscriptionType).toLowerCase().trim();
+      }
+    }
+    
+    const maxPhotos = subscriptionType === 'premium' ? 5 : 3;
+    const currentPhotosCount = generatedPhotos.length;
+    const remainingSlots = maxPhotos - currentPhotosCount;
+    
+    if (remainingSlots <= 0) {
+      setError(`Достигнут лимит фото для вашей подписки: ${maxPhotos} фото (${subscriptionType === 'premium' ? 'PREMIUM' : 'STANDARD'}).`);
+      return;
+    }
+    
+    // Проверяем кредиты (10 монет за одно фото)
+    if (!userInfo || userInfo.coins < 10) {
+      setError('Недостаточно монет! Нужно 10 монет для генерации одного фото.');
+      return;
+    }
+
+    // Добавляем одно фото в очередь
+    setGenerationQueue(prev => prev + 1);
   };
 
 
@@ -2895,13 +3012,37 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
                 <div className="mb-4">
                   <h3 className="text-lg font-medium text-zinc-200 mb-2">Генерация фото персонажа</h3>
                   <p className="text-sm text-zinc-500">
-                    Сгенерируйте до 3 фотографий для вашего персонажа (30 монет за каждое фото).
+                    {(() => {
+                      const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type;
+                      let subscriptionType = 'free';
+                      if (rawSubscriptionType) {
+                        subscriptionType = typeof rawSubscriptionType === 'string' 
+                          ? rawSubscriptionType.toLowerCase().trim() 
+                          : String(rawSubscriptionType).toLowerCase().trim();
+                      }
+                      const photosCount = subscriptionType === 'premium' ? 5 : 3;
+                      const totalCost = photosCount * 10;
+                      return `Сгенерируйте ${photosCount} фотографий для вашего персонажа (${totalCost} монет, ${photosCount} × 10 монет). ${subscriptionType === 'premium' ? 'PREMIUM подписка: 5 фото.' : subscriptionType === 'standard' ? 'STANDARD подписка: 3 фото.' : 'Без подписки: 3 фото.'}`;
+                    })()}
                   </p>
                 </div>
                 
                 <GenerateButton
                   onClick={generatePhoto}
-                  disabled={isGeneratingPhoto || !userInfo || userInfo.coins < 30 || !createdCharacterData}
+                  disabled={(() => {
+                    if (!userInfo || !createdCharacterData) return true;
+                    const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type;
+                    let subscriptionType = 'free';
+                    if (rawSubscriptionType) {
+                      subscriptionType = typeof rawSubscriptionType === 'string' 
+                        ? rawSubscriptionType.toLowerCase().trim() 
+                        : String(rawSubscriptionType).toLowerCase().trim();
+                    }
+                    const maxPhotos = subscriptionType === 'premium' ? 5 : 3;
+                    const currentPhotosCount = generatedPhotos.length;
+                    const remainingSlots = maxPhotos - currentPhotosCount;
+                    return remainingSlots <= 0 || userInfo.coins < 10;
+                  })()}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -2912,11 +3053,56 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
                 >
                   <span>
                     {isGeneratingPhoto 
-                      ? `Генерация фото: ${Math.round(generationProgress !== undefined && generationProgress > 0 ? generationProgress : (fakeProgress || 0))}%`
-                      : 'Сгенерировать фото (30 монет)'
+                      ? `Генерация фото ${currentGeneratingIndex > 0 ? currentGeneratingIndex : ''}: ${Math.round(generationProgress !== undefined && generationProgress > 0 ? generationProgress : (fakeProgress || 0))}%${generationQueue > 0 ? ` (в очереди: ${generationQueue})` : ''}`
+                      : (() => {
+                          const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type;
+                          let subscriptionType = 'free';
+                          if (rawSubscriptionType) {
+                            subscriptionType = typeof rawSubscriptionType === 'string' 
+                              ? rawSubscriptionType.toLowerCase().trim() 
+                              : String(rawSubscriptionType).toLowerCase().trim();
+                          }
+                          const maxPhotos = subscriptionType === 'premium' ? 5 : 3;
+                          const currentPhotosCount = generatedPhotos.length;
+                          const remainingSlots = maxPhotos - currentPhotosCount;
+                          return `Сгенерировать фото (10 монет)${remainingSlots > 0 ? ` • Осталось: ${remainingSlots}` : ' • Лимит достигнут'}${generationQueue > 0 ? ` • В очереди: ${generationQueue}` : ''}`;
+                        })()
                     }
                   </span>
                 </GenerateButton>
+
+                {/* Индикатор очереди генерации */}
+                {(() => {
+                  const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type;
+                  let subscriptionType = 'free';
+                  if (rawSubscriptionType) {
+                    subscriptionType = typeof rawSubscriptionType === 'string' 
+                      ? rawSubscriptionType.toLowerCase().trim() 
+                      : String(rawSubscriptionType).toLowerCase().trim();
+                  }
+                  const queueLimit = subscriptionType === 'premium' ? 5 : 3;
+                  // Активные генерации = текущая генерация (если есть) + очередь
+                  const activeGenerations = generationQueue + (isProcessingQueue ? 1 : 0);
+                  
+                  if (queueLimit > 0) {
+                    return (
+                      <div style={{ marginTop: '12px' }}>
+                        <GenerationQueueIndicator>
+                          {Array.from({ length: queueLimit }).map((_, index) => (
+                            <QueueBar 
+                              key={index} 
+                              $isFilled={index < activeGenerations}
+                            />
+                          ))}
+                        </GenerationQueueIndicator>
+                        <QueueLabel>
+                          Очередь генерации {activeGenerations > 0 ? `(${activeGenerations}/${queueLimit})` : `(0/${queueLimit})`}
+                        </QueueLabel>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
 
                 {/* Кнопка "Продолжить" появляется после добавления хотя бы 1 фото */}
                 {(() => {
