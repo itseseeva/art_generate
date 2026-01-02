@@ -556,6 +556,11 @@ async def get_current_user_info(
         result = await db.execute(stmt)
         user_with_subscription = result.scalar_one_or_none()
         
+        # КРИТИЧНО: Используем актуальные данные из БД, а не из кэша
+        # Это гарантирует, что is_admin всегда актуален
+        if user_with_subscription:
+            current_user = user_with_subscription
+        
         # Получаем информацию о подписке
         subscription_info = None
         if user_with_subscription and user_with_subscription.subscription:

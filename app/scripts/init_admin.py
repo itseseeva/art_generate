@@ -59,6 +59,15 @@ async def create_admin_user() -> bool:
                     f"updated (is_admin: {existing_user.is_admin}, coins: {existing_user.coins})"
                 )
                 admin_user = existing_user
+                
+                # КРИТИЧНО: Инвалидируем кэш пользователя, чтобы изменения сразу вступили в силу
+                try:
+                    from app.utils.redis_cache import cache_delete, key_user
+                    cache_key = key_user(admin_user.email)
+                    await cache_delete(cache_key)
+                    print(f"[INIT_ADMIN] Кэш пользователя {ADMIN_EMAIL} инвалидирован")
+                except Exception as cache_error:
+                    print(f"[INIT_ADMIN] Предупреждение: не удалось инвалидировать кэш: {cache_error}")
             else:
                 # Создаем нового пользователя-администратора
                 password_hash = hash_password(ADMIN_PASSWORD)
@@ -78,6 +87,15 @@ async def create_admin_user() -> bool:
                     f"[INIT_ADMIN] Admin user created: {ADMIN_EMAIL} "
                     f"(ID: {admin_user.id})"
                 )
+                
+                # КРИТИЧНО: Инвалидируем кэш пользователя, чтобы изменения сразу вступили в силу
+                try:
+                    from app.utils.redis_cache import cache_delete, key_user
+                    cache_key = key_user(admin_user.email)
+                    await cache_delete(cache_key)
+                    print(f"[INIT_ADMIN] Кэш пользователя {ADMIN_EMAIL} инвалидирован")
+                except Exception as cache_error:
+                    print(f"[INIT_ADMIN] Предупреждение: не удалось инвалидировать кэш: {cache_error}")
 
             # Проверяем и создаем/обновляем PREMIUM подписку
             subscription_result = await db.execute(

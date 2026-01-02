@@ -43,6 +43,15 @@ async def make_admin(email: str):
             await db.commit()
             await db.refresh(user)
             
+            # КРИТИЧНО: Инвалидируем кэш пользователя, чтобы изменения сразу вступили в силу
+            try:
+                from app.utils.redis_cache import cache_delete, key_user
+                cache_key = key_user(user.email)
+                await cache_delete(cache_key)
+                print(f"Кэш пользователя {email} инвалидирован")
+            except Exception as cache_error:
+                print(f"Предупреждение: не удалось инвалидировать кэш: {cache_error}")
+            
             print(
                 f"Admin role successfully granted to user {email} "
                 f"(ID: {user.id})"

@@ -70,9 +70,10 @@ async def get_current_user(
                 avatar_url=cached_user.get("avatar_url"),  # Может быть None
                 password_hash=cached_user.get("password_hash"),
                 is_active=cached_user.get("is_active", True),
-                coins=cached_user.get("coins", 0)
+                coins=cached_user.get("coins", 0),
+                is_admin=cached_user.get("is_admin", False)  # КРИТИЧНО: добавляем is_admin
             )
-            logger.debug(f"User found in cache: {user.id}")
+            logger.debug(f"User found in cache: {user.id}, is_admin={user.is_admin}")
             return user
         
         result = await db.execute(select(Users).filter(Users.email == token_data.email))
@@ -90,10 +91,12 @@ async def get_current_user(
                 "avatar_url": getattr(user, "avatar_url", None),
                 "password_hash": getattr(user, "password_hash", None),
                 "is_active": getattr(user, "is_active", True),
-                "coins": getattr(user, "coins", 0)
+                "coins": getattr(user, "coins", 0),
+                "is_admin": getattr(user, "is_admin", False)  # КРИТИЧНО: добавляем is_admin в кэш
             }
             # Сохраняем с таймаутом (не блокируем ответ при ошибке)
             await cache_set(cache_key, user_dict, ttl_seconds=TTL_USER, timeout=1.0)
+            logger.debug(f"User cached: {user.id}, is_admin={user_dict.get('is_admin', False)}")
         except Exception as cache_error:
             logger.warning(f"Не удалось сохранить пользователя в кэш: {cache_error}")
         
