@@ -59,6 +59,24 @@ class ImageGenerationHistoryService:
                         normalized_image_url = image_url.split('?')[0].split('#')[0] if image_url and not image_url.startswith("pending:") else image_url
                         existing_record.image_url = normalized_image_url
                         existing_record.generation_time = generation_time
+                        
+                        # Извлекаем оригинальный промпт из JSON, если он там сохранен
+                        if prompt:
+                            # Если передан новый промпт, используем его (он уже извлечен из JSON в main.py)
+                            existing_record.prompt = prompt
+                        else:
+                            # Если промпт не передан, пытаемся извлечь из существующей записи
+                            existing_prompt = existing_record.prompt or "Генерация изображения"
+                            try:
+                                import json
+                                prompt_data = json.loads(existing_prompt)
+                                if isinstance(prompt_data, dict) and "prompt" in prompt_data:
+                                    existing_record.prompt = prompt_data["prompt"]
+                                # Если это не JSON, оставляем как есть
+                            except (json.JSONDecodeError, TypeError):
+                                # Если это не JSON, оставляем как есть
+                                pass
+                        
                         await self.db.commit()
                         await self.db.refresh(existing_record)
                         logger.info(f"[IMAGE_HISTORY] ✓ Временная запись обновлена для task_id={task_id}")
@@ -84,11 +102,23 @@ class ImageGenerationHistoryService:
                     logger.info(f"[IMAGE_HISTORY] Изображение с URL уже сохранено для user_id={user_id}")
                     return True
             
+            # Извлекаем оригинальный промпт из JSON, если он там сохранен
+            final_prompt = prompt or "Генерация изображения"
+            try:
+                import json
+                prompt_data = json.loads(final_prompt)
+                if isinstance(prompt_data, dict) and "prompt" in prompt_data:
+                    final_prompt = prompt_data["prompt"]
+                # Если это не JSON, используем как есть
+            except (json.JSONDecodeError, TypeError):
+                # Если это не JSON, используем как есть
+                pass
+            
             # Создаем новую запись с нормализованным URL
             history_entry = ImageGenerationHistory(
                 user_id=user_id,
                 character_name=character_name,
-                prompt=prompt or "Генерация изображения",
+                prompt=final_prompt,
                 image_url=normalized_image_url,
                 generation_time=generation_time,
                 task_id=task_id

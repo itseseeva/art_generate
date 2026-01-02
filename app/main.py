@@ -74,7 +74,7 @@ from typing import AsyncGenerator
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 import uvicorn
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, Literal
 from httpx import HTTPStatusError
 
@@ -108,18 +108,21 @@ class ImageGenerationRequest(BaseModel):
     character: Optional[str] = None
     user_id: Optional[int] = None  # ID пользователя для проверки подписки
     # Модель: anime, anime-realism или realism (точно так же как для anime и anime-realism)
-    model: Optional[Literal["anime", "anime-realism", "realism"]] = Field(
+    model: Literal["anime", "anime-realism", "realism"] = Field(
         default="anime-realism", 
         description="Модель для генерации: 'anime', 'anime-realism' или 'realism'"
     )
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
-                "prompt": "beautiful girl",
+                "prompt": "portrait of a beautiful woman",
                 "model": "realism"
             }
-        }
+        },
+        # Принудительно обновляем схему
+        extra="forbid"
+    )
 
 # Настраиваем логирование с правильной кодировкой
 # Создаем папку для логов только при необходимости (не блокируем импорт)
@@ -279,7 +282,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Stable Diffusion API",
     description="API для генерации изображений с помощью Stable Diffusion",
-    version="1.0.0",
+    version="1.0.2",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -2820,6 +2823,10 @@ async def generate_image(
     valid_models = ["anime", "anime-realism", "realism"]
     if request.model and request.model not in valid_models:
         logger.error(f"[ENDPOINT IMG] ОШИБКА: Недопустимая модель '{request.model}'. Допустимые значения: {valid_models}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Недопустимая модель '{request.model}'. Допустимые значения: {valid_models}"
+        )
     logger.info(f"[ENDPOINT IMG] ========================================")
     
     # ВРЕМЕННАЯ ЗАГЛУШКА ДЛЯ ПРОВЕРКИ ФРОНТЕНДА
@@ -3299,17 +3306,25 @@ async def generate_image(
                             # Это гарантирует, что история будет сохранена даже без Redis
                             async with async_session_maker() as fallback_db:
                                 try:
+                                    # Сохраняем runpod_url_base и model в prompt как JSON для восстановления при проверке статуса
+                                    import json
+                                    prompt_with_metadata = json.dumps({
+                                        "prompt": request.prompt,
+                                        "runpod_url_base": runpod_url_base,
+                                        "model": selected_model
+                                    }, ensure_ascii=False)
+                                    
                                     # Создаем временную запись с пустым image_url (будет обновлена при завершении)
                                     temp_entry = ImageGenerationHistory(
                                         user_id=user_id,
                                         character_name=character_data_for_history.get("name"),
-                                        prompt=request.prompt,
+                                        prompt=prompt_with_metadata,  # Сохраняем метаданные в JSON
                                         image_url=f"pending:{job_id}",  # Временный маркер
                                         task_id=job_id
                                     )
                                     fallback_db.add(temp_entry)
                                     await fallback_db.commit()
-                                    logger.info(f"[HISTORY] ✓ Метаданные сохранены в БД для task_id={job_id}: user_id={user_id}, character={character_data_for_history.get('name')}")
+                                    logger.info(f"[HISTORY] ✓ Метаданные сохранены в БД для task_id={job_id}: user_id={user_id}, character={character_data_for_history.get('name')}, runpod_url_base={runpod_url_base}, model={selected_model}")
                                 except Exception as db_error:
                                     logger.error(f"[HISTORY] Ошибка сохранения метаданных в БД: {db_error}")
                                     import traceback
@@ -3727,9 +3742,21 @@ async def get_generation_status(
                         result = await fallback_db.execute(stmt)
                         pending_entry = result.scalar_one_or_none()
                         if pending_entry and pending_entry.image_url and pending_entry.image_url.startswith("pending:"):
-                            # Метаданные могут быть в JSON в prompt или в отдельном поле
-                            # Пока используем дефолтный URL, но логируем
-                            logger.warning(f"[RUNPOD STATUS] Найдена pending запись, но runpod_url_base не сохранен в БД")
+                            # Пытаемся извлечь runpod_url_base из JSON в prompt
+                            try:
+                                import json
+                                if pending_entry.prompt:
+                                    prompt_data = json.loads(pending_entry.prompt)
+                                    if isinstance(prompt_data, dict) and "runpod_url_base" in prompt_data:
+                                        runpod_url_base = prompt_data["runpod_url_base"]
+                                        model = prompt_data.get("model", "anime")
+                                        logger.info(f"[RUNPOD STATUS] ✓ Извлечен runpod_url_base из БД: {runpod_url_base}, модель: {model}")
+                                    else:
+                                        logger.warning(f"[RUNPOD STATUS] Найдена pending запись, но runpod_url_base не найден в JSON prompt")
+                                else:
+                                    logger.warning(f"[RUNPOD STATUS] Найдена pending запись, но prompt пуст")
+                            except (json.JSONDecodeError, TypeError) as json_error:
+                                logger.warning(f"[RUNPOD STATUS] Не удалось распарсить JSON из prompt: {json_error}")
                 except Exception as db_error:
                     logger.warning(f"[RUNPOD STATUS] Ошибка поиска в БД: {db_error}")
             
@@ -3945,7 +3972,17 @@ async def get_generation_status(
                                 if temp_record:
                                     user_id = temp_record.user_id
                                     character_name = temp_record.character_name
-                                    prompt = temp_record.prompt or "Генерация изображения"
+                                    # Извлекаем оригинальный промпт из JSON, если он там сохранен
+                                    prompt_text = temp_record.prompt or "Генерация изображения"
+                                    try:
+                                        import json
+                                        prompt_data = json.loads(prompt_text)
+                                        if isinstance(prompt_data, dict) and "prompt" in prompt_data:
+                                            prompt = prompt_data["prompt"]
+                                        else:
+                                            prompt = prompt_text
+                                    except (json.JSONDecodeError, TypeError):
+                                        prompt = prompt_text
                                     logger.info(f"[IMAGE_HISTORY] Найдена временная запись в БД: user_id={user_id}, character={character_name}")
                         
                         # Сохраняем историю если есть все данные

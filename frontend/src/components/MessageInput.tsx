@@ -230,7 +230,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       onClick: handleImageGeneration,
       className: disableImageGeneration || !onGenerateImage ? 'disabled' : ''
     },
-    ...(onGenerateImage && onShowHelp ? [{
+    ...(onShowHelp ? [{
       icon: <span style={{ fontSize: '24px', fontWeight: 600, color: 'white' }}>?</span>,
       label: 'Помощь по генерации фото',
       onClick: handleShowHelp,
