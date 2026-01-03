@@ -2157,8 +2157,9 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       }
 
       console.log('Sending request to API...', requestData); // Добавляем отладку
-      // КРИТИЧНО: Используем полный URL с базовым адресом API
-      const apiUrl = `${API_CONFIG.BASE_URL}/api/v1/characters/create/`;
+      // КРИТИЧНО: Используем готовый метод из API_CONFIG для правильного формирования URL
+      // Это гарантирует использование домена, а не IP адреса (избегает Mixed Content)
+      const apiUrl = API_CONFIG.CHARACTER_CREATE_FULL;
       console.log('[CREATE_CHAR] API URL:', apiUrl);
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -2411,7 +2412,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       console.log('Selected photos (full):', selectedPhotos);
       console.log('Photo IDs with URLs:', selectedPhotos.map(photo => ({ id: photo.id, url: photo.url })));
 
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/set-main-photos/`, {
+      const response = await fetch(API_CONFIG.CHARACTER_SET_PHOTOS_FULL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
