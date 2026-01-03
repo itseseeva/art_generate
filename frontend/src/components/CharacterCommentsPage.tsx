@@ -385,7 +385,7 @@ export const CharacterCommentsPage: React.FC<CharacterCommentsPageProps> = ({
         throw new Error('Необходима авторизация');
       }
 
-      const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/character-comments/create', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/character-comments/create`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1570,7 +1570,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       return null;
     }
     try {
-      const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/me/', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`, {
         headers: {
           Authorization: `Bearer ${authToken}`
         }

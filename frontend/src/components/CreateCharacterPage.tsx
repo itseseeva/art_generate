@@ -6,7 +6,6 @@ import { AuthModal } from './AuthModal';
 import { translateToEnglish } from '../utils/translate';
 import { API_CONFIG } from '../config/api';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { CircularProgress } from './ui/CircularProgress';
 import { FiX as CloseIcon } from 'react-icons/fi';
 import { fetchPromptByImage } from '../utils/prompt';
@@ -1291,62 +1290,6 @@ const PhotoModalClose = styled.button`
   }
 `;
 
-const PhotosContainer = styled.div`
-  position: relative;
-  width: 100%;
-  height: 400px; /* Фиксированная высота чтобы столбец не менял размеры */
-`;
-
-const SwiperContainer = styled.div`
-  position: relative;
-  overflow: hidden;
-  height: 100%;
-`;
-
-const SwiperWrapper = styled.div<{ translateX: number }>`
-  display: flex;
-  transition: transform 0.3s ease;
-  transform: translateX(${props => props.translateX}px);
-  height: 100%;
-`;
-
-const SwiperSlide = styled.div`
-  min-width: 200px;
-  margin-right: ${theme.spacing.md};
-  height: 100%;
-  
-  &:last-child {
-    margin-right: 0;
-  }
-`;
-
-const SwiperButton = styled.button<{ direction: 'left' | 'right' }>`
-  position: absolute;
-  top: 50%;
-  ${props => props.direction === 'left' ? 'left: -20px' : 'right: -20px'};
-  transform: translateY(-50%);
-  background: rgba(150, 150, 150, 0.8);
-  border: none;
-  color: white;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: ${theme.fontSize.lg};
-  z-index: 10;
-  
-  &:hover {
-    background: rgba(150, 150, 150, 1);
-  }
-  
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-`;
 
 const SliderButton = styled.button<{ direction: 'left' | 'right' }>`
   position: absolute;
@@ -1842,7 +1785,6 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
-  const [swiperTranslateX, setSwiperTranslateX] = useState(0); // Для swiper
   const [selectedPhotos, setSelectedPhotos] = useState<any[]>([]); // Выбранные фото для карточки
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -2484,20 +2426,6 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     return () => window.removeEventListener('keydown', handleEscape);
   }, [selectedPhotoForView]);
 
-  const nextSwiperSlide = () => {
-    const maxTranslate = -(generatedPhotos.length - 1) * 100; // Процентное смещение
-    setSwiperTranslateX(prev => {
-      const newTranslate = prev - 100; // Перемещаем на 100% (следующий слайд)
-      return Math.max(newTranslate, maxTranslate);
-    });
-  };
-
-  const prevSwiperSlide = () => {
-    setSwiperTranslateX(prev => {
-      const newTranslate = prev + 100; // Перемещаем на 100% (предыдущий слайд)
-      return Math.min(newTranslate, 0);
-    });
-  };
 
 
   // Функция для генерации одного фото

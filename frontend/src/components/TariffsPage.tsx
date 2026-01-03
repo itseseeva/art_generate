@@ -428,7 +428,7 @@ export const TariffsPage: React.FC = () => {
         return;
       }
 
-      const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/me/', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -462,7 +462,7 @@ export const TariffsPage: React.FC = () => {
       const token = localStorage.getItem('authToken');
       if (!token) return;
 
-      const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/profit/stats/', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/profit/stats/`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -489,7 +489,7 @@ export const TariffsPage: React.FC = () => {
     let currentUserId = userInfo?.id;
     if (!currentUserId) {
       try {
-        const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/me/', {
+        const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }

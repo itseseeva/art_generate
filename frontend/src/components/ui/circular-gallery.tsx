@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { ChevronLeft, ChevronRight } from "lucide-react"
 import { cn } from "~/lib/utils"
 
 interface CircularGalleryItem {
@@ -215,15 +214,6 @@ export function CircularGallery({
       ref={containerRef}
       className={cn("relative w-full flex items-center justify-center", className)}
     >
-      <button
-        onClick={() => rotateItems('left')}
-        className="absolute left-0 z-20 p-3 rounded-full bg-black/60 hover:bg-black/80 border border-white/20 text-white transition-all duration-200 shadow-lg hover:scale-110"
-        aria-label="Previous"
-        type="button"
-      >
-        <ChevronLeft className="w-6 h-6" />
-      </button>
-
       <div 
         className="relative w-full flex items-center justify-center select-none overflow-hidden"
         style={{ 
@@ -333,15 +323,6 @@ export function CircularGallery({
           )
         })}
       </div>
-
-      <button
-        onClick={() => rotateItems('right')}
-        className="absolute right-0 z-20 p-3 rounded-full bg-black/60 hover:bg-black/80 border border-white/20 text-white transition-all duration-200 shadow-lg hover:scale-110"
-        aria-label="Next"
-        type="button"
-      >
-        <ChevronRight className="w-6 h-6" />
-      </button>
     </div>
   )
 }

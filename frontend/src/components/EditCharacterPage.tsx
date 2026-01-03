@@ -2160,7 +2160,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         }
         
         try {
-          const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/me/', {
+          const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`, {
             headers: {
               'Authorization': `Bearer ${token}`
             },

@@ -1098,7 +1098,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
   const loadModelInfo = useCallback(async () => {
     try {
-      const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/models/');
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/models/`);
       if (response.ok) {
         const models = await response.json();
         setModelInfo(`${models.length} модель(ей) доступно`);
@@ -2961,7 +2961,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
     try {
       const response = await fetch(
-        '${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/add/',
+        `${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/add/`,
         {
           method: 'POST',
           headers: {

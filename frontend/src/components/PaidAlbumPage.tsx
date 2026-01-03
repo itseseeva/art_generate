@@ -540,7 +540,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
 
     setAddingToGallery(imageId);
     try {
-      const response = await fetch('${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/add/', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/add/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

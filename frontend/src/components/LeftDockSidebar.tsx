@@ -35,10 +35,10 @@ const SidebarWrapper = styled.div`
 `;
 
 const SidebarContainer = styled.aside<{ $isCollapsed?: boolean }>`
-  width: ${props => props.$isCollapsed ? '0' : '79px'};
-  min-width: ${props => props.$isCollapsed ? '0' : '79px'};
+  width: ${props => props.$isCollapsed ? '0' : '76px'};
+  min-width: ${props => props.$isCollapsed ? '0' : '76px'};
   height: 100%;
-  padding: ${props => props.$isCollapsed ? '0' : '1.5rem 0.75rem'};
+  padding: ${props => props.$isCollapsed ? '0' : '1.5rem 0.25rem 1.5rem 0.5rem'};
   background: rgba(8, 8, 18, 0.85);
   border-right: ${props => props.$isCollapsed ? 'none' : '1px solid rgba(255, 255, 255, 0.06)'};
   backdrop-filter: blur(18px);
@@ -111,7 +111,7 @@ const DockWrapper = styled.div`
   align-items: center;
   justify-content: flex-start;
   position: relative;
-  gap: 1rem;
+  gap: 0.8rem;
   overflow-y: auto;
   overflow-x: visible;
   overflow: visible;
@@ -131,17 +131,6 @@ const DockWrapper = styled.div`
   
   scrollbar-width: none;
   -ms-overflow-style: none;
-`;
-
-const SwitcherContainer = styled.div`
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 0.75rem 0;
-  margin-top: calc(0.5rem - 4px);
-  transform: translateY(-20%);
-  position: relative;
 `;
 
 const ToggleArrowButton = styled.button<{ $isCollapsed?: boolean }>`
@@ -166,7 +155,7 @@ const ToggleArrowButton = styled.button<{ $isCollapsed?: boolean }>`
   outline: none;
   z-index: 20;
   position: fixed;
-  left: ${props => props.$isCollapsed ? '-8px' : '44px'};
+  left: ${props => props.$isCollapsed ? '-8px' : '30px'};
   transform: ${props => props.$isCollapsed ? 'translateY(-50%) rotate(0deg)' : 'translateY(-50%) rotate(180deg)'};
 
   &:hover {
@@ -193,19 +182,30 @@ const ToggleArrowButton = styled.button<{ $isCollapsed?: boolean }>`
   }
 `;
 
+const SwitcherContainer = styled.div`
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.6rem 0;
+  margin-top: calc(0.5rem - 4px);
+  transform: translateY(-20%);
+  position: relative;
+`;
+
 const SidebarContent = styled.div<{ $isCollapsed?: boolean }>`
   width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.25rem;
-  opacity: ${props => props.$isCollapsed ? 0 : 1};
-  visibility: ${props => props.$isCollapsed ? 'hidden' : 'visible'};
-  transition: opacity 0.3s ease, visibility 0.3s ease;
+  gap: 1rem;
   flex: 1;
   overflow: visible;
   overflow-y: auto;
   min-height: 0;
+  opacity: ${props => props.$isCollapsed ? 0 : 1};
+  visibility: ${props => props.$isCollapsed ? 'hidden' : 'visible'};
+  transition: opacity 0.3s ease, visibility 0.3s ease;
 `;
 
 export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
@@ -350,7 +350,6 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
 
   useEffect(() => {
     if (dockWrapperRef.current && !isCollapsed) {
-      // Небольшая задержка для того, чтобы DOM обновился
       const timeoutId = setTimeout(() => {
         const dockWrapper = dockWrapperRef.current;
         if (!dockWrapper) return;
@@ -361,11 +360,9 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
         const items = dockPanel.querySelectorAll('.dock-item');
         if (items.length === 0) return;
         
-        // Находим кнопку "Персонажи" и следующую за ней кнопку "Жалоба"
         let charactersElement: Element | null = null;
         let bugReportElement: Element | null = null;
         
-        // Сначала находим "Персонажи"
         items.forEach((item) => {
           const label = item.querySelector('.dock-label-vertical')?.textContent?.trim();
           if (label === 'Персонажи' && !charactersElement) {
@@ -373,7 +370,6 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
           }
         });
         
-        // Затем ищем "Жалоба" после "Персонажи"
         if (charactersElement) {
           let foundCharacters = false;
           items.forEach((item) => {
@@ -394,10 +390,6 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
           const charactersRect = charactersElement.getBoundingClientRect();
           const bugReportRect = bugReportElement.getBoundingClientRect();
           
-          // Вычисляем точно середину пустого пространства между кнопками
-          // bottom кнопки "Персонажи" - это конец первой кнопки
-          // top кнопки "Жалоба" - это начало второй кнопки
-          // Середина между ними - это центр gap между кнопками
           const spaceStart = charactersRect.bottom;
           const spaceEnd = bugReportRect.top;
           const middleY = (spaceStart + spaceEnd) / 2;
@@ -462,7 +454,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
               items={[...topDockItems, ...mainBottomDockItems, ...additionalDockItems]}
               vertical
               dockHeight={420}
-              panelHeight={90}
+              panelHeight={58}
               baseItemSize={34}
               magnification={45}
               distance={150}
