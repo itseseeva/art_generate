@@ -22,7 +22,6 @@ import { CharacterCommentsPage } from './components/CharacterCommentsPage';
 import { BugReportPage } from './components/BugReportPage';
 import { LeftDockSidebar } from './components/LeftDockSidebar';
 import { AuthModal } from './components/AuthModal';
-import { AgeVerificationModal } from './components/AgeVerificationModal';
 import { LegalPage } from './components/LegalPage';
 import { AboutPage } from './components/AboutPage';
 import { TariffsPage } from './components/TariffsPage';
@@ -1002,9 +1001,6 @@ function App() {
   const [userInfo, setUserInfo] = React.useState<{username: string, coins: number, id?: number, subscription?: {subscription_type: string}} | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-  const [isAgeVerified, setIsAgeVerified] = useState(() => {
-    return localStorage.getItem('age_verified') === 'true';
-  });
   const [isPaidAlbumModalOpen, setIsPaidAlbumModalOpen] = useState(false);
   const [selectedAlbumCharacter, setSelectedAlbumCharacter] = useState<any>(null);
   const [subscriptionStats, setSubscriptionStats] = useState<{subscription_type?: string} | null>(null);
@@ -1341,23 +1337,6 @@ function App() {
     }
   };
 
-  const handleAgeAccept = () => {
-    localStorage.setItem('age_verified', 'true');
-    setIsAgeVerified(true);
-  };
-
-  const handleAgeDecline = () => {
-    window.location.href = 'about:blank';
-  };
-
-  if (!isAgeVerified) {
-    return (
-      <>
-        <GlobalStyles />
-        <AgeVerificationModal onAccept={handleAgeAccept} onDecline={handleAgeDecline} />
-      </>
-    );
-  }
 
   return (
     <>
