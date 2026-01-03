@@ -363,16 +363,30 @@ ALLOWED_ORIGINS: list[str] = [
     "https://cherrylust.art",
     "http://www.cherrylust.art",
     "https://www.cherrylust.art",
+    # VPS IP адреса
+    "http://89.124.71.251",
+    "http://89.124.71.251:80",
+    "https://89.124.71.251",
     # Добавляем FRONTEND_URL из настроек, если он задан
     *([settings.FRONTEND_URL] if settings.FRONTEND_URL and settings.FRONTEND_URL not in ["http://localhost:5175", "http://127.0.0.1:5175"] else []),
 ]
+
+# Добавляем дополнительные origin'ы из переменной окружения (через запятую)
+ADDITIONAL_ORIGINS = os.getenv("ADDITIONAL_CORS_ORIGINS", "")
+if ADDITIONAL_ORIGINS:
+    additional_origins = [origin.strip() for origin in ADDITIONAL_ORIGINS.split(",") if origin.strip()]
+    ALLOWED_ORIGINS.extend(additional_origins)
+
+# Логируем разрешенные origin'ы для отладки
+logger.info(f"[CORS] Разрешенные origin'ы: {ALLOWED_ORIGINS}")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Middleware для правильной обработки Unicode
