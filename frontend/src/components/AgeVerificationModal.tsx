@@ -27,7 +27,17 @@ const ModalContent = styled.div`
   border: 1px solid rgba(255, 255, 255, 0.1);
   max-width: 500px;
   width: 90vw;
+  max-height: 90vh;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  position: relative;
+  
+  @media (max-width: 768px) {
+    padding: 2rem 1.5rem;
+    max-height: 95vh;
+  }
 `;
 
 const WarningIcon = styled.div`
@@ -49,23 +59,40 @@ const Message = styled.p`
   font-size: 16px;
   line-height: 1.6;
   margin-bottom: 2rem;
+  flex: 1;
+  overflow-y: auto;
+  
+  @media (max-width: 768px) {
+    font-size: 14px;
+    margin-bottom: 1.5rem;
+  }
 `;
 
 const ButtonGroup = styled.div`
   display: flex;
   gap: 1rem;
   margin-top: 2rem;
+  width: 100%;
+  flex-shrink: 0;
+  
+  @media (max-width: 768px) {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
 `;
 
 const Button = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   flex: 1;
   padding: 1rem 1.5rem;
+  min-height: 48px;
   border: none;
   border-radius: 12px;
   font-weight: 600;
   font-size: 16px;
   cursor: pointer;
   transition: all 0.3s ease;
+  position: relative;
+  z-index: 1;
   
   ${props => props.$variant === 'primary' ? `
     background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
@@ -90,6 +117,12 @@ const Button = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   &:active {
     transform: translateY(0);
   }
+  
+  @media (max-width: 768px) {
+    width: 100%;
+    min-height: 44px;
+    font-size: 15px;
+  }
 `;
 
 interface AgeVerificationModalProps {
@@ -110,10 +143,10 @@ export const AgeVerificationModal: React.FC<AgeVerificationModalProps> = ({ onAc
         </Message>
         <ButtonGroup>
           <Button $variant="primary" onClick={onAccept}>
-            Мне есть 18 лет
+            Продолжить
           </Button>
           <Button $variant="secondary" onClick={onDecline}>
-            Выход
+            Отказаться
           </Button>
         </ButtonGroup>
       </ModalContent>
