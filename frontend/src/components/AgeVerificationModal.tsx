@@ -31,7 +31,8 @@ const ModalContent = styled.div`
   text-align: center;
   display: flex;
   flex-direction: column;
-  overflow: visible;
+  overflow-y: auto;
+  overflow-x: hidden;
   position: relative;
   
   @media (max-width: 768px) {
@@ -44,6 +45,7 @@ const WarningIcon = styled.div`
   font-size: 64px;
   margin-bottom: 1.5rem;
   color: #ff6b6b;
+  flex-shrink: 0;
 `;
 
 const Title = styled.h2`
@@ -52,6 +54,7 @@ const Title = styled.h2`
   font-weight: 700;
   margin-bottom: 1rem;
   letter-spacing: -0.5px;
+  flex-shrink: 0;
 `;
 
 const Message = styled.p`
@@ -59,8 +62,7 @@ const Message = styled.p`
   font-size: 16px;
   line-height: 1.6;
   margin-bottom: 2rem;
-  flex: 1;
-  overflow-y: auto;
+  flex-shrink: 0;
   
   @media (max-width: 768px) {
     font-size: 14px;
@@ -71,13 +73,15 @@ const Message = styled.p`
 const ButtonGroup = styled.div`
   display: flex;
   gap: 1rem;
-  margin-top: 2rem;
+  margin-top: auto;
+  padding-top: 1rem;
   width: 100%;
   flex-shrink: 0;
   
   @media (max-width: 768px) {
     flex-direction: column;
     gap: 0.75rem;
+    margin-top: 1.5rem;
   }
 `;
 
@@ -92,7 +96,8 @@ const Button = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   cursor: pointer;
   transition: all 0.3s ease;
   position: relative;
-  z-index: 1;
+  z-index: 10;
+  white-space: nowrap;
   
   ${props => props.$variant === 'primary' ? `
     background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
@@ -104,13 +109,14 @@ const Button = styled.button<{ $variant?: 'primary' | 'secondary' }>`
       box-shadow: 0 8px 20px rgba(139, 92, 246, 0.4);
     }
   ` : `
-    background: transparent;
-    color: #888888;
-    border: 2px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: #cccccc;
+    border: 2px solid rgba(255, 255, 255, 0.2);
     
     &:hover {
-      border-color: rgba(255, 255, 255, 0.2);
-      color: #aaaaaa;
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.3);
+      color: #ffffff;
     }
   `}
   
