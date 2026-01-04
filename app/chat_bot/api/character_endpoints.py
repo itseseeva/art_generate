@@ -1,7 +1,7 @@
 from typing import List
 from datetime import datetime
 from urllib.parse import urlparse
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Query
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, text, func
 from app.chat_bot.schemas.chat import CharacterCreate, CharacterUpdate, CharacterInDB, UserCharacterCreate, CharacterWithCreator, CreatorInfo
@@ -386,6 +386,7 @@ async def create_character(character: CharacterCreate, db: AsyncSession = Depend
 
 @router.get("/", response_model=List[CharacterInDB])
 async def read_characters(
+    response: Response,
     skip: int = 0, 
     limit: int = 1000, 
     force_refresh: bool = Query(False, description="Принудительно обновить кэш"),
@@ -436,6 +437,11 @@ async def read_characters(
                 
                 if result:
                     logger.debug(f"Retrieved {len(result)} characters from cache")
+                    # Устанавливаем заголовки кэширования для HTTP кэша
+                    import hashlib
+                    content_hash = hashlib.md5(str(cached_characters).encode()).hexdigest()
+                    response.headers["Cache-Control"] = "public, max-age=300"  # 5 минут
+                    response.headers["ETag"] = f'"{content_hash}"'
                     return result
                 else:
                     logger.warning("No valid characters restored from cache, loading from DB")
@@ -503,6 +509,13 @@ async def read_characters(
                 logger.info("No characters in DB, cleared cache")
             except Exception as cache_error:
                 logger.warning(f"Error clearing cache: {cache_error}")
+        
+        # Устанавливаем заголовки кэширования для HTTP кэша
+        response.headers["Cache-Control"] = "public, max-age=300"  # 5 минут
+        if characters:
+            import hashlib
+            content_hash = hashlib.md5(str(characters).encode()).hexdigest()
+            response.headers["ETag"] = f'"{content_hash}"'
         
         return characters
     except Exception as e:
