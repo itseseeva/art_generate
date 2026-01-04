@@ -510,6 +510,8 @@ class ProfitActivateService:
         # Пытаемся получить из кэша
         cached_stats = await cache_get(cache_key)
         if cached_stats is not None:
+            # Логируем для отладки
+            logger.debug(f"[STATS] Кэш найден для user_id={user_id}, subscription_type={cached_stats.get('subscription_type')}")
             return cached_stats
         
         # Если нет в кэше, загружаем из БД
@@ -517,7 +519,8 @@ class ProfitActivateService:
         
         if not subscription:
             # Если подписки нет, возвращаем значения по умолчанию для FREE подписки
-            return {
+            logger.debug(f"[STATS] Подписка не найдена для user_id={user_id}, возвращаем FREE по умолчанию")
+            default_stats = {
                 "subscription_type": "free",
                 "status": "inactive",
                 "monthly_credits": 0,
@@ -532,6 +535,11 @@ class ProfitActivateService:
                 "expires_at": None,
                 "last_reset_at": None
             }
+            # НЕ кэшируем значения по умолчанию, чтобы каждый раз проверять БД
+            return default_stats
+        
+        # Логируем найденную подписку
+        logger.debug(f"[STATS] Подписка найдена для user_id={user_id}, subscription_type={subscription.subscription_type.value}, is_active={subscription.is_active}")
         
         # Проверяем, нужно ли сбросить месячные лимиты
         if subscription.should_reset_limits():
