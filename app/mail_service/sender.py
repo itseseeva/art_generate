@@ -3,6 +3,7 @@ Email sender для отправки уведомлений.
 """
 
 import smtplib
+import socket
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from .config import (
@@ -79,20 +80,31 @@ This is an automatic email, please do not reply"""
             
             msg.attach(MIMEText(text_body, 'plain', 'utf-8'))
             
-            # Connect to SMTP server
-            with smtplib.SMTP(self.host, self.port) as server:
-                if self.use_tls:
-                    server.starttls()
+            # Устанавливаем timeout для socket операций (10 секунд)
+            # Это предотвращает зависание, если SMTP сервер недоступен
+            old_timeout = socket.getdefaulttimeout()
+            socket.setdefaulttimeout(10)
+            try:
+                # Connect to SMTP server with timeout
+                with smtplib.SMTP(self.host, self.port) as server:
+                    if self.use_tls:
+                        server.starttls()
+                    
+                    # Authenticate
+                    server.login(self.username, self.password)
+                    
+                    # Send message
+                    server.send_message(msg)
                 
-                # Authenticate
-                server.login(self.username, self.password)
-                
-                # Send message
-                server.send_message(msg)
-                
-            print(f"Verification code successfully sent to {to_email}")
-            return True
+                print(f"Verification code successfully sent to {to_email}")
+                return True
+            finally:
+                # Восстанавливаем предыдущий timeout
+                socket.setdefaulttimeout(old_timeout)
             
+        except (smtplib.SMTPConnectError, smtplib.SMTPAuthenticationError, smtplib.SMTPServerDisconnected) as e:
+            print(f"SMTP error sending email to {to_email}: {type(e).__name__}: {e}")
+            return False
         except Exception as e:
-            print(f"Error sending email: {type(e).__name__}")
+            print(f"Error sending email to {to_email}: {type(e).__name__}: {e}")
             return False

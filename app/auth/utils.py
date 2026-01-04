@@ -6,6 +6,7 @@ import hashlib
 import secrets
 import random
 import string
+import asyncio
 from datetime import datetime, timezone, timedelta
 
 
@@ -42,15 +43,29 @@ def generate_verification_code() -> str:
 async def send_verification_email(email: str, code: str) -> None:
     """
     Отправляет код верификации на email.
+    Обёртка вокруг синхронного EmailSender, чтобы не блокировать event loop.
     """
     try:
         from app.mail_service.sender import EmailSender
-        email_sender = EmailSender()
-        success = email_sender.send_verification_email(email, code)
+        
+        def _send_email_sync():
+            """Синхронная функция для отправки email в отдельном потоке"""
+            try:
+                email_sender = EmailSender()
+                return email_sender.send_verification_email(email, code)
+            except ValueError as init_error:
+                # Если EmailSender не может быть создан (нет конфигурации), просто возвращаем False
+                print(f"EmailSender initialization failed: {init_error}")
+                print(f"Verification code {code} for {email} (email sending disabled - no config)")
+                return False
+        
+        # Выполняем отправку email в отдельном потоке, чтобы не блокировать event loop
+        # SMTP операции могут занимать время и блокировать поток
+        success = await asyncio.to_thread(_send_email_sync)
         
         if not success:
             print(f"Verification code {code} for {email} (real sending disabled)")
             
     except Exception as e:
-        print(f"Error sending email: {e}")
+        print(f"Error sending email: {type(e).__name__}: {e}")
         print(f"Verification code {code} for {email} (email sending disabled)")
