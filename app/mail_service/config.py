@@ -13,7 +13,8 @@ load_dotenv(env_path)
 
 # Email settings (без проверки при импорте - проверка только при использовании)
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.mail.ru")
-EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+# Порт 2525 - альтернативный SMTP порт, используется когда стандартные порты (587, 465) заблокированы
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "2525"))
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() == "true"
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
