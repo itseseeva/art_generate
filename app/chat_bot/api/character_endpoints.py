@@ -333,6 +333,13 @@ async def check_character_ownership(
     if current_user.is_admin:
         return True
     
+    # КРИТИЧНО: Если у персонажа нет владельца (user_id is None), обычные пользователи не могут его редактировать
+    if character.user_id is None:
+        raise HTTPException(
+            status_code=403, 
+            detail="You don't have permission to edit this character"
+        )
+    
     # Обычные пользователи могут редактировать только своих персонажей
     if character.user_id != current_user.id:
         raise HTTPException(
