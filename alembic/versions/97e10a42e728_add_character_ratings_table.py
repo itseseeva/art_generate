@@ -75,17 +75,53 @@ def upgrade() -> None:
     for table_name in ['django_migrations', 'token_blacklist_blacklistedtoken', 'django_content_type']:
         if table_name in inspector.get_table_names():
             op.drop_table(table_name)
-    op.add_column('chat_history', sa.Column('generation_time', sa.Integer(), nullable=True))
-    op.drop_index(op.f('idx_chat_history_character_name'), table_name='chat_history')
-    op.drop_index(op.f('idx_chat_history_session_id'), table_name='chat_history')
-    op.drop_index(op.f('idx_chat_history_user_id'), table_name='chat_history')
-    op.create_index(op.f('ix_chat_history_character_name'), 'chat_history', ['character_name'], unique=False)
-    op.create_index(op.f('ix_chat_history_id'), 'chat_history', ['id'], unique=False)
-    op.create_index(op.f('ix_chat_history_session_id'), 'chat_history', ['session_id'], unique=False)
-    op.create_index(op.f('ix_chat_history_user_id'), 'chat_history', ['user_id'], unique=False)
-    op.drop_index(op.f('idx_user_gallery_user_id'), table_name='user_gallery')
-    op.create_index(op.f('ix_user_gallery_id'), 'user_gallery', ['id'], unique=False)
-    op.create_index(op.f('ix_user_gallery_user_id'), 'user_gallery', ['user_id'], unique=False)
+    
+    # Добавляем колонку generation_time только если она не существует
+    if 'chat_history' in inspector.get_table_names():
+        columns = [col['name'] for col in inspector.get_columns('chat_history')]
+        if 'generation_time' not in columns:
+            op.add_column('chat_history', sa.Column('generation_time', sa.Integer(), nullable=True))
+    # Пересоздаем индексы для chat_history только если они не существуют
+    if 'chat_history' in inspector.get_table_names():
+        old_indexes = ['idx_chat_history_character_name', 'idx_chat_history_session_id', 'idx_chat_history_user_id']
+        new_indexes = [
+            ('ix_chat_history_character_name', 'chat_history', ['character_name']),
+            ('ix_chat_history_id', 'chat_history', ['id']),
+            ('ix_chat_history_session_id', 'chat_history', ['session_id']),
+            ('ix_chat_history_user_id', 'chat_history', ['user_id']),
+        ]
+        
+        # Удаляем старые индексы если они существуют
+        for idx_name in old_indexes:
+            result = connection.execute(text(f"SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = '{idx_name}')"))
+            if result.scalar():
+                op.execute(text(f'DROP INDEX IF EXISTS {idx_name}'))
+        
+        # Создаем новые индексы только если они не существуют
+        for idx_name, table_name, columns in new_indexes:
+            result = connection.execute(text(f"SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = '{idx_name}')"))
+            if not result.scalar():
+                op.create_index(op.f(idx_name), table_name, columns, unique=False)
+    
+    # Пересоздаем индексы для user_gallery только если они не существуют
+    if 'user_gallery' in inspector.get_table_names():
+        old_indexes = ['idx_user_gallery_user_id']
+        new_indexes = [
+            ('ix_user_gallery_id', 'user_gallery', ['id']),
+            ('ix_user_gallery_user_id', 'user_gallery', ['user_id']),
+        ]
+        
+        # Удаляем старые индексы если они существуют
+        for idx_name in old_indexes:
+            result = connection.execute(text(f"SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = '{idx_name}')"))
+            if result.scalar():
+                op.execute(text(f'DROP INDEX IF EXISTS {idx_name}'))
+        
+        # Создаем новые индексы только если они не существуют
+        for idx_name, table_name, columns in new_indexes:
+            result = connection.execute(text(f"SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = '{idx_name}')"))
+            if not result.scalar():
+                op.create_index(op.f(idx_name), table_name, columns, unique=False)
     op.alter_column('user_subscriptions', 'subscription_type',
                existing_type=postgresql.ENUM('BASE', 'STANDARD', 'PREMIUM', 'PRO', name='subscriptiontype'),
                type_=app.models.subscription.SubscriptionTypeDB('BASE', 'FREE', 'STANDARD', 'PREMIUM', 'PRO'),
