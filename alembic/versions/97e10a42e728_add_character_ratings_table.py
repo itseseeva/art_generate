@@ -10,6 +10,7 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+from sqlalchemy import text, inspect
 
 # revision identifiers, used by Alembic.
 revision: str = '97e10a42e728'
@@ -36,25 +37,44 @@ def upgrade() -> None:
     op.create_index(op.f('ix_character_ratings_character_id'), 'character_ratings', ['character_id'], unique=False)
     op.create_index(op.f('ix_character_ratings_id'), 'character_ratings', ['id'], unique=False)
     op.create_index(op.f('ix_character_ratings_user_id'), 'character_ratings', ['user_id'], unique=False)
-    op.drop_index(op.f('auth_group_permissions_group_id_b120cbf9'), table_name='auth_group_permissions')
-    op.drop_index(op.f('auth_group_permissions_permission_id_84c5c92e'), table_name='auth_group_permissions')
-    op.drop_table('auth_group_permissions')
-    op.drop_index(op.f('auth_group_name_a6ea08ec_like'), table_name='auth_group')
-    op.drop_table('auth_group')
-    op.drop_index(op.f('auth_permission_content_type_id_2f476e4b'), table_name='auth_permission')
-    op.drop_table('auth_permission')
-    op.drop_index(op.f('django_admin_log_content_type_id_c4bce8eb'), table_name='django_admin_log')
-    op.drop_index(op.f('django_admin_log_user_id_c564eba6'), table_name='django_admin_log')
-    op.drop_table('django_admin_log')
-    op.drop_index(op.f('django_session_expire_date_a5c62663'), table_name='django_session')
-    op.drop_index(op.f('django_session_session_key_c0390e0f_like'), table_name='django_session')
-    op.drop_table('django_session')
-    op.drop_index(op.f('token_blacklist_outstandingtoken_jti_hex_d9bdf6f7_like'), table_name='token_blacklist_outstandingtoken')
-    op.drop_index(op.f('token_blacklist_outstandingtoken_user_id_83bc629a'), table_name='token_blacklist_outstandingtoken')
-    op.drop_table('token_blacklist_outstandingtoken')
-    op.drop_table('django_migrations')
-    op.drop_table('token_blacklist_blacklistedtoken')
-    op.drop_table('django_content_type')
+    
+    # Удаляем Django таблицы и индексы только если они существуют
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    
+    # Проверяем существование таблицы auth_group_permissions перед удалением
+    if 'auth_group_permissions' in inspector.get_table_names():
+        # Удаляем индексы только если они существуют (используем raw SQL)
+        connection = op.get_bind()
+        index_names = ['auth_group_permissions_group_id_b120cbf9', 'auth_group_permissions_permission_id_84c5c92e']
+        for index_name in index_names:
+            result = connection.execute(text(f"SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = '{index_name}')"))
+            if result.scalar():
+                op.execute(text(f'DROP INDEX IF EXISTS {index_name}'))
+        op.drop_table('auth_group_permissions')
+    # Удаляем остальные Django таблицы только если они существуют
+    connection = op.get_bind()
+    
+    django_tables = [
+        ('auth_group', ['auth_group_name_a6ea08ec_like']),
+        ('auth_permission', ['auth_permission_content_type_id_2f476e4b']),
+        ('django_admin_log', ['django_admin_log_content_type_id_c4bce8eb', 'django_admin_log_user_id_c564eba6']),
+        ('django_session', ['django_session_expire_date_a5c62663', 'django_session_session_key_c0390e0f_like']),
+        ('token_blacklist_outstandingtoken', ['token_blacklist_outstandingtoken_jti_hex_d9bdf6f7_like', 'token_blacklist_outstandingtoken_user_id_83bc629a']),
+    ]
+    
+    for table_name, index_names in django_tables:
+        if table_name in inspector.get_table_names():
+            for index_name in index_names:
+                result = connection.execute(text(f"SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = '{index_name}')"))
+                if result.scalar():
+                    op.execute(text(f'DROP INDEX IF EXISTS {index_name}'))
+            op.drop_table(table_name)
+    
+    # Удаляем оставшиеся Django таблицы если они существуют
+    for table_name in ['django_migrations', 'token_blacklist_blacklistedtoken', 'django_content_type']:
+        if table_name in inspector.get_table_names():
+            op.drop_table(table_name)
     op.add_column('chat_history', sa.Column('generation_time', sa.Integer(), nullable=True))
     op.drop_index(op.f('idx_chat_history_character_name'), table_name='chat_history')
     op.drop_index(op.f('idx_chat_history_session_id'), table_name='chat_history')
