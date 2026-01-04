@@ -299,8 +299,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
 
     try {
       const endpoint = mode === 'register' ? '/api/v1/auth/register/' : '/api/v1/auth/login/';
+      // Формируем body с fingerprint_id только если он есть
       const body = mode === 'register' 
-        ? { email, password, username: username || email, fingerprint_id: fingerprintId }
+        ? { 
+            email, 
+            password, 
+            username: username || email, 
+            ...(fingerprintId && { fingerprint_id: fingerprintId })
+          }
         : { email, password };
 
       const response = await fetch(endpoint, {
@@ -312,8 +318,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || `Ошибка ${mode === 'register' ? 'регистрации' : 'авторизации'}`);
+        // Пытаемся получить текст ошибки (может быть JSON или текст)
+        let errorMessage = `Ошибка ${mode === 'register' ? 'регистрации' : 'авторизации'}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorMessage;
+        } catch {
+          // Если не JSON, пытаемся получить текст
+          const text = await response.text();
+          errorMessage = text || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -355,13 +370,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
         body: JSON.stringify({
           email,
           verification_code: verificationCode,
-          fingerprint_id: fingerprintId
+          ...(fingerprintId && { fingerprint_id: fingerprintId })
         }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Неверный код верификации');
+        // Пытаемся получить текст ошибки (может быть JSON или текст)
+        let errorMessage = 'Неверный код верификации';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorMessage;
+        } catch {
+          // Если не JSON, пытаемся получить текст
+          const text = await response.text();
+          errorMessage = text || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
