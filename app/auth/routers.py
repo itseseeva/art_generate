@@ -4,7 +4,7 @@
 
 from datetime import datetime, timedelta, timezone
 from typing import List
-from fastapi import APIRouter, HTTPException, Request, Depends, UploadFile, File
+from fastapi import APIRouter, HTTPException, Request, Depends, UploadFile, File, BackgroundTasks
 from sqlalchemy import select, update, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 import traceback
@@ -81,7 +81,11 @@ async def activate_free_subscription(user_id: int, db: AsyncSession) -> None:
 
 
 @auth_router.post("/auth/register/", response_model=Message)
-async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
+async def create_user(
+    user: UserCreate, 
+    db: AsyncSession = Depends(get_db),
+    background_tasks: BackgroundTasks = BackgroundTasks()
+):
     """
     Начинает регистрацию нового пользователя. Сохраняет данные во временное хранилище
     и отправляет код верификации на email. Пользователь будет создан только после
@@ -158,10 +162,12 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
     cache_key = key_registration_data(user.email)
     await cache_set_json(cache_key, registration_data, ttl_seconds=3600)
     
-    # Send verification email (отправляем новый код)
-    await send_verification_email(user.email, verification_code)
+    # Send verification email в фоне (не блокируем ответ)
+    # Код уже сохранён в Redis, поэтому пользователь может ввести код
+    # даже если email ещё не отправился
+    background_tasks.add_task(send_verification_email, user.email, verification_code)
     
-    print(f"Verification code sent to {user.email} (new code generated)")
+    print(f"Verification code queued for {user.email} (new code generated)")
     
     return Message(message="Verification code sent to email")
 
