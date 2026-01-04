@@ -516,9 +516,9 @@ class ProfitActivateService:
         subscription = await self.get_user_subscription(user_id)
         
         if not subscription:
-            # Если подписки нет, возвращаем значения по умолчанию
+            # Если подписки нет, возвращаем значения по умолчанию для FREE подписки
             return {
-                "subscription_type": "none",
+                "subscription_type": "free",
                 "status": "inactive",
                 "monthly_credits": 0,
                 "monthly_photos": 0,

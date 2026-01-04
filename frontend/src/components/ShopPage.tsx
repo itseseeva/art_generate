@@ -744,7 +744,12 @@ export const ShopPage: React.FC<ShopPageProps> = ({
         <CurrentSubscriptionCard>
           <CurrentSubscriptionLabel>Текущая подписка</CurrentSubscriptionLabel>
           <CurrentSubscriptionValue>
-            {(stats?.subscription_type || 'free').toUpperCase()}
+            {(() => {
+              const subscriptionType = stats?.subscription_type || 'free';
+              // Если subscription_type "none", показываем "FREE"
+              const displayType = subscriptionType === 'none' ? 'free' : subscriptionType;
+              return displayType.toUpperCase();
+            })()}
           </CurrentSubscriptionValue>
         </CurrentSubscriptionCard>
         
