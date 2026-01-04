@@ -66,11 +66,12 @@ except ImportError as e:
 
 import jwt
 
-from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse, Response, StreamingResponse
 from typing import AsyncGenerator
+from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 import uvicorn
@@ -389,13 +390,220 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-# Middleware для правильной обработки Unicode
+# Middleware для логирования запросов к character-ratings
 @app.middleware("http")
-async def unicode_middleware(request: Request, call_next):
-    """Middleware для правильной обработки Unicode в запросах."""
-    # Просто пропускаем запрос дальше без блокирующих операций
+async def log_ratings_requests(request: Request, call_next):
+    """Middleware для логирования запросов к character-ratings."""
+    if "/character-ratings/" in str(request.url):
+        print("=" * 80)
+        print(f"[MIDDLEWARE] Запрос к character-ratings: {request.method} {request.url}")
+        print(f"[MIDDLEWARE] Path: {request.url.path}")
+        print("=" * 80)
+        logger.info("=" * 80)
+        logger.info(f"[MIDDLEWARE] Запрос к character-ratings: {request.method} {request.url}")
+        logger.info(f"[MIDDLEWARE] Path: {request.url.path}")
+        logger.info("=" * 80)
     response = await call_next(request)
+    if "/character-ratings/" in str(request.url):
+        print(f"[MIDDLEWARE] Ответ для character-ratings: {response.status_code}")
+        logger.info(f"[MIDDLEWARE] Ответ для character-ratings: {response.status_code}")
     return response
+
+# ============================================================================
+# КРИТИЧНО: Роуты для рейтингов регистрируются НАПРЯМУЮ в app, ПЕРЕД всеми остальными
+# Это гарантирует, что они будут проверяться первыми и не будут перехвачены
+# роутом /{character_name}
+# ============================================================================
+# Импортируем зависимости для роутов рейтингов
+from app.auth.dependencies import get_current_user, get_current_user_optional
+from app.database.db_depends import get_db
+
+@app.post("/api/v1/characters/character-ratings/{character_id}/like")
+async def like_character_direct(
+    character_id: int,
+    current_user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Ставит лайк персонажу."""
+    from app.chat_bot.models.models import CharacterDB, CharacterRating
+    from sqlalchemy import select
+    from datetime import datetime
+    
+    print("=" * 80)
+    print(f"[RATINGS DIRECT] POST /character-ratings/{character_id}/like вызван!")
+    print(f"[RATINGS DIRECT] User ID: {current_user.id if current_user else 'None'}")
+    print("=" * 80)
+    logger.info("=" * 80)
+    logger.info(f"[RATINGS DIRECT] POST /character-ratings/{character_id}/like вызван!")
+    logger.info(f"[RATINGS DIRECT] User ID: {current_user.id if current_user else 'None'}")
+    logger.info("=" * 80)
+    
+    try:
+        result = await db.execute(select(CharacterDB).where(CharacterDB.id == character_id))
+        character = result.scalar_one_or_none()
+        if not character:
+            raise HTTPException(status_code=404, detail="Character not found")
+        
+        existing_result = await db.execute(
+            select(CharacterRating).where(
+                CharacterRating.user_id == current_user.id,
+                CharacterRating.character_id == character_id
+            )
+        )
+        existing = existing_result.scalar_one_or_none()
+        
+        if existing:
+            if existing.is_like:
+                await db.delete(existing)
+                await db.commit()
+                return {"success": True, "message": "Like removed", "user_rating": None}
+            else:
+                existing.is_like = True
+                existing.updated_at = datetime.utcnow()
+                await db.commit()
+                return {"success": True, "message": "Changed from dislike to like", "user_rating": "like"}
+        else:
+            rating = CharacterRating(
+                user_id=current_user.id,
+                character_id=character_id,
+                is_like=True
+            )
+            db.add(rating)
+            await db.commit()
+            return {"success": True, "message": "Character liked", "user_rating": "like"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error liking character: {e}")
+        raise HTTPException(status_code=500, detail=f"Error liking character: {str(e)}")
+
+
+@app.post("/api/v1/characters/character-ratings/{character_id}/dislike")
+async def dislike_character_direct(
+    character_id: int,
+    current_user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Ставит дизлайк персонажу."""
+    from app.chat_bot.models.models import CharacterDB, CharacterRating
+    from sqlalchemy import select
+    from datetime import datetime
+    
+    print("=" * 80)
+    print(f"[RATINGS DIRECT] POST /character-ratings/{character_id}/dislike вызван!")
+    print(f"[RATINGS DIRECT] User ID: {current_user.id if current_user else 'None'}")
+    print("=" * 80)
+    logger.info("=" * 80)
+    logger.info(f"[RATINGS DIRECT] POST /character-ratings/{character_id}/dislike вызван!")
+    logger.info(f"[RATINGS DIRECT] User ID: {current_user.id if current_user else 'None'}")
+    logger.info("=" * 80)
+    
+    try:
+        result = await db.execute(select(CharacterDB).where(CharacterDB.id == character_id))
+        character = result.scalar_one_or_none()
+        if not character:
+            raise HTTPException(status_code=404, detail="Character not found")
+        
+        existing_result = await db.execute(
+            select(CharacterRating).where(
+                CharacterRating.user_id == current_user.id,
+                CharacterRating.character_id == character_id
+            )
+        )
+        existing = existing_result.scalar_one_or_none()
+        
+        if existing:
+            if not existing.is_like:
+                await db.delete(existing)
+                await db.commit()
+                return {"success": True, "message": "Dislike removed", "user_rating": None}
+            else:
+                existing.is_like = False
+                existing.updated_at = datetime.utcnow()
+                await db.commit()
+                return {"success": True, "message": "Changed from like to dislike", "user_rating": "dislike"}
+        else:
+            rating = CharacterRating(
+                user_id=current_user.id,
+                character_id=character_id,
+                is_like=False
+            )
+            db.add(rating)
+            await db.commit()
+            return {"success": True, "message": "Character disliked", "user_rating": "dislike"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error disliking character: {e}")
+        raise HTTPException(status_code=500, detail=f"Error disliking character: {str(e)}")
+
+
+@app.get("/api/v1/characters/character-ratings/{character_id}")
+async def get_character_ratings_direct(
+    character_id: int,
+    current_user = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db)
+):
+    """Получает рейтинг персонажа."""
+    from app.chat_bot.models.models import CharacterDB, CharacterRating
+    from sqlalchemy import select, func
+    
+    print("=" * 80)
+    print(f"[RATINGS DIRECT] GET /character-ratings/{character_id} вызван!")
+    print(f"[RATINGS DIRECT] User ID: {current_user.id if current_user else 'Anonymous'}")
+    print("=" * 80)
+    logger.info("=" * 80)
+    logger.info(f"[RATINGS DIRECT] GET /character-ratings/{character_id} вызван!")
+    logger.info(f"[RATINGS DIRECT] User ID: {current_user.id if current_user else 'Anonymous'}")
+    logger.info("=" * 80)
+    
+    try:
+        result = await db.execute(select(CharacterDB).where(CharacterDB.id == character_id))
+        character = result.scalar_one_or_none()
+        if not character:
+            raise HTTPException(status_code=404, detail="Character not found")
+        
+        likes_result = await db.execute(
+            select(func.count(CharacterRating.id)).where(
+                CharacterRating.character_id == character_id,
+                CharacterRating.is_like == True
+            )
+        )
+        likes_count = likes_result.scalar() or 0
+        
+        dislikes_result = await db.execute(
+            select(func.count(CharacterRating.id)).where(
+                CharacterRating.character_id == character_id,
+                CharacterRating.is_like == False
+            )
+        )
+        dislikes_count = dislikes_result.scalar() or 0
+        
+        user_rating = None
+        if current_user:
+            user_rating_result = await db.execute(
+                select(CharacterRating).where(
+                    CharacterRating.user_id == current_user.id,
+                    CharacterRating.character_id == character_id
+                )
+            )
+            user_rating_obj = user_rating_result.scalar_one_or_none()
+            if user_rating_obj:
+                user_rating = "like" if user_rating_obj.is_like else "dislike"
+        
+        return {
+            "character_id": character_id,
+            "likes": likes_count,
+            "dislikes": dislikes_count,
+            "user_rating": user_rating
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting character ratings: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting character ratings: {str(e)}")
 
 # Простой тестовый эндпоинт БЕЗ зависимостей для проверки работы сервера
 @app.get("/api/v1/test-ping")
@@ -472,6 +680,8 @@ except Exception as e:
 try:
     from app.chat_bot.api.chat_endpoints import router as chat_router
     from app.chat_bot.api.character_endpoints import router as character_router
+    # ПРИМЕЧАНИЕ: Роуты рейтингов теперь регистрируются напрямую в app выше,
+    # поэтому отдельный роутер не нужен
     
     app.include_router(chat_router, prefix="/api/v1/chat", tags=["chat"])
     app.include_router(character_router, prefix="/api/v1/characters", tags=["characters"])
@@ -479,7 +689,29 @@ try:
     # Роутер для комментариев к персонажам
     from app.api.endpoints.character_comments import router as comments_router
     app.include_router(comments_router, prefix="/api/v1/character-comments", tags=["character-comments"])
-    # Убрано логирование подключения роутеров
+    
+    # Логируем все роуты для отладки
+    print("=" * 80)
+    print("[ROUTES] Зарегистрированные роуты для character-ratings:")
+    ratings_routes = []
+    for route in app.routes:
+        if hasattr(route, 'path') and 'character-ratings' in route.path:
+            methods = list(route.methods) if hasattr(route, 'methods') else []
+            route_info = f"{methods} {route.path}"
+            print(f"[ROUTES] {route_info}")
+            ratings_routes.append(route_info)
+    if not ratings_routes:
+        print("[ROUTES] ВНИМАНИЕ: Роуты character-ratings НЕ найдены!")
+    print("=" * 80)
+    logger.info("=" * 80)
+    logger.info("[ROUTES] Зарегистрированные роуты для character-ratings:")
+    for route in app.routes:
+        if hasattr(route, 'path') and 'character-ratings' in route.path:
+            methods = list(route.methods) if hasattr(route, 'methods') else []
+            logger.info(f"[ROUTES] {methods} {route.path}")
+    if not ratings_routes:
+        logger.warning("[ROUTES] ВНИМАНИЕ: Роуты character-ratings НЕ найдены!")
+    logger.info("=" * 80)
 
 except Exception as e:
     logger.error(f"[ERROR] Ошибка подключения роутеров chat/character: {e}")
@@ -2850,13 +3082,22 @@ async def generate_image(
     """
     import traceback
     # КРИТИЧЕСКАЯ ПРОВЕРКА: Если вы видите этот лог, значит новый код выполняется
-    logger.info(f"[ENDPOINT IMG] ========================================")
-    logger.info(f"[ENDPOINT IMG] POST /api/v1/generate-image/")
-    logger.info(f"[ENDPOINT IMG] User: {current_user.email if current_user else 'Anonymous'} (ID: {current_user.id if current_user else 'N/A'})")
-    logger.info(f"[ENDPOINT IMG] Character: {request.character}")
-    logger.info(f"[ENDPOINT IMG] Steps: {request.steps}, CFG: {request.cfg_scale}, Size: {request.width}x{request.height}, Model: {request.model}")
-    logger.info(f"[ENDPOINT IMG] Промпт (первые 100 символов): {request.prompt[:100] if request.prompt else 'None'}...")
-    logger.info(f"[ENDPOINT IMG] Тип модели: {type(request.model)}, Значение: {repr(request.model)}")
+    print("=" * 80)
+    print("[GENERATE IMAGE] ========== НАЧАЛО ГЕНЕРАЦИИ ФОТО ==========")
+    print(f"[GENERATE IMAGE] POST /api/v1/generate-image/")
+    logger.info("=" * 80)
+    logger.info("[GENERATE IMAGE] ========== НАЧАЛО ГЕНЕРАЦИИ ФОТО ==========")
+    logger.info(f"[GENERATE IMAGE] POST /api/v1/generate-image/")
+    logger.info(f"[GENERATE IMAGE] User: {current_user.email if current_user else 'Anonymous'} (ID: {current_user.id if current_user else 'N/A'})")
+    logger.info(f"[GENERATE IMAGE] Character: {request.character}")
+    logger.info(f"[GENERATE IMAGE] Steps: {request.steps}, CFG: {request.cfg_scale}, Size: {request.width}x{request.height}, Model: {request.model}")
+    logger.info(f"[GENERATE IMAGE] Промпт (полный): {request.prompt}")
+    logger.info(f"[GENERATE IMAGE] Negative prompt: {request.negative_prompt}")
+    logger.info(f"[GENERATE IMAGE] Use default prompts: {request.use_default_prompts}")
+    logger.info(f"[GENERATE IMAGE] Тип модели: {type(request.model)}, Значение: {repr(request.model)}")
+    print(f"[GENERATE IMAGE] User: {current_user.email if current_user else 'Anonymous'} (ID: {current_user.id if current_user else 'N/A'})")
+    print(f"[GENERATE IMAGE] Character: {request.character}")
+    print(f"[GENERATE IMAGE] Промпт: {request.prompt}")
     # Проверяем валидность модели
     valid_models = ["anime", "anime-realism", "realism"]
     if request.model and request.model not in valid_models:
@@ -3294,7 +3535,16 @@ async def generate_image(
                         model=selected_model
                     )
                     
-                    logger.info(f"[GENERATE] ✅ Задача запущена на RunPod, job_id: {job_id}, модель: {selected_model}")
+                    print("=" * 80)
+                    print(f"[GENERATE IMAGE] ✅ ЗАДАЧА ЗАПУЩЕНА НА RUNPOD")
+                    print(f"[GENERATE IMAGE] Job ID: {job_id}, Модель: {selected_model}")
+                    print("=" * 80)
+                    logger.info("=" * 80)
+                    logger.info(f"[GENERATE IMAGE] ✅ ЗАДАЧА ЗАПУЩЕНА НА RUNPOD")
+                    logger.info(f"[GENERATE IMAGE] Job ID: {job_id}")
+                    logger.info(f"[GENERATE IMAGE] Модель: {selected_model}")
+                    logger.info(f"[GENERATE IMAGE] URL: {url_info}")
+                    logger.info("=" * 80)
                     # Seed уже залогирован в start_generation с сообщением "Generating random seed: {seed}"
                     
                     # ВАЖНО: Тратим монеты СРАЗУ при запуске задачи, а не при завершении
@@ -3397,10 +3647,19 @@ async def generate_image(
                     }
                     
                 except Exception as gen_error:
-                    logger.error(f"[GENERATE] Ошибка при запуске генерации: {str(gen_error)}")
-                    logger.error(f"[GENERATE] Тип ошибки: {type(gen_error).__name__}")
+                    print("=" * 80)
+                    print(f"[GENERATE IMAGE] ❌ ОШИБКА ПРИ ЗАПУСКЕ ГЕНЕРАЦИИ")
+                    print(f"[GENERATE IMAGE] {str(gen_error)}")
+                    print(traceback.format_exc())
+                    print("=" * 80)
+                    logger.error("=" * 80)
+                    logger.error(f"[GENERATE IMAGE] ❌ ОШИБКА ПРИ ЗАПУСКЕ ГЕНЕРАЦИИ")
+                    logger.error(f"[GENERATE IMAGE] Ошибка: {str(gen_error)}")
+                    logger.error(f"[GENERATE IMAGE] Тип ошибки: {type(gen_error).__name__}")
                     import traceback
-                    logger.error(f"[GENERATE] Трейсбек ошибки генерации: {traceback.format_exc()}")
+                    logger.error(f"[GENERATE IMAGE] Трейсбек:")
+                    logger.error(traceback.format_exc())
+                    logger.error("=" * 80)
                     raise
                 
         except Exception as e:

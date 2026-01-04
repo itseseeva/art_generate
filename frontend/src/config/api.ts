@@ -1,8 +1,8 @@
 // API конфигурация для фронтенда
-// Используем переменную окружения VITE_API_URL или VITE_DOMAIN из .env
+// Используем переменную окружения VITE_API_URL или DOMAIN из .env
 const getApiBaseUrl = (): string => {
   const viteApiUrl = import.meta.env.VITE_API_URL;
-  const viteDomain = import.meta.env.VITE_DOMAIN;
+  const domain = import.meta.env.DOMAIN || import.meta.env.VITE_DOMAIN;
   
   // В production режиме всегда используем домен или относительный путь
   if (import.meta.env.PROD) {
@@ -18,9 +18,19 @@ const getApiBaseUrl = (): string => {
       return viteApiUrl;
     }
     
-    // Если задан домен, формируем URL с https
-    if (viteDomain) {
-      return `https://${viteDomain}`;
+    // Если задан домен, проверяем формат
+    if (domain) {
+      // Если это полный URL (начинается с http:// или https://)
+      if (domain.startsWith('http://') || domain.startsWith('https://')) {
+        // Если это localhost или IP - используем как есть
+        if (domain.includes('localhost') || /^https?:\/\/(\d{1,3}\.){3}\d{1,3}/.test(domain)) {
+          return domain;
+        }
+        // Иначе добавляем /api
+        return `${domain}/api`;
+      }
+      // Если это просто домен (например, cherrylust.art), формируем URL с https и /api
+      return `https://${domain}/api`;
     }
     
     // В production по умолчанию используем относительный путь (через nginx proxy)
@@ -30,12 +40,18 @@ const getApiBaseUrl = (): string => {
   
   // В development режиме
   // Если VITE_API_URL явно задан (даже пустая строка), используем его
-  if (viteApiUrl !== undefined) {
-    // Если пустая строка - используем относительный путь
-    if (viteApiUrl === '') {
-      return '';
-    }
+  if (viteApiUrl !== undefined && viteApiUrl !== '') {
     return viteApiUrl;
+  }
+  
+  // Если задан DOMAIN, используем его
+  if (domain) {
+    // Если это полный URL (начинается с http:// или https://)
+    if (domain.startsWith('http://') || domain.startsWith('https://')) {
+      return domain;
+    }
+    // Если это просто домен, добавляем http://
+    return `http://${domain}`;
   }
   
   // В development используем localhost по умолчанию

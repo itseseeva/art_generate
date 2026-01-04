@@ -73,6 +73,41 @@ const NavButton = styled.button`
   }
 `;
 
+const FilterContainer = styled.div`
+  display: flex;
+  gap: ${theme.spacing.sm};
+  padding: ${theme.spacing.md} ${theme.spacing.sm};
+  border-bottom: 1px solid rgba(130, 130, 130, 0.3);
+  background: rgba(15, 15, 15, 0.5);
+`;
+
+const FilterButton = styled.button<{ $active?: boolean }>`
+  padding: ${theme.spacing.sm} ${theme.spacing.md};
+  border: 2px solid ${props => props.$active ? 'rgba(102, 126, 234, 0.8)' : 'rgba(70, 70, 70, 0.8)'};
+  border-radius: ${theme.borderRadius.md};
+  background: ${props => props.$active 
+    ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(76, 81, 191, 0.2) 100%)' 
+    : 'linear-gradient(135deg, rgba(10, 10, 10, 0.95) 0%, rgba(18, 18, 18, 0.98) 100%)'};
+  color: ${props => props.$active ? 'rgba(240, 240, 240, 1)' : 'rgba(160, 160, 160, 1)'};
+  font-size: ${theme.fontSize.sm};
+  font-weight: ${props => props.$active ? '600' : '500'};
+  cursor: pointer;
+  transition: all 0.3s ease;
+  
+  &:hover {
+    border-color: rgba(102, 126, 234, 0.9);
+    background: ${props => props.$active 
+      ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.3) 0%, rgba(76, 81, 191, 0.3) 100%)' 
+      : 'linear-gradient(135deg, rgba(15, 15, 15, 0.98) 0%, rgba(22, 22, 22, 1) 100%)'};
+    color: rgba(240, 240, 240, 1);
+    transform: translateY(-1px);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+`;
+
 const CharactersGrid = styled.div`
   flex: 1;
   padding: ${theme.spacing.xs} ${theme.spacing.sm};
@@ -206,6 +241,8 @@ export const MainPage: React.FC<MainPageProps> = ({
   const [cachedRawCharacters, setCachedRawCharacters] = useState<any[]>([]);
   const charactersGridRef = useRef<HTMLDivElement>(null);
   const [favoriteCharacterIds, setFavoriteCharacterIds] = useState<Set<number>>(new Set());
+  const [sortFilter, setSortFilter] = useState<'all' | 'popular'>('popular');
+  const [characterRatings, setCharacterRatings] = useState<{[key: number]: {likes: number, dislikes: number}}>({});
 
   const fetchCharactersFromApi = async (forceRefresh: boolean = false): Promise<any[]> => {
     const endpoints = [
@@ -308,6 +345,9 @@ export const MainPage: React.FC<MainPageProps> = ({
       });
 
       setCharacters(formattedCharacters);
+      
+      // Загружаем рейтинги для всех персонажей
+      await loadCharacterRatings(formattedCharacters);
     } catch (error) {
       console.error('Error loading characters:', error);
       // Не показываем моковых персонажей - показываем пустой список
@@ -316,6 +356,36 @@ export const MainPage: React.FC<MainPageProps> = ({
     } finally {
       setIsLoadingCharacters(false);
     }
+  };
+
+  // Загрузка рейтингов персонажей
+  const loadCharacterRatings = async (charactersList: Character[]) => {
+    const ratings: {[key: number]: {likes: number, dislikes: number}} = {};
+    
+    for (const char of charactersList) {
+      const characterId = typeof char.id === 'number' ? char.id : parseInt(char.id, 10);
+      if (isNaN(characterId)) continue;
+      
+      try {
+        const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.GET_CHARACTER_RATINGS(characterId)}`, {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          ratings[characterId] = {
+            likes: data.likes || 0,
+            dislikes: data.dislikes || 0
+          };
+        }
+      } catch (error) {
+        console.error(`Error loading ratings for character ${characterId}:`, error);
+      }
+    }
+    
+    setCharacterRatings(ratings);
   };
 
   // Load character photos
@@ -757,11 +827,26 @@ export const MainPage: React.FC<MainPageProps> = ({
     await checkAuth();
   };
 
-  // Объединяем персонажей с их фотографиями
-  const charactersWithPhotos = characters.map(character => ({
-    ...character,
-    photos: characterPhotos[character.name.toLowerCase()] || []
-  }));
+  // Объединяем персонажей с их фотографиями и рейтингами
+  const charactersWithPhotos = characters
+    .map(character => {
+      const characterId = typeof character.id === 'number' ? character.id : parseInt(character.id, 10);
+      const rating = !isNaN(characterId) ? characterRatings[characterId] : null;
+      
+      return {
+        ...character,
+        photos: characterPhotos[character.name.toLowerCase()] || [],
+        likes: rating ? rating.likes : character.likes || 0
+      };
+    })
+    .sort((a, b) => {
+      if (sortFilter === 'popular') {
+        // Сортируем по количеству лайков (по убыванию)
+        return (b.likes || 0) - (a.likes || 0);
+      }
+      // При фильтре 'all' оставляем исходный порядок
+      return 0;
+    });
 
   return (
     <MainContainer>

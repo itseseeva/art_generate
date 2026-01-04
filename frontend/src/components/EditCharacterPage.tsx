@@ -1267,6 +1267,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const [userInfo, setUserInfo] = useState<{username: string, coins: number, id: number, subscription?: {subscription_type?: string}} | null>(null);
   const [subscriptionStats, setSubscriptionStats] = useState<{credits_remaining: number} | null>(null);
   const [customPrompt, setCustomPrompt] = useState('');
+  const [customPromptManuallySet, setCustomPromptManuallySet] = useState(false); // Флаг, что пользователь вручную установил промпт
   const CHARACTER_EDIT_COST = 30; // Кредиты за редактирование персонажа
   const balanceUpdateInProgressRef = useRef(false); // Флаг для предотвращения перезаписи баланса
   // Безопасная инициализация characterIdentifier с fallback
@@ -1295,6 +1296,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const fakeProgressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const generationQueueRef = useRef<number>(0); // Счетчик задач в очереди
   const initialPhotosCountRef = useRef<number>(0); // Количество фото при загрузке страницы
+  const customPromptRef = useRef<string>(''); // Ref для актуального промпта
   const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime' | 'realism'>('anime-realism');
 
   const startFakeProgress = useCallback(() => {
@@ -1797,18 +1799,20 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   }, [characterIdentifier, character?.name]);
 
   // Автоматически заполняем customPrompt на основе appearance и location после загрузки данных
+  // НО только если пользователь еще не устанавливал его вручную
   useEffect(() => {
-    if (formData.appearance || formData.location) {
+    if (!customPromptManuallySet && (formData.appearance || formData.location)) {
       const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
       if (parts.length > 0) {
         const defaultPrompt = parts.join(' | ');
         // Устанавливаем только если customPrompt пустой (чтобы не перезаписывать пользовательский ввод)
         if (!customPrompt.trim()) {
           setCustomPrompt(defaultPrompt);
+          customPromptRef.current = defaultPrompt; // Обновляем ref
         }
       }
     }
-  }, [formData.appearance, formData.location]); // Зависимости только от appearance и location
+  }, [formData.appearance, formData.location, customPromptManuallySet]); // Зависимости от appearance, location и флага
 
   // Проверка авторизации (используем тот же метод, что и в ProfilePage)
   const checkAuth = async () => {
@@ -2110,7 +2114,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         personality: formData.personality.trim(),
         situation: formData.situation.trim(),
         instructions: formData.instructions.trim(),
-        style: formData.style?.trim() || null,
         appearance: formData.appearance?.trim() || null,
         location: formData.location?.trim() || null
       };
@@ -2324,15 +2327,26 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   };
 
   // Функция для генерации одного фото (вынесена из generatePhoto)
-  const generateSinglePhoto = async (): Promise<{ id: string; url: string } | null> => {
+  // КРИТИЧНО: Промпт передается как параметр, чтобы использовать актуальное значение
+  // на момент генерации, а не на момент постановки в очередь
+  const generateSinglePhoto = async (promptToUse?: string): Promise<{ id: string; url: string } | null> => {
     const token = authManager.getToken();
     if (!token) throw new Error('Необходимо войти в систему');
 
-    // Используем кастомный промпт или дефолтный из полей персонажа
-    let prompt = customPrompt.trim();
+    // КРИТИЧНО: Если промпт передан как параметр, используем его (актуальное значение)
+    // Если не передан, получаем актуальное значение из состояния
+    let prompt = promptToUse;
     if (!prompt) {
-      const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
-      prompt = parts.length > 0 ? parts.join(' | ') : '';
+      // Получаем актуальное значение из состояния
+      const trimmedCustomPrompt = customPrompt.trim();
+      if (trimmedCustomPrompt) {
+        // Пользователь ввел свой промпт - используем его
+        prompt = trimmedCustomPrompt;
+      } else {
+        // Пользователь очистил промпт - используем дефолтный из appearance и location
+        const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
+        prompt = parts.length > 0 ? parts.join(' | ') : '';
+      }
     }
     
     // Переводим промпт на английский перед отправкой
@@ -2462,6 +2476,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     }
 
     // Если уже идет генерация, добавляем в очередь
+    // КРИТИЧНО: Промпт будет получен заново при фактической генерации из актуального состояния
     if (isGeneratingPhoto) {
       generationQueueRef.current += 1;
       return;
@@ -2475,7 +2490,27 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
     const processGeneration = async () => {
       try {
-        const photo = await generateSinglePhoto();
+        // КРИТИЧНО: Получаем актуальный промпт из ref непосредственно перед генерацией
+        // Ref всегда содержит актуальное значение, даже если state еще не обновился
+        let currentPrompt = '';
+        const trimmedCustomPromptFromRef = customPromptRef.current.trim();
+        if (trimmedCustomPromptFromRef) {
+          currentPrompt = trimmedCustomPromptFromRef;
+        } else {
+          // Если ref пустой, пробуем получить из state (на случай если ref не обновился)
+          const trimmedCustomPrompt = customPrompt.trim();
+          if (trimmedCustomPrompt) {
+            currentPrompt = trimmedCustomPrompt;
+          } else {
+            const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
+            currentPrompt = parts.length > 0 ? parts.join(' | ') : '';
+          }
+        }
+        
+        console.log('[EDIT_GENERATE] Актуальный промпт из ref:', customPromptRef.current);
+        console.log('[EDIT_GENERATE] Используемый промпт для генерации:', currentPrompt);
+        
+        const photo = await generateSinglePhoto(currentPrompt);
         if (photo) {
           setGeneratedPhotos(prev => {
             // Проверяем, нет ли уже фото с таким же id
@@ -2501,6 +2536,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         setGenerationProgress(0);
         
         // Если есть задачи в очереди, запускаем следующую
+        // КРИТИЧНО: При рекурсивном вызове промпт будет получен заново из актуального состояния
         if (generationQueueRef.current > 0) {
           generationQueueRef.current -= 1;
           // Небольшая задержка перед следующей генерацией
@@ -2824,18 +2860,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                 </FormGroup>
 
                 <FormGroup>
-                  <Label htmlFor="style" data-icon="✨">Стиль ответа (необязательно):</Label>
-                  <Input
-                    type="text"
-                    id="style"
-                    name="style"
-                    value={formData.style}
-                    onChange={handleInputChange}
-                    placeholder="Например: формальный, дружелюбный, загадочный..."
-                  />
-                </FormGroup>
-                
-                <FormGroup>
                   <Label htmlFor="appearance" data-icon="🎨">Внешность (для фото):</Label>
                   <Textarea
                     id="appearance"
@@ -3029,7 +3053,13 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                     <LargeTextInput
                       id="photo-prompt-unified"
                       value={customPrompt}
-                      onChange={(e) => setCustomPrompt(e.target.value)}
+                      onChange={(e) => {
+                        const newValue = e.target.value;
+                        setCustomPrompt(newValue);
+                        customPromptRef.current = newValue; // Обновляем ref для актуального значения
+                        // Помечаем, что пользователь вручную изменил промпт
+                        setCustomPromptManuallySet(true);
+                      }}
                       placeholder={(() => {
                         const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
                         return parts.length > 0 ? parts.join(' | ') : '';
