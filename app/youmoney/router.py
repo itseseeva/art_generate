@@ -177,3 +177,14 @@ async def youmoney_quickpay_notify(request: Request):
 			raise
 
 
+@router.get("/callback")
+async def youmoney_callback():
+	"""
+	Redirect URI для YooMoney QuickPay.
+	Пользователь перенаправляется сюда после успешной оплаты.
+	"""
+	from fastapi.responses import RedirectResponse
+	# Редиректим на главную страницу с параметром успешной оплаты
+	return RedirectResponse(url="/?payment=success", status_code=302)
+
+

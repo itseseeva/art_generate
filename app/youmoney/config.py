@@ -32,7 +32,7 @@ def get_youm_config() -> YouMoneyConfig:
 			return float(value)
 		except Exception:
 			return default
-	min_standard = _to_float(os.getenv("YOUMONEY_MIN_STANDARD"), 599.0)
+	min_standard = _to_float(os.getenv("YOUMONEY_MIN_STANDARD"), 11.0)
 	min_premium = _to_float(os.getenv("YOUMONEY_MIN_PREMIUM"), 1399.0)
 
 	return {

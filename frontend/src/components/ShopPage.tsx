@@ -705,7 +705,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
 
     try {
       const receiverWallet = '4100119070489003';
-      const amount = subscriptionType === 'premium' ? 11 : 599;
+      const amount = subscriptionType === 'premium' ? 11 : 11;
       const label = `plan:${subscriptionType};uid:${currentUserId}`;
       // Используем относительный URL для возврата на страницу магазина
       const successURL = `${window.location.origin}/shop`;
@@ -783,7 +783,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             
             <PlanCard $isPopular>
               <PlanName>Standard</PlanName>
-              <PlanPrice>599₽</PlanPrice>
+              <PlanPrice>11₽</PlanPrice>
               <PlanFeatures>
                 <PlanFeature>1500 кредитов в месяц</PlanFeature>
                 <PlanFeature>Возможность создать своих персонажей</PlanFeature>
