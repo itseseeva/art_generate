@@ -207,10 +207,18 @@ class ProfitActivateService:
         if cached_data is not None:
             cached_id = cached_data.get("id")
             if cached_id is None:
+                logger.debug(f"[GET_SUBSCRIPTION] Кэш для user_id={user_id} указывает на отсутствие подписки (id=None)")
                 return None
             subscription = await self.db.get(UserSubscription, cached_id)
             if subscription:
-                return subscription
+                # КРИТИЧНО: Проверяем, что подписка действительно принадлежит этому пользователю
+                if subscription.user_id != user_id:
+                    logger.error(f"[GET_SUBSCRIPTION] ОШИБКА КЭША: Подписка из кэша принадлежит другому пользователю! cached_id={cached_id}, subscription.user_id={subscription.user_id}, запрашиваемый user_id={user_id}")
+                    # Инвалидируем кэш и загружаем из БД
+                    await cache_delete(cache_key)
+                else:
+                    logger.debug(f"[GET_SUBSCRIPTION] Подписка загружена из кэша для user_id={user_id}, subscription_type={subscription.subscription_type.value}")
+                    return subscription
         
         # Если нет в кэше, загружаем из БД
         # Используем order_by для получения самой последней подписки, если их несколько
@@ -218,10 +226,11 @@ class ProfitActivateService:
         result = await self.db.execute(query)
         subscription = result.scalars().first()
         
-        # Сохраняем в кэш
         if subscription:
+            logger.info(f"[GET_SUBSCRIPTION] Подписка загружена из БД для user_id={user_id}, subscription_type={subscription.subscription_type.value}, is_active={subscription.is_active}, subscription_id={subscription.id}")
             await cache_set(cache_key, subscription.to_dict(), ttl_seconds=TTL_SUBSCRIPTION)
         else:
+            logger.info(f"[GET_SUBSCRIPTION] Подписка не найдена в БД для user_id={user_id}")
             await cache_set(cache_key, {"id": None}, ttl_seconds=TTL_SUBSCRIPTION)
         
         return subscription
@@ -511,15 +520,25 @@ class ProfitActivateService:
         cached_stats = await cache_get(cache_key)
         if cached_stats is not None:
             # Логируем для отладки
-            logger.debug(f"[STATS] Кэш найден для user_id={user_id}, subscription_type={cached_stats.get('subscription_type')}")
-            return cached_stats
+            cached_type = cached_stats.get('subscription_type')
+            cached_active = cached_stats.get('is_active')
+            logger.info(f"[STATS] Кэш найден для user_id={user_id}, subscription_type={cached_type}, is_active={cached_active}")
+            # ВАЖНО: Если в кэше PREMIUM для пользователя без подписки - принудительно инвалидируем кэш
+            # КРИТИЧНО: Инвалидируем ОБА кэша (subscription_stats и subscription)
+            if cached_type == "premium" and cached_active:
+                logger.warning(f"[STATS] ВНИМАНИЕ: В кэше PREMIUM для user_id={user_id}, проверяем БД...")
+                await cache_delete(cache_key)
+                await cache_delete(key_subscription(user_id))
+                # Продолжаем загрузку из БД ниже
+            else:
+                return cached_stats
         
         # Если нет в кэше, загружаем из БД
         subscription = await self.get_user_subscription(user_id)
         
         if not subscription:
             # Если подписки нет, возвращаем значения по умолчанию для FREE подписки
-            logger.debug(f"[STATS] Подписка не найдена для user_id={user_id}, возвращаем FREE по умолчанию")
+            logger.info(f"[STATS] Подписка не найдена для user_id={user_id}, возвращаем FREE по умолчанию")
             default_stats = {
                 "subscription_type": "free",
                 "status": "inactive",
@@ -539,7 +558,28 @@ class ProfitActivateService:
             return default_stats
         
         # Логируем найденную подписку
-        logger.debug(f"[STATS] Подписка найдена для user_id={user_id}, subscription_type={subscription.subscription_type.value}, is_active={subscription.is_active}")
+        sub_type = subscription.subscription_type.value
+        sub_active = subscription.is_active
+        logger.info(f"[STATS] Подписка найдена для user_id={user_id}, subscription_type={sub_type}, is_active={sub_active}, status={subscription.status.value}")
+        
+        # КРИТИЧНО: Проверяем, что подписка действительно существует в БД
+        if not subscription.id:
+            logger.error(f"[STATS] ОШИБКА: Подписка без ID для user_id={user_id}!")
+            return {
+                "subscription_type": "free",
+                "status": "inactive",
+                "monthly_credits": 0,
+                "monthly_photos": 0,
+                "max_message_length": 0,
+                "used_credits": 0,
+                "used_photos": 0,
+                "credits_remaining": 0,
+                "photos_remaining": 0,
+                "days_left": 0,
+                "is_active": False,
+                "expires_at": None,
+                "last_reset_at": None
+            }
         
         # Проверяем, нужно ли сбросить месячные лимиты
         if subscription.should_reset_limits():
