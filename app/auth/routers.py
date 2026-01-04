@@ -4,7 +4,7 @@
 
 from datetime import datetime, timedelta, timezone
 from typing import List
-from fastapi import APIRouter, HTTPException, Request, Depends, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Request, Depends, UploadFile, File
 from sqlalchemy import select, update, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 import traceback
@@ -38,6 +38,7 @@ from app.auth.rate_limiter import get_rate_limiter, RateLimiter
 from app.auth.dependencies import get_current_user
 from app.services.subscription_service import SubscriptionService
 from app.services.profit_activate import emit_profile_update
+from app.tasks.email_tasks import send_email_task
 import jwt
 import time
 import logging
@@ -81,11 +82,7 @@ async def activate_free_subscription(user_id: int, db: AsyncSession) -> None:
 
 
 @auth_router.post("/auth/register/", response_model=Message)
-async def create_user(
-    user: UserCreate, 
-    db: AsyncSession = Depends(get_db),
-    background_tasks: BackgroundTasks = BackgroundTasks()
-):
+async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
     """
     Начинает регистрацию нового пользователя. Сохраняет данные во временное хранилище
     и отправляет код верификации на email. Пользователь будет создан только после
@@ -162,12 +159,17 @@ async def create_user(
     cache_key = key_registration_data(user.email)
     await cache_set_json(cache_key, registration_data, ttl_seconds=3600)
     
-    # Send verification email в фоне (не блокируем ответ)
+    # Send verification email через Celery (не блокируем ответ)
     # Код уже сохранён в Redis, поэтому пользователь может ввести код
     # даже если email ещё не отправился
-    background_tasks.add_task(send_verification_email, user.email, verification_code)
-    
-    print(f"Verification code queued for {user.email} (new code generated)")
+    # Celery автоматически перезапустит задачу при ошибках (до 3 попыток)
+    try:
+        send_email_task.delay(user.email, verification_code)
+        print(f"Verification email task queued for {user.email} (new code generated)")
+    except Exception as e:
+        # Если Celery недоступен, логируем ошибку, но не блокируем регистрацию
+        logger.warning(f"Failed to queue email task for {user.email}: {e}")
+        print(f"Warning: Email task not queued for {user.email}, but code is saved in Redis")
     
     return Message(message="Verification code sent to email")
 
