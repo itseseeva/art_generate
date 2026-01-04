@@ -3,9 +3,9 @@ from datetime import datetime
 from urllib.parse import urlparse
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, text
+from sqlalchemy import select, delete, text, func
 from app.chat_bot.schemas.chat import CharacterCreate, CharacterUpdate, CharacterInDB, UserCharacterCreate, CharacterWithCreator, CreatorInfo
-from app.chat_bot.models.models import CharacterMainPhoto, FavoriteCharacter, CharacterDB
+from app.chat_bot.models.models import CharacterMainPhoto, FavoriteCharacter, CharacterDB, CharacterRating
 from app.chat_bot.utils.character_importer import character_importer
 from app.database.db_depends import get_db
 from app.auth.dependencies import get_current_user, get_current_user_optional
@@ -369,6 +369,170 @@ async def create_character(character: CharacterCreate, db: AsyncSession = Depend
         raise HTTPException(status_code=400, detail=str(e))
 
 
+# Роуты для рейтингов (лайки/дизлайки) - должны быть ПЕРЕД общими роутами с {character_name}
+# Используем более специфичный путь, чтобы избежать конфликта с /{character_name}
+@router.post("/character-ratings/{character_id}/like")
+async def like_character(
+    character_id: int,
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Ставит лайк персонажу."""
+    try:
+        # Проверяем, существует ли персонаж
+        result = await db.execute(select(CharacterDB).where(CharacterDB.id == character_id))
+        character = result.scalar_one_or_none()
+        if not character:
+            raise HTTPException(status_code=404, detail="Character not found")
+        
+        # Проверяем, есть ли уже рейтинг от этого пользователя
+        existing_result = await db.execute(
+            select(CharacterRating).where(
+                CharacterRating.user_id == current_user.id,
+                CharacterRating.character_id == character_id
+            )
+        )
+        existing = existing_result.scalar_one_or_none()
+        
+        if existing:
+            # Если уже есть лайк, удаляем его
+            if existing.is_like:
+                await db.delete(existing)
+                await db.commit()
+                return {"success": True, "message": "Like removed", "user_rating": None}
+            else:
+                # Если есть дизлайк, меняем на лайк
+                existing.is_like = True
+                existing.updated_at = datetime.utcnow()
+                await db.commit()
+                return {"success": True, "message": "Changed from dislike to like", "user_rating": "like"}
+        else:
+            # Создаем новый лайк
+            rating = CharacterRating(
+                user_id=current_user.id,
+                character_id=character_id,
+                is_like=True
+            )
+            db.add(rating)
+            await db.commit()
+            return {"success": True, "message": "Character liked", "user_rating": "like"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error liking character: {e}")
+        raise HTTPException(status_code=500, detail=f"Error liking character: {str(e)}")
+
+
+@router.post("/character-ratings/{character_id}/dislike")
+async def dislike_character(
+    character_id: int,
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Ставит дизлайк персонажу."""
+    try:
+        # Проверяем, существует ли персонаж
+        result = await db.execute(select(CharacterDB).where(CharacterDB.id == character_id))
+        character = result.scalar_one_or_none()
+        if not character:
+            raise HTTPException(status_code=404, detail="Character not found")
+        
+        # Проверяем, есть ли уже рейтинг от этого пользователя
+        existing_result = await db.execute(
+            select(CharacterRating).where(
+                CharacterRating.user_id == current_user.id,
+                CharacterRating.character_id == character_id
+            )
+        )
+        existing = existing_result.scalar_one_or_none()
+        
+        if existing:
+            # Если уже есть дизлайк, удаляем его
+            if not existing.is_like:
+                await db.delete(existing)
+                await db.commit()
+                return {"success": True, "message": "Dislike removed", "user_rating": None}
+            else:
+                # Если есть лайк, меняем на дизлайк
+                existing.is_like = False
+                existing.updated_at = datetime.utcnow()
+                await db.commit()
+                return {"success": True, "message": "Changed from like to dislike", "user_rating": "dislike"}
+        else:
+            # Создаем новый дизлайк
+            rating = CharacterRating(
+                user_id=current_user.id,
+                character_id=character_id,
+                is_like=False
+            )
+            db.add(rating)
+            await db.commit()
+            return {"success": True, "message": "Character disliked", "user_rating": "dislike"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error disliking character: {e}")
+        raise HTTPException(status_code=500, detail=f"Error disliking character: {str(e)}")
+
+
+@router.get("/character-ratings/{character_id}")
+async def get_character_ratings(
+    character_id: int,
+    current_user: Users = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db)
+):
+    """Получает количество лайков и дизлайков персонажа, а также статус текущего пользователя."""
+    try:
+        # Проверяем, существует ли персонаж
+        result = await db.execute(select(CharacterDB).where(CharacterDB.id == character_id))
+        character = result.scalar_one_or_none()
+        if not character:
+            raise HTTPException(status_code=404, detail="Character not found")
+        
+        # Подсчитываем лайки и дизлайки
+        from sqlalchemy import func
+        likes_result = await db.execute(
+            select(func.count(CharacterRating.id)).where(
+                CharacterRating.character_id == character_id,
+                CharacterRating.is_like == True
+            )
+        )
+        likes_count = likes_result.scalar() or 0
+        
+        dislikes_result = await db.execute(
+            select(func.count(CharacterRating.id)).where(
+                CharacterRating.character_id == character_id,
+                CharacterRating.is_like == False
+            )
+        )
+        dislikes_count = dislikes_result.scalar() or 0
+        
+        # Проверяем статус текущего пользователя
+        user_rating = None
+        if current_user:
+            user_rating_result = await db.execute(
+                select(CharacterRating).where(
+                    CharacterRating.user_id == current_user.id,
+                    CharacterRating.character_id == character_id
+                )
+            )
+            user_rating = user_rating_result.scalar_one_or_none()
+        
+        return {
+            "character_id": character_id,
+            "likes": likes_count,
+            "dislikes": dislikes_count,
+            "user_rating": "like" if (user_rating and user_rating.is_like) else ("dislike" if (user_rating and not user_rating.is_like) else None)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting character ratings: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting character ratings: {str(e)}")
+
+
 @router.get("/", response_model=List[CharacterInDB])
 async def read_characters(
     skip: int = 0, 
@@ -604,6 +768,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         await db.rollback()
         logger.error(f"Error creating character: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error creating character: {str(e)}")
+
 
 @router.get("/{character_name}", response_model=CharacterInDB)
 async def read_character(character_name: str, db: AsyncSession = Depends(get_db)):

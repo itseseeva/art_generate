@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import ElectricBorder from './ElectricBorder';
-import { FiHeart, FiX as CloseIcon, FiTrash2 } from 'react-icons/fi';
+import { FiHeart, FiX as CloseIcon, FiTrash2, FiThumbsUp, FiThumbsDown } from 'react-icons/fi';
 import { authManager } from '../utils/auth';
 import { API_CONFIG } from '../config/api';
 import { fetchPromptByImage } from '../utils/prompt';
@@ -20,7 +20,9 @@ const CardContainer = styled.div`
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  height: 300px; /* Фиксированная высота карточки */
+  height: 300px; /* Фиксированная высота карточки как на главной */
+  width: 100%;
+  min-width: 200px;
   
   &:hover {
     transform: translateY(-2px);
@@ -497,6 +499,62 @@ const StatItem = styled.div`
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 `;
 
+const CardWrapper = styled.div`
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  width: 100%;
+`;
+
+const RatingButton = styled.button<{ $isActive?: boolean; $isLike?: boolean }>`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1.5px solid ${props => props.$isActive ? (props.$isLike ? 'rgba(255, 193, 7, 0.8)' : 'rgba(244, 67, 54, 0.8)') : 'rgba(255, 255, 255, 0.2)'};
+  border-radius: ${theme.borderRadius.sm};
+  padding: 4px 8px;
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  transition: all ${theme.transition.fast};
+  z-index: 1000;
+  pointer-events: auto;
+  min-width: 35px;
+  flex-shrink: 0;
+  position: relative;
+  
+  &:hover {
+    background: rgba(0, 0, 0, 0.8);
+    border-color: ${props => props.$isLike ? 'rgba(255, 193, 7, 1)' : 'rgba(244, 67, 54, 1)'};
+    transform: scale(1.05);
+  }
+  
+  &:active {
+    transform: scale(0.95);
+  }
+  
+  svg {
+    width: 16px;
+    height: 16px;
+    color: ${props => props.$isActive ? (props.$isLike ? 'rgba(255, 193, 7, 1)' : 'rgba(244, 67, 54, 1)') : 'rgba(255, 255, 255, 0.9)'};
+    fill: ${props => props.$isActive ? (props.$isLike ? 'rgba(255, 193, 7, 1)' : 'rgba(244, 67, 54, 1)') : 'none'};
+    stroke: ${props => props.$isActive ? (props.$isLike ? 'rgba(255, 193, 7, 1)' : 'rgba(244, 67, 54, 1)') : 'rgba(255, 255, 255, 0.9)'};
+    stroke-width: 2;
+    transition: all ${theme.transition.fast};
+  }
+`;
+
+const RatingCount = styled.span`
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  line-height: 1;
+`;
+
 const ShowPromptButton = styled.button`
   position: absolute;
   bottom: ${theme.spacing.md};
@@ -703,6 +761,7 @@ interface CharacterCardProps {
   onFavoriteToggle?: () => void; // Callback при изменении статуса избранного
   userInfo?: { is_admin?: boolean } | null; // Информация о пользователе для проверки прав админа
   onNsfwToggle?: () => void; // Callback при изменении статуса NSFW (для обновления списка)
+  showRatings?: boolean; // Показывать кнопки лайка/дизлайка (только в чате)
 }
 
 // Компонент слайд-шоу
@@ -769,7 +828,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   isFavorite: isFavoriteProp = false, // Проп для установки начального состояния избранного
   onFavoriteToggle, // Callback при изменении статуса избранного
   userInfo = null, // Информация о пользователе
-  onNsfwToggle // Callback при изменении статуса NSFW
+  onNsfwToggle, // Callback при изменении статуса NSFW
+  showRatings = false // По умолчанию не показываем кнопки лайка/дизлайка
 }) => {
   // КРИТИЧЕСКИ ВАЖНО: если isFavoriteProp не передан, начинаем с false
   // Это нужно для главной страницы, где проверка выполняется через API
@@ -806,6 +866,9 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   const [personality, setPersonality] = useState<string | null>(null);
   const [isLoadingPersonality, setIsLoadingPersonality] = useState(false);
   const [personalityError, setPersonalityError] = useState<string | null>(null);
+  const [likesCount, setLikesCount] = useState<number>(0);
+  const [dislikesCount, setDislikesCount] = useState<number>(0);
+  const [userRating, setUserRating] = useState<'like' | 'dislike' | null>(null);
 
   // Загружаем состояние избранного из API при монтировании
   // КРИТИЧЕСКИ ВАЖНО: проверяем избранное только если isFavoriteProp не передан
@@ -1062,6 +1125,218 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     return num.toString();
   };
 
+  // Функция для загрузки рейтингов персонажа
+  const loadRatings = async () => {
+    try {
+      // Преобразуем character.id в number
+      let characterId: number;
+      if (typeof character.id === 'number') {
+        characterId = character.id;
+      } else if (typeof character.id === 'string') {
+        characterId = parseInt(character.id, 10);
+        if (isNaN(characterId)) {
+          console.error('Invalid character ID:', character.id);
+          return;
+        }
+      } else {
+        console.error('Invalid character ID type:', character.id);
+        return;
+      }
+
+      // Используем fetchWithAuth, который работает и для неавторизованных пользователей
+      const response = await authManager.fetchWithAuth(API_CONFIG.GET_CHARACTER_RATINGS(characterId));
+      if (response.ok) {
+        const data = await response.json();
+        setLikesCount(data.likes || 0);
+        setDislikesCount(data.dislikes || 0);
+        setUserRating(data.user_rating || null);
+      }
+    } catch (error) {
+      console.error('Error loading ratings:', error);
+    }
+  };
+
+  // Функция для постановки лайка
+  const handleLike = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    const token = authManager.getToken();
+    if (!token) {
+      return;
+    }
+
+    try {
+      // Преобразуем character.id в number
+      let characterId: number;
+      if (typeof character.id === 'number') {
+        characterId = character.id;
+      } else if (typeof character.id === 'string') {
+        characterId = parseInt(character.id, 10);
+        if (isNaN(characterId)) {
+          console.error('Invalid character ID:', character.id);
+          return;
+        }
+      } else {
+        console.error('Invalid character ID type:', character.id);
+        return;
+      }
+
+      // Оптимистичное обновление UI
+      const wasDisliked = userRating === 'dislike';
+      const wasLiked = userRating === 'like';
+      
+      if (wasLiked) {
+        // Если уже был лайк, убираем его
+        setLikesCount(prev => Math.max(0, prev - 1));
+        setUserRating(null);
+      } else if (wasDisliked) {
+        // Если был дизлайк, убираем его и добавляем лайк
+        setDislikesCount(prev => Math.max(0, prev - 1));
+        setLikesCount(prev => prev + 1);
+        setUserRating('like');
+      } else {
+        // Если не было лайка, добавляем его
+        setLikesCount(prev => prev + 1);
+        setUserRating('like');
+      }
+
+      const response = await authManager.fetchWithAuth(
+        API_CONFIG.LIKE_CHARACTER(characterId),
+        { method: 'POST' }
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Обновляем рейтинги после успешного лайка для синхронизации с сервером
+        await loadRatings();
+      } else {
+        // Откатываем изменения при ошибке
+        if (wasLiked) {
+          setLikesCount(prev => prev + 1);
+          setUserRating('like');
+        } else if (wasDisliked) {
+          setDislikesCount(prev => prev + 1);
+          setLikesCount(prev => Math.max(0, prev - 1));
+          setUserRating('dislike');
+        } else {
+          setLikesCount(prev => Math.max(0, prev - 1));
+          setUserRating(null);
+        }
+      }
+    } catch (error) {
+      console.error('Error liking character:', error);
+      // Откатываем изменения при ошибке
+      const wasDisliked = userRating === 'dislike';
+      const wasLiked = userRating === 'like';
+      if (wasLiked) {
+        setLikesCount(prev => prev + 1);
+        setUserRating('like');
+      } else if (wasDisliked) {
+        setDislikesCount(prev => prev + 1);
+        setLikesCount(prev => Math.max(0, prev - 1));
+        setUserRating('dislike');
+      } else {
+        setLikesCount(prev => Math.max(0, prev - 1));
+        setUserRating(null);
+      }
+    }
+  };
+
+  // Функция для постановки дизлайка
+  const handleDislike = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    const token = authManager.getToken();
+    if (!token) {
+      return;
+    }
+
+    try {
+      // Преобразуем character.id в number
+      let characterId: number;
+      if (typeof character.id === 'number') {
+        characterId = character.id;
+      } else if (typeof character.id === 'string') {
+        characterId = parseInt(character.id, 10);
+        if (isNaN(characterId)) {
+          console.error('Invalid character ID:', character.id);
+          return;
+        }
+      } else {
+        console.error('Invalid character ID type:', character.id);
+        return;
+      }
+
+      // Оптимистичное обновление UI
+      const wasLiked = userRating === 'like';
+      const wasDisliked = userRating === 'dislike';
+      
+      if (wasDisliked) {
+        // Если уже был дизлайк, убираем его
+        setDislikesCount(prev => Math.max(0, prev - 1));
+        setUserRating(null);
+      } else if (wasLiked) {
+        // Если был лайк, убираем его и добавляем дизлайк
+        setLikesCount(prev => Math.max(0, prev - 1));
+        setDislikesCount(prev => prev + 1);
+        setUserRating('dislike');
+      } else {
+        // Если не было дизлайка, добавляем его
+        setDislikesCount(prev => prev + 1);
+        setUserRating('dislike');
+      }
+
+      const response = await authManager.fetchWithAuth(
+        API_CONFIG.DISLIKE_CHARACTER(characterId),
+        { method: 'POST' }
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Обновляем рейтинги после успешного дизлайка для синхронизации с сервером
+        await loadRatings();
+      } else {
+        // Откатываем изменения при ошибке
+        if (wasDisliked) {
+          setDislikesCount(prev => prev + 1);
+          setUserRating('dislike');
+        } else if (wasLiked) {
+          setLikesCount(prev => prev + 1);
+          setDislikesCount(prev => Math.max(0, prev - 1));
+          setUserRating('like');
+        } else {
+          setDislikesCount(prev => Math.max(0, prev - 1));
+          setUserRating(null);
+        }
+      }
+    } catch (error) {
+      console.error('Error disliking character:', error);
+      // Откатываем изменения при ошибке
+      const wasLiked = userRating === 'like';
+      const wasDisliked = userRating === 'dislike';
+      if (wasDisliked) {
+        setDislikesCount(prev => prev + 1);
+        setUserRating('dislike');
+      } else if (wasLiked) {
+        setLikesCount(prev => prev + 1);
+        setDislikesCount(prev => Math.max(0, prev - 1));
+        setUserRating('like');
+      } else {
+        setDislikesCount(prev => Math.max(0, prev - 1));
+        setUserRating(null);
+      }
+    }
+  };
+
+  // Загружаем рейтинги при монтировании компонента только если showRatings=true
+  useEffect(() => {
+    if (showRatings) {
+      loadRatings();
+    }
+  }, [character.id, showRatings]);
+
   const handleOpenPhoto = async (e: React.MouseEvent, imageUrl: string) => {
     e.stopPropagation();
     setSelectedPhoto(imageUrl);
@@ -1141,13 +1416,24 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
   return (
     <>
-    <ElectricBorder
-      color="#555555"
-      speed={1}
-      chaos={0.3}
-      thickness={2}
-      style={{ borderRadius: 16 }}
-    >
+    <CardWrapper>
+      {showRatings && (
+        <RatingButton
+          $isActive={userRating === 'like'}
+          $isLike={true}
+          onClick={handleLike}
+        >
+          <FiThumbsUp />
+          <RatingCount>{likesCount}</RatingCount>
+        </RatingButton>
+      )}
+      <ElectricBorder
+        color="#555555"
+        speed={1}
+        chaos={0.3}
+        thickness={2}
+        style={{ borderRadius: 16, flex: '0 0 auto' }}
+      >
         <CardContainer>
           <SlideShow 
             photos={character.photos || []} 
@@ -1268,9 +1554,27 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
               pointerEvents: 'auto',
               cursor: 'pointer'
             }}
+            onMouseDown={(e) => {
+              // Не блокируем клики на кнопки рейтинга
+              const target = e.target as HTMLElement;
+              if (target.closest('button[class*="RatingButton"]') || target.closest('[class*="RatingButton"]')) {
+                e.stopPropagation();
+              }
+            }}
           />
       </CardContainer>
     </ElectricBorder>
+      {showRatings && (
+        <RatingButton
+          $isActive={userRating === 'dislike'}
+          $isLike={false}
+          onClick={handleDislike}
+        >
+          <FiThumbsDown />
+          <RatingCount>{dislikesCount}</RatingCount>
+        </RatingButton>
+      )}
+    </CardWrapper>
       {modalContent && createPortal(modalContent, document.body)}
       {isPersonalityModalOpen && createPortal(
         <PersonalityModal onClick={(e) => {

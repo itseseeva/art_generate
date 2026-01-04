@@ -29,7 +29,7 @@ try:
     from app.chat_bot.models.models import (
         CharacterDB, ChatMessageDB, FavoriteCharacter,
         PaidAlbumPhoto, CharacterMainPhoto, TipMessage,
-        PaidAlbumUnlock, ChatSession
+        PaidAlbumUnlock, ChatSession, CharacterRating
     )
     from app.models.user import Users, RefreshToken, EmailVerificationCode
     from app.models.subscription import UserSubscription

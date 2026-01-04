@@ -178,3 +178,20 @@ class TipMessage(Base):
     sender = relationship("Users", foreign_keys=[sender_id])
     receiver = relationship("Users", foreign_keys=[receiver_id])
     character = relationship("CharacterDB")
+
+
+class CharacterRating(Base):
+    """Лайки и дизлайки персонажей от пользователей."""
+    __tablename__ = "character_ratings"
+    __table_args__ = (
+        UniqueConstraint("user_id", "character_id", name="uq_character_rating_user_character"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    character_id = Column(Integer, ForeignKey("characters.id", ondelete="CASCADE"), nullable=False, index=True)
+    is_like = Column(Boolean, nullable=False)  # True для лайка, False для дизлайка
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    character = relationship("CharacterDB")

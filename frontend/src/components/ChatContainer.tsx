@@ -3606,6 +3606,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   onClick={() => {}}
                   isAuthenticated={isAuthenticated}
                   isFavorite={isCharacterFavorite}
+                  showRatings={true}
                   onFavoriteToggle={async () => {
                     // Обновляем состояние избранного после переключения, загружая актуальное состояние с сервера
                     if (currentCharacter?.id) {

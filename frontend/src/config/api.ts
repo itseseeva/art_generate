@@ -76,6 +76,9 @@ export const API_CONFIG = {
   ADD_FAVORITE: (characterId: number) => `/api/v1/characters/favorites/${characterId}`,
   REMOVE_FAVORITE: (characterId: number) => `/api/v1/characters/favorites/${characterId}`,
   CHECK_FAVORITE: (characterId: number) => `/api/v1/characters/favorites/check/${characterId}`,
+  LIKE_CHARACTER: (characterId: number) => `/api/v1/characters/character-ratings/${characterId}/like`,
+  DISLIKE_CHARACTER: (characterId: number) => `/api/v1/characters/character-ratings/${characterId}/dislike`,
+  GET_CHARACTER_RATINGS: (characterId: number) => `/api/v1/characters/character-ratings/${characterId}`,
   
   // Генерация изображений
   GENERATE_IMAGE: '/api/v1/generate-image/',

@@ -155,7 +155,7 @@ const ToggleArrowButton = styled.button<{ $isCollapsed?: boolean }>`
   outline: none;
   z-index: 20;
   position: fixed;
-  left: ${props => props.$isCollapsed ? '-8px' : '30px'};
+  left: ${props => props.$isCollapsed ? '-8px' : '70px'};
   transform: ${props => props.$isCollapsed ? 'translateY(-50%) rotate(0deg)' : 'translateY(-50%) rotate(180deg)'};
 
   &:hover {
