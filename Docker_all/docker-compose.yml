@@ -97,6 +97,39 @@ services:
       - /etc/letsencrypt:/etc/letsencrypt:ro # Монтируем сертификаты Let's Encrypt
     env_file: .env
 
+  art_generation_celery:
+    build:
+      context: ..
+      dockerfile: Dockerfile.celery
+    container_name: art_generation_celery
+    restart: always
+    networks:
+      - art_net
+    depends_on:
+      art_generation_redis:
+        condition: service_healthy
+      art_generation_postgres:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ../app:/app/app
+      - ../alembic:/app/alembic
+      - ../alembic.ini:/app/alembic.ini
+    command: >
+      celery -A app.celery_app worker
+      --loglevel=info
+      --concurrency=2
+      --queues=high_priority,normal_priority,low_priority
+      --max-tasks-per-child=50
+      --time-limit=600
+      --soft-time-limit=540
+
 volumes:
   pgdata:
   nginx_cache:
