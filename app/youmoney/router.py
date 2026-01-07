@@ -43,6 +43,14 @@ async def youmoney_quickpay_notify(request: Request):
 	logging.info("[YOUMONEY NOTIFY] Количество полей в форме: %d", len(form_dict))
 	logging.info("[YOUMONEY NOTIFY] Ключи формы: %s", list(form_dict.keys()))
 	
+	# Проверяем, является ли это тестовым уведомлением
+	is_test_notification = form_dict.get("test_notification", "").lower() == "true"
+	if is_test_notification:
+		logging.info("[YOUMONEY NOTIFY] ⚠️ Это ТЕСТОВОЕ уведомление от YooMoney")
+		logging.info("[YOUMONEY NOTIFY] Тестовые уведомления не содержат реальных данных о платеже")
+		logging.info("[YOUMONEY NOTIFY] Возвращаем успешный ответ для проверки подключения")
+		return {"ok": True, "test": True, "message": "Test notification received successfully"}
+	
 	# Извлекаем данные точно в том виде, как пришли от YooMoney
 	# ВАЖНО: не преобразуем типы до проверки хеша!
 	data = {}
