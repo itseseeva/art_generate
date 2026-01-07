@@ -40,6 +40,8 @@ async def youmoney_quickpay_notify(request: Request):
 	form = await request.form()
 	form_dict = dict(form)
 	logging.info("[YOUMONEY NOTIFY] Полная форма (все поля): %s", {k: v for k, v in form_dict.items()})
+	logging.info("[YOUMONEY NOTIFY] Количество полей в форме: %d", len(form_dict))
+	logging.info("[YOUMONEY NOTIFY] Ключи формы: %s", list(form_dict.keys()))
 	
 	# Извлекаем данные точно в том виде, как пришли от YooMoney
 	# ВАЖНО: не преобразуем типы до проверки хеша!
@@ -313,7 +315,12 @@ async def youmoney_quickpay_notify(request: Request):
 					raise HTTPException(status_code=400, detail=f"Unsupported plan: {plan}")
 				
 				logging.info("[YOUMONEY NOTIFY] План валиден, вызываем service.activate_subscription...")
+				logging.info("[YOUMONEY NOTIFY] Параметры активации: user_id=%s, plan=%s, amount=%s", user_id, plan, amount_val)
+				
 				try:
+					# ВАЖНО: activate_subscription делает commit внутри себя
+					# Но мы должны пометить транзакцию как обработанную ПОСЛЕ успешной активации
+					logging.info("[YOUMONEY NOTIFY] Вызов service.activate_subscription(user_id=%s, plan=%s)...", user_id, plan)
 					sub = await service.activate_subscription(user_id, plan)
 					logging.info("[YOUMONEY NOTIFY] ✅ Подписка активирована: user_id=%s plan=%s subscription_id=%s", 
 						user_id, plan, sub.id if sub else None)
@@ -325,21 +332,40 @@ async def youmoney_quickpay_notify(request: Request):
 							sub.subscription_type.value if hasattr(sub, 'subscription_type') else 'N/A',
 							sub.is_active if hasattr(sub, 'is_active') else 'N/A',
 							sub.expires_at if hasattr(sub, 'expires_at') else 'N/A')
-				except Exception as e:
-					logging.error("[YOUMONEY NOTIFY] ❌ Ошибка активации подписки: %s", e, exc_info=True)
-					raise
-
-				# Помечаем транзакцию как обработанную
-				try:
+					
+					# После успешной активации помечаем транзакцию как обработанную
+					# ВАЖНО: activate_subscription уже сделал commit, поэтому мы работаем в новой транзакции
+					# Нужно обновить транзакцию и закоммитить отдельно
+					logging.info("[YOUMONEY NOTIFY] Помечаем транзакцию как обработанную...")
+					logging.info("[YOUMONEY NOTIFY] Состояние транзакции ДО обновления: processed=%s, operation_id=%s", 
+						transaction.processed, transaction.operation_id)
+					
 					transaction.processed = True
 					transaction.processed_at = datetime.utcnow()
+					
+					logging.info("[YOUMONEY NOTIFY] Состояние транзакции ПОСЛЕ обновления: processed=%s, operation_id=%s", 
+						transaction.processed, transaction.operation_id)
+					
 					await db.commit()
 					logging.info("[YOUMONEY NOTIFY] ✅ Транзакция помечена как обработанная: operation_id=%s", data["operation_id"])
 					logging.info("[YOUMONEY NOTIFY] ✅ Сессия БД закоммичена успешно")
+					
+					# Проверяем финальное состояние транзакции
+					await db.refresh(transaction)
+					logging.info("[YOUMONEY NOTIFY] Финальное состояние транзакции: processed=%s, processed_at=%s", 
+						transaction.processed, transaction.processed_at)
+					
 				except Exception as e:
-					logging.error("[YOUMONEY NOTIFY] ❌ Ошибка при сохранении транзакции: %s", e, exc_info=True)
+					logging.error("[YOUMONEY NOTIFY] ❌ Ошибка активации подписки: %s", e, exc_info=True)
+					logging.error("[YOUMONEY NOTIFY] Тип ошибки: %s", type(e).__name__)
+					logging.error("[YOUMONEY NOTIFY] Сообщение: %s", str(e))
+					import traceback
+					logging.error("[YOUMONEY NOTIFY] Traceback: %s", traceback.format_exc())
+					# При ошибке транзакция остается необработанной, что позволит повторить попытку
 					raise
 				
+				logging.info("[YOUMONEY NOTIFY] ===== ПЛАТЕЖ УСПЕШНО ОБРАБОТАН =====")
+				logging.info("[YOUMONEY NOTIFY] user_id=%s, plan=%s, operation_id=%s", user_id, plan, data["operation_id"])
 				return {"ok": True, "user_id": user_id, "plan": plan}
 		except Exception as e:
 			# В случае ошибки не помечаем транзакцию как обработанную
