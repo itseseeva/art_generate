@@ -78,37 +78,6 @@ function App() {
   const [contentMode, setContentMode] = useState<'safe' | 'nsfw'>('safe');
   const [selectedSubscriptionType, setSelectedSubscriptionType] = useState<string>('');
 
-  // Маппинг названий страниц для заголовка
-  const pageTitles: Record<PageType, string> = {
-    'main': 'cherrylust.art 18+ AI CHAT',
-    'chat': 'Чат',
-    'my-characters': 'Мои персонажи',
-    'create-character': 'Создать персонажа',
-    'shop': 'Магазин',
-    'profile': 'Профиль',
-    'messages': 'Сообщения',
-    'user-gallery': 'Галерея',
-    'paid-album': 'Платный альбом',
-    'paid-album-builder': 'Создание альбома',
-    'photo-generation': 'Генерация фото',
-    'edit-characters': 'Редактирование персонажей',
-    'edit-character': 'Редактирование персонажа',
-    'favorites': 'Избранное',
-    'history': 'История',
-    'balance-history': 'История баланса',
-    'character-comments': 'Комментарии',
-    'legal': 'Правовая информация',
-    'about': 'О проекте',
-    'tariffs': 'Тарифы',
-    'how-it-works': 'Как это работает',
-    'bug-report': 'Сообщить об ошибке',
-  };
-
-  // Обновляем заголовок страницы при изменении currentPage
-  useEffect(() => {
-    document.title = pageTitles[currentPage] || 'cherrylust.art 18+ AI CHAT';
-  }, [currentPage]);
-
   // Мемоизируем initialCharacter для ChatContainer, чтобы избежать лишних перезагрузок
   const memoizedInitialCharacter = React.useMemo(() => {
     return selectedCharacter;

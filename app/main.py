@@ -132,36 +132,12 @@ try:
 except Exception:
     pass  # Игнорируем ошибки создания папки при импорте
 
-# Создаем безопасный StreamHandler для Windows, который обрабатывает Unicode
-class SafeStreamHandler(logging.StreamHandler):
-    """StreamHandler который безопасно обрабатывает Unicode в Windows"""
-    def emit(self, record):
-        try:
-            msg = self.format(record)
-            stream = self.stream
-            # Пытаемся вывести как есть
-            stream.write(msg + self.terminator)
-            self.flush()
-        except (UnicodeEncodeError, UnicodeError):
-            # Если не получается, заменяем проблемные символы
-            try:
-                msg = self.format(record)
-                # Заменяем проблемные символы на ASCII эквиваленты
-                msg_ascii = msg.encode('ascii', errors='replace').decode('ascii')
-                stream.write(msg_ascii + self.terminator)
-                self.flush()
-            except Exception:
-                # Если все равно не получается, просто пропускаем
-                pass
-        except Exception:
-            self.handleError(record)
-
 try:
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
-            SafeStreamHandler(sys.stdout),
+            logging.StreamHandler(sys.stdout),
             logging.FileHandler('logs/app.log', encoding='utf-8')
         ],
         force=True  # Принудительно перезаписываем конфигурацию
@@ -173,9 +149,11 @@ except Exception:
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[SafeStreamHandler(sys.stdout)],
+        handlers=[logging.StreamHandler(sys.stdout)],
         force=True
     )
+    # Отключаем INFO логи от httpx для уменьшения шума
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     # Отключаем INFO логи от httpx для уменьшения шума
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
@@ -295,13 +273,13 @@ async def lifespan(app: FastAPI):
     #     )
     keep_alive_task = None
     
-    logger.info("[OK] Приложение готово к работе!")
+    logger.info("🎉 Приложение готово к работе!")
     logger.info("[INFO] Сервер должен быть готов принимать соединения")
     yield
     logger.info("[INFO] Lifespan завершается...")
     
     # Завершение работы приложения
-    logger.info("[STOP] Останавливаем приложение...")
+    logger.info("🛑 Останавливаем приложение...")
     
     # Keep Alive скрипт отключен
     # if keep_alive_task:
@@ -651,26 +629,20 @@ async def test_ping():
 # Обработчик ошибок для Unicode
 @app.exception_handler(UnicodeEncodeError)
 async def unicode_encode_handler(request: Request, exc: UnicodeEncodeError):
-    """Handler for Unicode encoding errors."""
-    try:
-        logger.error(f"Unicode encoding error: {exc}")
-    except:
-        pass
+    """Обработчик ошибок кодировки Unicode."""
+    logger.error(f"Unicode encoding error: {exc}")
     return JSONResponse(
         status_code=400,
-        content={"detail": "Unicode encoding error occurred"}
+        content={"detail": f"Unicode encoding error: {str(exc)}"}
     )
 
 @app.exception_handler(UnicodeDecodeError)
 async def unicode_decode_handler(request: Request, exc: UnicodeDecodeError):
-    """Handler for Unicode decoding errors."""
-    try:
-        logger.error(f"Unicode decoding error: {exc}")
-    except:
-        pass
+    """Обработчик ошибок декодировки Unicode."""
+    logger.error(f"Unicode decoding error: {exc}")
     return JSONResponse(
         status_code=400,
-        content={"detail": "Unicode decoding error occurred"}
+        content={"detail": f"Unicode decoding error: {str(exc)}"}
     )
 
 # Статические файлы не нужны
@@ -1004,7 +976,7 @@ except Exception as e:
 
 # Подключаем тестовый роутер для llama-cpp-python (если существует)
 try:
-    logger.info("[ROUTER] Подключаем тестовый роутер...")
+    logger.info("🔄 Подключаем тестовый роутер...")
     from app.chat_bot.api.test_endpoints import router as test_router
     app.include_router(test_router, prefix="/api/v1/test", tags=["test"])
     logger.info("[OK] test_router подключен")
@@ -1947,11 +1919,24 @@ async def chat_endpoint(
     Простой эндпоинт для чата - прямой ответ от модели без пост-обработки.
     Поддерживает стриминг через параметр stream=true.
     """
-    # Проверяем параметр stream
+    # КРИТИЧЕСКИ ВАЖНО: Логируем ВСЕ параметры запроса для диагностики
+    logger.info(f"[ENDPOINT CHAT] ========================================")
+    logger.info(f"[ENDPOINT CHAT] POST /chat")
+    logger.info(f"[ENDPOINT CHAT] User: {current_user.email if current_user else 'Anonymous'} (ID: {current_user.id if current_user else 'N/A'})")
+    logger.info(f"[ENDPOINT CHAT] Character: {request.get('character', 'N/A')}")
+    logger.info(f"[ENDPOINT CHAT] Generate image: {request.get('generate_image', False)}")
+    logger.info(f"[ENDPOINT CHAT] Message (первые 100 символов): {request.get('message', '')[:100]}...")
+    logger.info(f"[ENDPOINT CHAT] Model: {request.get('model', 'N/A')}")
+    
+    # КРИТИЧЕСКИ ВАЖНО: Проверяем параметр stream
     stream_param_raw = request.get('stream')
+    logger.info(f"[ENDPOINT CHAT] Stream parameter RAW: {stream_param_raw} (type: {type(stream_param_raw).__name__ if stream_param_raw is not None else 'None'})")
+    logger.info(f"[ENDPOINT CHAT] Все ключи запроса: {list(request.keys())}")
+    logger.info(f"[ENDPOINT CHAT] Полный request dict: {request}")
+    logger.info(f"[ENDPOINT CHAT] ========================================")
     
     try:
-        logger.info("[NOTE] /chat: Simple mode - direct response from model")
+        logger.info("[NOTE] /chat: Простой режим - прямой ответ от модели")
         
         # Импортируем необходимые модули
         from app.chat_bot.services.openrouter_service import openrouter_service
@@ -1965,7 +1950,7 @@ async def chat_endpoint(
         if not await openrouter_service.check_connection():
                 raise HTTPException(
                     status_code=503, 
-                detail="OpenRouter API unavailable. Check OPENROUTER_KEY settings."
+                detail="OpenRouter API недоступен. Проверьте настройки OPENROUTER_KEY."
                 )
         
         # Простая валидация запроса
@@ -1987,7 +1972,7 @@ async def chat_endpoint(
         
         # Проверяем, нужен ли стриминг
         stream_param = request.get("stream", False)
-        logger.info(f"[STREAM DEBUG] stream_param from request.get('stream'): {stream_param} (type: {type(stream_param).__name__})")
+        logger.info(f"[STREAM DEBUG] stream_param из request.get('stream'): {stream_param} (type: {type(stream_param).__name__})")
         
         # Обрабатываем разные форматы: bool, строка "true"/"false", число 1/0
         if isinstance(stream_param, bool):
@@ -1999,7 +1984,7 @@ async def chat_endpoint(
         else:
             use_streaming = False
         
-        logger.info(f"[STREAM] Stream parameter from request: {stream_param} (type: {type(stream_param).__name__}), use_streaming={use_streaming}")
+        logger.info(f"[STREAM] Параметр stream из запроса: {stream_param} (тип: {type(stream_param).__name__}), use_streaming={use_streaming}")
         
         # === КРИТИЧЕСКИ ВАЖНО: Обрабатываем пустое сообщение ДО формирования контекста для LLM ===
         # Если сообщение пустое, но запрашивается генерация фото, устанавливаем message
@@ -2008,29 +1993,29 @@ async def chat_endpoint(
             image_prompt = request.get("image_prompt", "")
             if image_prompt:
                 message = image_prompt
-                logger.info(f"[HISTORY] Using image_prompt as message: {image_prompt[:50]}...")
+                logger.info(f"[HISTORY] Используем image_prompt как message: {image_prompt[:50]}...")
             else:
                 # Если нет промпта, создаем сообщение-заглушку для LLM
-                message = "Image generation"
-                logger.info(f"[HISTORY] Set message='Image generation' for photo generation without text")
+                message = "Генерация изображения"
+                logger.info(f"[HISTORY] Установлен message='Генерация изображения' для генерации фото без текста")
         
         # Разрешаем пустое сообщение, если запрашивается генерация фото
         # Фото = текст для истории чата
         if not message and not generate_image:
-            raise HTTPException(status_code=400, detail="Message cannot be empty")
+            raise HTTPException(status_code=400, detail="Сообщение не может быть пустым")
         
         history = request.get("history", [])
         session_id = request.get("session_id", "default")
         
         # Логируем историю из запроса для диагностики
         if history:
-            logger.info(f"[CONTEXT] History from request: {len(history)} messages")
+            logger.info(f"[CONTEXT] История из запроса: {len(history)} сообщений")
             for i, msg in enumerate(history[-5:]):  # Показываем последние 5
                 role = msg.get('role', 'unknown')
                 content = msg.get('content', '')[:100]
                 logger.debug(f"[CONTEXT]   history[{i}]: {role}: {content}...")
         else:
-            logger.info(f"[CONTEXT] History from request is missing")
+            logger.info(f"[CONTEXT] История из запроса отсутствует")
         
         # ОПТИМИЗИРОВАНО: Объединяем все запросы к БД в один блок
         token_user_id = str(current_user.id) if current_user else None
@@ -2238,9 +2223,9 @@ async def chat_endpoint(
                         messages_result = await history_db.execute(messages_query)
                         db_history_messages = messages_result.scalars().all()
             except Exception as e:
-                logger.warning(f"[CONTEXT] Error loading history from DB: {e}, using history from request")
+                logger.warning(f"[CONTEXT] Ошибка загрузки истории из БД: {e}, используем history из запроса")
                 import traceback
-                logger.warning(f"[CONTEXT] Traceback: {traceback.format_exc()}")
+                logger.warning(f"[CONTEXT] Трейсбек: {traceback.format_exc()}")
         
         # Формируем массив messages для OpenAI API
         openai_messages = []
@@ -2286,25 +2271,25 @@ async def chat_endpoint(
                         "role": "user",
                         "content": msg.content
                     })
-                    logger.debug(f"[CONTEXT] Added user message: {msg.content[:100]}...")
+                    logger.debug(f"[CONTEXT] Добавлено user сообщение: {msg.content[:100]}...")
                 elif msg.role == "assistant":
                     openai_messages.append({
                         "role": "assistant",
                         "content": msg.content
                     })
-                    logger.debug(f"[CONTEXT] Added assistant message: {msg.content[:100]}...")
+                    logger.debug(f"[CONTEXT] Добавлено assistant сообщение: {msg.content[:100]}...")
         # Fallback: используем history из запроса (для обратной совместимости)
         elif history:
             # Для PREMIUM и STANDARD context_limit = None, берем все сообщения
             history_to_process = history if context_limit is None else history[-context_limit:]
-            logger.info(f"[CONTEXT] Using history from request: {len(history)} messages, processing {len(history_to_process)}")
+            logger.info(f"[CONTEXT] Используем history из запроса: {len(history)} сообщений, обрабатываем {len(history_to_process)}")
             for msg in history_to_process:
                 role = msg.get('role', 'user')
                 content = msg.get('content', '')
                 
                 # Фильтруем промпты от фото и другие нерелевантные сообщения
                 if not should_include_message_in_context(content, role):
-                    logger.info(f"[CONTEXT] Skipped message {role} from history: {content[:100] if content else 'empty'}...")
+                    logger.info(f"[CONTEXT] Пропущено сообщение {role} из history: {content[:100] if content else 'empty'}...")
                     continue
                 
                 if role == 'user':
@@ -2312,13 +2297,13 @@ async def chat_endpoint(
                         "role": "user",
                         "content": content
                     })
-                    logger.debug(f"[CONTEXT] Added user message from history: {content[:100]}...")
+                    logger.debug(f"[CONTEXT] Добавлено user сообщение из history: {content[:100]}...")
                 elif role == 'assistant':
                     openai_messages.append({
                         "role": "assistant",
                         "content": content
                     })
-                    logger.debug(f"[CONTEXT] Added assistant message from history: {content[:100]}...")
+                    logger.debug(f"[CONTEXT] Добавлено assistant сообщение из history: {content[:100]}...")
         else:
             logger.info(f"[CONTEXT] Нет истории диалога (ни из БД, ни из запроса)")
         
@@ -2347,18 +2332,25 @@ async def chat_endpoint(
         messages_after_trim = len(openai_messages)
         
         if messages_before_trim != messages_after_trim:
-            logger.warning(f"[CONTEXT] Messages trimmed: was {messages_before_trim}, now {messages_after_trim}")
+            logger.warning(f"[CONTEXT] Сообщения обрезаны: было {messages_before_trim}, стало {messages_after_trim}")
         
         # Короткое логирование: количество сообщений в памяти
         history_count = len(openai_messages) - 1  # -1 для system сообщения
-        logger.info(f"[CONTEXT] In memory: {history_count} messages (context limit: {max_context_tokens} tokens)")
+        logger.info(f"[CONTEXT] В памяти: {history_count} сообщений (лимит контекста: {max_context_tokens} токенов)")
         
         # Если запрошен стриминг, возвращаем StreamingResponse
+        logger.info(f"[STREAM CHECK] use_streaming={use_streaming}, проверяем условие...")
         if use_streaming:
+            logger.info("[STREAM] /chat: Режим стриминга включен - возвращаем StreamingResponse")
+            
             # Проверяем, что выбор модели доступен только для PREMIUM
             selected_model = None
-            if request.get("model") and subscription_type_enum == SubscriptionType.PREMIUM:
-                selected_model = request.get("model")
+            if request.get("model"):
+                if subscription_type_enum == SubscriptionType.PREMIUM:
+                    selected_model = request.get("model")
+                    logger.info(f"[STREAM] Используется выбранная модель для PREMIUM: {selected_model}")
+                else:
+                    logger.warning(f"[STREAM] Выбор модели доступен только для PREMIUM подписки, игнорируем model={request.get('model')}")
             
             # Создаем асинхронный генератор для SSE
             async def generate_sse_stream() -> AsyncGenerator[str, None]:
@@ -2447,8 +2439,12 @@ async def chat_endpoint(
         # Модель выбирается на основе подписки или из запроса (для PREMIUM)
         # Проверяем, что выбор модели доступен только для PREMIUM
         selected_model = None
-        if request.get("model") and subscription_type_enum == SubscriptionType.PREMIUM:
-            selected_model = request.get("model")
+        if request.get("model"):
+            if subscription_type_enum == SubscriptionType.PREMIUM:
+                selected_model = request.get("model")
+                logger.info(f"[CHAT] Используется выбранная модель для PREMIUM: {selected_model}")
+            else:
+                logger.warning(f"[CHAT] Выбор модели доступен только для PREMIUM подписки, игнорируем model={request.get('model')}")
         
         response = await openrouter_service.generate_text(
             messages=openai_messages,
@@ -2716,12 +2712,12 @@ async def chat_endpoint(
         # КРИТИЧЕСКИ ВАЖНО: Проверяем, что history_response определен
         if 'history_response' not in locals() or history_response is None:
             history_response = response if response else ""
-            logger.warning(f"[HISTORY] history_response not defined, using response: '{history_response[:50] if history_response else 'empty'}...'")
+            logger.warning(f"[HISTORY] history_response не был определен, используем response: '{history_response[:50] if history_response else 'пустой'}...'")
         
-        logger.info(f"[HISTORY] Saving history: user_id={user_id}, character={character_data.get('name') if character_data else 'N/A'}, user_message='{history_message}' ({len(history_message)} chars), assistant_response={len(history_response)} chars, image_url={bool(cloud_url or image_url)}")
-        logger.info(f"[HISTORY] history_message passes filters? >=3: {len(history_message.strip()) >= 3}, <1000: {len(history_message.strip()) < 1000 if history_message else False}")
-        logger.info(f"[HISTORY] subscription_type={user_subscription_type}, can_save_history will be checked in process_chat_history_storage")
-        logger.info(f"[HISTORY] Check before save: user_id={user_id} (type: {type(user_id).__name__}), character_data={character_data}, character_name={character_data.get('name') if character_data else 'N/A'}")
+        logger.info(f"[HISTORY] Сохраняем историю: user_id={user_id}, character={character_data.get('name') if character_data else 'N/A'}, user_message='{history_message}' ({len(history_message)} chars), assistant_response={len(history_response)} chars, image_url={bool(cloud_url or image_url)}")
+        logger.info(f"[HISTORY] history_message проходит фильтры? >=3: {len(history_message.strip()) >= 3}, <1000: {len(history_message.strip()) < 1000 if history_message else False}")
+        logger.info(f"[HISTORY] subscription_type={user_subscription_type}, can_save_history будет проверен в process_chat_history_storage")
+        logger.info(f"[HISTORY] Проверка перед сохранением: user_id={user_id} (type: {type(user_id).__name__}), character_data={character_data}, character_name={character_data.get('name') if character_data else 'N/A'}")
         
         # Сохраняем историю только если есть user_id и character_data
         if user_id and character_data and character_data.get("name"):
@@ -3663,7 +3659,7 @@ async def generate_image(
                                     )
                                     fallback_db.add(temp_entry)
                                     await fallback_db.commit()
-                                    logger.info(f"[HISTORY] OK Метаданные сохранены в БД для task_id={job_id}: user_id={user_id}, character={character_data_for_history.get('name')}, runpod_url_base={runpod_url_base}, model={selected_model}")
+                                    logger.info(f"[HISTORY] ✓ Метаданные сохранены в БД для task_id={job_id}: user_id={user_id}, character={character_data_for_history.get('name')}, runpod_url_base={runpod_url_base}, model={selected_model}")
                                 except Exception as db_error:
                                     logger.error(f"[HISTORY] Ошибка сохранения метаданных в БД: {db_error}")
                                     import traceback
@@ -3673,7 +3669,7 @@ async def generate_image(
                             # Дополнительно сохраняем в Redis для быстрого доступа
                             cache_saved = await cache_set(f"generation:{job_id}", generation_metadata, ttl_seconds=3600)
                             if cache_saved:
-                                logger.info(f"[HISTORY] OK Метаданные также сохранены в Redis для task_id={job_id}")
+                                logger.info(f"[HISTORY] ✓ Метаданные также сохранены в Redis для task_id={job_id}")
                             else:
                                 logger.warning(f"[HISTORY] Redis недоступен, но метаданные уже в БД для task_id={job_id}")
                         except Exception as cache_error:
@@ -3683,7 +3679,7 @@ async def generate_image(
                     
                     # Логируем seed, который был использован для генерации
                     # Seed уже залогирован в runpod_client.py, но добавим здесь для удобства
-                    logger.info(f"[GENERATE] OK Задача запущена: job_id={job_id}, seed будет залогирован в runpod_client")
+                    logger.info(f"[GENERATE] ✓ Задача запущена: job_id={job_id}, seed будет залогирован в runpod_client")
                     
                     # Возвращаем task_id сразу, фронтенд будет опрашивать статус
                     # Это позволяет другим пользователям генерировать изображения параллельно
@@ -4098,7 +4094,7 @@ async def get_generation_status(
                                     if isinstance(prompt_data, dict) and "runpod_url_base" in prompt_data:
                                         runpod_url_base = prompt_data["runpod_url_base"]
                                         model = prompt_data.get("model", "anime")
-                                        logger.info(f"[RUNPOD STATUS] OK Извлечен runpod_url_base из БД: {runpod_url_base}, модель: {model}")
+                                        logger.info(f"[RUNPOD STATUS] ✓ Извлечен runpod_url_base из БД: {runpod_url_base}, модель: {model}")
                                     else:
                                         logger.warning(f"[RUNPOD STATUS] Найдена pending запись, но runpod_url_base не найден в JSON prompt")
                                 else:
@@ -4152,7 +4148,7 @@ async def get_generation_status(
                         from app.services.runpod_progress_tracker import extract_progress_from_response
                         progress = extract_progress_from_response(status_response)
                         if progress is not None:
-                            logger.info(f"[RUNPOD STATUS] OK Извлечен прогресс: {progress}%")
+                            logger.info(f"[RUNPOD STATUS] ✓ Извлечен прогресс: {progress}%")
                         # Логирование структуры ответа удалено для уменьшения шума в логах
                     except Exception as progress_err:
                         logger.warning(f"[RUNPOD STATUS] Ошибка извлечения прогресса: {progress_err}")
@@ -4350,7 +4346,7 @@ async def get_generation_status(
                                 )
                                 
                                 if saved:
-                                    logger.info(f"[IMAGE_HISTORY] OK История сохранена для task_id={task_id}")
+                                    logger.info(f"[IMAGE_HISTORY] ✓ История сохранена для task_id={task_id}")
                                 else:
                                     logger.warning(f"[IMAGE_HISTORY] Не удалось сохранить историю для task_id={task_id}")
                             
@@ -4513,7 +4509,7 @@ async def get_generation_status(
                             existing.image_url = normalized_url
                             await db.flush()
                             await db.commit()
-                            logger.info(f"[PROMPT] OK Промпт обновлен с image_url: task_id={task_id}, image_url={normalized_url}")
+                            logger.info(f"[PROMPT] ✓ Промпт обновлен с image_url: task_id={task_id}, image_url={normalized_url}")
                         else:
                             logger.warning(f"[PROMPT] Запись с task_id={task_id} не найдена для обновления")
                     else:

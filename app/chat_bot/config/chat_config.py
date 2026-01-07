@@ -433,48 +433,6 @@ class ChatConfig(BaseSettings):
 
     # ----------------- helper utilities -----------------
     
-    def get_model_settings(self, model_name: str) -> Dict[str, Any]:
-        """
-        Возвращает настройки для конкретной модели.
-        
-        Args:
-            model_name: Название модели (например, "anthracite-org/magnum-v4-72b")
-            
-        Returns:
-            Словарь с настройками модели:
-            - system_template: Шаблон системного сообщения
-            - user_template: Шаблон сообщения пользователя
-            - assistant_template: Шаблон ответа ассистента
-            - frequency_penalty: Штраф за частоту токенов
-            - repetition_penalty: Штраф за повторения
-            - smoothing_factor: Коэффициент сглаживания (для SMOOTHING_FACTOR)
-            - quadratic_sampling: Включить Quadratic Sampling
-        """
-        model_name_lower = model_name.lower()
-        
-        # Профиль для Magnum v4 (Qwen2 архитектура - ChatML формат)
-        if "magnum" in model_name_lower:
-            return {
-                "system_template": "<|im_start|>system\n{message}<|im_end|>\n",
-                "user_template": "<|im_start|>user\n{message}<|im_end|>\n",
-                "assistant_template": "<|im_start|>assistant\n",
-                "frequency_penalty": 0.0,
-                "repetition_penalty": 1.0,
-                "smoothing_factor": 1.0,
-                "quadratic_sampling": False,
-            }
-        else:
-            # Профиль по умолчанию (Llama 3)
-            return {
-                "system_template": self.LLAMA3_SYSTEM_TEMPLATE,
-                "user_template": self.LLAMA3_USER_TEMPLATE,
-                "assistant_template": self.LLAMA3_ASSISTANT_TEMPLATE,
-                "frequency_penalty": self.DEFAULT_PRESENCE_PENALTY,
-                "repetition_penalty": self.DEFAULT_REPEAT_PENALTY,
-                "smoothing_factor": self.SMOOTHING_FACTOR,
-                "quadratic_sampling": self.QUADRATIC_SAMPLING,
-            }
-    
     def sample_generation_params(
         self, 
         seed: Optional[int] = None,

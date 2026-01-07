@@ -627,9 +627,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const [isModelAccessDeniedOpen, setIsModelAccessDeniedOpen] = useState(false);
   const [selectedChatModel, setSelectedChatModel] = useState<string>(() => {
     const saved = localStorage.getItem('selectedChatModel');
-    const modelToUse = saved || 'sao10k/l3-euryale-70b';
-    console.log('[CHAT FRONTEND] Инициализация selectedChatModel:', { saved, modelToUse });
-    return modelToUse;
+    return saved || 'sao10k/l3-euryale-70b';
   });
   // Функция для определения языка по умолчанию
   const getDefaultLanguage = (): 'ru' | 'en' => {
@@ -1986,10 +1984,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   };
 
   const sendChatMessage = async (message: string, generateImage: boolean = false) => {
-    console.log('[CHAT FRONTEND] ===== ОТПРАВКА СООБЩЕНИЯ =====');
-    console.log('[CHAT FRONTEND] normalizedSubscriptionType:', normalizedSubscriptionType);
-    console.log('[CHAT FRONTEND] selectedChatModel из state:', selectedChatModel);
-    console.log('[CHAT FRONTEND] selectedChatModel из localStorage:', localStorage.getItem('selectedChatModel'));
     // Разрешаем пустое сообщение, если запрашивается генерация фото
     // Фото = текст для истории чата
     if (!message.trim() && !generateImage) return;
@@ -2071,18 +2065,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       };
       
       // Добавляем модель только для PREMIUM
-      console.log('[CHAT FRONTEND] Подписка:', normalizedSubscriptionType);
-      console.log('[CHAT FRONTEND] Выбранная модель:', selectedChatModel);
       if (normalizedSubscriptionType === 'premium' && selectedChatModel) {
         requestBody.model = selectedChatModel;
-        console.log('[CHAT FRONTEND] Модель добавлена в запрос:', selectedChatModel);
-      } else {
-        console.log('[CHAT FRONTEND] Модель НЕ добавлена в запрос. Причина:', {
-          isPremium: normalizedSubscriptionType === 'premium',
-          hasModel: !!selectedChatModel
-        });
       }
-      console.log('[CHAT FRONTEND] Полный requestBody:', JSON.stringify(requestBody, null, 2));
       
       const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
         method: 'POST',
@@ -3980,10 +3965,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           isOpen={isModelSelectorOpen}
           selectedModel={selectedChatModel}
           onSelectModel={(model) => {
-            console.log('[CHAT FRONTEND] Выбрана модель:', model);
             setSelectedChatModel(model);
             localStorage.setItem('selectedChatModel', model);
-            console.log('[CHAT FRONTEND] Модель сохранена в localStorage:', localStorage.getItem('selectedChatModel'));
           }}
           onClose={() => setIsModelSelectorOpen(false)}
         />
