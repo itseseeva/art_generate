@@ -414,6 +414,18 @@ class ProfitActivateService:
                 logger.info(f"[UPGRADE]   status: {existing_subscription.status.value}")
                 logger.info(f"[UPGRADE]   monthly_credits: {existing_subscription.monthly_credits}")
                 logger.info(f"[UPGRADE]   expires_at: {existing_subscription.expires_at}")
+                logger.info(f"[UPGRADE]   user.coins: {user.coins}")
+                
+                # КРИТИЧНО: Убеждаемся, что статус установлен как ACTIVE
+                if existing_subscription.status != SubscriptionStatus.ACTIVE:
+                    logger.warning(f"[UPGRADE] ⚠️ Статус не ACTIVE, исправляем: {existing_subscription.status.value} -> ACTIVE")
+                    existing_subscription.status = SubscriptionStatus.ACTIVE
+                
+                # КРИТИЧНО: Убеждаемся, что expires_at установлена корректно
+                if not existing_subscription.expires_at or existing_subscription.expires_at <= datetime.utcnow():
+                    new_expires = datetime.utcnow() + timedelta(days=30)
+                    logger.warning(f"[UPGRADE] ⚠️ expires_at некорректна, исправляем: {existing_subscription.expires_at} -> {new_expires}")
+                    existing_subscription.expires_at = new_expires
                 
                 await self.db.commit()
                 logger.info(f"[UPGRADE] ✅ Commit выполнен успешно")
@@ -422,11 +434,18 @@ class ProfitActivateService:
                 await self.db.refresh(user)
                 
                 logger.info(f"[UPGRADE] Состояние ПОСЛЕ refresh:")
+                logger.info(f"[UPGRADE]   subscription_id: {existing_subscription.id}")
                 logger.info(f"[UPGRADE]   subscription_type: {existing_subscription.subscription_type.value}")
                 logger.info(f"[UPGRADE]   status: {existing_subscription.status.value}")
                 logger.info(f"[UPGRADE]   monthly_credits: {existing_subscription.monthly_credits}")
                 logger.info(f"[UPGRADE]   expires_at: {existing_subscription.expires_at}")
+                logger.info(f"[UPGRADE]   is_active: {existing_subscription.is_active}")
                 logger.info(f"[UPGRADE]   user.coins: {user.coins}")
+                
+                # КРИТИЧНО: Проверяем, что подписка действительно активна после commit
+                if not existing_subscription.is_active:
+                    logger.error(f"[UPGRADE] ❌ КРИТИЧЕСКАЯ ОШИБКА: Подписка не активна после commit! status={existing_subscription.status.value}, expires_at={existing_subscription.expires_at}")
+                    raise ValueError(f"Подписка не активна после commit: status={existing_subscription.status.value}, expires_at={existing_subscription.expires_at}")
                 
                 # Инвалидируем кэш подписки
                 await cache_delete(key_subscription(user_id))
@@ -475,19 +494,56 @@ class ProfitActivateService:
         except Exception as e:
             logger.warning(f"Не удалось записать историю баланса: {e}")
         
+        # КРИТИЧНО: Убеждаемся, что статус установлен как ACTIVE
+        if subscription.status != SubscriptionStatus.ACTIVE:
+            logger.warning(f"[NEW SUBSCRIPTION] ⚠️ Статус не ACTIVE, исправляем: {subscription.status.value} -> ACTIVE")
+            subscription.status = SubscriptionStatus.ACTIVE
+        
+        # КРИТИЧНО: Убеждаемся, что expires_at установлена корректно
+        if not subscription.expires_at or subscription.expires_at <= datetime.utcnow():
+            new_expires = datetime.utcnow() + timedelta(days=30)
+            logger.warning(f"[NEW SUBSCRIPTION] ⚠️ expires_at некорректна, исправляем: {subscription.expires_at} -> {new_expires}")
+            subscription.expires_at = new_expires
+        
+        logger.info(f"[NEW SUBSCRIPTION] Состояние ПЕРЕД commit:")
+        logger.info(f"[NEW SUBSCRIPTION]   subscription_type: {subscription.subscription_type.value}")
+        logger.info(f"[NEW SUBSCRIPTION]   status: {subscription.status.value}")
+        logger.info(f"[NEW SUBSCRIPTION]   monthly_credits: {subscription.monthly_credits}")
+        logger.info(f"[NEW SUBSCRIPTION]   expires_at: {subscription.expires_at}")
+        logger.info(f"[NEW SUBSCRIPTION]   user.coins: {user.coins}")
+        
         logger.info(f"[CREDITS TRANSFER] Переведено на баланс: {monthly_credits} кредитов")
         logger.info(f"[NEW BALANCE] Баланс пользователя: {old_user_balance} + {monthly_credits} = {user.coins} монет")
         
         await self.db.commit()
+        logger.info(f"[NEW SUBSCRIPTION] ✅ Commit выполнен успешно")
+        
         await self.db.refresh(subscription)
         await self.db.refresh(user)
+        
+        logger.info(f"[NEW SUBSCRIPTION] Состояние ПОСЛЕ refresh:")
+        logger.info(f"[NEW SUBSCRIPTION]   subscription_id: {subscription.id}")
+        logger.info(f"[NEW SUBSCRIPTION]   subscription_type: {subscription.subscription_type.value}")
+        logger.info(f"[NEW SUBSCRIPTION]   status: {subscription.status.value}")
+        logger.info(f"[NEW SUBSCRIPTION]   monthly_credits: {subscription.monthly_credits}")
+        logger.info(f"[NEW SUBSCRIPTION]   expires_at: {subscription.expires_at}")
+        logger.info(f"[NEW SUBSCRIPTION]   is_active: {subscription.is_active}")
+        logger.info(f"[NEW SUBSCRIPTION]   user.coins: {user.coins}")
+        
+        # КРИТИЧНО: Проверяем, что подписка действительно активна после commit
+        if not subscription.is_active:
+            logger.error(f"[NEW SUBSCRIPTION] ❌ КРИТИЧЕСКАЯ ОШИБКА: Подписка не активна после commit! status={subscription.status.value}, expires_at={subscription.expires_at}")
+            raise ValueError(f"Подписка не активна после commit: status={subscription.status.value}, expires_at={subscription.expires_at}")
         
         # Инвалидируем кэш подписки
         await cache_delete(key_subscription(user_id))
         await cache_delete(key_subscription_stats(user_id))
+        logger.info(f"[NEW SUBSCRIPTION] ✅ Кэш подписки инвалидирован")
         
         logger.info("[OK] Первая подписка создана успешно!")
         await emit_profile_update(user_id, self.db)
+        logger.info(f"[NEW SUBSCRIPTION] ✅ Профиль обновлен через WebSocket")
+        
         return subscription
     
     async def add_credits_topup(self, user_id: int, credits: int) -> Dict[str, Any]:

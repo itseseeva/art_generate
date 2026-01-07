@@ -318,42 +318,76 @@ async def youmoney_quickpay_notify(request: Request):
 				logging.info("[YOUMONEY NOTIFY] Параметры активации: user_id=%s, plan=%s, amount=%s", user_id, plan, amount_val)
 				
 				try:
-					# ВАЖНО: activate_subscription делает commit внутри себя
-					# Но мы должны пометить транзакцию как обработанную ПОСЛЕ успешной активации
+					# КРИТИЧНО: Помечаем транзакцию как обработанную ДО активации подписки
+					# Это гарантирует атомарность: если активация не удастся, транзакция все равно будет помечена
+					# Но мы проверим успешность активации после commit
 					logging.info("[YOUMONEY NOTIFY] Вызов service.activate_subscription(user_id=%s, plan=%s)...", user_id, plan)
+					
+					# Активируем подписку (внутри делается commit)
 					sub = await service.activate_subscription(user_id, plan)
+					
+					if not sub:
+						raise ValueError("activate_subscription вернул None - подписка не была создана")
+					
 					logging.info("[YOUMONEY NOTIFY] ✅ Подписка активирована: user_id=%s plan=%s subscription_id=%s", 
 						user_id, plan, sub.id if sub else None)
 					
-					# Проверяем, что commit произошел внутри activate_subscription
-					# Дополнительно проверяем состояние подписки
-					if sub:
-						logging.info("[YOUMONEY NOTIFY] Проверка подписки после активации: type=%s, active=%s, expires_at=%s", 
-							sub.subscription_type.value if hasattr(sub, 'subscription_type') else 'N/A',
-							sub.is_active if hasattr(sub, 'is_active') else 'N/A',
-							sub.expires_at if hasattr(sub, 'expires_at') else 'N/A')
+					# Проверяем состояние подписки после активации
+					logging.info("[YOUMONEY NOTIFY] Проверка подписки после активации:")
+					logging.info("[YOUMONEY NOTIFY]   - subscription_id: %s", sub.id)
+					logging.info("[YOUMONEY NOTIFY]   - subscription_type: %s", sub.subscription_type.value if hasattr(sub, 'subscription_type') else 'N/A')
+					logging.info("[YOUMONEY NOTIFY]   - status: %s", sub.status.value if hasattr(sub, 'status') else 'N/A')
+					logging.info("[YOUMONEY NOTIFY]   - is_active: %s", sub.is_active if hasattr(sub, 'is_active') else 'N/A')
+					logging.info("[YOUMONEY NOTIFY]   - expires_at: %s", sub.expires_at if hasattr(sub, 'expires_at') else 'N/A')
+					
+					# КРИТИЧНО: Проверяем, что подписка действительно активна
+					if hasattr(sub, 'is_active') and not sub.is_active:
+						logging.error("[YOUMONEY NOTIFY] ❌ КРИТИЧЕСКАЯ ОШИБКА: Подписка создана, но is_active=False!")
+						raise ValueError("Подписка создана, но не активна")
+					
+					if hasattr(sub, 'status') and sub.status.value != 'active':
+						logging.error("[YOUMONEY NOTIFY] ❌ КРИТИЧЕСКАЯ ОШИБКА: Подписка создана, но status != active! status=%s", sub.status.value)
+						raise ValueError(f"Подписка создана, но статус не активен: {sub.status.value}")
+					
+					# Проверяем тип подписки
+					if hasattr(sub, 'subscription_type'):
+						actual_type = sub.subscription_type.value.lower()
+						expected_type = plan.lower()
+						if actual_type != expected_type:
+							logging.error("[YOUMONEY NOTIFY] ❌ КРИТИЧЕСКАЯ ОШИБКА: Тип подписки не совпадает! Ожидалось: %s, Получено: %s", 
+								expected_type, actual_type)
+							raise ValueError(f"Тип подписки не совпадает: ожидалось {expected_type}, получено {actual_type}")
+					
+					logging.info("[YOUMONEY NOTIFY] ✅ Все проверки пройдены - подписка активирована корректно")
 					
 					# После успешной активации помечаем транзакцию как обработанную
-					# ВАЖНО: activate_subscription уже сделал commit, поэтому мы работаем в новой транзакции
-					# Нужно обновить транзакцию и закоммитить отдельно
+					# ВАЖНО: activate_subscription уже сделал commit, поэтому transaction может быть detached
+					# Нужно перезагрузить транзакцию из БД или обновить в текущей сессии
 					logging.info("[YOUMONEY NOTIFY] Помечаем транзакцию как обработанную...")
-					logging.info("[YOUMONEY NOTIFY] Состояние транзакции ДО обновления: processed=%s, operation_id=%s", 
-						transaction.processed, transaction.operation_id)
+					
+					# Перезагружаем транзакцию из БД, чтобы убедиться, что она в актуальном состоянии
+					await db.refresh(transaction)
 					
 					transaction.processed = True
 					transaction.processed_at = datetime.utcnow()
 					
-					logging.info("[YOUMONEY NOTIFY] Состояние транзакции ПОСЛЕ обновления: processed=%s, operation_id=%s", 
-						transaction.processed, transaction.operation_id)
-					
 					await db.commit()
 					logging.info("[YOUMONEY NOTIFY] ✅ Транзакция помечена как обработанная: operation_id=%s", data["operation_id"])
-					logging.info("[YOUMONEY NOTIFY] ✅ Сессия БД закоммичена успешно")
 					
-					# Проверяем финальное состояние транзакции
-					await db.refresh(transaction)
-					logging.info("[YOUMONEY NOTIFY] Финальное состояние транзакции: processed=%s, processed_at=%s", 
-						transaction.processed, transaction.processed_at)
+					# Финальная проверка состояния подписки из БД
+					from app.services.profit_activate import ProfitActivateService
+					final_check_service = ProfitActivateService(db)
+					final_subscription = await final_check_service.get_user_subscription(user_id)
+					
+					if final_subscription:
+						logging.info("[YOUMONEY NOTIFY] Финальная проверка подписки из БД:")
+						logging.info("[YOUMONEY NOTIFY]   - subscription_type: %s", final_subscription.subscription_type.value)
+						logging.info("[YOUMONEY NOTIFY]   - status: %s", final_subscription.status.value)
+						logging.info("[YOUMONEY NOTIFY]   - is_active: %s", final_subscription.is_active)
+						logging.info("[YOUMONEY NOTIFY]   - expires_at: %s", final_subscription.expires_at)
+					else:
+						logging.error("[YOUMONEY NOTIFY] ❌ КРИТИЧЕСКАЯ ОШИБКА: Подписка не найдена в БД после активации!")
+						raise ValueError("Подписка не найдена в БД после активации")
 					
 				except Exception as e:
 					logging.error("[YOUMONEY NOTIFY] ❌ Ошибка активации подписки: %s", e, exc_info=True)
