@@ -698,12 +698,49 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     }
     
     // Раскрываем кнопки оплаты для выбранного плана
+    // Если уже выбран этот план - скрываем, иначе показываем
     setSelectedPlanForPayment(selectedPlanForPayment === subscriptionType ? null : subscriptionType);
+    console.log('[SHOP] Selected plan for payment:', selectedPlanForPayment === subscriptionType ? null : subscriptionType);
   };
 
-  const handleYoumoneyPayment = (subscriptionType: string) => {
-    const currentUserId = userInfo?.id;
-    if (!currentUserId) return;
+  const handleYoumoneyPayment = async (subscriptionType: string) => {
+    console.log('[SHOP] handleYoumoneyPayment вызван:', { subscriptionType, userInfo });
+    
+    let currentUserId = userInfo?.id;
+    
+    // Если userInfo отсутствует, пытаемся загрузить его
+    if (!currentUserId) {
+      const token = localStorage.getItem('authToken');
+      if (token) {
+        try {
+          console.log('[SHOP] Загружаем userInfo...');
+          const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          if (response.ok) {
+            const userData = await response.json();
+            currentUserId = userData.id;
+            setUserInfo({
+              username: userData.email,
+              coins: userData.coins || 0,
+              id: userData.id
+            });
+            setIsAuthenticated(true);
+            console.log('[SHOP] userInfo загружен:', userData);
+          }
+        } catch (e) {
+          console.error('[SHOP] Ошибка загрузки userInfo:', e);
+        }
+      }
+    }
+    
+    if (!currentUserId) {
+      console.error('[SHOP] Не удалось получить user ID');
+      setError('Ошибка: не удалось определить пользователя. Попробуйте обновить страницу.');
+      return;
+    }
 
     try {
       const receiverWallet = '4100119070489003';
@@ -727,7 +764,8 @@ export const ShopPage: React.FC<ShopPageProps> = ({
         `&label=${encodeURIComponent(label)}` +
         `&successURL=${encodeURIComponent(successURL)}`;
 
-      console.log('[SHOP] YooMoney URL:', quickPayUrl);
+      console.log('[SHOP] YooMoney URL сформирован:', quickPayUrl);
+      console.log('[SHOP] Переход на страницу оплаты...');
       
       // Сохраняем состояние перед переходом на оплату
       window.history.pushState({ page: 'shop', fromPayment: true }, '', '/shop');
