@@ -17,6 +17,8 @@ import { translateToEnglish } from '../utils/translate';
 import { FiUnlock, FiLock, FiImage } from 'react-icons/fi';
 import { CharacterCard } from './CharacterCard';
 import { API_CONFIG } from '../config/api';
+import { ModelSelectorModal } from './ModelSelectorModal';
+import { ModelAccessDeniedModal } from './ModelAccessDeniedModal';
 
 const PAID_ALBUM_COST = 200;
 
@@ -621,6 +623,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const [fetchedSubscriptionType, setFetchedSubscriptionType] = useState<string>('free');
   const [characterPhotos, setCharacterPhotos] = useState<string[]>([]);
   const [isCharacterFavorite, setIsCharacterFavorite] = useState<boolean>(false);
+  const [isModelSelectorOpen, setIsModelSelectorOpen] = useState(false);
+  const [isModelAccessDeniedOpen, setIsModelAccessDeniedOpen] = useState(false);
+  const [selectedChatModel, setSelectedChatModel] = useState<string>(() => {
+    const saved = localStorage.getItem('selectedChatModel');
+    return saved || 'sao10k/l3-euryale-70b';
+  });
   // Функция для определения языка по умолчанию
   const getDefaultLanguage = (): 'ru' | 'en' => {
     // Сначала проверяем localStorage
@@ -2043,26 +2051,35 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       }
 
       // Включаем стриминг для всех запросов
-      console.log('[STREAM] Отправка запроса с stream=true, targetLanguage:', targetLanguage);
+      // console.log('[STREAM] Отправка запроса с stream=true, targetLanguage:', targetLanguage);
+      
+      // Передаем выбранную модель только для PREMIUM подписки
+      const requestBody: any = {
+        message: originalMessage, // Отправляем оригинальное сообщение
+        character: currentCharacter.name,
+        generate_image: generateImage,
+        user_id: effectiveUserId,
+        image_prompt: generateImage ? originalMessage : undefined,
+        target_language: targetLanguage, // Передаем выбранный язык
+        stream: true // Включаем стриминг
+      };
+      
+      // Добавляем модель только для PREMIUM
+      if (normalizedSubscriptionType === 'premium' && selectedChatModel) {
+        requestBody.model = selectedChatModel;
+      }
+      
       const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({
-          message: originalMessage, // Отправляем оригинальное сообщение
-          character: currentCharacter.name,
-          generate_image: generateImage,
-          user_id: effectiveUserId,
-          image_prompt: generateImage ? originalMessage : undefined,
-          target_language: targetLanguage, // Передаем выбранный язык
-          stream: true // Включаем стриминг
-        })
+        body: JSON.stringify(requestBody)
       });
       
-      console.log('[STREAM] Получен ответ, Content-Type:', response.headers.get('content-type'));
+      // console.log('[STREAM] Получен ответ, Content-Type:', response.headers.get('content-type'));
 
       // Проверяем, является ли ответ SSE потоком
       const contentType = response.headers.get('content-type');
-      console.log('[STREAM] Content-Type:', contentType);
+      // console.log('[STREAM] Content-Type:', contentType);
 
       if (!response.ok) {
         // Если это не SSE, пытаемся получить JSON ошибку
@@ -2111,7 +2128,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 
                 // Обработка генерации изображений: если пришел task_id, запускаем опрос статуса
                 if (generateImage && data.task_id && !data.image_url && !data.cloud_url) {
-                  console.log('[STREAM] Получен task_id для генерации изображения:', data.task_id);
+                  // console.log('[STREAM] Получен task_id для генерации изображения:', data.task_id);
                   // Запускаем опрос статуса генерации в фоне
                   pollImageGenerationStatus(data.task_id, assistantMessageId, authToken || undefined);
                   continue;
@@ -2120,7 +2137,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 // Обработка готового изображения из потока
                 if (generateImage && (data.image_url || data.cloud_url)) {
                   const imageUrl = data.image_url || data.cloud_url;
-                  console.log('[STREAM] Получено изображение из потока:', imageUrl);
+                  // console.log('[STREAM] Получено изображение из потока:', imageUrl);
                   setMessages(prev => prev.map(msg => 
                     msg.id === assistantMessageId 
                       ? { 
@@ -2156,7 +2173,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                       });
                       
                       if (addToGalleryResponse.ok) {
-                        console.log('[STREAM] Фото добавлено в галерею пользователя из SSE потока');
+                        // console.log('[STREAM] Фото добавлено в галерею пользователя из SSE потока');
                       }
                     }
                   } catch (galleryError) {
@@ -2170,13 +2187,13 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   // Накопляем контент только если это не генерация изображения
                   if (!generateImage) {
                   accumulatedContent += data.content;
-                  console.log('[STREAM] Получен чанк:', data.content.substring(0, 50), 'накоплено:', accumulatedContent.length, 'символов');
+                  // console.log('[STREAM] Получен чанк:', data.content.substring(0, 50), 'накоплено:', accumulatedContent.length, 'символов');
                   
                   // Обновляем сообщение ассистента с накопленным контентом
                   setMessages(prev => {
                     const messageIndex = prev.findIndex(msg => msg.id === assistantMessageId);
                     if (messageIndex === -1) {
-                      console.warn('[STREAM] Сообщение с id', assistantMessageId, 'не найдено в состоянии');
+                      // console.warn('[STREAM] Сообщение с id', assistantMessageId, 'не найдено в состоянии');
                       return prev;
                     }
                     
@@ -2186,7 +2203,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                       content: accumulatedContent
                     };
                     
-                    console.log('[STREAM] Обновлено сообщение:', assistantMessageId, 'новый content length:', accumulatedContent.length);
+                    // console.log('[STREAM] Обновлено сообщение:', assistantMessageId, 'новый content length:', accumulatedContent.length);
                     return updated;
                   });
                   }
@@ -2194,7 +2211,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 
                 if (data.done) {
                   // Стриминг завершен
-                  console.log('[STREAM] Стриминг завершен, финальный контент:', accumulatedContent.length, 'символов');
+                  // console.log('[STREAM] Стриминг завершен, финальный контент:', accumulatedContent.length, 'символов');
                   if (!generateImage) {
                   setIsLoading(false);
                   }
@@ -3303,6 +3320,14 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               onSendMessage={handleSendMessage}
               targetLanguage={targetLanguage}
               onLanguageChange={handleLanguageChange}
+              isPremium={normalizedSubscriptionType === 'premium'}
+              onSelectModel={() => {
+                if (normalizedSubscriptionType === 'premium') {
+                  setIsModelSelectorOpen(true);
+                } else {
+                  setIsModelAccessDeniedOpen(true);
+                }
+              }}
               onGenerateImage={() => {
                 // Открываем модалку с предзаполненным промптом из данных персонажа (проверяем несколько источников)
                 const characterForData = currentCharacter || initialCharacter;
@@ -3932,6 +3957,32 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           cancelText="Отмена"
           onConfirm={handleConfirmLanguageChange}
           onCancel={handleCancelLanguageChange}
+        />
+      )}
+
+      {isModelSelectorOpen && (
+        <ModelSelectorModal
+          isOpen={isModelSelectorOpen}
+          selectedModel={selectedChatModel}
+          onSelectModel={(model) => {
+            setSelectedChatModel(model);
+            localStorage.setItem('selectedChatModel', model);
+          }}
+          onClose={() => setIsModelSelectorOpen(false)}
+        />
+      )}
+
+      {isModelAccessDeniedOpen && (
+        <ModelAccessDeniedModal
+          isOpen={isModelAccessDeniedOpen}
+          onClose={() => setIsModelAccessDeniedOpen(false)}
+          onGoToShop={() => {
+            if (onShop) {
+              onShop();
+            } else {
+              window.dispatchEvent(new CustomEvent('navigate-to-shop'));
+            }
+          }}
         />
       )}
     </Container>

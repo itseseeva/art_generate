@@ -100,6 +100,26 @@ class SimpleChatRequest(BaseModel):
         default=None, 
         description="CFG Scale для генерации изображения"
     )
+    
+    # Параметр выбора модели (только для PREMIUM подписки)
+    model: Optional[str] = Field(
+        default=None,
+        description="Модель для генерации ответа (только для PREMIUM подписки). Доступные: sao10k/l3-euryale-70b, meta-llama/llama-3.3-70b-instruct, anthracite-org/magnum-v4-72b"
+    )
+    
+    # Дополнительные поля из фронтенда
+    user_id: Optional[int] = Field(
+        default=None,
+        description="ID пользователя"
+    )
+    target_language: Optional[str] = Field(
+        default=None,
+        description="Целевой язык для перевода"
+    )
+    stream: Optional[bool] = Field(
+        default=False,
+        description="Включить стриминг ответа"
+    )
 
 
 class CharacterConfig(BaseModel):

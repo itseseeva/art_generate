@@ -147,7 +147,9 @@ interface MessageInputProps {
   placeholder?: string;
   hasMessages?: boolean;
   targetLanguage?: 'ru' | 'en';
+  isPremium?: boolean;
   onLanguageChange?: (language: 'ru' | 'en') => void;
+  onSelectModel?: () => void;
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
@@ -162,7 +164,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   placeholder = "Введите сообщение...",
   hasMessages = false,
   targetLanguage = 'ru',
-  onLanguageChange
+  isPremium = false,
+  onLanguageChange,
+  onSelectModel
 }) => {
   const [message, setMessage] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -253,6 +257,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       label: 'Комментарии',
       onClick: onShowComments,
       className: '' 
+    }] : []),
+    ...(onSelectModel ? [{
+      icon: <span style={{ fontSize: '18px', fontWeight: 600 }}>🤖</span>,
+      label: 'Выбрать модель',
+      onClick: onSelectModel,
+      className: ''
     }] : [])
   ];
 

@@ -63,12 +63,12 @@ RUNPOD_URL = os.getenv("RUNPOD_URL")  # Модель "Аниме" (OneObsession/
 RUNPOD_URL_2 = os.getenv("RUNPOD_URL_2")  # Модель "Аниме реализм" (PerfectDeliberate/anime-realism) - должен заканчиваться на '/run' или '/runsync'
 RUNPOD_URL_3 = os.getenv("RUNPOD_URL_3")  # Модель "Реализм" - должен заканчиваться на '/run' или '/runsync'
 
-# Логируем загруженные переменные для отладки (без чувствительных данных)
-logger.debug(f"[RUNPOD] RUNPOD_URL загружен: {'Да' if RUNPOD_URL else 'Нет'}")
-logger.debug(f"[RUNPOD] RUNPOD_URL_2 загружен: {'Да' if RUNPOD_URL_2 else 'Нет'}")
-logger.debug(f"[RUNPOD] RUNPOD_URL_3 загружен: {'Да' if RUNPOD_URL_3 else 'Нет'}")
-if RUNPOD_URL_3:
-    logger.debug(f"[RUNPOD] RUNPOD_URL_3 значение (первые 30 символов): {RUNPOD_URL_3[:30]}...")
+# Логируем загруженные переменные для отладки (без чувствительных данных) (отключено)
+# logger.debug(f"[RUNPOD] RUNPOD_URL загружен: {'Да' if RUNPOD_URL else 'Нет'}")
+# logger.debug(f"[RUNPOD] RUNPOD_URL_2 загружен: {'Да' if RUNPOD_URL_2 else 'Нет'}")
+# logger.debug(f"[RUNPOD] RUNPOD_URL_3 загружен: {'Да' if RUNPOD_URL_3 else 'Нет'}")
+# if RUNPOD_URL_3:
+#     logger.debug(f"[RUNPOD] RUNPOD_URL_3 значение (первые 30 символов): {RUNPOD_URL_3[:30]}...")
 
 # Извлекаем базовый URL и ENDPOINT_ID из RUNPOD_URL (дефолтная модель)
 # Формат: https://api.runpod.ai/v2/{ENDPOINT_ID}/run

@@ -216,7 +216,20 @@ async def chat_with_character(
         
         # Получаем ответ от модели без стриминга
         # max_tokens определяется на основе подписки: STANDARD=200, PREMIUM=450
-        # Модель выбирается на основе подписки: STANDARD=sao10k/l3-euryale-70b, PREMIUM=sao10k/l3-euryale-70b
+        # Модель выбирается на основе подписки или из запроса (для PREMIUM)
+        # Проверяем, что выбор модели доступен только для PREMIUM
+        selected_model = None
+        if request.model:
+            if subscription_type_enum == SubscriptionType.PREMIUM:
+                selected_model = request.model
+                logger.info(f"[CHAT] Используется выбранная модель для PREMIUM: {selected_model}")
+            else:
+                logger.warning(f"[CHAT] Выбор модели доступен только для PREMIUM подписки, игнорируем model={request.model}")
+        
+        # Определяем, какая модель будет использована
+        from app.chat_bot.services.openrouter_service import get_model_for_subscription
+        model_used = selected_model if selected_model else get_model_for_subscription(subscription_type_enum)
+        
         response_text = await openrouter_service.generate_text(
             messages=messages,
             max_tokens=max_tokens,
@@ -224,7 +237,8 @@ async def chat_with_character(
             top_p=chat_config.DEFAULT_TOP_P,
             repeat_penalty=chat_config.DEFAULT_REPEAT_PENALTY,
             presence_penalty=chat_config.DEFAULT_PRESENCE_PENALTY,
-            subscription_type=subscription_type_enum
+            subscription_type=subscription_type_enum,
+            model=selected_model
         )
         
         # Проверяем ошибку подключения к сервису генерации
@@ -239,6 +253,9 @@ async def chat_with_character(
                 status_code=500,
                 detail="Не удалось сгенерировать ответ от модели"
         )
+        
+        # Логируем модель, которая ответила на сообщение
+        logger.info(f"[CHAT] Ответ сгенерирован моделью: {model_used} (подписка: {subscription_type_enum.value if subscription_type_enum else 'FREE'})")
         
         # Сохраняем диалог в базу данных
         # КРИТИЧЕСКИ ВАЖНО: для FREE подписки не сохраняем ChatSession/ChatMessageDB
@@ -321,6 +338,15 @@ async def chat_with_character_stream(
     Использует Server-Sent Events (SSE) для передачи данных в реальном времени.
     """
     try:
+        # Логируем начало обработки запроса
+        logger.info(f"[CHAT STREAM ENDPOINT] ========================================")
+        logger.info(f"[CHAT STREAM ENDPOINT] POST /api/v1/chat/stream")
+        logger.info(f"[CHAT STREAM ENDPOINT] User: {current_user.email if current_user else 'Anonymous'} (ID: {current_user.id if current_user else 'N/A'})")
+        logger.info(f"[CHAT STREAM ENDPOINT] Character: {request.character}")
+        logger.info(f"[CHAT STREAM ENDPOINT] Message (первые 100 символов): {request.message[:100] if request.message else 'N/A'}...")
+        logger.info(f"[CHAT STREAM ENDPOINT] Model: {request.model if request.model else 'N/A'}")
+        logger.info(f"[CHAT STREAM ENDPOINT] ========================================")
+        
         # Получаем персонажа из запроса - обязательное поле
         if not request.character:
             raise HTTPException(status_code=400, detail="Не указан персонаж для диалога")
@@ -459,6 +485,15 @@ async def chat_with_character_stream(
         
         logger.info(f"[CHAT STREAM] Начало стриминга для персонажа '{character_name}', сообщений: {len(messages)}")
         
+        # Проверяем, что выбор модели доступен только для PREMIUM
+        selected_model = None
+        if request.model:
+            if subscription_type_enum == SubscriptionType.PREMIUM:
+                selected_model = request.model
+                logger.info(f"[CHAT STREAM] Используется выбранная модель для PREMIUM: {selected_model}")
+            else:
+                logger.warning(f"[CHAT STREAM] Выбор модели доступен только для PREMIUM подписки, игнорируем model={request.model}")
+        
         # Создаем асинхронный генератор для SSE
         async def generate_sse_stream() -> AsyncGenerator[str, None]:
             """
@@ -474,7 +509,8 @@ async def chat_with_character_stream(
                     temperature=chat_config.DEFAULT_TEMPERATURE,
                     top_p=chat_config.DEFAULT_TOP_P,
                     presence_penalty=chat_config.DEFAULT_PRESENCE_PENALTY,
-                    subscription_type=subscription_type_enum
+                    subscription_type=subscription_type_enum,
+                    model=selected_model
                 ):
                     # Проверяем на ошибку
                     if chunk.startswith('{"error"'):
@@ -538,7 +574,10 @@ async def chat_with_character_stream(
                         db.add(assistant_message)
                         
                         await db.commit()
-                        logger.info(f"[CHAT STREAM] Диалог сохранен в БД (session_id={chat_session.id})")
+                        # Определяем, какая модель была использована
+                        from app.chat_bot.services.openrouter_service import get_model_for_subscription
+                        model_used = selected_model if selected_model else get_model_for_subscription(subscription_type_enum)
+                        logger.info(f"[CHAT STREAM] Диалог сохранен в БД (session_id={chat_session.id}), модель: {model_used}")
                 except Exception as e:
                     logger.error(f"[CHAT STREAM] Ошибка сохранения диалога: {e}")
                     # Не прерываем стриминг из-за ошибки сохранения

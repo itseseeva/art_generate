@@ -220,7 +220,7 @@ async def lifespan(app: FastAPI):
     
     # Инициализируем Redis кэш (не блокируем запуск приложения)
     # Redis будет подключен при первом использовании, если доступен
-    logger.info("[INFO] Redis кэш будет инициализирован при первом использовании")
+    # logger.info("[INFO] Redis кэш будет инициализирован при первом использовании")
     
     # Проверяем переменные окружения RunPod
     try:
@@ -379,7 +379,7 @@ if ADDITIONAL_ORIGINS:
     ALLOWED_ORIGINS.extend(additional_origins)
 
 # Логируем разрешенные origin'ы для отладки
-logger.info(f"[CORS] Разрешенные origin'ы: {ALLOWED_ORIGINS}")
+# logger.info(f"[CORS] Разрешенные origin'ы: {ALLOWED_ORIGINS}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -705,28 +705,28 @@ try:
     from app.api.endpoints.character_comments import router as comments_router
     app.include_router(comments_router, prefix="/api/v1/character-comments", tags=["character-comments"])
     
-    # Логируем все роуты для отладки
-    print("=" * 80)
-    print("[ROUTES] Зарегистрированные роуты для character-ratings:")
-    ratings_routes = []
-    for route in app.routes:
-        if hasattr(route, 'path') and 'character-ratings' in route.path:
-            methods = list(route.methods) if hasattr(route, 'methods') else []
-            route_info = f"{methods} {route.path}"
-            print(f"[ROUTES] {route_info}")
-            ratings_routes.append(route_info)
-    if not ratings_routes:
-        print("[ROUTES] ВНИМАНИЕ: Роуты character-ratings НЕ найдены!")
-    print("=" * 80)
-    logger.info("=" * 80)
-    logger.info("[ROUTES] Зарегистрированные роуты для character-ratings:")
-    for route in app.routes:
-        if hasattr(route, 'path') and 'character-ratings' in route.path:
-            methods = list(route.methods) if hasattr(route, 'methods') else []
-            logger.info(f"[ROUTES] {methods} {route.path}")
-    if not ratings_routes:
-        logger.warning("[ROUTES] ВНИМАНИЕ: Роуты character-ratings НЕ найдены!")
-    logger.info("=" * 80)
+    # Логируем все роуты для отладки (отключено)
+    # print("=" * 80)
+    # print("[ROUTES] Зарегистрированные роуты для character-ratings:")
+    # ratings_routes = []
+    # for route in app.routes:
+    #     if hasattr(route, 'path') and 'character-ratings' in route.path:
+    #         methods = list(route.methods) if hasattr(route, 'methods') else []
+    #         route_info = f"{methods} {route.path}"
+    #         print(f"[ROUTES] {route_info}")
+    #         ratings_routes.append(route_info)
+    # if not ratings_routes:
+    #     print("[ROUTES] ВНИМАНИЕ: Роуты character-ratings НЕ найдены!")
+    # print("=" * 80)
+    # logger.info("=" * 80)
+    # logger.info("[ROUTES] Зарегистрированные роуты для character-ratings:")
+    # for route in app.routes:
+    #     if hasattr(route, 'path') and 'character-ratings' in route.path:
+    #         methods = list(route.methods) if hasattr(route, 'methods') else []
+    #         logger.info(f"[ROUTES] {methods} {route.path}")
+    # if not ratings_routes:
+    #     logger.warning("[ROUTES] ВНИМАНИЕ: Роуты character-ratings НЕ найдены!")
+    # logger.info("=" * 80)
 
 except Exception as e:
     logger.error(f"[ERROR] Ошибка подключения роутеров chat/character: {e}")
@@ -1926,6 +1926,7 @@ async def chat_endpoint(
     logger.info(f"[ENDPOINT CHAT] Character: {request.get('character', 'N/A')}")
     logger.info(f"[ENDPOINT CHAT] Generate image: {request.get('generate_image', False)}")
     logger.info(f"[ENDPOINT CHAT] Message (первые 100 символов): {request.get('message', '')[:100]}...")
+    logger.info(f"[ENDPOINT CHAT] Model: {request.get('model', 'N/A')}")
     
     # КРИТИЧЕСКИ ВАЖНО: Проверяем параметр stream
     stream_param_raw = request.get('stream')
@@ -2342,6 +2343,15 @@ async def chat_endpoint(
         if use_streaming:
             logger.info("[STREAM] /chat: Режим стриминга включен - возвращаем StreamingResponse")
             
+            # Проверяем, что выбор модели доступен только для PREMIUM
+            selected_model = None
+            if request.get("model"):
+                if subscription_type_enum == SubscriptionType.PREMIUM:
+                    selected_model = request.get("model")
+                    logger.info(f"[STREAM] Используется выбранная модель для PREMIUM: {selected_model}")
+                else:
+                    logger.warning(f"[STREAM] Выбор модели доступен только для PREMIUM подписки, игнорируем model={request.get('model')}")
+            
             # Создаем асинхронный генератор для SSE
             async def generate_sse_stream() -> AsyncGenerator[str, None]:
                 """
@@ -2357,7 +2367,8 @@ async def chat_endpoint(
                         temperature=chat_config.DEFAULT_TEMPERATURE,
                         top_p=chat_config.DEFAULT_TOP_P,
                         presence_penalty=chat_config.DEFAULT_PRESENCE_PENALTY,
-                        subscription_type=subscription_type_enum
+                        subscription_type=subscription_type_enum,
+                        model=selected_model
                     ):
                         # Проверяем на ошибку
                         if chunk.startswith('{"error"'):
@@ -2381,6 +2392,11 @@ async def chat_endpoint(
                     # Списываем ресурсы и сохраняем диалог в базу данных после завершения стриминга
                     # Используем фоновую задачу для сохранения, чтобы не блокировать стриминг
                     if full_response:
+                        # Определяем, какая модель была использована
+                        from app.chat_bot.services.openrouter_service import get_model_for_subscription
+                        model_used = selected_model if selected_model else get_model_for_subscription(subscription_type_enum)
+                        logger.info(f"[STREAM] Ответ сгенерирован моделью: {model_used} (подписка: {subscription_type_enum.value if subscription_type_enum else 'FREE'}), длина: {len(full_response)} символов")
+                        
                         # Подготавливаем данные для сохранения
                         history_message = message if message else ""
                         
@@ -2420,7 +2436,16 @@ async def chat_endpoint(
         # Обычный режим без стриминга
         # Генерируем ответ напрямую от модели (ОПТИМИЗИРОВАНО ДЛЯ СКОРОСТИ)
         # max_tokens определяется на основе подписки: STANDARD=200, PREMIUM=450
-        # Модель выбирается на основе подписки: STANDARD=sao10k/l3-euryale-70b, PREMIUM=sao10k/l3-euryale-70b
+        # Модель выбирается на основе подписки или из запроса (для PREMIUM)
+        # Проверяем, что выбор модели доступен только для PREMIUM
+        selected_model = None
+        if request.get("model"):
+            if subscription_type_enum == SubscriptionType.PREMIUM:
+                selected_model = request.get("model")
+                logger.info(f"[CHAT] Используется выбранная модель для PREMIUM: {selected_model}")
+            else:
+                logger.warning(f"[CHAT] Выбор модели доступен только для PREMIUM подписки, игнорируем model={request.get('model')}")
+        
         response = await openrouter_service.generate_text(
             messages=openai_messages,
             max_tokens=max_tokens,
@@ -2428,7 +2453,8 @@ async def chat_endpoint(
             top_p=chat_config.DEFAULT_TOP_P,
             repeat_penalty=chat_config.DEFAULT_REPEAT_PENALTY,
             presence_penalty=chat_config.DEFAULT_PRESENCE_PENALTY,
-            subscription_type=subscription_type_enum
+            subscription_type=subscription_type_enum,
+            model=selected_model
         )
         
         # Проверяем ошибку подключения к сервису генерации
@@ -2444,7 +2470,10 @@ async def chat_endpoint(
                 detail="Не удалось сгенерировать ответ от модели"
             )
         
-        logger.info(f"[OK] /chat: Ответ сгенерирован ({len(response)} символов)")
+        # Определяем, какая модель была использована
+        from app.chat_bot.services.openrouter_service import get_model_for_subscription
+        model_used = selected_model if selected_model else get_model_for_subscription(subscription_type_enum)
+        logger.info(f"[OK] /chat: Ответ сгенерирован ({len(response)} символов) моделью: {model_used} (подписка: {subscription_type_enum.value if subscription_type_enum else 'FREE'})")
         
         # КРИТИЧЕСКИ ВАЖНО: Сохраняем ответ модели в БД СРАЗУ после генерации
         # Это нужно для того, чтобы следующий запрос мог использовать этот ответ в контексте

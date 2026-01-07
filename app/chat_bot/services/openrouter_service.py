@@ -130,6 +130,7 @@ class OpenRouterService:
         repeat_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
         subscription_type: Optional[SubscriptionType] = None,
+        model: Optional[str] = None,
         **kwargs
     ) -> Optional[str]:
         """
@@ -155,13 +156,29 @@ class OpenRouterService:
             return None
         
         # Используем значения по умолчанию из конфигурации, если не указаны
-        max_tokens = max_tokens or chat_config.DEFAULT_MAX_TOKENS
+        # ВАЖНО: max_tokens должен быть передан из вызывающего кода на основе подписки
+        # Если max_tokens не передан (None), используем значение по умолчанию
+        if max_tokens is None:
+            max_tokens = chat_config.DEFAULT_MAX_TOKENS
         temperature = temperature if temperature is not None else chat_config.DEFAULT_TEMPERATURE
         top_p = top_p if top_p is not None else chat_config.DEFAULT_TOP_P
         presence_penalty = presence_penalty if presence_penalty is not None else chat_config.DEFAULT_PRESENCE_PENALTY
         
-        # Выбираем модель на основе подписки
-        model_to_use = get_model_for_subscription(subscription_type)
+        # Выбираем модель: если передан явно - используем её, иначе на основе подписки
+        if model:
+            # Проверяем, что модель разрешена для использования
+            allowed_models = [
+                "sao10k/l3-euryale-70b",
+                "meta-llama/llama-3.3-70b-instruct",
+                "anthracite-org/magnum-v4-72b"
+            ]
+            if model in allowed_models:
+                model_to_use = model
+            else:
+                logger.warning(f"[OPENROUTER] Неразрешенная модель: {model}, используем модель по умолчанию")
+                model_to_use = get_model_for_subscription(subscription_type)
+        else:
+            model_to_use = get_model_for_subscription(subscription_type)
         
         try:
             session = await self._get_session()
@@ -211,7 +228,7 @@ class OpenRouterService:
             
             logger.info(f"[OPENROUTER] Отправка запроса на генерацию")
             logger.info(f"[OPENROUTER] Используемая модель: {model_to_use} (подписка: {subscription_type.value if subscription_type else 'FREE'})")
-            logger.debug(f"[OPENROUTER] Параметры: max_tokens={max_tokens}, temperature={temperature}, top_p={top_p}")
+            logger.info(f"[OPENROUTER] Параметры генерации: max_tokens={max_tokens}, temperature={temperature}, top_p={top_p}")
             
             async with session.post(
                 f"{self.base_url}/chat/completions",
@@ -280,6 +297,7 @@ class OpenRouterService:
         top_p: Optional[float] = None,
         presence_penalty: Optional[float] = None,
         subscription_type: Optional[SubscriptionType] = None,
+        model: Optional[str] = None,
         **kwargs
     ) -> AsyncGenerator[str, None]:
         """
@@ -305,13 +323,31 @@ class OpenRouterService:
             return
         
         # Используем значения по умолчанию из конфигурации, если не указаны
-        max_tokens = max_tokens or chat_config.DEFAULT_MAX_TOKENS
+        # ВАЖНО: max_tokens должен быть передан из вызывающего кода на основе подписки
+        # Если max_tokens не передан (None), используем значение по умолчанию
+        if max_tokens is None:
+            max_tokens = chat_config.DEFAULT_MAX_TOKENS
         temperature = temperature if temperature is not None else chat_config.DEFAULT_TEMPERATURE
         top_p = top_p if top_p is not None else chat_config.DEFAULT_TOP_P
         presence_penalty = presence_penalty if presence_penalty is not None else chat_config.DEFAULT_PRESENCE_PENALTY
         
-        # Выбираем модель на основе подписки
-        model_to_use = get_model_for_subscription(subscription_type)
+        # Выбираем модель: если передан явно - используем её, иначе на основе подписки
+        if model:
+            # Проверяем, что модель разрешена для использования
+            allowed_models = [
+                "sao10k/l3-euryale-70b",
+                "meta-llama/llama-3.3-70b-instruct",
+                "anthracite-org/magnum-v4-72b"
+            ]
+            if model not in allowed_models:
+                logger.warning(f"[OPENROUTER STREAM] Неразрешенная модель: {model}, используем модель по умолчанию")
+                model_to_use = get_model_for_subscription(subscription_type)
+            else:
+                model_to_use = model
+                logger.info(f"[OPENROUTER STREAM] Используется выбранная модель: {model_to_use}")
+        else:
+            # Выбираем модель на основе подписки
+            model_to_use = get_model_for_subscription(subscription_type)
         
         try:
             session = await self._get_session()
@@ -340,6 +376,7 @@ class OpenRouterService:
             
             logger.info(f"[OPENROUTER STREAM] Отправка {len(formatted_messages)} сообщений в API (streaming)")
             logger.info(f"[OPENROUTER STREAM] Используемая модель: {model_to_use} (подписка: {subscription_type.value if subscription_type else 'FREE'})")
+            logger.info(f"[OPENROUTER STREAM] Параметры генерации: max_tokens={max_tokens}, temperature={temperature}, top_p={top_p}")
             
             payload = {
                 "model": model_to_use,
