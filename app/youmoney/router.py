@@ -302,7 +302,7 @@ async def youmoney_quickpay_notify(request: Request):
 					logging.error("[YOUMONEY NOTIFY] ❌ Сумма слишком мала!")
 					logging.error("[YOUMONEY NOTIFY] Получено: %s, минимум: %s, разница: %s", 
 						amount_val, min_amount, amount_val - min_amount)
-					logging.error("[YOUMONEY NOTIFY] Возможно, комиссия карты уменьшила сумму. Проверьте настройки min_standard/min_premium")
+					logging.error("[YOUMONEY NOTIFY] Возможно, комиссия карты уменьшила сумму.")
 					raise HTTPException(status_code=400, detail=f"amount too low ({amount_val} < {min_amount})")
 
 				logging.info("[YOUMONEY NOTIFY] ✅ Сумма проверена успешно")

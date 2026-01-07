@@ -24,16 +24,9 @@ def get_youm_config() -> YouMoneyConfig:
 	Читает env‑переменные для QuickPay‑уведомлений.
 	"""
 	notification_secret = os.getenv("YOUMONEY_NOTIFICATION_SECRET") or os.getenv("notification_secret") or None
-	# Минимальные суммы для приёма (можно ослабить из-за комиссий карт)
-	def _to_float(value: str | None, default: float) -> float:
-		if not value:
-			return default
-		try:
-			return float(value)
-		except Exception:
-			return default
-	min_standard = _to_float(os.getenv("YOUMONEY_MIN_STANDARD"), 11.0)
-	min_premium = _to_float(os.getenv("YOUMONEY_MIN_PREMIUM"), 1399.0)
+	# Захардкоженные минимальные суммы для приёма платежей
+	min_standard = 11.0
+	min_premium = 11.0
 
 	return {
 		"notification_secret": notification_secret,
