@@ -393,21 +393,36 @@ app.add_middleware(
 # Middleware для логирования запросов к character-ratings
 @app.middleware("http")
 async def log_ratings_requests(request: Request, call_next):
-    """Middleware для логирования запросов к character-ratings."""
-    if "/character-ratings/" in str(request.url):
-        print("=" * 80)
-        print(f"[MIDDLEWARE] Запрос к character-ratings: {request.method} {request.url}")
-        print(f"[MIDDLEWARE] Path: {request.url.path}")
-        print("=" * 80)
-        logger.info("=" * 80)
-        logger.info(f"[MIDDLEWARE] Запрос к character-ratings: {request.method} {request.url}")
-        logger.info(f"[MIDDLEWARE] Path: {request.url.path}")
-        logger.info("=" * 80)
-    response = await call_next(request)
-    if "/character-ratings/" in str(request.url):
-        print(f"[MIDDLEWARE] Ответ для character-ratings: {response.status_code}")
-        logger.info(f"[MIDDLEWARE] Ответ для character-ratings: {response.status_code}")
-    return response
+	"""Middleware для логирования запросов к character-ratings."""
+	if "/character-ratings/" in str(request.url):
+		print("=" * 80)
+		print(f"[MIDDLEWARE] Запрос к character-ratings: {request.method} {request.url}")
+		print(f"[MIDDLEWARE] Path: {request.url.path}")
+		print("=" * 80)
+		logger.info("=" * 80)
+		logger.info(f"[MIDDLEWARE] Запрос к character-ratings: {request.method} {request.url}")
+		logger.info(f"[MIDDLEWARE] Path: {request.url.path}")
+		logger.info("=" * 80)
+	
+	# Логирование ВСЕХ POST-запросов к YooMoney эндпоинтам
+	if request.method == "POST" and "/youmoney/" in str(request.url):
+		logger.info("=" * 80)
+		logger.info(f"[YOUMONEY MIDDLEWARE] POST-запрос к YooMoney: {request.method} {request.url}")
+		logger.info(f"[YOUMONEY MIDDLEWARE] Path: {request.url.path}")
+		logger.info(f"[YOUMONEY MIDDLEWARE] Headers: {dict(request.headers)}")
+		logger.info(f"[YOUMONEY MIDDLEWARE] Client: {request.client}")
+		logger.info("=" * 80)
+	
+	response = await call_next(request)
+	
+	if "/character-ratings/" in str(request.url):
+		print(f"[MIDDLEWARE] Ответ для character-ratings: {response.status_code}")
+		logger.info(f"[MIDDLEWARE] Ответ для character-ratings: {response.status_code}")
+	
+	if request.method == "POST" and "/youmoney/" in str(request.url):
+		logger.info(f"[YOUMONEY MIDDLEWARE] Ответ для YooMoney: {response.status_code}")
+	
+	return response
 
 # ============================================================================
 # КРИТИЧНО: Роуты для рейтингов регистрируются НАПРЯМУЮ в app, ПЕРЕД всеми остальными
