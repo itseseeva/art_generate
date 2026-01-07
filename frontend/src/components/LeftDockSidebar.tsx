@@ -115,6 +115,7 @@ const DockWrapper = styled.div`
   overflow-y: auto;
   overflow-x: visible;
   overflow: visible;
+  margin-top: 15%;
   
   &::-webkit-scrollbar {
     width: 0;
@@ -182,6 +183,25 @@ const ToggleArrowButton = styled.button<{ $isCollapsed?: boolean }>`
   }
 `;
 
+const FilterTooltip = styled.div`
+  position: absolute;
+  top: calc(100% + 10%);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  color: rgba(255, 255, 255, 0.9);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 1000;
+  backdrop-filter: blur(5px);
+`;
+
 const SwitcherContainer = styled.div`
   width: 100%;
   display: flex;
@@ -191,6 +211,10 @@ const SwitcherContainer = styled.div`
   margin-top: calc(0.5rem - 4px);
   transform: translateY(-20%);
   position: relative;
+
+  &:hover ${FilterTooltip} {
+    opacity: 1;
+  }
 `;
 
 const SidebarContent = styled.div<{ $isCollapsed?: boolean }>`
@@ -418,6 +442,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
             <FiHome size={16} />
           </HomeButton>
           <SwitcherContainer>
+            <FilterTooltip>Фильтр</FilterTooltip>
             <Switcher4
               checked={contentMode === 'nsfw'}
               onToggle={(checked) => {
