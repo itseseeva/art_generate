@@ -340,6 +340,12 @@ class ProfitActivateService:
                 logger.info(f"[OLD SUBSCRIPTION] Остатки: кредиты={old_credits_remaining}, фото={old_photos_remaining}")
                 logger.info(f"[OLD BALANCE] Баланс пользователя: {old_user_balance} монет")
                 
+                # ВАЖНО: Сохраняем старый тип подписки ДО изменения для правильной проверки
+                old_subscription_type_enum = existing_subscription.subscription_type
+                is_old_free = (old_subscription_type_enum == SubscriptionType.FREE)
+                
+                logger.info(f"[UPGRADE] Старый тип подписки (enum): {old_subscription_type_enum}, is_free={is_old_free}")
+                
                 # СТРАТЕГИЯ СОХРАНЕНИЯ БОНУСОВ:
                 # 1. Сохраняем все остатки от старой подписки
                 # 2. Добавляем полный лимит новой подписки
@@ -360,15 +366,18 @@ class ProfitActivateService:
                 existing_subscription.used_credits = 0
                 
                 # ФОТО: Для STANDARD и PREMIUM monthly_photos = 0 (без ограничений)
-                # Для FREE сохраняем старые остатки фото
-                if existing_subscription.subscription_type == SubscriptionType.FREE:
+                # Для FREE (старая подписка) сохраняем старые остатки фото
+                # ВАЖНО: Используем сохраненный старый тип, а не новый!
+                if is_old_free:
                     total_photos_available = monthly_photos + old_photos_remaining
                     existing_subscription.monthly_photos = total_photos_available
                     existing_subscription.used_photos = 0
+                    logger.info(f"[UPGRADE] Старая подписка была FREE, суммируем фото: {monthly_photos} + {old_photos_remaining} = {total_photos_available}")
                 else:
                     # Для STANDARD и PREMIUM - без ограничений на фото
                     existing_subscription.monthly_photos = 0
                     existing_subscription.used_photos = 0
+                    logger.info(f"[UPGRADE] Старая подписка была {old_type.upper()}, фото без ограничений")
                 
                 existing_subscription.activated_at = datetime.utcnow()
                 existing_subscription.expires_at = datetime.utcnow() + timedelta(days=30)
@@ -392,23 +401,42 @@ class ProfitActivateService:
                 
                 logger.info(f"[NEW SUBSCRIPTION] Базовые лимиты: кредиты={monthly_credits}, фото={monthly_photos}")
                 logger.info(f"[CREDITS TRANSFER] ✅ Переведено на баланс: {monthly_credits} (новая) + {old_credits_remaining} (остаток) = {total_credits_to_add} кредитов")
-                if existing_subscription.subscription_type == SubscriptionType.FREE:
+                if is_old_free:
                     total_photos_available = monthly_photos + old_photos_remaining
                     logger.info(f"[PHOTOS TRANSFER] ✅ Суммировано фото: {monthly_photos} (новая) + {old_photos_remaining} (остаток) = {total_photos_available} фото")
                 else:
-                    logger.info(f"[PHOTOS] Для {existing_subscription.subscription_type.value.upper()} генерации фото не ограничены")
+                    logger.info(f"[PHOTOS] Для новой подписки {subscription_type.upper()} генерации фото не ограничены")
                 logger.info(f"[NEW BALANCE] Баланс пользователя: {old_user_balance} + {total_credits_to_add} = {user.coins} монет")
+                logger.info(f"[UPGRADE] Новый тип подписки: {existing_subscription.subscription_type.value.upper()}")
+                
+                logger.info(f"[UPGRADE] Состояние ПЕРЕД commit:")
+                logger.info(f"[UPGRADE]   subscription_type: {existing_subscription.subscription_type.value}")
+                logger.info(f"[UPGRADE]   status: {existing_subscription.status.value}")
+                logger.info(f"[UPGRADE]   monthly_credits: {existing_subscription.monthly_credits}")
+                logger.info(f"[UPGRADE]   expires_at: {existing_subscription.expires_at}")
                 
                 await self.db.commit()
+                logger.info(f"[UPGRADE] ✅ Commit выполнен успешно")
+                
                 await self.db.refresh(existing_subscription)
                 await self.db.refresh(user)
+                
+                logger.info(f"[UPGRADE] Состояние ПОСЛЕ refresh:")
+                logger.info(f"[UPGRADE]   subscription_type: {existing_subscription.subscription_type.value}")
+                logger.info(f"[UPGRADE]   status: {existing_subscription.status.value}")
+                logger.info(f"[UPGRADE]   monthly_credits: {existing_subscription.monthly_credits}")
+                logger.info(f"[UPGRADE]   expires_at: {existing_subscription.expires_at}")
+                logger.info(f"[UPGRADE]   user.coins: {user.coins}")
                 
                 # Инвалидируем кэш подписки
                 await cache_delete(key_subscription(user_id))
                 await cache_delete(key_subscription_stats(user_id))
+                logger.info(f"[UPGRADE] ✅ Кэш подписки инвалидирован")
                 
                 logger.info("[OK] Подписка успешно обновлена. Все бонусы сохранены!")
                 await emit_profile_update(user_id, self.db)
+                logger.info(f"[UPGRADE] ✅ Профиль обновлен через WebSocket")
+                
                 return existing_subscription
         
         # Создаем новую подписку (первая подписка пользователя)
