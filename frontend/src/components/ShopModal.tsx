@@ -341,7 +341,7 @@ export const ShopModal: React.FC<ShopModalProps> = ({
             
             <PlanCard $isPopular>
               <PlanName>Премиум</PlanName>
-              <PlanPrice>11₽</PlanPrice>
+              <PlanPrice>10₽</PlanPrice>
               <PlanFeatures>
                 <PlanFeature>500 кредитов в месяц</PlanFeature>
                 <PlanFeature>50 генераций фото</PlanFeature>

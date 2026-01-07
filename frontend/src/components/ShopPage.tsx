@@ -741,7 +741,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
 
     try {
       const receiverWallet = '4100119070489003';
-      const amount = subscriptionType === 'premium' ? 11 : 11;
+      const amount = subscriptionType === 'premium' ? 10 : 10;
       const label = `plan:${subscriptionType};uid:${currentUserId}`;
       const successURL = `${window.location.origin}/shop`;
       
@@ -827,7 +827,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             
             <PlanCard $isPopular>
               <PlanName>Standard</PlanName>
-              <PlanPrice>11₽</PlanPrice>
+              <PlanPrice>10₽</PlanPrice>
               <PlanFeatures>
                 <PlanFeature>1500 кредитов в месяц</PlanFeature>
                 <PlanFeature>Возможность создать своих персонажей</PlanFeature>
@@ -876,7 +876,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             
             <PlanCard>
               <PlanName>Premium</PlanName>
-              <PlanPrice>11₽</PlanPrice>
+              <PlanPrice>10₽</PlanPrice>
               <PlanFeatures>
                 <PlanFeature>5000 кредитов в месяц</PlanFeature>
                 <PlanFeature>Возможность создать своих персонажей</PlanFeature>
