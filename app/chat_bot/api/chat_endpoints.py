@@ -58,6 +58,12 @@ async def chat_with_character(
     """
     Обычный чат с персонажем без стриминга.
     """
+    logger.info(f"[CHAT ENDPOINT] ===== ВХОДЯЩИЙ ЗАПРОС /chat =====")
+    logger.info(f"[CHAT ENDPOINT] User: {current_user.id if current_user else 'anonymous'}")
+    logger.info(f"[CHAT ENDPOINT] Character: {request.character}")
+    logger.info(f"[CHAT ENDPOINT] Model: {request.model}")
+    logger.info(f"[CHAT ENDPOINT] Message: {request.message[:100] if request.message else 'None'}...")
+    
     try:
         # Получаем персонажа из запроса - обязательное поле
         if not request.character:
@@ -228,15 +234,19 @@ async def chat_with_character(
         # Проверяем, что выбор модели доступен только для PREMIUM
         selected_model = None
         if request.model:
+            logger.info(f"[CHAT ENDPOINT] Получен параметр model из запроса: {request.model}")
             if subscription_type_enum == SubscriptionType.PREMIUM:
                 selected_model = request.model
                 logger.info(f"[CHAT] Используется выбранная модель для PREMIUM: {selected_model}")
             else:
-                logger.warning(f"[CHAT] Выбор модели доступен только для PREMIUM подписки, игнорируем model={request.model}")
+                logger.warning(f"[CHAT] Выбор модели доступен только для PREMIUM подписки, игнорируем model={request.model} (subscription_type={subscription_type_enum})")
+        else:
+            logger.info(f"[CHAT ENDPOINT] Параметр model не передан в запросе (request.model={request.model})")
         
         # Определяем, какая модель будет использована
         from app.chat_bot.services.openrouter_service import get_model_for_subscription
         model_used = selected_model if selected_model else get_model_for_subscription(subscription_type_enum)
+        logger.info(f"[CHAT ENDPOINT] Финальная модель для использования: {model_used} (selected_model={selected_model}, subscription_type={subscription_type_enum})")
         
         response_text = await openrouter_service.generate_text(
             messages=messages,
@@ -345,6 +355,12 @@ async def chat_with_character_stream(
     Чат с персонажем с потоковой передачей ответов (Streaming).
     Использует Server-Sent Events (SSE) для передачи данных в реальном времени.
     """
+    logger.info(f"[CHAT STREAM ENDPOINT] ===== ВХОДЯЩИЙ ЗАПРОС /chat/stream =====")
+    logger.info(f"[CHAT STREAM ENDPOINT] User: {current_user.id if current_user else 'anonymous'}")
+    logger.info(f"[CHAT STREAM ENDPOINT] Character: {request.character}")
+    logger.info(f"[CHAT STREAM ENDPOINT] Model: {request.model}")
+    logger.info(f"[CHAT STREAM ENDPOINT] Message: {request.message[:100] if request.message else 'None'}...")
+    
     try:
         # Логируем начало обработки запроса
         logger.info(f"[CHAT STREAM ENDPOINT] ========================================")

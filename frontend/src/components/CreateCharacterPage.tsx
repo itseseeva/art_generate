@@ -903,7 +903,7 @@ const PhotoTile = styled.div`
 const PhotoImage = styled.img`
   width: 100% !important;
   height: 100% !important;
-  object-fit: cover;
+  object-fit: contain;
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
@@ -1426,7 +1426,7 @@ const PreviewCard = styled.div`
   border: 1px solid rgba(130, 130, 130, 0.4);
   box-shadow: none;
   width: 200px;
-  height: 150px;
+  height: 300px;
   position: relative;
   overflow: hidden;
 `;
@@ -1440,7 +1440,7 @@ const PreviewSlideShow = styled.div`
 const PreviewSlideImage = styled.img<{ $isActive: boolean }>`
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   position: absolute;
   top: 0;
   left: 0;
