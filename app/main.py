@@ -2420,7 +2420,7 @@ async def chat_endpoint(
         # Обычный режим без стриминга
         # Генерируем ответ напрямую от модели (ОПТИМИЗИРОВАНО ДЛЯ СКОРОСТИ)
         # max_tokens определяется на основе подписки: STANDARD=200, PREMIUM=450
-        # Модель выбирается на основе подписки: STANDARD=gryphe/mythomax-l2-13b, PREMIUM=sao10k/l3-euryale-70b
+        # Модель выбирается на основе подписки: STANDARD=sao10k/l3-euryale-70b, PREMIUM=sao10k/l3-euryale-70b
         response = await openrouter_service.generate_text(
             messages=openai_messages,
             max_tokens=max_tokens,

@@ -625,7 +625,7 @@ export const TariffsPage: React.FC = () => {
               <Feature>Доступ ко всем персонажам</Feature>
               <Feature>Сохранение истории сообщений</Feature>
               <Feature>Создание платных альбомов</Feature>
-              <Feature>Стандартная модель, память 2000 слов</Feature>
+              <Feature>Премиум модель, память 6000 слов</Feature>
             </FeatureList>
             <ActivateButton 
               onClick={() => handleActivateSubscription('standard')}

@@ -138,7 +138,7 @@ async def universal_chat(request: Dict[str, Any]):
         
         # Генерируем ответ напрямую от модели
         # Для universal_chat используем минимальное значение max_tokens (150)
-        # Модель выбирается на основе подписки: STANDARD=gryphe/mythomax-l2-13b, PREMIUM=sao10k/l3-euryale-70b
+        # Модель выбирается на основе подписки: STANDARD=sao10k/l3-euryale-70b, PREMIUM=sao10k/l3-euryale-70b
         # Для universal_chat подписка не передается (None), используется модель по умолчанию
         response = await openrouter_service.generate_text(
             messages=openai_messages,

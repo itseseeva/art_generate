@@ -216,7 +216,7 @@ async def chat_with_character(
         
         # Получаем ответ от модели без стриминга
         # max_tokens определяется на основе подписки: STANDARD=200, PREMIUM=450
-        # Модель выбирается на основе подписки: STANDARD=gryphe/mythomax-l2-13b, PREMIUM=sao10k/l3-euryale-70b
+        # Модель выбирается на основе подписки: STANDARD=sao10k/l3-euryale-70b, PREMIUM=sao10k/l3-euryale-70b
         response_text = await openrouter_service.generate_text(
             messages=messages,
             max_tokens=max_tokens,

@@ -2,7 +2,7 @@
 Сервис для взаимодействия с OpenRouter API.
 
 Модель выбирается на основе типа подписки:
-- STANDARD: gryphe/mythomax-l2-13b
+- STANDARD: sao10k/l3-euryale-70b
 - PREMIUM: sao10k/l3-euryale-70b
 - FREE/другое: модель из chat_config.OPENROUTER_MODEL
 """
@@ -27,7 +27,7 @@ def get_model_for_subscription(subscription_type: Optional[SubscriptionType]) ->
         Название модели для использования
     """
     if subscription_type == SubscriptionType.STANDARD:
-        return "gryphe/mythomax-l2-13b"
+        return "sao10k/l3-euryale-70b"
     elif subscription_type == SubscriptionType.PREMIUM:
         return "sao10k/l3-euryale-70b"
     else:
