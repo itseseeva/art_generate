@@ -19,6 +19,7 @@ class NotifyOK(BaseModel):
 	plan: str
 
 @router.post("/quickpay/notify")
+@router.post("/quickpay/notify/")  # Поддержка обоих вариантов (с слэшем и без) для Nginx/proxy
 async def youmoney_quickpay_notify(request: Request):
 	"""
 	YooMoney QuickPay HTTP-notification endpoint.
@@ -27,18 +28,31 @@ async def youmoney_quickpay_notify(request: Request):
 	Документация: вычисление sha1 от
 	notification_type&operation_id&amount&currency&datetime&sender&codepro&notification_secret&label
 	"""
+	# Логируем заголовки запроса для проверки Nginx/proxy
+	logging.info("[YOUMONEY NOTIFY] ===== ВХОДЯЩЕЕ УВЕДОМЛЕНИЕ =====")
+	logging.info("[YOUMONEY NOTIFY] Метод: %s, URL: %s, Path: %s", request.method, request.url, request.url.path)
+	logging.info("[YOUMONEY NOTIFY] Заголовки запроса:")
+	for header_name, header_value in request.headers.items():
+		if header_name.lower() in ['x-forwarded-for', 'x-real-ip', 'x-forwarded-proto', 'host', 'content-type']:
+			logging.info("[YOUMONEY NOTIFY]   %s: %s", header_name, header_value)
+	
 	# Логируем всю входящую форму для отладки
 	form = await request.form()
 	form_dict = dict(form)
-	logging.info("[YOUMONEY NOTIFY] ===== ВХОДЯЩЕЕ УВЕДОМЛЕНИЕ =====")
 	logging.info("[YOUMONEY NOTIFY] Полная форма (все поля): %s", {k: v for k, v in form_dict.items()})
 	
-	data = {k: (form.get(k) or "") for k in [
-		"notification_type","operation_id","amount","currency","datetime",
-		"sender","codepro","label","sha1_hash"
-	]}
+	# Извлекаем данные точно в том виде, как пришли от YooMoney
+	# ВАЖНО: не преобразуем типы до проверки хеша!
+	data = {}
+	for key in ["notification_type", "operation_id", "amount", "currency", "datetime", "sender", "codepro", "label", "sha1_hash"]:
+		value = form.get(key)
+		# Сохраняем как строку, даже если пустое
+		data[key] = str(value) if value is not None else ""
+	
 	logging.info("[YOUMONEY NOTIFY] Извлеченные данные (без sha1_hash): %s", {k: data[k] for k in data if k != "sha1_hash"})
 	logging.info("[YOUMONEY NOTIFY] sha1_hash (первые 8 символов): %s...", (data["sha1_hash"] or "")[:8] if data["sha1_hash"] else "отсутствует")
+	logging.info("[YOUMONEY NOTIFY] Типы данных: amount=%s (type: %s), codepro=%s (type: %s)", 
+		data["amount"], type(data["amount"]).__name__, data["codepro"], type(data["codepro"]).__name__)
 	
 	try:
 		cfg = get_youm_config()
@@ -56,20 +70,44 @@ async def youmoney_quickpay_notify(request: Request):
 		raise HTTPException(status_code=400, detail="missing sha1_hash")
 
 	# Формируем строку для проверки подписи
-	# Порядок полей согласно документации YooMoney:
+	# КРИТИЧНО: Порядок полей строго по документации YooMoney:
 	# notification_type&operation_id&amount&currency&datetime&sender&codepro&notification_secret&label
-	check_str = "&".join([
-		data["notification_type"], data["operation_id"], data["amount"], data["currency"],
-		data["datetime"], data["sender"], data["codepro"], secret, data["label"]
-	])
+	# ВАЖНО: 
+	# - amount используется в исходном виде (строка с точкой, как пришла от YooMoney)
+	# - codepro используется как строка ('true'/'false'), НЕ преобразуем в bool!
+	# - Все поля используются как строки, без преобразований
+	
+	check_str_parts = [
+		data["notification_type"],
+		data["operation_id"],
+		data["amount"],  # ИСХОДНЫЙ ВИД - строка с точкой, не округляем!
+		data["currency"],
+		data["datetime"],
+		data["sender"],
+		data["codepro"],  # СТРОКА 'true'/'false', не bool!
+		secret,
+		data["label"]
+	]
+	
+	check_str = "&".join(check_str_parts)
 	
 	# Логируем check_str БЕЗ секрета для отладки (заменяем секрет на "***")
-	check_str_for_log = "&".join([
-		data["notification_type"], data["operation_id"], data["amount"], data["currency"],
-		data["datetime"], data["sender"], data["codepro"], "***" if secret else "", data["label"]
-	])
+	check_str_for_log_parts = check_str_parts.copy()
+	check_str_for_log_parts[7] = "***" if secret else ""  # Заменяем секрет на ***
+	check_str_for_log = "&".join(check_str_for_log_parts)
+	
 	logging.info("[YOUMONEY NOTIFY] Строка для проверки подписи (без секрета): %s", check_str_for_log)
 	logging.info("[YOUMONEY NOTIFY] Длина check_str: %d символов", len(check_str))
+	logging.info("[YOUMONEY NOTIFY] Поля для хеша:")
+	logging.info("[YOUMONEY NOTIFY]   1. notification_type: '%s'", data["notification_type"])
+	logging.info("[YOUMONEY NOTIFY]   2. operation_id: '%s'", data["operation_id"])
+	logging.info("[YOUMONEY NOTIFY]   3. amount: '%s' (исходный вид)", data["amount"])
+	logging.info("[YOUMONEY NOTIFY]   4. currency: '%s'", data["currency"])
+	logging.info("[YOUMONEY NOTIFY]   5. datetime: '%s'", data["datetime"])
+	logging.info("[YOUMONEY NOTIFY]   6. sender: '%s'", data["sender"])
+	logging.info("[YOUMONEY NOTIFY]   7. codepro: '%s' (строка, не bool!)", data["codepro"])
+	logging.info("[YOUMONEY NOTIFY]   8. notification_secret: '%s'", "***" if secret else "(пусто)")
+	logging.info("[YOUMONEY NOTIFY]   9. label: '%s'", data["label"])
 	
 	digest = hashlib.sha1(check_str.encode("utf-8")).hexdigest()
 	logging.info("[YOUMONEY NOTIFY] Вычисленный hash: %s", digest.lower())
@@ -79,14 +117,22 @@ async def youmoney_quickpay_notify(request: Request):
 		logging.error("[YOUMONEY NOTIFY] ❌ НЕВЕРНАЯ ПОДПИСЬ!")
 		logging.error("[YOUMONEY NOTIFY] Ожидалось: %s", digest.lower())
 		logging.error("[YOUMONEY NOTIFY] Получено: %s", (data["sha1_hash"] or "").lower())
-		logging.error("[YOUMONEY NOTIFY] Проверьте: порядок полей, формат amount (точка/запятая), наличие секрета")
+		logging.error("[YOUMONEY NOTIFY] Проверьте:")
+		logging.error("[YOUMONEY NOTIFY]   - Порядок полей в check_str")
+		logging.error("[YOUMONEY NOTIFY]   - Формат amount (должен быть исходный, с точкой)")
+		logging.error("[YOUMONEY NOTIFY]   - codepro должен быть строкой ('true'/'false'), не bool")
+		logging.error("[YOUMONEY NOTIFY]   - Наличие и значение notification_secret")
+		logging.error("[YOUMONEY NOTIFY]   - Кодировка строки (UTF-8)")
 		raise HTTPException(status_code=400, detail="invalid sha1 signature")
 	
-	logging.info("[YOUMONEY NOTIFY] ✅ Подпись проверена успешно")
+	logging.info("[YOUMONEY NOTIFY] ✅ Подпись проверена успешно - хеши совпадают")
 
-	# Отсекаем защищённые платежи и слишком маленькие суммы
-	if (data["codepro"] or "").lower() == "true":
-		logging.warning("[YOUMONEY NOTIFY] codepro=true not accepted")
+	# Отсекаем защищённые платежи
+	# ВАЖНО: codepro приходит как строка 'true'/'false', проверяем как строку
+	codepro_value = str(data.get("codepro", "")).lower()
+	logging.info("[YOUMONEY NOTIFY] Проверка codepro: значение='%s' (тип: %s)", codepro_value, type(data.get("codepro")).__name__)
+	if codepro_value == "true":
+		logging.warning("[YOUMONEY NOTIFY] codepro=true not accepted - защищенный платеж отклонен")
 		raise HTTPException(status_code=400, detail="codepro payments are not accepted")
 
 	label = data["label"] or ""
@@ -260,10 +306,25 @@ async def youmoney_quickpay_notify(request: Request):
 				logging.info("[YOUMONEY NOTIFY] ✅ Сумма проверена успешно")
 				logging.info("[YOUMONEY NOTIFY] Активация подписки: user_id=%s plan=%s amount=%s", user_id, plan, amount_val)
 				
+				# Проверяем, что plan соответствует стандартным тарифам из config
+				valid_plans = ["standard", "premium"]
+				if plan.lower() not in valid_plans:
+					logging.error("[YOUMONEY NOTIFY] ❌ Неподдерживаемый план: %s (ожидается: %s)", plan, valid_plans)
+					raise HTTPException(status_code=400, detail=f"Unsupported plan: {plan}")
+				
+				logging.info("[YOUMONEY NOTIFY] План валиден, вызываем service.activate_subscription...")
 				try:
 					sub = await service.activate_subscription(user_id, plan)
 					logging.info("[YOUMONEY NOTIFY] ✅ Подписка активирована: user_id=%s plan=%s subscription_id=%s", 
 						user_id, plan, sub.id if sub else None)
+					
+					# Проверяем, что commit произошел внутри activate_subscription
+					# Дополнительно проверяем состояние подписки
+					if sub:
+						logging.info("[YOUMONEY NOTIFY] Проверка подписки после активации: type=%s, active=%s, expires_at=%s", 
+							sub.subscription_type.value if hasattr(sub, 'subscription_type') else 'N/A',
+							sub.is_active if hasattr(sub, 'is_active') else 'N/A',
+							sub.expires_at if hasattr(sub, 'expires_at') else 'N/A')
 				except Exception as e:
 					logging.error("[YOUMONEY NOTIFY] ❌ Ошибка активации подписки: %s", e, exc_info=True)
 					raise
@@ -274,6 +335,7 @@ async def youmoney_quickpay_notify(request: Request):
 					transaction.processed_at = datetime.utcnow()
 					await db.commit()
 					logging.info("[YOUMONEY NOTIFY] ✅ Транзакция помечена как обработанная: operation_id=%s", data["operation_id"])
+					logging.info("[YOUMONEY NOTIFY] ✅ Сессия БД закоммичена успешно")
 				except Exception as e:
 					logging.error("[YOUMONEY NOTIFY] ❌ Ошибка при сохранении транзакции: %s", e, exc_info=True)
 					raise

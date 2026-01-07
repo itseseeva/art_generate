@@ -634,21 +634,17 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       const receiverWallet = '4100119070489003';
       const label = `type:topup;package:${packageId};uid:${currentUserId}`;
       const successURL = `${window.location.origin}/shop`;
-      
-      // Формируем URL для YooMoney QuickPay - используем URLSearchParams для правильной кодировки
-      const params = new URLSearchParams();
-      params.set('receiver', receiverWallet);
-      params.set('quickpay-form', 'shop');
-      params.set('targets', `Покупка ${credits} кредитов`);
-      params.set('formcomment', 'Пополнение баланса Spicychat');
-      params.set('short-dest', 'Пополнение баланса');
-      params.set('sum', price.toFixed(2));
-      params.set('label', label);
-      params.set('successURL', successURL);
-      
-      const quickPayUrl = `https://yoomoney.ru/quickpay/confirm.xml?${params.toString()}`;
+      const quickPayUrl =
+        `https://yoomoney.ru/quickpay/confirm.xml` +
+        `?receiver=${encodeURIComponent(receiverWallet)}` +
+        `&quickpay-form=shop` +
+        `&targets=${encodeURIComponent(`Покупка ${credits} кредитов`)}` +
+        `&formcomment=${encodeURIComponent('Пополнение баланса Spicychat')}` +
+        `&short-dest=${encodeURIComponent('Пополнение баланса')}` +
+        `&sum=${encodeURIComponent(price.toFixed(2))}` +
+        `&label=${encodeURIComponent(label)}` +
+        `&successURL=${encodeURIComponent(successURL)}`;
 
-      console.log('[SHOP] YooMoney Top-up URL:', quickPayUrl);
       window.location.href = quickPayUrl;
     } catch (err) {
       console.error('[SHOP] Ошибка формирования ссылки QuickPay для пакета:', err);

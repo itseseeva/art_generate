@@ -526,26 +526,22 @@ export const TariffsPage: React.FC = () => {
       const amount = subscriptionType === 'premium' ? 11 : 11;
       const label = `plan:${subscriptionType};uid:${currentUserId}`;
       const successURL = `${window.location.origin}/frontend/payment/success/`;
-      
-      // Формируем параметры отдельно для правильной кодировки
-      const targets = subscriptionType === 'premium'
-        ? 'Оплата подписки PREMIUM на 30 дней'
-        : 'Оплата подписки STANDARD на 30 дней';
-      
-      // Формируем URL для YooMoney QuickPay - используем URLSearchParams для правильной кодировки
-      const params = new URLSearchParams();
-      params.set('receiver', receiverWallet);
-      params.set('quickpay-form', 'shop');
-      params.set('targets', targets);
-      params.set('formcomment', 'Оплата подписки Spicychat');
-      params.set('short-dest', 'Подписка Spicychat');
-      params.set('sum', amount.toFixed(2));
-      params.set('label', label);
-      params.set('successURL', successURL);
-      
-      const quickPayUrl = `https://yoomoney.ru/quickpay/confirm.xml?${params.toString()}`;
+      const quickPayUrl =
+        `https://yoomoney.ru/quickpay/confirm.xml` +
+        `?receiver=${encodeURIComponent(receiverWallet)}` +
+        `&quickpay-form=shop` +
+        `&payment-type=AC` +
+        `&targets=${encodeURIComponent(
+          subscriptionType === 'premium'
+            ? 'Оплата подписки PREMIUM на 30 дней'
+            : 'Оплата подписки STANDARD на 30 дней'
+        )}` +
+        `&formcomment=${encodeURIComponent('Оплата подписки Spicychat')}` +
+        `&short-dest=${encodeURIComponent('Подписка Spicychat')}` +
+        `&sum=${amount.toFixed(2)}` +
+        `&label=${encodeURIComponent(label)}` +
+        `&successURL=${encodeURIComponent(successURL)}`;
 
-      console.log('[TARIFFS] YooMoney URL:', quickPayUrl);
       window.location.href = quickPayUrl;
     } catch (err) {
       console.error('Ошибка формирования ссылки QuickPay:', err);
@@ -582,21 +578,17 @@ export const TariffsPage: React.FC = () => {
       const receiverWallet = '4100119070489003';
       const label = `type:topup;package:${packageId};uid:${currentUserId}`;
       const successURL = `${window.location.origin}/tariffs`;
-      
-      // Формируем URL для YooMoney QuickPay - используем URLSearchParams для правильной кодировки
-      const params = new URLSearchParams();
-      params.set('receiver', receiverWallet);
-      params.set('quickpay-form', 'shop');
-      params.set('targets', `Покупка ${credits} кредитов`);
-      params.set('formcomment', 'Пополнение баланса Spicychat');
-      params.set('short-dest', 'Пополнение баланса');
-      params.set('sum', price.toFixed(2));
-      params.set('label', label);
-      params.set('successURL', successURL);
-      
-      const quickPayUrl = `https://yoomoney.ru/quickpay/confirm.xml?${params.toString()}`;
+      const quickPayUrl =
+        `https://yoomoney.ru/quickpay/confirm.xml` +
+        `?receiver=${encodeURIComponent(receiverWallet)}` +
+        `&quickpay-form=shop` +
+        `&targets=${encodeURIComponent(`Покупка ${credits} кредитов`)}` +
+        `&formcomment=${encodeURIComponent('Пополнение баланса Spicychat')}` +
+        `&short-dest=${encodeURIComponent('Пополнение баланса')}` +
+        `&sum=${encodeURIComponent(price.toFixed(2))}` +
+        `&label=${encodeURIComponent(label)}` +
+        `&successURL=${encodeURIComponent(successURL)}`;
 
-      console.log('[TARIFFS] YooMoney Top-up URL:', quickPayUrl);
       window.location.href = quickPayUrl;
     } catch (err) {
       console.error('Ошибка формирования ссылки QuickPay для пакета:', err);
