@@ -527,25 +527,23 @@ export const TariffsPage: React.FC = () => {
       const label = `plan:${subscriptionType};uid:${currentUserId}`;
       const successURL = `${window.location.origin}/frontend/payment/success/`;
       // Формируем URL для YooMoney QuickPay
-      // Используем payment-type=AC для банковских карт (более надежный вариант)
-      // Формируем URL для YooMoney QuickPay согласно официальной документации
-      const quickPayUrl = new URL('https://yoomoney.ru/quickpay/confirm.xml');
-      quickPayUrl.searchParams.set('receiver', receiverWallet);
-      quickPayUrl.searchParams.set('quickpay-form', 'shop');
-      quickPayUrl.searchParams.set('targets', 
-        subscriptionType === 'premium'
-          ? 'Оплата подписки PREMIUM на 30 дней'
-          : 'Оплата подписки STANDARD на 30 дней'
-      );
-      quickPayUrl.searchParams.set('formcomment', 'Оплата подписки Spicychat');
-      quickPayUrl.searchParams.set('short-dest', 'Подписка Spicychat');
-      quickPayUrl.searchParams.set('sum', amount.toFixed(2));
-      quickPayUrl.searchParams.set('label', label);
-      quickPayUrl.searchParams.set('successURL', successURL);
-      
-      const finalUrl = quickPayUrl.toString();
-      console.log('[TARIFFS] YooMoney URL:', finalUrl);
-      window.location.href = finalUrl;
+      const quickPayUrl =
+        `https://yoomoney.ru/quickpay/confirm.xml` +
+        `?receiver=${encodeURIComponent(receiverWallet)}` +
+        `&quickpay-form=shop` +
+        `&targets=${encodeURIComponent(
+          subscriptionType === 'premium'
+            ? 'Оплата подписки PREMIUM на 30 дней'
+            : 'Оплата подписки STANDARD на 30 дней'
+        )}` +
+        `&formcomment=${encodeURIComponent('Оплата подписки Spicychat')}` +
+        `&short-dest=${encodeURIComponent('Подписка Spicychat')}` +
+        `&sum=${amount.toFixed(2)}` +
+        `&label=${encodeURIComponent(label)}` +
+        `&successURL=${encodeURIComponent(successURL)}`;
+
+      console.log('[TARIFFS] YooMoney URL:', quickPayUrl);
+      window.location.href = quickPayUrl;
     } catch (err) {
       console.error('Ошибка формирования ссылки QuickPay:', err);
     }
@@ -581,20 +579,20 @@ export const TariffsPage: React.FC = () => {
       const receiverWallet = '4100119070489003';
       const label = `type:topup;package:${packageId};uid:${currentUserId}`;
       const successURL = `${window.location.origin}/tariffs`;
-      // Формируем URL для YooMoney QuickPay согласно официальной документации
-      const quickPayUrl = new URL('https://yoomoney.ru/quickpay/confirm.xml');
-      quickPayUrl.searchParams.set('receiver', receiverWallet);
-      quickPayUrl.searchParams.set('quickpay-form', 'shop');
-      quickPayUrl.searchParams.set('targets', `Покупка ${credits} кредитов`);
-      quickPayUrl.searchParams.set('formcomment', 'Пополнение баланса Spicychat');
-      quickPayUrl.searchParams.set('short-dest', 'Пополнение баланса');
-      quickPayUrl.searchParams.set('sum', price.toFixed(2));
-      quickPayUrl.searchParams.set('label', label);
-      quickPayUrl.searchParams.set('successURL', successURL);
-      
-      const finalUrl = quickPayUrl.toString();
-      console.log('[TARIFFS] YooMoney Top-up URL:', finalUrl);
-      window.location.href = finalUrl;
+      // Формируем URL для YooMoney QuickPay
+      const quickPayUrl =
+        `https://yoomoney.ru/quickpay/confirm.xml` +
+        `?receiver=${encodeURIComponent(receiverWallet)}` +
+        `&quickpay-form=shop` +
+        `&targets=${encodeURIComponent(`Покупка ${credits} кредитов`)}` +
+        `&formcomment=${encodeURIComponent('Пополнение баланса Spicychat')}` +
+        `&short-dest=${encodeURIComponent('Пополнение баланса')}` +
+        `&sum=${price.toFixed(2)}` +
+        `&label=${encodeURIComponent(label)}` +
+        `&successURL=${encodeURIComponent(successURL)}`;
+
+      console.log('[TARIFFS] YooMoney Top-up URL:', quickPayUrl);
+      window.location.href = quickPayUrl;
     } catch (err) {
       console.error('Ошибка формирования ссылки QuickPay для пакета:', err);
     }
