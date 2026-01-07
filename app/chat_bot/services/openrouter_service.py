@@ -10,7 +10,7 @@
 import os
 import aiohttp
 import json
-from typing import Optional, Dict, Any, List, AsyncGenerator
+from typing import Optional, Dict, List, AsyncGenerator
 from app.chat_bot.config.chat_config import chat_config
 from app.models.subscription import SubscriptionType
 from app.utils.logger import logger
@@ -48,12 +48,12 @@ class OpenRouterService:
         
         # Прокси отключен для текстовой модели
         self.proxy = None
-        logger.info("[OPENROUTER] Прокси отключен для текстовой модели")
+        logger.info("[OPENROUTER] Proxy disabled for text model")
         
         if not self.api_key:
-            logger.warning("[OPENROUTER] OPENROUTER_KEY не установлен в переменных окружения")
+            logger.warning("[OPENROUTER] OPENROUTER_KEY not set in env vars")
         
-        logger.info(f"[OPENROUTER] Модель по умолчанию: {self.model}")
+        logger.info(f"[OPENROUTER] Default model: {self.model}")
     
     async def _get_session(self) -> aiohttp.ClientSession:
         """Получает или создает сессию aiohttp."""
@@ -91,7 +91,7 @@ class OpenRouterService:
             True если API доступен, False в противном случае
         """
         if not self.api_key:
-            logger.error("[OPENROUTER] API ключ не установлен")
+            logger.error("[OPENROUTER] API key not set")
             return False
         
         try:
@@ -108,14 +108,14 @@ class OpenRouterService:
                 proxy=self.proxy if self.proxy else None
             ) as response:
                 if response.status == 200:
-                    logger.info("[OPENROUTER] Подключение успешно установлено")
+                    logger.info("[OPENROUTER] Connection established successfully")
                     return True
                 else:
                     error_text = await response.text()
-                    logger.warning(f"[OPENROUTER] API недоступен: HTTP {response.status}, ответ: {error_text}")
+                    logger.warning(f"[OPENROUTER] API unavailable: HTTP {response.status}, response: {error_text}")
                     return False
         except Exception as e:
-            logger.error(f"[OPENROUTER] Ошибка подключения: {e}")
+            logger.error(f"[OPENROUTER] Connection error: {e}")
             return False
     
     async def generate_text(
@@ -152,7 +152,7 @@ class OpenRouterService:
             Сгенерированный текст или None при ошибке
         """
         if not self.api_key:
-            logger.error("[OPENROUTER] API ключ не установлен")
+            logger.error("[OPENROUTER] API key not set")
             return None
         
         # Используем значения по умолчанию из конфигурации, если не указаны
@@ -169,13 +169,12 @@ class OpenRouterService:
             # Проверяем, что модель разрешена для использования
             allowed_models = [
                 "sao10k/l3-euryale-70b",
-                "meta-llama/llama-3.3-70b-instruct",
-                "anthracite-org/magnum-v4-72b"
+                "gryphe/mythomax-l2-13b"
             ]
             if model in allowed_models:
                 model_to_use = model
             else:
-                logger.warning(f"[OPENROUTER] Неразрешенная модель: {model}, используем модель по умолчанию")
+                logger.warning(f"[OPENROUTER] Disallowed model: {model}, using default")
                 model_to_use = get_model_for_subscription(subscription_type)
         else:
             model_to_use = get_model_for_subscription(subscription_type)
@@ -205,11 +204,11 @@ class OpenRouterService:
                 # Устаревший способ: весь prompt как одно сообщение пользователя
                 formatted_messages = [{"role": "user", "content": prompt}]
             else:
-                logger.error("[OPENROUTER] Не указан ни prompt, ни messages")
+                logger.error("[OPENROUTER] No prompt or messages provided")
                 return None
             
             # Короткое логирование: только количество сообщений
-            logger.info(f"[OPENROUTER] Отправка {len(formatted_messages)} сообщений в API")
+            logger.info(f"[OPENROUTER] Sending {len(formatted_messages)} messages to API")
             
             payload = {
                 "model": model_to_use,
@@ -222,13 +221,17 @@ class OpenRouterService:
                 "frequency_penalty": 0.5,
             }
             
+            # КРИТИЧЕСКОЕ ЛОГИРОВАНИЕ: проверяем, какая модель реально отправляется
+            logger.info(f"[OPENROUTER] Payload model field: {payload.get('model')}")
+            
             # Добавляем дополнительные параметры, если они есть
             if "stop" in kwargs:
                 payload["stop"] = kwargs["stop"]
             
-            logger.info(f"[OPENROUTER] Отправка запроса на генерацию")
-            logger.info(f"[OPENROUTER] Используемая модель: {model_to_use} (подписка: {subscription_type.value if subscription_type else 'FREE'})")
-            logger.info(f"[OPENROUTER] Параметры генерации: max_tokens={max_tokens}, temperature={temperature}, top_p={top_p}")
+            logger.info("[OPENROUTER] Sending generation request")
+            logger.info(f"[OPENROUTER] Model parameter received: {model}")
+            logger.info(f"[OPENROUTER] Model to use: {model_to_use} (sub: {subscription_type.value if subscription_type else 'FREE'})")
+            logger.info(f"[OPENROUTER] Generation params: max_tokens={max_tokens}, temperature={temperature}, top_p={top_p}")
             
             async with session.post(
                 f"{self.base_url}/chat/completions",
@@ -241,7 +244,7 @@ class OpenRouterService:
                     
                     # Логируем модель из ответа API (может отличаться от запрошенной)
                     model_used = result.get("model", "unknown")
-                    logger.info(f"[OPENROUTER] Ответ получен от модели: {model_used}")
+                    logger.info(f"[OPENROUTER] Response received from model: {model_used}")
                     
                     # OpenAI API возвращает результат в choices[0].message.content
                     choices = result.get("choices", [])
@@ -249,17 +252,17 @@ class OpenRouterService:
                         generated_text = choices[0].get("message", {}).get("content", "")
                         
                         if generated_text:
-                            logger.info(f"[OPENROUTER] Генерация завершена ({len(generated_text)} символов) моделью: {model_used}")
+                            logger.info(f"[OPENROUTER] Generation completed ({len(generated_text)} chars) using model: {model_used}")
                             return generated_text.strip()
                         else:
-                            logger.warning("[OPENROUTER] Пустой ответ от API")
+                            logger.warning("[OPENROUTER] Empty response from API")
                             return None
                     else:
-                        logger.warning("[OPENROUTER] Нет choices в ответе API")
+                        logger.warning("[OPENROUTER] No choices in API response")
                         return None
                 else:
                     error_text = await response.text()
-                    logger.error(f"[OPENROUTER] HTTP ошибка при генерации: {response.status}, ответ: {error_text}")
+                    logger.error(f"[OPENROUTER] HTTP error during generation: {response.status}, response: {error_text}")
                     
                     # Проверяем, является ли это ошибкой подключения
                     if response.status in [503, 502, 504]:
@@ -268,8 +271,8 @@ class OpenRouterService:
                     return None
                     
         except aiohttp.ClientProxyConnectionError as e:
-            logger.error(f"[OPENROUTER] Ошибка подключения к прокси: {e}")
-            logger.error(f"[OPENROUTER] Используемый прокси: {self.proxy}")
+            logger.error(f"[OPENROUTER] Proxy connection error: {e}")
+            logger.error(f"[OPENROUTER] Proxy used: {self.proxy}")
             return "__CONNECTION_ERROR__"
         except aiohttp.ClientError as e:
             error_str = str(e).lower()
@@ -278,13 +281,13 @@ class OpenRouterService:
                 'cannot connect', 'connect call failed', 'connection refused', 
                 'connection error', 'connection timeout'
             ]):
-                logger.error(f"[OPENROUTER] Ошибка подключения: {e}")
+                logger.error(f"[OPENROUTER] Connection error: {e}")
                 return "__CONNECTION_ERROR__"
             else:
-                logger.error(f"[OPENROUTER] Ошибка генерации текста: {e}")
+                logger.error(f"[OPENROUTER] Text generation error: {e}")
                 return None
         except Exception as e:
-            logger.error(f"[OPENROUTER] Неожиданная ошибка: {e}")
+            logger.error(f"[OPENROUTER] Unexpected error: {e}")
             return None
     
     async def generate_text_stream(
@@ -318,8 +321,8 @@ class OpenRouterService:
             Части сгенерированного текста по мере поступления
         """
         if not self.api_key:
-            logger.error("[OPENROUTER] API ключ не установлен")
-            yield json.dumps({"error": "API ключ не установлен"})
+            logger.error("[OPENROUTER] API key not set")
+            yield json.dumps({"error": "API key not set"})
             return
         
         # Используем значения по умолчанию из конфигурации, если не указаны
@@ -336,15 +339,14 @@ class OpenRouterService:
             # Проверяем, что модель разрешена для использования
             allowed_models = [
                 "sao10k/l3-euryale-70b",
-                "meta-llama/llama-3.3-70b-instruct",
-                "anthracite-org/magnum-v4-72b"
+                "gryphe/mythomax-l2-13b"
             ]
             if model not in allowed_models:
-                logger.warning(f"[OPENROUTER STREAM] Неразрешенная модель: {model}, используем модель по умолчанию")
+                logger.warning(f"[OPENROUTER STREAM] Disallowed model: {model}, using default")
                 model_to_use = get_model_for_subscription(subscription_type)
             else:
                 model_to_use = model
-                logger.info(f"[OPENROUTER STREAM] Используется выбранная модель: {model_to_use}")
+                logger.info(f"[OPENROUTER STREAM] Using selected model: {model_to_use}")
         else:
             # Выбираем модель на основе подписки
             model_to_use = get_model_for_subscription(subscription_type)
@@ -370,13 +372,13 @@ class OpenRouterService:
             elif prompt:
                 formatted_messages = [{"role": "user", "content": prompt}]
             else:
-                logger.error("[OPENROUTER] Не указан ни prompt, ни messages")
-                yield json.dumps({"error": "Не указан ни prompt, ни messages"})
+                logger.error("[OPENROUTER] No prompt or messages provided")
+                yield json.dumps({"error": "No prompt or messages provided"})
                 return
             
-            logger.info(f"[OPENROUTER STREAM] Отправка {len(formatted_messages)} сообщений в API (streaming)")
-            logger.info(f"[OPENROUTER STREAM] Используемая модель: {model_to_use} (подписка: {subscription_type.value if subscription_type else 'FREE'})")
-            logger.info(f"[OPENROUTER STREAM] Параметры генерации: max_tokens={max_tokens}, temperature={temperature}, top_p={top_p}")
+            logger.info(f"[OPENROUTER STREAM] Sending {len(formatted_messages)} messages to API (streaming)")
+            logger.info(f"[OPENROUTER STREAM] Using model: {model_to_use} (sub: {subscription_type.value if subscription_type else 'FREE'})")
+            logger.info(f"[OPENROUTER STREAM] Generation params: max_tokens={max_tokens}, temperature={temperature}, top_p={top_p}")
             
             payload = {
                 "model": model_to_use,
@@ -390,6 +392,9 @@ class OpenRouterService:
                 "stream": True  # Включаем стриминг
             }
             
+            # КРИТИЧЕСКОЕ ЛОГИРОВАНИЕ: проверяем, какая модель реально отправляется
+            logger.info(f"[OPENROUTER STREAM] Payload model field: {payload.get('model')}")
+            
             # Добавляем дополнительные параметры, если они есть
             if "stop" in kwargs:
                 payload["stop"] = kwargs["stop"]
@@ -402,7 +407,7 @@ class OpenRouterService:
             ) as response:
                 if response.status != 200:
                     error_text = await response.text()
-                    logger.error(f"[OPENROUTER STREAM] HTTP ошибка: {response.status}, ответ: {error_text}")
+                    logger.error(f"[OPENROUTER STREAM] HTTP error: {response.status}, response: {error_text}")
                     yield json.dumps({"error": f"HTTP {response.status}: {error_text}"})
                     return
                 
@@ -432,7 +437,7 @@ class OpenRouterService:
                             
                             # Проверяем на [DONE] маркер
                             if data_str.strip() == '[DONE]':
-                                logger.info("[OPENROUTER STREAM] Поток завершен")
+                                logger.info("[OPENROUTER STREAM] Stream finished")
                                 return
                             
                             try:
@@ -448,7 +453,7 @@ class OpenRouterService:
                                         yield content
                                         
                             except json.JSONDecodeError as e:
-                                logger.warning(f"[OPENROUTER STREAM] Ошибка парсинга JSON: {e}, data: {data_str[:100]}")
+                                logger.warning(f"[OPENROUTER STREAM] JSON parse error: {e}, data: {data_str[:100]}")
                                 continue
                         elif line.startswith(':'):
                             # Комментарий SSE, пропускаем
@@ -470,11 +475,11 @@ class OpenRouterService:
                             except json.JSONDecodeError:
                                 pass
                 
-                logger.info("[OPENROUTER STREAM] Поток завершен успешно")
+                logger.info("[OPENROUTER STREAM] Stream finished successfully")
                 
         except aiohttp.ClientProxyConnectionError as e:
-            logger.error(f"[OPENROUTER STREAM] Ошибка подключения к прокси: {e}")
-            logger.error(f"[OPENROUTER STREAM] Используемый прокси: {self.proxy}")
+            logger.error(f"[OPENROUTER STREAM] Proxy connection error: {e}")
+            logger.error(f"[OPENROUTER STREAM] Proxy used: {self.proxy}")
             yield json.dumps({"error": "__CONNECTION_ERROR__"})
         except aiohttp.ClientError as e:
             error_str = str(e).lower()
@@ -482,16 +487,15 @@ class OpenRouterService:
                 'cannot connect', 'connect call failed', 'connection refused', 
                 'connection error', 'connection timeout'
             ]):
-                logger.error(f"[OPENROUTER STREAM] Ошибка подключения: {e}")
+                logger.error(f"[OPENROUTER STREAM] Connection error: {e}")
                 yield json.dumps({"error": "__CONNECTION_ERROR__"})
             else:
-                logger.error(f"[OPENROUTER STREAM] Ошибка генерации текста: {e}")
+                logger.error(f"[OPENROUTER STREAM] Text generation error: {e}")
                 yield json.dumps({"error": str(e)})
         except Exception as e:
-            logger.error(f"[OPENROUTER STREAM] Неожиданная ошибка: {e}")
+            logger.error(f"[OPENROUTER STREAM] Unexpected error: {e}")
             yield json.dumps({"error": str(e)})
 
 
 # Создаем глобальный экземпляр сервиса
 openrouter_service = OpenRouterService()
-

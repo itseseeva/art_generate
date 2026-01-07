@@ -352,7 +352,9 @@ async def chat_with_character_stream(
         logger.info(f"[CHAT STREAM ENDPOINT] User: {current_user.email if current_user else 'Anonymous'} (ID: {current_user.id if current_user else 'N/A'})")
         logger.info(f"[CHAT STREAM ENDPOINT] Character: {request.character}")
         logger.info(f"[CHAT STREAM ENDPOINT] Message (первые 100 символов): {request.message[:100].encode('utf-8', errors='replace').decode('utf-8') if request.message else 'N/A'}...")
-        logger.info(f"[CHAT STREAM ENDPOINT] Model: {request.model if request.model else 'N/A'}")
+        logger.info(f"[CHAT STREAM ENDPOINT] Model from request: {request.model if request.model else 'N/A'}")
+        logger.info(f"[CHAT STREAM ENDPOINT] Subscription type: {subscription_type_enum.value if subscription_type_enum else 'FREE'}")
+        logger.info(f"[CHAT STREAM ENDPOINT] Full request body model field: {request.model}")
         logger.info(f"[CHAT STREAM ENDPOINT] ========================================")
         
         # Получаем персонажа из запроса - обязательное поле

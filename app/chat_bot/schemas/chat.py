@@ -100,11 +100,11 @@ class SimpleChatRequest(BaseModel):
         default=None, 
         description="CFG Scale для генерации изображения"
     )
-    
+
     # Параметр выбора модели (только для PREMIUM подписки)
     model: Optional[str] = Field(
         default=None,
-        description="Модель для генерации ответа (только для PREMIUM подписки). Доступные: sao10k/l3-euryale-70b, meta-llama/llama-3.3-70b-instruct, anthracite-org/magnum-v4-72b"
+        description="Модель для генерации ответа (только для PREMIUM подписки). Доступные: sao10k/l3-euryale-70b, gryphe/mythomax-l2-13b"
     )
     
     # Дополнительные поля из фронтенда

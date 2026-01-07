@@ -5,19 +5,51 @@
 """
 
 import sys
-import io
-
-# Форсируем UTF-8 для всего вывода программы
-if sys.platform == "win32":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
-
 import os
 
-# Устанавливаем переменные окружения
+# Устанавливаем переменные окружения ПЕРВЫМИ
 if sys.platform == "win32":
     os.environ['PYTHONIOENCODING'] = 'utf-8'
     os.environ['PYTHONUTF8'] = '1'
+    
+    # Пробуем reconfigure() если доступно
+    if hasattr(sys.stdout, 'reconfigure'):
+        try:
+            sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        except (ValueError, OSError):
+            pass
+    if hasattr(sys.stderr, 'reconfigure'):
+        try:
+            sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+        except (ValueError, OSError):
+            pass
+    
+    # Создаем безопасную обертку для print()
+    _original_print = print
+    
+    def safe_print(*args, **kwargs):
+        """Безопасная версия print() для Windows"""
+        try:
+            _original_print(*args, **kwargs)
+        except (UnicodeEncodeError, UnicodeError):
+            # Если не получается, безопасно кодируем аргументы
+            safe_args = []
+            for arg in args:
+                if isinstance(arg, str):
+                    safe_args.append(
+                        arg.encode('utf-8', errors='replace')
+                        .decode('utf-8', errors='replace')
+                    )
+                else:
+                    safe_args.append(
+                        str(arg).encode('utf-8', errors='replace')
+                        .decode('utf-8', errors='replace')
+                    )
+            _original_print(*safe_args, **kwargs)
+    
+    # Заменяем встроенный print на безопасную версию
+    import builtins
+    builtins.print = safe_print
 
 from pathlib import Path
 import asyncio
@@ -116,15 +148,43 @@ try:
 except Exception:
     pass  # Игнорируем ошибки создания папки при импорте
 
+# Создаем безопасный StreamHandler для Windows, который обрабатывает Unicode ошибки
+class SafeUnicodeStreamHandler(logging.StreamHandler):
+    """StreamHandler который безопасно обрабатывает Unicode в Windows"""
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            stream = self.stream
+            # Пытаемся вывести как есть
+            stream.write(msg + self.terminator)
+            self.flush()
+        except (UnicodeEncodeError, UnicodeError):
+            # Если не получается, заменяем проблемные символы
+            try:
+                msg = self.format(record)
+                # Безопасно кодируем сообщение, заменяя проблемные символы
+                safe_msg = msg.encode('utf-8', errors='replace').decode('utf-8', errors='replace')
+                stream.write(safe_msg + self.terminator)
+                self.flush()
+            except Exception:
+                # Если все равно не получается, просто пропускаем
+                self.handleError(record)
+        except Exception:
+            self.handleError(record)
+
 # Настраиваем логирование
-# sys.stdout уже переконфигурирован на UTF-8 выше, поэтому StreamHandler будет работать корректно
-# Явно указываем encoding='utf-8' для файлового обработчика
+# Используем безопасный обработчик для Windows
 try:
+    if sys.platform == "win32":
+        console_handler = SafeUnicodeStreamHandler(sys.stdout)
+    else:
+        console_handler = logging.StreamHandler(sys.stdout)
+    
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
-            logging.StreamHandler(sys.stdout),  # Использует уже переконфигурированный stdout
+            console_handler,
             logging.FileHandler('logs/app.log', encoding='utf-8')  # Явно UTF-8 для файла
         ],
         force=True  # Принудительно перезаписываем конфигурацию
@@ -133,10 +193,15 @@ try:
     logging.getLogger("httpx").setLevel(logging.WARNING)
 except Exception:
     # Если не удалось настроить логирование в файл, используем только консоль
+    if sys.platform == "win32":
+        console_handler = SafeUnicodeStreamHandler(sys.stdout)
+    else:
+        console_handler = logging.StreamHandler(sys.stdout)
+    
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[logging.StreamHandler(sys.stdout)],  # Использует уже переконфигурированный stdout
+        handlers=[console_handler],
         force=True
     )
     # Отключаем INFO логи от httpx для уменьшения шума
