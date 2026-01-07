@@ -833,7 +833,6 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                 <PlanFeature>Возможность создать своих персонажей</PlanFeature>
                 <PlanFeature>Возможность создавать платные альбомы</PlanFeature>
                 <PlanFeature>Сохранение истории сообщений</PlanFeature>
-                <PlanFeature $isHighlighted>Выбор модели (PREMIUM могут выбрать модель сами)</PlanFeature>
                 <PlanFeature>Максимум токенов: 400 токенов на ответ</PlanFeature>
                 <PlanFeature>Лимит генерации в очереди: 3 фото одновременно</PlanFeature>
               </PlanFeatures>
@@ -885,7 +884,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                 <PlanFeature>Доступ ко всем платным альбомам</PlanFeature>
                 <PlanFeature>Доступ ко всем галереям пользователей</PlanFeature>
                 <PlanFeature $isHighlighted>Выбор модели (PREMIUM могут выбрать модель сами)</PlanFeature>
-                <PlanFeature>Максимум токенов: 850 токенов на ответ</PlanFeature>
+                <PlanFeature $isHighlighted>Максимум токенов: 850 токенов на ответ</PlanFeature>
                 <PlanFeature>Лимит генерации в очереди: 5 фото одновременно</PlanFeature>
               </PlanFeatures>
               {stats?.is_active && stats?.subscription_type === 'premium' ? (

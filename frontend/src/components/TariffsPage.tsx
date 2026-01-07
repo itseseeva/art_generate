@@ -625,7 +625,6 @@ export const TariffsPage: React.FC = () => {
               <Feature>Доступ ко всем персонажам</Feature>
               <Feature>Сохранение истории сообщений</Feature>
               <Feature>Создание платных альбомов</Feature>
-              <Feature>Выбор модели (PREMIUM могут выбрать модель сами)</Feature>
             </FeatureList>
             <ActivateButton 
               onClick={() => handleActivateSubscription('standard')}
@@ -655,6 +654,7 @@ export const TariffsPage: React.FC = () => {
               <Feature>Доступ ко всем платным альбомам</Feature>
               <Feature>Доступ ко всем галереям пользователей</Feature>
               <Feature>Выбор модели (PREMIUM могут выбрать модель сами)</Feature>
+              <Feature>Максимум токенов: 850 токенов на ответ</Feature>
             </FeatureList>
             <ActivateButton 
               onClick={() => handleActivateSubscription('premium')}

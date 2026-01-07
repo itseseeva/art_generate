@@ -24,22 +24,22 @@ CREDIT_PACKAGES: List[CreditPackage] = [
         id="small",
         name="Small",
         credits=200,
-        price=199.0,
-        price_per_credit=0.995,  # ~1.0₽/кредит
+        price=149.0,
+        price_per_credit=0.745,  # ~0.75₽/кредит
     ),
     CreditPackage(
         id="medium",
         name="Medium",
         credits=500,
-        price=449.0,
-        price_per_credit=0.898,  # ~0.9₽/кредит
+        price=259.0,
+        price_per_credit=0.518,  # ~0.52₽/кредит
     ),
     CreditPackage(
         id="large",
         name="Large",
         credits=1000,
-        price=899.0,
-        price_per_credit=0.899,  # ~0.9₽/кредит
+        price=499.0,
+        price_per_credit=0.499,  # ~0.5₽/кредит
     ),
 ]
 

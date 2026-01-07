@@ -143,7 +143,7 @@ const MainContent = styled.div`
 const CharactersGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: ${theme.spacing.md};
+  gap: 0;
   margin-top: ${theme.spacing.lg};
   padding: ${theme.spacing.lg};
   overflow-y: auto;

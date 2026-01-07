@@ -187,6 +187,10 @@ async def chat_with_character(
                 system_message_index=0
             )
             
+            # 5. В начало списка сообщений (system prompt) добавляем инструкцию по краткости
+            if openai_messages and openai_messages[0]["role"] == "system":
+                openai_messages[0]["content"] += f"\n\nIMPORTANT: Be concise. Your response must be strictly within {max_tokens} tokens."
+            
             messages = openai_messages
             
             logger.info("=== FULL PROMPT DEBUG ===")
@@ -207,6 +211,10 @@ async def chat_with_character(
                     "content": request.message
                 }
             ]
+            
+            # В начало списка сообщений (system prompt) добавляем инструкцию по краткости
+            if messages and messages[0]["role"] == "system":
+                messages[0]["content"] += f"\n\nIMPORTANT: Be concise. Your response must be strictly within {max_tokens} tokens."
             
             logger.info("=== PROMPT DEBUG (NO HISTORY) ===")
             logger.info(f"Character prompt (system): {character_config.prompt[:200]}...")
@@ -469,6 +477,10 @@ async def chat_with_character_stream(
                 system_message_index=0
             )
             
+            # 5. В начало списка сообщений (system prompt) добавляем инструкцию по краткости
+            if openai_messages and openai_messages[0]["role"] == "system":
+                openai_messages[0]["content"] += f"\n\nIMPORTANT: Be concise. Your response must be strictly within {max_tokens} tokens."
+            
             messages = openai_messages
         else:
             # Нет истории
@@ -482,6 +494,10 @@ async def chat_with_character_stream(
                     "content": request.message
                 }
             ]
+            
+            # В начало списка сообщений (system prompt) добавляем инструкцию по краткости
+            if messages and messages[0]["role"] == "system":
+                messages[0]["content"] += f"\n\nIMPORTANT: Be concise. Your response must be strictly within {max_tokens} tokens."
         
         logger.info(f"[CHAT STREAM] Начало стриминга для персонажа '{character_name}', сообщений: {len(messages)}")
         

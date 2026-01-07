@@ -139,17 +139,17 @@ class ChatConfig(BaseSettings):
     # --- базовые параметры генерации (оптимизированы для MythoMax L2 13B) ---
     DEFAULT_MAX_TOKENS: int = Field(
         default=400, 
-        description="Увеличен лимит токенов для MythoMax L2 13B - обеспечивает завершение предложений"
+        description="Лимит токенов по умолчанию (для FREE подписки)"
     )
     
     # Дополнительные лимиты для контроля
     HARD_MAX_TOKENS: int = Field(
-        default=400,
-        description="Жесткий лимит для MythoMax L2 13B - увеличен для завершения предложений"
+        default=800,
+        description="Жесткий лимит для PREMIUM подписки"
     )
     
     WARNING_THRESHOLD: int = Field(
-        default=150,
+        default=300,
         description="Порог предупреждения - начинаем завершать диалог"
     )
     DEFAULT_TEMPERATURE: float = Field(

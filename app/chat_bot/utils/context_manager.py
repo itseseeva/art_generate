@@ -61,8 +61,8 @@ def get_max_context_tokens(subscription_type: Optional[SubscriptionType]) -> int
     elif subscription_type == SubscriptionType.STANDARD:
         return 4000  # 4000 токенов для STANDARD
     else:
-        # FREE или отсутствие подписки - используем минимальное значение
-        return 2000
+        # FREE или отсутствие подписки - 850 токенов для контекста
+        return 850
 
 
 def get_max_tokens(subscription_type: Optional[SubscriptionType]) -> int:
