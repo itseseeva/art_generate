@@ -5,6 +5,22 @@
 """
 
 import sys
+import os
+
+# КРИТИЧЕСКИ ВАЖНО: Настройка кодировки UTF-8 для Windows
+# Должно быть САМЫМ ПЕРВЫМ, ДО ВСЕХ ОСТАЛЬНЫХ ИМПОРТОВ
+# Это "магическая" строка для Python 3.7+, которая лечит Windows
+if sys.platform == "win32":
+    # Принудительно переключаем потоки на UTF-8
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
+    if hasattr(sys.stderr, 'reconfigure'):
+        sys.stderr.reconfigure(encoding='utf-8')
+    
+    # Устанавливаем переменные окружения
+    os.environ['PYTHONIOENCODING'] = 'utf-8'
+    os.environ['PYTHONUTF8'] = '1'
+
 from pathlib import Path
 import asyncio
 from datetime import datetime
@@ -13,36 +29,6 @@ import logging
 import traceback
 import json
 from contextlib import asynccontextmanager
-
-# Устанавливаем правильную кодировку для работы с Unicode
-import locale
-import os
-os.environ['PYTHONIOENCODING'] = 'utf-8'
-
-# Настройка кодировки для Windows
-if sys.platform == "win32":
-    import codecs
-    # Устанавливаем UTF-8 как кодировку по умолчанию
-    try:
-        locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
-    except:
-        try:
-            locale.setlocale(locale.LC_ALL, 'C.UTF-8')
-        except:
-            pass
-    
-    # Устанавливаем переменные окружения для правильной кодировки
-    os.environ['LC_ALL'] = 'en_US.UTF-8'
-    os.environ['LANG'] = 'en_US.UTF-8'
-    os.environ['PYTHONIOENCODING'] = 'utf-8'
-    
-    # Устанавливаем кодировку по умолчанию для всех операций
-    import locale
-    locale.getpreferredencoding = lambda: 'utf-8'
-    
-    # НЕ перенаправляем stdout и stderr, чтобы не конфликтовать с логированием
-    # sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
-    # sys.stderr = codecs.getwriter("utf-8")(sys.stderr.detach())
 
 # Устанавливаем рабочую директорию ПЕРЕД импортами
 import os
@@ -132,13 +118,15 @@ try:
 except Exception:
     pass  # Игнорируем ошибки создания папки при импорте
 
+# Настраиваем логирование
+# sys.stdout уже переконфигурирован на UTF-8 выше, поэтому StreamHandler будет работать корректно
 try:
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
-            logging.StreamHandler(sys.stdout),
-            logging.FileHandler('logs/app.log', encoding='utf-8')
+            logging.StreamHandler(sys.stdout),  # Использует уже переконфигурированный stdout
+            logging.FileHandler('logs/app.log', encoding='utf-8')  # Явно указываем UTF-8 для файла
         ],
         force=True  # Принудительно перезаписываем конфигурацию
     )
@@ -149,11 +137,9 @@ except Exception:
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[logging.StreamHandler(sys.stdout)],
+        handlers=[logging.StreamHandler(sys.stdout)],  # Использует уже переконфигурированный stdout
         force=True
     )
-    # Отключаем INFO логи от httpx для уменьшения шума
-    logging.getLogger("httpx").setLevel(logging.WARNING)
     # Отключаем INFO логи от httpx для уменьшения шума
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
@@ -993,11 +979,30 @@ async def validation_exception_handler(
     request: Request, exc: RequestValidationError
 ):
     error_msg = f"Validation error: {exc.errors()}"
-    logger.error(error_msg)
+    try:
+        logger.error(error_msg)
+    except (UnicodeEncodeError, UnicodeError):
+        # Если не получается вывести с русскими символами, выводим без них
+        logger.error("Validation error occurred")
+    
     # Логируем полную информацию об ошибке для отладки
     import json
-    logger.error(f"Validation errors details: {json.dumps(exc.errors(), indent=2, ensure_ascii=False)}")
-    logger.error(f"Request body: {await request.body() if hasattr(request, 'body') else 'N/A'}")
+    try:
+        errors_json = json.dumps(exc.errors(), indent=2, ensure_ascii=False)
+        logger.error(f"Validation errors details: {errors_json}")
+    except (UnicodeEncodeError, UnicodeError):
+        # Если не получается вывести с русскими символами, выводим без них
+        try:
+            errors_json = json.dumps(exc.errors(), indent=2, ensure_ascii=True)
+            logger.error(f"Validation errors details: {errors_json}")
+        except Exception:
+            logger.error("Validation errors occurred (encoding issue)")
+    
+    try:
+        body = await request.body() if hasattr(request, 'body') else 'N/A'
+        logger.error(f"Request body: {body}")
+    except (UnicodeEncodeError, UnicodeError):
+        logger.error("Request body: [encoding issue]")
     
     return JSONResponse(
         status_code=422,
@@ -1006,7 +1011,9 @@ async def validation_exception_handler(
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    error_msg = f"""
+    # Безопасно формируем сообщение об ошибке для Windows
+    try:
+        error_msg = f"""
 Error occurred at {datetime.now()}
 Request: {request.url}
 Method: {request.method}
@@ -1015,16 +1022,32 @@ Error Message: {str(exc)}
 Traceback:
 {traceback.format_exc()}
 """
-    logger.error(error_msg)
+        try:
+            logger.error(error_msg)
+        except (UnicodeEncodeError, UnicodeError):
+            # Если не получается вывести полное сообщение, выводим только тип
+            logger.error(f"Error occurred: {type(exc).__name__}")
+    except Exception:
+        pass  # Игнорируем ошибки логирования
     
     status_code = 500
     if isinstance(exc, HTTPException):
         status_code = exc.status_code
     
+    # Безопасно формируем detail для ответа
+    try:
+        detail_str = str(exc)
+        # Пытаемся закодировать в UTF-8 для проверки
+        detail_str.encode('utf-8')
+        detail_value = detail_str
+    except (UnicodeEncodeError, UnicodeError):
+        # Если есть проблема с кодировкой, используем безопасный вариант
+        detail_value = f"Error: {type(exc).__name__}"
+    
     return JSONResponse(
         status_code=status_code,
         content={
-            "detail": str(exc),
+            "detail": detail_value,
             "type": type(exc).__name__
         }
     )
@@ -2169,9 +2192,15 @@ async def chat_endpoint(
         is_continue_story = message.lower().strip() == "continue the story briefly"
         
         if is_continue_story:
-            logger.info(f"📖 Continue the story briefly - продолжаем историю кратко")
+            try:
+                logger.info(f"📖 Continue the story briefly - продолжаем историю кратко")
+            except (UnicodeEncodeError, UnicodeError):
+                logger.info("Continue the story briefly - continuing story")
         else:
-            logger.info(f"[START] Генерируем ответ для: {message[:50]}...")
+            try:
+                logger.info(f"[START] Генерируем ответ для: {message[:50]}...")
+            except (UnicodeEncodeError, UnicodeError):
+                logger.info(f"[START] Generating response for message")
         
         # Импортируем утилиты для работы с контекстом
         from app.chat_bot.utils.context_manager import (

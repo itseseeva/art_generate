@@ -138,6 +138,8 @@ def setup_logger(
     logger.remove()  # Удаляем стандартный обработчик
 
     # Добавляем вывод в консоль
+    # sys.stdout уже должен быть переконфигурирован на UTF-8 в app/main.py
+    # Если это не так, loguru автоматически обработает кодировку
     logger.add(
         sys.stdout,
         format=(
@@ -146,7 +148,8 @@ def setup_logger(
             "<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
             "<level>{message}</level>"
         ),
-        level=log_level
+        level=log_level,
+        encoding='utf-8'  # Явно указываем кодировку для loguru
     )
 
     # Добавляем вывод в файл
