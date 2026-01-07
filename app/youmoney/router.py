@@ -417,3 +417,16 @@ async def youmoney_callback():
 	return RedirectResponse(url="/?payment=success", status_code=302)
 
 
+@router.get("/test")
+async def test_endpoint():
+	"""
+	Простой тестовый эндпоинт для проверки доступности.
+	"""
+	return {
+		"status": "ok",
+		"message": "Эндпоинт YooMoney доступен",
+		"notification_url": "https://cherrylust.art/api/v1/youmoney/quickpay/notify",
+		"check_logs": "Проверьте логи на наличие записей [YOUMONEY NOTIFY] после оплаты"
+	}
+
+
