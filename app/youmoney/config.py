@@ -25,8 +25,11 @@ def get_youm_config() -> YouMoneyConfig:
 	"""
 	notification_secret = os.getenv("YOUMONEY_NOTIFICATION_SECRET") or os.getenv("notification_secret") or None
 	# Захардкоженные минимальные суммы для приёма платежей
-	min_standard = 10.0
-	min_premium = 10.0
+	# Учитываем комиссию 3%: минимальная сумма = цена * 0.97
+	# STANDARD: 599 * 0.97 = 581.03, округляем до 570 (запас вниз)
+	# PREMIUM: 1299 * 0.97 = 1260.03, округляем до 1260 (запас вниз)
+	min_standard = 570.0
+	min_premium = 1260.0
 
 	return {
 		"notification_secret": notification_secret,
