@@ -635,18 +635,20 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       const label = `type:topup;package:${packageId};uid:${currentUserId}`;
       // Используем относительный URL для возврата на страницу магазина
       const successURL = `${window.location.origin}/shop`;
-      const quickPayUrl =
-        `https://yoomoney.ru/quickpay/confirm.xml` +
-        `?receiver=${encodeURIComponent(receiverWallet)}` +
-        `&quickpay-form=shop` +
-        `&targets=${encodeURIComponent(`Покупка ${credits} кредитов`)}` +
-        `&formcomment=${encodeURIComponent('Пополнение баланса Spicychat')}` +
-        `&short-dest=${encodeURIComponent('Пополнение баланса')}` +
-        `&sum=${encodeURIComponent(price.toFixed(2))}` +
-        `&label=${encodeURIComponent(label)}` +
-        `&successURL=${encodeURIComponent(successURL)}`;
-
-      window.location.href = quickPayUrl;
+      // Используем новый формат URL для YooMoney QuickPay
+      const quickPayUrl = new URL('https://yoomoney.ru/quickpay/confirm.xml');
+      quickPayUrl.searchParams.set('receiver', receiverWallet);
+      quickPayUrl.searchParams.set('quickpay-form', 'shop');
+      quickPayUrl.searchParams.set('targets', `Покупка ${credits} кредитов`);
+      quickPayUrl.searchParams.set('formcomment', 'Пополнение баланса Spicychat');
+      quickPayUrl.searchParams.set('short-dest', 'Пополнение баланса');
+      quickPayUrl.searchParams.set('sum', price.toFixed(2));
+      quickPayUrl.searchParams.set('label', label);
+      quickPayUrl.searchParams.set('successURL', successURL);
+      
+      const finalUrl = quickPayUrl.toString();
+      console.log('[SHOP] YooMoney Top-up URL:', finalUrl);
+      window.location.href = finalUrl;
     } catch (err) {
       console.error('[SHOP] Ошибка формирования ссылки QuickPay для пакета:', err);
       setError('Не удалось открыть страницу оплаты YooMoney');
@@ -711,27 +713,30 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       const successURL = `${window.location.origin}/shop`;
       // Формируем URL для YooMoney QuickPay
       // Используем payment-type=AC для банковских карт (более надежный вариант)
-      const quickPayUrl =
-        `https://yoomoney.ru/quickpay/confirm.xml` +
-        `?receiver=${encodeURIComponent(receiverWallet)}` +
-        `&quickpay-form=shop` +
-        `&payment-type=AC` + // AC = банковская карта
-        `&targets=${encodeURIComponent(
-          subscriptionType === 'premium'
-            ? 'Оплата подписки PREMIUM на 30 дней'
-            : 'Оплата подписки STANDARD на 30 дней'
-        )}` +
-        `&formcomment=${encodeURIComponent('Оплата подписки Spicychat')}` +
-        `&short-dest=${encodeURIComponent('Подписка Spicychat')}` +
-        `&sum=${amount.toFixed(2)}` + // Убираем encodeURIComponent для суммы, YooMoney ожидает число
-        `&label=${encodeURIComponent(label)}` +
-        `&successURL=${encodeURIComponent(successURL)}`;
+      // Формируем URL для YooMoney QuickPay согласно официальной документации
+      // Используем правильный порядок параметров и формат
+      const quickPayUrl = new URL('https://yoomoney.ru/quickpay/confirm.xml');
+      quickPayUrl.searchParams.set('receiver', receiverWallet);
+      quickPayUrl.searchParams.set('quickpay-form', 'shop');
+      quickPayUrl.searchParams.set('targets', 
+        subscriptionType === 'premium'
+          ? 'Оплата подписки PREMIUM на 30 дней'
+          : 'Оплата подписки STANDARD на 30 дней'
+      );
+      quickPayUrl.searchParams.set('formcomment', 'Оплата подписки Spicychat');
+      quickPayUrl.searchParams.set('short-dest', 'Подписка Spicychat');
+      quickPayUrl.searchParams.set('sum', amount.toFixed(2));
+      quickPayUrl.searchParams.set('label', label);
+      quickPayUrl.searchParams.set('successURL', successURL);
+      
+      const finalUrl = quickPayUrl.toString();
 
       // Сохраняем состояние перед переходом на оплату, чтобы при возврате назад можно было восстановить страницу
       window.history.pushState({ page: 'shop', fromPayment: true }, '', '/shop');
       
       // Переходим на страницу оплаты
-      window.location.href = quickPayUrl;
+      console.log('[SHOP] YooMoney URL:', finalUrl);
+      window.location.href = finalUrl;
     } catch (err) {
       console.error('[SHOP] Ошибка формирования ссылки QuickPay:', err);
       setError('Не удалось открыть страницу оплаты YooMoney');
