@@ -464,3 +464,30 @@ async def test_endpoint():
 	}
 
 
+@router.post("/test-post")
+async def test_post_endpoint(request: Request):
+	"""
+	Тестовый POST-эндпоинт для проверки, что POST-запросы доходят до сервера.
+	"""
+	logging.info("[YOUMONEY TEST] ===== ТЕСТОВЫЙ POST-ЗАПРОС =====")
+	logging.info("[YOUMONEY TEST] Метод: %s, URL: %s", request.method, request.url)
+	logging.info("[YOUMONEY TEST] Заголовки: %s", dict(request.headers))
+	
+	try:
+		form = await request.form()
+		form_dict = dict(form)
+		logging.info("[YOUMONEY TEST] Форма: %s", form_dict)
+	except Exception as e:
+		logging.info("[YOUMONEY TEST] Ошибка чтения формы: %s", e)
+		body = await request.body()
+		logging.info("[YOUMONEY TEST] Тело запроса: %s", body.decode('utf-8', errors='ignore'))
+	
+	return {
+		"status": "ok",
+		"message": "POST-запрос успешно получен",
+		"method": request.method,
+		"url": str(request.url),
+		"headers": dict(request.headers)
+	}
+
+
