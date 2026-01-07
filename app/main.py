@@ -5,19 +5,17 @@
 """
 
 import sys
+import io
+
+# Форсируем UTF-8 для всего вывода программы
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
 import os
 
-# КРИТИЧЕСКИ ВАЖНО: Настройка кодировки UTF-8 для Windows
-# Должно быть САМЫМ ПЕРВЫМ, ДО ВСЕХ ОСТАЛЬНЫХ ИМПОРТОВ
-# Это "магическая" строка для Python 3.7+, которая лечит Windows
+# Устанавливаем переменные окружения
 if sys.platform == "win32":
-    # Принудительно переключаем потоки на UTF-8
-    if hasattr(sys.stdout, 'reconfigure'):
-        sys.stdout.reconfigure(encoding='utf-8')
-    if hasattr(sys.stderr, 'reconfigure'):
-        sys.stderr.reconfigure(encoding='utf-8')
-    
-    # Устанавливаем переменные окружения
     os.environ['PYTHONIOENCODING'] = 'utf-8'
     os.environ['PYTHONUTF8'] = '1'
 
@@ -120,13 +118,14 @@ except Exception:
 
 # Настраиваем логирование
 # sys.stdout уже переконфигурирован на UTF-8 выше, поэтому StreamHandler будет работать корректно
+# Явно указываем encoding='utf-8' для файлового обработчика
 try:
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
             logging.StreamHandler(sys.stdout),  # Использует уже переконфигурированный stdout
-            logging.FileHandler('logs/app.log', encoding='utf-8')  # Явно указываем UTF-8 для файла
+            logging.FileHandler('logs/app.log', encoding='utf-8')  # Явно UTF-8 для файла
         ],
         force=True  # Принудительно перезаписываем конфигурацию
     )
@@ -2198,7 +2197,7 @@ async def chat_endpoint(
                 logger.info("Continue the story briefly - continuing story")
         else:
             try:
-                logger.info(f"[START] Генерируем ответ для: {message[:50]}...")
+                logger.info(f"[START] Генерируем ответ для: {message[:50].encode('utf-8', errors='replace').decode('utf-8')}...")
             except (UnicodeEncodeError, UnicodeError):
                 logger.info(f"[START] Generating response for message")
         

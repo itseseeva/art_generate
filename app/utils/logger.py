@@ -153,6 +153,7 @@ def setup_logger(
     )
 
     # Добавляем вывод в файл
+    # Явно указываем encoding='utf-8' для файлового обработчика
     logger.add(
         log_file,
         rotation=None,  # Отключаем ротацию
@@ -163,6 +164,7 @@ def setup_logger(
             "{message}"
         ),
         level=log_level,
+        encoding='utf-8',  # Явно указываем кодировку для файла
         enqueue=True,
         delay=True  # Откладываем открытие файла до первой записи
     )

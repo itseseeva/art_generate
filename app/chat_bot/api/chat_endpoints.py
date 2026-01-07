@@ -196,7 +196,7 @@ async def chat_with_character(
             logger.info("=== FULL PROMPT DEBUG ===")
             logger.info(f"Character prompt (system): {character_config.prompt[:200]}...")
             logger.info(f"Conversation history: {len(openai_messages) - 2} messages")
-            logger.info(f"User message: {request.message}")
+            logger.info(f"User message: {request.message[:50].encode('utf-8', errors='replace').decode('utf-8')}")
             logger.info(f"Total messages: {len(openai_messages)}")
             logger.info("=== END PROMPT DEBUG ===")
         else:
@@ -218,7 +218,7 @@ async def chat_with_character(
             
             logger.info("=== PROMPT DEBUG (NO HISTORY) ===")
             logger.info(f"Character prompt (system): {character_config.prompt[:200]}...")
-            logger.info(f"User message: {request.message}")
+            logger.info(f"User message: {request.message[:50].encode('utf-8', errors='replace').decode('utf-8')}")
             logger.info(f"Total messages: {len(messages)}")
             logger.info("=== END PROMPT DEBUG ===")
         
@@ -351,7 +351,7 @@ async def chat_with_character_stream(
         logger.info(f"[CHAT STREAM ENDPOINT] POST /api/v1/chat/stream")
         logger.info(f"[CHAT STREAM ENDPOINT] User: {current_user.email if current_user else 'Anonymous'} (ID: {current_user.id if current_user else 'N/A'})")
         logger.info(f"[CHAT STREAM ENDPOINT] Character: {request.character}")
-        logger.info(f"[CHAT STREAM ENDPOINT] Message (первые 100 символов): {request.message[:100] if request.message else 'N/A'}...")
+        logger.info(f"[CHAT STREAM ENDPOINT] Message (первые 100 символов): {request.message[:100].encode('utf-8', errors='replace').decode('utf-8') if request.message else 'N/A'}...")
         logger.info(f"[CHAT STREAM ENDPOINT] Model: {request.model if request.model else 'N/A'}")
         logger.info(f"[CHAT STREAM ENDPOINT] ========================================")
         
