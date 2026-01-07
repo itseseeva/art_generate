@@ -20,6 +20,7 @@ from app.database.db import async_session_maker
 from app.models.user import Users
 from app.auth.utils import hash_password
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from datetime import datetime
 
 
@@ -58,8 +59,11 @@ async def create_test_user(user_data: dict) -> bool:
             coins = user_data.get("coins", 5)
             
             # Проверяем, существует ли уже пользователь
+            # Используем selectinload для загрузки подписки, чтобы избежать lazy loading
             result = await db.execute(
-                select(Users).where(Users.email == email)
+                select(Users)
+                .options(selectinload(Users.subscription))
+                .where(Users.email == email)
             )
             existing_user = result.scalar_one_or_none()
 
@@ -74,10 +78,11 @@ async def create_test_user(user_data: dict) -> bool:
                         f"is_admin reset to False (ID: {existing_user.id})"
                     )
                 else:
+                    subscription_info = "exists" if existing_user.subscription else "none"
                     print(
                         f"[INIT_TEST_USER] Test user {email} already exists "
                         f"(ID: {existing_user.id}, is_admin: {existing_user.is_admin}, "
-                        f"subscription: {'exists' if existing_user.subscription else 'none'})"
+                        f"subscription: {subscription_info})"
                     )
                 return True
 
