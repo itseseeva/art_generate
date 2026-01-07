@@ -160,20 +160,26 @@ async def youmoney_quickpay_notify(request: Request):
 					logging.warning("[YOUMONEY NOTIFY] amount too low: %s (min %s) for plan=%s", amount_val, min_amount, plan)
 					raise HTTPException(status_code=400, detail=f"amount too low ({amount_val} < {min_amount})")
 
+				logging.info("[YOUMONEY NOTIFY] Активация подписки: user_id=%s plan=%s amount=%s", user_id, plan, amount_val)
 				sub = await service.activate_subscription(user_id, plan)
-				logging.info("[YOUMONEY NOTIFY] subscription activated: user_id=%s plan=%s", user_id, plan)
+				logging.info("[YOUMONEY NOTIFY] subscription activated: user_id=%s plan=%s subscription_id=%s", user_id, plan, sub.id if sub else None)
 
 				# Помечаем транзакцию как обработанную
 				transaction.processed = True
 				transaction.processed_at = datetime.utcnow()
 				await db.commit()
+				logging.info("[YOUMONEY NOTIFY] Транзакция помечена как обработанная: operation_id=%s", data["operation_id"])
 				
 				return {"ok": True, "user_id": user_id, "plan": plan}
 		except Exception as e:
 			# В случае ошибки не помечаем транзакцию как обработанную
 			# Это позволит повторить обработку при повторном запросе от YooMoney
 			await db.rollback()
+			import traceback
 			logging.error("[YOUMONEY NOTIFY] Ошибка обработки платежа: %s", e)
+			logging.error("[YOUMONEY NOTIFY] Traceback: %s", traceback.format_exc())
+			logging.error("[YOUMONEY NOTIFY] Данные платежа: operation_id=%s, user_id=%s, payment_type=%s, plan=%s, amount=%s", 
+				data.get("operation_id"), user_id, payment_type, plan, amount_val)
 			raise
 
 

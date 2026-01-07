@@ -273,20 +273,15 @@ class ProfitActivateService:
             old_monthly_photos = existing_subscription.monthly_photos
             is_subscription_active = existing_subscription.is_active
             
-            # Если та же подписка уже активна - просто возвращаем
-            if is_subscription_active and old_type == subscription_type.lower():
-                logger.info(f"[SUBSCRIPTION] Пользователь {user_id} уже имеет активную подписку {old_type}")
-                await emit_profile_update(user_id, self.db)
-                return existing_subscription
-            
             # БЕЗОПАСНОСТЬ: Сохраняем остатки старой подписки ДО обновления
             old_credits_remaining = existing_subscription.credits_remaining
             old_photos_remaining = existing_subscription.photos_remaining
             old_user_balance = user.coins
             
-            # Определяем, это продление или новая активация
-            if is_subscription_active and old_type == subscription_type.lower():
-                # ПРОДЛЕНИЕ: та же подписка, активна
+            # Определяем, это продление или смена подписки
+            # Продление: та же подписка (активна или истекла) - продлеваем дату окончания
+            if old_type == subscription_type.lower():
+                # ПРОДЛЕНИЕ: та же подписка, активна - сдвигаем дату окончания
                 logger.info(f"[SUBSCRIPTION RENEWAL] Пользователь {user_id} продлевает подписку {old_type.upper()}")
                 logger.info(f"[OLD SUBSCRIPTION] Лимиты: кредиты={old_monthly_credits}, фото={old_monthly_photos}")
                 logger.info(f"[OLD SUBSCRIPTION] Остатки: кредиты={old_credits_remaining}, фото={old_photos_remaining}")
@@ -327,6 +322,17 @@ class ProfitActivateService:
                 logger.info(f"[RENEWAL] Новая дата окончания: {new_expires_at}")
                 logger.info(f"[NEW BALANCE] Баланс пользователя: {old_user_balance} + {total_credits_to_add} = {user.coins} монет")
                 
+                await self.db.commit()
+                await self.db.refresh(existing_subscription)
+                await self.db.refresh(user)
+                
+                # Инвалидируем кэш подписки
+                await cache_delete(key_subscription(user_id))
+                await cache_delete(key_subscription_stats(user_id))
+                
+                logger.info("[OK] Подписка успешно продлена!")
+                await emit_profile_update(user_id, self.db)
+                return existing_subscription
             else:
                 # СМЕНА ПОДПИСКИ: другая подписка или истекшая
                 logger.info(f"[SUBSCRIPTION UPGRADE] Пользователь {user_id} меняет подписку {old_type.upper()} -> {subscription_type.upper()}")
@@ -404,6 +410,57 @@ class ProfitActivateService:
                 logger.info("[OK] Подписка успешно обновлена. Все бонусы сохранены!")
                 await emit_profile_update(user_id, self.db)
                 return existing_subscription
+        
+        # Создаем новую подписку (первая подписка пользователя)
+        logger.info(f"[NEW SUBSCRIPTION] Создание первой подписки {subscription_type} для пользователя {user_id}")
+        logger.info(f"[NEW SUBSCRIPTION] Лимиты: кредиты={monthly_credits}, фото={monthly_photos}")
+        
+        subscription = UserSubscription(
+            user_id=user_id,
+            subscription_type=_normalize_subscription_type(subscription_type),
+            status=SubscriptionStatus.ACTIVE,
+            monthly_credits=monthly_credits,
+            monthly_photos=monthly_photos,
+            max_message_length=max_message_length,
+            used_credits=0,
+            used_photos=0,
+            activated_at=datetime.utcnow(),
+            expires_at=datetime.utcnow() + timedelta(days=30),
+            last_reset_at=datetime.utcnow()
+        )
+        
+        self.db.add(subscription)
+        
+        # Начисляем кредиты на баланс при первой подписке
+        old_user_balance = user.coins
+        user.coins += monthly_credits
+        
+        # Записываем историю баланса
+        try:
+            from app.utils.balance_history import record_balance_change
+            await record_balance_change(
+                db=self.db,
+                user_id=user_id,
+                amount=monthly_credits,
+                reason=f"Активация подписки {subscription_type.upper()} (кредиты подписки переведены на баланс)"
+            )
+        except Exception as e:
+            logger.warning(f"Не удалось записать историю баланса: {e}")
+        
+        logger.info(f"[CREDITS TRANSFER] Переведено на баланс: {monthly_credits} кредитов")
+        logger.info(f"[NEW BALANCE] Баланс пользователя: {old_user_balance} + {monthly_credits} = {user.coins} монет")
+        
+        await self.db.commit()
+        await self.db.refresh(subscription)
+        await self.db.refresh(user)
+        
+        # Инвалидируем кэш подписки
+        await cache_delete(key_subscription(user_id))
+        await cache_delete(key_subscription_stats(user_id))
+        
+        logger.info("[OK] Первая подписка создана успешно!")
+        await emit_profile_update(user_id, self.db)
+        return subscription
     
     async def add_credits_topup(self, user_id: int, credits: int) -> Dict[str, Any]:
         """
@@ -460,57 +517,6 @@ class ProfitActivateService:
             "old_balance": old_balance,
             "new_balance": new_balance
         }
-        
-        # Создаем новую подписку (первая подписка пользователя)
-        logger.info(f"[NEW SUBSCRIPTION] Создание первой подписки {subscription_type} для пользователя {user_id}")
-        logger.info(f"[NEW SUBSCRIPTION] Лимиты: кредиты={monthly_credits}, фото={monthly_photos}")
-        
-        subscription = UserSubscription(
-            user_id=user_id,
-            subscription_type=_normalize_subscription_type(subscription_type),
-            status=SubscriptionStatus.ACTIVE,
-            monthly_credits=monthly_credits,
-            monthly_photos=monthly_photos,
-            max_message_length=max_message_length,
-            used_credits=0,
-            used_photos=0,
-            activated_at=datetime.utcnow(),
-            expires_at=datetime.utcnow() + timedelta(days=30),
-            last_reset_at=datetime.utcnow()
-        )
-        
-        self.db.add(subscription)
-        
-        # Начисляем кредиты на баланс при первой подписке
-        old_user_balance = user.coins
-        user.coins += monthly_credits
-        
-        # Записываем историю баланса
-        try:
-            from app.utils.balance_history import record_balance_change
-            await record_balance_change(
-                db=self.db,
-                user_id=user_id,
-                amount=monthly_credits,
-                reason=f"Активация подписки {subscription_type.upper()} (кредиты подписки переведены на баланс)"
-            )
-        except Exception as e:
-            logger.warning(f"Не удалось записать историю баланса: {e}")
-        
-        logger.info(f"[CREDITS TRANSFER] Переведено на баланс: {monthly_credits} кредитов")
-        logger.info(f"[NEW BALANCE] Баланс пользователя: {old_user_balance} + {monthly_credits} = {user.coins} монет")
-        
-        await self.db.commit()
-        await self.db.refresh(subscription)
-        await self.db.refresh(user)
-        
-        # Инвалидируем кэш подписки
-        await cache_delete(key_subscription(user_id))
-        await cache_delete(key_subscription_stats(user_id))
-        
-        logger.info("[OK] Первая подписка создана успешно!")
-        await emit_profile_update(user_id, self.db)
-        return subscription
     
     async def get_subscription_stats(self, user_id: int) -> Dict[str, Any]:
         """Получает статистику подписки пользователя с кэшированием."""
