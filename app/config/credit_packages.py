@@ -24,8 +24,8 @@ CREDIT_PACKAGES: List[CreditPackage] = [
         id="small",
         name="Small",
         credits=200,
-        price=15.0,
-        price_per_credit=0.075,  # ~0.075₽/кредит
+        price=149.0,
+        price_per_credit=0.745,  # ~0.745₽/кредит
     ),
     CreditPackage(
         id="medium",
