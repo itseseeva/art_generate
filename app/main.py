@@ -730,6 +730,16 @@ except Exception as e:
     import traceback
     logger.error(f"Traceback: {traceback.format_exc()}")
 
+# Подключаем админский роутер отдельно для надежности
+try:
+    from app.api.admin_router import admin_router
+    app.include_router(admin_router)
+    logger.info("[ROUTER] Admin router подключен")
+except Exception as e:
+    logger.error(f"[ERROR] Ошибка подключения admin_router: {e}")
+    import traceback
+    logger.error(f"Traceback: {traceback.format_exc()}")
+
 # Подключаем OAuth роутер БЕЗ префикса /api/v1 (как было раньше)
 try:
     from app.auth.oauth_routers import oauth_router

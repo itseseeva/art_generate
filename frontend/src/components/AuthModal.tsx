@@ -271,6 +271,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
   const [showVerificationCode, setShowVerificationCode] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
   const [fingerprintId, setFingerprintId] = useState<string | null>(null);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetCode, setResetCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetStep, setResetStep] = useState<'email' | 'code' | 'password'>('email');
 
   // Получаем fingerprint_id при открытии модального окна
   useEffect(() => {
@@ -410,22 +416,334 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/v1/auth/forgot-password/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: resetEmail }),
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'Ошибка при отправке кода';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorMessage;
+        } catch {
+          const text = await response.text();
+          errorMessage = text || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+
+      setResetStep('code');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Произошла ошибка');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyResetCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+
+    if (!resetCode || resetCode.length !== 6) {
+      setError('Введите 6-значный код');
+      setIsLoading(false);
+      return;
+    }
+
+    setResetStep('password');
+    setIsLoading(false);
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+
+    if (newPassword !== confirmPassword) {
+      setError('Пароли не совпадают');
+      setIsLoading(false);
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setError('Пароль должен содержать минимум 8 символов');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/v1/auth/reset-password/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: resetEmail,
+          verification_code: resetCode,
+          new_password: newPassword,
+        }),
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'Ошибка при сбросе пароля';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorMessage;
+        } catch {
+          const text = await response.text();
+          errorMessage = text || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+
+      // Пароль успешно сброшен, закрываем модальное окно
+      setShowForgotPassword(false);
+      setResetStep('email');
+      setResetEmail('');
+      setResetCode('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setError(null);
+      onClose();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Произошла ошибка');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <ModalOverlay>
       <ModalContent>
         <ModalHeader>
-          <h3>{mode === 'register' ? 'Регистрация' : 'Вход в систему'}</h3>
-          <p>
-            {showVerificationCode 
-              ? `Мы отправили код верификации на ${email}. Введите код из письма:`
+          <h3>
+            {showForgotPassword 
+              ? 'Восстановление пароля'
               : mode === 'register' 
-                ? 'Создайте новый аккаунт' 
-                : 'Войдите в свой аккаунт для продолжения'
+                ? 'Регистрация' 
+                : 'Вход в систему'
+            }
+          </h3>
+          <p>
+            {showForgotPassword
+              ? resetStep === 'email'
+                ? 'Введите email для восстановления пароля'
+                : resetStep === 'code'
+                  ? `Мы отправили код на ${resetEmail}. Введите код из письма:`
+                  : 'Введите новый пароль'
+              : showVerificationCode 
+                ? `Мы отправили код верификации на ${email}. Введите код из письма:`
+                : mode === 'register' 
+                  ? 'Создайте новый аккаунт' 
+                  : 'Войдите в свой аккаунт для продолжения'
             }
           </p>
         </ModalHeader>
 
-        {showVerificationCode ? (
+        {showForgotPassword ? (
+          resetStep === 'email' ? (
+            <Form onSubmit={handleForgotPassword}>
+              <div style={{ marginBottom: '16px' }}>
+                <label htmlFor="reset_email" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#e2e8f0', fontSize: '14px' }}>Email:</label>
+                <input
+                  type="email"
+                  id="reset_email"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  placeholder="Введите ваш email"
+                  required
+                  disabled={isLoading}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    background: '#1a1a2e',
+                    border: '2px solid #374151',
+                    borderRadius: '12px',
+                    color: '#ffffff',
+                    fontSize: '16px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              {error && <ErrorMessage>{error}</ErrorMessage>}
+
+              <ButtonGroup>
+                <Button
+                  type="submit"
+                  $variant="primary"
+                  disabled={isLoading || !resetEmail}
+                >
+                  {isLoading ? <LoadingSpinner /> : 'Отправить код'}
+                </Button>
+                <Button
+                  type="button"
+                  $variant="secondary"
+                  onClick={() => {
+                    setShowForgotPassword(false);
+                    setResetEmail('');
+                    setError(null);
+                  }}
+                  disabled={isLoading}
+                >
+                  Отмена
+                </Button>
+              </ButtonGroup>
+            </Form>
+          ) : resetStep === 'code' ? (
+            <Form onSubmit={handleVerifyResetCode}>
+              <div style={{ marginBottom: '20px' }}>
+                <label 
+                  htmlFor="reset_code" 
+                  style={{ 
+                    display: 'block', 
+                    marginBottom: '12px', 
+                    fontWeight: 600, 
+                    color: '#e2e8f0', 
+                    fontSize: '14px' 
+                  }}
+                >
+                  Код восстановления:
+                </label>
+                <input
+                  type="text"
+                  id="reset_code"
+                  value={resetCode}
+                  onChange={(e) => setResetCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000"
+                  required
+                  disabled={isLoading}
+                  maxLength={6}
+                  style={{
+                    width: '100%',
+                    padding: '16px',
+                    background: 'rgba(30, 30, 30, 0.8)',
+                    border: '2px solid rgba(80, 80, 80, 0.5)',
+                    borderRadius: '10px',
+                    color: '#ffffff',
+                    fontSize: '24px',
+                    fontWeight: 'bold',
+                    textAlign: 'center',
+                    letterSpacing: '12px',
+                    outline: 'none',
+                    boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.3)',
+                    transition: 'all 0.3s ease',
+                    display: 'block',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              {error && <ErrorMessage>{error}</ErrorMessage>}
+
+              <ButtonGroup>
+                <Button
+                  type="submit"
+                  $variant="primary"
+                  disabled={isLoading || !resetCode || resetCode.length !== 6}
+                >
+                  {isLoading ? <LoadingSpinner /> : 'Продолжить'}
+                </Button>
+                <Button
+                  type="button"
+                  $variant="secondary"
+                  onClick={() => {
+                    setResetStep('email');
+                    setResetCode('');
+                    setError(null);
+                  }}
+                  disabled={isLoading}
+                >
+                  Назад
+                </Button>
+              </ButtonGroup>
+            </Form>
+          ) : (
+            <Form onSubmit={handleResetPassword}>
+              <div style={{ marginBottom: '16px' }}>
+                <label htmlFor="new_password" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#e2e8f0', fontSize: '14px' }}>Новый пароль:</label>
+                <input
+                  type="password"
+                  id="new_password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Введите новый пароль"
+                  required
+                  disabled={isLoading}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    background: '#1a1a2e',
+                    border: '2px solid #374151',
+                    borderRadius: '12px',
+                    color: '#ffffff',
+                    fontSize: '16px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label htmlFor="confirm_password" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#e2e8f0', fontSize: '14px' }}>Подтвердите пароль:</label>
+                <input
+                  type="password"
+                  id="confirm_password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Повторите новый пароль"
+                  required
+                  disabled={isLoading}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    background: '#1a1a2e',
+                    border: '2px solid #374151',
+                    borderRadius: '12px',
+                    color: '#ffffff',
+                    fontSize: '16px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              {error && <ErrorMessage>{error}</ErrorMessage>}
+
+              <ButtonGroup>
+                <Button
+                  type="submit"
+                  $variant="primary"
+                  disabled={isLoading || !newPassword || !confirmPassword || newPassword !== confirmPassword}
+                >
+                  {isLoading ? <LoadingSpinner /> : 'Сбросить пароль'}
+                </Button>
+                <Button
+                  type="button"
+                  $variant="secondary"
+                  onClick={() => {
+                    setResetStep('code');
+                    setNewPassword('');
+                    setConfirmPassword('');
+                    setError(null);
+                  }}
+                  disabled={isLoading}
+                >
+                  Назад
+                </Button>
+              </ButtonGroup>
+            </Form>
+          )
+        ) : showVerificationCode ? (
           <Form onSubmit={handleVerifyCode}>
             <div style={{ marginBottom: '20px' }}>
               <label 
@@ -579,6 +897,32 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
             />
           </div>
 
+          {mode === 'login' && (
+            <div style={{ marginBottom: '16px', textAlign: 'right' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForgotPassword(true);
+                  setResetEmail(email);
+                  setResetStep('email');
+                  setError(null);
+                }}
+                disabled={isLoading}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#60a5fa',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  textDecoration: 'underline',
+                  padding: 0
+                }}
+              >
+                Забыл пароль?
+              </button>
+            </div>
+          )}
+
           {error && <ErrorMessage>{error}</ErrorMessage>}
 
           <ButtonGroup>
@@ -601,7 +945,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
         </Form>
         )}
 
-        {!showVerificationCode && (
+        {!showVerificationCode && !showForgotPassword && (
           <div style={{ textAlign: 'center', marginTop: theme.spacing.lg }}>
             <GoogleButton
               type="button"

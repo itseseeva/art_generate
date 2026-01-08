@@ -21,7 +21,7 @@ from app.schemas.auth import (
     RequestPasswordChangeRequest, VerifyPasswordChangeCodeRequest, ConfirmPasswordChangeRequest,
     RequestPasswordChangeWithOldPasswordRequest, ConfirmPasswordChangeWithCodeRequest,
     UserPhotoResponse, UserGalleryResponse, AddPhotoToGalleryRequest, UnlockUserGalleryRequest,
-    ConfirmRegistrationRequest
+    ConfirmRegistrationRequest, ForgotPasswordRequest, ResetPasswordRequest
 )
 from app.database.db_depends import get_db
 from app.models.user import Users, RefreshToken, EmailVerificationCode
@@ -32,7 +32,8 @@ from app.models.subscription import UserSubscription, SubscriptionType
 from app.chat_bot.models.models import TipMessage
 from app.auth.utils import (
     hash_password, verify_password, hash_token, 
-    create_refresh_token, get_token_expiry, generate_verification_code, send_verification_email
+    create_refresh_token, get_token_expiry, generate_verification_code, send_verification_email,
+    send_password_reset_email
 )
 from app.auth.rate_limiter import get_rate_limiter, RateLimiter
 from app.auth.dependencies import get_current_user
@@ -177,6 +178,7 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
 @auth_router.post("/auth/confirm-registration/", response_model=TokenResponse)
 async def confirm_registration(
     confirm_data: ConfirmRegistrationRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -267,12 +269,25 @@ async def confirm_registration(
     # Получаем fingerprint_id из registration_data
     fingerprint_id = registration_data.get("fingerprint_id")
     
+    # Получаем IP адрес и определяем страну
+    from app.utils.geo_utils import get_client_ip, get_country_by_ip
+    client_ip = get_client_ip(request)
+    country = None
+    if client_ip:
+        country = await get_country_by_ip(client_ip)
+        logger.info(
+            f"[REGISTRATION] User {registration_data['email']} "
+            f"registering from IP: {client_ip}, country: {country or 'Unknown'}"
+        )
+    
     # Создаем нового пользователя
     db_user = Users(
         email=registration_data["email"],
         username=registration_data["username"],
         password_hash=registration_data["password_hash"],
         fingerprint_id=fingerprint_id,
+        registration_ip=client_ip,
+        country=country,
         is_active=True,
         is_verified=True  # Пользователь верифицирован после подтверждения кода
     )
@@ -1626,6 +1641,173 @@ async def confirm_password_change(
     await cache_delete(key_user(current_user.email))
     
     return Message(message="Password changed successfully")
+
+
+@auth_router.post("/auth/forgot-password/", response_model=Message)
+async def forgot_password(
+    request: ForgotPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    rate_limiter: RateLimiter = Depends(get_rate_limiter)
+):
+    """
+    Отправляет код восстановления пароля на email пользователя.
+    Не требует авторизации.
+    
+    Parameters:
+    - request: Email пользователя.
+    - db: Database session.
+    - rate_limiter: Rate limiter instance.
+    
+    Returns:
+    - Message: Сообщение об успешной отправке кода.
+    """
+    try:
+        # Rate limiting
+        if not rate_limiter.is_allowed(request.email):
+            raise HTTPException(
+                status_code=429,
+                detail="Too many requests. Please try again later."
+            )
+        
+        # Находим пользователя по email
+        result = await db.execute(select(Users).filter(Users.email == request.email))
+        user = result.scalar_one_or_none()
+        
+        # Для безопасности не сообщаем, существует ли пользователь
+        if not user:
+            # Возвращаем успешный ответ даже если пользователь не найден
+            # Это предотвращает перебор email адресов
+            return Message(message="If the email exists, a password reset code has been sent")
+        
+        if not user.is_active:
+            return Message(message="If the email exists, a password reset code has been sent")
+        
+        # Генерируем код верификации
+        verification_code = generate_verification_code()
+        expires_at = get_token_expiry(days=1)  # Код действителен 1 день
+        
+        # Удаляем старые коды восстановления пароля для этого пользователя
+        await db.execute(
+            update(EmailVerificationCode)
+            .where(EmailVerificationCode.user_id == user.id)
+            .where(EmailVerificationCode.code_type == "password_reset")
+            .values(is_used=True)
+        )
+        
+        # Сохраняем новый код верификации
+        verification = EmailVerificationCode(
+            user_id=user.id,
+            code=verification_code,
+            expires_at=expires_at,
+            code_type="password_reset"
+        )
+        db.add(verification)
+        await db.commit()
+        
+        # Отправляем код на email
+        await send_password_reset_email(user.email, verification_code)
+        
+        logger.info(f"Password reset code sent to {user.email}")
+        
+        return Message(message="If the email exists, a password reset code has been sent")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[ERROR] Ошибка при отправке кода восстановления пароля для {request.email}: {e}")
+        import traceback
+        logger.error(f"[ERROR] Traceback: {traceback.format_exc()}")
+        # Возвращаем общий ответ для безопасности
+        return Message(message="If the email exists, a password reset code has been sent")
+
+
+@auth_router.post("/auth/reset-password/", response_model=Message)
+async def reset_password(
+    request: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    rate_limiter: RateLimiter = Depends(get_rate_limiter)
+):
+    """
+    Сбрасывает пароль пользователя с помощью кода верификации.
+    Не требует авторизации.
+    
+    Parameters:
+    - request: Email, код верификации и новый пароль.
+    - db: Database session.
+    - rate_limiter: Rate limiter instance.
+    
+    Returns:
+    - Message: Сообщение об успешном сбросе пароля.
+    """
+    try:
+        # Rate limiting
+        if not rate_limiter.is_allowed(request.email):
+            raise HTTPException(
+                status_code=429,
+                detail="Too many requests. Please try again later."
+            )
+        
+        # Находим пользователя по email
+        result = await db.execute(select(Users).filter(Users.email == request.email))
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            raise HTTPException(
+                status_code=404,
+                detail="User not found"
+            )
+        
+        if not user.is_active:
+            raise HTTPException(
+                status_code=400,
+                detail="User account is inactive"
+            )
+        
+        # Проверяем код верификации
+        verification_result = await db.execute(
+            select(EmailVerificationCode)
+            .filter(
+                EmailVerificationCode.user_id == user.id,
+                EmailVerificationCode.code == request.verification_code,
+                EmailVerificationCode.code_type == "password_reset",
+                EmailVerificationCode.is_used == False,
+                EmailVerificationCode.expires_at > datetime.now(timezone.utc).replace(tzinfo=None)
+            )
+        )
+        verification = verification_result.scalar_one_or_none()
+        
+        if not verification:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid or expired verification code"
+            )
+        
+        # Хешируем новый пароль
+        hashed_password = hash_password(request.new_password)
+        
+        # Обновляем пароль
+        user.password_hash = hashed_password
+        verification.is_used = True
+        await db.commit()
+        
+        # Инвалидируем кэш пользователя
+        from app.utils.redis_cache import cache_delete, key_user
+        await cache_delete(key_user(user.email))
+        
+        logger.info(f"Password reset successfully for user {user.id} ({user.email})")
+        
+        return Message(message="Password reset successfully")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[ERROR] Ошибка при сбросе пароля для {request.email}: {e}")
+        import traceback
+        logger.error(f"[ERROR] Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )
 
 
 @auth_router.post("/auth/unlock-user-gallery/", response_model=Message)

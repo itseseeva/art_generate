@@ -25,6 +25,8 @@ class Users(Base):
     coins = Column(Integer, default=5, nullable=False)  # Начальное количество монет
     fingerprint_id = Column(String(255), nullable=True, index=True)  # Уникальный идентификатор устройства
     total_messages_sent = Column(Integer, default=0, nullable=False)  # Общее количество отправленных сообщений (не уменьшается при удалении истории)
+    registration_ip = Column(String(255), nullable=True)  # IP адрес при регистрации
+    country = Column(String(100), nullable=True)  # Страна пользователя (определяется по IP)
     created_at = Column(
         DateTime, 
         default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
@@ -86,7 +88,7 @@ class EmailVerificationCode(Base):
     code = Column(String, nullable=False)
     expires_at = Column(DateTime, nullable=False)
     is_used = Column(Boolean, default=False)
-    code_type = Column(String, nullable=True, default="email_verification")  # email_verification, email_change, password_change
+    code_type = Column(String, nullable=True, default="email_verification")  # email_verification, email_change, password_change, password_reset
     extra_data = Column(JSON, nullable=True)  # Для хранения дополнительных данных (например, new_email)
 
     user = relationship("Users", back_populates="verification_codes")

@@ -262,7 +262,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       icon: <span style={{ fontSize: '18px', fontWeight: 600 }}>🤖</span>,
       label: 'Выбрать модель',
       onClick: onSelectModel,
-      className: ''
+      className: '' 
     }] : [])
   ];
 

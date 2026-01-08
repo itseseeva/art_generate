@@ -69,3 +69,33 @@ async def send_verification_email(email: str, code: str) -> None:
     except Exception as e:
         print(f"Error sending email: {type(e).__name__}: {e}")
         print(f"Verification code {code} for {email} (email sending disabled)")
+
+
+async def send_password_reset_email(email: str, code: str) -> None:
+    """
+    Отправляет код восстановления пароля на email.
+    Обёртка вокруг синхронного EmailSender, чтобы не блокировать event loop.
+    """
+    try:
+        from app.mail_service.sender import EmailSender
+        
+        def _send_email_sync():
+            """Синхронная функция для отправки email в отдельном потоке"""
+            try:
+                email_sender = EmailSender()
+                return email_sender.send_password_reset_email(email, code)
+            except ValueError as init_error:
+                # Если EmailSender не может быть создан (нет конфигурации), просто возвращаем False
+                print(f"EmailSender initialization failed: {init_error}")
+                print(f"Password reset code {code} for {email} (email sending disabled - no config)")
+                return False
+        
+        # Выполняем отправку email в отдельном потоке, чтобы не блокировать event loop
+        success = await asyncio.to_thread(_send_email_sync)
+        
+        if not success:
+            print(f"Password reset code {code} for {email} (real sending disabled)")
+            
+    except Exception as e:
+        print(f"Error sending password reset email: {type(e).__name__}: {e}")
+        print(f"Password reset code {code} for {email} (email sending disabled)")

@@ -269,3 +269,29 @@ class AddPhotoToGalleryRequest(BaseModel):
 class UnlockUserGalleryRequest(BaseModel):
     """Схема для открытия галереи пользователя"""
     user_id: int = Field(..., description="ID пользователя, галерею которого нужно открыть")
+
+
+class ForgotPasswordRequest(BaseModel):
+    """Схема для запроса восстановления пароля"""
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    """Схема для сброса пароля"""
+    email: EmailStr
+    verification_code: str
+    new_password: str = Field(..., min_length=8, max_length=100)
+    
+    @field_validator('new_password')
+    @classmethod
+    def validate_password(cls, v):
+        """Валидация пароля"""
+        if len(v) < 8:
+            raise ValueError('Пароль должен содержать минимум 8 символов')
+        if not re.search(r'[A-Z]', v):
+            raise ValueError('Пароль должен содержать хотя бы одну заглавную букву')
+        if not re.search(r'[a-z]', v):
+            raise ValueError('Пароль должен содержать хотя бы одну строчную букву')
+        if not re.search(r'\d', v):
+            raise ValueError('Пароль должен содержать хотя бы одну цифру')
+        return v

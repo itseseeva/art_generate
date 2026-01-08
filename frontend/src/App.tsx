@@ -20,6 +20,7 @@ import { FavoritesPage } from './components/FavoritesPage';
 import { BalanceHistoryPage } from './components/BalanceHistoryPage';
 import { CharacterCommentsPage } from './components/CharacterCommentsPage';
 import { BugReportPage } from './components/BugReportPage';
+import { AdminLogsPage } from './components/AdminLogsPage';
 import { LeftDockSidebar } from './components/LeftDockSidebar';
 import { AuthModal } from './components/AuthModal';
 import { LegalPage } from './components/LegalPage';
@@ -70,7 +71,8 @@ type PageType =
   | 'about'
   | 'tariffs'
   | 'how-it-works'
-  | 'bug-report';
+  | 'bug-report'
+  | 'admin-logs';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<PageType>('main');
@@ -112,7 +114,8 @@ function App() {
         'about': 'О проекте',
         'tariffs': 'Тарифы',
         'how-it-works': 'Как это работает',
-        'bug-report': 'Сообщить об ошибке'
+        'bug-report': 'Сообщить об ошибке',
+        'admin-logs': 'Логи администратора'
       };
       document.title = pageTitles[currentPage] || 'cherrylust.art';
     }
@@ -661,6 +664,11 @@ function App() {
     window.history.pushState({ page: 'bug-report' }, '', '/bug-report');
   };
 
+  const handleLogs = () => {
+    setCurrentPage('admin-logs');
+    window.history.pushState({ page: 'admin-logs' }, '', '/admin-logs');
+  };
+
   const handlePaymentMethod = (subscriptionType: string) => {
     // Этот метод больше не используется, так как кнопки оплаты теперь на странице магазина
   };
@@ -1005,6 +1013,8 @@ function App() {
         return <HowItWorksPage />;
       case 'bug-report':
         return <BugReportPage onBackToMain={handleBackToMain} onProfile={handleProfile} />;
+      case 'admin-logs':
+        return <AdminLogsPage onBackToMain={handleBackToMain} />;
       case 'character-comments':
         return selectedCharacter ? (
           <CharacterCommentsPage
@@ -1038,7 +1048,7 @@ function App() {
   };
 
   const [isAuthenticated, setIsAuthenticated] = React.useState(false);
-  const [userInfo, setUserInfo] = React.useState<{username: string, coins: number, id?: number, subscription?: {subscription_type: string}} | null>(null);
+  const [userInfo, setUserInfo] = React.useState<{username: string, coins: number, id?: number, is_admin?: boolean, subscription?: {subscription_type: string}} | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [isPaidAlbumModalOpen, setIsPaidAlbumModalOpen] = useState(false);
@@ -1092,6 +1102,7 @@ function App() {
                 username: userData.username || userData.email || 'Пользователь',
                 coins: userData.coins || 0,
                 id: userData.id,
+                is_admin: userData.is_admin || false,
                 subscription: userData.subscription
               });
               setIsAuthenticated(true);
@@ -1397,7 +1408,9 @@ function App() {
           onLogin={handleLogin}
           onRegister={handleRegister}
           onLogout={handleLogout}
+          onLogs={handleLogs}
           isAuthenticated={isAuthenticated}
+          isAdmin={userInfo?.is_admin || false}
           contentMode={contentMode}
           onContentModeChange={setContentMode}
         />

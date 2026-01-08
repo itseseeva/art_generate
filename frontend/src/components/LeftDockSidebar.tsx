@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { FiPlusCircle, FiEdit, FiClock, FiHeart, FiGrid, FiHome, FiMessageSquare, FiTrendingUp, FiChevronRight, FiAlertTriangle, FiUser, FiLogIn, FiUserPlus, FiLogOut, FiShoppingBag } from 'react-icons/fi';
+import { FiPlusCircle, FiEdit, FiClock, FiHeart, FiGrid, FiHome, FiMessageSquare, FiTrendingUp, FiChevronRight, FiAlertTriangle, FiUser, FiLogIn, FiUserPlus, FiLogOut, FiShoppingBag, FiBarChart2 } from 'react-icons/fi';
 import Switcher4 from './Switcher4';
 import { NSFWWarningModal } from './NSFWWarningModal';
 
@@ -23,7 +23,9 @@ interface LeftDockSidebarProps {
   onLogin?: () => void;
   onRegister?: () => void;
   onLogout?: () => void;
+  onLogs?: () => void;
   isAuthenticated?: boolean;
+  isAdmin?: boolean;
   contentMode?: 'safe' | 'nsfw';
   onContentModeChange?: (mode: 'safe' | 'nsfw') => void;
 }
@@ -247,7 +249,9 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   onLogin,
   onRegister,
   onLogout,
+  onLogs,
   isAuthenticated = false,
+  isAdmin = false,
   contentMode = 'safe',
   onContentModeChange,
 }) => {
@@ -320,6 +324,16 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
 
   // Дополнительные кнопки (скрытые по умолчанию)
   const additionalDockItems = [];
+
+  // Кнопка Logs - только для админов
+  if (isAdmin && onLogs) {
+    additionalDockItems.push({
+      icon: <FiBarChart2 size={18} />,
+      label: 'Logs',
+      onClick: () => onLogs?.(),
+      className: 'dock-item-logs',
+    });
+  }
 
   // Добавляем кнопки из правой верхней панели
   // Профиль - только для авторизованных

@@ -108,3 +108,83 @@ This is an automatic email, please do not reply"""
         except Exception as e:
             print(f"Error sending email to {to_email}: {type(e).__name__}: {e}")
             return False
+    
+    def send_password_reset_email(self, to_email: str, verification_code: str) -> bool:
+        """
+        Отправляет код восстановления пароля на email.
+        
+        Args:
+            to_email: Email получателя
+            verification_code: Код восстановления пароля
+            
+        Returns:
+            bool: True если отправка успешна, False при ошибке
+        """
+        # Проверяем пароль на наличие не-ASCII символов
+        try:
+            self.password.encode('ascii')
+        except UnicodeEncodeError:
+            print(f"Password contains non-ASCII characters. Cannot send email.")
+            print(f"Password reset code {verification_code} for {to_email} (sending disabled due to non-ASCII password)")
+            return False
+            
+        # Если пароль не установлен, не пытаемся отправить
+        if not self.password:
+            print(f"Password reset code {verification_code} for {to_email} (real sending disabled)")
+            return False
+            
+        try:
+            # Создаем сообщение
+            msg = MIMEMultipart()
+            msg['From'] = self.username
+            msg['To'] = to_email
+            msg['Subject'] = "Восстановление пароля - Art Generation API"
+            
+            # Создаем текстовое тело письма
+            text_body = f"""Восстановление пароля - Art Generation API
+
+Здравствуйте!
+
+Для восстановления пароля используйте следующий код:
+
+{verification_code}
+
+Важно:
+- Код действителен в течение 24 часов
+- Не передавайте код третьим лицам
+- Если вы не запрашивали восстановление пароля, проигнорируйте это письмо
+
+С уважением,
+Команда Art Generation API
+
+Это автоматическое письмо, пожалуйста, не отвечайте на него"""
+            
+            msg.attach(MIMEText(text_body, 'plain', 'utf-8'))
+            
+            # Устанавливаем timeout для socket операций (10 секунд)
+            old_timeout = socket.getdefaulttimeout()
+            socket.setdefaulttimeout(10)
+            try:
+                # Подключаемся к SMTP серверу с timeout
+                with smtplib.SMTP(self.host, self.port) as server:
+                    if self.use_tls:
+                        server.starttls()
+                    
+                    # Аутентификация
+                    server.login(self.username, self.password)
+                    
+                    # Отправка сообщения
+                    server.send_message(msg)
+                
+                print(f"Password reset code successfully sent to {to_email}")
+                return True
+            finally:
+                # Восстанавливаем предыдущий timeout
+                socket.setdefaulttimeout(old_timeout)
+            
+        except (smtplib.SMTPConnectError, smtplib.SMTPAuthenticationError, smtplib.SMTPServerDisconnected) as e:
+            print(f"SMTP error sending password reset email to {to_email}: {type(e).__name__}: {e}")
+            return False
+        except Exception as e:
+            print(f"Error sending password reset email to {to_email}: {type(e).__name__}: {e}")
+            return False
