@@ -248,10 +248,25 @@ async def yookassa_webhook(
 			return {"status": "ok", "message": f"Payment status: {status}"}
 		
 		# Получаем данные из metadata
-		user_id = int(metadata.get("user_id"))
+		user_id_str = metadata.get("user_id")
+		if not user_id_str:
+			logger.error(f"[YOOKASSA WEBHOOK] Missing user_id in metadata: {metadata}")
+			raise HTTPException(status_code=400, detail="Missing user_id in metadata")
+		
+		try:
+			user_id = int(user_id_str)
+		except (ValueError, TypeError) as e:
+			logger.error(f"[YOOKASSA WEBHOOK] Invalid user_id in metadata: {user_id_str}, error: {e}")
+			raise HTTPException(status_code=400, detail=f"Invalid user_id in metadata: {user_id_str}")
+		
 		payment_type = metadata.get("payment_type", "subscription")
 		plan = metadata.get("plan")
 		package_id = metadata.get("package_id")
+		
+		logger.info(
+			f"[YOOKASSA WEBHOOK] Parsed metadata: user_id={user_id}, "
+			f"payment_type={payment_type}, plan={plan}, package_id={package_id}"
+		)
 		
 		# Проверяем идемпотентность
 		existing_transaction = await db.execute(
@@ -292,8 +307,30 @@ async def yookassa_webhook(
 				logger.error(f"[YOOKASSA WEBHOOK] Unknown package: {package_id}")
 				raise HTTPException(status_code=400, detail=f"Unknown package: {package_id}")
 			
+			# Проверяем сумму платежа (допускаем небольшую погрешность из-за комиссий)
+			# Минимум 95% от цены пакета (как в YooMoney)
+			min_expected_amount = package.price * 0.95
+			if amount < min_expected_amount:
+				logger.error(
+					f"[YOOKASSA WEBHOOK] Amount too low: {amount} < {min_expected_amount} "
+					f"(package price: {package.price}, package_id: {package_id})"
+				)
+				raise HTTPException(
+					status_code=400,
+					detail=f"Amount too low: {amount} < {min_expected_amount} (expected ~{package.price})"
+				)
+			
+			logger.info(
+				f"[YOOKASSA WEBHOOK] Processing topup: user_id={user_id}, "
+				f"package_id={package_id}, amount={amount}, expected={package.price}, "
+				f"credits={package.credits}"
+			)
+			
 			result = await service.add_credits_topup(user_id, package.credits)
-			logger.info(f"[YOOKASSA WEBHOOK] Credits added: user_id={user_id}, credits={package.credits}")
+			logger.info(
+				f"[YOOKASSA WEBHOOK] ✅ Credits added successfully: "
+				f"user_id={user_id}, credits={package.credits}"
+			)
 			
 			transaction.processed = True
 			await db.commit()
@@ -327,4 +364,108 @@ async def yookassa_callback():
 	"""
 	from fastapi.responses import RedirectResponse
 	return RedirectResponse(url="/?payment=success", status_code=302)
+
+
+@router.get("/transactions/{user_id}")
+async def get_user_transactions(
+	user_id: int,
+	current_user: Users = Depends(get_current_user),
+	db: AsyncSession = Depends(get_db)
+):
+	"""
+	Получить список транзакций пользователя для отладки.
+	"""
+	# Проверяем, что пользователь запрашивает свои транзакции или является админом
+	if current_user.id != user_id and not current_user.is_admin:
+		raise HTTPException(status_code=403, detail="Access denied")
+	
+	transactions = await db.execute(
+		select(PaymentTransaction)
+		.where(PaymentTransaction.user_id == user_id)
+		.order_by(PaymentTransaction.created_at.desc())
+		.limit(50)
+	)
+	
+	transactions_list = transactions.scalars().all()
+	
+	return {
+		"user_id": user_id,
+		"transactions": [
+			{
+				"operation_id": t.operation_id,
+				"payment_type": t.payment_type,
+				"amount": t.amount,
+				"currency": t.currency,
+				"package_id": t.package_id,
+				"subscription_type": t.subscription_type,
+				"processed": t.processed,
+				"created_at": t.created_at.isoformat() if t.created_at else None,
+				"processed_at": t.processed_at.isoformat() if t.processed_at else None,
+			}
+			for t in transactions_list
+		]
+	}
+
+
+@router.post("/process-transaction/{operation_id}")
+async def process_transaction_manually(
+	operation_id: str,
+	current_user: Users = Depends(get_current_user),
+	db: AsyncSession = Depends(get_db)
+):
+	"""
+	Вручную обработать транзакцию (для случаев, когда webhook не пришел).
+	Только для администраторов.
+	"""
+	if not current_user.is_admin:
+		raise HTTPException(status_code=403, detail="Access denied. Admin only.")
+	
+	# Находим транзакцию
+	transaction = await db.execute(
+		select(PaymentTransaction).where(PaymentTransaction.operation_id == operation_id)
+	)
+	transaction = transaction.scalars().first()
+	
+	if not transaction:
+		raise HTTPException(status_code=404, detail="Transaction not found")
+	
+	if transaction.processed:
+		return {"status": "ok", "message": "Transaction already processed"}
+	
+	# Обрабатываем транзакцию
+	from app.services.profit_activate import ProfitActivateService
+	from app.config.credit_packages import get_credit_package
+	
+	service = ProfitActivateService(db)
+	
+	if transaction.payment_type == "topup" and transaction.package_id:
+		package = get_credit_package(transaction.package_id)
+		if not package:
+			raise HTTPException(status_code=400, detail=f"Unknown package: {transaction.package_id}")
+		
+		await service.add_credits_topup(transaction.user_id, package.credits)
+		logger.info(
+			f"[YOOKASSA MANUAL] Credits added: user_id={transaction.user_id}, "
+			f"credits={package.credits}, operation_id={operation_id}"
+		)
+		
+		transaction.processed = True
+		await db.commit()
+		
+		return {"status": "ok", "type": "topup", "credits": package.credits}
+	
+	elif transaction.payment_type == "subscription" and transaction.subscription_type:
+		await service.activate_subscription(transaction.user_id, transaction.subscription_type)
+		logger.info(
+			f"[YOOKASSA MANUAL] Subscription activated: user_id={transaction.user_id}, "
+			f"plan={transaction.subscription_type}, operation_id={operation_id}"
+		)
+		
+		transaction.processed = True
+		await db.commit()
+		
+		return {"status": "ok", "type": "subscription", "plan": transaction.subscription_type}
+	
+	else:
+		raise HTTPException(status_code=400, detail="Invalid transaction data")
 
