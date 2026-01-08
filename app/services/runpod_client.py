@@ -209,9 +209,6 @@ async def start_generation(
     final_seed = seed
     if final_seed is None or final_seed == -1:
         final_seed = random.randint(0, 4294967295)
-        logger.info(f"Generating random seed: {final_seed}")
-    else:
-        logger.info(f"[RUNPOD] Используется указанный seed: {final_seed}")
     
     # Берём параметры из дефолтов, если не указаны
     # ВАЖНО: Не передаем поле "model" в payload, так как выбор модели происходит через URL endpoint
@@ -241,12 +238,9 @@ async def start_generation(
         "input": params
     }
     
-    logger.info(f"[RUNPOD] Отправка запроса на генерацию: {user_prompt[:100]}...")
-    logger.info(f"[RUNPOD] 🎲 SEED для генерации: {final_seed} (тип: {'случайный' if (seed is None or seed == -1) else 'указанный'})")
-    logger.debug(f"[RUNPOD] Параметры: {params}")
+    logger.info(f"[RUNPOD] Промпт для RunPod: {final_prompt}")
     
     try:
-        logger.info(f"[RUNPOD] ✓ ОТПРАВКА ЗАДАЧИ: URL={runpod_url}, модель={model}, base_url={runpod_url_base}, seed={final_seed}")
         response = await client.post(
             runpod_url,
             json=payload,
@@ -306,7 +300,6 @@ async def check_status(
     # Формируем URL для проверки статуса
     status_url = f"{base_url}/status/{job_id}"
     
-    logger.info(f"[RUNPOD] Проверка статуса job_id={job_id} на URL: {status_url}")
     # Показываем какой URL используется и откуда он взят
     if base_url == RUNPOD_URL_BASE_2:
         url_source = "RUNPOD_URL_2 (модель 'anime-realism' / 'Аниме реализм')"
@@ -316,7 +309,6 @@ async def check_status(
         url_source = "RUNPOD_URL (модель 'anime' / 'Аниме')"
     else:
         url_source = f"переданный явно ({base_url})"
-    logger.info(f"[RUNPOD] Используемый base_url: {base_url} (источник: {url_source})")
     
     headers = {
         "Authorization": f"Bearer {RUNPOD_API_KEY}",

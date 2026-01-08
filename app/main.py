@@ -4126,7 +4126,6 @@ async def get_generation_status(
         dict: Статус задачи и результат (если готово)
     """
     try:
-        logger.info(f"[STATUS] Запрос статуса задачи {task_id}")
         
         # Проверяем, является ли это RunPod job_id (формат: UUID с дефисами)
         # RunPod job_id обычно выглядит как: "95c8aded-6fa3-4737-9728-7d34a88c277a-e1"
@@ -4135,7 +4134,6 @@ async def get_generation_status(
         
         if runpod_job_pattern.match(task_id):
             # Это RunPod job_id - проверяем статус через RunPod API
-            logger.info(f"[RUNPOD STATUS] Проверяем статус RunPod job: {task_id}")
             from app.services.runpod_client import check_status
             import httpx
             
@@ -4156,7 +4154,6 @@ async def get_generation_status(
                     if generation_metadata and isinstance(generation_metadata, dict):
                         runpod_url_base = generation_metadata.get("runpod_url_base")
                         model = generation_metadata.get("model", "unknown")
-                        logger.info(f"[RUNPOD STATUS] Найден runpod_url_base в метаданных: {runpod_url_base} (модель: {model})")
                     else:
                         logger.warning(f"[RUNPOD STATUS] Метаданные не являются словарем: {type(generation_metadata)}")
                 else:
