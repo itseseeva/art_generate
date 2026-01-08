@@ -95,17 +95,80 @@ async def create_kassa_payment(
 
 	auth = (cfg["shop_id"], cfg["secret_key"])
 
+	# Настройки httpx клиента
+	# ВАЖНО: Отключаем прокси для запросов к YooKassa
+	# httpx по умолчанию использует HTTP_PROXY/HTTPS_PROXY из окружения,
+	# что может вызывать проблемы на VPS
+	client_kwargs = {
+		"timeout": httpx.Timeout(
+			connect=10.0,  # Таймаут подключения
+			read=30.0,     # Таймаут чтения
+			write=10.0,    # Таймаут записи
+			pool=5.0       # Таймаут получения соединения из пула
+		),
+		"follow_redirects": True,
+		"verify": True,  # Проверка SSL сертификатов
+		"trust_env": False,  # КРИТИЧНО: Отключаем автоматическое использование прокси из окружения
+		"proxies": None,  # Явно отключаем прокси
+	}
+	
+	logger.info(
+		f"[YOOKASSA] Creating payment: amount={payload.amount}, "
+		f"method={payload.payment_method}, type={payload.payment_type}"
+	)
+	logger.debug(f"[YOOKASSA] Request body: {req_body}")
+	
+	# Логируем настройки прокси для отладки
+	import os
+	proxy_info = {
+		"HTTP_PROXY": os.getenv("HTTP_PROXY"),
+		"HTTPS_PROXY": os.getenv("HTTPS_PROXY"),
+		"GLOBAL_PROXY": os.getenv("GLOBAL_PROXY"),
+		"trust_env": client_kwargs.get("trust_env"),
+		"proxies": client_kwargs.get("proxies"),
+	}
+	logger.info(f"[YOOKASSA] Proxy settings: {proxy_info}")
+	
 	try:
-		resp = httpx.post(
-			"https://api.yookassa.ru/v3/payments",
-			json=req_body,
-			headers=headers,
-			auth=auth,
-			timeout=20.0,
+		logger.info("[YOOKASSA] Sending request to YooKassa API...")
+		with httpx.Client(**client_kwargs) as client:
+			resp = client.post(
+				"https://api.yookassa.ru/v3/payments",
+				json=req_body,
+				headers=headers,
+				auth=auth,
+			)
+		logger.info(f"[YOOKASSA] Response received: status={resp.status_code}")
+	except httpx.ConnectTimeout as ex:
+		logger.error(f"[YOOKASSA] Connection timeout: {ex}")
+		raise HTTPException(
+			status_code=504, 
+			detail="YooKassa connection timeout. Please try again later."
+		)
+	except httpx.ReadTimeout as ex:
+		logger.error(f"[YOOKASSA] Read timeout: {ex}")
+		raise HTTPException(
+			status_code=504,
+			detail="YooKassa read timeout. Please try again later."
+		)
+	except httpx.ConnectError as ex:
+		logger.error(f"[YOOKASSA] Connection error: {ex}")
+		raise HTTPException(
+			status_code=502,
+			detail=f"YooKassa connection error: {str(ex)}. Check network connectivity."
+		)
+	except httpx.HTTPError as ex:
+		logger.error(f"[YOOKASSA] HTTP error: {ex}")
+		raise HTTPException(
+			status_code=502,
+			detail=f"YooKassa HTTP error: {str(ex)}"
 		)
 	except Exception as ex:
-		logger.error(f"[YOOKASSA] Request error: {ex}")
-		raise HTTPException(status_code=502, detail=f"YooKassa request error: {ex}")
+		logger.error(f"[YOOKASSA] Unexpected error: {ex}", exc_info=True)
+		raise HTTPException(
+			status_code=502,
+			detail=f"YooKassa request error: {str(ex)}"
+		)
 
 	if resp.status_code not in (200, 201):
 		try:
