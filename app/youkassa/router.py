@@ -209,14 +209,12 @@ async def create_kassa_payment(
 	)
 
 
-@router.post("/webhook/")
-async def yookassa_webhook(
+async def process_yookassa_webhook(
 	request: Request,
-	db: AsyncSession = Depends(get_db)
+	db: AsyncSession
 ):
 	"""
-	Webhook для обработки уведомлений от ЮKassa о статусе платежа.
-	Документация: https://yookassa.ru/developers/using-api/webhooks
+	Внутренняя функция для обработки webhook от YooKassa.
 	"""
 	logger.info("[YOOKASSA WEBHOOK] ===== ВХОДЯЩЕЕ УВЕДОМЛЕНИЕ =====")
 	
@@ -355,6 +353,18 @@ async def yookassa_webhook(
 		logger.error(f"[YOOKASSA WEBHOOK] Error processing webhook: {e}", exc_info=True)
 		await db.rollback()
 		raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/webhook/")
+async def yookassa_webhook(
+	request: Request,
+	db: AsyncSession = Depends(get_db)
+):
+	"""
+	Webhook для обработки уведомлений от ЮKassa о статусе платежа.
+	Документация: https://yookassa.ru/developers/using-api/webhooks
+	"""
+	return await process_yookassa_webhook(request, db)
 
 
 @router.get("/callback")

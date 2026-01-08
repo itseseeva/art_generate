@@ -1008,7 +1008,17 @@ except Exception as e:
 # Подключаем интеграцию YooKassa (Checkout)
 try:
     from app.youkassa.router import router as yookassa_router  # type: ignore
+    from app.youkassa.router import process_yookassa_webhook  # type: ignore
     app.include_router(yookassa_router)
+    
+    # Дополнительный эндпоинт для поддержки старого URL webhook от YooKassa
+    # YooKassa отправляет на /api/yookassa-webhook, но наш роутер на /api/v1/kassa/webhook/
+    @app.post("/api/yookassa-webhook")
+    @app.post("/api/yookassa-webhook/")
+    async def yookassa_webhook_legacy(request: Request, db=Depends(get_db)):
+        """Legacy webhook endpoint для обратной совместимости с YooKassa."""
+        return await process_yookassa_webhook(request, db)
+    
     # Убрано логирование подключения
 except Exception as e:
     logger.error(f"[ERROR] Ошибка подключения роутера YooKassa: {e}")
