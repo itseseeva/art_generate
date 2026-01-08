@@ -98,6 +98,9 @@ export const API_CONFIG = {
   
   // Генерация изображений
   GENERATE_IMAGE: '/api/v1/generate-image/',
+  
+  // Платежи
+  YOOKASSA_CREATE_PAYMENT: '/api/v1/kassa/create_payment/',
   FALLBACK_SETTINGS: '/api/v1/fallback-settings/',
   
   // Чат

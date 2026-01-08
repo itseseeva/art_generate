@@ -20,8 +20,9 @@ class YooKassaConfig(TypedDict):
 
 def get_kassa_config() -> YooKassaConfig:
 	shop_id = os.getenv("YOOKASSA_SHOP_ID") or os.getenv("yookassa_shop_id")
-	secret_key = os.getenv("YOOKASSA_SECRET_KEY") or os.getenv("yookassa_secret_key")
-	return_url = os.getenv("YOOKASSA_RETURN_URL") or os.getenv("redirect_url1")
+	# Поддержка обоих вариантов: YOU_KASSA_API_KEY и YOOKASSA_SECRET_KEY
+	secret_key = os.getenv("YOU_KASSA_API_KEY") or os.getenv("YOOKASSA_SECRET_KEY") or os.getenv("yookassa_secret_key")
+	return_url = os.getenv("YOOKASSA_RETURN_URL") or os.getenv("redirect_url1") or "https://cherrylust.art/shop"
 	currency = os.getenv("YOOKASSA_CURRENCY") or "RUB"
 	capture_env = os.getenv("YOOKASSA_CAPTURE", "true").strip().lower()
 	capture = capture_env in ("1", "true", "yes", "on")
@@ -30,9 +31,7 @@ def get_kassa_config() -> YooKassaConfig:
 	if not shop_id:
 		missing.append("YOOKASSA_SHOP_ID")
 	if not secret_key:
-		missing.append("YOOKASSA_SECRET_KEY")
-	if not return_url:
-		missing.append("YOOKASSA_RETURN_URL (или redirect_url1)")
+		missing.append("YOU_KASSA_API_KEY или YOOKASSA_SECRET_KEY")
 	if missing:
 		raise ValueError(f"YooKassa config is incomplete, missing: {', '.join(missing)}")
 
