@@ -237,7 +237,11 @@ async def process_yookassa_webhook(
 		amount = float(amount_data.get("value", 0))
 		metadata = payment_object.get("metadata", {})
 		
-		logger.info(f"[YOOKASSA WEBHOOK] Payment ID: {payment_id}, Status: {status}, Amount: {amount}")
+		# Получаем метод оплаты из payment_object
+		payment_method_data = payment_object.get("payment_method", {})
+		payment_method = payment_method_data.get("type", "bank_card") if isinstance(payment_method_data, dict) else "bank_card"
+		
+		logger.info(f"[YOOKASSA WEBHOOK] Payment ID: {payment_id}, Status: {status}, Amount: {amount}, Method: {payment_method}")
 		logger.info(f"[YOOKASSA WEBHOOK] Metadata: {metadata}")
 		
 		# Проверяем статус
@@ -305,18 +309,48 @@ async def process_yookassa_webhook(
 				logger.error(f"[YOOKASSA WEBHOOK] Unknown package: {package_id}")
 				raise HTTPException(status_code=400, detail=f"Unknown package: {package_id}")
 			
-			# Проверяем сумму платежа (допускаем небольшую погрешность из-за комиссий)
-			# Минимум 95% от цены пакета (как в YooMoney)
-			min_expected_amount = package.price * 0.95
-			if amount < min_expected_amount:
+			# Определяем комиссию в зависимости от метода оплаты
+			# Комиссии YooKassa:
+			# - СБП: 0.4%
+			# - Банковские карты: 3.5%
+			# - SberPay: 3.5%
+			# - ЮMoney: 3.5%
+			commission_rates = {
+				"sbp": 0.004,  # 0.4% для СБП
+				"bank_card": 0.035,  # 3.5% для банковских карт
+				"sberbank": 0.035,  # 3.5% для SberPay
+				"yoo_money": 0.035,  # 3.5% для ЮMoney
+				"tinkoff_bank": 0.035,  # 3.5% для Тинькофф (по умолчанию)
+			}
+			
+			# Получаем комиссию для метода оплаты (по умолчанию 3.5%)
+			commission_rate = commission_rates.get(payment_method, 0.035)
+			
+			# Рассчитываем минимальную сумму с учетом комиссии
+			# Если пользователь заплатил X, то после комиссии мы получим X * (1 - commission_rate)
+			# Для методов с комиссией 3.5% и суммой 15 руб получаем 14.475 руб
+			# Поэтому используем 95% от цены пакета для учета комиссий
+			amount_after_commission = amount * (1 - commission_rate)
+			min_expected_amount = package.price * 0.95  # 95% от цены пакета (учет комиссий до 3.5%)
+			
+			if amount_after_commission < min_expected_amount:
 				logger.error(
-					f"[YOOKASSA WEBHOOK] Amount too low: {amount} < {min_expected_amount} "
+					f"[YOOKASSA WEBHOOK] Amount too low after commission: "
+					f"amount={amount}, method={payment_method}, commission_rate={commission_rate}, "
+					f"amount_after_commission={amount_after_commission:.2f} < {min_expected_amount:.2f} "
 					f"(package price: {package.price}, package_id: {package_id})"
 				)
 				raise HTTPException(
 					status_code=400,
-					detail=f"Amount too low: {amount} < {min_expected_amount} (expected ~{package.price})"
+					detail=f"Amount too low after commission: {amount_after_commission:.2f} < {min_expected_amount:.2f} (expected ~{package.price})"
 				)
+			
+			logger.info(
+				f"[YOOKASSA WEBHOOK] Amount check passed: amount={amount}, "
+				f"method={payment_method}, commission_rate={commission_rate}, "
+				f"amount_after_commission={amount_after_commission:.2f}, "
+				f"package_price={package.price}"
+			)
 			
 			logger.info(
 				f"[YOOKASSA WEBHOOK] Processing topup: user_id={user_id}, "
