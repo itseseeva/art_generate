@@ -5,7 +5,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any
 from app.database.db_depends import get_db
 from app.models.user import Users
@@ -199,6 +199,244 @@ async def get_admin_stats(
         raise HTTPException(
             status_code=500,
             detail=f"Ошибка получения статистики: {str(e)}"
+        )
+
+
+@admin_router.get("/users")
+@admin_router.get("/users/")
+async def get_users_list(
+    current_user: Users = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+    skip: int = 0,
+    limit: int = 100,
+    search: str = None
+) -> Dict[str, Any]:
+    """
+    Получает список всех пользователей с основной информацией.
+    
+    Parameters:
+    - skip: Количество пользователей для пропуска (пагинация)
+    - limit: Максимальное количество пользователей в ответе
+    - search: Поиск по email или username
+    """
+    try:
+        from sqlalchemy.orm import selectinload
+        
+        # Базовый запрос
+        query = select(Users).options(selectinload(Users.subscription))
+        
+        # Поиск
+        if search:
+            search_pattern = f"%{search}%"
+            query = query.where(
+                or_(
+                    Users.email.ilike(search_pattern),
+                    Users.username.ilike(search_pattern)
+                )
+            )
+        
+        # Сортировка по дате создания (новые сначала)
+        query = query.order_by(Users.created_at.desc())
+        
+        # Подсчет общего количества
+        count_query = select(func.count(Users.id))
+        if search:
+            search_pattern = f"%{search}%"
+            count_query = count_query.where(
+                or_(
+                    Users.email.ilike(search_pattern),
+                    Users.username.ilike(search_pattern)
+                )
+            )
+        total_result = await db.execute(count_query)
+        total = total_result.scalar() or 0
+        
+        # Получаем пользователей с пагинацией
+        query = query.offset(skip).limit(limit)
+        result = await db.execute(query)
+        users = result.scalars().all()
+        
+        users_list = []
+        for user in users:
+            subscription_info = None
+            if user.subscription:
+                subscription_info = {
+                    "type": user.subscription.subscription_type.value,
+                    "status": user.subscription.status.value,
+                    "used_credits": user.subscription.used_credits,
+                    "used_photos": user.subscription.used_photos,
+                    "monthly_credits": user.subscription.monthly_credits,
+                    "monthly_photos": user.subscription.monthly_photos
+                }
+            
+            users_list.append({
+                "id": user.id,
+                "email": user.email,
+                "username": user.username,
+                "is_active": user.is_active,
+                "is_verified": user.is_verified,
+                "is_admin": user.is_admin,
+                "coins": user.coins,
+                "country": user.country,
+                "created_at": user.created_at.isoformat() if user.created_at else None,
+                "total_messages_sent": user.total_messages_sent,
+                "subscription": subscription_info
+            })
+        
+        return {
+            "users": users_list,
+            "total": total,
+            "skip": skip,
+            "limit": limit
+        }
+        
+    except Exception as e:
+        logger.error(f"[ADMIN] Ошибка получения списка пользователей: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка получения списка пользователей: {str(e)}"
+        )
+
+
+@admin_router.get("/users/{user_id}")
+async def get_user_details(
+    user_id: int,
+    current_user: Users = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Получает детальную информацию о пользователе.
+    """
+    try:
+        from sqlalchemy.orm import selectinload
+        from app.models.chat_history import ChatHistory
+        from app.models.image_generation_history import ImageGenerationHistory
+        from app.chat_bot.models.models import CharacterDB
+        
+        # Получаем пользователя с подпиской
+        stmt = select(Users).options(selectinload(Users.subscription)).filter(Users.id == user_id)
+        result = await db.execute(stmt)
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="Пользователь не найден")
+        
+        # Статистика сообщений
+        try:
+            messages_result = await db.execute(
+                select(func.count(ChatHistory.id)).where(ChatHistory.user_id == user_id)
+            )
+            total_messages = messages_result.scalar() or 0
+        except Exception as e:
+            logger.warning(f"[ADMIN] Error counting total messages: {e}")
+            total_messages = 0
+        
+        # Сообщения за последние 24 часа
+        last_24h = datetime.now(timezone.utc) - timedelta(hours=24)
+        try:
+            messages_24h_result = await db.execute(
+                select(func.count(ChatHistory.id))
+                .where(ChatHistory.user_id == user_id, ChatHistory.created_at >= last_24h)
+            )
+            messages_24h = messages_24h_result.scalar() or 0
+        except Exception as e:
+            logger.warning(f"[ADMIN] Error counting messages 24h: {e}")
+            messages_24h = 0
+        
+        # Последнее сообщение
+        try:
+            last_message_result = await db.execute(
+                select(ChatHistory.created_at)
+                .where(ChatHistory.user_id == user_id)
+                .order_by(ChatHistory.created_at.desc())
+                .limit(1)
+            )
+            last_message_date = last_message_result.scalar_one_or_none()
+        except Exception as e:
+            logger.warning(f"[ADMIN] Error getting last message: {e}")
+            last_message_date = None
+        
+        # Статистика генерации изображений
+        try:
+            images_result = await db.execute(
+                select(func.count(ImageGenerationHistory.id))
+                .where(ImageGenerationHistory.user_id == user_id)
+            )
+            total_images = images_result.scalar() or 0
+        except Exception as e:
+            logger.warning(f"[ADMIN] Error counting images: {e}")
+            total_images = 0
+        
+        # Изображения за последние 24 часа
+        try:
+            images_24h_result = await db.execute(
+                select(func.count(ImageGenerationHistory.id))
+                .where(ImageGenerationHistory.user_id == user_id, ImageGenerationHistory.created_at >= last_24h)
+            )
+            images_24h = images_24h_result.scalar() or 0
+        except Exception as e:
+            logger.warning(f"[ADMIN] Error counting images 24h: {e}")
+            images_24h = 0
+        
+        # Созданные персонажи
+        try:
+            characters_result = await db.execute(
+                select(func.count(CharacterDB.id))
+                .where(CharacterDB.creator_id == user_id)
+            )
+            total_characters = characters_result.scalar() or 0
+        except Exception as e:
+            logger.warning(f"[ADMIN] Error counting characters: {e}")
+            total_characters = 0
+        
+        # Информация о подписке
+        subscription_info = None
+        if user.subscription:
+            subscription_info = {
+                "type": user.subscription.subscription_type.value,
+                "status": user.subscription.status.value,
+                "monthly_credits": user.subscription.monthly_credits,
+                "monthly_photos": user.subscription.monthly_photos,
+                "used_credits": user.subscription.used_credits,
+                "used_photos": user.subscription.used_photos,
+                "max_message_length": user.subscription.max_message_length,
+                "activated_at": user.subscription.activated_at.isoformat() if user.subscription.activated_at else None,
+                "expires_at": user.subscription.expires_at.isoformat() if user.subscription.expires_at else None
+            }
+        
+        return {
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "username": user.username,
+                "is_active": user.is_active,
+                "is_verified": user.is_verified,
+                "is_admin": user.is_admin,
+                "coins": user.coins,
+                "country": user.country,
+                "registration_ip": user.registration_ip,
+                "fingerprint_id": user.fingerprint_id,
+                "total_messages_sent": user.total_messages_sent,
+                "created_at": user.created_at.isoformat() if user.created_at else None,
+            },
+            "subscription": subscription_info,
+            "activity": {
+                "total_messages": total_messages,
+                "messages_24h": messages_24h,
+                "last_message_at": last_message_date.isoformat() if last_message_date else None,
+                "total_images": total_images,
+                "images_24h": images_24h,
+                "total_characters": total_characters
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[ADMIN] Ошибка получения информации о пользователе {user_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка получения информации о пользователе: {str(e)}"
         )
 
 

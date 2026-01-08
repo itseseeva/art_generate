@@ -330,7 +330,8 @@ async def confirm_registration(
 
 @auth_router.post("/auth/login/", response_model=TokenResponse)
 async def login_user(
-    user_credentials: UserLogin, 
+    user_credentials: UserLogin,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     rate_limiter: RateLimiter = Depends(get_rate_limiter)
 ):
@@ -339,6 +340,7 @@ async def login_user(
 
     Parameters:
     - user_credentials: User login credentials.
+    - request: Request object (для определения IP).
     - db: Database session.
     - rate_limiter: Rate limiter instance.
 
@@ -367,7 +369,7 @@ async def login_user(
                 status_code=400,
                 detail="Inactive user"
             )
-    
+        
         if not user.is_verified and not user_credentials.verification_code:
             raise HTTPException(
                 status_code=400,
@@ -394,6 +396,34 @@ async def login_user(
             # Mark verification code as used
             verification.is_used = True
             user.is_verified = True
+        
+        # Если у пользователя нет страны или IP, пытаемся определить при логине
+        geo_data_updated = False
+        if not user.country or not user.registration_ip:
+            try:
+                from app.utils.geo_utils import get_client_ip, get_country_by_ip
+                client_ip = get_client_ip(request)
+                
+                if client_ip:
+                    # Сохраняем IP если его нет
+                    if not user.registration_ip:
+                        user.registration_ip = client_ip
+                        geo_data_updated = True
+                        logger.info(f"[LOGIN] Saved IP for existing user {user.email}: {client_ip}")
+                    
+                    # Определяем страну если её нет
+                    if not user.country:
+                        country = await get_country_by_ip(client_ip)
+                        if country:
+                            user.country = country
+                            geo_data_updated = True
+                            logger.info(f"[LOGIN] Determined country for user {user.email}: {country}")
+            except Exception as e:
+                logger.warning(f"[LOGIN] Failed to update geo data for user {user.email}: {e}")
+                # Не прерываем логин из-за ошибки геолокации
+        
+        # Коммитим если были изменения (верификация или гео-данные)
+        if user_credentials.verification_code or geo_data_updated:
             await db.commit()
     
         # Create tokens
