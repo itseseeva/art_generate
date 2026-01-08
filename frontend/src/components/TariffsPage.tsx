@@ -265,8 +265,6 @@ const PaymentButtonsContainer = styled.div`
   flex-direction: column;
   gap: 0.75rem;
   margin-top: 1rem;
-  max-width: 280px;
-  width: 100%;
   animation: fadeIn 0.3s ease;
   
   @keyframes fadeIn {
@@ -277,37 +275,31 @@ const PaymentButtonsContainer = styled.div`
 
 const PaymentButton = styled.button`
   width: 100%;
-  padding: 0.375rem 0.625rem;
+  padding: 1rem;
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 0.625rem;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  gap: 0.75rem;
+  background: #343042;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   color: white;
-  min-height: fit-content;
-  height: auto;
   font-weight: 600;
   font-size: 1rem;
   cursor: pointer;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(10px);
+  transition: transform 0.2s ease;
   
   &:hover {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.1) 100%);
-    border-color: rgba(255, 255, 255, 0.3);
     transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
   }
 `;
 
 const PaymentLogo = styled.img`
-  width: 80px;
-  height: 80px;
+  width: 48px;
+  height: 48px;
   object-fit: contain;
+  border-radius: 8px;
   flex-shrink: 0;
-  border-radius: 4px;
   background: transparent;
 `;
 
@@ -553,7 +545,7 @@ export const TariffsPage: React.FC = () => {
     }
   };
 
-  const handleYooKassaPayment = async (subscriptionType: string, paymentMethod: string) => {
+  const handleYooKassaPayment = async (subscriptionType: string) => {
     if (!userInfo?.id) return;
 
     try {
@@ -573,8 +565,7 @@ export const TariffsPage: React.FC = () => {
           amount,
           description,
           plan: subscriptionType,
-          payment_type: 'subscription',
-          payment_method: paymentMethod
+          payment_type: 'subscription'
         }),
       });
 
@@ -592,7 +583,7 @@ export const TariffsPage: React.FC = () => {
     }
   };
 
-  const handleYooKassaCreditTopUp = async (packageId: string, price: number, credits: number, paymentMethod: string) => {
+  const handleYooKassaCreditTopUp = async (packageId: string, price: number, credits: number) => {
     if (!userInfo?.id) return;
 
     try {
@@ -609,8 +600,7 @@ export const TariffsPage: React.FC = () => {
           amount: price,
           description,
           package_id: packageId,
-          payment_type: 'topup',
-          payment_method: paymentMethod
+          payment_type: 'topup'
         }),
       });
 
@@ -716,24 +706,20 @@ export const TariffsPage: React.FC = () => {
             {selectedPlanForPayment === 'standard' && (
               <PaymentButtonsContainer>
                 <PaymentButton onClick={() => handleYooKassaPayment('standard', 'sberbank')}>
-                  <PaymentLogo src="/payment_images/sberpay.jpg?v=2" alt="SberPay" />
+                  <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=14" alt="SberPay" />
                   SberPay
                 </PaymentButton>
                 <PaymentButton onClick={() => handleYooKassaPayment('standard', 'yoo_money')}>
-                  <PaymentLogo src="/payment_images/youmoney.png?v=2" alt="ЮMoney" />
+                  <PaymentLogo src="/payment_images/yumoney.png?v=13" alt="ЮMoney" />
                   ЮMoney
                 </PaymentButton>
                 <PaymentButton onClick={() => handleYooKassaPayment('standard', 'bank_card')}>
-                  <PaymentLogo src="/payment_images/cart_payment.png?v=2" alt="Банковские карты" />
+                  <PaymentLogo src="/payment_images/карты.png?v=11" alt="Банковские карты" />
                   Банковские карты
                 </PaymentButton>
                 <PaymentButton onClick={() => handleYooKassaPayment('standard', 'sbp')}>
-                  <PaymentLogo src="/payment_images/pay_sbp.png?v=2" alt="СБП" />
+                  <PaymentLogo src="/payment_images/pay_sbp.png?v=12" alt="СБП" />
                   СБП
-                </PaymentButton>
-                <PaymentButton onClick={() => handleYooKassaPayment('standard', 'tinkoff_bank')}>
-                  <PaymentLogo src="/logo/tpay.svg?v=2" alt="Т-Pay" />
-                  Т-Pay
                 </PaymentButton>
               </PaymentButtonsContainer>
             )}
@@ -762,24 +748,20 @@ export const TariffsPage: React.FC = () => {
             {selectedPlanForPayment === 'premium' && (
               <PaymentButtonsContainer>
                 <PaymentButton onClick={() => handleYooKassaPayment('premium', 'sberbank')}>
-                  <PaymentLogo src="/payment_images/sberpay.jpg" alt="SberPay" />
+                  <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=14" alt="SberPay" />
                   SberPay
                 </PaymentButton>
                 <PaymentButton onClick={() => handleYooKassaPayment('premium', 'yoo_money')}>
-                  <PaymentLogo src="/payment_images/youmoney.png" alt="ЮMoney" />
+                  <PaymentLogo src="/payment_images/yumoney.png?v=13" alt="ЮMoney" />
                   ЮMoney
                 </PaymentButton>
                 <PaymentButton onClick={() => handleYooKassaPayment('premium', 'bank_card')}>
-                  <PaymentLogo src="/payment_images/cart_payment.png" alt="Банковские карты" />
+                  <PaymentLogo src="/payment_images/карты.png?v=11" alt="Банковские карты" />
                   Банковские карты
                 </PaymentButton>
                 <PaymentButton onClick={() => handleYooKassaPayment('premium', 'sbp')}>
-                  <PaymentLogo src="/payment_images/pay_sbp.png" alt="СБП" />
+                  <PaymentLogo src="/payment_images/pay_sbp.png?v=12" alt="СБП" />
                   СБП
-                </PaymentButton>
-                <PaymentButton onClick={() => handleYooKassaPayment('premium', 'tinkoff_bank')}>
-                  <PaymentLogo src="/logo/tpay.svg" alt="Т-Pay" />
-                  Т-Pay
                 </PaymentButton>
               </PaymentButtonsContainer>
             )}
@@ -855,24 +837,20 @@ export const TariffsPage: React.FC = () => {
                           {selectedCreditPackage?.id === pkg.id && (
                             <PaymentButtonsContainer>
                               <PaymentButton onClick={() => handleYooKassaCreditTopUp(pkg.id, pkg.price, pkg.credits, 'sberbank')}>
-                                <PaymentLogo src="/payment_images/sberpay.jpg" alt="SberPay" />
+                                <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=14" alt="SberPay" />
                                 SberPay
                               </PaymentButton>
                               <PaymentButton onClick={() => handleYooKassaCreditTopUp(pkg.id, pkg.price, pkg.credits, 'yoo_money')}>
-                                <PaymentLogo src="/payment_images/youmoney.png" alt="ЮMoney" />
+                                <PaymentLogo src="/payment_images/yumoney.png?v=13" alt="ЮMoney" />
                                 ЮMoney
                               </PaymentButton>
                               <PaymentButton onClick={() => handleYooKassaCreditTopUp(pkg.id, pkg.price, pkg.credits, 'bank_card')}>
-                                <PaymentLogo src="/payment_images/cart_payment.png" alt="Банковские карты" />
+                                <PaymentLogo src="/payment_images/карты.png?v=11" alt="Банковские карты" />
                                 Банковские карты
                               </PaymentButton>
                               <PaymentButton onClick={() => handleYooKassaCreditTopUp(pkg.id, pkg.price, pkg.credits, 'sbp')}>
-                                <PaymentLogo src="/payment_images/pay_sbp.png" alt="СБП" />
+                                <PaymentLogo src="/payment_images/pay_sbp.png?v=12" alt="СБП" />
                                 СБП
-                              </PaymentButton>
-                              <PaymentButton onClick={() => handleYooKassaCreditTopUp(pkg.id, pkg.price, pkg.credits, 'tinkoff_bank')}>
-                                <PaymentLogo src="/logo/tpay.svg" alt="Т-Pay" />
-                                Т-Pay
                               </PaymentButton>
                             </PaymentButtonsContainer>
                           )}

@@ -70,19 +70,10 @@ async def create_kassa_payment(
 	# Определяем capture в зависимости от метода оплаты
 	# СБП не поддерживает двухстадийную оплату, поэтому capture всегда true
 	capture = True if payload.payment_method == "sbp" else cfg["capture"]
-	
-	# Применяем комиссию 0.4% для СБП
-	# Комиссия добавляется к сумме, чтобы покрыть расходы на обработку платежа
-	final_amount = payload.amount
-	if payload.payment_method == "sbp":
-		final_amount = payload.amount * 1.004  # Добавляем 0.4% комиссии
-		logger.info(f"[YOOKASSA] СБП платеж: оригинальная сумма={payload.amount:.2f}, с комиссией 0.4%={final_amount:.2f}")
-		metadata["original_amount"] = str(payload.amount)
-		metadata["sbp_commission"] = "0.4%"
 
 	req_body = {
 		"amount": {
-			"value": f"{final_amount:.2f}",
+			"value": f"{payload.amount:.2f}",
 			"currency": cfg["currency"],
 		},
 		"confirmation": {
