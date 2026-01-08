@@ -109,7 +109,6 @@ async def create_kassa_payment(
 		"follow_redirects": True,
 		"verify": True,  # Проверка SSL сертификатов
 		"trust_env": False,  # КРИТИЧНО: Отключаем автоматическое использование прокси из окружения
-		"proxies": None,  # Явно отключаем прокси
 	}
 	
 	logger.info(
@@ -125,7 +124,6 @@ async def create_kassa_payment(
 		"HTTPS_PROXY": os.getenv("HTTPS_PROXY"),
 		"GLOBAL_PROXY": os.getenv("GLOBAL_PROXY"),
 		"trust_env": client_kwargs.get("trust_env"),
-		"proxies": client_kwargs.get("proxies"),
 	}
 	logger.info(f"[YOOKASSA] Proxy settings: {proxy_info}")
 	
