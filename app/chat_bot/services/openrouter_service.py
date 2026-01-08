@@ -158,11 +158,16 @@ class OpenRouterService:
         # Используем значения по умолчанию из конфигурации, если не указаны
         # ВАЖНО: max_tokens должен быть передан из вызывающего кода на основе подписки
         # Если max_tokens не передан (None), используем значение по умолчанию
+        # Параметры из kwargs имеют приоритет над значениями по умолчанию
         if max_tokens is None:
             max_tokens = chat_config.DEFAULT_MAX_TOKENS
-        temperature = temperature if temperature is not None else chat_config.DEFAULT_TEMPERATURE
-        top_p = top_p if top_p is not None else chat_config.DEFAULT_TOP_P
-        presence_penalty = presence_penalty if presence_penalty is not None else chat_config.DEFAULT_PRESENCE_PENALTY
+        temperature = kwargs.get("temperature", temperature) if "temperature" in kwargs else (temperature if temperature is not None else chat_config.DEFAULT_TEMPERATURE)
+        top_p = kwargs.get("top_p", top_p) if "top_p" in kwargs else (top_p if top_p is not None else chat_config.DEFAULT_TOP_P)
+        top_k = kwargs.get("top_k", top_k) if "top_k" in kwargs else (top_k if top_k is not None else chat_config.DEFAULT_TOP_K)
+        min_p = kwargs.get("min_p", None) if "min_p" in kwargs else chat_config.DEFAULT_MIN_P
+        presence_penalty = kwargs.get("presence_penalty", presence_penalty) if "presence_penalty" in kwargs else (presence_penalty if presence_penalty is not None else chat_config.DEFAULT_PRESENCE_PENALTY)
+        frequency_penalty = kwargs.get("frequency_penalty", None) if "frequency_penalty" in kwargs else chat_config.DEFAULT_FREQUENCY_PENALTY
+        repetition_penalty = kwargs.get("repetition_penalty", repeat_penalty) if "repetition_penalty" in kwargs else (repeat_penalty if repeat_penalty is not None else chat_config.DEFAULT_REPEAT_PENALTY)
         
         # Выбираем модель: если передан явно - используем её, иначе на основе подписки
         if model:
@@ -217,21 +222,35 @@ class OpenRouterService:
                 "temperature": temperature,
                 "top_p": top_p,
                 "presence_penalty": presence_penalty,
-                "repetition_penalty": 1.15,
-                "frequency_penalty": 0.5,
+                "frequency_penalty": frequency_penalty,
+                "repetition_penalty": repetition_penalty,
             }
             
-            # КРИТИЧЕСКОЕ ЛОГИРОВАНИЕ: проверяем, какая модель реально отправляется
-            logger.info(f"[OPENROUTER] Payload model field: {payload.get('model')}")
+            # Добавляем min_p и top_k, если они поддерживаются
+            if min_p is not None:
+                payload["min_p"] = min_p
+            if top_k is not None:
+                payload["top_k"] = top_k
             
             # Добавляем дополнительные параметры, если они есть
             if "stop" in kwargs:
                 payload["stop"] = kwargs["stop"]
             
-            logger.info("[OPENROUTER] Sending generation request")
-            logger.info(f"[OPENROUTER] Model parameter received: {model}")
-            logger.info(f"[OPENROUTER] Model to use: {model_to_use} (sub: {subscription_type.value if subscription_type else 'FREE'})")
-            logger.info(f"[OPENROUTER] Generation params: max_tokens={max_tokens}, temperature={temperature}, top_p={top_p}")
+            # РАСШИРЕННОЕ ЛОГИРОВАНИЕ: выводим все параметры генерации
+            logger.info("=" * 80)
+            logger.info("[OPENROUTER] Final payload before sending:")
+            logger.info(f"  Model: {payload.get('model')}")
+            logger.info(f"  Max tokens: {max_tokens}")
+            logger.info(f"  Temperature: {temperature}")
+            logger.info(f"  Top-p: {top_p}")
+            logger.info(f"  Top-k: {top_k}")
+            logger.info(f"  Min-p: {min_p}")
+            logger.info(f"  Presence penalty: {presence_penalty}")
+            logger.info(f"  Frequency penalty: {frequency_penalty}")
+            logger.info(f"  Repetition penalty: {repetition_penalty}")
+            logger.info(f"  Subscription: {subscription_type.value if subscription_type else 'FREE'}")
+            logger.info(f"  Messages count: {len(formatted_messages)}")
+            logger.info("=" * 80)
             
             async with session.post(
                 f"{self.base_url}/chat/completions",
@@ -328,11 +347,54 @@ class OpenRouterService:
         # Используем значения по умолчанию из конфигурации, если не указаны
         # ВАЖНО: max_tokens должен быть передан из вызывающего кода на основе подписки
         # Если max_tokens не передан (None), используем значение по умолчанию
+        # Параметры из kwargs имеют приоритет над значениями по умолчанию
         if max_tokens is None:
             max_tokens = chat_config.DEFAULT_MAX_TOKENS
-        temperature = temperature if temperature is not None else chat_config.DEFAULT_TEMPERATURE
-        top_p = top_p if top_p is not None else chat_config.DEFAULT_TOP_P
-        presence_penalty = presence_penalty if presence_penalty is not None else chat_config.DEFAULT_PRESENCE_PENALTY
+        temperature = (
+            kwargs.get("temperature", temperature)
+            if "temperature" in kwargs
+            else (
+                temperature
+                if temperature is not None
+                else chat_config.DEFAULT_TEMPERATURE
+            )
+        )
+        top_p = (
+            kwargs.get("top_p", top_p)
+            if "top_p" in kwargs
+            else (
+                top_p if top_p is not None else chat_config.DEFAULT_TOP_P
+            )
+        )
+        top_k = (
+            kwargs.get("top_k", None)
+            if "top_k" in kwargs
+            else chat_config.DEFAULT_TOP_K
+        )
+        min_p = (
+            kwargs.get("min_p", None)
+            if "min_p" in kwargs
+            else chat_config.DEFAULT_MIN_P
+        )
+        presence_penalty = (
+            kwargs.get("presence_penalty", presence_penalty)
+            if "presence_penalty" in kwargs
+            else (
+                presence_penalty
+                if presence_penalty is not None
+                else chat_config.DEFAULT_PRESENCE_PENALTY
+            )
+        )
+        frequency_penalty = (
+            kwargs.get("frequency_penalty", None)
+            if "frequency_penalty" in kwargs
+            else chat_config.DEFAULT_FREQUENCY_PENALTY
+        )
+        repetition_penalty = (
+            kwargs.get("repetition_penalty", None)
+            if "repetition_penalty" in kwargs
+            else chat_config.DEFAULT_REPEAT_PENALTY
+        )
         
         # Выбираем модель: если передан явно - используем её, иначе на основе подписки
         if model:
@@ -376,10 +438,6 @@ class OpenRouterService:
                 yield json.dumps({"error": "No prompt or messages provided"})
                 return
             
-            logger.info(f"[OPENROUTER STREAM] Sending {len(formatted_messages)} messages to API (streaming)")
-            logger.info(f"[OPENROUTER STREAM] Using model: {model_to_use} (sub: {subscription_type.value if subscription_type else 'FREE'})")
-            logger.info(f"[OPENROUTER STREAM] Generation params: max_tokens={max_tokens}, temperature={temperature}, top_p={top_p}")
-            
             payload = {
                 "model": model_to_use,
                 "messages": formatted_messages,
@@ -387,17 +445,36 @@ class OpenRouterService:
                 "temperature": temperature,
                 "top_p": top_p,
                 "presence_penalty": presence_penalty,
-                "repetition_penalty": 1.15,
-                "frequency_penalty": 0.5,
+                "frequency_penalty": frequency_penalty,
+                "repetition_penalty": repetition_penalty,
                 "stream": True  # Включаем стриминг
             }
             
-            # КРИТИЧЕСКОЕ ЛОГИРОВАНИЕ: проверяем, какая модель реально отправляется
-            logger.info(f"[OPENROUTER STREAM] Payload model field: {payload.get('model')}")
+            # Добавляем min_p и top_k, если они поддерживаются
+            if min_p is not None:
+                payload["min_p"] = min_p
+            if top_k is not None:
+                payload["top_k"] = top_k
             
             # Добавляем дополнительные параметры, если они есть
             if "stop" in kwargs:
                 payload["stop"] = kwargs["stop"]
+            
+            # РАСШИРЕННОЕ ЛОГИРОВАНИЕ: выводим все параметры генерации
+            logger.info("=" * 80)
+            logger.info("[OPENROUTER STREAM] Final payload before sending:")
+            logger.info(f"  Model: {payload.get('model')}")
+            logger.info(f"  Max tokens: {max_tokens}")
+            logger.info(f"  Temperature: {temperature}")
+            logger.info(f"  Top-p: {top_p}")
+            logger.info(f"  Top-k: {top_k}")
+            logger.info(f"  Min-p: {min_p}")
+            logger.info(f"  Presence penalty: {presence_penalty}")
+            logger.info(f"  Frequency penalty: {frequency_penalty}")
+            logger.info(f"  Repetition penalty: {repetition_penalty}")
+            logger.info(f"  Subscription: {subscription_type.value if subscription_type else 'FREE'}")
+            logger.info(f"  Messages count: {len(formatted_messages)}")
+            logger.info("=" * 80)
             
             async with session.post(
                 f"{self.base_url}/chat/completions",

@@ -153,33 +153,33 @@ class ChatConfig(BaseSettings):
         description="Порог предупреждения - начинаем завершать диалог"
     )
     DEFAULT_TEMPERATURE: float = Field(
-        default=0.7, 
-        description="MythoMax L2 13B: оптимальная температура для ролевых игр и историй"
+        default=0.8, 
+        description="Оптимальная температура для креативности и стабильности (L3 Euryale/Llama 3)"
     )
     DEFAULT_TOP_P: float = Field(
-        default=0.95, 
-        description="MythoMax L2 13B: хорошее значение для разнообразия"
+        default=0.9, 
+        description="Оптимальное значение top_p для L3 Euryale/Llama 3"
     )
     DEFAULT_MIN_P: float = Field(
         default=0.05, 
-        description="MythoMax L2 13B: низкое значение для стабильности"
+        description="Min-p для фильтрации мусора вместо агрессивных penalties"
     )
     DEFAULT_TOP_K: int = Field(
         default=50, 
-        description="MythoMax L2 13B: оптимальное значение для качества"
+        description="Top-k для контроля разнообразия"
     )
     DEFAULT_REPEAT_PENALTY: float = Field(
-        default=1.1, 
-        description="MythoMax L2 13B: оптимальный rep penalty для ролевых игр"
+        default=1.05, 
+        description="Низкий repeat penalty для предотвращения brain rot (не выше 1.1)"
     )
     DEFAULT_PRESENCE_PENALTY: float = Field(
-        default=0.5, 
-        description="Штраф за присутствие токенов для предотвращения цикличных сценариев"
+        default=0.0, 
+        description="Отключен presence penalty для естественного языка"
     )
     
     DEFAULT_FREQUENCY_PENALTY: float = Field(
         default=0.0, 
-        description="Штраф за частоту токенов"
+        description="Обязательно 0.0 - frequency penalty ломает язык"
     )
     
     # Параметры стриминга

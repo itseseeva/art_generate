@@ -37,12 +37,12 @@ def get_context_limit(subscription_type: Optional[SubscriptionType]) -> Optional
         Количество сообщений для загрузки из БД или None (без ограничений)
     """
     if subscription_type == SubscriptionType.PREMIUM:
-        return None  # Без ограничений - обрезка только по токенам (8000)
+        return None  # Без ограничений - обрезка только по токенам (8192)
     elif subscription_type == SubscriptionType.STANDARD:
-        return None  # Без ограничений - обрезка только по токенам (4000)
+        return None  # Без ограничений - обрезка только по токенам (4096)
     else:
-        # FREE/BASE - ограничение на 10 сообщений
-        return 10
+        # FREE/BASE - ограничение на 20 сообщений
+        return 20
 
 
 def get_max_context_tokens(subscription_type: Optional[SubscriptionType]) -> int:
@@ -57,12 +57,12 @@ def get_max_context_tokens(subscription_type: Optional[SubscriptionType]) -> int
         Максимальное количество токенов для контекста
     """
     if subscription_type == SubscriptionType.PREMIUM:
-        return 8000  # 8000 токенов для PREMIUM
+        return 8192  # 8192 токенов для PREMIUM
     elif subscription_type == SubscriptionType.STANDARD:
-        return 4000  # 4000 токенов для STANDARD
+        return 4096  # 4096 токенов для STANDARD
     else:
-        # FREE или отсутствие подписки - 850 токенов для контекста
-        return 850
+        # FREE или отсутствие подписки - 2048 токенов для контекста
+        return 2048
 
 
 def get_max_tokens(subscription_type: Optional[SubscriptionType]) -> int:
@@ -77,12 +77,12 @@ def get_max_tokens(subscription_type: Optional[SubscriptionType]) -> int:
         Максимальное количество токенов для генерации
     """
     if subscription_type == SubscriptionType.PREMIUM:
-        return 850
+        return 1024
     elif subscription_type == SubscriptionType.STANDARD:
-        return 400
+        return 600
     else:
-        # FREE или отсутствие подписки - используем минимальное значение
-        return 150
+        # FREE или отсутствие подписки - 350 токенов для ответа
+        return 350
 
 
 def count_message_tokens(message: Dict[str, str]) -> int:
@@ -208,9 +208,7 @@ async def trim_messages_to_token_limit(
         else:
             removed_count += 1
             # Продолжаем проверять, может быть следующее сообщение поместится
-            # Но если уже удалили много, прекращаем
-            if removed_count > len(history_messages) // 2:
-                break
+            # УДАЛЕНО ограничение removed_count > len(history_messages) // 2 для корректной очистки контекста
 
     # Если все еще не укладывается, удаляем самые старые
     while current_tokens > available_tokens and trimmed_history:
