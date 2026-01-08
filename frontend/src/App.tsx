@@ -78,6 +78,46 @@ function App() {
   const [contentMode, setContentMode] = useState<'safe' | 'nsfw'>('safe');
   const [selectedSubscriptionType, setSelectedSubscriptionType] = useState<string>('');
 
+  // Устанавливаем заголовок страницы в зависимости от режима и текущей страницы
+  useEffect(() => {
+    if (currentPage === 'main') {
+      if (contentMode === 'safe') {
+        document.title = 'cherrylust.art AI CHAT с персонажами';
+      } else {
+        document.title = 'cherrylust.art AI 18 + CHAT с персонажами';
+      }
+    } else {
+      // Для других страниц используем динамические заголовки
+      const pageTitles: Record<PageType, string> = {
+        'main': contentMode === 'safe' 
+          ? 'cherrylust.art AI CHAT с персонажами' 
+          : 'cherrylust.art AI 18 + CHAT с персонажами',
+        'chat': 'Чат',
+        'my-characters': 'Мои персонажи',
+        'create-character': 'Создать персонажа',
+        'shop': 'Магазин',
+        'profile': 'Профиль',
+        'messages': 'Сообщения',
+        'user-gallery': 'Галерея',
+        'paid-album': 'Платный альбом',
+        'paid-album-builder': 'Создать альбом',
+        'photo-generation': 'Генерация фото',
+        'edit-characters': 'Редактировать персонажей',
+        'edit-character': 'Редактировать персонажа',
+        'favorites': 'Избранное',
+        'history': 'История',
+        'balance-history': 'История баланса',
+        'character-comments': 'Комментарии',
+        'legal': 'Правовая информация',
+        'about': 'О проекте',
+        'tariffs': 'Тарифы',
+        'how-it-works': 'Как это работает',
+        'bug-report': 'Сообщить об ошибке'
+      };
+      document.title = pageTitles[currentPage] || 'cherrylust.art';
+    }
+  }, [currentPage, contentMode]);
+
   // Мемоизируем initialCharacter для ChatContainer, чтобы избежать лишних перезагрузок
   const memoizedInitialCharacter = React.useMemo(() => {
     return selectedCharacter;

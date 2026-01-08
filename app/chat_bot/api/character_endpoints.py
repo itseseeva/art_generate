@@ -1850,10 +1850,34 @@ async def generate_character_photo(
                 image_filename=None
             )
             db.add(chat_message)
-            logger.info(f"[GALLERY] Промпт сохранён для галереи (не для чата): {photo_url}")
+            logger.info(f"[GALLERY] Промпт сохранён в ChatHistory для галереи: {photo_url}")
         except Exception as e:
             # Не критично, если не удалось сохранить промпт
-            logger.warning(f"[GALLERY] Не удалось сохранить промпт для галереи: {e}")
+            logger.warning(f"[GALLERY] Не удалось сохранить промпт в ChatHistory для галереи: {e}")
+        
+        # КРИТИЧЕСКИ ВАЖНО: Также сохраняем промпт в ImageGenerationHistory
+        # Это нужно для корректного поиска промпта по URL изображения
+        try:
+            from app.services.image_generation_history_service import ImageGenerationHistoryService
+            
+            history_service = ImageGenerationHistoryService(db)
+            saved = await history_service.save_generation(
+                user_id=current_user.id,
+                character_name=character_name,
+                image_url=photo_url,
+                prompt=prompt,
+                generation_time=None,
+                task_id=None
+            )
+            if saved:
+                logger.info(f"[GALLERY] Промпт сохранён в ImageGenerationHistory для галереи: {photo_url}")
+            else:
+                logger.warning(f"[GALLERY] Не удалось сохранить промпт в ImageGenerationHistory для галереи: {photo_url}")
+        except Exception as e:
+            # Не критично, если не удалось сохранить промпт
+            logger.warning(f"[GALLERY] Ошибка сохранения промпта в ImageGenerationHistory: {e}")
+            import traceback
+            logger.error(f"[GALLERY] Трейсбек: {traceback.format_exc()}")
         
         await db.commit()
         await db.refresh(current_user)
