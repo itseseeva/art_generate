@@ -39,4 +39,28 @@
         <priority>0.8</priority>
     </url>
     
+    <!-- О проекте -->
+    <url>
+        <loc>https://cherrylust.art/about</loc>
+        <lastmod>2026-01-09</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.6</priority>
+    </url>
+    
+    <!-- Как это работает -->
+    <url>
+        <loc>https://cherrylust.art/how-it-works</loc>
+        <lastmod>2026-01-09</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.7</priority>
+    </url>
+    
+    <!-- Правовая информация -->
+    <url>
+        <loc>https://cherrylust.art/legal</loc>
+        <lastmod>2026-01-09</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.5</priority>
+    </url>
+    
 </urlset>
