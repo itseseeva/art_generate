@@ -904,6 +904,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                 <PlanFeature>5 генераций фото</PlanFeature>
                 <PlanFeature>Возможность создать своих персонажей</PlanFeature>
                 <PlanFeature>Премиум модель с ограничением на 20 сообщений</PlanFeature>
+                <PlanFeature>Лимит токенов для генерации фото: 300 токенов</PlanFeature>
                 <PlanFeature $isAvailable={false}>Сохранение истории сообщений</PlanFeature>
                 <PlanFeature $isAvailable={false}>Возможность создавать платные альбомы</PlanFeature>
               </PlanFeatures>
@@ -923,7 +924,8 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                 <PlanFeature>Возможность создать своих персонажей</PlanFeature>
                 <PlanFeature>Возможность создавать платные альбомы</PlanFeature>
                 <PlanFeature>Сохранение истории сообщений</PlanFeature>
-                <PlanFeature>Максимум токенов: 400 токенов на ответ</PlanFeature>
+                <PlanFeature>Максимум токенов: 600 токенов на ответ</PlanFeature>
+                <PlanFeature>Лимит токенов для генерации фото: 600 токенов</PlanFeature>
                 <PlanFeature>Лимит генерации в очереди: 3 фото одновременно</PlanFeature>
               </PlanFeatures>
               {stats?.is_active && stats?.subscription_type === 'standard' ? (
@@ -1002,7 +1004,8 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                 <PlanFeature>Доступ ко всем платным альбомам</PlanFeature>
                 <PlanFeature>Доступ ко всем галереям пользователей</PlanFeature>
                 <PlanFeature $isHighlighted>Выбор модели (PREMIUM могут выбрать модель сами)</PlanFeature>
-                <PlanFeature $isHighlighted>Максимум токенов: 850 токенов на ответ</PlanFeature>
+                <PlanFeature $isHighlighted>Максимум токенов: 1024 токена на ответ</PlanFeature>
+                <PlanFeature $isHighlighted>Лимит токенов для генерации фото: 1024 токена</PlanFeature>
                 <PlanFeature>Лимит генерации в очереди: 5 фото одновременно</PlanFeature>
               </PlanFeatures>
               {stats?.is_active && stats?.subscription_type === 'premium' ? (

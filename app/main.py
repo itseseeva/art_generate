@@ -2800,6 +2800,36 @@ async def chat_endpoint(
                 
                 # Получаем промпт для изображения
                 image_prompt = request.get("image_prompt") or message
+                
+                # Применяем лимит токенов для промпта изображения
+                from app.chat_bot.utils.context_manager import get_max_image_prompt_tokens
+                max_image_prompt_tokens = get_max_image_prompt_tokens(subscription_type_enum)
+                
+                # Проверяем длину промпта и обрезаем если нужно
+                if image_prompt:
+                    encoding = None
+                    try:
+                        import tiktoken
+                        encoding = tiktoken.get_encoding("cl100k_base")
+                    except Exception:
+                        pass
+                    
+                    if encoding:
+                        prompt_tokens = len(encoding.encode(image_prompt))
+                        if prompt_tokens > max_image_prompt_tokens:
+                            # Обрезаем промпт до лимита токенов
+                            tokens = encoding.encode(image_prompt)
+                            trimmed_tokens = tokens[:max_image_prompt_tokens]
+                            image_prompt = encoding.decode(trimmed_tokens)
+                            logger.warning(f"[IMAGE PROMPT] Промпт обрезан с {prompt_tokens} до {max_image_prompt_tokens} токенов")
+                    else:
+                        # Fallback: примерная оценка (1 токен ≈ 4 символа)
+                        estimated_tokens = len(image_prompt) // 4
+                        if estimated_tokens > max_image_prompt_tokens:
+                            max_chars = max_image_prompt_tokens * 4
+                            image_prompt = image_prompt[:max_chars]
+                            logger.warning(f"[IMAGE PROMPT] Промпт обрезан (примерно) до {max_image_prompt_tokens} токенов")
+                
                 # Сохраняем промпт для истории (будет использован при сохранении)
                 history_message = image_prompt if image_prompt else "Генерация изображения"
                 
@@ -3373,6 +3403,45 @@ async def generate_image(
                 status_code=400, 
                 detail=f"Некорректное имя персонажа: {error_message}"
             )
+        
+        # Применяем лимит токенов для промпта изображения
+        if current_user:
+            from app.services.profit_activate import ProfitActivateService
+            from app.database.db import async_session_maker
+            async with async_session_maker() as db:
+                subscription_service = ProfitActivateService(db)
+                subscription = await subscription_service.get_user_subscription(current_user.id)
+                subscription_type_enum = subscription.subscription_type if subscription else None
+        else:
+            subscription_type_enum = None
+        
+        from app.chat_bot.utils.context_manager import get_max_image_prompt_tokens
+        max_image_prompt_tokens = get_max_image_prompt_tokens(subscription_type_enum)
+        
+        # Проверяем длину промпта и обрезаем если нужно
+        if request.prompt:
+            encoding = None
+            try:
+                import tiktoken
+                encoding = tiktoken.get_encoding("cl100k_base")
+            except Exception:
+                pass
+            
+            if encoding:
+                prompt_tokens = len(encoding.encode(request.prompt))
+                if prompt_tokens > max_image_prompt_tokens:
+                    # Обрезаем промпт до лимита токенов
+                    tokens = encoding.encode(request.prompt)
+                    trimmed_tokens = tokens[:max_image_prompt_tokens]
+                    request.prompt = encoding.decode(trimmed_tokens)
+                    logger.warning(f"[IMAGE PROMPT] Промпт обрезан с {prompt_tokens} до {max_image_prompt_tokens} токенов (подписка: {subscription_type_enum.value if subscription_type_enum else 'FREE'})")
+            else:
+                # Fallback: примерная оценка (1 токен ≈ 4 символа)
+                estimated_tokens = len(request.prompt) // 4
+                if estimated_tokens > max_image_prompt_tokens:
+                    max_chars = max_image_prompt_tokens * 4
+                    request.prompt = request.prompt[:max_chars]
+                    logger.warning(f"[IMAGE PROMPT] Промпт обрезан (примерно) до {max_image_prompt_tokens} токенов (подписка: {subscription_type_enum.value if subscription_type_enum else 'FREE'})")
         
         # Получаем user_id из текущего пользователя или из request
         user_id = current_user.id if current_user else request.user_id

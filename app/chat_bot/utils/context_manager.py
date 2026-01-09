@@ -85,6 +85,26 @@ def get_max_tokens(subscription_type: Optional[SubscriptionType]) -> int:
         return 350
 
 
+def get_max_image_prompt_tokens(subscription_type: Optional[SubscriptionType]) -> int:
+    """
+    Возвращает максимальное количество токенов для промпта генерации изображения
+    на основе типа подписки.
+
+    Args:
+        subscription_type: Тип подписки пользователя
+
+    Returns:
+        Максимальное количество токенов для промпта изображения
+    """
+    if subscription_type == SubscriptionType.PREMIUM:
+        return 1024
+    elif subscription_type == SubscriptionType.STANDARD:
+        return 600
+    else:
+        # FREE или отсутствие подписки - 300 токенов для промпта изображения
+        return 300
+
+
 def count_message_tokens(message: Dict[str, str]) -> int:
     """
     Точный подсчет токенов в сообщении с учетом role и content.
