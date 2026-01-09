@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+    
+    <!-- Главная страница -->
+    <url>
+        <loc>https://cherrylust.art/</loc>
+        <lastmod>2026-01-09</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>1.0</priority>
+        <image:image>
+            <image:loc>https://cherrylust.art/site-avatar.jpg</image:loc>
+            <image:title>Cherry Lust - AI Чат 18+</image:title>
+            <image:caption>Главная страница Cherry Lust</image:caption>
+        </image:image>
+    </url>
+    
+    <!-- Страница персонажей -->
+    <url>
+        <loc>https://cherrylust.art/characters</loc>
+        <lastmod>2026-01-09</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.9</priority>
+    </url>
+    
+    <!-- Магазин -->
+    <url>
+        <loc>https://cherrylust.art/shop</loc>
+        <lastmod>2026-01-09</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>0.8</priority>
+    </url>
+    
+    <!-- Тарифы -->
+    <url>
+        <loc>https://cherrylust.art/tariffs</loc>
+        <lastmod>2026-01-09</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>0.8</priority>
+    </url>
+    
+</urlset>

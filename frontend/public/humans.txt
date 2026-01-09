@@ -1,0 +1,19 @@
+# Cherry Lust - AI Чат 18+
+
+/* TEAM */
+    Developer & Designer: Cherry Lust Team
+    Site: https://cherrylust.art
+    Location: Russia
+
+/* TECHNOLOGY */
+    React, TypeScript, Vite
+    FastAPI, Python
+    Stable Diffusion, AI
+    PostgreSQL, Redis
+
+/* SITE */
+    Last update: 2026/01/09
+    Language: Русский
+    Standards: HTML5, CSS3, ES6
+    Components: React, styled-components
+    Software: Visual Studio Code

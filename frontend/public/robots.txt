@@ -1,0 +1,19 @@
+User-agent: *
+Allow: /
+
+# Основные страницы
+Allow: /
+Allow: /shop
+Allow: /tariffs
+Allow: /characters
+
+# Запрещенные для индексации
+Disallow: /api/
+Disallow: /admin/
+Disallow: /process-transaction343242/
+
+# Sitemap
+Sitemap: https://cherrylust.art/sitemap.xml
+
+# Crawl-delay (задержка между запросами в секундах)
+Crawl-delay: 1

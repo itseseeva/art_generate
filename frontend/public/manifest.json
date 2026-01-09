@@ -1,0 +1,28 @@
+{
+  "name": "Cherry Lust - AI Чат 18+",
+  "short_name": "Cherry Lust",
+  "description": "Эксклюзивный AI чат с виртуальными персонажами 18+",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#8b5cf6",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/site-avatar.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/site-avatar.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "maskable any"
+    }
+  ],
+  "categories": ["entertainment", "lifestyle"],
+  "lang": "ru",
+  "scope": "/",
+  "prefer_related_applications": false
+}
