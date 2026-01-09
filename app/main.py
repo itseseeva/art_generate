@@ -1150,12 +1150,98 @@ async def docs_app():
 async def robots_txt():
     """Robots.txt файл."""
     robots_content = """User-agent: *
+Allow: /
+
+# Основные страницы
+Allow: /
+Allow: /shop
+Allow: /tariffs
+Allow: /characters
+
+# Запрещенные для индексации
 Disallow: /api/
-Disallow: /docs/
-Disallow: /redoc/
-Allow: /frontend/
+Disallow: /admin/
+Disallow: /process-transaction343242/
+
+# Sitemap
+Sitemap: https://cherrylust.art/sitemap.xml
+
+# Crawl-delay (задержка между запросами в секундах)
+Crawl-delay: 1
 """
     return Response(content=robots_content, media_type="text/plain")
+
+
+@app.get("/sitemap.xml")
+async def sitemap_xml():
+    """Sitemap.xml файл для поисковых систем."""
+    sitemap_content = """<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+    
+    <!-- Главная страница -->
+    <url>
+        <loc>https://cherrylust.art/</loc>
+        <lastmod>2026-01-09</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>1.0</priority>
+        <image:image>
+            <image:loc>https://cherrylust.art/site-avatar.jpg</image:loc>
+            <image:title>Cherry Lust - AI Чат 18+</image:title>
+            <image:caption>Главная страница Cherry Lust</image:caption>
+        </image:image>
+    </url>
+    
+    <!-- Страница персонажей -->
+    <url>
+        <loc>https://cherrylust.art/characters</loc>
+        <lastmod>2026-01-09</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.9</priority>
+    </url>
+    
+    <!-- Магазин -->
+    <url>
+        <loc>https://cherrylust.art/shop</loc>
+        <lastmod>2026-01-09</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>0.8</priority>
+    </url>
+    
+    <!-- Тарифы -->
+    <url>
+        <loc>https://cherrylust.art/tariffs</loc>
+        <lastmod>2026-01-09</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>0.8</priority>
+    </url>
+    
+    <!-- О проекте -->
+    <url>
+        <loc>https://cherrylust.art/about</loc>
+        <lastmod>2026-01-09</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.6</priority>
+    </url>
+    
+    <!-- Как это работает -->
+    <url>
+        <loc>https://cherrylust.art/how-it-works</loc>
+        <lastmod>2026-01-09</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.7</priority>
+    </url>
+    
+    <!-- Правовая информация -->
+    <url>
+        <loc>https://cherrylust.art/legal</loc>
+        <lastmod>2026-01-09</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.5</priority>
+    </url>
+    
+</urlset>"""
+    return Response(content=sitemap_content, media_type="application/xml")
 
 @app.get("/favicon.ico")
 async def favicon():

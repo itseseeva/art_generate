@@ -27,11 +27,22 @@ RewriteCond %{REQUEST_FILENAME} !-d
 RewriteCond %{REQUEST_URI} /(.+)/$
 RewriteRule ^ /%1 [R=301,L]
 
+# Правильный Content-Type для XML файлов
+<IfModule mod_mime.c>
+    AddType application/xml .xml
+    AddType text/xml .xml
+</IfModule>
+
+# Исключения для SEO файлов (не перенаправлять на index.html)
+RewriteCond %{REQUEST_URI} ^/(sitemap\.xml|robots\.txt|google.*\.html)$ [NC]
+RewriteRule ^ - [L]
+
 # Обработка React Router (SPA)
 Options -MultiViews
 RewriteEngine On
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_URI} !^/api
+RewriteCond %{REQUEST_URI} !^/(sitemap\.xml|robots\.txt|google.*\.html)$ [NC]
 RewriteRule ^ index.html [QSA,L]
 
 # Заголовки безопасности
