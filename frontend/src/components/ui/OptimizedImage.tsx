@@ -69,6 +69,9 @@ interface OptimizedImageProps {
   style?: React.CSSProperties;
   onLoad?: () => void;
   onError?: () => void;
+  eager?: boolean;
+  sizes?: string;
+  priority?: boolean;
 }
 
 export const OptimizedImage: React.FC<OptimizedImageProps> = ({
@@ -79,11 +82,15 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
   onLoad,
   onError,
   eager = false,
+  sizes,
+  priority = false,
 }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [shouldLoad, setShouldLoad] = useState(eager || priority);
   const imgRef = useRef<HTMLImageElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const handleLoad = () => {
     setIsLoading(false);
@@ -123,69 +130,74 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
     }
   }, [src, onLoad]);
 
-  // Intersection Observer для принудительной загрузки lazy изображений
+  // Intersection Observer для ленивой загрузки
   useEffect(() => {
-    if (imgRef.current) {
-      const observer = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting && imgRef.current) {
-              const img = imgRef.current;
-              // Если изображение уже загружено, но hasLoaded еще false
-              if (img.complete && img.naturalWidth > 0 && !hasLoaded && !hasError) {
-                setIsLoading(false);
-                setHasLoaded(true);
-                if (onLoad) {
-                  onLoad();
-                }
-              }
-              // Для lazy изображений принудительно загружаем
-              if (!eager && img.src && !img.complete) {
-                img.loading = 'eager';
-              }
-              observer.unobserve(entry.target);
-            }
-          });
-        },
-        {
-          rootMargin: '100px', // Увеличиваем отступ для более ранней загрузки
-          threshold: 0.01
-        }
-      );
+    if (!containerRef.current || eager || priority || shouldLoad) return;
 
-      observer.observe(imgRef.current);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setShouldLoad(true);
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      {
+        rootMargin: '200px', // Начинаем загрузку за 200px до появления
+        threshold: 0.01
+      }
+    );
 
-      return () => {
-        if (imgRef.current) {
-          observer.unobserve(imgRef.current);
-        }
-      };
+    observer.observe(containerRef.current);
+
+    return () => {
+      if (containerRef.current) {
+        observer.unobserve(containerRef.current);
+      }
+    };
+  }, [eager, priority, shouldLoad]);
+
+  // Оптимизация: генерируем WebP fallback URL
+  const optimizedSrc = React.useMemo(() => {
+    if (src.includes('generated') && !src.includes('.webp')) {
+      return src.replace(/\.(jpg|jpeg|png)$/i, '.webp');
     }
-  }, [eager, hasLoaded, hasError, onLoad]);
+    return src;
+  }, [src]);
 
   return (
     <ImageContainer 
+      ref={containerRef}
       $isLoading={isLoading} 
       $hasLoaded={hasLoaded}
       className={className}
       style={style}
     >
-      {isLoading && !hasLoaded && !hasError && <Skeleton />}
-      <StyledImage
-        ref={imgRef}
-        src={src}
-        alt={alt}
-        loading={eager ? "eager" : "lazy"}
-        decoding="async"
-        $hasLoaded={hasLoaded}
-        onLoad={handleLoad}
-        onError={handleError}
-        style={{ 
-          display: hasError ? 'none' : 'block',
-          opacity: hasLoaded ? 1 : 0,
-          transition: 'opacity 0.3s ease-in-out'
-        }}
-      />
+      {(isLoading || !shouldLoad) && !hasLoaded && !hasError && <Skeleton />}
+      {shouldLoad && (
+        <picture>
+          <source srcSet={optimizedSrc} type="image/webp" />
+          <StyledImage
+            ref={imgRef}
+            src={src}
+            alt={alt}
+            loading={eager || priority ? "eager" : "lazy"}
+            decoding="async"
+            fetchPriority={priority ? "high" : "auto"}
+            sizes={sizes || "(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"}
+            $hasLoaded={hasLoaded}
+            onLoad={handleLoad}
+            onError={handleError}
+            style={{ 
+              display: hasError ? 'none' : 'block',
+              opacity: hasLoaded ? 1 : 0,
+              transition: 'opacity 0.3s ease-in-out',
+              willChange: hasLoaded ? 'auto' : 'opacity'
+            }}
+          />
+        </picture>
+      )}
       {hasError && (
         <div style={{
           position: 'absolute',

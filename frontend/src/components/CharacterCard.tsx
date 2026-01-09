@@ -9,6 +9,7 @@ import { API_CONFIG } from '../config/api';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToRussian } from '../utils/translate';
 import Switcher4 from './Switcher4';
+import { OptimizedImage } from './ui/OptimizedImage';
 
 const CardContainer = styled.div`
   background: rgba(22, 33, 62, 0.3); /* Очень прозрачный */
@@ -30,18 +31,21 @@ const CardContainer = styled.div`
   }
 `;
 
-const PhotoBackground = styled.div<{ $imageUrl: string; $clickable?: boolean }>`
+const PhotoContainer = styled.div<{ $clickable?: boolean }>`
   width: 100%;
   height: 100%;
-  background-image: url(${props => props.$imageUrl});
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
   position: absolute;
   top: 0;
   left: 0;
   z-index: 1;
   cursor: ${props => props.$clickable !== false ? 'pointer' : 'default'};
+  
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
 `;
 
 const ActionButtons = styled.div<{ $alwaysVisible?: boolean }>`
@@ -792,16 +796,28 @@ const SlideShow: React.FC<{
 
   if (!photos || photos.length === 0) {
     return (
-      <PhotoBackground $imageUrl="" $clickable={false} />
+      <PhotoContainer $clickable={false}>
+        <OptimizedImage
+          src=""
+          alt="No image"
+          eager={false}
+          priority={false}
+        />
+      </PhotoContainer>
     );
   }
 
   return (
     <>
-      <PhotoBackground 
-        $imageUrl={photos[currentSlide] || ''} 
-        $clickable={false}
-      />
+      <PhotoContainer $clickable={false}>
+        <OptimizedImage
+          src={photos[currentSlide] || ''}
+          alt={`${character?.name || 'Character'} - Slide ${currentSlide + 1}`}
+          eager={index < 6}
+          priority={index < 3}
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 300px"
+        />
+      </PhotoContainer>
       {photos.length > 1 && (
         <SlideDots>
           {photos.map((_, index) => (
