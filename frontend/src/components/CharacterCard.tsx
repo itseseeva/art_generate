@@ -797,12 +797,18 @@ const SlideShow: React.FC<{
   if (!photos || photos.length === 0) {
     return (
       <PhotoContainer $clickable={false}>
-        <OptimizedImage
-          src=""
-          alt="No image"
-          eager={false}
-          priority={false}
-        />
+        <div style={{
+          width: '100%',
+          height: '100%',
+          background: 'rgba(22, 33, 62, 0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'rgba(180, 180, 180, 0.5)',
+          fontSize: '0.875rem'
+        }}>
+          Нет фото
+        </div>
       </PhotoContainer>
     );
   }
@@ -812,18 +818,18 @@ const SlideShow: React.FC<{
       <PhotoContainer $clickable={false}>
         <OptimizedImage
           src={photos[currentSlide] || ''}
-          alt={`${character?.name || 'Character'} - Slide ${currentSlide + 1}`}
-          eager={index < 6}
-          priority={index < 3}
+          alt={`${characterName || 'Character'} - Slide ${currentSlide + 1}`}
+          eager={currentSlide === 0}
+          priority={currentSlide === 0}
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 300px"
         />
       </PhotoContainer>
       {photos.length > 1 && (
         <SlideDots>
-          {photos.map((_, index) => (
+          {photos.map((_, idx) => (
             <Dot
-              key={index}
-              className={index === currentSlide ? 'active' : ''}
+              key={idx}
+              className={idx === currentSlide ? 'active' : ''}
             />
           ))}
         </SlideDots>

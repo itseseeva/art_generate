@@ -115,6 +115,13 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
     setHasError(false);
   }, [src]);
 
+  // Устанавливаем fetchPriority напрямую в нативный элемент
+  useEffect(() => {
+    if (imgRef.current && priority) {
+      imgRef.current.setAttribute('fetchpriority', 'high');
+    }
+  }, [priority]);
+
   // Проверяем, загружено ли изображение уже (например, из кеша)
   useEffect(() => {
     if (imgRef.current) {
@@ -175,7 +182,7 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
       style={style}
     >
       {(isLoading || !shouldLoad) && !hasLoaded && !hasError && <Skeleton />}
-      {shouldLoad && (
+      {shouldLoad && src && (
         <picture>
           <source srcSet={optimizedSrc} type="image/webp" />
           <StyledImage
@@ -184,7 +191,6 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
             alt={alt}
             loading={eager || priority ? "eager" : "lazy"}
             decoding="async"
-            fetchPriority={priority ? "high" : "auto"}
             sizes={sizes || "(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"}
             $hasLoaded={hasLoaded}
             onLoad={handleLoad}
