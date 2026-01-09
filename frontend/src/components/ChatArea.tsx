@@ -129,6 +129,44 @@ const EmptyState = styled.div`
   }
 `;
 
+const RoleSituationCard = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: ${theme.spacing.xl};
+  margin: ${theme.spacing.xl} auto;
+  background: linear-gradient(135deg, rgba(50, 50, 50, 0.4) 0%, rgba(40, 40, 40, 0.3) 100%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: ${theme.borderRadius.xl};
+  border: 2px solid rgba(192, 192, 192, 0.6);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(192, 192, 192, 0.4);
+  color: rgba(200, 200, 200, 1);
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  max-width: 600px;
+  width: 100%;
+  
+  h3 {
+    font-size: ${theme.fontSize.xl};
+    margin: 0 0 ${theme.spacing.md} 0;
+    color: rgba(240, 240, 240, 1);
+    font-weight: 600;
+    text-align: center;
+  }
+  
+  p {
+    font-size: ${theme.fontSize.base};
+    line-height: 1.7;
+    color: rgba(180, 180, 180, 0.9);
+    white-space: pre-wrap;
+    margin: 0;
+    text-align: center;
+  }
+`;
+
 interface Message {
   id: string;
   type: 'user' | 'assistant';
@@ -229,24 +267,22 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   return (
     <MessagesContainer ref={messagesContainerRef} style={{ position: 'relative', zIndex: 10 }}>
       <MessagesList style={{ position: 'relative', zIndex: 11 }}>
-        {messages.length === 0 && !isLoading && (
+        {/* Ролевая ситуация всегда видна, если она есть */}
+        {characterSituation && (
+          <RoleSituationCard>
+            <h3>Ролевая ситуация</h3>
+            <p>{characterSituation}</p>
+          </RoleSituationCard>
+        )}
+        
+        {/* Пустое состояние только если нет сообщений и нет ролевой ситуации */}
+        {messages.length === 0 && !isLoading && !characterSituation && (
           <EmptyState>
-            {characterSituation ? (
-              <>
-                <h3>Ролевая ситуация</h3>
-                <p style={{ whiteSpace: 'pre-wrap', textAlign: 'left', maxWidth: '100%' }}>
-                  {characterSituation}
-                </p>
-              </>
-            ) : (
-              <>
             <h3>Добро пожаловать в чат!</h3>
             <p>
               Выберите персонажа в боковой панели и начните общение. 
               Каждый персонаж имеет свой уникальный характер и стиль общения.
             </p>
-              </>
-            )}
           </EmptyState>
         )}
         

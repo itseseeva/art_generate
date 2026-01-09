@@ -65,6 +65,40 @@ const FooterLink = styled.a`
   }
 `;
 
+const SocialLinks = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: 0.5rem;
+`;
+
+const SocialLink = styled.a`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: transform 0.2s, opacity 0.2s;
+  opacity: 0.7;
+  text-decoration: none;
+  color: #888888;
+  
+  &:hover {
+    transform: scale(1.05);
+    opacity: 1;
+    color: ${theme.colors.accent.primary};
+  }
+`;
+
+const SocialIcon = styled.img`
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+`;
+
+const SocialText = styled.span`
+  font-size: 0.7rem;
+  color: inherit;
+`;
+
 export const Footer: React.FC = () => {
   return (
     <FooterContainer>
@@ -80,6 +114,26 @@ export const Footer: React.FC = () => {
         </FooterColumn>
         <FooterSeparator>|</FooterSeparator>
         <FooterText>ИП Крецу Василе, ИНН: 772426525886</FooterText>
+        <SocialLinks>
+          <SocialLink 
+            href="https://t.me/CherryLustClub" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            aria-label="Telegram"
+          >
+            <SocialIcon src="/tg.png" alt="Telegram" />
+            <SocialText>Telegram</SocialText>
+          </SocialLink>
+          <SocialLink 
+            href="https://x.com/CherrylustAI" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            aria-label="X (Twitter)"
+          >
+            <SocialIcon src="/twitter_x_new_logo_square_x_icon_256075.webp" alt="X (Twitter)" />
+            <SocialText>X (Twitter)</SocialText>
+          </SocialLink>
+        </SocialLinks>
       </FooterContent>
     </FooterContainer>
   );
