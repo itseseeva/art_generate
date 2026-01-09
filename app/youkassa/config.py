@@ -19,9 +19,25 @@ class YooKassaConfig(TypedDict):
 
 
 def get_kassa_config() -> YooKassaConfig:
+	"""
+	Получает конфигурацию YooKassa из переменных окружения.
+	
+	Для тестирования используйте тестовые ключи из личного кабинета YooKassa:
+	- Включите "Тестовый режим" в настройках API
+	- Используйте тестовый shop_id и секретный ключ
+	- Тестовые карты: 5555 5555 5555 4444 (успешная оплата)
+	
+	Подробнее: см. app/youkassa/TESTING.md
+	"""
 	shop_id = os.getenv("YOOKASSA_SHOP_ID") or os.getenv("yookassa_shop_id")
 	# Поддержка обоих вариантов: YOU_KASSA_API_KEY и YOOKASSA_SECRET_KEY
-	secret_key = os.getenv("YOU_KASSA_API_KEY") or os.getenv("YOOKASSA_SECRET_KEY") or os.getenv("yookassa_secret_key")
+	# Также поддерживается тестовый ключ: YOU_KASSA_TEST_API_KEY
+	secret_key = (
+		os.getenv("YOU_KASSA_API_KEY") or 
+		os.getenv("YOU_KASSA_TEST_API_KEY") or 
+		os.getenv("YOOKASSA_SECRET_KEY") or 
+		os.getenv("yookassa_secret_key")
+	)
 	return_url = os.getenv("YOOKASSA_RETURN_URL") or os.getenv("redirect_url1") or "https://cherrylust.art/shop"
 	currency = os.getenv("YOOKASSA_CURRENCY") or "RUB"
 	capture_env = os.getenv("YOOKASSA_CAPTURE", "true").strip().lower()
