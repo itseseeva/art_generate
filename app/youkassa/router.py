@@ -26,14 +26,6 @@ class CreateKassaPaymentRequest(BaseModel):
 	payment_method: str = Field(default="bank_card", description="sbp, sberbank, tinkoff_bank, yoo_money, bank_card")
 
 
-class TestWebhookRequest(BaseModel):
-	"""Модель для тестового webhook запроса."""
-	user_id: int = Field(..., description="ID пользователя")
-	payment_type: str = Field(default="topup", description="subscription или topup")
-	package_id: str = Field(default="small", description="ID пакета кредитов (для topup)")
-	plan: str | None = Field(default=None, description="План подписки (standard или premium)")
-
-
 class CreateKassaPaymentResponse(BaseModel):
 	id: str
 	status: str
@@ -459,7 +451,7 @@ async def get_user_transactions(
 	}
 
 
-@router.post("/process-transaction/{operation_id}")
+@router.post("/process-transaction343242/{operation_id}")
 async def process_transaction_manually(
 	operation_id: str,
 	current_user: Users = Depends(get_current_user),
@@ -521,93 +513,5 @@ async def process_transaction_manually(
 	else:
 		raise HTTPException(status_code=400, detail="Invalid transaction data")
 
-@router.post("/test-webhook/")
-async def test_webhook(
-	payload: TestWebhookRequest,
-	current_user: Users = Depends(get_current_user),
-	db: AsyncSession = Depends(get_db)
-):
-	"""
-	Тестовый эндпоинт для симуляции webhook от YooKassa.
-	Позволяет проверить обработку платежей без реальной оплаты.
-	
-	Требуется: права администратора или тестирование своего аккаунта.
-	"""
-	user_id = payload.user_id
-	payment_type = payload.payment_type
-	package_id = payload.package_id
-	plan = payload.plan
-	
-	# Проверяем права: админ или тестирование своего аккаунта
-	if not current_user.is_admin and current_user.id != user_id:
-		raise HTTPException(status_code=403, detail="Access denied")
-	
-	from app.config.credit_packages import get_credit_package
-	
-	# Получаем данные пакета для правильной суммы
-	if payment_type == "topup":
-		package = get_credit_package(package_id)
-		if not package:
-			raise HTTPException(status_code=400, detail=f"Unknown package: {package_id}")
-		amount = package.price
-	else:
-		# Для подписки используем стандартные цены
-		subscription_prices = {
-			"standard": 599.0,
-			"premium": 1499.0
-		}
-		amount = subscription_prices.get(plan, 599.0)
-	
-	# Создаем тестовый webhook payload
-	test_payment_id = f"test_{uuid.uuid4()}"
-	
-	webhook_body = {
-		"type": "notification",
-		"event": "payment.succeeded",
-		"object": {
-			"id": test_payment_id,
-			"status": "succeeded",
-			"amount": {
-				"value": str(amount),
-				"currency": "RUB"
-			},
-			"metadata": {
-				"user_id": str(user_id),
-				"payment_type": payment_type,
-				"package_id": package_id if payment_type == "topup" else None,
-				"plan": plan if payment_type == "subscription" else None
-			},
-			"payment_method": {
-				"type": "bank_card"
-			}
-		}
-	}
-	
-	# Создаем тестовый Request объект
-	from fastapi import Request
-	import json
-	
-	class TestRequest:
-		def __init__(self, body: dict):
-			self._body = body
-		
-		async def json(self):
-			return self._body
-	
-	test_request = TestRequest(webhook_body)
-	
-	# Обрабатываем webhook
-	try:
-		logger.info(f"[TEST WEBHOOK] Simulating webhook for user_id={user_id}, payment_type={payment_type}")
-		result = await process_yookassa_webhook(test_request, db)
-		return {
-			"status": "ok",
-			"message": "Test webhook processed successfully",
-			"payment_id": test_payment_id,
-			"result": result
-		}
-	except Exception as e:
-		logger.error(f"[TEST WEBHOOK] Error: {e}", exc_info=True)
-		raise HTTPException(status_code=500, detail=f"Test webhook failed: {str(e)}")
 
 

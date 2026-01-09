@@ -187,7 +187,7 @@ Authorization: Bearer <ваш_токен>
 Если webhook не пришел (например, при локальной разработке), можно обработать транзакцию вручную:
 
 ```bash
-POST /api/v1/kassa/process-transaction/{operation_id}
+POST /api/v1/kassa/process-transaction343242/{operation_id}
 Authorization: Bearer <токен_администратора>
 ```
 
@@ -245,14 +245,14 @@ Authorization: Bearer <токен_администратора>
 
 1. **Локальная разработка**: Используйте [ngrok](https://ngrok.com/) или [localtunnel](https://localtunnel.github.io/www/) для проброса webhook
 2. **Проверьте URL webhook** в настройках YooKassa
-3. **Используйте ручную обработку** транзакции через `/process-transaction/`
+3. **Используйте ручную обработку** транзакции через `/process-transaction343242/`
 
 ### Транзакция не обрабатывается
 
 1. Проверьте логи на наличие ошибок
 2. Убедитесь, что `package_id` или `plan` указаны корректно
 3. Проверьте, что пользователь существует в БД
-4. Используйте ручную обработку через `/process-transaction/`
+4. Используйте ручную обработку через `/process-transaction343242/`
 
 ### Неверная сумма после комиссии
 
