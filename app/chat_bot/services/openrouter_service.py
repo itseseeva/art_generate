@@ -26,13 +26,9 @@ def get_model_for_subscription(subscription_type: Optional[SubscriptionType]) ->
     Returns:
         Название модели для использования
     """
-    if subscription_type == SubscriptionType.STANDARD:
-        return "sao10k/l3-euryale-70b"
-    elif subscription_type == SubscriptionType.PREMIUM:
-        return "sao10k/l3-euryale-70b"
-    else:
-        # FREE/BASE - используем модель sao10k/l3-euryale-70b с ограничением на 20 сообщений
-        return "sao10k/l3-euryale-70b"
+    # Временно используем более стабильную модель для всех типов подписки
+    # чтобы избежать проблем с китайскими символами
+    return "gryphe/mythomax-l2-13b"
 
 
 class OpenRouterService:

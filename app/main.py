@@ -2435,12 +2435,25 @@ async def chat_endpoint(
         
         # Формируем языковую инструкцию
         if target_language == "ru":
-            language_instruction = "\n\nIMPORTANT: You must write your response STRICTLY in RUSSIAN language. Do not use English."
+            language_instruction = """\n\nCRITICAL LANGUAGE REQUIREMENTS:
+- You MUST write your response STRICTLY in RUSSIAN language
+- NEVER use Chinese, Japanese, Korean or any Asian languages
+- NEVER use Chinese characters (我, 你, 的, 是, 在, 我的手, 轻轻, 抚摸, 你的脸庞, 我等待, etc.)
+- NEVER use any hieroglyphs or Asian symbols
+- Write in Russian using normal Cyrillic alphabet"""
         elif target_language == "en":
-            language_instruction = "\n\nIMPORTANT: You must write your response STRICTLY in ENGLISH language."
+            language_instruction = """\n\nCRITICAL LANGUAGE REQUIREMENTS:
+- You MUST write your response STRICTLY in ENGLISH language
+- NEVER use Russian, Chinese, Japanese, or any other languages
+- NEVER use Chinese characters (我, 你, 的, 是, 在, etc.) or any hieroglyphs
+- Write in English using Latin alphabet only"""
         else:
             # По умолчанию русский
-            language_instruction = "\n\nIMPORTANT: You must write your response STRICTLY in RUSSIAN language. Do not use English."
+            language_instruction = """\n\nCRITICAL LANGUAGE REQUIREMENTS:
+- You MUST write your response STRICTLY in RUSSIAN language
+- NEVER use Chinese, Japanese, Korean or any Asian languages
+- NEVER use Chinese characters or hieroglyphs
+- Write in Russian using Cyrillic alphabet"""
         
         # Добавляем языковую инструкцию к промпту персонажа
         system_prompt = character_data["prompt"] + language_instruction
