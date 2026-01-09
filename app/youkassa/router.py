@@ -26,6 +26,14 @@ class CreateKassaPaymentRequest(BaseModel):
 	payment_method: str = Field(default="bank_card", description="sbp, sberbank, tinkoff_bank, yoo_money, bank_card")
 
 
+class TestWebhookRequest(BaseModel):
+	"""Модель для тестового webhook запроса."""
+	user_id: int = Field(..., description="ID пользователя")
+	payment_type: str = Field(default="topup", description="subscription или topup")
+	package_id: str = Field(default="small", description="ID пакета кредитов (для topup)")
+	plan: str | None = Field(default=None, description="План подписки (standard или premium)")
+
+
 class CreateKassaPaymentResponse(BaseModel):
 	id: str
 	status: str
@@ -513,13 +521,9 @@ async def process_transaction_manually(
 	else:
 		raise HTTPException(status_code=400, detail="Invalid transaction data")
 
-
 @router.post("/test-webhook/")
 async def test_webhook(
-	user_id: int,
-	payment_type: str = "topup",
-	package_id: str = "small",
-	plan: str | None = None,
+	payload: TestWebhookRequest,
 	current_user: Users = Depends(get_current_user),
 	db: AsyncSession = Depends(get_db)
 ):
@@ -529,6 +533,11 @@ async def test_webhook(
 	
 	Требуется: права администратора или тестирование своего аккаунта.
 	"""
+	user_id = payload.user_id
+	payment_type = payload.payment_type
+	package_id = payload.package_id
+	plan = payload.plan
+	
 	# Проверяем права: админ или тестирование своего аккаунта
 	if not current_user.is_admin and current_user.id != user_id:
 		raise HTTPException(status_code=403, detail="Access denied")
@@ -600,4 +609,5 @@ async def test_webhook(
 	except Exception as e:
 		logger.error(f"[TEST WEBHOOK] Error: {e}", exc_info=True)
 		raise HTTPException(status_code=500, detail=f"Test webhook failed: {str(e)}")
+
 

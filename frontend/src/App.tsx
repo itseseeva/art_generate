@@ -1073,14 +1073,15 @@ function App() {
               console.log('[APP] Token refreshed successfully');
             } catch (error) {
               console.error('[APP] Failed to refresh token:', error);
+              authManager.clearTokens();
               setIsAuthenticated(false);
               setUserInfo(null);
               return;
             }
           } else {
-          setIsAuthenticated(false);
-          setUserInfo(null);
-          return;
+            setIsAuthenticated(false);
+            setUserInfo(null);
+            return;
           }
         }
 

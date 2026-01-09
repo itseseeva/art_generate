@@ -268,6 +268,49 @@ const PaymentButton = styled.button`
   }
 `;
 
+const TestPaymentButton = styled.button`
+  width: 100%;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.75rem;
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.2) 0%, rgba(255, 152, 0, 0.2) 100%);
+  border: 2px solid rgba(255, 193, 7, 0.5);
+  border-radius: 12px;
+  color: #ffc107;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  
+  &::before {
+    content: '🧪';
+    margin-right: 0.25rem;
+  }
+  
+  &:hover {
+    transform: translateY(-2px);
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.3) 0%, rgba(255, 152, 0, 0.3) 100%);
+    border-color: rgba(255, 193, 7, 0.7);
+    box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+  }
+`;
+
+const TestPaymentLabel = styled.div`
+  width: 100%;
+  padding: 0.5rem;
+  margin-top: 0.5rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: #ffc107;
+  background: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.3);
+  border-radius: 8px;
+  font-weight: 600;
+`;
+
 const PaymentLogo = styled.img`
   width: 48px;
   height: 48px;
@@ -865,6 +908,55 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     }
   };
 
+  const handleTestPayment = async (packageId: string, paymentType: string = 'topup', plan?: string) => {
+    console.log('[SHOP] handleTestPayment вызван:', { packageId, paymentType, plan });
+    
+    if (!userInfo?.id) {
+      setError('Не удалось определить пользователя для оплаты');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await authManager.fetchWithAuth('/api/v1/kassa/test-webhook/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: userInfo.id,
+          payment_type: paymentType,
+          package_id: packageId,
+          plan: plan
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Ошибка тестового платежа' }));
+        throw new Error(errorData.detail || 'Ошибка тестового платежа');
+      }
+
+      const data = await response.json();
+      
+      setSuccessMessage(`Тестовый платеж успешно обработан! Зачислено: ${data.result?.credits || 'кредиты/подписка'}`);
+      setShowSuccessToast(true);
+      
+      // Обновляем баланс и статистику
+      setBalanceRefreshTrigger(prev => prev + 1);
+      setStatsRefreshTrigger(prev => prev + 1);
+      
+      // Закрываем выбор пакета
+      setSelectedCreditPackage(null);
+      setSelectedPlanForPayment(null);
+      
+    } catch (err) {
+      console.error('[SHOP] Ошибка тестового платежа:', err);
+      setError(err instanceof Error ? err.message : 'Не удалось обработать тестовый платеж');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <MainContainer>
       <ContentWrapper>
@@ -933,24 +1025,32 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                     {selectedPlanForPayment === 'standard' ? 'Скрыть способы оплаты' : 'Продлить подписку'}
                   </ActivateButton>
                   {selectedPlanForPayment === 'standard' && (
-                    <PaymentButtonsContainer>
-                      <PaymentButton onClick={() => handleYooKassaPayment('standard', 'sberbank')}>
-                        <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
-                        SberPay
-                      </PaymentButton>
-                      <PaymentButton onClick={() => handleYooKassaPayment('standard', 'yoo_money')}>
-                        <PaymentLogo src="/payment_images/yumoney.png?v=15" alt="ЮMoney" />
-                        ЮMoney
-                      </PaymentButton>
-                      <PaymentButton onClick={() => handleYooKassaPayment('standard', 'bank_card')}>
-                        <PaymentLogo src="/payment_images/%D0%BA%D0%B0%D1%80%D1%82%D1%8B.png?v=15" alt="Банковские карты" />
-                        Банковские карты
-                      </PaymentButton>
-                      <PaymentButton onClick={() => handleYooKassaPayment('standard', 'sbp')}>
-                        <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
-                        СБП
-                      </PaymentButton>
-                    </PaymentButtonsContainer>
+                    <>
+                      <PaymentButtonsContainer>
+                        <PaymentButton onClick={() => handleYooKassaPayment('standard', 'sberbank')}>
+                          <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
+                          SberPay
+                        </PaymentButton>
+                        <PaymentButton onClick={() => handleYooKassaPayment('standard', 'yoo_money')}>
+                          <PaymentLogo src="/payment_images/yumoney.png?v=15" alt="ЮMoney" />
+                          ЮMoney
+                        </PaymentButton>
+                        <PaymentButton onClick={() => handleYooKassaPayment('standard', 'bank_card')}>
+                          <PaymentLogo src="/payment_images/%D0%BA%D0%B0%D1%80%D1%82%D1%8B.png?v=15" alt="Банковские карты" />
+                          Банковские карты
+                        </PaymentButton>
+                        <PaymentButton onClick={() => handleYooKassaPayment('standard', 'sbp')}>
+                          <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
+                          СБП
+                        </PaymentButton>
+                      </PaymentButtonsContainer>
+                      <TestPaymentLabel>Тестовые платежи (без реальных денег)</TestPaymentLabel>
+                      <PaymentButtonsContainer>
+                        <TestPaymentButton onClick={() => handleTestPayment('', 'subscription', 'standard')}>
+                          Тестовая оплата Standard
+                        </TestPaymentButton>
+                      </PaymentButtonsContainer>
+                    </>
                   )}
                 </>
               ) : (
@@ -962,24 +1062,32 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                     {selectedPlanForPayment === 'standard' ? 'Скрыть способы оплаты' : 'Активировать'}
                   </ActivateButton>
                   {selectedPlanForPayment === 'standard' && (
-                    <PaymentButtonsContainer>
-                      <PaymentButton onClick={() => handleYooKassaPayment('standard', 'sberbank')}>
-                        <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
-                        SberPay
-                      </PaymentButton>
-                      <PaymentButton onClick={() => handleYooKassaPayment('standard', 'yoo_money')}>
-                        <PaymentLogo src="/payment_images/yumoney.png?v=15" alt="ЮMoney" />
-                        ЮMoney
-                      </PaymentButton>
-                      <PaymentButton onClick={() => handleYooKassaPayment('standard', 'bank_card')}>
-                        <PaymentLogo src="/payment_images/%D0%BA%D0%B0%D1%80%D1%82%D1%8B.png?v=15" alt="Банковские карты" />
-                        Банковские карты
-                      </PaymentButton>
-                      <PaymentButton onClick={() => handleYooKassaPayment('standard', 'sbp')}>
-                        <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
-                        СБП
-                      </PaymentButton>
-                    </PaymentButtonsContainer>
+                    <>
+                      <PaymentButtonsContainer>
+                        <PaymentButton onClick={() => handleYooKassaPayment('standard', 'sberbank')}>
+                          <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
+                          SberPay
+                        </PaymentButton>
+                        <PaymentButton onClick={() => handleYooKassaPayment('standard', 'yoo_money')}>
+                          <PaymentLogo src="/payment_images/yumoney.png?v=15" alt="ЮMoney" />
+                          ЮMoney
+                        </PaymentButton>
+                        <PaymentButton onClick={() => handleYooKassaPayment('standard', 'bank_card')}>
+                          <PaymentLogo src="/payment_images/%D0%BA%D0%B0%D1%80%D1%82%D1%8B.png?v=15" alt="Банковские карты" />
+                          Банковские карты
+                        </PaymentButton>
+                        <PaymentButton onClick={() => handleYooKassaPayment('standard', 'sbp')}>
+                          <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
+                          СБП
+                        </PaymentButton>
+                      </PaymentButtonsContainer>
+                      <TestPaymentLabel>Тестовые платежи (без реальных денег)</TestPaymentLabel>
+                      <PaymentButtonsContainer>
+                        <TestPaymentButton onClick={() => handleTestPayment('', 'subscription', 'standard')}>
+                          Тестовая оплата Standard
+                        </TestPaymentButton>
+                      </PaymentButtonsContainer>
+                    </>
                   )}
                 </>
               )}
@@ -1008,24 +1116,32 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                     {selectedPlanForPayment === 'premium' ? 'Скрыть способы оплаты' : 'Продлить подписку'}
                   </ActivateButton>
                   {selectedPlanForPayment === 'premium' && (
-                    <PaymentButtonsContainer>
-                      <PaymentButton onClick={() => handleYooKassaPayment('premium', 'sberbank')}>
-                        <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
-                        SberPay
-                      </PaymentButton>
-                      <PaymentButton onClick={() => handleYooKassaPayment('premium', 'yoo_money')}>
-                        <PaymentLogo src="/payment_images/yumoney.png?v=15" alt="ЮMoney" />
-                        ЮMoney
-                      </PaymentButton>
-                      <PaymentButton onClick={() => handleYooKassaPayment('premium', 'bank_card')}>
-                        <PaymentLogo src="/payment_images/%D0%BA%D0%B0%D1%80%D1%82%D1%8B.png?v=15" alt="Банковские карты" />
-                        Банковские карты
-                      </PaymentButton>
-                      <PaymentButton onClick={() => handleYooKassaPayment('premium', 'sbp')}>
-                        <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
-                        СБП
-                      </PaymentButton>
-                    </PaymentButtonsContainer>
+                    <>
+                      <PaymentButtonsContainer>
+                        <PaymentButton onClick={() => handleYooKassaPayment('premium', 'sberbank')}>
+                          <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
+                          SberPay
+                        </PaymentButton>
+                        <PaymentButton onClick={() => handleYooKassaPayment('premium', 'yoo_money')}>
+                          <PaymentLogo src="/payment_images/yumoney.png?v=15" alt="ЮMoney" />
+                          ЮMoney
+                        </PaymentButton>
+                        <PaymentButton onClick={() => handleYooKassaPayment('premium', 'bank_card')}>
+                          <PaymentLogo src="/payment_images/%D0%BA%D0%B0%D1%80%D1%82%D1%8B.png?v=15" alt="Банковские карты" />
+                          Банковские карты
+                        </PaymentButton>
+                        <PaymentButton onClick={() => handleYooKassaPayment('premium', 'sbp')}>
+                          <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
+                          СБП
+                        </PaymentButton>
+                      </PaymentButtonsContainer>
+                      <TestPaymentLabel>Тестовые платежи (без реальных денег)</TestPaymentLabel>
+                      <PaymentButtonsContainer>
+                        <TestPaymentButton onClick={() => handleTestPayment('', 'subscription', 'premium')}>
+                          Тестовая оплата Premium
+                        </TestPaymentButton>
+                      </PaymentButtonsContainer>
+                    </>
                   )}
                 </>
               ) : (
@@ -1037,24 +1153,32 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                     {selectedPlanForPayment === 'premium' ? 'Скрыть способы оплаты' : 'Активировать'}
                   </ActivateButton>
                   {selectedPlanForPayment === 'premium' && (
-                    <PaymentButtonsContainer>
-                      <PaymentButton onClick={() => handleYooKassaPayment('premium', 'sberbank')}>
-                        <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
-                        SberPay
-                      </PaymentButton>
-                      <PaymentButton onClick={() => handleYooKassaPayment('premium', 'yoo_money')}>
-                        <PaymentLogo src="/payment_images/yumoney.png?v=15" alt="ЮMoney" />
-                        ЮMoney
-                      </PaymentButton>
-                      <PaymentButton onClick={() => handleYooKassaPayment('premium', 'bank_card')}>
-                        <PaymentLogo src="/payment_images/%D0%BA%D0%B0%D1%80%D1%82%D1%8B.png?v=15" alt="Банковские карты" />
-                        Банковские карты
-                      </PaymentButton>
-                      <PaymentButton onClick={() => handleYooKassaPayment('premium', 'sbp')}>
-                        <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
-                        СБП
-                      </PaymentButton>
-                    </PaymentButtonsContainer>
+                    <>
+                      <PaymentButtonsContainer>
+                        <PaymentButton onClick={() => handleYooKassaPayment('premium', 'sberbank')}>
+                          <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
+                          SberPay
+                        </PaymentButton>
+                        <PaymentButton onClick={() => handleYooKassaPayment('premium', 'yoo_money')}>
+                          <PaymentLogo src="/payment_images/yumoney.png?v=15" alt="ЮMoney" />
+                          ЮMoney
+                        </PaymentButton>
+                        <PaymentButton onClick={() => handleYooKassaPayment('premium', 'bank_card')}>
+                          <PaymentLogo src="/payment_images/%D0%BA%D0%B0%D1%80%D1%82%D1%8B.png?v=15" alt="Банковские карты" />
+                          Банковские карты
+                        </PaymentButton>
+                        <PaymentButton onClick={() => handleYooKassaPayment('premium', 'sbp')}>
+                          <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
+                          СБП
+                        </PaymentButton>
+                      </PaymentButtonsContainer>
+                      <TestPaymentLabel>Тестовые платежи (без реальных денег)</TestPaymentLabel>
+                      <PaymentButtonsContainer>
+                        <TestPaymentButton onClick={() => handleTestPayment('', 'subscription', 'premium')}>
+                          Тестовая оплата Premium
+                        </TestPaymentButton>
+                      </PaymentButtonsContainer>
+                    </>
                   )}
                 </>
               )}
@@ -1122,24 +1246,32 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                       {selectedCreditPackage?.id === pkg.id ? 'Скрыть способы оплаты' : `Купить за ${pkg.price}₽`}
                     </ActivateButton>
                     {selectedCreditPackage?.id === pkg.id && (
-                      <PaymentButtonsContainer>
-                        <PaymentButton onClick={() => handleYooKassaCreditTopUp(pkg.id, pkg.price, pkg.credits, 'sberbank')}>
-                          <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
-                          SberPay
-                        </PaymentButton>
-                        <PaymentButton onClick={() => handleYooKassaCreditTopUp(pkg.id, pkg.price, pkg.credits, 'yoo_money')}>
-                          <PaymentLogo src="/payment_images/yumoney.png?v=15" alt="ЮMoney" />
-                          ЮMoney
-                        </PaymentButton>
-                        <PaymentButton onClick={() => handleYooKassaCreditTopUp(pkg.id, pkg.price, pkg.credits, 'bank_card')}>
-                          <PaymentLogo src="/payment_images/%D0%BA%D0%B0%D1%80%D1%82%D1%8B.png?v=15" alt="Банковские карты" />
-                          Банковские карты
-                        </PaymentButton>
-                        <PaymentButton onClick={() => handleYooKassaCreditTopUp(pkg.id, pkg.price, pkg.credits, 'sbp')}>
-                          <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
-                          СБП
-                        </PaymentButton>
-                      </PaymentButtonsContainer>
+                      <>
+                        <PaymentButtonsContainer>
+                          <PaymentButton onClick={() => handleYooKassaCreditTopUp(pkg.id, pkg.price, pkg.credits, 'sberbank')}>
+                            <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
+                            SberPay
+                          </PaymentButton>
+                          <PaymentButton onClick={() => handleYooKassaCreditTopUp(pkg.id, pkg.price, pkg.credits, 'yoo_money')}>
+                            <PaymentLogo src="/payment_images/yumoney.png?v=15" alt="ЮMoney" />
+                            ЮMoney
+                          </PaymentButton>
+                          <PaymentButton onClick={() => handleYooKassaCreditTopUp(pkg.id, pkg.price, pkg.credits, 'bank_card')}>
+                            <PaymentLogo src="/payment_images/%D0%BA%D0%B0%D1%80%D1%82%D1%8B.png?v=15" alt="Банковские карты" />
+                            Банковские карты
+                          </PaymentButton>
+                          <PaymentButton onClick={() => handleYooKassaCreditTopUp(pkg.id, pkg.price, pkg.credits, 'sbp')}>
+                            <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
+                            СБП
+                          </PaymentButton>
+                        </PaymentButtonsContainer>
+                        <TestPaymentLabel>Тестовые платежи (без реальных денег)</TestPaymentLabel>
+                        <PaymentButtonsContainer>
+                          <TestPaymentButton onClick={() => handleTestPayment(pkg.id, 'topup')}>
+                            Тестовая оплата {pkg.name}
+                          </TestPaymentButton>
+                        </PaymentButtonsContainer>
+                      </>
                     )}
                       </PlanCard>
                       ));

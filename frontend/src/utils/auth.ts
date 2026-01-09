@@ -207,9 +207,11 @@ class AuthManager {
           token = newTokens.access_token;
         } catch (error) {
           console.error('Failed to obtain access token via refresh:', error);
+          this.clearTokens();
           throw new Error('No access token available');
         }
       } else {
+        this.clearTokens();
         throw new Error('No access token available');
       }
     }
@@ -217,13 +219,20 @@ class AuthManager {
     // Проверяем, истек ли токен
     if (this.isTokenExpired(token)) {
       console.log('Access token expired, refreshing...');
-      try {
-        const newTokens = await this.refreshAccessToken();
-        token = newTokens.access_token;
-      } catch (error) {
-        console.error('Failed to refresh token:', error);
-        // Не выбрасываем ошибку сразу, пытаемся использовать старый токен
-        console.log('Using existing token despite refresh failure...');
+      const refreshToken = this.getRefreshToken();
+      if (refreshToken) {
+        try {
+          const newTokens = await this.refreshAccessToken();
+          token = newTokens.access_token;
+        } catch (error) {
+          console.error('Failed to refresh token:', error);
+          this.clearTokens();
+          // Не выбрасываем ошибку сразу, пытаемся использовать старый токен
+          console.log('Using existing token despite refresh failure...');
+        }
+      } else {
+        console.log('No refresh token available, token expired');
+        this.clearTokens();
       }
     }
 
@@ -241,6 +250,13 @@ class AuthManager {
     // Если получили 401, пытаемся обновить токен и повторить запрос
     if (response.status === 401) {
       console.log('Received 401, attempting token refresh...');
+      const refreshToken = this.getRefreshToken();
+      if (!refreshToken) {
+        console.log('No refresh token available, clearing tokens');
+        this.clearTokens();
+        throw new Error('Authentication failed: No refresh token');
+      }
+      
       try {
         const newTokens = await this.refreshAccessToken();
         const newHeaders = {
@@ -254,6 +270,7 @@ class AuthManager {
         });
       } catch (error) {
         console.error('Failed to refresh token after 401:', error);
+        this.clearTokens();
         throw new Error('Authentication failed');
       }
     }
