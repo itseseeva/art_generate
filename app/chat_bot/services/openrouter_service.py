@@ -1,10 +1,7 @@
 """
 Сервис для взаимодействия с OpenRouter API.
 
-Модель выбирается на основе типа подписки:
-- STANDARD: sao10k/l3-euryale-70b
-- PREMIUM: sao10k/l3-euryale-70b
-- FREE/другое: модель из chat_config.OPENROUTER_MODEL
+Все пользователи получают модель: sao10k/l3-euryale-70b
 """
 
 import os
@@ -12,6 +9,7 @@ import aiohttp
 import json
 from typing import Optional, Dict, List, AsyncGenerator
 from app.chat_bot.config.chat_config import chat_config
+from app.chat_bot.config.cydonia_config import get_cydonia_overrides
 from app.models.subscription import SubscriptionType
 from app.utils.logger import logger
 
@@ -26,9 +24,8 @@ def get_model_for_subscription(subscription_type: Optional[SubscriptionType]) ->
     Returns:
         Название модели для использования
     """
-    # Временно используем более стабильную модель для всех типов подписки
-    # чтобы избежать проблем с китайскими символами
-    return "gryphe/mythomax-l2-13b"
+    # Все пользователи, включая FREE, STANDARD и PREMIUM, получают лучшую модель
+    return "sao10k/l3-euryale-70b"
 
 
 class OpenRouterService:
@@ -170,7 +167,7 @@ class OpenRouterService:
             # Проверяем, что модель разрешена для использования
             allowed_models = [
                 "sao10k/l3-euryale-70b",
-                "gryphe/mythomax-l2-13b"
+                "thedrummer/cydonia-24b-v4.1"
             ]
             if model in allowed_models:
                 model_to_use = model
@@ -179,6 +176,30 @@ class OpenRouterService:
                 model_to_use = get_model_for_subscription(subscription_type)
         else:
             model_to_use = get_model_for_subscription(subscription_type)
+        
+        # ПРИМЕНЯЕМ СПЕЦИФИЧНЫЕ НАСТРОЙКИ ДЛЯ МОДЕЛИ CYDONIA
+        if model_to_use == "thedrummer/cydonia-24b-v4.1":
+            cydonia_overrides = get_cydonia_overrides()
+            # Переопределяем только те параметры, которые не были переданы явно в generate_text
+            # или если они были переданы как None
+            if "temperature" not in kwargs or kwargs["temperature"] is None:
+                temperature = cydonia_overrides["temperature"]
+            if "top_p" not in kwargs or kwargs["top_p"] is None:
+                top_p = cydonia_overrides["top_p"]
+            if "top_k" not in kwargs or kwargs["top_k"] is None:
+                top_k = cydonia_overrides["top_k"]
+            if "repetition_penalty" not in kwargs or kwargs["repetition_penalty"] is None:
+                repetition_penalty = cydonia_overrides["repetition_penalty"]
+            if "presence_penalty" not in kwargs or kwargs["presence_penalty"] is None:
+                presence_penalty = cydonia_overrides["presence_penalty"]
+            if "frequency_penalty" not in kwargs or kwargs["frequency_penalty"] is None:
+                frequency_penalty = cydonia_overrides["frequency_penalty"]
+            if "min_p" not in kwargs or kwargs["min_p"] is None:
+                min_p = cydonia_overrides["min_p"]
+            if "stop" not in kwargs or kwargs["stop"] is None:
+                kwargs["stop"] = cydonia_overrides["stop"]
+            
+            logger.info(f"[OPENROUTER] Applied Cydonia specific overrides for {model_to_use}")
         
         try:
             session = await self._get_session()
@@ -397,7 +418,7 @@ class OpenRouterService:
             # Проверяем, что модель разрешена для использования
             allowed_models = [
                 "sao10k/l3-euryale-70b",
-                "gryphe/mythomax-l2-13b"
+                "thedrummer/cydonia-24b-v4.1"
             ]
             if model not in allowed_models:
                 logger.warning(f"[OPENROUTER STREAM] Disallowed model: {model}, using default")
@@ -408,6 +429,29 @@ class OpenRouterService:
         else:
             # Выбираем модель на основе подписки
             model_to_use = get_model_for_subscription(subscription_type)
+        
+        # ПРИМЕНЯЕМ СПЕЦИФИЧНЫЕ НАСТРОЙКИ ДЛЯ МОДЕЛИ CYDONIA
+        if model_to_use == "thedrummer/cydonia-24b-v4.1":
+            cydonia_overrides = get_cydonia_overrides()
+            # Переопределяем только те параметры, которые не были переданы явно
+            if "temperature" not in kwargs or kwargs["temperature"] is None:
+                temperature = cydonia_overrides["temperature"]
+            if "top_p" not in kwargs or kwargs["top_p"] is None:
+                top_p = cydonia_overrides["top_p"]
+            if "top_k" not in kwargs or kwargs["top_k"] is None:
+                top_k = cydonia_overrides["top_k"]
+            if "repetition_penalty" not in kwargs or kwargs["repetition_penalty"] is None:
+                repetition_penalty = cydonia_overrides["repetition_penalty"]
+            if "presence_penalty" not in kwargs or kwargs["presence_penalty"] is None:
+                presence_penalty = cydonia_overrides["presence_penalty"]
+            if "frequency_penalty" not in kwargs or kwargs["frequency_penalty"] is None:
+                frequency_penalty = cydonia_overrides["frequency_penalty"]
+            if "min_p" not in kwargs or kwargs["min_p"] is None:
+                min_p = cydonia_overrides["min_p"]
+            if "stop" not in kwargs or kwargs["stop"] is None:
+                kwargs["stop"] = cydonia_overrides["stop"]
+            
+            logger.info(f"[OPENROUTER STREAM] Applied Cydonia specific overrides for {model_to_use}")
         
         try:
             session = await self._get_session()

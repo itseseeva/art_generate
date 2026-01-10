@@ -1823,43 +1823,66 @@ async def _write_chat_history(
                             "image_filename": image_filename
                         }
                     )
-                    # Сохраняем сообщение ассистента с generation_time (если есть)
-                    # Пытаемся добавить generation_time, если оно передано
-                    if generation_time is not None and generation_time > 0:
-                        # Вставляем с generation_time
-                        await db.execute(
-                            text("""
-                                INSERT INTO chat_history (user_id, character_name, session_id, message_type, message_content, image_url, image_filename, generation_time, created_at)
-                                VALUES (:user_id, :character_name, :session_id, :message_type, :message_content, :image_url, :image_filename, :generation_time, NOW())
-                            """),
-                            {
-                                "user_id": user_id_int,
-                                "character_name": character_name,
-                                "session_id": str(chat_session.id),
-                                "message_type": "assistant",
-                                "message_content": assistant_message_content,
-                                "image_url": image_url,
-                                "image_filename": image_filename,
-                                "generation_time": int(round(generation_time))
-                            }
-                        )
-                    else:
-                        # Вставляем без generation_time
-                        await db.execute(
-                            text("""
-                                INSERT INTO chat_history (user_id, character_name, session_id, message_type, message_content, image_url, image_filename, created_at)
-                                VALUES (:user_id, :character_name, :session_id, :message_type, :message_content, :image_url, :image_filename, NOW())
-                            """),
-                            {
-                                "user_id": user_id_int,
-                                "character_name": character_name,
-                                "session_id": str(chat_session.id),
-                                "message_type": "assistant",
-                                "message_content": assistant_message_content,
-                                "image_url": image_url,
-                                "image_filename": image_filename
-                            }
-                        )
+                    # Сохраняем сообщение ассистента
+                    try:
+                        if generation_time is not None and generation_time > 0:
+                            # Пытаемся вставить с generation_time
+                            try:
+                                await db.execute(
+                                    text("""
+                                        INSERT INTO chat_history (user_id, character_name, session_id, message_type, message_content, image_url, image_filename, generation_time, created_at)
+                                        VALUES (:user_id, :character_name, :session_id, :message_type, :message_content, :image_url, :image_filename, :generation_time, NOW())
+                                    """),
+                                    {
+                                        "user_id": user_id_int,
+                                        "character_name": character_name,
+                                        "session_id": str(chat_session.id),
+                                        "message_type": "assistant",
+                                        "message_content": assistant_message_content,
+                                        "image_url": image_url,
+                                        "image_filename": image_filename,
+                                        "generation_time": int(round(generation_time))
+                                    }
+                                )
+                            except Exception as e:
+                                # Ошибка (вероятно, нет колонки), пробуем без неё
+                                logger.warning(f"[HISTORY] Ошибка вставки ассистента с generation_time: {e}")
+                                await db.rollback()
+                                await db.execute(
+                                    text("""
+                                        INSERT INTO chat_history (user_id, character_name, session_id, message_type, message_content, image_url, image_filename, created_at)
+                                        VALUES (:user_id, :character_name, :session_id, :message_type, :message_content, :image_url, :image_filename, NOW())
+                                    """),
+                                    {
+                                        "user_id": user_id_int,
+                                        "character_name": character_name,
+                                        "session_id": str(chat_session.id),
+                                        "message_type": "assistant",
+                                        "message_content": assistant_message_content,
+                                        "image_url": image_url,
+                                        "image_filename": image_filename
+                                    }
+                                )
+                        else:
+                            # Вставляем без generation_time
+                            await db.execute(
+                                text("""
+                                    INSERT INTO chat_history (user_id, character_name, session_id, message_type, message_content, image_url, image_filename, created_at)
+                                    VALUES (:user_id, :character_name, :session_id, :message_type, :message_content, :image_url, :image_filename, NOW())
+                                """),
+                                {
+                                    "user_id": user_id_int,
+                                    "character_name": character_name,
+                                    "session_id": str(chat_session.id),
+                                    "message_type": "assistant",
+                                    "message_content": assistant_message_content,
+                                    "image_url": image_url,
+                                    "image_filename": image_filename
+                                }
+                            )
+                    except Exception as assistant_save_error:
+                        logger.error(f"[HISTORY] Критическая ошибка сохранения ассистента: {assistant_save_error}")
+                        await db.rollback()
 
                     await db.commit()
 
@@ -2365,12 +2388,16 @@ async def chat_endpoint(
             trim_messages_to_token_limit
         )
         
-        # Определяем лимит контекста на основе подписки
+        # 1. Определяем эффективную модель и параметры
+        from app.chat_bot.services.openrouter_service import get_model_for_subscription
+        model_used = request.get("model") if request.get("model") else get_model_for_subscription(subscription_type_enum)
+
+        # Определяем лимит контекста на основе подписки и выбранной модели
         # subscription_type_enum уже определен выше в блоке async with
         context_limit = get_context_limit(subscription_type_enum)  # Лимит сообщений для загрузки из БД
-        max_context_tokens = get_max_context_tokens(subscription_type_enum)  # Лимит токенов для контекста
+        max_context_tokens = get_max_context_tokens(subscription_type_enum, model_used)  # Лимит токенов для контекста
         max_tokens = get_max_tokens(subscription_type_enum)  # Лимит токенов для генерации ответа
-        logger.info(f"[CONTEXT] Лимит сообщений из БД: {context_limit}, лимит токенов контекста: {max_context_tokens}, лимит токенов генерации: {max_tokens}")
+        logger.info(f"[CONTEXT] Модель: {model_used}, Лимит сообщений из БД: {context_limit}, лимит токенов контекста: {max_context_tokens}, лимит токенов генерации: {max_tokens}")
         
         # Получаем историю из БД, если есть подписка и user_id
         db_history_messages = []
@@ -2423,22 +2450,25 @@ async def chat_endpoint(
             language_instruction = """\n\nCRITICAL LANGUAGE REQUIREMENTS:
 - You MUST write your response STRICTLY in RUSSIAN language
 - NEVER use Chinese, Japanese, Korean or any Asian languages
-- NEVER use Chinese characters (我, 你, 的, 是, 在, 我的手, 轻轻, 抚摸, 你的脸庞, 我等待, etc.)
+- NEVER use Chinese characters (我, 你, 的, 是, 在, 我的手, 轻轻, 抚摸, 触摸, 你的脸庞, 我等待, etc.)
 - NEVER use any hieroglyphs or Asian symbols
-- Write in Russian using normal Cyrillic alphabet"""
+- Write in Russian using normal Cyrillic alphabet
+- If you use Chinese characters, you will be penalized. STRICTLY RUSSIAN ONLY."""
         elif target_language == "en":
             language_instruction = """\n\nCRITICAL LANGUAGE REQUIREMENTS:
 - You MUST write your response STRICTLY in ENGLISH language
 - NEVER use Russian, Chinese, Japanese, or any other languages
-- NEVER use Chinese characters (我, 你, 的, 是, 在, etc.) or any hieroglyphs
-- Write in English using Latin alphabet only"""
+- NEVER use Chinese characters (我, 你, 的, 是, 在, 触摸, etc.) or any hieroglyphs
+- Write in English using Latin alphabet only
+- If you use any other characters, you will be penalized. STRICTLY ENGLISH ONLY."""
         else:
             # По умолчанию русский
             language_instruction = """\n\nCRITICAL LANGUAGE REQUIREMENTS:
 - You MUST write your response STRICTLY in RUSSIAN language
 - NEVER use Chinese, Japanese, Korean or any Asian languages
 - NEVER use Chinese characters or hieroglyphs
-- Write in Russian using Cyrillic alphabet"""
+- Write in Russian using Cyrillic alphabet
+- STRICTLY RUSSIAN ONLY."""
         
         # Добавляем языковую инструкцию к промпту персонажа
         system_prompt = character_data["prompt"] + language_instruction
@@ -2519,7 +2549,7 @@ async def chat_endpoint(
                 "content": message
             })
         
-        # 4. Проверяем и обрезаем по лимиту токенов контекста (4000 для STANDARD, 8000 для PREMIUM)
+        # 5. Проверяем и обрезаем по лимиту токенов контекста
         messages_before_trim = len(openai_messages)
         openai_messages = await trim_messages_to_token_limit(
             openai_messages, 
@@ -2535,6 +2565,28 @@ async def chat_endpoint(
         history_count = len(openai_messages) - 1  # -1 для system сообщения
         logger.info(f"[CONTEXT] В памяти: {history_count} сообщений (лимит контекста: {max_context_tokens} токенов)")
         
+        # ЕСЛИ ИСПОЛЬЗУЕТСЯ CYDONIA, ДОБАВЛЯЕМ СПЕЦИФИЧНЫЕ ИНСТРУКЦИИ
+        if model_used == "thedrummer/cydonia-24b-v4.1":
+            from app.chat_bot.config.cydonia_config import CYDONIA_CONFIG
+            if openai_messages and openai_messages[0]["role"] == "system":
+                current_content = openai_messages[0]["content"]
+                suffix = CYDONIA_CONFIG["system_suffix"]
+                if suffix not in current_content:
+                    openai_messages[0]["content"] = current_content + suffix
+                    logger.info(f"[CHAT] Добавлены Cydonia инструкции к системному промпту (main endpoint)")
+        
+        # Финальное напоминание для Euryale
+        if model_used == "sao10k/l3-euryale-70b":
+            if openai_messages and openai_messages[0]["role"] == "system":
+                target_lang = target_language or "ru"
+                openai_messages[0]["content"] += f"\n\nREMINDER: Write your response ONLY in {target_lang.upper()}. NO CHINESE CHARACTERS."
+                logger.info(f"[CHAT] Добавлено финальное напоминание для Euryale (main endpoint)")
+
+        # Логируем используемую модель и размер контекста перед запросом (main endpoint)
+        from app.chat_bot.utils.context_manager import count_messages_tokens
+        final_tokens = count_messages_tokens(openai_messages)
+        logger.info(f"[CHAT_MAIN] ОТПРАВКА ЗАПРОСА: Модель={model_used}, Контекст={final_tokens}/{max_context_tokens} токенов, Стриминг={use_streaming}")
+
         # Если запрошен стриминг, возвращаем StreamingResponse
         logger.info(f"[STREAM CHECK] use_streaming={use_streaming}, проверяем условие...")
         if use_streaming:
@@ -2565,7 +2617,7 @@ async def chat_endpoint(
                         top_p=chat_config.DEFAULT_TOP_P,
                         presence_penalty=chat_config.DEFAULT_PRESENCE_PENALTY,
                         subscription_type=subscription_type_enum,
-                        model=selected_model
+                        model=model_used
                     ):
                         # Проверяем на ошибку
                         if chunk.startswith('{"error"'):
@@ -2589,9 +2641,6 @@ async def chat_endpoint(
                     # Списываем ресурсы и сохраняем диалог в базу данных после завершения стриминга
                     # Используем фоновую задачу для сохранения, чтобы не блокировать стриминг
                     if full_response:
-                        # Определяем, какая модель была использована
-                        from app.chat_bot.services.openrouter_service import get_model_for_subscription
-                        model_used = selected_model if selected_model else get_model_for_subscription(subscription_type_enum)
                         logger.info(f"[STREAM] Ответ сгенерирован моделью: {model_used} (подписка: {subscription_type_enum.value if subscription_type_enum else 'FREE'}), длина: {len(full_response)} символов")
                         
                         # Подготавливаем данные для сохранения
@@ -2643,6 +2692,10 @@ async def chat_endpoint(
             else:
                 logger.warning(f"[CHAT] Выбор модели доступен только для PREMIUM подписки, игнорируем model={request.get('model')}")
         
+        # Определяем эффективную модель
+        from app.chat_bot.services.openrouter_service import get_model_for_subscription
+        model_used = selected_model if selected_model else get_model_for_subscription(subscription_type_enum)
+
         response = await openrouter_service.generate_text(
             messages=openai_messages,
             max_tokens=max_tokens,
@@ -2651,7 +2704,7 @@ async def chat_endpoint(
             repeat_penalty=chat_config.DEFAULT_REPEAT_PENALTY,
             presence_penalty=chat_config.DEFAULT_PRESENCE_PENALTY,
             subscription_type=subscription_type_enum,
-            model=selected_model
+            model=model_used
         )
         
         # Проверяем ошибку подключения к сервису генерации
@@ -3793,184 +3846,88 @@ async def generate_image(
         # Обновляем промпт в настройках для логирования
         full_settings_for_logging["prompt"] = enhanced_prompt
         
-        # Генерация изображения через RunPod API
+        # Генерация изображения через Celery с приоритетом
         logger.info(f"[GENERATE] =========================================")
-        logger.info(f"[GENERATE] === ГЕНЕРАЦИЯ ИЗОБРАЖЕНИЯ ЧЕРЕЗ RUNPOD ===")
+        logger.info(f"[GENERATE] === ГЕНЕРАЦИЯ ИЗОБРАЖЕНИЯ ЧЕРЕЗ CELERY ===")
         logger.info(f"[GENERATE] Начинаем генерацию изображения (user_id={user_id})")
         logger.info(f"[GENERATE] =========================================")
         
         try:
-            from app.services.runpod_client import start_generation
-            import httpx
+            from app.tasks.runpod_tasks import generate_image_runpod_task
             import time
             
-            # Засекаем время начала генерации
-            start_time = time.time()
+            # Определяем приоритет задачи
+            task_priority = 5  # Нормальный приоритет по умолчанию
+            if subscription_type_enum == SubscriptionType.PREMIUM:
+                task_priority = 9
+                logger.info(f"[PRIORITY] Установлен приоритет 9 для PREMIUM пользователя {user_id}")
+            elif subscription_type_enum == SubscriptionType.STANDARD:
+                task_priority = 7
+                logger.info(f"[PRIORITY] Установлен приоритет 7 для STANDARD пользователя {user_id}")
+
+            # Подготавливаем параметры для задачи
+            selected_model = getattr(generation_settings, 'model', None) or (getattr(request, 'model', None) or "anime-realism")
+            seed_to_send = None
+            if generation_settings.seed is not None and generation_settings.seed != -1:
+                seed_to_send = generation_settings.seed
+
+            # Запускаем задачу через Celery
+            task = generate_image_runpod_task.apply_async(
+                kwargs={
+                    "user_prompt": generation_settings.prompt,
+                    "width": generation_settings.width,
+                    "height": generation_settings.height,
+                    "steps": generation_settings.steps,
+                    "cfg_scale": generation_settings.cfg_scale,
+                    "seed": seed_to_send,
+                    "sampler_name": generation_settings.sampler_name,
+                    "negative_prompt": generation_settings.negative_prompt,
+                    "use_enhanced_prompts": False,  # Мы уже обработали промпты выше
+                    "model": selected_model,
+                    "lora_scale": default_params.get("lora_scale", 0.5)
+                },
+                priority=task_priority
+            )
             
-            logger.info(f"[GENERATE] Запускаем асинхронную генерацию через RunPod: character={character_name}, steps={generation_settings.steps}")
+            # ВАЖНО: Тратим монеты СРАЗУ при запуске задачи
+            if user_id:
+                from app.services.coins_service import CoinsService
+                from app.database.db import async_session_maker
+                from app.chat_bot.api.character_endpoints import PHOTO_GENERATION_COST
+                
+                async with async_session_maker() as db:
+                    coins_service = CoinsService(db)
+                    await coins_service.spend_coins(user_id, PHOTO_GENERATION_COST, commit=False)
+                    
+                    # Записываем историю баланса
+                    try:
+                        from app.utils.balance_history import record_balance_change
+                        character_name_for_history = character_data_for_history.get("name", "неизвестный") if character_data_for_history else "неизвестный"
+                        await record_balance_change(
+                            db=db,
+                            user_id=user_id,
+                            amount=-PHOTO_GENERATION_COST,
+                            reason=f"Генерация фото для персонажа '{character_name_for_history}' (Celery)"
+                        )
+                    except Exception as e:
+                        logger.warning(f"Не удалось записать историю баланса: {e}")
+                    
+                    await db.commit()
+                    logger.info(f"[COINS] Списано {PHOTO_GENERATION_COST} монет за запуск Celery задачи для user_id={user_id}")
             
-            # ВАЖНО: Запускаем задачу и сразу возвращаем task_id, не ждём завершения
-            # Это позволяет другим пользователям генерировать изображения параллельно
-            async with httpx.AsyncClient() as client:
-                try:
-                    # Запускаем генерацию и получаем job_id
-                    selected_model = getattr(generation_settings, 'model', None) or (getattr(request, 'model', None) or "anime-realism")
-                    # Определяем какой URL будет использован для логирования
-                    if selected_model == "anime-realism":
-                        url_info = "RUNPOD_URL_2 (Аниме реализм)"
-                    elif selected_model == "realism":
-                        url_info = "RUNPOD_URL_3 (Реализм)"
-                    else:
-                        url_info = "RUNPOD_URL (Аниме)"
-                    logger.info(f"[GENERATE] 🎯 Выбранная модель: '{selected_model}' -> будет использован {url_info}")
-                    # Подготавливаем seed для передачи
-                    # Если seed не указан или равен -1, передаем None, чтобы start_generation сгенерировал случайный seed
-                    seed_to_send = None
-                    if generation_settings.seed is not None and generation_settings.seed != -1:
-                        seed_to_send = generation_settings.seed
-                    logger.info(f"[GENERATE] 🎲 Seed из запроса: {generation_settings.seed}, seed для отправки: {seed_to_send} (будет рандомизирован если None)")
-                    
-                    job_id, runpod_url_base = await start_generation(
-                        client=client,
-                        user_prompt=generation_settings.prompt,
-                        width=generation_settings.width,
-                        height=generation_settings.height,
-                        steps=generation_settings.steps,
-                        cfg_scale=generation_settings.cfg_scale,
-                        seed=seed_to_send,  # None или -1 будут обработаны в start_generation для генерации случайного seed
-                        sampler_name=generation_settings.sampler_name,
-                        negative_prompt=generation_settings.negative_prompt,
-                        use_enhanced_prompts=False,  # Мы уже обработали промпты выше
-                        lora_scale=default_params.get("lora_scale", 0.5),  # Dramatic Lighting LoRA
-                        model=selected_model
-                    )
-                    
-                    print("=" * 80)
-                    print(f"[GENERATE IMAGE] ✅ ЗАДАЧА ЗАПУЩЕНА НА RUNPOD")
-                    print(f"[GENERATE IMAGE] Job ID: {job_id}, Модель: {selected_model}")
-                    print("=" * 80)
-                    logger.info("=" * 80)
-                    logger.info(f"[GENERATE IMAGE] ✅ ЗАДАЧА ЗАПУЩЕНА НА RUNPOD")
-                    logger.info(f"[GENERATE IMAGE] Job ID: {job_id}")
-                    logger.info(f"[GENERATE IMAGE] Модель: {selected_model}")
-                    logger.info(f"[GENERATE IMAGE] URL: {url_info}")
-                    logger.info("=" * 80)
-                    # Seed уже залогирован в start_generation с сообщением "Generating random seed: {seed}"
-                    
-                    # ВАЖНО: Тратим монеты СРАЗУ при запуске задачи, а не при завершении
-                    # Это предотвращает злоупотребление (если пользователь отменит задачу, монеты уже списаны)
-                    if user_id:
-                        from app.services.coins_service import CoinsService
-                        from app.database.db import async_session_maker
-                        from app.chat_bot.api.character_endpoints import PHOTO_GENERATION_COST
-                        
-                        async with async_session_maker() as db:
-                            coins_service = CoinsService(db)
-                            await coins_service.spend_coins(user_id, PHOTO_GENERATION_COST, commit=False)
-                            
-                            # Записываем историю баланса
-                            try:
-                                from app.utils.balance_history import record_balance_change
-                                character_name_for_history = character_data_for_history.get("name", "неизвестный") if character_data_for_history else "неизвестный"
-                                await record_balance_change(
-                                    db=db,
-                                    user_id=user_id,
-                                    amount=-PHOTO_GENERATION_COST,
-                                    reason=f"Генерация фото для персонажа '{character_name_for_history}'"
-                                )
-                            except Exception as e:
-                                logger.warning(f"Не удалось записать историю баланса: {e}")
-                            
-                            await db.commit()
-                            logger.info(f"[COINS] Списано {PHOTO_GENERATION_COST} монет за запуск генерации для user_id={user_id}")
-                    
-                    # КРИТИЧЕСКИ ВАЖНО: Сохраняем метаданные генерации в Redis для сохранения истории после завершения
-                    if user_id and character_data_for_history:
-                        try:
-                            from app.utils.redis_cache import cache_set
-                            from app.database.db import async_session_maker
-                            from app.models.image_generation_history import ImageGenerationHistory
-                            import json
-                            
-                            generation_metadata = {
-                                "user_id": user_id,
-                                "character_name": character_data_for_history.get("name"),
-                                "character_id": character_data_for_history.get("id"),
-                                "prompt": request.prompt,
-                                "task_id": job_id,
-                                "runpod_url_base": runpod_url_base,  # Сохраняем для правильной проверки статуса
-                                "model": selected_model,  # Сохраняем модель для отладки
-                                "created_at": time.time()  # Время запуска задачи для оценки прогресса
-                            }
-                            
-                            # ВАЖНО: Сохраняем метаданные в БД сразу (fallback на случай если Redis недоступен)
-                            # Это гарантирует, что история будет сохранена даже без Redis
-                            async with async_session_maker() as fallback_db:
-                                try:
-                                    # Сохраняем runpod_url_base и model в prompt как JSON для восстановления при проверке статуса
-                                    import json
-                                    prompt_with_metadata = json.dumps({
-                                        "prompt": request.prompt,
-                                        "runpod_url_base": runpod_url_base,
-                                        "model": selected_model
-                                    }, ensure_ascii=False)
-                                    
-                                    # Создаем временную запись с пустым image_url (будет обновлена при завершении)
-                                    temp_entry = ImageGenerationHistory(
-                                        user_id=user_id,
-                                        character_name=character_data_for_history.get("name"),
-                                        prompt=prompt_with_metadata,  # Сохраняем метаданные в JSON
-                                        image_url=f"pending:{job_id}",  # Временный маркер
-                                        task_id=job_id
-                                    )
-                                    fallback_db.add(temp_entry)
-                                    await fallback_db.commit()
-                                    logger.info(f"[HISTORY] ✓ Метаданные сохранены в БД для task_id={job_id}: user_id={user_id}, character={character_data_for_history.get('name')}, runpod_url_base={runpod_url_base}, model={selected_model}")
-                                except Exception as db_error:
-                                    logger.error(f"[HISTORY] Ошибка сохранения метаданных в БД: {db_error}")
-                                    import traceback
-                                    logger.error(f"[HISTORY] Трейсбек: {traceback.format_exc()}")
-                                    await fallback_db.rollback()
-                            
-                            # Дополнительно сохраняем в Redis для быстрого доступа
-                            cache_saved = await cache_set(f"generation:{job_id}", generation_metadata, ttl_seconds=3600)
-                            if cache_saved:
-                                logger.info(f"[HISTORY] ✓ Метаданные также сохранены в Redis для task_id={job_id}")
-                            else:
-                                logger.warning(f"[HISTORY] Redis недоступен, но метаданные уже в БД для task_id={job_id}")
-                        except Exception as cache_error:
-                            logger.error(f"[HISTORY] Критическая ошибка сохранения метаданных: {cache_error}")
-                            import traceback
-                            logger.error(f"[HISTORY] Трейсбек: {traceback.format_exc()}")
-                    
-                    # Логируем seed, который был использован для генерации
-                    # Seed уже залогирован в runpod_client.py, но добавим здесь для удобства
-                    logger.info(f"[GENERATE] ✓ Задача запущена: job_id={job_id}, seed будет залогирован в runpod_client")
-                    
-                    # Возвращаем task_id сразу, фронтенд будет опрашивать статус
-                    # Это позволяет другим пользователям генерировать изображения параллельно
-                    return {
-                        "task_id": job_id,
-                        "status_url": f"/api/v1/generation-status/{job_id}",
-                        "success": True,
-                        "message": "Генерация запущена, используйте task_id для проверки статуса"
-                    }
-                    
-                except Exception as gen_error:
-                    print("=" * 80)
-                    print(f"[GENERATE IMAGE] ❌ ОШИБКА ПРИ ЗАПУСКЕ ГЕНЕРАЦИИ")
-                    print(f"[GENERATE IMAGE] {str(gen_error)}")
-                    print(traceback.format_exc())
-                    print("=" * 80)
-                    logger.error("=" * 80)
-                    logger.error(f"[GENERATE IMAGE] ❌ ОШИБКА ПРИ ЗАПУСКЕ ГЕНЕРАЦИИ")
-                    logger.error(f"[GENERATE IMAGE] Ошибка: {str(gen_error)}")
-                    logger.error(f"[GENERATE IMAGE] Тип ошибки: {type(gen_error).__name__}")
-                    import traceback
-                    logger.error(f"[GENERATE IMAGE] Трейсбек:")
-                    logger.error(traceback.format_exc())
-                    logger.error("=" * 80)
-                    raise
+            logger.info(f"[GENERATE] ✅ ЗАДАЧА ОТПРАВЛЕНА В CELERY (priority={task_priority})")
+            logger.info(f"[GENERATE] Task ID: {task.id}, Модель: {selected_model}")
+            
+            return {
+                "task_id": task.id,
+                "status_url": f"/api/v1/generation-status/{task.id}",
+                "success": True,
+                "message": f"Генерация запущена (приоритет: {task_priority}), используйте task_id для проверки статуса"
+            }
+            
+        except Exception as celery_error:
+            logger.error(f"[CELERY] Ошибка отправки задачи в Celery: {celery_error}")
+            raise HTTPException(status_code=500, detail=f"Ошибка запуска генерации: {str(celery_error)}")
                 
         except Exception as e:
             logger.error(f"[GENERATE] =========================================")

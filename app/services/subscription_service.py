@@ -69,7 +69,8 @@ class SubscriptionService:
                 return subscription
         
         # Если нет в кэше, загружаем из БД
-        query = select(UserSubscription).where(UserSubscription.user_id == user_id)
+        # Используем order_by для получения самой последней подписки, если их несколько
+        query = select(UserSubscription).where(UserSubscription.user_id == user_id).order_by(UserSubscription.activated_at.desc())
         result = await self.db.execute(query)
         subscription = result.scalars().first()
         

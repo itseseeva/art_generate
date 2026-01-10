@@ -21,6 +21,7 @@ class CreateKassaPaymentRequest(BaseModel):
 	amount: float = Field(..., gt=0, description="Сумма в RUB")
 	description: str = Field(..., min_length=3, max_length=255)
 	plan: str | None = None  # 'standard' | 'premium'
+	months: int = Field(default=1, ge=1, le=12, description="Количество месяцев подписки")
 	package_id: str | None = None  # ID пакета кредитов
 	payment_type: str = Field(default="subscription", description="subscription или topup")
 	payment_method: str = Field(default="bank_card", description="sbp, sberbank, tinkoff_bank, yoo_money, bank_card")
@@ -64,6 +65,7 @@ async def create_kassa_payment(
 	
 	if payload.payment_type == "subscription" and payload.plan:
 		metadata["plan"] = payload.plan
+		metadata["months"] = str(payload.months)
 	elif payload.payment_type == "topup" and payload.package_id:
 		metadata["package_id"] = payload.package_id
 
@@ -263,11 +265,12 @@ async def process_yookassa_webhook(
 		
 		payment_type = metadata.get("payment_type", "subscription")
 		plan = metadata.get("plan")
+		months = int(metadata.get("months", 1))
 		package_id = metadata.get("package_id")
 		
 		logger.info(
 			f"[YOOKASSA WEBHOOK] Parsed metadata: user_id={user_id}, "
-			f"payment_type={payment_type}, plan={plan}, package_id={package_id}"
+			f"payment_type={payment_type}, plan={plan}, months={months}, package_id={package_id}"
 		)
 		
 		# Проверяем идемпотентность
@@ -371,8 +374,8 @@ async def process_yookassa_webhook(
 			
 		elif payment_type == "subscription" and plan:
 			# Активация подписки
-			sub = await service.activate_subscription(user_id, plan)
-			logger.info(f"[YOOKASSA WEBHOOK] Subscription activated: user_id={user_id}, plan={plan}")
+			sub = await service.activate_subscription(user_id, plan, months=months)
+			logger.info(f"[YOOKASSA WEBHOOK] Subscription activated: user_id={user_id}, plan={plan}, months={months}")
 			
 			transaction.processed = True
 			await db.commit()

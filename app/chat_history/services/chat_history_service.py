@@ -27,14 +27,12 @@ class ChatHistoryService:
         КРИТИЧЕСКИ ВАЖНО: PREMIUM обрабатывается так же, как STANDARD - никаких различий.
         """
         subscription = await self.subscription_service.get_user_subscription(user_id)
-        if not subscription:
+        if not subscription or not subscription.is_active:
             return False
         
         # КРИТИЧЕСКИ ВАЖНО: История доступна для STANDARD и PREMIUM подписок одинаково
         # PREMIUM должен работать так же, как STANDARD
         can_save = subscription.subscription_type in [SubscriptionType.STANDARD, SubscriptionType.PREMIUM]
-        if subscription.subscription_type == SubscriptionType.PREMIUM:
-            print(f"[DEBUG] PREMIUM подписка обнаружена для user_id={user_id} - can_save_history={can_save}")
         return can_save
     
     async def save_message(self, user_id: int, character_name: str, session_id: str, 
@@ -42,42 +40,67 @@ class ChatHistoryService:
                           image_url: Optional[str] = None, image_filename: Optional[str] = None,
                           generation_time: Optional[int] = None) -> bool:
         """Сохраняет сообщение в историю чата."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         try:
             # Проверяем права на сохранение истории
             if not await self.can_save_history(user_id):
+                logger.warning(f"[HISTORY] Пользователь {user_id} не имеет прав на сохранение истории")
                 return False
             
-            chat_message = ChatHistory(
-                user_id=user_id,
-                character_name=character_name,
-                session_id=session_id,
-                message_type=message_type,
-                message_content=message_content,
-                image_url=image_url,
-                image_filename=image_filename,
-                generation_time=generation_time
-            )
+            from sqlalchemy import text
+            # Пытаемся сохранить через raw SQL, так как поле generation_time может отсутствовать в БД
+            try:
+                # 1. Пытаемся вставить со всеми полями, включая generation_time
+                query = text("""
+                    INSERT INTO chat_history (user_id, character_name, session_id, message_type, message_content, image_url, image_filename, generation_time, created_at)
+                    VALUES (:user_id, :character_name, :session_id, :message_type, :message_content, :image_url, :image_filename, :generation_time, NOW())
+                """)
+                await self.db.execute(query, {
+                    "user_id": user_id,
+                    "character_name": character_name,
+                    "session_id": session_id,
+                    "message_type": message_type,
+                    "message_content": message_content,
+                    "image_url": image_url,
+                    "image_filename": image_filename,
+                    "generation_time": generation_time
+                })
+            except Exception as e:
+                # Если ошибка (вероятно, нет колонки generation_time), пробуем без неё
+                logger.warning(f"[HISTORY] Ошибка вставки с generation_time (возможно, нет колонки): {e}")
+                await self.db.rollback()
+                
+                query = text("""
+                    INSERT INTO chat_history (user_id, character_name, session_id, message_type, message_content, image_url, image_filename, created_at)
+                    VALUES (:user_id, :character_name, :session_id, :message_type, :message_content, :image_url, :image_filename, NOW())
+                """)
+                await self.db.execute(query, {
+                    "user_id": user_id,
+                    "character_name": character_name,
+                    "session_id": session_id,
+                    "message_type": message_type,
+                    "message_content": message_content,
+                    "image_url": image_url,
+                    "image_filename": image_filename
+                })
             
-            self.db.add(chat_message)
             await self.db.commit()
-            await self.db.refresh(chat_message)
             
             # Инвалидируем кэш истории чата
             cache_key = key_chat_history(user_id, character_name, session_id)
             await cache_delete(cache_key)
             
-            # Инвалидируем кэш списка персонажей, чтобы новый персонаж появился на странице /history
+            # Инвалидируем кэш списка персонажей
             from app.utils.redis_cache import key_user_characters
-            import logging
-            logger = logging.getLogger(__name__)
             user_characters_cache_key = key_user_characters(user_id)
             await cache_delete(user_characters_cache_key)
-            logger.info(f"[HISTORY] Кэш списка персонажей инвалидирован для user_id={user_id}")
             
             return True
             
         except Exception as e:
-            print(f"[ERROR] Ошибка сохранения сообщения в историю: {e}")
+            logger.error(f"[HISTORY] Ошибка сохранения сообщения: {e}")
             await self.db.rollback()
             return False
     

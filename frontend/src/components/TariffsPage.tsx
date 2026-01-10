@@ -521,7 +521,8 @@ export const TariffsPage: React.FC = () => {
 
     try {
       const receiverWallet = '4100119070489003';
-      const amount = subscriptionType === 'premium' ? 1299 : 599;
+      // Standard теперь 499
+      const amount = subscriptionType === 'premium' ? 1299 : 499;
       const label = `plan:${subscriptionType};uid:${currentUserId}`;
       const successURL = `${window.location.origin}/frontend/payment/success/`;
       const quickPayUrl =
@@ -550,7 +551,8 @@ export const TariffsPage: React.FC = () => {
     if (!userInfo?.id) return;
 
     try {
-      const amount = subscriptionType === 'premium' ? 1299 : 599;
+      // Standard теперь 499
+      const amount = subscriptionType === 'premium' ? 1299 : 499;
       const description = subscriptionType === 'premium'
         ? 'Оплата подписки PREMIUM на 30 дней'
         : 'Оплата подписки STANDARD на 30 дней';
@@ -692,12 +694,14 @@ export const TariffsPage: React.FC = () => {
 
           <Card $highlight>
             <PlanName>Стандарт</PlanName>
-            <Price>599₽ <span>/ месяц</span></Price>
+            <Price>499₽ <span>/ месяц</span></Price>
             <FeatureList>
-              <Feature>1000 кредитов</Feature>
+              <Feature>1500 кредитов</Feature>
               <Feature>Доступ ко всем персонажам</Feature>
+              <Feature>Расширенная память (8 000 токенов)</Feature>
               <Feature>Сохранение истории сообщений</Feature>
               <Feature>Создание платных альбомов</Feature>
+              <Feature style={{color: '#a78bfa', fontWeight: 'bold'}}>Бонус до +10% при оплате за год</Feature>
             </FeatureList>
             <ActivateButton 
               onClick={() => handleActivateSubscription('standard')}
@@ -734,12 +738,12 @@ export const TariffsPage: React.FC = () => {
             <FeatureList>
               <Feature>5000 кредитов</Feature>
               <Feature>Доступ ко всем персонажам</Feature>
+              <Feature>Глубокая память (16 000 токенов)</Feature>
               <Feature>Сохранение истории сообщений</Feature>
               <Feature>Создание платных альбомов</Feature>
               <Feature>Доступ ко всем платным альбомам</Feature>
               <Feature>Доступ ко всем галереям пользователей</Feature>
               <Feature>Выбор модели (PREMIUM могут выбрать модель сами)</Feature>
-              <Feature>Максимум токенов: 850 токенов на ответ</Feature>
             </FeatureList>
             <ActivateButton 
               onClick={() => handleActivateSubscription('premium')}

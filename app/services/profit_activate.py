@@ -235,22 +235,37 @@ class ProfitActivateService:
         
         return subscription
     
-    async def activate_subscription(self, user_id: int, subscription_type: str) -> UserSubscription:
+    async def activate_subscription(self, user_id: int, subscription_type: str, months: int = 1) -> UserSubscription:
         """Активирует или продлевает подписку для пользователя."""
         if subscription_type.lower() == "free":
             raise ValueError("Подписка Free доступна только при регистрации и не может быть активирована вручную.")
 
         # Определяем параметры подписки
         if subscription_type.lower() == "standard":
-            monthly_credits = 1500  # Увеличено с 1000 до 1500
-            monthly_photos = 0  # Без лимита - генерация оплачивается кредитами (10 кредитов за фото)
+            monthly_credits = 1500  # Базовый лимит
+            monthly_photos = 0
             max_message_length = 200
         elif subscription_type.lower() == "premium":
             monthly_credits = 5000
-            monthly_photos = 0  # Без лимита - генерация оплачивается кредитами (10 кредитов за фото)
+            monthly_photos = 0
             max_message_length = 300
         else:
             raise ValueError(f"Неподдерживаемый тип подписки: {subscription_type}")
+        
+        # Начисляем кредиты за ВСЕ месяцы сразу
+        total_period_credits = monthly_credits * months
+        
+        # БОНУСЫ К КРЕДИТАМ:
+        # +10% за 12 месяцев
+        # +5% за 6 месяцев
+        if months == 12:
+            bonus_credits = int(total_period_credits * 0.1)
+            total_period_credits += bonus_credits
+            logger.info(f"[SUBSCRIPTION] Добавлен бонус 10% за годовую подписку: {bonus_credits} кредитов")
+        elif months == 6:
+            bonus_credits = int(total_period_credits * 0.05)
+            total_period_credits += bonus_credits
+            logger.info(f"[SUBSCRIPTION] Добавлен бонус 5% за 6 месяцев: {bonus_credits} кредитов")
         
         # Получаем пользователя для работы с балансом
         from app.models.user import Users
@@ -288,15 +303,16 @@ class ProfitActivateService:
                 logger.info(f"[OLD BALANCE] Баланс пользователя: {old_user_balance} монет")
                 logger.info(f"[OLD EXPIRES] Текущая дата окончания: {existing_subscription.expires_at}")
                 
-                # ПРОДЛЕНИЕ: сдвигаем дату окончания (текущая дата окончания + 30 дней)
-                new_expires_at = existing_subscription.expires_at + timedelta(days=30)
+                # ПРОДЛЕНИЕ: сдвигаем дату окончания (текущая дата окончания + 30 дней * количество месяцев)
+                days_to_add = 30 * months
+                new_expires_at = existing_subscription.expires_at + timedelta(days=days_to_add)
                 
-                # Кредиты ДОБАВЛЯЮТСЯ к текущим остаткам
+                # Кредиты ДОБАВЛЯЮЦА к текущим остаткам (за весь период)
                 # Для STANDARD и PREMIUM фото не ограничены (monthly_photos = 0)
-                total_credits_to_add = monthly_credits
+                total_credits_to_add = total_period_credits
                 
-                # Обновляем лимиты: увеличиваем monthly_credits
-                existing_subscription.monthly_credits = old_monthly_credits + monthly_credits
+                # Обновляем лимиты: устанавливаем БАЗОВЫЙ месячный лимит (не суммируем!)
+                existing_subscription.monthly_credits = monthly_credits
                 # monthly_photos остается 0 для STANDARD и PREMIUM
                 
                 # Кредиты переводим на баланс
@@ -380,11 +396,11 @@ class ProfitActivateService:
                     logger.info(f"[UPGRADE] Старая подписка была {old_type.upper()}, фото без ограничений")
                 
                 existing_subscription.activated_at = datetime.utcnow()
-                existing_subscription.expires_at = datetime.utcnow() + timedelta(days=30)
+                existing_subscription.expires_at = datetime.utcnow() + timedelta(days=30 * months)
                 existing_subscription.last_reset_at = datetime.utcnow()
                 
                 # ДОПОЛНИТЕЛЬНЫЙ БОНУС: Старые остатки переводим на баланс
-                total_credits_to_add = monthly_credits + old_credits_remaining
+                total_credits_to_add = total_period_credits + old_credits_remaining
                 user.coins += total_credits_to_add
                 
                 # Записываем историю баланса
@@ -423,7 +439,7 @@ class ProfitActivateService:
                 
                 # КРИТИЧНО: Убеждаемся, что expires_at установлена корректно
                 if not existing_subscription.expires_at or existing_subscription.expires_at <= datetime.utcnow():
-                    new_expires = datetime.utcnow() + timedelta(days=30)
+                    new_expires = datetime.utcnow() + timedelta(days=30 * months)
                     logger.warning(f"[UPGRADE] ⚠️ expires_at некорректна, исправляем: {existing_subscription.expires_at} -> {new_expires}")
                     existing_subscription.expires_at = new_expires
                 
@@ -472,15 +488,15 @@ class ProfitActivateService:
             used_credits=0,
             used_photos=0,
             activated_at=datetime.utcnow(),
-            expires_at=datetime.utcnow() + timedelta(days=30),
+            expires_at=datetime.utcnow() + timedelta(days=30 * months),
             last_reset_at=datetime.utcnow()
         )
         
         self.db.add(subscription)
         
-        # Начисляем кредиты на баланс при первой подписке
+        # Начисляем кредиты на баланс при первой подписке (за весь период)
         old_user_balance = user.coins
-        user.coins += monthly_credits
+        user.coins += total_period_credits
         
         # Записываем историю баланса
         try:
@@ -488,8 +504,8 @@ class ProfitActivateService:
             await record_balance_change(
                 db=self.db,
                 user_id=user_id,
-                amount=monthly_credits,
-                reason=f"Активация подписки {subscription_type.upper()} (кредиты подписки переведены на баланс)"
+                amount=total_period_credits,
+                reason=f"Активация подписки {subscription_type.upper()} на {months} мес. (кредиты подписки переведены на баланс)"
             )
         except Exception as e:
             logger.warning(f"Не удалось записать историю баланса: {e}")
@@ -501,7 +517,7 @@ class ProfitActivateService:
         
         # КРИТИЧНО: Убеждаемся, что expires_at установлена корректно
         if not subscription.expires_at or subscription.expires_at <= datetime.utcnow():
-            new_expires = datetime.utcnow() + timedelta(days=30)
+            new_expires = datetime.utcnow() + timedelta(days=30 * months)
             logger.warning(f"[NEW SUBSCRIPTION] ⚠️ expires_at некорректна, исправляем: {subscription.expires_at} -> {new_expires}")
             subscription.expires_at = new_expires
         

@@ -41,6 +41,10 @@ const LanguageToggle = styled.div`
   border-radius: ${theme.borderRadius.md};
   padding: 4px;
   backdrop-filter: blur(15px);
+
+  @media (max-width: 768px) {
+    padding: 2px;
+  }
 `;
 
 const LanguageButton = styled.button<{ $isActive: boolean }>`
@@ -56,6 +60,12 @@ const LanguageButton = styled.button<{ $isActive: boolean }>`
   cursor: pointer;
   transition: all 0.2s ease;
   min-width: 44px;
+
+  @media (max-width: 768px) {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    min-width: 32px;
+  }
   
   &:hover {
     background: ${props => props.$isActive 
@@ -81,14 +91,14 @@ const TextAreaWrapper = styled.div`
 
 const TextArea = styled.textarea<{ $isDisabled: boolean; $isMobile?: boolean }>`
   flex: 1;
-  min-height: ${props => props.$isMobile ? '38px' : '80px'};
+  min-height: ${props => props.$isMobile ? '34px' : '80px'};
   max-height: ${props => props.$isMobile ? '120px' : '200px'};
-  padding: ${props => props.$isMobile ? '8px 12px' : theme.spacing.lg};
+  padding: ${props => props.$isMobile ? '6px 12px' : theme.spacing.lg};
   background: rgba(25, 25, 25, 0.8);
   border: 1px solid rgba(50, 50, 50, 0.6);
   border-radius: ${theme.borderRadius.xl};
   color: rgba(240, 240, 240, 1);
-  font-size: ${props => props.$isMobile ? '0.95rem' : theme.fontSize.base};
+  font-size: ${props => props.$isMobile ? '0.9rem' : theme.fontSize.base};
   font-family: inherit;
   resize: none;
   transition: all 0.3s ease;
@@ -361,14 +371,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               $isMobile={isMobile}
               rows={1}
             />
-            {isMobile && message.trim() && (
+            {isMobile && (
               <IconButton 
                 type="button" 
                 onClick={handleSend} 
-                disabled={disabled}
-                style={{ color: theme.colors.accent?.primary || '#764ba2' }}
+                disabled={disabled || !message.trim()}
+                style={{ 
+                  color: !message.trim() ? 'rgba(150, 150, 150, 0.4)' : (theme.colors.accent?.primary || '#764ba2'),
+                  padding: '4px 8px'
+                }}
               >
-                <FiSend size={24} />
+                <FiSend size={22} />
               </IconButton>
             )}
           </TextAreaWrapper>

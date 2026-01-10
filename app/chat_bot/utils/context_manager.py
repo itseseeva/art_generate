@@ -45,24 +45,17 @@ def get_context_limit(subscription_type: Optional[SubscriptionType]) -> Optional
         return 20
 
 
-def get_max_context_tokens(subscription_type: Optional[SubscriptionType]) -> int:
+def get_max_context_tokens(subscription_type: Optional[SubscriptionType], model: Optional[str] = None) -> int:
     """
-    Возвращает максимальное количество токенов для контекста (включая system prompt)
-    на основе типа подписки.
-
-    Args:
-        subscription_type: Тип подписки пользователя
-
-    Returns:
-        Максимальное количество токенов для контекста
+    Возвращает максимальное количество токенов для контекста на основе подписки и модели.
     """
+    # Определяем базовый лимит на основе подписки (НОВЫЕ ЛИМИТЫ 2026)
     if subscription_type == SubscriptionType.PREMIUM:
-        return 8192  # 8192 токенов для PREMIUM
+        return 16000
     elif subscription_type == SubscriptionType.STANDARD:
-        return 4096  # 4096 токенов для STANDARD
+        return 8000
     else:
-        # FREE или отсутствие подписки - 2048 токенов для контекста
-        return 2048
+        return 4096  # FREE лимит
 
 
 def get_max_tokens(subscription_type: Optional[SubscriptionType]) -> int:
@@ -218,6 +211,7 @@ async def trim_messages_to_token_limit(
     trimmed_history = []
     current_tokens = 0
     removed_count = 0
+    original_history_count = len(history_messages)
 
     # Идем с конца (самые новые сообщения) и добавляем их в trimmed_history
     for msg in reversed(history_messages):
@@ -227,8 +221,6 @@ async def trim_messages_to_token_limit(
             current_tokens += msg_tokens
         else:
             removed_count += 1
-            # Продолжаем проверять, может быть следующее сообщение поместится
-            # УДАЛЕНО ограничение removed_count > len(history_messages) // 2 для корректной очистки контекста
 
     # Если все еще не укладывается, удаляем самые старые
     while current_tokens > available_tokens and trimmed_history:
@@ -236,6 +228,17 @@ async def trim_messages_to_token_limit(
         removed_tokens = count_message_tokens(removed_msg)
         current_tokens -= removed_tokens
         removed_count += 1
+
+    if removed_count > 0:
+        logger.warning(
+            f"[CONTEXT] История ОБРЕЗАНА! Удалено {removed_count} из {original_history_count} сообщений. "
+            f"Текущий контекст: {current_tokens + system_tokens}/{max_tokens} токенов."
+        )
+    else:
+        logger.info(
+            f"[CONTEXT] Контекст в норме: {current_tokens + system_tokens}/{max_tokens} токенов. "
+            f"Сообщений в истории: {len(trimmed_history)}"
+        )
 
     # Возвращаем системное сообщение + обрезанную историю
     result = [system_message] + trimmed_history

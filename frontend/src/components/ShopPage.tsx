@@ -1,29 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
+import { motion, AnimatePresence } from 'motion/react';
 import { AuthModal } from './AuthModal';
 import { SuccessToast } from './SuccessToast';
 import SplitText from './SplitText';
 import { API_CONFIG } from '../config/api';
 import { authManager } from '../utils/auth';
+import { FiCheck, FiCpu, FiImage, FiMessageSquare, FiZap } from 'react-icons/fi';
+import { FaBitcoin } from 'react-icons/fa';
 
 const MainContainer = styled.div`
   width: 100%;
   min-height: 100vh;
-  background: linear-gradient(145deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%);
-  padding: 1.5rem 1rem;
-  overflow-y: auto;
+  background: #0a0a0a;
+  padding: 2rem 1rem;
+  overflow-y: scroll; /* Всегда показываем скроллбар, чтобы не было прыжков экрана по горизонтали */
   position: relative;
-  box-sizing: border-box;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.5), transparent);
-  }
+  font-family: 'Inter', sans-serif;
+  color: white;
 `;
 
 const ContentWrapper = styled.div`
@@ -31,207 +25,305 @@ const ContentWrapper = styled.div`
   margin: 0 auto;
   position: relative;
   z-index: 1;
-  padding-top: 3rem;
-`;
-
-const PageTitle = styled.div`
-  text-align: center;
-  margin-bottom: 1.5rem;
-  
-  h1 {
-    font-size: 2rem;
-    font-weight: 700;
-    color: #ffffff;
-    letter-spacing: -0.02em;
-    margin: 0;
-    position: relative;
-    margin-bottom: 0.5rem;
-    
-    &::after {
-      content: '';
-      position: absolute;
-      bottom: -6px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 100px;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, #8b5cf6, transparent);
-      border-radius: 2px;
-    }
-  }
-  
-  p {
-    color: #b8b8b8;
-    font-size: 0.9rem;
-    margin-top: 0.5rem;
-    font-weight: 300;
-  }
-`;
-
-const SubscriptionSection = styled.div`
-  max-width: 1200px;
-  margin: 0 auto;
-`;
-
-const SectionTitle = styled.h4`
-  color: #ffffff;
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin-bottom: 1.25rem;
-  text-align: center;
-  background: linear-gradient(135deg, #ffffff 0%, #a78bfa 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-`;
-
-const SubscriptionPlans = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-  margin-bottom: 2rem;
-  
-  @media (max-width: 1024px) {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
-  @media (max-width: 768px) {
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
-  }
-`;
-
-const PlanCard = styled.div<{ $isPopular?: boolean }>`
-  background: ${props => props.$isPopular 
-    ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(99, 102, 241, 0.1) 100%)' 
-    : 'linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)'};
-  border: 2px solid ${props => props.$isPopular 
-    ? 'rgba(139, 92, 246, 0.4)' 
-    : 'rgba(255, 255, 255, 0.1)'};
-  border-radius: 12px;
-  padding: 1.25rem;
-  text-align: center;
-  position: relative;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: ${props => props.$isPopular 
-    ? '0 10px 30px rgba(139, 92, 246, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)' 
-    : '0 5px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)'};
-  overflow: hidden;
   display: flex;
   flex-direction: column;
-  
+  align-items: center;
+`;
+
+const ToggleContainer = styled.div`
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 30px;
+  padding: 4px;
+  display: flex;
+  gap: 4px;
+  margin-bottom: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+`;
+
+const ToggleButton = styled.button<{ $active: boolean }>`
+  background: ${props => props.$active ? '#7c3aed' : 'transparent'};
+  color: ${props => props.$active ? 'white' : '#888'};
+  border: none;
+  border-radius: 25px;
+  padding: 0.5rem 2rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+
+  &:hover {
+    color: white;
+    background: ${props => props.$active ? '#7c3aed' : 'rgba(124, 58, 237, 0.1)'};
+  }
+`;
+
+const SaleBanner = styled.div`
+  width: 100%;
+  max-width: 800px;
+  border: 1px solid #d946ef;
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  background: rgba(217, 70, 239, 0.05);
+  position: relative;
+  overflow: hidden;
+
   &::before {
     content: '';
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
-    height: 2px;
-    background: ${props => props.$isPopular 
-      ? 'linear-gradient(90deg, #8b5cf6, #6366f1, #8b5cf6)' 
-      : 'transparent'};
-    opacity: ${props => props.$isPopular ? 1 : 0};
-    transition: opacity 0.3s ease;
+    bottom: 0;
+    background: radial-gradient(circle at center, rgba(217, 70, 239, 0.2) 0%, transparent 70%);
+    pointer-events: none;
   }
-  
-  &:hover {
-    transform: translateY(-4px) scale(1.01);
-    border-color: ${props => props.$isPopular 
-      ? 'rgba(139, 92, 246, 0.6)' 
-      : 'rgba(255, 255, 255, 0.2)'};
-    box-shadow: ${props => props.$isPopular 
-      ? '0 15px 40px rgba(139, 92, 246, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.15)' 
-      : '0 10px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)'};
-  }
-  
-  ${props => props.$isPopular && `
-    &::after {
-      content: 'ПОПУЛЯРНЫЙ';
-      position: absolute;
-      top: 12px;
-      right: -30px;
-      background: linear-gradient(135deg, #8b5cf6, #6366f1);
-      color: white;
-      padding: 3px 32px;
-      font-size: 0.65rem;
-      font-weight: 700;
-      transform: rotate(45deg);
-      box-shadow: 0 3px 8px rgba(139, 92, 246, 0.4);
-    }
-  `}
 `;
 
-const PlanName = styled.h5`
-  font-size: 1.1rem;
-  font-weight: 700;
-  margin-bottom: 0.5rem;
-  margin-top: 0;
-  background: linear-gradient(135deg, #ffffff 0%, #d1d5db 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-`;
-
-const PlanPrice = styled.div`
-  font-size: 1.75rem;
+const SaleText = styled.span`
+  font-family: 'Monoton', cursive, sans-serif; /* Fallback */
+  font-size: 1.8rem;
   font-weight: 800;
-  margin-bottom: 1rem;
-  background: linear-gradient(135deg, #ffffff 0%, #a78bfa 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  line-height: 1;
+  color: #f0abfc;
+  font-style: italic;
+  text-shadow: 0 0 10px rgba(217, 70, 239, 0.5);
+  letter-spacing: 1px;
 `;
 
-const PlanFeatures = styled.ul`
-  list-style: none;
-  padding: 0;
-  margin: 0 0 1rem 0;
-  text-align: left;
-  flex: 1;
+const DiscountTag = styled.div`
+  background: #000;
+  border: 1px solid #d946ef;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-weight: 800;
+  font-size: 1.2rem;
+  transform: skew(-10deg);
+  box-shadow: 0 0 10px rgba(217, 70, 239, 0.5);
 `;
 
-const PlanFeature = styled.li<{ $isAvailable?: boolean; $isHighlighted?: boolean }>`
-  color: ${props => {
-    if (props.$isAvailable === false) return '#666666';
-    if (props.$isHighlighted) return '#ffffff';
-    return '#d1d1d1';
-  }};
-  font-size: ${props => props.$isHighlighted ? '0.85rem' : '0.75rem'};
-  font-weight: ${props => props.$isHighlighted ? '600' : '400'};
-  margin-bottom: 0.5rem;
+const DurationTabs = styled.div`
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  width: 100%;
+  max-width: 800px;
+  margin-bottom: 3rem;
+
+  @media (max-width: 768px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+`;
+
+const DurationTab = styled.button<{ $active: boolean }>`
+  background: ${props => props.$active ? '#7c3aed' : '#1a1a1a'};
+  border: 1px solid ${props => props.$active ? '#7c3aed' : 'rgba(255, 255, 255, 0.1)'};
+  color: white;
+  padding: 0.75rem;
+  border-radius: 20px;
+  font-weight: 600;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: #7c3aed;
+    background: ${props => props.$active ? '#7c3aed' : 'rgba(124, 58, 237, 0.1)'};
+  }
+`;
+
+const SaveTag = styled.span`
+  position: absolute;
+  top: -10px;
+  right: -5px;
+  background: #be185d;
+  color: white;
+  font-size: 0.6rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  transform: rotate(5deg);
+`;
+
+const PlansGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 1000px;
+  perspective: 1000px;
+  align-items: end; /* Ровняем банеры по нижней линии */
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+`;
+
+const PlanCard = styled(motion.div)<{ $highlight?: boolean; $selected?: boolean; $planType?: 'free' | 'standard' | 'premium' }>`
+  background: ${props => props.$highlight 
+      ? 'linear-gradient(145deg, #2d2d2d 0%, #1a1a1a 100%)' 
+      : 'linear-gradient(145deg, #1a1a1a 0%, #2d2d2d 100%)'};
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  padding: 2rem 1.5rem; /* Немного уменьшил боковые отступы */
   display: flex;
+  flex-direction: column;
+  position: relative;
+  /* Фиксированная минимальная высота для стабильности при смене контента */
+  min-height: ${props => {
+    if (props.$planType === 'free') return '480px';
+    if (props.$planType === 'standard') return '580px';
+    if (props.$planType === 'premium') return '610px';
+    return '550px'; // Значение по умолчанию для кредитов
+  }};
+  backdrop-filter: blur(20px);
+  cursor: pointer;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease, min-height 0.3s ease;
+  overflow: visible; /* Чтобы бейдж не обрезался */
+
+  @media (max-width: 900px) {
+    min-height: auto;
+  }
+  
+  ${props => props.$highlight && css`
+    box-shadow: 0 4px 30px rgba(138, 43, 226, 0.15);
+  `}
+
+  &:hover {
+    box-shadow: 0 0 30px rgba(124, 58, 237, 0.2);
+  }
+`;
+
+const BestValueBadge = styled.div`
+  position: absolute;
+  top: -12px;
+  right: 20px;
+  background: #ef4444;
+  color: white;
+  font-weight: 800;
+  font-size: 0.7rem;
+  padding: 4px 12px;
+  border-radius: 20px; /* Более закругленный */
+  text-transform: uppercase;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+  white-space: nowrap;
+  z-index: 100;
+  letter-spacing: 0.5px;
+`;
+
+const PlanHeader = styled.div`
+  margin-bottom: 1.5rem;
+`;
+
+const PlanTitle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: ${props => props.color || 'white'};
+  margin-bottom: 0.25rem;
+`;
+
+const BillingInfo = styled.div`
+  font-size: 0.75rem;
+  color: #666;
+`;
+
+const PriceContainer = styled.div`
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+`;
+
+const Price = styled.div`
+  font-size: 2rem;
+  font-weight: 800;
+  color: white;
+`;
+
+const Period = styled.span`
+  font-size: 0.9rem;
+  color: #888;
+`;
+
+const OldPrice = styled.div`
+  font-size: 0.9rem;
+  color: #666;
+  text-decoration: line-through;
+`;
+
+const CheckoutButton = styled(motion.button)`
+  width: 100%;
+  height: 48px; /* Фиксированная высота для одинакового размера */
+  border: none;
+  border-radius: 12px;
+  padding: 0 1.2rem;
+  color: white;
+  font-weight: 800;
+  font-size: 0.95rem; /* Уменьшил размер шрифта */
+  margin-top: auto;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.2),
+      transparent
+    );
+    transition: 0.5s;
+  }
+
+  &:hover::before {
+    left: 100%;
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #333;
+    box-shadow: none;
+  }
+`;
+
+const FeaturesList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 2.5rem; /* Увеличил отступ снизу, чтобы кнопка не липла к тексту */
+`;
+
+const FeatureItem = styled.div`
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  color: #ccc;
   align-items: flex-start;
   line-height: 1.4;
-  
-  ${props => props.$isHighlighted && `
-    background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(99, 102, 241, 0.15) 100%);
-    padding: 0.5rem 0.75rem;
-    border-radius: 6px;
-    border: 1px solid rgba(139, 92, 246, 0.4);
-    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.2);
-    margin-top: 0.25rem;
-    margin-bottom: 0.75rem;
-    position: relative;
-  `}
-  
-  &::before {
-    content: ${props => props.$isAvailable === false ? "'✕'" : "'✓'"};
-    color: ${props => {
-      if (props.$isAvailable === false) return 'rgba(200, 100, 100, 1)';
-      if (props.$isHighlighted) return '#a78bfa';
-      return '#8b5cf6';
-    }};
-    margin-right: 0.5rem;
-    font-weight: bold;
-    font-size: ${props => props.$isHighlighted ? '0.9rem' : '0.8rem'};
+
+  svg {
+    color: #fbbf24;
     flex-shrink: 0;
-    margin-top: 1px;
-    text-shadow: ${props => {
-      if (props.$isAvailable === false) return 'none';
-      if (props.$isHighlighted) return '0 0 10px rgba(139, 92, 246, 0.8)';
-      return '0 0 8px rgba(139, 92, 246, 0.5)';
-    }};
+    margin-top: 2px;
   }
 `;
 
@@ -250,31 +342,32 @@ const PaymentButtonsContainer = styled.div`
 
 const PaymentButton = styled.button`
   width: 100%;
-  padding: 0.75rem 1rem;
+  padding: 0.6rem 0.8rem;
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 0.75rem;
+  gap: 0.6rem;
   background: #343042;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  border-radius: 10px;
   color: white;
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   cursor: pointer;
-  transition: transform 0.2s ease;
+  transition: all 0.2s ease;
   
   &:hover {
     transform: translateY(-2px);
+    background: #3d394d;
+    border-color: rgba(124, 58, 237, 0.3);
   }
 `;
 
-
 const PaymentLogo = styled.img`
-  width: 48px;
-  height: 48px;
+  width: 38px;
+  height: 38px;
   object-fit: contain;
-  border-radius: 8px;
+  border-radius: 6px;
   flex-shrink: 0;
   background: transparent;
   display: block;
@@ -282,101 +375,6 @@ const PaymentLogo = styled.img`
   &[src=""] {
     display: none;
   }
-`;
-
-const RenewalInfo = styled.div`
-  margin-top: 0.75rem;
-  padding: 0.75rem;
-  background: rgba(139, 92, 246, 0.1);
-  border: 1px solid rgba(139, 92, 246, 0.3);
-  border-radius: 8px;
-  font-size: 0.875rem;
-  color: #a78bfa;
-  text-align: center;
-  line-height: 1.4;
-`;
-
-const ActivateButton = styled.button`
-  width: 100%;
-  padding: 0.625rem 1rem;
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.8) 0%, rgba(99, 102, 241, 0.8) 100%);
-  color: #ffffff;
-  border: 1px solid rgba(139, 92, 246, 0.5);
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 3px 10px rgba(139, 92, 246, 0.3);
-  
-  &:hover:not(:disabled) {
-    background: linear-gradient(135deg, rgba(139, 92, 246, 1) 0%, rgba(99, 102, 241, 1) 100%);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
-  }
-  
-  &:disabled {
-    background: rgba(60, 60, 60, 0.5);
-    border-color: rgba(100, 100, 100, 0.3);
-    color: #888888;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
-  }
-`;
-
-const ErrorMessage = styled.div`
-  background: rgba(255, 100, 100, 0.1);
-  border: 1px solid rgba(255, 100, 100, 0.3);
-  color: rgba(255, 100, 100, 1);
-  padding: 0.75rem;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  text-align: center;
-  max-width: 600px;
-  margin: 1.5rem auto;
-`;
-
-const CurrentSubscriptionCard = styled.div`
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(99, 102, 241, 0.05) 100%);
-  border: 1px solid rgba(139, 92, 246, 0.2);
-  border-radius: 8px;
-  padding: 0.5rem 0.875rem;
-  text-align: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), 
-              inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  position: absolute;
-  top: 0;
-  right: 0;
-  overflow: hidden;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.5), transparent);
-  }
-`;
-
-const CurrentSubscriptionLabel = styled.div`
-  color: #888888;
-  font-size: 0.55rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin-bottom: 0.25rem;
-  font-weight: 600;
-`;
-
-const CurrentSubscriptionValue = styled.div`
-  background: linear-gradient(135deg, #ffffff 0%, #a78bfa 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  font-size: 0.875rem;
-  font-weight: 700;
 `;
 
 interface SubscriptionStats {
@@ -392,825 +390,560 @@ interface SubscriptionStats {
   expires_at?: string | null;
 }
 
-interface ShopPageProps {
-  onBackToMain: () => void;
-  onCreateCharacter?: () => void;
-  onEditCharacters?: () => void;
-  onProfile?: () => void;
-  onShop?: () => void;
-  onPaymentMethod?: (subscriptionType: string) => void;
-  isAuthenticated?: boolean;
-  userInfo?: {username: string, coins: number, id?: number} | null;
-}
+type BillingCycle = 'monthly' | '3_months' | '6_months' | 'yearly';
 
-export const ShopPage: React.FC<ShopPageProps> = ({
+const DISCOUNTS = {
+  'monthly': 0,
+  '3_months': 0.08,
+  '6_months': 0.15,
+  'yearly': 0.15 // Изменено с 0.21 на 0.15 (вместо скидки даем +10% бонуса к кредитам)
+};
+
+const CYCLE_MONTHS = {
+  'monthly': 1,
+  '3_months': 3,
+  '6_months': 6,
+  'yearly': 12
+};
+
+export const ShopPage: React.FC<any> = ({
   onBackToMain,
-  onCreateCharacter,
-  onEditCharacters,
-  onProfile,
-  onShop,
-  onPaymentMethod,
   isAuthenticated: propIsAuthenticated,
   userInfo: propUserInfo
 }) => {
+  const [viewMode, setViewMode] = useState<'subscription' | 'credits'>('subscription');
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>('yearly');
   const [stats, setStats] = useState<SubscriptionStats | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(propIsAuthenticated || false);
   const [userInfo, setUserInfo] = useState(propUserInfo || null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-  const [showSuccessToast, setShowSuccessToast] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [balanceRefreshTrigger, setBalanceRefreshTrigger] = useState(0);
-  const [statsRefreshTrigger, setStatsRefreshTrigger] = useState(0);
-  const [selectedPlanForPayment, setSelectedPlanForPayment] = useState<string | null>(null);
-  const [selectedCreditPackage, setSelectedCreditPackage] = useState<{id: string, price: number, credits: number} | null>(null);
-  // Инициализируем creditPackages с пустым массивом для предотвращения ошибок
-  const [creditPackages, setCreditPackages] = useState<Array<{id: string; name: string; credits: number; price: number; price_per_credit: number; description: string}>>([]);
-  const [isLoadingPackages, setIsLoadingPackages] = useState(false);
-  
-  // Защита от undefined - убеждаемся, что creditPackages всегда массив
-  // Вычисляем это значение каждый раз при рендере для безопасности
-  const getSafeCreditPackages = () => {
-    try {
-      return Array.isArray(creditPackages) ? creditPackages : [];
-    } catch (e) {
-      return [];
-    }
-  };
+  const [showPaymentOptions, setShowPaymentOptions] = useState<string | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const [creditPackages, setCreditPackages] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (propIsAuthenticated !== undefined) {
-      setIsAuthenticated(propIsAuthenticated);
-    }
-    if (propUserInfo !== undefined) {
-      setUserInfo(propUserInfo);
-    }
+    if (propIsAuthenticated !== undefined) setIsAuthenticated(propIsAuthenticated);
+    if (propUserInfo !== undefined) setUserInfo(propUserInfo);
   }, [propIsAuthenticated, propUserInfo]);
 
   useEffect(() => {
-    if (propIsAuthenticated === undefined) {
-      checkAuth();
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadSubscriptionStats();
-    }
-  }, [isAuthenticated, statsRefreshTrigger]);
-
-  useEffect(() => {
-    // Загружаем пакеты всегда, независимо от статуса подписки
+    if (isAuthenticated) loadSubscriptionStats();
     loadCreditPackages();
-    
-    // Проверяем, вернулись ли мы с YooMoney после оплаты
-    const urlParams = new URLSearchParams(window.location.search);
-    const paymentSuccess = urlParams.get('payment') === 'success';
-    
-    if (paymentSuccess) {
-      // Очищаем URL от параметров и восстанавливаем правильное состояние
-      window.history.replaceState({ page: 'shop' }, '', '/shop');
-      
-      // Обновляем баланс и статистику подписки
-      if (isAuthenticated) {
-        setBalanceRefreshTrigger(prev => prev + 1);
-        setStatsRefreshTrigger(prev => prev + 1);
-        
-        // Показываем сообщение об успехе
-        setSuccessMessage('Оплата успешно обработана! Ваш баланс обновлен.');
-        setShowSuccessToast(true);
-        setTimeout(() => setShowSuccessToast(false), 5000);
-      }
-    }
-    
-    // Обработка кнопки "назад" в браузере
-    const handlePopState = (event: PopStateEvent) => {
-      // Если вернулись с оплаты (из внешнего сайта), восстанавливаем состояние shop
-      if (event.state && event.state.page === 'shop') {
-        // Страница уже должна быть shop, просто обновляем данные
-        if (isAuthenticated) {
-          loadSubscriptionStats();
-          loadCreditPackages();
-        }
-      } else if (!event.state || !event.state.page) {
-        // Если нет состояния, но мы на /shop, восстанавливаем состояние
-        if (window.location.pathname.includes('/shop')) {
-          window.history.replaceState({ page: 'shop' }, '', '/shop');
-        }
-      }
-    };
-    
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
   }, [isAuthenticated]);
-
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    const handleUpdate = () => {
-      
-      loadSubscriptionStats();
-      checkAuth();
-      // Диспатчим событие обновления баланса
-      window.dispatchEvent(new Event('balance-update'));
-    };
-
-    window.addEventListener('subscription-update', handleUpdate);
-    return () => window.removeEventListener('subscription-update', handleUpdate);
-  }, [isAuthenticated]);
-
-  // Автообновление статистики каждые 10 секунд
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    const interval = setInterval(() => {
-      
-      loadSubscriptionStats();
-    }, 10000); // 10 секунд
-
-    return () => clearInterval(interval);
-  }, [isAuthenticated]);
-
-  const checkAuth = async () => {
-    try {
-      const token = localStorage.getItem('authToken');
-      if (!token) {
-        setIsAuthenticated(false);
-        setUserInfo(null);
-        return;
-      }
-
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.ok) {
-        const userData = await response.json();
-        if (userData) {
-          setUserInfo({
-            username: userData.email,
-            coins: userData.coins || 0,
-            id: userData.id
-          });
-          setIsAuthenticated(true);
-          setBalanceRefreshTrigger(prev => prev + 1);
-        } else {
-          
-          setIsAuthenticated(false);
-          setUserInfo(null);
-        }
-      } else {
-        setIsAuthenticated(false);
-        setUserInfo(null);
-      }
-    } catch (error) {
-      
-      setIsAuthenticated(false);
-    }
-  };
 
   const loadSubscriptionStats = async () => {
     try {
       const token = localStorage.getItem('authToken');
       if (!token) return;
-
-      
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/profit/stats/`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      
       if (response.ok) {
-        const statsData = await response.json();
-        
-        
-        
-        
-        setStats(statsData);
-      } else {
-        
+        const data = await response.json();
+        setStats(data);
       }
-    } catch (error) {
-      
+    } catch (e) {
+      console.error(e);
     }
   };
 
   const loadCreditPackages = async () => {
     try {
-      setIsLoadingPackages(true);
-      
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/subscription/credit-packages/`);
-      
-      
       if (response.ok) {
         const data = await response.json();
-        
-        if (data.success && data.packages) {
-          
-          setCreditPackages(data.packages);
-        } else {
-          
-        }
-      } else {
-        const errorText = await response.text();
-        
+        if (data.success) setCreditPackages(data.packages);
       }
-    } catch (error) {
-      
-    } finally {
-      setIsLoadingPackages(false);
+    } catch (e) {
+      console.error(e);
     }
   };
 
-  const handleCreditTopUpPayment = (packageId: string, price: number, credits: number) => {
-    const currentUserId = userInfo?.id;
-    if (!currentUserId) {
+  const calculatePrice = (basePrice: number) => {
+    const months = CYCLE_MONTHS[billingCycle];
+    const discount = DISCOUNTS[billingCycle];
+    
+    // Рассчитываем месячную цену со скидкой и округляем её
+    const monthlyDiscounted = basePrice * (1 - discount);
+    const roundedMonthly = Math.floor(monthlyDiscounted); // Используем floor для более привлекательной цены
+    
+    // Итоговая цена должна быть строго кратна месячной
+    const totalDiscounted = roundedMonthly * months;
+    const totalOriginal = basePrice * months;
+    
+    return {
+      monthly: roundedMonthly,
+      total: totalDiscounted,
+      originalMonthly: basePrice,
+      originalTotal: totalOriginal,
+      discountPercent: Math.round(discount * 100)
+    };
+  };
+
+  const getBillingText = () => {
+    if (billingCycle === 'monthly') return 'Списывается ежемесячно';
+    return ''; // Удалено "Списывается каждые X месяца(ев)"
+  };
+
+  const handleSubscriptionClick = (plan: string) => {
+    if (!isAuthenticated) {
       setAuthMode('login');
       setIsAuthModalOpen(true);
       return;
     }
+    setShowPaymentOptions(showPaymentOptions === plan ? null : plan);
+  };
+
+  const handlePayment = async (plan: string, method: string) => {
+    if (!userInfo?.id) return;
 
     try {
-      const receiverWallet = '4100119070489003';
-      const label = `type:topup;package:${packageId};uid:${currentUserId}`;
-      const successURL = `${window.location.origin}/shop`;
-      const quickPayUrl =
-        `https://yoomoney.ru/quickpay/confirm.xml` +
-        `?receiver=${encodeURIComponent(receiverWallet)}` +
-        `&quickpay-form=shop` +
-        `&targets=${encodeURIComponent(`Покупка ${credits} кредитов`)}` +
-        `&formcomment=${encodeURIComponent('Пополнение баланса Spicychat')}` +
-        `&short-dest=${encodeURIComponent('Пополнение баланса')}` +
-        `&sum=${encodeURIComponent(price.toFixed(2))}` +
-        `&label=${encodeURIComponent(label)}` +
-        `&successURL=${encodeURIComponent(successURL)}`;
+      // Используем актуальные цены (Standard теперь 499)
+      const priceInfo = calculatePrice(plan === 'premium' ? 1299 : 499);
+      const amount = priceInfo.total;
+      const description = `${plan.toUpperCase()} Subscription (${billingCycle.replace('_', ' ')})`;
 
-      window.location.href = quickPayUrl;
-    } catch (err) {
-      
-      setError('Не удалось открыть страницу оплаты YooMoney');
-    }
-  };
-
-  const handleActivateSubscription = async (subscriptionType: string) => {
-    const token = localStorage.getItem('authToken');
-    
-    // Если нет токена, тогда требуем вход
-    if (!token) {
-      setAuthMode('login');
-      setIsAuthModalOpen(true);
-      return;
-    }
-    
-    // Если есть токен, но нет userInfo, пробуем загрузить его
-    let currentUserId = userInfo?.id;
-    if (!currentUserId) {
-      try {
-        const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        if (response.ok) {
-          const userData = await response.json();
-          currentUserId = userData.id;
-          // Обновляем стейт на будущее
-          setUserInfo({
-            username: userData.email,
-            coins: userData.coins || 0,
-            id: userData.id
-          });
-          setIsAuthenticated(true);
-        }
-      } catch (e) {
-        
-      }
-    }
-
-    // Если все еще нет ID, просто выводим ошибку, но не открываем окно входа
-    if (!currentUserId) {
-      
-      setError('Ошибка: не удалось определить пользователя. Попробуйте обновить страницу.');
-      return;
-    }
-    
-    // Раскрываем кнопки оплаты для выбранного плана
-    // Если уже выбран этот план - скрываем, иначе показываем
-    setSelectedPlanForPayment(selectedPlanForPayment === subscriptionType ? null : subscriptionType);
-    
-  };
-
-  const handleYoumoneyPayment = async (subscriptionType: string) => {
-    
-    
-    let currentUserId = userInfo?.id;
-    
-    // Если userInfo отсутствует, пытаемся загрузить его
-    if (!currentUserId) {
       const token = localStorage.getItem('authToken');
-      if (token) {
-        try {
-          
-          const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`, {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-          if (response.ok) {
-            const userData = await response.json();
-            currentUserId = userData.id;
-            setUserInfo({
-              username: userData.email,
-              coins: userData.coins || 0,
-              id: userData.id
-            });
-            setIsAuthenticated(true);
-            
-          }
-        } catch (e) {
-          
-        }
-      }
-    }
-    
-    if (!currentUserId) {
-      
-      setError('Ошибка: не удалось определить пользователя. Попробуйте обновить страницу.');
-      return;
-    }
-
-    try {
-      const receiverWallet = '4100119070489003';
-      const amount = subscriptionType === 'premium' ? 1299 : 599;
-      const label = `plan:${subscriptionType};uid:${currentUserId}`;
-      const successURL = `${window.location.origin}/shop`;
-      
-      // Формируем параметры отдельно для правильной кодировки
-      const targets = subscriptionType === 'premium'
-        ? 'Оплата подписки PREMIUM на 30 дней'
-        : 'Оплата подписки STANDARD на 30 дней';
-      
-      // Формируем URL для YooMoney QuickPay - используем правильную кодировку
-      const params = new URLSearchParams();
-      params.set('receiver', receiverWallet);
-      params.set('quickpay-form', 'shop');
-      params.set('targets', targets);
-      params.set('formcomment', 'Оплата подписки Spicychat');
-      params.set('short-dest', 'Подписка Spicychat');
-      params.set('sum', amount.toFixed(2));
-      params.set('label', label);
-      params.set('successURL', successURL);
-      
-      const quickPayUrl = `https://yoomoney.ru/quickpay/confirm.xml?${params.toString()}`;
-
-      
-      
-      
-      // Сохраняем состояние перед переходом на оплату
-      window.history.pushState({ page: 'shop', fromPayment: true }, '', '/shop');
-      
-      // Переходим на страницу оплаты
-      window.location.href = quickPayUrl;
-    } catch (err) {
-      
-      setError('Не удалось открыть страницу оплаты YooMoney');
-    }
-  };
-
-  const handleYooKassaPayment = async (subscriptionType: string, paymentMethod: string) => {
-    
-    
-    if (!userInfo?.id) {
-      setError('Не удалось определить пользователя для оплаты');
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      const amount = subscriptionType === 'premium' ? 1299 : 599;
-      const description = subscriptionType === 'premium'
-        ? 'Оплата подписки PREMIUM на 30 дней'
-        : 'Оплата подписки STANDARD на 30 дней';
-
-      const response = await authManager.fetchWithAuth('/api/v1/kassa/create_payment/', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/kassa/create_payment/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           amount,
           description,
-          plan: subscriptionType,
+          plan,
+          months: CYCLE_MONTHS[billingCycle],
           payment_type: 'subscription',
-          payment_method: paymentMethod
+          payment_method: method
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: 'Ошибка создания платежа' }));
-        throw new Error(errorData.detail || 'Ошибка создания платежа');
+      if (response.ok) {
+        const data = await response.json();
+        window.location.href = data.confirmation_url;
       }
-
-      const data = await response.json();
-      
-      // Переходим на страницу оплаты ЮKassa
-      window.location.href = data.confirmation_url;
-    } catch (err) {
-      
-      setError(err instanceof Error ? err.message : 'Не удалось создать платеж');
-    } finally {
-      setIsLoading(false);
+    } catch (e) {
+      console.error(e);
     }
   };
 
-  const handleYooKassaCreditTopUp = async (packageId: string, price: number, credits: number, paymentMethod: string) => {
-    
-    
-    if (!userInfo?.id) {
-      setError('Не удалось определить пользователя для оплаты');
+  const handleCreditPayment = async (pkg: any, method: string) => {
+    if (!isAuthenticated) {
+      setAuthMode('login');
+      setIsAuthModalOpen(true);
       return;
     }
 
     try {
-      setIsLoading(true);
-      const description = `Покупка ${credits} кредитов`;
-
-      const response = await authManager.fetchWithAuth('/api/v1/kassa/create_payment/', {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/kassa/create_payment/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
-          amount: price,
-          description,
-          package_id: packageId,
+          amount: pkg.price,
+          description: `Buy ${pkg.credits} credits`,
+          package_id: pkg.id,
           payment_type: 'topup',
-          payment_method: paymentMethod
+          payment_method: method
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: 'Ошибка создания платежа' }));
-        throw new Error(errorData.detail || 'Ошибка создания платежа');
+      if (response.ok) {
+        const data = await response.json();
+        window.location.href = data.confirmation_url;
       }
-
-      const data = await response.json();
-      
-      // Переходим на страницу оплаты ЮKassa
-      window.location.href = data.confirmation_url;
-    } catch (err) {
-      
-      setError(err instanceof Error ? err.message : 'Не удалось создать платеж');
-    } finally {
-      setIsLoading(false);
+    } catch (e) {
+      console.error(e);
     }
   };
 
+  const renderSubscriptionContent = () => {
+    const premiumPrice = calculatePrice(1299);
+    const standardPrice = calculatePrice(499); // Изменено с 599 на 499
+    const months = CYCLE_MONTHS[billingCycle];
+    const isYearly = billingCycle === 'yearly';
+    const is6Months = billingCycle === '6_months';
+
+    return (
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+      >
+        <DurationTabs>
+          <DurationTab $active={billingCycle === 'yearly'} onClick={() => setBillingCycle('yearly')}>
+            Год
+            <SaveTag>+10% БОНУС</SaveTag>
+          </DurationTab>
+          <DurationTab $active={billingCycle === '6_months'} onClick={() => setBillingCycle('6_months')}>
+            6 Месяцев
+            <SaveTag>+5% БОНУС</SaveTag>
+          </DurationTab>
+          <DurationTab $active={billingCycle === '3_months'} onClick={() => setBillingCycle('3_months')}>
+            3 Месяца
+            <SaveTag>SAVE 8%</SaveTag>
+          </DurationTab>
+          <DurationTab $active={billingCycle === 'monthly'} onClick={() => setBillingCycle('monthly')}>
+            Месяц
+          </DurationTab>
+        </DurationTabs>
+
+        <PlansGrid>
+          {/* PREMIUM CARD */}
+          <PlanCard 
+            $planType="premium"
+            $highlight={true} 
+            $selected={selectedPlan === 'premium'}
+            onClick={() => setSelectedPlan('premium')}
+            whileHover={{ y: -12, scale: 1.02 }}
+            whileTap={{ scale: 0.96 }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            style={{ 
+              borderColor: selectedPlan === 'premium' ? '#ef4444' : 'rgba(239, 68, 68, 0.3)',
+              boxShadow: selectedPlan === 'premium' ? '0 0 40px rgba(239, 68, 68, 0.3)' : 'none'
+            }}
+          >
+            <BestValueBadge>ЛУЧШИЙ ВЫБОР</BestValueBadge>
+            <PlanHeader>
+              <PlanTitle color="#ef4444">
+                Premium <FaBitcoin />
+              </PlanTitle>
+              <PriceContainer>
+                <Price>{premiumPrice.monthly}₽</Price>
+                <Period>/мес</Period>
+              </PriceContainer>
+              <OldPrice>{premiumPrice.originalMonthly}₽/мес</OldPrice>
+              <BillingInfo>{getBillingText()}</BillingInfo>
+            </PlanHeader>
+
+            <FeaturesList>
+              <FeatureItem>
+                <FiCheck style={{ color: '#ef4444' }} /> 
+                {isYearly ? (
+                  <span style={{color: '#ef4444', fontWeight: 'bold'}}>
+                    {Math.round(5000 * months * 1.1)} кредитов (+10% БОНУС)
+                  </span>
+                ) : is6Months ? (
+                  <span style={{color: '#ef4444', fontWeight: 'bold'}}>
+                    {Math.round(5000 * months * 1.05)} кредитов (+5% БОНУС)
+                  </span>
+                ) : (
+                  `${5000 * months} кредитов`
+                )}
+              </FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> Доступ ко всем персонажам</FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> Глубокая память (16 000 токенов)</FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> Сохранение истории сообщений</FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> Создание платных альбомов</FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> Доступ ко всем платным альбомам</FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> Доступ ко всем галереям пользователей</FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> Выбор модели (PREMIUM могут выбрать модель сами)</FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> <span style={{color: '#ef4444'}}>Приоритет в очереди генерации</span></FeatureItem>
+            </FeaturesList>
+
+            <CheckoutButton 
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={(e) => { e.stopPropagation(); handleSubscriptionClick('premium'); }}
+              style={{ background: 'linear-gradient(135deg, #ef4444 0%, #991b1b 100%)' }}
+            >
+              Купить за {premiumPrice.total}₽
+              <span style={{opacity: 0.7, fontSize: '0.8rem', textDecoration: 'line-through'}}>{premiumPrice.originalTotal}₽</span>
+            </CheckoutButton>
+
+            <AnimatePresence>
+              {showPaymentOptions === 'premium' && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.5, ease: "easeInOut" }}
+                >
+                  <PaymentButtonsContainer>
+                    <PaymentButton onClick={() => handlePayment('premium', 'sberbank')}>
+                      <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
+                      SberPay
+                    </PaymentButton>
+                    <PaymentButton onClick={() => handlePayment('premium', 'yoo_money')}>
+                      <PaymentLogo src="/payment_images/yumoney.png?v=15" alt="ЮMoney" />
+                      ЮMoney
+                    </PaymentButton>
+                    <PaymentButton onClick={() => handlePayment('premium', 'bank_card')}>
+                      <PaymentLogo src="/payment_images/%D0%BA%D0%B0%D1%80%D1%82%D1%8B.png?v=15" alt="Банковские карты" />
+                      Банковские карты
+                    </PaymentButton>
+                    <PaymentButton onClick={() => handlePayment('premium', 'sbp')}>
+                      <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
+                      СБП
+                    </PaymentButton>
+                  </PaymentButtonsContainer>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </PlanCard>
+
+          {/* LITE (STANDARD) CARD */}
+          <PlanCard
+            $planType="standard"
+            $selected={selectedPlan === 'standard'}
+            onClick={() => setSelectedPlan('standard')}
+            whileHover={{ y: -12, scale: 1.02 }}
+            whileTap={{ scale: 0.96 }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            style={{ 
+              borderColor: selectedPlan === 'standard' ? '#fbbf24' : 'rgba(251, 191, 36, 0.3)',
+              boxShadow: selectedPlan === 'standard' ? '0 0 40px rgba(251, 191, 36, 0.2)' : 'none'
+            }}
+          >
+            <PlanHeader>
+              <PlanTitle color="#fbbf24">
+                Standard <FaBitcoin />
+              </PlanTitle>
+              <PriceContainer>
+                <Price>{standardPrice.monthly}₽</Price>
+                <Period>/мес</Period>
+              </PriceContainer>
+              <OldPrice>{standardPrice.originalMonthly}₽/мес</OldPrice>
+              <BillingInfo>{getBillingText()}</BillingInfo>
+            </PlanHeader>
+
+            <FeaturesList>
+              <FeatureItem>
+                <FiCheck style={{ color: '#fbbf24' }} /> 
+                {isYearly ? (
+                  <span style={{color: '#fbbf24', fontWeight: 'bold'}}>
+                    {Math.round(1500 * months * 1.1)} кредитов (+10% БОНУС)
+                  </span>
+                ) : is6Months ? (
+                  <span style={{color: '#fbbf24', fontWeight: 'bold'}}>
+                    {Math.round(1500 * months * 1.05)} кредитов (+5% БОНУС)
+                  </span>
+                ) : (
+                  `${1500 * months} кредитов`
+                )}
+              </FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#fbbf24' }} /> Доступ ко всем персонажам</FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#fbbf24' }} /> Расширенная память (8 000 токенов)</FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#fbbf24' }} /> Сохранение истории сообщений</FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#fbbf24' }} /> Создание платных альбомов</FeatureItem>
+            </FeaturesList>
+
+            <CheckoutButton 
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={(e) => { e.stopPropagation(); handleSubscriptionClick('standard'); }}
+              style={{ background: 'linear-gradient(135deg, #fbbf24 0%, #d97706 100%)', color: 'black' }}
+            >
+              Купить за {standardPrice.total}₽
+              <span style={{opacity: 0.7, fontSize: '0.8rem', textDecoration: 'line-through'}}>{standardPrice.originalTotal}₽</span>
+            </CheckoutButton>
+
+            <AnimatePresence>
+              {showPaymentOptions === 'standard' && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.5, ease: "easeInOut" }}
+                >
+                  <PaymentButtonsContainer>
+                    <PaymentButton onClick={() => handlePayment('standard', 'sberbank')}>
+                      <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
+                      SberPay
+                    </PaymentButton>
+                    <PaymentButton onClick={() => handlePayment('standard', 'yoo_money')}>
+                      <PaymentLogo src="/payment_images/yumoney.png?v=15" alt="ЮMoney" />
+                      ЮMoney
+                    </PaymentButton>
+                    <PaymentButton onClick={() => handlePayment('standard', 'bank_card')}>
+                      <PaymentLogo src="/payment_images/%D0%BA%D0%B0%D1%80%D1%82%D1%8B.png?v=15" alt="Банковские карты" />
+                      Банковские карты
+                    </PaymentButton>
+                    <PaymentButton onClick={() => handlePayment('standard', 'sbp')}>
+                      <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
+                      СБП
+                    </PaymentButton>
+                  </PaymentButtonsContainer>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </PlanCard>
+
+          {/* FREE CARD */}
+          <PlanCard
+            $planType="free"
+            $selected={selectedPlan === 'free'}
+            onClick={() => setSelectedPlan('free')}
+            whileHover={{ y: -8, scale: 1.02 }}
+            whileTap={{ scale: 0.96 }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            style={{ 
+              borderColor: selectedPlan === 'free' ? '#888' : 'rgba(136, 136, 136, 0.2)',
+            }}
+          >
+            <PlanHeader>
+              <PlanTitle color="#888">
+                Free
+              </PlanTitle>
+              <PriceContainer>
+                <Price>Бесплатно</Price>
+              </PriceContainer>
+              <BillingInfo>Навсегда бесплатно</BillingInfo>
+            </PlanHeader>
+
+            <FeaturesList>
+              <FeatureItem><FiCheck style={{ color: '#888' }} /> 100 кредитов</FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#888' }} /> 5 генераций фото</FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#888' }} /> Доступ ко всем персонажам</FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#888' }} /> Возможность создать своих персонажей</FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#888' }} /> Премиум модель с ограничением на 20 сообщений</FeatureItem>
+            </FeaturesList>
+
+            <CheckoutButton 
+              disabled 
+              style={{
+                background: 'rgba(255, 255, 255, 0.05)', 
+                color: '#666', 
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                boxShadow: 'none'
+              }}
+            >
+              Текущий план
+            </CheckoutButton>
+          </PlanCard>
+        </PlansGrid>
+      </motion.div>
+    );
+  };
+
+  const renderCreditsContent = () => {
+    return (
+      <motion.div
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -20 }}
+        transition={{ duration: 0.4 }}
+        style={{ width: '100%', display: 'flex', justifyContent: 'center' }}
+      >
+        <PlansGrid>
+          {creditPackages.map((pkg, index) => (
+            <PlanCard 
+              key={pkg.id}
+              $selected={selectedPlan === pkg.id}
+              onClick={() => setSelectedPlan(pkg.id)}
+              whileHover={{ y: -8, scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+            >
+              <PlanHeader>
+                <PlanTitle color="#a78bfa">{pkg.name}</PlanTitle>
+                <PriceContainer>
+                  <Price>{pkg.price}₽</Price>
+                </PriceContainer>
+                <BillingInfo>{pkg.credits} Кредитов</BillingInfo>
+              </PlanHeader>
+
+              <FeaturesList>
+                <FeatureItem><FiCheck /> Разовая оплата</FeatureItem>
+                <FeatureItem><FiCheck /> Кредиты не сгорают</FeatureItem>
+                <FeatureItem><FiCheck /> Для генераций и общения</FeatureItem>
+              </FeaturesList>
+
+              <CheckoutButton 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={(e) => { e.stopPropagation(); setShowPaymentOptions(showPaymentOptions === pkg.id ? null : pkg.id); }}
+              >
+                Купить сейчас
+              </CheckoutButton>
+
+              <AnimatePresence>
+                {showPaymentOptions === pkg.id && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.5, ease: "easeInOut" }}
+                  >
+                    <PaymentButtonsContainer>
+                      <PaymentButton onClick={() => handleCreditPayment(pkg, 'sberbank')}>
+                        <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
+                        SberPay
+                      </PaymentButton>
+                      <PaymentButton onClick={() => handleCreditPayment(pkg, 'yoo_money')}>
+                        <PaymentLogo src="/payment_images/yumoney.png?v=15" alt="ЮMoney" />
+                        ЮMoney
+                      </PaymentButton>
+                      <PaymentButton onClick={() => handleCreditPayment(pkg, 'bank_card')}>
+                        <PaymentLogo src="/payment_images/%D0%BA%D0%B0%D1%80%D1%82%D1%8B.png?v=15" alt="Банковские карты" />
+                        Банковские карты
+                      </PaymentButton>
+                      <PaymentButton onClick={() => handleCreditPayment(pkg, 'sbp')}>
+                        <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
+                        СБП
+                      </PaymentButton>
+                    </PaymentButtonsContainer>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </PlanCard>
+          ))}
+        </PlansGrid>
+      </motion.div>
+    );
+  };
 
   return (
     <MainContainer>
       <ContentWrapper>
-        <CurrentSubscriptionCard>
-          <CurrentSubscriptionLabel>Текущая подписка</CurrentSubscriptionLabel>
-          <CurrentSubscriptionValue>
-            {(() => {
-              const subscriptionType = stats?.subscription_type || 'free';
-              // Если subscription_type "none", показываем "FREE"
-              const displayType = subscriptionType === 'none' ? 'free' : subscriptionType;
-              return displayType.toUpperCase();
-            })()}
-          </CurrentSubscriptionValue>
-        </CurrentSubscriptionCard>
-        
-        <PageTitle>
-          <h1>
-            <SplitText text="Магазин" delay={50} />
-          </h1>
-          <p>Выберите подписку и получите доступ ко всем возможностям</p>
-        </PageTitle>
-        
-        <SubscriptionSection>
-          <SectionTitle>
-            <SplitText text="Планы подписки" delay={30} />
-          </SectionTitle>
-          
-          <SubscriptionPlans>
-            <PlanCard>
-              <PlanName>Free</PlanName>
-              <PlanPrice>Бесплатно</PlanPrice>
-              <PlanFeatures>
-                <PlanFeature>Все персонажи</PlanFeature>
-                <PlanFeature>100 кредитов</PlanFeature>
-                <PlanFeature>5 генераций фото</PlanFeature>
-                <PlanFeature>Возможность создать своих персонажей</PlanFeature>
-                <PlanFeature>Премиум модель с ограничением на 20 сообщений</PlanFeature>
-                <PlanFeature>Лимит токенов для генерации фото: 300 токенов</PlanFeature>
-                <PlanFeature $isAvailable={false}>Сохранение истории сообщений</PlanFeature>
-                <PlanFeature $isAvailable={false}>Возможность создавать платные альбомы</PlanFeature>
-              </PlanFeatures>
-              <ActivateButton 
-                onClick={() => {}}
-                disabled
-              >
-                Доступна при регистрации
-              </ActivateButton>
-            </PlanCard>
-            
-            <PlanCard $isPopular>
-              <PlanName>Standard</PlanName>
-              <PlanPrice>599₽</PlanPrice>
-              <PlanFeatures>
-                <PlanFeature>1500 кредитов в месяц</PlanFeature>
-                <PlanFeature>Возможность создать своих персонажей</PlanFeature>
-                <PlanFeature>Возможность создавать платные альбомы</PlanFeature>
-                <PlanFeature>Сохранение истории сообщений</PlanFeature>
-                <PlanFeature>Максимум токенов: 600 токенов на ответ</PlanFeature>
-                <PlanFeature>Лимит токенов для генерации фото: 600 токенов</PlanFeature>
-                <PlanFeature>Лимит генерации в очереди: 3 фото одновременно</PlanFeature>
-              </PlanFeatures>
-              {stats?.is_active && stats?.subscription_type === 'standard' ? (
-                <>
-                  <ActivateButton 
-                    onClick={() => handleActivateSubscription('standard')}
-                    disabled={isLoading}
-                  >
-                    {selectedPlanForPayment === 'standard' ? 'Скрыть способы оплаты' : 'Продлить подписку'}
-                  </ActivateButton>
-                  {selectedPlanForPayment === 'standard' && (
-                    <>
-                      <PaymentButtonsContainer>
-                        <PaymentButton onClick={() => handleYooKassaPayment('standard', 'sberbank')}>
-                          <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
-                          SberPay
-                        </PaymentButton>
-                        <PaymentButton onClick={() => handleYooKassaPayment('standard', 'yoo_money')}>
-                          <PaymentLogo src="/payment_images/yumoney.png?v=15" alt="ЮMoney" />
-                          ЮMoney
-                        </PaymentButton>
-                        <PaymentButton onClick={() => handleYooKassaPayment('standard', 'bank_card')}>
-                          <PaymentLogo src="/payment_images/%D0%BA%D0%B0%D1%80%D1%82%D1%8B.png?v=15" alt="Банковские карты" />
-                          Банковские карты
-                        </PaymentButton>
-                        <PaymentButton onClick={() => handleYooKassaPayment('standard', 'sbp')}>
-                          <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
-                          СБП
-                        </PaymentButton>
-                      </PaymentButtonsContainer>
-                    </>
-                  )}
-                </>
-              ) : (
-                <>
-                  <ActivateButton 
-                    onClick={() => handleActivateSubscription('standard')}
-                    disabled={isLoading}
-                  >
-                    {selectedPlanForPayment === 'standard' ? 'Скрыть способы оплаты' : 'Активировать'}
-                  </ActivateButton>
-                  {selectedPlanForPayment === 'standard' && (
-                    <>
-                      <PaymentButtonsContainer>
-                        <PaymentButton onClick={() => handleYooKassaPayment('standard', 'sberbank')}>
-                          <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
-                          SberPay
-                        </PaymentButton>
-                        <PaymentButton onClick={() => handleYooKassaPayment('standard', 'yoo_money')}>
-                          <PaymentLogo src="/payment_images/yumoney.png?v=15" alt="ЮMoney" />
-                          ЮMoney
-                        </PaymentButton>
-                        <PaymentButton onClick={() => handleYooKassaPayment('standard', 'bank_card')}>
-                          <PaymentLogo src="/payment_images/%D0%BA%D0%B0%D1%80%D1%82%D1%8B.png?v=15" alt="Банковские карты" />
-                          Банковские карты
-                        </PaymentButton>
-                        <PaymentButton onClick={() => handleYooKassaPayment('standard', 'sbp')}>
-                          <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
-                          СБП
-                        </PaymentButton>
-                      </PaymentButtonsContainer>
-                    </>
-                  )}
-                </>
-              )}
-            </PlanCard>
-            
-            <PlanCard>
-              <PlanName>Premium</PlanName>
-              <PlanPrice>1299₽</PlanPrice>
-              <PlanFeatures>
-                <PlanFeature>5000 кредитов в месяц</PlanFeature>
-                <PlanFeature>Возможность создать своих персонажей</PlanFeature>
-                <PlanFeature>Сохранение истории сообщений</PlanFeature>
-                <PlanFeature>Возможность создавать платные альбомы</PlanFeature>
-                <PlanFeature>Доступ ко всем платным альбомам</PlanFeature>
-                <PlanFeature>Доступ ко всем галереям пользователей</PlanFeature>
-                <PlanFeature $isHighlighted>Выбор модели (PREMIUM могут выбрать модель сами)</PlanFeature>
-                <PlanFeature $isHighlighted>Максимум токенов: 1024 токена на ответ</PlanFeature>
-                <PlanFeature $isHighlighted>Лимит токенов для генерации фото: 1024 токена</PlanFeature>
-                <PlanFeature>Лимит генерации в очереди: 5 фото одновременно</PlanFeature>
-              </PlanFeatures>
-              {stats?.is_active && stats?.subscription_type === 'premium' ? (
-                <>
-                  <ActivateButton 
-                    onClick={() => handleActivateSubscription('premium')}
-                    disabled={isLoading}
-                  >
-                    {selectedPlanForPayment === 'premium' ? 'Скрыть способы оплаты' : 'Продлить подписку'}
-                  </ActivateButton>
-                  {selectedPlanForPayment === 'premium' && (
-                    <>
-                      <PaymentButtonsContainer>
-                        <PaymentButton onClick={() => handleYooKassaPayment('premium', 'sberbank')}>
-                          <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
-                          SberPay
-                        </PaymentButton>
-                        <PaymentButton onClick={() => handleYooKassaPayment('premium', 'yoo_money')}>
-                          <PaymentLogo src="/payment_images/yumoney.png?v=15" alt="ЮMoney" />
-                          ЮMoney
-                        </PaymentButton>
-                        <PaymentButton onClick={() => handleYooKassaPayment('premium', 'bank_card')}>
-                          <PaymentLogo src="/payment_images/%D0%BA%D0%B0%D1%80%D1%82%D1%8B.png?v=15" alt="Банковские карты" />
-                          Банковские карты
-                        </PaymentButton>
-                        <PaymentButton onClick={() => handleYooKassaPayment('premium', 'sbp')}>
-                          <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
-                          СБП
-                        </PaymentButton>
-                      </PaymentButtonsContainer>
-                    </>
-                  )}
-                </>
-              ) : (
-                <>
-                  <ActivateButton 
-                    onClick={() => handleActivateSubscription('premium')}
-                    disabled={isLoading}
-                  >
-                    {selectedPlanForPayment === 'premium' ? 'Скрыть способы оплаты' : 'Активировать'}
-                  </ActivateButton>
-                  {selectedPlanForPayment === 'premium' && (
-                    <>
-                      <PaymentButtonsContainer>
-                        <PaymentButton onClick={() => handleYooKassaPayment('premium', 'sberbank')}>
-                          <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
-                          SberPay
-                        </PaymentButton>
-                        <PaymentButton onClick={() => handleYooKassaPayment('premium', 'yoo_money')}>
-                          <PaymentLogo src="/payment_images/yumoney.png?v=15" alt="ЮMoney" />
-                          ЮMoney
-                        </PaymentButton>
-                        <PaymentButton onClick={() => handleYooKassaPayment('premium', 'bank_card')}>
-                          <PaymentLogo src="/payment_images/%D0%BA%D0%B0%D1%80%D1%82%D1%8B.png?v=15" alt="Банковские карты" />
-                          Банковские карты
-                        </PaymentButton>
-                        <PaymentButton onClick={() => handleYooKassaPayment('premium', 'sbp')}>
-                          <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
-                          СБП
-                        </PaymentButton>
-                      </PaymentButtonsContainer>
-                    </>
-                  )}
-                </>
-              )}
-            </PlanCard>
-          </SubscriptionPlans>
+        <ToggleContainer>
+          <ToggleButton 
+            $active={viewMode === 'credits'} 
+            onClick={() => setViewMode('credits')}
+          >
+            Кредиты
+          </ToggleButton>
+          <ToggleButton 
+            $active={viewMode === 'subscription'} 
+            onClick={() => setViewMode('subscription')}
+          >
+            Подписка
+          </ToggleButton>
+        </ToggleContainer>
 
-        </SubscriptionSection>
-
-        {/* Секция разовой докупки кредитов */}
-        {isAuthenticated && (
-          <SubscriptionSection style={{ marginTop: '4rem' }}>
-            <SectionTitle>Докупить кредиты</SectionTitle>
-            <p style={{ 
-              textAlign: 'center', 
-              color: '#b8b8b8', 
-              fontSize: '1rem', 
-              marginBottom: '2rem',
-              maxWidth: '800px',
-              margin: '0 auto 2rem'
-            }}>
-              Закончились кредиты? Докупите пакет и продолжайте общение! Кредиты суммируются с текущим балансом.
-            </p>
-            
-            <SubscriptionPlans>
-              {isLoadingPackages ? (
-                <div style={{ textAlign: 'center', color: '#888', padding: '2rem' }}>
-                  Загрузка пакетов...
-                </div>
-              ) : (() => {
-                  // Защита от undefined - убеждаемся, что creditPackages всегда массив
-                  try {
-                    const safePackages = Array.isArray(creditPackages) ? creditPackages : [];
-                    if (safePackages.length > 0) {
-                      return safePackages.map((pkg: any) => (
-                  <PlanCard key={pkg.id} style={{ position: 'relative' }}>
-                    <PlanName>{pkg.name}</PlanName>
-                    <PlanPrice>{pkg.price}₽</PlanPrice>
-                    <div style={{ 
-                      fontSize: '0.9rem', 
-                      color: '#a78bfa', 
-                      marginBottom: '1rem',
-                      textAlign: 'center'
-                    }}>
-                      {pkg.credits} кредитов
-                    </div>
-                    <div style={{ 
-                      fontSize: '0.85rem', 
-                      color: '#888', 
-                      marginBottom: '1.5rem',
-                      textAlign: 'center',
-                      fontStyle: 'italic'
-                    }}>
-                      {pkg.description}
-                    </div>
-                    <ActivateButton
-                      onClick={() => {
-                        if (selectedCreditPackage?.id === pkg.id) {
-                          setSelectedCreditPackage(null);
-                        } else {
-                          setSelectedCreditPackage({ id: pkg.id, price: pkg.price, credits: pkg.credits });
-                        }
-                      }}
-                      disabled={isLoadingPackages}
-                    >
-                      {selectedCreditPackage?.id === pkg.id ? 'Скрыть способы оплаты' : `Купить за ${pkg.price}₽`}
-                    </ActivateButton>
-                    {selectedCreditPackage?.id === pkg.id && (
-                      <>
-                        <PaymentButtonsContainer>
-                          <PaymentButton onClick={() => handleYooKassaCreditTopUp(pkg.id, pkg.price, pkg.credits, 'sberbank')}>
-                            <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
-                            SberPay
-                          </PaymentButton>
-                          <PaymentButton onClick={() => handleYooKassaCreditTopUp(pkg.id, pkg.price, pkg.credits, 'yoo_money')}>
-                            <PaymentLogo src="/payment_images/yumoney.png?v=15" alt="ЮMoney" />
-                            ЮMoney
-                          </PaymentButton>
-                          <PaymentButton onClick={() => handleYooKassaCreditTopUp(pkg.id, pkg.price, pkg.credits, 'bank_card')}>
-                            <PaymentLogo src="/payment_images/%D0%BA%D0%B0%D1%80%D1%82%D1%8B.png?v=15" alt="Банковские карты" />
-                            Банковские карты
-                          </PaymentButton>
-                          <PaymentButton onClick={() => handleYooKassaCreditTopUp(pkg.id, pkg.price, pkg.credits, 'sbp')}>
-                            <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
-                            СБП
-                          </PaymentButton>
-                        </PaymentButtonsContainer>
-                      </>
-                    )}
-                      </PlanCard>
-                      ));
-                    } else {
-                      return (
-                        <div style={{ textAlign: 'center', color: '#888', padding: '2rem' }}>
-                          Пакеты временно недоступны
-                        </div>
-                      );
-                    }
-                  } catch (e) {
-                    return (
-                      <div style={{ textAlign: 'center', color: '#888', padding: '2rem' }}>
-                        Ошибка загрузки пакетов
-                      </div>
-                    );
-                  }
-                })()}
-            </SubscriptionPlans>
-          </SubscriptionSection>
-        )}
-        
-        {error && <ErrorMessage>{error}</ErrorMessage>}
+        {viewMode === 'subscription' ? renderSubscriptionContent() : renderCreditsContent()}
       </ContentWrapper>
 
       {isAuthModalOpen && (
         <AuthModal
           isOpen={isAuthModalOpen}
           mode={authMode}
-          onClose={() => {
-            setIsAuthModalOpen(false);
-            setAuthMode('login');
-          }}
+          onClose={() => setIsAuthModalOpen(false)}
           onAuthSuccess={(accessToken, refreshToken) => {
             localStorage.setItem('authToken', accessToken);
-            if (refreshToken) {
-              localStorage.setItem('refreshToken', refreshToken);
-            }
+            if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
             setIsAuthenticated(true);
             setIsAuthModalOpen(false);
-            setAuthMode('login');
-            checkAuth();
+            loadSubscriptionStats();
           }}
-        />
-      )}
-
-      {showSuccessToast && (
-        <SuccessToast
-          message={successMessage}
-          amount={0}
-          onClose={() => setShowSuccessToast(false)}
-          duration={3000}
         />
       )}
     </MainContainer>
   );
 };
-

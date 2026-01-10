@@ -1,6 +1,6 @@
 """
 Конфигурация чат-бота для OpenRouter API.
-Оптимизирована для модели gryphe/mythomax-l2-13b.
+Оптимизирована для модели thedrummer/cydonia-24b-v4.1.
 
 КАК ИЗМЕНИТЬ МОДЕЛЬ:
 1. Через переменную окружения в .env файле:
@@ -9,7 +9,8 @@
 2. Или измените значение по умолчанию ниже в поле OPENROUTER_MODEL
 
 Примеры моделей:
-- gryphe/mythomax-l2-13b (текущая)
+- thedrummer/cydonia-24b-v4.1 (текущая)
+- sao10k/l3-euryale-70b
 - anthropic/claude-3-opus
 - openai/gpt-4
 - meta-llama/llama-3-70b-instruct
@@ -33,7 +34,7 @@ class ChatConfig(BaseSettings):
         description="Включить OpenRouter API"
     )
     OPENROUTER_MODEL: str = Field(
-        default="gryphe/mythomax-l2-13b", 
+        default="sao10k/l3-euryale-70b", 
         description="Модель для OpenRouter API"
     )
     
@@ -55,9 +56,10 @@ class ChatConfig(BaseSettings):
     )
     
     # --- аппаратные параметры (ОПТИМИЗИРОВАНЫ ДЛЯ ПОЛНОГО ИСПОЛЬЗОВАНИЯ GPU) ---
+    # Повышаем до 16384 для поддержки Premium контекста
     N_CTX: int = Field(
-        default=4096, 
-        description="MythoMax-L2-13B оптимизирован для 8192 контекст - лучшая производительность для 13B модели"
+        default=16384, 
+        description="Контекст увеличен до 16k для поддержки Premium"
     )
     N_GPU_LAYERS: int = Field(
         default=-1, 
@@ -136,9 +138,9 @@ class ChatConfig(BaseSettings):
         description="Загружать полную модель"
     )
 
-    # --- базовые параметры генерации (оптимизированы для MythoMax L2 13B) ---
+    # --- базовые параметры генерации (оптимизированы для Cydonia-24B) ---
     DEFAULT_MAX_TOKENS: int = Field(
-        default=400, 
+        default=600, 
         description="Лимит токенов по умолчанию (для FREE подписки)"
     )
     
@@ -293,32 +295,32 @@ class ChatConfig(BaseSettings):
         description="Только EOS-токен для естественного завершения без прерывания"
     )
 
-    # --- контекст / длина (оптимизировано для MythoMax-L2-13B) ---
+    # --- контекст / длина (оптимизировано для больших моделей) ---
     MAX_HISTORY_LENGTH: int = Field(
-        default=2000, 
-        description="Увеличено для лучшего сохранения контекста с MythoMax-L2-13B"
+        default=16000, 
+        description="Максимальная длина истории в токенах (согласно тарифу Premium)"
     )
     MAX_MESSAGE_LENGTH: int = Field(
-        default=3000, 
-        description="Оптимизировано для развернутых ответов MythoMax-L2-13B"
+        default=10000, 
+        description="Максимальная длина одного сообщения"
     )
     MAX_CHARACTER_NAME_LENGTH: int = Field(
-        default=20, 
-        description="Оптимально для MythoMax-L2-13B"
+        default=50, 
+        description="Лимит имени"
     )
     MAX_RESPONSE_LENGTH: int = Field(
-        default=3000, 
-        description="Оптимизировано для детальных ответов MythoMax-L2-13B"
+        default=8000, 
+        description="Лимит ответа"
     )
 
-    # --- минимальная длина ответа (оптимизировано для NSFW_13B_sft) ---
+    # --- минимальная длина ответа ---
     ENFORCE_MIN_TOKENS: bool = Field(
         default=True, 
         description="ВКЛЮЧЕНО - гарантирует минимальную длину ответа для завершения предложений"
     )
     MIN_NEW_TOKENS: int = Field(
         default=100, 
-        description="Минимальное количество токенов для MythoMax-L2-13B - гарантирует минимальную длину ответа"
+        description="Минимальное количество токенов для Cydonia-24B - гарантирует минимальную длину ответа"
     )
 
     # --- очистка вывода ---

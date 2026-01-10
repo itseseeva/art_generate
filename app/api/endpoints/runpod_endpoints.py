@@ -6,7 +6,9 @@ from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel, Field
 from celery.result import AsyncResult
 from loguru import logger
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database.db import get_db
 from app.tasks.runpod_tasks import (
     generate_image_runpod_task,
     generate_image_batch_task,
@@ -72,7 +74,8 @@ class TaskStatusResponse(BaseModel):
 @router.post("/generate", response_model=TaskResponse)
 async def start_image_generation(
     request: GenerationRequest,
-    current_user: Optional[Users] = Depends(get_current_user_optional)
+    current_user: Optional[Users] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Запускает генерацию изображения через RunPod в фоновом режиме.
@@ -82,24 +85,45 @@ async def start_image_generation(
     try:
         logger.info(f"[RUNPOD API] Пользователь {current_user.id if current_user else 'guest'} запросил генерацию: {request.prompt[:100]}")
         
-        # Запускаем Celery задачу
-        task = generate_image_runpod_task.delay(
-            user_prompt=request.prompt,
-            width=request.width,
-            height=request.height,
-            steps=request.steps,
-            cfg_scale=request.cfg_scale,
-            seed=request.seed,
-            sampler_name=request.sampler_name,
-            scheduler=request.scheduler,
-            negative_prompt=request.negative_prompt,
-            use_enhanced_prompts=request.use_enhanced_prompts
+        # Определяем приоритет задачи
+        task_priority = 5  # Нормальный приоритет по умолчанию
+        
+        if current_user:
+            from app.services.profit_activate import ProfitActivateService
+            from app.models.subscription import SubscriptionType
+            
+            sub_service = ProfitActivateService(db)
+            subscription = await sub_service.get_user_subscription(current_user.id)
+            
+            if subscription and subscription.is_active:
+                if subscription.subscription_type == SubscriptionType.PREMIUM:
+                    task_priority = 9  # Максимальный приоритет для Premium
+                    logger.info(f"[PRIORITY] Установлен приоритет 9 для PREMIUM пользователя {current_user.id}")
+                elif subscription.subscription_type == SubscriptionType.STANDARD:
+                    task_priority = 7  # Повышенный приоритет для Standard
+                    logger.info(f"[PRIORITY] Установлен приоритет 7 для STANDARD пользователя {current_user.id}")
+
+        # Запускаем Celery задачу с указанием приоритета
+        task = generate_image_runpod_task.apply_async(
+            kwargs={
+                "user_prompt": request.prompt,
+                "width": request.width,
+                "height": request.height,
+                "steps": request.steps,
+                "cfg_scale": request.cfg_scale,
+                "seed": request.seed,
+                "sampler_name": request.sampler_name,
+                "scheduler": request.scheduler,
+                "negative_prompt": request.negative_prompt,
+                "use_enhanced_prompts": request.use_enhanced_prompts
+            },
+            priority=task_priority
         )
         
         return TaskResponse(
             task_id=task.id,
             status="pending",
-            message="Image generation started. Use /status/{task_id} to check progress."
+            message=f"Image generation started (priority: {task_priority}). Use /status/{{task_id}} to check progress."
         )
         
     except Exception as e:
@@ -110,7 +134,8 @@ async def start_image_generation(
 @router.post("/generate/batch", response_model=TaskResponse)
 async def start_batch_generation(
     request: BatchGenerationRequest,
-    current_user: Optional[Users] = Depends(get_current_user_optional)
+    current_user: Optional[Users] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Запускает пакетную генерацию изображений.
@@ -120,22 +145,40 @@ async def start_batch_generation(
     try:
         logger.info(f"[RUNPOD API] Пакетная генерация для {len(request.prompts)} промптов")
         
-        task = generate_image_batch_task.delay(
-            prompts=request.prompts,
-            width=request.width,
-            height=request.height,
-            steps=request.steps,
-            cfg_scale=request.cfg_scale,
-            sampler_name=request.sampler_name,
-            scheduler=request.scheduler,
-            negative_prompt=request.negative_prompt,
-            use_enhanced_prompts=request.use_enhanced_prompts
+        # Определяем приоритет задачи
+        task_priority = 5
+        if current_user:
+            from app.services.profit_activate import ProfitActivateService
+            from app.models.subscription import SubscriptionType
+            
+            sub_service = ProfitActivateService(db)
+            subscription = await sub_service.get_user_subscription(current_user.id)
+            
+            if subscription and subscription.is_active:
+                if subscription.subscription_type == SubscriptionType.PREMIUM:
+                    task_priority = 9
+                elif subscription.subscription_type == SubscriptionType.STANDARD:
+                    task_priority = 7
+
+        task = generate_image_batch_task.apply_async(
+            kwargs={
+                "prompts": request.prompts,
+                "width": request.width,
+                "height": request.height,
+                "steps": request.steps,
+                "cfg_scale": request.cfg_scale,
+                "sampler_name": request.sampler_name,
+                "scheduler": request.scheduler,
+                "negative_prompt": request.negative_prompt,
+                "use_enhanced_prompts": request.use_enhanced_prompts
+            },
+            priority=task_priority
         )
         
         return TaskResponse(
             task_id=task.id,
             status="pending",
-            message=f"Batch generation started for {len(request.prompts)} prompts."
+            message=f"Batch generation started (priority: {task_priority}) for {len(request.prompts)} prompts."
         )
         
     except Exception as e:

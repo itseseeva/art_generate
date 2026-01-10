@@ -80,25 +80,47 @@ async def chat_with_character(
             location=character.location
         )
         
-        # Создаем промпт с данными персонажа и историей диалога
-        # Получаем историю диалога из базы данных
-        conversation_history = ""
-        user_id = str(current_user.id) if current_user else None
-        
-        session_query = (
-            select(ChatSession)
-            .where(ChatSession.character_id == character_config.id)
-            .order_by(ChatSession.started_at.desc())
-            .limit(1)
-        )
-        if user_id is None:
-            session_query = session_query.where(ChatSession.user_id.is_(None))
+        # Формируем языковую инструкцию
+        target_lang = request.target_language or "ru"
+        if target_lang == "ru":
+            lang_instruction = """\n\nCRITICAL LANGUAGE REQUIREMENTS:
+- You MUST write your response STRICTLY in RUSSIAN language
+- NEVER use Chinese, Japanese, Korean or any Asian languages
+- NEVER use Chinese characters (我, 你, 的, 是, 在, 我的手, 轻轻, 抚摸, 触摸, 你的脸庞, 我等待, etc.)
+- NEVER use any hieroglyphs or Asian symbols
+- Write in Russian using normal Cyrillic alphabet
+- If you use Chinese characters, you will be penalized. STRICTLY RUSSIAN ONLY."""
+        elif target_lang == "en":
+            lang_instruction = """\n\nCRITICAL LANGUAGE REQUIREMENTS:
+- You MUST write your response STRICTLY in ENGLISH language
+- NEVER use Russian, Chinese, Japanese, or any other languages
+- NEVER use Chinese characters (我, 你, 的, 是, 在, 触摸, etc.) or any hieroglyphs
+- Write in English using Latin alphabet only
+- If you use any other characters, you will be penalized. STRICTLY ENGLISH ONLY."""
         else:
-            session_query = session_query.where(ChatSession.user_id == user_id)
+            lang_instruction = """\n\nCRITICAL LANGUAGE REQUIREMENTS:
+- You MUST write your response STRICTLY in RUSSIAN language
+- NEVER use Chinese, Japanese, Korean or any Asian languages
+- NEVER use Chinese characters or hieroglyphs
+- Write in Russian using Cyrillic alphabet
+- STRICTLY RUSSIAN ONLY."""
+
+        # Получаем данные о подписке пользователя
+        from app.models.subscription import UserSubscription, SubscriptionType, SubscriptionStatus
         
-        session_result = await db.execute(session_query)
-        chat_session = session_result.scalar_one_or_none()
+        subscription_type_enum = SubscriptionType.FREE
+        user_id = current_user.id if current_user else None
         
+        if current_user:
+            subscription_query = select(UserSubscription).where(
+                UserSubscription.user_id == current_user.id,
+                UserSubscription.status == SubscriptionStatus.ACTIVE
+            ).order_by(UserSubscription.activated_at.desc()).limit(1)
+            subscription_result = await db.execute(subscription_query)
+            subscription = subscription_result.scalar_one_or_none()
+            if subscription and subscription.is_active:
+                subscription_type_enum = subscription.subscription_type
+
         # Импортируем утилиты для работы с контекстом
         from app.chat_bot.utils.context_manager import (
             get_context_limit, 
@@ -106,31 +128,35 @@ async def chat_with_character(
             get_max_context_tokens,
             trim_messages_to_token_limit
         )
-        from app.models.subscription import SubscriptionType
         
-        # Определяем лимит контекста на основе подписки
-        subscription_type_enum = None
-        if current_user:
-            from app.models.subscription import UserSubscription, SubscriptionStatus
-            subscription_query = await db.execute(
-                select(UserSubscription)
-                .where(UserSubscription.user_id == current_user.id)
-                .where(UserSubscription.status == SubscriptionStatus.ACTIVE)
-                .order_by(UserSubscription.activated_at.desc())
-                .limit(1)
-            )
-            user_subscription = subscription_query.scalar_one_or_none()
-            if user_subscription and user_subscription.subscription_type:
-                try:
-                    subscription_type_enum = SubscriptionType(user_subscription.subscription_type.value)
-                except (ValueError, AttributeError):
-                    subscription_type_enum = None
-        
+        # Определяем модель ПЕРЕД расчетом лимитов
+        from app.chat_bot.services.openrouter_service import get_model_for_subscription
+        selected_model = request.model if request.model and subscription_type_enum == SubscriptionType.PREMIUM else None
+        model_used = selected_model if selected_model else get_model_for_subscription(subscription_type_enum)
+
+        # Определяем лимиты контекста
         context_limit = get_context_limit(subscription_type_enum)
-        max_context_tokens = get_max_context_tokens(subscription_type_enum)
+        max_context_tokens = get_max_context_tokens(subscription_type_enum, model_used)
         max_tokens = get_max_tokens(subscription_type_enum)
         
+        logger.info(f"[CONTEXT] Модель: {model_used}, Лимит сообщений БД: {context_limit}, Лимит токенов: {max_context_tokens}")
+
+        # Пытаемся найти существующую сессию чата
+        chat_session = None
+        if user_id:
+            session_query = select(ChatSession).where(
+                ChatSession.character_id == character.id,
+                ChatSession.user_id == user_id
+            ).order_by(ChatSession.started_at.desc()).limit(1)
+            session_result = await db.execute(session_query)
+            chat_session = session_result.scalar_one_or_none()
+
+        # Создаем промпт с данными персонажа и историей диалога
+        messages = []
+        db_messages = []
+        
         if chat_session:
+            # Загружаем сообщения из БД
             messages_query = (
                 select(ChatMessageDB)
                 .where(ChatMessageDB.session_id == chat_session.id)
@@ -142,101 +168,63 @@ async def chat_with_character(
             messages_result = await db.execute(messages_query)
             db_messages = messages_result.scalars().all()
             
-            # Импортируем фильтр сообщений
-            from app.chat_bot.utils.message_filter import should_include_message_in_context
-            
-            # Формируем массив messages для OpenAI API
-            openai_messages = []
-            
-            # 1. Системное сообщение с описанием персонажа (всегда первое)
+        # Формируем массив messages для OpenAI API
+        openai_messages = []
+        
+        # 1. Системное сообщение с описанием персонажа
+        openai_messages.append({
+            "role": "system",
+            "content": character_config.prompt
+        })
+        
+        # 2. История диалога из БД
+        from app.chat_bot.utils.message_filter import should_include_message_in_context
+        for msg in reversed(db_messages):
+            if not should_include_message_in_context(msg.content, msg.role):
+                continue
             openai_messages.append({
-                "role": "system",
-                "content": character_config.prompt
+                "role": msg.role,
+                "content": msg.content
             })
+        
+        # 3. Текущее сообщение пользователя
+        openai_messages.append({
+            "role": "user",
+            "content": request.message
+        })
+        
+        # 4. Проверяем и обрезаем по лимиту токенов контекста
+        openai_messages = await trim_messages_to_token_limit(
+            openai_messages, 
+            max_tokens=max_context_tokens, 
+            system_message_index=0
+        )
+        
+        # 5. Добавляем инструкции к системному промпту
+        if openai_messages and openai_messages[0]["role"] == "system":
+            openai_messages[0]["content"] += f"\n\nIMPORTANT: Be concise. Your response must be strictly within {max_tokens} tokens."
+            openai_messages[0]["content"] += lang_instruction
             
-            # 2. История диалога из БД
-            for msg in reversed(db_messages):
-                # Фильтруем промпты от фото и другие нерелевантные сообщения
-                if not should_include_message_in_context(msg.content, msg.role):
-                    logger.debug(f"[CONTEXT] Пропущено сообщение {msg.role}: {msg.content[:50] if msg.content else 'empty'}...")
-                    continue
-                    
-                if msg.role == "user":
-                    openai_messages.append({
-                        "role": "user",
-                        "content": msg.content
-                    })
-                elif msg.role == "assistant":
-                    openai_messages.append({
-                        "role": "assistant",
-                        "content": msg.content
-                    })
-            
-            # 3. Текущее сообщение пользователя (всегда последнее)
-            # НЕ фильтруем текущее сообщение - у пользователя есть отдельная кнопка для генерации изображений
-            # Все сообщения в чате предназначены для текстовой модели
-            openai_messages.append({
-                "role": "user",
-                "content": request.message
-            })
-            
-            # 4. Проверяем и обрезаем по лимиту токенов контекста
-            openai_messages = await trim_messages_to_token_limit(
-                openai_messages, 
-                max_tokens=max_context_tokens, 
-                system_message_index=0
-            )
-            
-            # 5. В начало списка сообщений (system prompt) добавляем инструкцию по краткости
-            if openai_messages and openai_messages[0]["role"] == "system":
-                openai_messages[0]["content"] += f"\n\nIMPORTANT: Be concise. Your response must be strictly within {max_tokens} tokens."
-            
-            messages = openai_messages
-            
-            logger.info("=== FULL PROMPT DEBUG ===")
-            logger.info(f"Character prompt (system): {character_config.prompt[:200]}...")
-            logger.info(f"Conversation history: {len(openai_messages) - 2} messages")
-            logger.info(f"User message: {request.message[:50].encode('utf-8', errors='replace').decode('utf-8')}")
-            logger.info(f"Total messages: {len(openai_messages)}")
-            logger.info("=== END PROMPT DEBUG ===")
-        else:
-            # Нет истории - только системное сообщение и текущее сообщение пользователя
-            messages = [
-                {
-                    "role": "system",
-                    "content": character_config.prompt
-                },
-                {
-                    "role": "user",
-                    "content": request.message
-                }
-            ]
-            
-            # В начало списка сообщений (system prompt) добавляем инструкцию по краткости
+            # Добавляем финальное напоминание для Euryale
+            if model_used == "sao10k/l3-euryale-70b":
+                openai_messages[0]["content"] += f"\n\nREMINDER: Write your response ONLY in {target_lang.upper()}. NO CHINESE CHARACTERS."
+        
+        messages = openai_messages
+        
+        # ЕСЛИ ИСПОЛЬЗУЕТСЯ CYDONIA, ДОБАВЛЯЕМ СПЕЦИФИЧНЫЕ ИНСТРУКЦИИ
+        if model_used == "thedrummer/cydonia-24b-v4.1":
+            from app.chat_bot.config.cydonia_config import CYDONIA_CONFIG
             if messages and messages[0]["role"] == "system":
-                messages[0]["content"] += f"\n\nIMPORTANT: Be concise. Your response must be strictly within {max_tokens} tokens."
-            
-            logger.info("=== PROMPT DEBUG (NO HISTORY) ===")
-            logger.info(f"Character prompt (system): {character_config.prompt[:200]}...")
-            logger.info(f"User message: {request.message[:50].encode('utf-8', errors='replace').decode('utf-8')}")
-            logger.info(f"Total messages: {len(messages)}")
-            logger.info("=== END PROMPT DEBUG ===")
+                current_content = messages[0]["content"]
+                suffix = CYDONIA_CONFIG["system_suffix"]
+                if suffix not in current_content:
+                    messages[0]["content"] = current_content + suffix
+                    logger.info(f"[CHAT] Добавлены Cydonia инструкции к системному промпту")
         
-        # Получаем ответ от модели без стриминга
-        # max_tokens определяется на основе подписки: STANDARD=200, PREMIUM=450
-        # Модель выбирается на основе подписки или из запроса (для PREMIUM)
-        # Проверяем, что выбор модели доступен только для PREMIUM
-        selected_model = None
-        if request.model:
-            if subscription_type_enum == SubscriptionType.PREMIUM:
-                selected_model = request.model
-                logger.info(f"[CHAT] Используется выбранная модель для PREMIUM: {selected_model}")
-            else:
-                logger.warning(f"[CHAT] Выбор модели доступен только для PREMIUM подписки, игнорируем model={request.model}")
-        
-        # Определяем, какая модель будет использована
-        from app.chat_bot.services.openrouter_service import get_model_for_subscription
-        model_used = selected_model if selected_model else get_model_for_subscription(subscription_type_enum)
+        # Логируем используемую модель и размер контекста перед запросом
+        from app.chat_bot.utils.context_manager import count_messages_tokens
+        final_tokens = count_messages_tokens(messages)
+        logger.info(f"[CHAT_BOT] ОТПРАВКА ЗАПРОСА: Модель={model_used}, Контекст={final_tokens}/{max_context_tokens} токенов, Подписка={subscription_type_enum.value if subscription_type_enum else 'FREE'}")
         
         response_text = await openrouter_service.generate_text(
             messages=messages,
@@ -246,7 +234,7 @@ async def chat_with_character(
             repeat_penalty=chat_config.DEFAULT_REPEAT_PENALTY,
             presence_penalty=chat_config.DEFAULT_PRESENCE_PENALTY,
             subscription_type=subscription_type_enum,
-            model=selected_model
+            model=model_used
         )
         
         # Проверяем ошибку подключения к сервису генерации
@@ -405,7 +393,7 @@ async def chat_with_character_stream(
         from app.models.subscription import SubscriptionType
         
         # Определяем лимит контекста на основе подписки
-        subscription_type_enum = None
+        subscription_type_enum = SubscriptionType.FREE
         if current_user:
             from app.models.subscription import UserSubscription, SubscriptionStatus
             subscription_query = await db.execute(
@@ -417,17 +405,45 @@ async def chat_with_character_stream(
             )
             user_subscription = subscription_query.scalar_one_or_none()
             if user_subscription and user_subscription.subscription_type:
-                try:
-                    subscription_type_enum = SubscriptionType(user_subscription.subscription_type.value)
-                except (ValueError, AttributeError):
-                    subscription_type_enum = None
-        
+                subscription_type_enum = user_subscription.subscription_type
+
+        # Определяем модель ПЕРЕД расчетом лимитов
+        from app.chat_bot.services.openrouter_service import get_model_for_subscription
+        selected_model = request.model if request.model and subscription_type_enum == SubscriptionType.PREMIUM else None
+        model_used = selected_model if selected_model else get_model_for_subscription(subscription_type_enum)
+
         context_limit = get_context_limit(subscription_type_enum)
-        max_context_tokens = get_max_context_tokens(subscription_type_enum)
+        max_context_tokens = get_max_context_tokens(subscription_type_enum, model_used)
         max_tokens = get_max_tokens(subscription_type_enum)
         
+        # Формируем языковую инструкцию
+        target_lang = request.target_language or "ru"
+        if target_lang == "ru":
+            lang_instruction = """\n\nCRITICAL LANGUAGE REQUIREMENTS:
+- You MUST write your response STRICTLY in RUSSIAN language
+- NEVER use Chinese, Japanese, Korean or any Asian languages
+- NEVER use Chinese characters (我, 你, 的, 是, 在, 我的手, 轻轻, 抚摸, 触摸, 你的脸庞, 我等待, etc.)
+- NEVER use any hieroglyphs or Asian symbols
+- Write in Russian using normal Cyrillic alphabet
+- If you use Chinese characters, you will be penalized. STRICTLY RUSSIAN ONLY."""
+        elif target_lang == "en":
+            lang_instruction = """\n\nCRITICAL LANGUAGE REQUIREMENTS:
+- You MUST write your response STRICTLY in ENGLISH language
+- NEVER use Russian, Chinese, Japanese, or any other languages
+- NEVER use Chinese characters (我, 你, 的, 是, 在, 触摸, etc.) or any hieroglyphs
+- Write in English using Latin alphabet only
+- If you use any other characters, you will be penalized. STRICTLY ENGLISH ONLY."""
+        else:
+            lang_instruction = """\n\nCRITICAL LANGUAGE REQUIREMENTS:
+- You MUST write your response STRICTLY in RUSSIAN language
+- NEVER use Chinese, Japanese, Korean or any Asian languages
+- NEVER use Chinese characters or hieroglyphs
+- Write in Russian using Cyrillic alphabet
+- STRICTLY RUSSIAN ONLY."""
+
         # Формируем массив messages для OpenAI API
         if chat_session:
+            # ...
             messages_query = (
                 select(ChatMessageDB)
                 .where(ChatMessageDB.session_id == chat_session.id)
@@ -479,9 +495,14 @@ async def chat_with_character_stream(
                 system_message_index=0
             )
             
-            # 5. В начало списка сообщений (system prompt) добавляем инструкцию по краткости
+            # 5. В начало списка сообщений (system prompt) добавляем инструкции
             if openai_messages and openai_messages[0]["role"] == "system":
                 openai_messages[0]["content"] += f"\n\nIMPORTANT: Be concise. Your response must be strictly within {max_tokens} tokens."
+                openai_messages[0]["content"] += lang_instruction
+                
+                # Добавляем финальное напоминание для Euryale
+                if model_used == "sao10k/l3-euryale-70b":
+                    openai_messages[0]["content"] += f"\n\nREMINDER: Write your response ONLY in {target_lang.upper()}. NO CHINESE CHARACTERS."
             
             messages = openai_messages
         else:
@@ -489,29 +510,32 @@ async def chat_with_character_stream(
             messages = [
                 {
                     "role": "system",
-                    "content": character_config.prompt
+                    "content": character_config.prompt + f"\n\nIMPORTANT: Be concise. Your response must be strictly within {max_tokens} tokens." + lang_instruction + (f"\n\nREMINDER: Write your response ONLY in {target_lang.upper()}. NO CHINESE CHARACTERS." if model_used == "sao10k/l3-euryale-70b" else "")
                 },
                 {
                     "role": "user",
                     "content": request.message
                 }
             ]
-            
-            # В начало списка сообщений (system prompt) добавляем инструкцию по краткости
-            if messages and messages[0]["role"] == "system":
-                messages[0]["content"] += f"\n\nIMPORTANT: Be concise. Your response must be strictly within {max_tokens} tokens."
         
         logger.info(f"[CHAT STREAM] Начало стриминга для персонажа '{character_name}', сообщений: {len(messages)}")
         
-        # Проверяем, что выбор модели доступен только для PREMIUM
-        selected_model = None
-        if request.model:
-            if subscription_type_enum == SubscriptionType.PREMIUM:
-                selected_model = request.model
-                logger.info(f"[CHAT STREAM] Используется выбранная модель для PREMIUM: {selected_model}")
-            else:
-                logger.warning(f"[CHAT STREAM] Выбор модели доступен только для PREMIUM подписки, игнорируем model={request.model}")
-        
+        # ЕСЛИ ИСПОЛЬЗУЕТСЯ CYDONIA, ДОБАВЛЯЕМ СПЕЦИФИЧНЫЕ ИНСТРУКЦИИ
+        if model_used == "thedrummer/cydonia-24b-v4.1":
+            from app.chat_bot.config.cydonia_config import CYDONIA_CONFIG
+            if messages and messages[0]["role"] == "system":
+                # Добавляем суффикс к системному сообщению
+                current_content = messages[0]["content"]
+                suffix = CYDONIA_CONFIG["system_suffix"]
+                if suffix not in current_content:
+                    messages[0]["content"] = current_content + suffix
+                    logger.info(f"[CHAT STREAM] Добавлены Cydonia инструкции к системному промпту")
+
+        # Логируем используемую модель и размер контекста перед стримингом
+        from app.chat_bot.utils.context_manager import count_messages_tokens
+        final_tokens = count_messages_tokens(messages)
+        logger.info(f"[CHAT_BOT STREAM] НАЧАЛО СТРИМИНГА: Модель={model_used}, Контекст={final_tokens}/{max_context_tokens} токенов, Подписка={subscription_type_enum.value if subscription_type_enum else 'FREE'}")
+
         # Создаем асинхронный генератор для SSE
         async def generate_sse_stream() -> AsyncGenerator[str, None]:
             """
@@ -528,7 +552,7 @@ async def chat_with_character_stream(
                     top_p=chat_config.DEFAULT_TOP_P,
                     presence_penalty=chat_config.DEFAULT_PRESENCE_PENALTY,
                     subscription_type=subscription_type_enum,
-                    model=selected_model
+                    model=model_used
                 ):
                     # Проверяем на ошибку
                     if chunk.startswith('{"error"'):
@@ -592,9 +616,6 @@ async def chat_with_character_stream(
                         db.add(assistant_message)
                         
                         await db.commit()
-                        # Определяем, какая модель была использована
-                        from app.chat_bot.services.openrouter_service import get_model_for_subscription
-                        model_used = selected_model if selected_model else get_model_for_subscription(subscription_type_enum)
                         logger.info(f"[CHAT STREAM] Диалог сохранен в БД (session_id={chat_session.id}), модель: {model_used}")
                 except Exception as e:
                     logger.error(f"[CHAT STREAM] Ошибка сохранения диалога: {e}")

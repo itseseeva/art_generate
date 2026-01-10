@@ -104,7 +104,7 @@ class SimpleChatRequest(BaseModel):
     # Параметр выбора модели (только для PREMIUM подписки)
     model: Optional[str] = Field(
         default=None,
-        description="Модель для генерации ответа (только для PREMIUM подписки). Доступные: sao10k/l3-euryale-70b, gryphe/mythomax-l2-13b"
+        description="Модель для генерации ответа (только для PREMIUM подписки). Доступные: sao10k/l3-euryale-70b, thedrummer/cydonia-24b-v4.1"
     )
     
     # Дополнительные поля из фронтенда
