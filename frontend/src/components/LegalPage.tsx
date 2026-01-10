@@ -1,6 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 import { Footer } from './Footer';
 
@@ -145,6 +146,8 @@ const ListItem = styled.li`
 `;
 
 export const LegalPage: React.FC = () => {
+  const isMobile = useIsMobile();
+
   return (
     <Container>
       <Content>
@@ -209,7 +212,6 @@ export const LegalPage: React.FC = () => {
           </Text>
         </Section>
       </Content>
-      <Footer />
     </Container>
   );
 };

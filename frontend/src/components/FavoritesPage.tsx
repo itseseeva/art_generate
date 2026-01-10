@@ -8,8 +8,8 @@ import { API_CONFIG } from '../config/api';
 import { GlobalHeader } from './GlobalHeader';
 
 const MainContainer = styled.div`
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   display: flex;
   position: relative;
   overflow: hidden;
@@ -136,7 +136,7 @@ export const FavoritesPage: React.FC<FavoritesPageProps> = ({
             try {
               parsedPhotos = JSON.parse(char.main_photos);
             } catch (e) {
-              console.error('Error parsing main_photos for character:', canonicalName, e);
+              
               parsedPhotos = [];
             }
           } else {
@@ -192,10 +192,10 @@ export const FavoritesPage: React.FC<FavoritesPageProps> = ({
         
         setCharacters(formattedCharacters);
       } else {
-        console.error('Error loading favorites:', response.status);
+        
       }
     } catch (error) {
-      console.error('Error loading favorites:', error);
+      
     } finally {
       setIsLoading(false);
     }

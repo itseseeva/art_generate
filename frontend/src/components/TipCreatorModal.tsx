@@ -28,7 +28,14 @@ const ModalContent = styled.div`
   border: 1px solid rgba(255, 255, 255, 0.1);
   max-width: 500px;
   width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
   animation: slideIn 0.3s ease-out;
+
+  @media (max-width: 768px) {
+    padding: 1.5rem;
+    width: 95vw;
+  }
 `;
 
 const ModalHeader = styled.div`
@@ -102,6 +109,13 @@ const AmountButtons = styled.div`
   grid-template-columns: repeat(4, 1fr);
   gap: 0.75rem;
   margin-bottom: 1rem;
+
+  @media (max-width: 768px) {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+  }
 `;
 
 const AmountButton = styled.button<{ selected: boolean }>`
@@ -117,6 +131,9 @@ const AmountButton = styled.button<{ selected: boolean }>`
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  min-width: 60px;
+  position: relative;
+  z-index: 10;
   
   &:hover:not(:disabled) {
     border-color: rgba(139, 92, 246, 0.6);
@@ -129,6 +146,13 @@ const AmountButton = styled.button<{ selected: boolean }>`
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  @media (max-width: 768px) {
+    padding: 0.6rem;
+    font-size: 0.9rem;
+    flex: 1 1 calc(25% - 0.5rem); /* 4 in a row approx */
+    min-width: 50px;
   }
 `;
 
@@ -222,12 +246,18 @@ const SuccessMessage = styled.div`
 const ButtonGroup = styled.div`
   display: flex;
   gap: 1rem;
+  width: 100%;
+
+  @media (max-width: 768px) {
+    flex-direction: column-reverse;
+  }
 `;
 
 const SubmitButton = styled.button`
   flex: 1;
   padding: 1rem;
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.8) 0%, rgba(99, 102, 241, 0.8) 100%);
+  background: #6d28d9; /* Solid fallback color */
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.9) 0%, rgba(99, 102, 241, 0.9) 100%);
   border: 1px solid rgba(139, 92, 246, 0.5);
   border-radius: 12px;
   color: #ffffff;
@@ -236,6 +266,10 @@ const SubmitButton = styled.button`
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   
   &:hover:not(:disabled) {
     background: linear-gradient(135deg, rgba(139, 92, 246, 1) 0%, rgba(99, 102, 241, 1) 100%);
@@ -246,7 +280,7 @@ const SubmitButton = styled.button`
   &:disabled {
     background: rgba(60, 60, 60, 0.5);
     border-color: rgba(100, 100, 100, 0.3);
-    color: #888888;
+    color: rgba(255, 255, 255, 0.4);
     cursor: not-allowed;
     transform: none;
     box-shadow: none;
@@ -263,6 +297,7 @@ const CancelButton = styled.button`
   font-size: 1rem;
   cursor: pointer;
   transition: all 0.3s ease;
+  width: 100%;
   
   &:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.1);
@@ -355,12 +390,8 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
         return;
       }
 
-      console.log('[TIP DEBUG] Отправка кредитов для персонажа:', characterName);
-      console.log('[TIP DEBUG] Полный запрос:', {
-        character_name: characterName,
-        amount: amount,
-        message: message || undefined
-      });
+      
+      
 
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/coins/tip-creator/`, {
         method: 'POST',
@@ -381,20 +412,20 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
       }
 
       const data = await response.json();
-      console.log('[TIP SUCCESS] Кредиты успешно отправлены!');
-      console.log('[TIP SUCCESS] Полный ответ от API:', JSON.stringify(data, null, 2));
-      console.log('[TIP SUCCESS] sender_coins_remaining из ответа:', data.sender_coins_remaining);
-      console.log('[TIP SUCCESS] Тип sender_coins_remaining:', typeof data.sender_coins_remaining);
+      
+      
+      
+      
       setSuccess(data.message);
       
       // Диспатчим событие обновления баланса с данными из ответа
       if (data.sender_coins_remaining !== undefined) {
-        console.log('[TIP] Диспатчим событие balance-update с балансом:', data.sender_coins_remaining);
+        
         window.dispatchEvent(new CustomEvent('balance-update', { detail: { coins: data.sender_coins_remaining } }));
       } else {
-        console.warn('[TIP] sender_coins_remaining === undefined, диспатчим событие без данных');
+        
         setTimeout(() => {
-          console.log('[TIP] Диспатчим событие balance-update после отправки чаевых');
+          
           window.dispatchEvent(new Event('balance-update'));
         }, 100);
       }

@@ -6,15 +6,24 @@ import { ShopModal } from './ShopModal';
 import { AuthModal } from './AuthModal';
 import { PhotoGenerationPage } from './PhotoGenerationPage';
 import { Footer } from './Footer';
+import Switcher4 from './Switcher4';
+import { NSFWWarningModal } from './NSFWWarningModal';
 import { API_CONFIG } from '../config/api';
 import '../styles/ContentArea.css';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const MainContainer = styled.div`
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   display: flex;
+  flex-direction: column;
   position: relative;
-  overflow: hidden;
+  
+  @media (max-width: 768px) {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+  }
 `;
 
 
@@ -118,13 +127,17 @@ const CharactersGrid = styled.div`
   align-content: start;
   width: 100%;
   min-height: 0;
+  
+  @media (max-width: 768px) {
+    flex: none;
+    overflow-y: visible;
+  }
 `;
 
 const ContentArea = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
-  height: 100%;
   min-width: 0;
 `;
 
@@ -209,6 +222,7 @@ interface MainPageProps {
   onHome?: () => void;
   onPaymentMethod?: (subscriptionType: string) => void;
   contentMode?: 'safe' | 'nsfw';
+  onContentModeChange?: (mode: 'safe' | 'nsfw') => void;
 }
 
 export const MainPage: React.FC<MainPageProps> = ({ 
@@ -225,8 +239,10 @@ export const MainPage: React.FC<MainPageProps> = ({
   onHistory,
   onHome,
   onPaymentMethod,
-  contentMode = 'safe'
+  contentMode = 'safe',
+  onContentModeChange
 }) => {
+  const isMobile = useIsMobile();
   const [isShopModalOpen, setIsShopModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
@@ -243,6 +259,9 @@ export const MainPage: React.FC<MainPageProps> = ({
   const [favoriteCharacterIds, setFavoriteCharacterIds] = useState<Set<number>>(new Set());
   const [sortFilter, setSortFilter] = useState<'all' | 'popular'>('popular');
   const [characterRatings, setCharacterRatings] = useState<{[key: number]: {likes: number, dislikes: number}}>({});
+
+  const [showNSFWWarning, setShowNSFWWarning] = useState(false);
+  const [pendingMode, setPendingMode] = useState<'safe' | 'nsfw' | null>(null);
 
   const fetchCharactersFromApi = async (forceRefresh: boolean = false): Promise<any[]> => {
     const endpoints = [
@@ -267,11 +286,11 @@ export const MainPage: React.FC<MainPageProps> = ({
         });
         
         if (!response.ok) {
-          console.warn(`Не удалось загрузить персонажей с ${endpoint}: ${response.status}`);
+          
           continue;
         }
         const payload = await response.json();
-        console.log(`Загружено персонажей с ${endpoint}:`, Array.isArray(payload) ? payload.length : payload?.characters?.length || 0);
+        
         
         if (Array.isArray(payload)) {
           return payload;
@@ -280,7 +299,7 @@ export const MainPage: React.FC<MainPageProps> = ({
           return payload.characters;
         }
       } catch (error) {
-        console.error(`Ошибка запроса персонажей (${endpoint}):`, error);
+        // Ошибка игнорируется, продолжаем цикл или возвращаем пустой список
       }
     }
 
@@ -298,7 +317,7 @@ export const MainPage: React.FC<MainPageProps> = ({
       const charactersData = await fetchCharactersFromApi(forceRefresh);
 
       if (!charactersData.length) {
-        console.log('Нет персонажей в базе данных');
+        
         setCharacters([]);
         setCachedRawCharacters([]);
         return;
@@ -340,7 +359,7 @@ export const MainPage: React.FC<MainPageProps> = ({
           // В режиме SAFE показываем персонажей с is_nsfw !== true (включая null/undefined)
           const isNsfw = char.is_nsfw === true;
           const shouldShow = contentMode === 'nsfw' ? isNsfw : !isNsfw;
-          console.log(`Character ${char.name}: is_nsfw=${char.is_nsfw}, contentMode=${contentMode}, shouldShow=${shouldShow}`);
+          
           return shouldShow;
       });
 
@@ -349,7 +368,7 @@ export const MainPage: React.FC<MainPageProps> = ({
       // Загружаем рейтинги для всех персонажей
       await loadCharacterRatings(formattedCharacters);
     } catch (error) {
-      console.error('Error loading characters:', error);
+      
       // Не показываем моковых персонажей - показываем пустой список
       setCharacters([]);
       setCachedRawCharacters([]);
@@ -381,7 +400,7 @@ export const MainPage: React.FC<MainPageProps> = ({
           };
         }
       } catch (error) {
-        console.error(`Error loading ratings for character ${characterId}:`, error);
+        
       }
     }
     
@@ -391,99 +410,147 @@ export const MainPage: React.FC<MainPageProps> = ({
   // Load character photos
   const loadCharacterPhotos = async () => {
     try {
-      // Загружаем фотографии из JSON файла как fallback
-      const response = await fetch('/character-photos.json');
-      if (response.ok) {
-        const photos = await response.json();
-        setCharacterPhotos(photos);
-      }
+      const photosMap: {[key: string]: string[]} = {};
       
-      // Всегда загружаем свежие данные для получения актуальных фото
+      // Загружаем данные персонажей - ГЛАВНЫЙ источник фото
       const charactersData = await fetchCharactersFromApi();
 
-      if (!charactersData.length) {
-        console.warn('Не удалось загрузить фотографии: нет данных персонажей');
-        return;
-      }
-
-        const photosMap: {[key: string]: string[]} = {};
-        
+      if (charactersData.length) {
         for (const char of charactersData) {
-        if (!char || !char.main_photos) {
-          continue;
-        }
-
-        const canonicalName = (char.name || char.display_name);
-        if (!canonicalName) {
-          continue;
-        }
-
-        let parsedPhotos: any[] = [];
-
-        if (Array.isArray(char.main_photos)) {
-          parsedPhotos = char.main_photos;
-        } else if (typeof char.main_photos === 'string') {
-          try {
-            parsedPhotos = JSON.parse(char.main_photos);
-            } catch (e) {
-            console.error('Error parsing main_photos for character:', canonicalName, e);
-            parsedPhotos = [];
-            }
-          } else {
-          parsedPhotos = [char.main_photos];
-        }
-
-        const normalizedKey = canonicalName.toLowerCase();
-        const photoUrls = parsedPhotos
-          .map((photo: any) => {
-            if (!photo) {
-              return null;
-            }
-
-            if (typeof photo === 'string') {
-              return photo.startsWith('http')
-                ? photo
-                : `/static/photos/${normalizedKey}/${photo}.png`;
+          if (!char) {
+            continue;
           }
 
-            if (photo.url) {
-              return photo.url;
+          const canonicalName = (char.name || char.display_name);
+          if (!canonicalName) {
+            continue;
+          }
+
+          const normalizedKey = canonicalName.toLowerCase();
+          let parsedPhotos: any[] = [];
+
+          // Обрабатываем main_photos из БД (основной источник)
+          if (char.main_photos) {
+            if (Array.isArray(char.main_photos)) {
+              parsedPhotos = char.main_photos;
+            } else if (typeof char.main_photos === 'string' && char.main_photos.trim()) {
+              try {
+                parsedPhotos = JSON.parse(char.main_photos);
+              } catch (e) {
+                
+                parsedPhotos = [];
+              }
             }
+          }
 
-            if (photo.id) {
-              return `/static/photos/${normalizedKey}/${photo.id}.png`;
-            }
+          const photoUrls = parsedPhotos
+            .map((photo: any) => {
+              if (!photo) {
+                return null;
+              }
 
-            return null;
-          })
-          .filter((url): url is string => Boolean(url));
+              let photoUrl = null;
 
-        if (photoUrls.length) {
-          photosMap[normalizedKey] = photoUrls;
+              // Если это объект с url полем, используем url
+              if (typeof photo === 'object' && photo.url) {
+                photoUrl = photo.url;
+              }
+              // Если это строка и начинается с http, это полный URL
+              else if (typeof photo === 'string') {
+                photoUrl = photo.startsWith('http')
+                  ? photo
+                  : `/static/photos/${normalizedKey}/${photo}.png`;
+              }
+
+              // Конвертируем старые Yandex.Cloud URL в прокси URL
+              if (photoUrl && photoUrl.includes('storage.yandexcloud.net/')) {
+                if (photoUrl.includes('.storage.yandexcloud.net/')) {
+                  // Формат: https://bucket-name.storage.yandexcloud.net/path/to/file
+                  const objectKey = photoUrl.split('.storage.yandexcloud.net/')[1];
+                  if (objectKey) {
+                    photoUrl = `${API_CONFIG.BASE_URL}/media/${objectKey}`;
+                  }
+                } else {
+                  // Формат: https://storage.yandexcloud.net/bucket-name/path/to/file
+                  const parts = photoUrl.split('storage.yandexcloud.net/')[1];
+                  if (parts) {
+                    // Пропускаем bucket-name и берем остальное
+                    const pathSegments = parts.split('/');
+                    if (pathSegments.length > 1) {
+                      const objectKey = pathSegments.slice(1).join('/');
+                      photoUrl = `${API_CONFIG.BASE_URL}/media/${objectKey}`;
+                    }
+                  }
+                }
+              }
+
+              return photoUrl;
+            })
+            .filter((url): url is string => Boolean(url));
+
+          // Сохраняем фото для персонажа
+          if (photoUrls.length > 0) {
+            photosMap[normalizedKey] = photoUrls;
+          }
         }
       }
-
-      if (!Object.keys(photosMap).length) {
-        return;
+      
+      // Дополнительно пытаемся загрузить из API endpoint (fallback)
+      try {
+        const photosResponse = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/photos`);
+        if (photosResponse.ok) {
+          const apiPhotos = await photosResponse.json();
+          for (const [key, photos] of Object.entries(apiPhotos)) {
+            const normalizedKey = key.toLowerCase();
+            if (Array.isArray(photos) && photos.length > 0) {
+              // Добавляем только если нет фото из БД
+              if (!photosMap[normalizedKey] || photosMap[normalizedKey].length === 0) {
+                photosMap[normalizedKey] = photos as string[];
+              }
+            }
+          }
+        }
+      } catch (apiError) {
+        
+      }
+      
+      // JSON файл как последний fallback
+      try {
+        const response = await fetch('/character-photos.json');
+        if (response.ok) {
+          const jsonPhotos = await response.json();
+          for (const [key, photos] of Object.entries(jsonPhotos)) {
+            const normalizedKey = key.toLowerCase();
+            if (Array.isArray(photos) && photos.length > 0) {
+              // Добавляем только если нет фото из других источников
+              if (!photosMap[normalizedKey] || photosMap[normalizedKey].length === 0) {
+                photosMap[normalizedKey] = photos as string[];
+              }
+            }
+          }
+        }
+      } catch (jsonError) {
+        
       }
 
-        setCharacterPhotos(prev => ({ ...prev, ...photosMap }));
-        
+      // Обновляем состояние с фото
+      setCharacterPhotos(prev => ({ ...prev, ...photosMap }));
+      
       setCharacters(prev => prev
         .map(char => {
-        const key = char.name.toLowerCase();
-        return {
+          const key = char.name.toLowerCase();
+          return {
             ...char,
-          photos: photosMap[key] || char.photos
-        };
+            photos: photosMap[key] || char.photos || []
+          };
         })
         .filter((char: any) => {
           // Фильтруем персонажей по режиму NSFW
           const isNsfw = char.is_nsfw === true; // Явная проверка: только true считается NSFW
           return contentMode === 'nsfw' ? isNsfw : !isNsfw;
-          }));
+        }));
     } catch (error) {
-      console.error('Ошибка загрузки фотографий персонажей:', error);
+      
     }
   };
 
@@ -503,7 +570,7 @@ export const MainPage: React.FC<MainPageProps> = ({
 
     // Слушаем события обновления фото персонажа и создания персонажа
     const handlePhotoUpdate = async () => {
-      console.log('Получено событие обновления фото персонажа, перезагружаем...');
+      
       // Даем время бэкенду сохранить изменения и очистить кэш
       await new Promise(resolve => setTimeout(resolve, 500));
       // Принудительно перезагружаем данные, игнорируя кэш
@@ -513,13 +580,13 @@ export const MainPage: React.FC<MainPageProps> = ({
     
     const handleCharacterCreated = async (event: Event) => {
       const customEvent = event as CustomEvent;
-      console.log('Получено событие создания персонажа, перезагружаем...', customEvent?.detail);
+      
       // Даем время бэкенду сохранить персонажа и очистить кэш
       await new Promise(resolve => setTimeout(resolve, 1500));
       // Принудительно перезагружаем персонажей из API, игнорируя кэш
       await loadCharacters(true); // forceRefresh = true
       await loadCharacterPhotos();
-      console.log('Персонажи перезагружены после создания');
+      
     };
     
     window.addEventListener('character-photos-updated', handlePhotoUpdate);
@@ -587,7 +654,7 @@ export const MainPage: React.FC<MainPageProps> = ({
         setFavoriteCharacterIds(new Set());
       }
     } catch (error) {
-      console.error('Error loading favorites:', error);
+      
       setFavoriteCharacterIds(new Set());
     }
   };
@@ -623,7 +690,7 @@ export const MainPage: React.FC<MainPageProps> = ({
           // Загружаем избранные после успешной авторизации
           await loadFavorites();
         } else {
-          console.error('Auth check returned empty data');
+          
           setIsAuthenticated(false);
           setUserInfo(null);
           setFavoriteCharacterIds(new Set());
@@ -652,7 +719,7 @@ export const MainPage: React.FC<MainPageProps> = ({
               return;
             }
           } catch (refreshError) {
-            console.error('Ошибка обновления токена:', refreshError);
+            
           }
         }
         // Если refresh не удался, удаляем токены
@@ -663,7 +730,7 @@ export const MainPage: React.FC<MainPageProps> = ({
         setFavoriteCharacterIds(new Set());
       } else {
         // Для других ошибок (500, 502, и т.д.) не удаляем токены, только сбрасываем состояние
-        console.warn('Auth check failed with status:', response.status, '- keeping tokens');
+        
         setIsAuthenticated(false);
         setUserInfo(null);
         setFavoriteCharacterIds(new Set());
@@ -671,7 +738,7 @@ export const MainPage: React.FC<MainPageProps> = ({
     } catch (error) {
       // При сетевых ошибках не удаляем токены
       if (localStorage.getItem('authToken')) {
-        console.warn('Ошибка проверки авторизации (сетевая ошибка):', error, '- keeping tokens');
+        
       }
       setIsAuthenticated(false);
       setUserInfo(null);
@@ -681,7 +748,7 @@ export const MainPage: React.FC<MainPageProps> = ({
 
   const handleCharacterClick = (character: Character) => {
     // Переходим к чату с выбранным персонажем
-    console.log('Selected character:', character);
+    
     if (onCharacterSelect) {
       onCharacterSelect(character);
     }
@@ -691,7 +758,7 @@ export const MainPage: React.FC<MainPageProps> = ({
   const handleDeleteCharacter = async (character: Character) => {
     const characterName = character.name || (character as any).raw?.name;
     if (!characterName) {
-      console.error('[MAIN] Не удалось определить имя персонажа для удаления');
+      
       return;
     }
 
@@ -702,7 +769,7 @@ export const MainPage: React.FC<MainPageProps> = ({
     try {
       const token = localStorage.getItem('authToken');
       if (!token) {
-        console.error('[MAIN] Нет токена для удаления персонажа');
+        
         return;
       }
 
@@ -715,7 +782,7 @@ export const MainPage: React.FC<MainPageProps> = ({
       });
 
       if (response.ok) {
-        console.log('[MAIN] Персонаж успешно удален:', characterName);
+        
         // Обновляем список персонажей
         await loadCharacters(true);
         // Отправляем событие для обновления других страниц
@@ -724,11 +791,11 @@ export const MainPage: React.FC<MainPageProps> = ({
         }));
       } else {
         const errorData = await response.json().catch(() => ({ detail: 'Неизвестная ошибка' }));
-        console.error('[MAIN] Ошибка удаления персонажа:', errorData);
+        
         alert(`Ошибка удаления персонажа: ${errorData.detail || 'Неизвестная ошибка'}`);
       }
     } catch (error) {
-      console.error('[MAIN] Ошибка при удалении персонажа:', error);
+      
       alert('Ошибка при удалении персонажа. Попробуйте позже.');
     }
   };
@@ -850,6 +917,22 @@ export const MainPage: React.FC<MainPageProps> = ({
 
   return (
     <MainContainer>
+      {showNSFWWarning && (
+        <NSFWWarningModal
+          onConfirm={() => {
+            setShowNSFWWarning(false);
+            if (pendingMode) {
+              onContentModeChange?.(pendingMode);
+              setPendingMode(null);
+            }
+          }}
+          onCancel={() => {
+            setShowNSFWWarning(false);
+            setPendingMode(null);
+          }}
+        />
+      )}
+
       <ContentArea>
       {isPhotoGenerationOpen && createdCharacter ? (
         <PhotoGenerationPage
@@ -919,8 +1002,6 @@ export const MainPage: React.FC<MainPageProps> = ({
               mode={authModalMode}
             />
           )}
-          
-          <Footer />
         </>
       )}
       </ContentArea>

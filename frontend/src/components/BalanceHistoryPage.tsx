@@ -8,8 +8,8 @@ import { authManager } from '../utils/auth';
 import { FiArrowLeft, FiDollarSign } from 'react-icons/fi';
 
 const MainContainer = styled.div`
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   background: rgba(20, 20, 20, 1);
@@ -159,7 +159,7 @@ export const BalanceHistoryPage: React.FC<BalanceHistoryPageProps> = ({
       setHistory(data.history || []);
       setTotal(data.total || 0);
     } catch (err) {
-      console.error('Error loading balance history:', err);
+      
       setError('Ошибка загрузки истории баланса');
     } finally {
       setIsLoading(false);

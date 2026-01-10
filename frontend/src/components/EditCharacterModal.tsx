@@ -260,7 +260,7 @@ export const EditCharacterModal: React.FC<EditCharacterModalProps> = ({
         });
       }
     } catch (error) {
-      console.error('Error loading character data:', error);
+      
     }
   };
 

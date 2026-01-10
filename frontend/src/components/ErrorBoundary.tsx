@@ -85,8 +85,8 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('[ERROR BOUNDARY] Ошибка в компоненте:', error);
-    console.error('[ERROR BOUNDARY] Информация об ошибке:', errorInfo);
+    
+    
     this.setState({
       error,
       errorInfo

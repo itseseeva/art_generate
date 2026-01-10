@@ -20,6 +20,10 @@ const MessagesContainer = styled.div`
   opacity: 1 !important;
   width: 100%;
   box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    padding: ${theme.spacing.md} ${theme.spacing.sm};
+  }
   
   /* Стилизация скроллбара */
   &::-webkit-scrollbar {

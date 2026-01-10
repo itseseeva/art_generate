@@ -8,9 +8,9 @@ import { fetchPromptByImage } from '../utils/prompt';
 import { translateToEnglish, translateToRussian } from '../utils/translate';
 
 const MainContainer = styled.div`
-  width: 100vw;
-  height: 100vh;
-  min-height: 100vh;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
   background: rgba(20, 20, 20, 1);
   padding: 2rem;
   overflow-y: auto;
@@ -209,7 +209,7 @@ const OverlayActions = styled.div`
 `;
 
 const OverlayButton = styled.button<{ $variant?: 'primary' | 'danger'; $isAdded?: boolean }>`
-  background: ${({ $variant, $isAdded }) =>
+  background: ${({ $variant, $isAdded }) => 
     $variant === 'primary'
       ? ($isAdded ? 'rgba(100, 200, 100, 0.85)' : 'rgba(120, 120, 120, 0.85)')
       : $variant === 'danger'
@@ -227,7 +227,7 @@ const OverlayButton = styled.button<{ $variant?: 'primary' | 'danger'; $isAdded?
   justify-content: center;
 
   &:hover:not(:disabled) {
-    background: ${({ $variant, $isAdded }) =>
+    background: ${({ $variant, $isAdded }) => 
       $variant === 'primary'
         ? ($isAdded ? 'rgba(120, 220, 120, 0.95)' : 'rgba(140, 140, 140, 0.95)')
         : $variant === 'danger'
@@ -436,6 +436,25 @@ const PromptModalContent = styled.div`
   overflow: visible !important;
   visibility: visible !important;
   opacity: 1 !important;
+
+  @media (max-width: 768px) {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    background: #000 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    overflow: hidden !important;
+  }
 `;
 
 const PromptModalImageContainer = styled.div`
@@ -450,6 +469,14 @@ const PromptModalImageContainer = styled.div`
   background: transparent !important;
   visibility: visible !important;
   opacity: 1 !important;
+
+  @media (max-width: 768px) {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+  }
 `;
 
 const PromptModalImage = styled.img`
@@ -465,6 +492,13 @@ const PromptModalImage = styled.img`
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
+
+  @media (max-width: 768px) {
+    max-height: 100% !important;
+    width: 100% !important;
+    height: 100% !important;
+    border-radius: 0 !important;
+  }
 `;
 
 const PromptPanel = styled.div`
@@ -483,6 +517,24 @@ const PromptPanel = styled.div`
   backdrop-filter: blur(10px);
   visibility: visible !important;
   opacity: 1 !important;
+
+  @media (max-width: 768px) {
+    position: relative !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    max-height: 30vh !important;
+    background: rgba(20, 20, 20, 0.95) !important;
+    border: none !important;
+    border-bottom: 1px solid rgba(251, 191, 36, 0.3) !important;
+    border-radius: 0 !important;
+    padding: ${theme.spacing.md} !important;
+    z-index: 10 !important;
+    flex-shrink: 0 !important;
+  }
 `;
 
 const PromptPanelHeader = styled.div`
@@ -492,7 +544,7 @@ const PromptPanelHeader = styled.div`
 `;
 
 const PromptPanelTitle = styled.h3`
-  color: rgba(240, 240, 240, 1);
+  color: #fbbf24;
   font-size: ${theme.fontSize.xl};
   font-weight: 800;
   margin: 0;
@@ -688,6 +740,7 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
+  const [isPromptVisible, setIsPromptVisible] = useState(true);
   const [promptError, setPromptError] = useState<string | null>(null);
 
   // Загрузка настроек генерации
@@ -700,7 +753,7 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
           setGenerationSettings(settings);
         }
       } catch (error) {
-        console.error('Error loading generation settings:', error);
+        
       }
     };
     loadSettings();
@@ -722,18 +775,14 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
         if (response.ok) {
           const userData = await response.json();
           const subscriptionType = userData.subscription?.subscription_type || userData.subscription_type || 'free';
-          console.log('[PhotoGenerationPage3] Загружена информация о пользователе:', {
-            coins: userData.coins || 0,
-            subscriptionType,
-            subscription: userData.subscription
-          });
+          
           setUserInfo({ 
             coins: userData.coins || 0,
             subscription_type: subscriptionType
           });
         }
       } catch (error) {
-        console.error('Auth check error:', error);
+        
       }
     };
     checkAuth();
@@ -768,7 +817,7 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
   const handleGenerate = async () => {
     // Защита от множественных вызовов
     if (isGenerating) {
-      console.log('Generation already in progress, ignoring duplicate call');
+      
       return;
     }
     
@@ -882,7 +931,7 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
       // Проверяем, есть ли task_id (асинхронная генерация) или сразу image_url (мок)
       if (result.task_id) {
         // Асинхронная генерация через Celery
-        console.log('Waiting for generation, task_id:', result.task_id);
+        
         
         // Ждем завершения генерации (параллельно с прогрессом)
         const photoPromise = waitForGeneration(result.task_id, token);
@@ -895,11 +944,11 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
         setGenerationProgress(100);
         
         if (photo) {
-          console.log('Photo generated:', photo);
+          
           // Добавляем фото сразу в список для отображения
           setImages(prev => {
             const updated = [...prev, photo];
-            console.log('Updated images list:', updated);
+            
             return updated;
           });
           setSuccess('Фото успешно сгенерировано!');
@@ -919,10 +968,10 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
             });
             
             if (addToGalleryResponse.ok) {
-              console.log('[PhotoGenerationPage3] Фото добавлено в галерею пользователя');
+              
             }
           } catch (galleryError) {
-            console.warn('[PhotoGenerationPage3] Не удалось добавить фото в галерею:', galleryError);
+            
           }
           
           // Обновляем счетчик монет с сервера после успешной генерации
@@ -940,15 +989,15 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
               });
             }
           } catch (error) {
-            console.error('Error updating coins:', error);
+            
           }
         } else {
-          console.error('Failed to generate photo');
+          
           throw new Error('Не удалось сгенерировать фото');
         }
       } else if (result.image_url) {
         // Мок или синхронная генерация
-        console.log('Photo generated synchronously:', result.image_url);
+        
         
         // НЕ ждём искусственно - завершаем сразу после получения результата
         
@@ -965,7 +1014,7 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
         // Добавляем фото сразу в список для отображения
         setImages(prev => {
           const updated = [...prev, newPhoto];
-          console.log('Updated images list:', updated);
+          
           return updated;
         });
         setSuccess('Фото успешно сгенерировано!');
@@ -985,10 +1034,10 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
           });
           
           if (addToGalleryResponse.ok) {
-            console.log('[PhotoGenerationPage3] Фото добавлено в галерею пользователя (синхронная генерация)');
+            
           }
         } catch (galleryError) {
-          console.warn('[PhotoGenerationPage3] Не удалось добавить фото в галерею:', galleryError);
+          
         }
         
         // Обновляем счетчик монет с сервера после успешной генерации
@@ -1006,10 +1055,10 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
             });
           }
         } catch (error) {
-          console.error('Error updating coins:', error);
+          
         }
       } else {
-        console.error('No task_id or image_url in result:', result);
+        
         if (progressInterval) clearInterval(progressInterval);
         throw new Error('Не удалось получить изображение');
       }
@@ -1050,7 +1099,7 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
           }
         }
       } catch (refreshError) {
-        console.error('Error refreshing coins after error:', refreshError);
+        
       }
     } finally {
       // Даем время на завершение прогресса перед сбросом
@@ -1083,11 +1132,7 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
         
         // Логируем только важные статусы
         if (status.status === 'SUCCESS' || status.status === 'FAILURE') {
-          console.log(`[${attempt}] Generation status:`, {
-            status: status.status,
-            task_id: status.task_id,
-            message: status.message
-          });
+          
         }
 
         // Бэкенд возвращает результат в поле "result", а не "data"
@@ -1095,10 +1140,10 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
         
         // Проверяем SUCCESS статус
         if (status.status === 'SUCCESS') {
-          console.log('SUCCESS status detected! Result data:', resultData);
+          
           
           if (!resultData) {
-            console.warn('SUCCESS but no result data! Full status:', status);
+            
             // Продолжаем ждать, возможно результат еще не готов
             await new Promise(resolve => setTimeout(resolve, delay));
             continue;
@@ -1111,7 +1156,7 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
           const imageId = resultData.image_id || resultData.id || resultData.task_id || resultData.filename || `${Date.now()}-${taskId}`;
           
           if (imageUrl) {
-            console.log('✅ Photo generated successfully:', { imageUrl, imageId });
+            
             return {
               id: imageId,
               url: imageUrl,
@@ -1119,8 +1164,6 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
               isAdded: false
             };
           } else {
-            console.error('❌ SUCCESS but no image URL found! Result data:', resultData);
-            console.error('Available keys:', Object.keys(resultData));
             // Продолжаем ждать, возможно URL появится в следующем запросе
             await new Promise(resolve => setTimeout(resolve, delay));
             continue;
@@ -1133,12 +1176,12 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
           continue;
         } else {
           // Неизвестный статус - логируем и продолжаем ждать
-          console.warn('Unknown status:', status.status, 'Full response:', status);
+          
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
       } catch (err) {
-        console.error('Error checking generation status:', err);
+        
         // При ошибке продолжаем попытки, но с небольшой задержкой
         await new Promise(resolve => setTimeout(resolve, delay));
         if (attempt === maxAttempts - 1) {
@@ -1166,35 +1209,24 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
       }
     }
     
-    console.log('[PhotoGenerationPage3] handleContinue:', {
-      userInfo,
-      rawSubscriptionType,
-      subscriptionType,
-      imagesLength: images.length,
-      typeOfRaw: typeof rawSubscriptionType
-    });
+    
     
     // Только STANDARD и PREMIUM могут перейти на создание платного альбома
     // Проверяем явно только эти два типа, все остальное (FREE, BASE, undefined, null, '') показываем модальное окно
     const allowedTypes = ['standard', 'premium', 'standart']; // standart - опечатка для совместимости
     const isAllowed = allowedTypes.includes(subscriptionType);
     
-    console.log('[PhotoGenerationPage3] Проверка подписки:', {
-      subscriptionType,
-      isAllowed,
-      allowedTypes,
-      willShowModal: !isAllowed
-    });
+    
     
     // ВАЖНО: Если не STANDARD или PREMIUM - показываем модальное окно и НЕ переходим дальше
     if (!isAllowed) {
-      console.log('[PhotoGenerationPage3] ✗ НЕ разрешено: показываем модальное окно для подписки:', subscriptionType);
+      
       setShowFreeSubscriptionModal(true);
       return; // ОСТАНОВКА - не переходим дальше
     }
     
     // Только если isAllowed === true
-    console.log('[PhotoGenerationPage3] ✓ Разрешено: переход на создание платного альбома');
+    
     // Переходим на страницу создания платного альбома
     if (onPaidAlbumBuilder) {
       onPaidAlbumBuilder(character);
@@ -1211,7 +1243,7 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
     // Небольшая задержка для закрытия модального окна
     setTimeout(() => {
       if (onChat && character) {
-        console.log('Переход в чат с персонажем:', character);
+        
         // Убеждаемся, что у персонажа есть необходимые поля
         const characterForChat = {
           ...character,
@@ -1223,10 +1255,10 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
         // Fallback: переход через URL
         const characterId = character?.id || character?.name;
         if (characterId) {
-          console.log('Fallback: переход в чат через URL, character:', characterId);
+          
           window.location.href = `/chat?character=${characterId}`;
         } else {
-          console.error('Не удалось определить ID персонажа для перехода в чат');
+          
         }
       }
     }, 100);
@@ -1245,15 +1277,16 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
 
   const handleOpenPhoto = async (e: React.MouseEvent, imageUrl: string) => {
     e.stopPropagation();
-    console.log('[PhotoGenerationPage3] handleOpenPhoto called with URL:', imageUrl);
+    
     setSelectedPhoto(imageUrl);
+    setIsPromptVisible(true);
     setSelectedPrompt(null);
     setPromptError(null);
     setIsLoadingPrompt(true);
 
     try {
       const { prompt, errorMessage } = await fetchPromptByImage(imageUrl);
-      console.log('[PhotoGenerationPage3] Prompt loaded:', { prompt, errorMessage });
+      
       if (prompt) {
         // Переводим промпт на русский для отображения
         const translatedPrompt = await translateToRussian(prompt);
@@ -1262,7 +1295,7 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
         setPromptError(errorMessage || 'Промпт недоступен для этого изображения');
       }
     } catch (error) {
-      console.error('[PhotoGenerationPage3] Error loading prompt:', error);
+      
       setPromptError('Ошибка загрузки промпта');
     } finally {
       setIsLoadingPrompt(false);
@@ -1270,7 +1303,7 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
   };
 
   useEffect(() => {
-    console.log('[PhotoGenerationPage3] selectedPhoto changed:', selectedPhoto);
+    
   }, [selectedPhoto]);
 
   useEffect(() => {
@@ -1370,7 +1403,7 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
         window.dispatchEvent(new CustomEvent('character-photos-updated', { 
           detail: { characterName: character.name } 
         }));
-        console.log('Фото успешно сохранено для персонажа:', character.name);
+        
       }
       
     } catch (err) {
@@ -1411,7 +1444,7 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
                       $isSelected={!!image.isAdded}
                       onClick={(e) => {
                         e.stopPropagation();
-                        console.log('[PhotoGenerationPage3] ImageCard clicked, image URL:', image.url);
+                        
                         handleOpenPhoto(e, image.url);
                       }}
                       style={{ cursor: 'pointer' }}
@@ -1420,10 +1453,10 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
                         src={image.url}
                         alt={`Generated ${index + 1}`}
                         onLoad={() => {
-                          console.log('Image loaded successfully:', image.url);
+                          
                         }}
                         onError={(e) => {
-                          console.error('Error loading image:', image.url, e);
+                          
                           e.currentTarget.style.display = 'none';
                         }}
                       />
@@ -1497,9 +1530,9 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
                     width: '100%'
                   }}
                 >
-                  <option value="anime-realism">Аниме реализм</option>
-                  <option value="anime">Аниме</option>
-                  <option value="realism">Реализм</option>
+                  <option value="anime-realism">Сочетание аниме и реалистичных текстур</option>
+                  <option value="anime">Классический аниме стиль</option>
+                  <option value="realism">Максимальная фотореалистичность</option>
                 </select>
 
                 <GenerateButton
@@ -1616,9 +1649,27 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
             <PromptModalImageContainer>
               <PromptModalImage src={selectedPhoto} alt="Full size" />
             </PromptModalImageContainer>
-            <PromptPanel>
+            <PromptPanel style={{
+              display: isPromptVisible ? 'flex' : 'none',
+              visibility: isPromptVisible ? 'visible' : 'hidden'
+            }}>
               <PromptPanelHeader>
-                <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+                  <button 
+                    onClick={() => setIsPromptVisible(false)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#fbbf24',
+                      cursor: 'pointer',
+                      padding: '4px'
+                    }}
+                    title="Скрыть промпт"
+                  >
+                    ×
+                  </button>
+                </div>
               </PromptPanelHeader>
               {isLoadingPrompt ? (
                 <PromptLoading>Загрузка промпта...</PromptLoading>
@@ -1628,6 +1679,26 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
                 <PromptPanelText>{selectedPrompt}</PromptPanelText>
               ) : null}
             </PromptPanel>
+            {!isPromptVisible && (
+              <button
+                onClick={() => setIsPromptVisible(true)}
+                style={{
+                  position: 'absolute',
+                  top: '20px',
+                  left: '20px',
+                  background: 'rgba(0, 0, 0, 0.7)',
+                  border: '1px solid rgba(251, 191, 36, 0.5)',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  color: '#fbbf24',
+                  cursor: 'pointer',
+                  zIndex: 100002,
+                  fontWeight: '600'
+                }}
+              >
+                Показать промпт
+              </button>
+            )}
           </PromptModalContent>
         </PromptModalOverlay>,
         document.body

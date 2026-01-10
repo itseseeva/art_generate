@@ -10,8 +10,8 @@ import { API_CONFIG } from '../config/api';
 import '../styles/ContentArea.css';
 
 const MainContainer = styled.div`
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   display: flex;
   position: relative;
   overflow: hidden;
@@ -258,7 +258,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
         setFavoriteCharacterIds(new Set());
       }
     } catch (error) {
-      console.error('Error loading favorites:', error);
+      
       setFavoriteCharacterIds(new Set());
     }
   };
@@ -271,7 +271,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
       const response = await fetch('/character-photos.json');
       if (response.ok) {
         initialPhotos = await response.json();
-        console.log('[HISTORY] Загружены фото из JSON, ключей:', Object.keys(initialPhotos).length);
+        
       }
       
       // Всегда загружаем свежие данные для получения актуальных фото
@@ -324,7 +324,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
           try {
             parsedPhotos = JSON.parse(char.main_photos);
           } catch (e) {
-            console.error('Error parsing main_photos for character:', rawName, e);
+            
             parsedPhotos = [];
           }
         } else {
@@ -359,17 +359,17 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
 
         if (photoUrls.length) {
           photosMap[normalizedKey] = photoUrls;
-          console.log('[HISTORY] Загружены фото для:', rawName, 'ключ:', normalizedKey, 'фото:', photoUrls.length);
+          
         }
       }
 
       // Обновляем состояние с новыми фото
       // Объединяем фото из JSON и из API (API имеет приоритет)
       const finalPhotos = { ...initialPhotos, ...photosMap };
-      console.log('[HISTORY] Обновлено characterPhotos, ключей:', Object.keys(finalPhotos).length);
+      
       setCharacterPhotos(finalPhotos);
     } catch (err) {
-      console.error('Error loading character photos:', err);
+      
     }
   };
 
@@ -398,15 +398,15 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
         const historyData = await historyResponse.json().catch(() => ({}));
         const charactersData = await charactersResponse.json().catch(() => []);
 
-        console.log('[HISTORY] History data:', historyData);
-        console.log('[HISTORY] History response status:', historyResponse.status);
-        console.log('[HISTORY] History response ok:', historyResponse.ok);
-        console.log('[HISTORY] Characters count from history:', historyData?.characters?.length);
-        console.log('[HISTORY] Can save history:', historyData?.can_save_history);
+        
+        
+        
+        
+        
         
         // Проверяем, что ответ содержит массив characters
         if (!historyData?.characters) {
-          console.warn('[HISTORY] В ответе нет массива characters:', historyData);
+          
         }
 
         // Проверяем, что historyData содержит массив characters
@@ -431,7 +431,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                 }
                 return false;
               })
-              .map((entry: any) =>
+              .map((entry: any) => 
                 typeof entry === 'string'
                   ? { name: entry.trim() }
                   : {
@@ -442,8 +442,8 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
               )
           : [];
 
-        console.log('[HISTORY] Загружено персонажей из истории:', historyList.length);
-        console.log('[HISTORY] Список персонажей из истории:', historyList.map(e => e.name));
+        
+        
 
         const charactersArray = Array.isArray(charactersData) ? charactersData : [];
         const charactersMap = new Map<string, any>();
@@ -469,10 +469,10 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
           }
         });
 
-        console.log('[HISTORY] Загружено персонажей из API:', charactersArray.length);
-        console.log('[HISTORY] Список персонажей из API:', charactersArray.slice(0, 10).map((c: any) => c.name));
-        console.log('[HISTORY] characterPhotos keys:', Object.keys(characterPhotos).length, 'keys:', Object.keys(characterPhotos).slice(0, 10));
-        console.log('[HISTORY] charactersMap keys:', Array.from(charactersMap.keys()).slice(0, 20));
+        
+        
+        
+        
 
         // Создаем данные персонажей, используя characterPhotos как на MainPage
         const formatted = historyList
@@ -500,9 +500,9 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
             // КРИТИЧЕСКИ ВАЖНО: Если персонаж не найден в списке существующих персонажей,
             // проверяем, может быть проблема с сопоставлением имен
             if (!finalMatch) {
-              console.warn('[HISTORY] Персонаж не найден в основном списке:', entryName);
-              console.warn('[HISTORY] Доступные ключи в charactersMap:', Array.from(charactersMap.keys()).slice(0, 20));
-              console.warn('[HISTORY] Ищем похожие имена...');
+              
+              
+              
               
               // Пробуем найти по частичному совпадению (без учета регистра и пробелов)
               const normalizedEntryName = entryName.toLowerCase().replace(/\s+/g, '');
@@ -510,7 +510,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
               for (const [mapKey, char] of charactersMap.entries()) {
                 const normalizedMapName = (char.name || '').toLowerCase().replace(/\s+/g, '');
                 if (normalizedMapName === normalizedEntryName || normalizedMapName.includes(normalizedEntryName) || normalizedEntryName.includes(normalizedMapName)) {
-                  console.log('[HISTORY] Найдено частичное совпадение:', entryName, '->', char.name);
+                  
                   finalMatch = char;
                   foundByPartial = true;
                   break;
@@ -519,7 +519,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
               
               // Если все равно не нашли, создаем базовый объект персонажа из данных истории
               if (!foundByPartial) {
-                console.warn('[HISTORY] Персонаж не найден в основном списке, создаем базовый объект из истории:', entryName);
+                
                 // Создаем минимальный объект персонажа из данных истории
                 finalMatch = {
                   name: entryName,
@@ -537,21 +537,21 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
             const char = buildCharacterData(entry, finalMatch, characterPhotos);
             
             // Логируем для отладки
-            console.log('[HISTORY] Персонаж:', char.name, 'фото:', char.photos?.length || 0, 'last_image_url:', entry.last_image_url);
+            
             if (!char.photos || char.photos.length === 0) {
               const rawName = finalMatch?.name || entryName;
               const photoKey = rawName.toLowerCase();
-              console.warn('[HISTORY] Нет фото для персонажа:', char.name, 'rawName:', rawName, 'photoKey:', photoKey, 'characterPhotos[photoKey]:', characterPhotos[photoKey], 'entry.last_image_url:', entry.last_image_url);
+              
             }
             
             return char;
           })
           .filter((char): char is CharacterWithHistory => char !== null);
 
-        console.log('[HISTORY] Итоговый список персонажей:', formatted.length);
+        
         setCharacters(formatted);
       } catch (err) {
-        console.error('[HISTORY] Ошибка загрузки:', err);
+        
         setError(err instanceof Error ? err.message : 'Неизвестная ошибка загрузки');
       } finally {
         setIsLoading(false);
@@ -573,13 +573,13 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
     
     // Если фото загружены (даже если их нет), загружаем персонажей
     if (photosKeys.length > 0 || photosLoadedRef.current) {
-      console.log('[HISTORY] characterPhotos обновлен, загружаем персонажей. Ключей:', photosKeys.length);
+      
       photosLoadedRef.current = true;
       loadCharacters();
     } else if (!isLoading && !photosLoadedRef.current) {
       // Если фото не загружены, но загрузка завершена, все равно загружаем персонажей один раз
       // (фото могут быть не у всех персонажей)
-      console.log('[HISTORY] Фото не загружены, но загружаем персонажей без фото (первый раз)');
+      
       photosLoadedRef.current = true;
       loadCharacters();
     }
@@ -589,7 +589,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
   useEffect(() => {
     const handleHistoryCleared = async (event: CustomEvent) => {
       const { characterName } = event.detail;
-      console.log('[HISTORY] Получено событие очистки истории для:', characterName);
+      
       
       // Сразу удаляем персонажа локально для мгновенной обратной связи
       setCharacters(prev => {
@@ -603,11 +603,11 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                          charRawName === eventName || 
                          charDisplayName === eventName;
           if (matches) {
-            console.log('[HISTORY] Удаляем персонажа локально:', char.name, 'rawName:', charRawName, 'displayName:', charDisplayName, 'eventName:', eventName);
+            
           }
           return !matches;
         });
-        console.log('[HISTORY] Персонажей до удаления:', prev.length, 'после удаления:', filtered.length);
+        
         return filtered;
       });
       
@@ -616,7 +616,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
         // Перезагружаем персонажей напрямую (не ждем обновления фото)
         await loadCharacters();
       } catch (err) {
-        console.error('[HISTORY] Ошибка перезагрузки после очистки:', err);
+        
       }
     };
     
@@ -667,7 +667,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                     setError(errorData.detail || 'Не удалось удалить историю');
                   }
                 } catch (err) {
-                  console.error('[HISTORY] Ошибка удаления истории:', err);
+                  
                   setError('Ошибка при удалении истории');
                 }
               }}

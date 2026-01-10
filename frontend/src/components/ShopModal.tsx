@@ -251,7 +251,7 @@ export const ShopModal: React.FC<ShopModalProps> = ({
         setStats(statsData);
       }
     } catch (error) {
-      console.error('Ошибка загрузки статистики подписки:', error);
+      
     }
   };
 

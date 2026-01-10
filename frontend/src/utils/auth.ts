@@ -105,10 +105,10 @@ class AuthManager {
       const token = this.getToken();
       if (token && !this.isTokenExpired(token)) {
         try {
-          console.log('Auto-refreshing token...');
+          
           await this.refreshAccessToken();
         } catch (error) {
-          console.log('Auto-refresh failed, but continuing...');
+          
         }
       }
     }, 30 * 60 * 1000); // 30 минут
@@ -134,7 +134,7 @@ class AuthManager {
       const now = Date.now();
       return exp < now;
     } catch (error) {
-      console.error('Error parsing token:', error);
+      
       return true; // Если не можем распарсить, считаем токен истекшим
     }
   }
@@ -186,7 +186,7 @@ class AuthManager {
       
       return tokenData;
     } catch (error) {
-      console.error('Token refresh error:', error);
+      
       this.clearTokens();
       throw error;
     }
@@ -206,7 +206,7 @@ class AuthManager {
           const newTokens = await this.refreshAccessToken();
           token = newTokens.access_token;
         } catch (error) {
-          console.error('Failed to obtain access token via refresh:', error);
+          
           this.clearTokens();
           throw new Error('No access token available');
         }
@@ -218,20 +218,20 @@ class AuthManager {
 
     // Проверяем, истек ли токен
     if (this.isTokenExpired(token)) {
-      console.log('Access token expired, refreshing...');
+      
       const refreshToken = this.getRefreshToken();
       if (refreshToken) {
         try {
           const newTokens = await this.refreshAccessToken();
           token = newTokens.access_token;
         } catch (error) {
-          console.error('Failed to refresh token:', error);
+          
           this.clearTokens();
           // Не выбрасываем ошибку сразу, пытаемся использовать старый токен
-          console.log('Using existing token despite refresh failure...');
+          
         }
       } else {
-        console.log('No refresh token available, token expired');
+        
         this.clearTokens();
       }
     }
@@ -249,10 +249,10 @@ class AuthManager {
 
     // Если получили 401, пытаемся обновить токен и повторить запрос
     if (response.status === 401) {
-      console.log('Received 401, attempting token refresh...');
+      
       const refreshToken = this.getRefreshToken();
       if (!refreshToken) {
-        console.log('No refresh token available, clearing tokens');
+        
         this.clearTokens();
         throw new Error('Authentication failed: No refresh token');
       }
@@ -269,7 +269,7 @@ class AuthManager {
           headers: newHeaders
         });
       } catch (error) {
-        console.error('Failed to refresh token after 401:', error);
+        
         this.clearTokens();
         throw new Error('Authentication failed');
       }
@@ -284,7 +284,7 @@ class AuthManager {
   public async checkAuth(): Promise<{ isAuthenticated: boolean; userInfo: any }> {
     try {
       const token = this.getToken();
-      console.log('checkAuth: token from localStorage:', token ? token.substring(0, 20) + '...' : 'null');
+      
       
       if (!token) {
         return {
@@ -295,17 +295,17 @@ class AuthManager {
       
       const response = await this.fetchWithAuth(API_CONFIG.BASE_URL + '/api/v1/auth/me/');
       
-      console.log('checkAuth: response status:', response.status);
+      
       
       if (response.ok) {
         const userData = await response.json();
-        console.log('checkAuth: user data received:', userData);
+        
         return {
           isAuthenticated: true,
           userInfo: userData
         };
       } else {
-        console.log('checkAuth: response not ok, clearing tokens');
+        
         this.clearTokens();
         return {
           isAuthenticated: false,
@@ -313,7 +313,7 @@ class AuthManager {
         };
       }
     } catch (error) {
-      console.error('Auth check error:', error);
+      
       this.clearTokens();
       return {
         isAuthenticated: false,
@@ -340,11 +340,11 @@ class AuthManager {
           });
         } catch (error) {
           // Игнорируем ошибки API, все равно очищаем токены локально
-          console.log('Logout API call failed, clearing tokens locally:', error);
+          
         }
       }
     } catch (error) {
-      console.error('Logout error:', error);
+      
     } finally {
       // Всегда очищаем токены локально
       this.clearTokens();

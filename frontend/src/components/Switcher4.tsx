@@ -16,22 +16,22 @@ interface SwitchTheme {
 const SWITCHER_THEMES: Record<SwitcherVariant, SwitchTheme> = {
   pink: {
     off: {
-      background: '#fef0f7',
-      border: 'rgba(236,72,153,0.4)',
-      shadow: '0 3px 8px rgba(236,72,153,0.25)'
+      background: '#3f3f46', // Темно-серый (zinc-700)
+      border: 'rgba(161, 161, 170, 0.4)', // Серый бордер
+      shadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
     },
     on: {
-      background: 'linear-gradient(135deg,#ffa6c9,#f43f5e)',
-      border: 'rgba(244,63,94,0.95)',
-      shadow: '0 12px 26px rgba(244,63,94,0.6)'
+      background: 'linear-gradient(135deg, #be185d, #9d174d)', // Темно-розовый
+      border: 'rgba(190, 24, 93, 0.8)',
+      shadow: '0 8px 16px rgba(190, 24, 93, 0.4)'
     },
     thumbShadow: {
-      off: '0 3px 8px rgba(244,114,182,0.35)',
-      on: '0 6px 14px rgba(244,63,94,0.55)'
+      off: '0 2px 4px rgba(0, 0, 0, 0.2)',
+      on: '0 4px 8px rgba(190, 24, 93, 0.4)'
     },
     thumbBorder: {
-      off: 'rgba(244,114,182,0.8)',
-      on: 'rgba(244,63,94,0.95)'
+      off: 'rgba(113, 113, 122, 0.8)',
+      on: 'rgba(255, 255, 255, 0.9)'
     }
   },
   blue: {
@@ -173,13 +173,7 @@ export default function Switcher4({
               alignItems: 'center',
               justifyContent: 'center'
             }}
-          >
-            {currentChecked ? (
-              <span className="switcher4-thumb-label" style={{ fontSize: '8px', fontWeight: 'bold' }}>18+</span>
-            ) : (
-              <span className="switcher4-thumb-label" style={{ fontSize: '7px', color: '#64748b', fontWeight: 'bold' }}>Safe</span>
-            )}
-          </div>
+          />
         </div>
       </label>
     </div>

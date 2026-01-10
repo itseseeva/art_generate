@@ -31,14 +31,14 @@ export async function translateToEnglish(text: string): Promise<string> {
     });
 
     if (!response.ok) {
-      console.warn('[TRANSLATE] Ошибка перевода, используем оригинальный текст');
+      
       return text;
     }
 
     const data = await response.json();
     return data.translated_text || text;
   } catch (error) {
-    console.error('[TRANSLATE] Ошибка перевода:', error);
+    
     // В случае ошибки возвращаем оригинальный текст
     return text;
   }
@@ -85,14 +85,14 @@ export async function translateToRussian(text: string): Promise<string> {
     });
 
     if (!response.ok) {
-      console.warn('[TRANSLATE] Ошибка перевода, используем оригинальный текст');
+      
       return text;
     }
 
     const data = await response.json();
     return data.translated_text || text;
   } catch (error) {
-    console.error('[TRANSLATE] Ошибка перевода:', error);
+    
     // В случае ошибки возвращаем оригинальный текст
     return text;
   }

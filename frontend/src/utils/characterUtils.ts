@@ -20,7 +20,7 @@ export const extractRolePlayingSituation = (prompt: string): string | null => {
     
     return null;
   } catch (error) {
-    console.error('Ошибка при извлечении Role-playing Situation:', error);
+    
     return null;
   }
 };
@@ -62,7 +62,7 @@ export const extractCharacterFields = (prompt: string) => {
     
     return fields;
   } catch (error) {
-    console.error('Ошибка при извлечении полей персонажа:', error);
+    
     return {};
   }
 };

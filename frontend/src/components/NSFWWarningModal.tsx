@@ -39,8 +39,14 @@ const ModalContent = styled.div`
   border: 2px solid rgba(255, 100, 100, 0.3);
   max-width: 520px;
   width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
   text-align: center;
   animation: slideUp 0.3s ease-out;
+  
+  @media (max-width: 768px) {
+    padding: 2rem 1.5rem;
+  }
   
   @keyframes slideUp {
     from {
@@ -73,6 +79,10 @@ const Title = styled.h2`
   font-weight: 700;
   margin-bottom: 1rem;
   letter-spacing: -0.5px;
+  
+  @media (max-width: 768px) {
+    font-size: 22px;
+  }
 `;
 
 const Message = styled.div`
@@ -81,6 +91,10 @@ const Message = styled.div`
   line-height: 1.7;
   margin-bottom: 2rem;
   text-align: left;
+  
+  @media (max-width: 768px) {
+    font-size: 14px;
+  }
   
   p {
     margin: 0.75rem 0;
@@ -107,6 +121,10 @@ const ButtonGroup = styled.div`
   gap: 1rem;
   margin-top: 2rem;
   justify-content: center;
+  
+  @media (max-width: 768px) {
+    flex-direction: column-reverse;
+  }
 `;
 
 const Button = styled.button<{ $variant?: 'primary' | 'secondary' }>`

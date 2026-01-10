@@ -7,8 +7,8 @@ import { AuthModal } from './AuthModal';
 import { LoadingSpinner } from './LoadingSpinner';
 
 const MainContainer = styled.div`
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   display: flex;
   overflow: hidden;
 `;
@@ -371,18 +371,18 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({
   const loadGenerationSettings = async () => {
     try {
       const response = await fetch('/api/v1/fallback-settings/');
-      console.log('Response status:', response.status);
+      
       
       if (response.ok) {
         const settings = await response.json();
         setGenerationSettings(settings);
-        console.log('Настройки генерации загружены:', settings);
-        console.log('Steps:', settings.steps, 'CFG:', settings.cfg_scale);
+        
+        
       } else {
-        console.error('Ошибка загрузки настроек генерации:', response.status);
+        
       }
     } catch (error) {
-      console.error('Ошибка загрузки настроек генерации:', error);
+      
     }
   };
 
@@ -433,7 +433,7 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({
               return;
             }
           } catch (refreshError) {
-            console.error('Ошибка обновления токена:', refreshError);
+            
           }
         }
         // Если refresh не удался, удаляем токены
@@ -442,11 +442,11 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({
         localStorage.removeItem('refreshToken');
       } else {
         // Для других ошибок не удаляем токены
-        console.warn('Auth check failed with status:', response.status, '- keeping tokens');
+        
         setIsAuthenticated(false);
       }
     } catch (error) {
-      console.error('Auth check error:', error);
+      
       setIsAuthenticated(false);
     }
   };
@@ -545,10 +545,10 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({
           });
           
           if (addToGalleryResponse.ok) {
-            console.log(`[PhotoGenerationPage] Фото ${i + 1} добавлено в галерею пользователя`);
+            
           }
         } catch (galleryError) {
-          console.warn(`[PhotoGenerationPage] Не удалось добавить фото ${i + 1} в галерею:`, galleryError);
+          
         }
       }
       
@@ -630,13 +630,13 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({
   // Загрузка существующих фото персонажа
   const loadCharacterPhotos = async () => {
     try {
-      console.log(`Loading photos for character: ${character.name}`);
+      
       const response = await fetch(`/api/v1/characters/${character.name}/photos/`);
-      console.log(`Response status: ${response.status}`);
+      
       
       if (response.ok) {
         const photos = await response.json();
-        console.log('Loaded photos:', photos);
+        
         
         const formattedPhotos: GeneratedPhoto[] = photos.map((photo: any, index: number) => ({
           id: photo.id || index.toString(),
@@ -645,13 +645,13 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({
           isMain: photo.is_main || false
         }));
         
-        console.log('Formatted photos:', formattedPhotos);
+        
         setGeneratedPhotos(formattedPhotos);
       } else {
-        console.error('Failed to load photos:', response.status, response.statusText);
+        
       }
     } catch (error) {
-      console.error('Error loading character photos:', error);
+      
     }
   };
 
@@ -768,9 +768,9 @@ useEffect(() => {
                     cursor: 'pointer'
                   }}
                 >
-                  <option value="anime-realism">Аниме реализм</option>
-                  <option value="anime">Аниме</option>
-                  <option value="realism">Реализм</option>
+                  <option value="anime-realism">Сочетание аниме и реалистичных текстур</option>
+                  <option value="anime">Классический аниме стиль</option>
+                  <option value="realism">Максимальная фотореалистичность</option>
                 </select>
               </PromptContainer>
               
@@ -810,7 +810,7 @@ useEffect(() => {
                         alt="Generated photo"
                         loading="lazy"
                         onError={(e) => {
-                          console.error('Error loading image:', photo.url);
+                          
                           e.currentTarget.style.display = 'none';
                         }}
                       />

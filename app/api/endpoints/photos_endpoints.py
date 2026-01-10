@@ -2,16 +2,23 @@ from fastapi import APIRouter
 import os
 import json
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 @router.get("/api/v1/characters/photos")
 async def get_character_photos():
     """Получить список фотографий для всех персонажей - динамически из папок"""
-    photos_dir = Path("paid_gallery/main_photos")
-    character_photos = {}
-    
-    if photos_dir.exists():
+    try:
+        photos_dir = Path("paid_gallery/main_photos")
+        character_photos = {}
+        
+        if not photos_dir.exists():
+            logger.warning(f"Директория {photos_dir} не существует")
+            return character_photos
+        
         # Проходим по всем папкам персонажей
         for character_dir in photos_dir.iterdir():
             if character_dir.is_dir():
@@ -24,9 +31,14 @@ async def get_character_photos():
                 
                 # Сортируем фотографии по имени файла
                 photos.sort()
-                character_photos[character_name] = photos
-    
-    return character_photos
+                if photos:  # Добавляем только если есть фото
+                    character_photos[character_name] = photos
+        
+        logger.info(f"Загружено фото для {len(character_photos)} персонажей")
+        return character_photos
+    except Exception as e:
+        logger.error(f"Ошибка загрузки фото персонажей: {e}", exc_info=True)
+        return {}
 
 @router.post("/api/v1/characters/photos/update")
 async def update_character_photos():

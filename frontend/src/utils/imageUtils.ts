@@ -48,7 +48,7 @@ export const getOptimizedImageUrl = async (imageUrl: string): Promise<string> =>
     }
   } catch (error) {
     // Игнорируем ошибки и возвращаем оригинальный URL
-    console.debug('[IMAGE_UTILS] WebP версия недоступна, используем оригинал:', imageUrl);
+    
   }
   
   return imageUrl;

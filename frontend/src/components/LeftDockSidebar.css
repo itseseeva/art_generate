@@ -51,9 +51,9 @@
   border: none !important;
   color: #ffffff !important;
   top: auto !important;
-  bottom: calc(100% + 2px) !important;
+  bottom: 100% !important;
   left: 50% !important;
-  transform: translateX(-50%) scale(0.756) !important;
+  transform: translateX(-50%) scale(0.756) translateY(5px) !important; /* Еще на 10% ниже (было 2px) */
   transform-origin: center center !important;
   max-width: none !important;
   min-width: max-content !important;
@@ -85,7 +85,7 @@
 .left-dock-panel .dock-item:focus .dock-label-vertical,
 .left-dock-panel .dock-item:focus-within .dock-label-vertical {
   opacity: 1 !important;
-  transform: translateX(-50%) scale(0.756) !important;
+  transform: translateX(-50%) scale(0.756) translateY(5px) !important;
   transition: opacity 0s !important;
 }
 
@@ -99,6 +99,68 @@
 .left-dock-panel .dock-item-login .dock-label-vertical,
 .left-dock-panel .dock-item-register .dock-label-vertical {
   bottom: auto !important;
-  top: calc(100% + 8px) !important;
+  top: 100% !important;
+  transform: translateX(-50%) scale(0.756) translateY(-8px) !important; /* Еще на 10% выше (было -4px) */
 }
 
+.left-dock-panel .dock-item-profile:hover .dock-label-vertical,
+.left-dock-panel .dock-item-shop:hover .dock-label-vertical,
+.left-dock-panel .dock-item-balance:hover .dock-label-vertical,
+.left-dock-panel .dock-item-messages:hover .dock-label-vertical,
+.left-dock-panel .dock-item-logout:hover .dock-label-vertical,
+.left-dock-panel .dock-item-bug:hover .dock-label-vertical,
+.left-dock-panel .dock-item-login:hover .dock-label-vertical,
+.left-dock-panel .dock-item-register:hover .dock-label-vertical {
+  opacity: 1 !important;
+  transform: translateX(-50%) scale(0.756) translateY(-8px) !important;
+}
+
+/* Mobile Top Dock Styles */
+.top-dock-panel-mobile-left,
+.top-dock-panel-mobile-right,
+.bottom-dock-panel,
+.left-dock-panel {
+  width: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.872rem;
+  padding: 0;
+  background: transparent;
+}
+
+.top-dock-panel-mobile-left .dock-item,
+.top-dock-panel-mobile-right .dock-item,
+.bottom-dock-panel .dock-item,
+.left-dock-panel .dock-item {
+  background: rgba(12, 12, 24, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  box-shadow:
+    0 10px 25px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.top-dock-panel-mobile-left .dock-label,
+.top-dock-panel-mobile-right .dock-label,
+.bottom-dock-panel .dock-label,
+.left-dock-panel .dock-label {
+  position: absolute !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  display: block !important;
+}
+
+.top-dock-panel-mobile-left .dock-item:hover .dock-label,
+.top-dock-panel-mobile-right .dock-item:hover .dock-label,
+.bottom-dock-panel .dock-item:hover .dock-label,
+.left-dock-panel .dock-item:hover .dock-label {
+  opacity: 1 !important;
+}

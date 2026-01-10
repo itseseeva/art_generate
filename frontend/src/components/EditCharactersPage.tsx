@@ -10,8 +10,8 @@ import { authManager } from '../utils/auth';
 import { API_CONFIG } from '../config/api';
 
 const MainContainer = styled.div`
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   display: flex;
   position: relative;
   overflow: hidden;
@@ -263,16 +263,16 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
       
       if (charactersResponse.ok) {
         const charactersData = await charactersResponse.json();
-        console.log('Characters data from API:', charactersData);
+        
         const photosMap: {[key: string]: string[]} = {};
         
         // Фильтруем только персонажей текущего пользователя
         const myCharacters = charactersData.filter((char: any) => char.user_id === userId);
         
         for (const char of myCharacters) {
-          console.log(`Character ${char.name}:`, char);
+          
           if (!char.main_photos) {
-            console.log(`No main_photos for character: ${char.name}`);
+            
             continue;
           }
 
@@ -300,22 +300,22 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
               })
               .filter((url): url is string => Boolean(url) && url.startsWith('http'));
 
-            console.log(`Photo URLs for ${char.name}:`, photoUrls);
+            
             photosMap[char.name.toLowerCase()] = photoUrls;
           } catch (e) {
-            console.error('Error parsing main_photos for character:', char.name, e);
+            
           }
         }
         
-        console.log('Final photos map:', photosMap);
+        
         setCharacterPhotos(photosMap);
         return photosMap;
       } else {
-        console.error('Failed to load characters');
+        
         return {};
       }
     } catch (error) {
-      console.error('Ошибка загрузки фотографий персонажей:', error);
+      
       return {};
     }
   };
@@ -353,11 +353,11 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
         setCharacters(formattedCharacters);
         setIsAuthenticated(true);
       } else {
-        console.error('Failed to load characters:', response.status);
+        
         setIsAuthenticated(false);
       }
     } catch (error) {
-      console.error('Error loading characters:', error);
+      
       setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
@@ -389,7 +389,7 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
         setFavoriteCharacterIds(new Set());
       }
     } catch (error) {
-      console.error('Error loading favorites:', error);
+      
       setFavoriteCharacterIds(new Set());
     }
   };
@@ -411,7 +411,7 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
         return userInfo.id as number;
       }
     } catch (error) {
-      console.error('Auth check error:', error);
+      
       setIsAuthenticated(false);
     } finally {
       setAuthCheckComplete(true);
@@ -457,20 +457,20 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
   };
 
   const handleCharacterClick = (character: Character) => {
-    console.log('[EDIT_CHARACTERS] Character clicked:', character);
-    console.log('[EDIT_CHARACTERS] Character name:', character?.name);
-    console.log('[EDIT_CHARACTERS] Character id:', character?.id);
+    
+    
+    
     
     // Строгая проверка на валидность character
     if (!character) {
-      console.error('[EDIT_CHARACTERS] Character is null or undefined');
+      
       alert('Ошибка: данные персонажа не найдены. Пожалуйста, обновите страницу.');
       return;
     }
     
     // Проверяем наличие хотя бы одного идентификатора (name или id)
     if (!character.name && !character.id) {
-      console.error('[EDIT_CHARACTERS] Character has no name or id:', character);
+      
       alert('Ошибка: персонаж не имеет имени или ID. Пожалуйста, обновите страницу.');
       return;
     }
@@ -490,7 +490,7 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
       comments: character.comments || 0
     };
     
-    console.log('[EDIT_CHARACTERS] Safe character created:', safeCharacter);
+    
     onEditCharacter(safeCharacter);
   };
 

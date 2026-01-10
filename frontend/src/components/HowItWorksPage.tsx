@@ -2,6 +2,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import { Footer } from './Footer';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const Container = styled.div`
   padding: 4rem 2rem 2rem 2rem;
@@ -184,6 +185,8 @@ const FeatureList = styled.ul`
 `;
 
 export const HowItWorksPage: React.FC = () => {
+  const isMobile = useIsMobile();
+
   return (
     <Container>
       <Content>
@@ -237,7 +240,6 @@ export const HowItWorksPage: React.FC = () => {
           </DetailedText>
         </DetailedSection>
       </Content>
-      <Footer />
     </Container>
   );
 };

@@ -70,28 +70,29 @@ const ModelName = styled.div`
 `;
 
 const ModelDescription = styled.div`
-  color: rgba(180, 180, 180, 0.8);
-  font-size: ${theme.fontSize.xs};
-  line-height: 1.5;
+  color: rgba(220, 220, 220, 0.9);
+  font-size: ${theme.fontSize.sm};
+  line-height: 1.6;
   margin-top: ${theme.spacing.xs};
 `;
 
 const ModelSubtitle = styled.div`
-  color: rgba(200, 200, 200, 0.9);
-  font-weight: 600;
-  font-size: ${theme.fontSize.xs};
-  margin-top: ${theme.spacing.xs};
-  margin-bottom: ${theme.spacing.xs};
+  color: rgba(240, 240, 240, 1);
+  font-weight: 700;
+  font-size: ${theme.fontSize.base};
+  margin-bottom: ${theme.spacing.md};
+  padding-bottom: ${theme.spacing.sm};
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 `;
 
 const ModelSection = styled.div`
-  margin-top: ${theme.spacing.xs};
-  margin-bottom: ${theme.spacing.xs};
+  margin-bottom: ${theme.spacing.sm};
 `;
 
 const ModelSectionTitle = styled.span`
-  font-weight: 600;
-  color: rgba(200, 200, 200, 0.9);
+  font-weight: 700;
+  color: ${theme.colors.accent.primary};
+  margin-right: ${theme.spacing.xs};
 `;
 
 const CloseButton = styled.button`
@@ -163,9 +164,8 @@ export const ModelSelectorModal: React.FC<ModelSelectorModalProps> = ({
               $isSelected={selectedModel === model.id}
               onClick={() => handleSelect(model.id)}
             >
-              <ModelName>{model.name}</ModelName>
-              <ModelSubtitle>{model.subtitle}</ModelSubtitle>
               <ModelDescription>
+                <ModelSubtitle>{model.subtitle}</ModelSubtitle>
                 <ModelSection>
                   <ModelSectionTitle>Особенности:</ModelSectionTitle> {model.features}
                 </ModelSection>

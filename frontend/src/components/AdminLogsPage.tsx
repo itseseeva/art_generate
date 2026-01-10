@@ -491,7 +491,7 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({ onBackToMain }) =>
       setStats(data);
       setError(null);
     } catch (err) {
-      console.error('[ADMIN LOGS] Error fetching stats:', err);
+      
       setError('Ошибка загрузки статистики');
     } finally {
       setLoading(false);
@@ -521,7 +521,7 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({ onBackToMain }) =>
         alert(`Ошибка: ${data.detail || 'Неизвестная ошибка'}`);
       }
     } catch (err) {
-      console.error('[ADMIN LOGS] Error resetting stats:', err);
+      
       alert('Ошибка сброса статистики');
     } finally {
       setIsResetting(false);
@@ -545,7 +545,7 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({ onBackToMain }) =>
       setUsers(data.users);
       setUsersTotal(data.total);
     } catch (err) {
-      console.error('[ADMIN] Error fetching users:', err);
+      
     } finally {
       setUsersLoading(false);
     }
@@ -564,7 +564,7 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({ onBackToMain }) =>
       setSelectedUser(data);
       setShowUserModal(true);
     } catch (err) {
-      console.error('[ADMIN] Error fetching user details:', err);
+      
       alert('Ошибка загрузки информации о пользователе');
     } finally {
       setUserDetailsLoading(false);

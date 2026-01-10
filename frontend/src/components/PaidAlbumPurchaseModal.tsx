@@ -210,7 +210,7 @@ export const PaidAlbumPurchaseModal: React.FC<PaidAlbumPurchaseModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      console.log('[MODAL] Модальное окно покупки альбома показано', { characterName, subscriptionType, userCoins });
+      
     }
   }, [isOpen, characterName, subscriptionType, userCoins]);
 
@@ -231,7 +231,7 @@ export const PaidAlbumPurchaseModal: React.FC<PaidAlbumPurchaseModalProps> = ({
       await onPurchase();
       onClose();
     } catch (error) {
-      console.error('[MODAL] Ошибка покупки альбома:', error);
+      
     } finally {
       setIsPurchasing(false);
     }

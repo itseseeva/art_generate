@@ -29,9 +29,12 @@ import { TariffsPage } from './components/TariffsPage';
 import { HowItWorksPage } from './components/HowItWorksPage';
 import { PaidAlbumPurchaseModal } from './components/PaidAlbumPurchaseModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { Footer } from './components/Footer';
 import { authManager } from './utils/auth';
 
-const AppContainer = styled.div`
+import { useIsMobile } from './hooks/useIsMobile';
+
+const AppContainer = styled.div<{ $isMobile?: boolean }>`
   width: 100vw;
   height: 100vh;
   display: flex;
@@ -40,13 +43,16 @@ const AppContainer = styled.div`
   position: relative;
 `;
 
-const PageContainer = styled.div`
+const PageContainer = styled.div<{ $isMobile?: boolean }>`
   flex: 1;
   display: flex;
-  overflow: auto;
+  flex-direction: column;
+  overflow: ${props => props.$isMobile ? 'auto' : 'hidden'};
   position: relative;
   padding-top: 0;
   scroll-behavior: smooth;
+  width: 100%;
+  max-width: 100%;
 `;
 
 type PageType = 
@@ -75,6 +81,7 @@ type PageType =
   | 'admin-logs';
 
 function App() {
+  const isMobile = useIsMobile();
   const [currentPage, setCurrentPage] = useState<PageType>('main');
   const [selectedCharacter, setSelectedCharacter] = useState<any>(null);
   const [contentMode, setContentMode] = useState<'safe' | 'nsfw'>('safe');
@@ -129,12 +136,12 @@ function App() {
   // Функция загрузки персонажа по ID или имени
   const loadCharacterById = async (characterId: string | number): Promise<any | null> => {
     try {
-      console.log('[APP] loadCharacterById called with:', characterId);
+      
       
       // Сначала проверяем localStorage (по ID и по имени)
       const savedById = localStorage.getItem(`character_${characterId}`);
       if (savedById) {
-        console.log('[APP] Character found in localStorage by ID:', characterId);
+        
         return JSON.parse(savedById);
       }
 
@@ -144,7 +151,7 @@ function App() {
         if (response.ok) {
           const character = await response.json();
           if (character && (character.id || character.name)) {
-            console.log('[APP] Character loaded from API by ID:', characterId);
+            
             // Сохраняем в localStorage
             const storageKey = character.id ? `character_${character.id}` : `character_${character.name}`;
             localStorage.setItem(storageKey, JSON.stringify(character));
@@ -152,7 +159,7 @@ function App() {
           }
         }
       } catch (apiError) {
-        console.warn('[APP] Failed to load character by ID from API, trying list:', apiError);
+        
       }
 
       // Если не удалось загрузить по ID, пытаемся найти в списке всех персонажей
@@ -176,7 +183,7 @@ function App() {
           }
           
           if (character) {
-            console.log('[APP] Character found in list:', characterId);
+            
             // Сохраняем в localStorage
             const storageKey = character.id ? `character_${character.id}` : `character_${character.name}`;
             localStorage.setItem(storageKey, JSON.stringify(character));
@@ -185,10 +192,10 @@ function App() {
         }
       }
       
-      console.warn('[APP] Character not found:', characterId);
+      
       return null;
     } catch (error) {
-      console.error('[APP] Error loading character by ID:', error);
+      
       return null;
     }
   };
@@ -206,12 +213,12 @@ function App() {
         // Восстанавливаем персонажа из localStorage или API
         loadCharacterById(characterId).then(char => {
           if (char) {
-            console.log('Loaded character for chat:', char);
+            
             setSelectedCharacter(char);
             setCurrentPage('chat');
             window.history.replaceState({ page: 'chat', character: characterId }, '', path);
           } else {
-            console.error('Failed to load character with ID:', characterId);
+            
             // Если не удалось загрузить, остаемся на главной
             setCurrentPage('main');
             window.history.replaceState({ page: 'main' }, '', '/');
@@ -253,15 +260,15 @@ function App() {
       // КРИТИЧНО: Восстанавливаем персонажа для страницы редактирования
       const characterId = urlParams.get('character');
       if (characterId) {
-        console.log('[APP] Restoring character for edit-character:', characterId);
+        
         loadCharacterById(characterId).then(char => {
           if (char) {
-            console.log('[APP] Character loaded for edit:', char);
+            
             setSelectedCharacter(char);
             setCurrentPage('edit-character');
             window.history.replaceState({ page: 'edit-character', character: characterId }, '', path);
           } else {
-            console.error('[APP] Failed to load character for edit:', characterId);
+            
             setCurrentPage('edit-characters');
             window.history.replaceState({ page: 'edit-characters' }, '', '/edit-characters');
           }
@@ -438,7 +445,7 @@ function App() {
       // Если нужен username, можно показать модальное окно
       if (needsUsername) {
         // TODO: Показать модальное окно для установки username
-        console.log('User needs to set username');
+        
       }
 
       // Переходим на главную страницу после OAuth авторизации
@@ -536,7 +543,7 @@ function App() {
           currentSubscriptionType = statsData.subscription_type || 'free';
         }
       } catch (error) {
-        console.error('[APP] Ошибка загрузки статистики подписки:', error);
+        
       }
     }
 
@@ -550,11 +557,11 @@ function App() {
       
       if (statusResponse.ok) {
         const statusData = await statusResponse.json();
-        console.log('[APP] Статус платного альбома:', statusData);
+        
         
         // Если альбом уже разблокирован (куплен, Premium, или владелец) - сразу открываем
         if (statusData.unlocked) {
-          console.log('[APP] Альбом уже разблокирован, открываем напрямую');
+          
           setSelectedCharacter(character);
           setCurrentPage('paid-album');
           if (character?.id) {
@@ -567,7 +574,7 @@ function App() {
         }
       }
     } catch (error) {
-      console.error('[APP] Ошибка проверки статуса альбома:', error);
+      
     }
     
     // Для PREMIUM - сразу открываем альбом (все альбомы бесплатны)
@@ -625,7 +632,7 @@ function App() {
         window.history.pushState({ page: 'paid-album' }, '', '/paid-album');
       }
     } catch (error) {
-      console.error('[APP] Ошибка покупки альбома:', error);
+      
       throw error;
     }
   };
@@ -866,21 +873,21 @@ function App() {
             onCreateCharacter={handleCreateCharacter}
             onShop={handleShop}
             onEditCharacter={(character) => {
-              console.log('[APP] ========== onEditCharacter CALLED ==========');
-              console.log('[APP] Character received:', character);
-              console.log('[APP] Character name:', character?.name);
-              console.log('[APP] Character id:', character?.id);
+              
+              
+              
+              
               
               // Строгая проверка на валидность character
               if (!character) {
-                console.error('[APP] Character is null or undefined');
+                
                 alert('Ошибка: данные персонажа не найдены.');
                 return;
               }
               
               // Проверяем наличие хотя бы одного идентификатора
               if (!character.name && !character.id) {
-                console.error('[APP] Character has no name or id:', character);
+                
                 alert('Ошибка: персонаж не имеет имени или ID.');
                 return;
               }
@@ -900,8 +907,8 @@ function App() {
                 comments: character.comments || 0
               };
               
-              console.log('[APP] Safe character created for edit:', safeCharacter);
-              console.log('[APP] Setting selectedCharacter and switching to edit-character page');
+              
+              
               
               // КРИТИЧНО: Сначала устанавливаем selectedCharacter
               setSelectedCharacter(safeCharacter);
@@ -919,21 +926,21 @@ function App() {
               }
               
               // КРИТИЧНО: Переключаем страницу ПОСЛЕ установки selectedCharacter
-              console.log('[APP] Switching to edit-character page');
+              
               setCurrentPage('edit-character');
-              console.log('[APP] ============================================');
+              
             }}
           />
         );
       case 'edit-character':
-        console.log('[APP] ========== RENDERING edit-character PAGE ==========');
-        console.log('[APP] selectedCharacter:', selectedCharacter);
-        console.log('[APP] selectedCharacter.name:', selectedCharacter?.name);
-        console.log('[APP] selectedCharacter.id:', selectedCharacter?.id);
+        
+        
+        
+        
         
         // Более строгая проверка на валидность character
         if (!selectedCharacter || (!selectedCharacter.name && !selectedCharacter.id)) {
-          console.error('[APP] Invalid selectedCharacter for edit-character:', selectedCharacter);
+          
           return (
             <div style={{ 
               display: 'flex', 
@@ -969,12 +976,12 @@ function App() {
           );
         }
         
-        console.log('[APP] Rendering EditCharacterPage with character:', selectedCharacter);
+        
         return (
           <EditCharacterPage
             character={selectedCharacter}
             onBackToEditList={() => {
-              console.log('[APP] onBackToEditList called');
+              
               setSelectedCharacter(null);
               setCurrentPage('edit-characters');
             }}
@@ -1042,6 +1049,8 @@ function App() {
             onMessages={handleMessages}
             onPhotoGeneration={handlePhotoGeneration}
             onPaidAlbum={handlePaidAlbum}
+            contentMode={contentMode}
+            onContentModeChange={setContentMode}
           />
         );
     }
@@ -1062,17 +1071,17 @@ function App() {
       
       try {
         const token = authManager.getToken();
-        console.log('[APP] Checking auth, token exists:', !!token);
+        
         if (!token) {
           // Пытаемся обновить токен через refresh token
           const refreshToken = authManager.getRefreshToken();
           if (refreshToken) {
             try {
-              console.log('[APP] Attempting to refresh token...');
+              
               await authManager.refreshAccessToken();
-              console.log('[APP] Token refreshed successfully');
+              
             } catch (error) {
-              console.error('[APP] Failed to refresh token:', error);
+              
               authManager.clearTokens();
               setIsAuthenticated(false);
               setUserInfo(null);
@@ -1086,19 +1095,19 @@ function App() {
         }
 
         const response = await authManager.fetchWithAuth('/api/v1/auth/me/');
-        console.log(`[APP] checkAuth response: status=${response.status}, statusText=${response.statusText}`);
+        
         
         if (response.ok) {
           const text = await response.text();
-          console.log('[APP] Auth response text:', text);
+          
           if (!text) {
-             console.error('[APP] Auth response is empty!');
+             
           }
           
           try {
             const userData = text ? JSON.parse(text) : null;
             if (userData) {
-              console.log('[APP] Auth check successful, user:', userData.username || userData.email);
+              
               setUserInfo({
                 username: userData.username || userData.email || 'Пользователь',
                 coins: userData.coins || 0,
@@ -1117,27 +1126,26 @@ function App() {
                     setSubscriptionStats(statsData);
                   }
                 } catch (error) {
-                  console.error('[APP] Ошибка загрузки статистики подписки:', error);
+                  
                 }
               }
             } else {
-              console.error('[APP] Auth check returned empty data (parsed null)');
               setIsAuthenticated(false);
               setUserInfo(null);
             }
           } catch (e) {
-            console.error('[APP] Failed to parse auth response:', e);
+            
             setIsAuthenticated(false);
             setUserInfo(null);
           }
         } else {
-          console.error('[APP] Auth check failed, status:', response.status);
+          
           authManager.clearTokens();
           setIsAuthenticated(false);
           setUserInfo(null);
         }
       } catch (error) {
-        console.error('[APP] Auth check error:', error);
+        
         setIsAuthenticated(false);
         setUserInfo(null);
       }
@@ -1154,7 +1162,7 @@ function App() {
       // Если в событии есть данные о балансе - обновляем сразу
       if (customEvent.detail && customEvent.detail.coins !== undefined) {
         const newCoins = customEvent.detail.coins;
-        console.log('[APP] Обновление баланса из события:', newCoins);
+        
         if (userInfo) {
           setUserInfo({
             ...userInfo,
@@ -1170,7 +1178,7 @@ function App() {
         if (response.ok) {
           const userData = await response.json();
           if (userData && userData.coins !== undefined) {
-            console.log('[APP] Обновление баланса из API:', userData.coins);
+            
             setUserInfo({
               username: userData.username || userData.email || 'Пользователь',
               coins: userData.coins || 0,
@@ -1179,12 +1187,12 @@ function App() {
           }
         }
       } catch (error) {
-        console.error('[APP] Ошибка обновления баланса:', error);
+        
       }
     };
 
     const handleSubscriptionUpdate = async () => {
-      console.log('[APP] Событие subscription-update получено');
+      
       // Загружаем баланс и статистику подписки из API при обновлении подписки
       try {
         const response = await authManager.fetchWithAuth('/api/v1/auth/me/');
@@ -1208,12 +1216,12 @@ function App() {
           setSubscriptionStats(statsData);
         }
       } catch (error) {
-        console.error('[APP] Ошибка обновления баланса после subscription-update:', error);
+        
       }
     };
 
     const handleAuthSuccess = async () => {
-      console.log('[APP] Событие auth-success получено');
+      
       // Обновляем состояние авторизации
       const token = authManager.getToken();
       if (token) {
@@ -1227,10 +1235,10 @@ function App() {
               coins: userData.coins || 0,
               id: userData.id
             });
-            console.log('[APP] Авторизация обновлена после входа');
+            
           }
         } catch (error) {
-          console.error('[APP] Ошибка обновления авторизации:', error);
+          
         }
       }
     };
@@ -1284,18 +1292,18 @@ function App() {
       ];
       
       if (!allowedOrigins.includes(event.origin)) {
-        console.log('OAuth message from unauthorized origin:', event.origin);
+        
         return;
       }
 
-      console.log('OAuth message received:', event.data);
+      
 
       if (event.data && event.data.type === 'oauth-success') {
-        console.log('OAuth success, saving tokens...');
+        
         // Сохраняем токены через authManager
         if (event.data.accessToken) {
           authManager.setTokens(event.data.accessToken, event.data.refreshToken || null);
-          console.log('Tokens saved via authManager');
+          
         }
 
         // Закрываем popup (безопасно, без проверки closed)
@@ -1317,11 +1325,11 @@ function App() {
 
         // Небольшая задержка перед проверкой авторизации, чтобы токены точно сохранились
         setTimeout(async () => {
-          console.log('Checking auth after OAuth success...');
+          
           // Проверяем авторизацию без перезагрузки страницы
           try {
             const authResult = await authManager.checkAuth();
-            console.log('Auth check result:', authResult);
+            
             if (authResult.isAuthenticated && authResult.userInfo) {
               setIsAuthenticated(true);
               setUserInfo({
@@ -1335,13 +1343,13 @@ function App() {
               window.history.pushState({ page: 'main' }, '', '/');
             }
           } catch (error) {
-            console.error('Error checking auth after OAuth:', error);
+            
             // В случае ошибки все равно перезагружаем страницу
             window.location.reload();
           }
         }, 300);
       } else if (event.data && event.data.type === 'oauth-error') {
-        console.error('OAuth error:', event.data.error);
+        
         try {
           if (popup) {
             popup.close();
@@ -1385,7 +1393,7 @@ function App() {
       setUserInfo(null);
       window.location.reload();
     } catch (error) {
-      console.error('Logout error:', error);
+      
     }
   };
 
@@ -1393,8 +1401,9 @@ function App() {
   return (
     <>
       <GlobalStyles />
-      <AppContainer>
+      <AppContainer $isMobile={isMobile}>
         <LeftDockSidebar
+          isMobile={isMobile}
           onCreateCharacter={handleCreateCharacter}
           onEditCharacters={handleEditCharacters}
           onHistory={handleHistory}
@@ -1415,8 +1424,9 @@ function App() {
           contentMode={contentMode}
           onContentModeChange={setContentMode}
         />
-        <PageContainer className="app-scroll-container">
+        <PageContainer className="app-scroll-container" $isMobile={isMobile}>
           {renderPage()}
+          {currentPage === 'main' && <Footer />}
         </PageContainer>
       </AppContainer>
 

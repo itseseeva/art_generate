@@ -1,6 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 import { Footer } from './Footer';
 
@@ -159,6 +160,8 @@ const ContactItem = styled.div`
 `;
 
 export const AboutPage: React.FC = () => {
+  const isMobile = useIsMobile();
+
   return (
     <Container>
       <ContentWrapper>
@@ -200,7 +203,6 @@ export const AboutPage: React.FC = () => {
           </ContactItem>
         </ContactSection>
       </ContentWrapper>
-      <Footer />
     </Container>
   );
 };

@@ -95,7 +95,7 @@ const InsufficientCreditsNotification: React.FC<InsufficientCreditsNotificationP
   hasShopButton
 }) => {
   useEffect(() => {
-    console.log('[NOTIFICATION] Уведомление о недостатке кредитов показано');
+    
   }, []);
 
   return (
@@ -138,7 +138,7 @@ const FreeSubscriptionWarningModal: React.FC<FreeSubscriptionWarningModalProps> 
   onOpenShop
 }) => {
   useEffect(() => {
-    console.log('[MODAL] Модальное окно для FREE подписки показано');
+    
   }, []);
 
   const handleShopClick = () => {
@@ -234,8 +234,10 @@ interface ProfileUpdateMessage {
   timestamp?: string;
 }
 
+import { useIsMobile } from '../hooks/useIsMobile';
+
 const MainContainer = styled.div`
-  width: 100vw;
+  width: 100%;
   height: 100vh;
   display: flex;
   overflow: hidden;
@@ -1310,7 +1312,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   onCharacterSelect,
   userId: profileUserId
 }) => {
-  console.log('[PROFILE] ProfilePage rendered with profileUserId:', profileUserId);
+  
   const [userInfo, setUserInfo] = useState<UserInfoResponse | null>(null);
   const [stats, setStats] = useState<SubscriptionStats | null>(null);
   const [isLoading, setIsLoading] = useState(() => {
@@ -1342,6 +1344,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [rawCharactersData, setRawCharactersData] = useState<any[]>([]);
 
   const isViewingOwnProfile = !profileUserId || (currentUserId !== null && profileUserId === currentUserId);
+  const isMobile = useIsMobile();
   
   // Загрузка персонажей пользователя
   const loadUserCharacters = useCallback(async () => {
@@ -1414,7 +1417,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             try {
               parsedPhotos = JSON.parse(char.main_photos);
             } catch (e) {
-              console.error('Error parsing main_photos for character:', canonicalName, e);
+              
               parsedPhotos = [];
             }
           } else {
@@ -1471,7 +1474,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         setSelectedCharacterIndex(0); // Сбрасываем индекс при загрузке новых персонажей
       }
     } catch (error) {
-      console.error('[PROFILE] Ошибка загрузки персонажей:', error);
+      
       setUserCharacters([]);
     }
   }, [authToken, isViewingOwnProfile]);
@@ -1515,8 +1518,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       ? `${API_CONFIG.BASE_URL}/api/v1/auth/users/${profileUserId}/`
       : `${API_CONFIG.BASE_URL}/api/v1/auth/me/`;
     
-    console.log('[PROFILE] fetchUserInfo called with profileUserId:', profileUserId);
-    console.log('[PROFILE] Fetching from URL:', url);
+    
+    
     
     const response = await fetch(url, {
       headers: {
@@ -1526,7 +1529,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[PROFILE] Error fetching user info:', errorText);
+      
       throw new Error('Не удалось загрузить данные пользователя');
     }
 
@@ -1534,14 +1537,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     if (!data) {
         throw new Error('Пустой ответ от сервера');
     }
-    console.log('[PROFILE] User data loaded:', data);
-    console.log('[PROFILE] User ID:', data.id);
-    console.log('[PROFILE] Username:', data.username);
+    
+    
+    
     setUserInfo(data as UserInfoResponse);
     
     // Если это свой профиль, сохраняем ID текущего пользователя
     if (!profileUserId) {
-      console.log('[PROFILE] Setting currentUserId to:', data.id);
+      
       setCurrentUserId(data.id);
       setCurrentUserCoins(typeof data.coins === 'number' ? data.coins : null);
     }
@@ -1583,7 +1586,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       setCurrentUserCoins(typeof data.coins === 'number' ? data.coins : null);
       return data as UserInfoResponse;
     } catch (error) {
-      console.error('[PROFILE] Не удалось загрузить данные текущего пользователя:', error);
+      
       return null;
     }
   }, [authToken]);
@@ -1602,7 +1605,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       }
     } catch (error) {
       // Игнорируем ошибки при загрузке количества фото
-      console.error('[PROFILE] Ошибка загрузки количества фото:', error);
+      
     }
   }, []);
 
@@ -1623,7 +1626,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         });
       }
     } catch (error) {
-      console.error('[PROFILE] Ошибка загрузки статистики профиля:', error);
+      
     }
   }, []);
 
@@ -1670,7 +1673,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         setHasUnlockedGallery(false);
       }
     } catch (error) {
-      console.error('[PROFILE] Ошибка загрузки количества сгенерированных фото:', error);
+      
     }
   }, []);
 
@@ -1692,16 +1695,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       }
 
       if (response.status === 403) {
-        console.warn('[PROFILE] Сервер сообщил, что галерея не разблокирована. Сбрасываем локальный кэш.');
+        
         forgetUnlockedUserGallery(profileUserId);
         setHasUnlockedGallery(false);
         return false;
       }
 
-      console.warn('[PROFILE] Не удалось проверить доступ к галерее, статус:', response.status);
+      
       return false;
     } catch (error) {
-      console.error('[PROFILE] Ошибка проверки доступа к галерее:', error);
+      
       return false;
     }
   }, [authToken, profileUserId]);
@@ -1748,13 +1751,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   }, [authToken, profileUserId, fetchCurrentUserProfile, verifyGalleryAccess]);
 
   const handleOpenUserGallery = useCallback(async () => {
-    console.log('[PROFILE] handleOpenUserGallery вызван', { 
-      profileUserId, 
-      isViewingOwnProfile, 
-      hasUnlockedGallery, 
-      currentUserCoins,
-      authToken: !!authToken 
-    });
+    
     
     if (!authToken) {
       setIsAuthModalOpen(true);
@@ -1764,7 +1761,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
     if (!profileUserId || isViewingOwnProfile) {
       // Открываем свою галерею
-      console.log('[PROFILE] Открываем свою галерею');
+      
       onOpenUserGallery?.();
       return;
     }
@@ -1776,18 +1773,18 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     let currentUserInfo = userInfo;
     
     if (!currentStats) {
-      console.log('[PROFILE] stats отсутствует, загружаем для текущего пользователя...');
+      
       try {
         currentStats = await fetchSubscriptionStats(authToken);
       } catch (error) {
-        console.error('[PROFILE] Ошибка загрузки stats:', error);
+        
       }
     }
     
     // Всегда загружаем данные текущего пользователя через /api/v1/auth/me/
     // чтобы получить правильную информацию о подписке
     if (!currentUserInfo?.subscription?.subscription_type || currentUserInfo?.id !== currentUserId) {
-      console.log('[PROFILE] Загружаем данные текущего пользователя для проверки подписки...');
+      
       try {
         const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`, {
           headers: {
@@ -1797,50 +1794,40 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         if (response.ok) {
           const meData = await response.json();
           currentUserInfo = meData;
-          console.log('[PROFILE] Данные текущего пользователя загружены:', {
-            id: meData.id,
-            subscription_type: meData.subscription?.subscription_type
-          });
+          
         }
       } catch (error) {
-        console.error('[PROFILE] Ошибка загрузки данных текущего пользователя:', error);
+        
       }
     }
 
     // Проверяем подписку перед разблокировкой
     const subscriptionTypeRaw = currentStats?.subscription_type || currentUserInfo?.subscription?.subscription_type || '';
     const currentSubscription = subscriptionTypeRaw ? subscriptionTypeRaw.toLowerCase() : '';
-    console.log('[PROFILE] Проверка подписки:', { 
-      subscriptionTypeRaw, 
-      currentSubscription, 
-      stats: currentStats, 
-      userInfo: currentUserInfo,
-      statsSubscriptionType: currentStats?.subscription_type,
-      userInfoSubscriptionType: currentUserInfo?.subscription?.subscription_type
-    });
+    
     
     // Проверяем, что подписка есть и она STANDARD или PREMIUM
     const allowedSubscriptions = ['standard', 'premium'];
     if (!currentSubscription || !allowedSubscriptions.includes(currentSubscription)) {
       // Показываем модальное окно ТОЛЬКО для FREE пользователей
-      console.log('[PROFILE] Подписка не позволяет разблокировать галерею:', currentSubscription);
+      
       setIsFreeSubscriptionModalOpen(true);
       return;
     }
 
     if (hasUnlockedGallery) {
-      console.log('[PROFILE] Проверяем актуальность разблокированной галереи на сервере');
+      
       const hasServerAccess = await verifyGalleryAccess();
       if (hasServerAccess) {
-        console.log('[PROFILE] Галерея подтверждена сервером, открываем');
+        
         onOpenUserGallery?.(profileUserId);
         return;
       }
 
-      console.warn('[PROFILE] Локальный кэш галереи устарел. Требуется повторная разблокировка.');
+      
     }
     
-    console.log('[PROFILE] Начинаем разблокировку галереи');
+    
 
     setIsLoadingGallery(true);
     try {
@@ -1852,11 +1839,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       
       // Диспатчим событие обновления баланса с данными
       if (updatedProfile && updatedProfile.coins !== undefined) {
-        console.log('[PROFILE] Диспатчим событие balance-update с балансом:', updatedProfile.coins);
+        
         window.dispatchEvent(new CustomEvent('balance-update', { detail: { coins: updatedProfile.coins } }));
       } else {
         setTimeout(() => {
-          console.log('[PROFILE] Диспатчим событие balance-update после разблокировки галереи');
+          
           window.dispatchEvent(new Event('balance-update'));
         }, 100);
       }
@@ -1866,7 +1853,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         onOpenUserGallery(profileUserId);
       }
     } catch (error: any) {
-      console.error('[PROFILE] Ошибка при разблокировке галереи:', error);
+      
       // Если ошибка связана с недостатком кредитов (400 статус или сообщение содержит ключевые слова), показываем стильное уведомление
       const isInsufficientCredits = error.status === 400 || 
         (error.message && (
@@ -1890,11 +1877,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         // Показываем модальное окно для ошибок подписки
         setIsFreeSubscriptionModalOpen(true);
       } else if (isInsufficientCredits) {
-        console.log('[PROFILE] Обнаружена ошибка недостатка кредитов, показываем уведомление');
+        
         setShowInsufficientCreditsNotification(true);
       } else {
         // Для других ошибок показываем уведомление о недостатке кредитов
-        console.log('[PROFILE] Обнаружена другая ошибка, показываем уведомление');
+        
         setShowInsufficientCreditsNotification(true);
       }
     } finally {
@@ -1949,7 +1936,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       const myProfileData = await fetchCurrentUserProfile();
       myUserId = myProfileData?.id ?? null;
         } catch (error) {
-          console.error('[PROFILE] Ошибка загрузки данных текущего пользователя:', error);
+          
           // Продолжаем загрузку даже если не удалось получить ID текущего пользователя
         }
     }
@@ -1966,7 +1953,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       try {
         await loadGeneratedPhotosCount(authToken, profileUserId);
       } catch (error) {
-        console.error('[PROFILE] Ошибка загрузки количества фото для чужого профиля:', error);
+        
       }
     }
 
@@ -1983,7 +1970,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         if (otherRejectedResult && otherRejectedResult.status === 'rejected') {
           const reason = otherRejectedResult.reason;
           // Показываем предупреждение, но не критическую ошибку
-          console.warn('[PROFILE] Ошибка загрузки дополнительных данных:', reason);
+          
         }
       setError(null);
       setBalanceRefreshTrigger((prev) => prev + 1);
@@ -1993,7 +1980,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         setUserInfo(null);
     }
     } catch (error) {
-      console.error('[PROFILE] Критическая ошибка при загрузке данных профиля:', error);
+      
       setError(error instanceof Error ? error.message : 'Не удалось загрузить данные профиля');
     } finally {
     setIsLoading(false);
@@ -2002,7 +1989,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
   // Логируем изменения profileUserId
   useEffect(() => {
-    console.log('[PROFILE] profileUserId changed to:', profileUserId);
+    
   }, [profileUserId]);
 
   // Загружаем персонажей пользователя
@@ -2064,7 +2051,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         setIsLoading(false);
         setBalanceRefreshTrigger((prev) => prev + 1);
       } catch (parseError) {
-        console.error('[PROFILE] Ошибка обработки данных WebSocket:', parseError);
+        
         setError('Не удалось обработать обновление профиля');
       }
     };
@@ -2272,7 +2259,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       return;
                     }
                     isUploadingRef.current = true;
-                    console.log('[AVATAR] Начало загрузки аватара:', file.name, file.size, 'байт');
+                    
                     const formData = new FormData();
                     formData.append('avatar', file);
                     try {
@@ -2283,15 +2270,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       });
                       if (response.ok) {
                         const data = await response.json();
-                        console.log('[AVATAR] Аватар успешно загружен:', data.avatar_url);
+                        
                         setUserInfo(prev => prev ? { ...prev, avatar_url: data.avatar_url } : null);
                       } else {
                         const errorData = await response.json().catch(() => ({ detail: 'Неизвестная ошибка' }));
-                        console.error('[AVATAR] Ошибка загрузки:', errorData);
+                        
                         setError(errorData.detail || 'Не удалось загрузить фото');
                       }
                     } catch (err) {
-                      console.error('[AVATAR] Исключение при загрузке:', err);
+                      
                       setError('Ошибка при загрузке фото');
                     } finally {
                       isUploadingRef.current = false;
@@ -2434,9 +2421,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   <h3 className="text-xl font-bold text-white text-center">Персонажи</h3>
                   <CircularGallery
                     items={userCharacters}
-                    itemHeight={300}
-                    itemWidth={200}
-                    visibleCount={5}
+                    itemHeight={isMobile ? 220 : 300}
+                    itemWidth={isMobile ? 150 : 200}
+                    visibleCount={isMobile ? 3 : 5}
                     bend={10}
                     borderRadius={0.22}
                     scrollSpeed={3.4}
@@ -2543,7 +2530,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             window.location.reload();
           }}
           onProfile={() => {
-            console.log('[PROFILE] GlobalHeader onProfile clicked, calling onProfile(undefined)');
+            
             if (onProfile) {
               onProfile(undefined);
             } else {
@@ -2580,14 +2567,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
       {showInsufficientCreditsNotification && (
         <>
-          {console.log('[PROFILE] Рендерим уведомление о недостатке кредитов, showInsufficientCreditsNotification =', showInsufficientCreditsNotification)}
+          {}
           <InsufficientCreditsNotification
             onClose={() => {
-              console.log('[PROFILE] Закрываем уведомление');
+              
               setShowInsufficientCreditsNotification(false);
             }}
             onOpenShop={() => {
-              console.log('[PROFILE] Переход в магазин из уведомления');
+              
               setShowInsufficientCreditsNotification(false);
               if (onShop) {
                 onShop();

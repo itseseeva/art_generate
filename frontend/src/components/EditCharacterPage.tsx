@@ -11,10 +11,13 @@ import { fetchPromptByImage } from '../utils/prompt';
 import { translateToEnglish, translateToRussian } from '../utils/translate';
 import { FiX as CloseIcon } from 'react-icons/fi';
 
-const MainContainer = styled.div`
-  width: 100vw;
-  height: 100vh;
+import { useIsMobile } from '../hooks/useIsMobile';
+
+const MainContainer = styled.div<{ $isMobile?: boolean }>`
+  width: 100%;
+  height: ${props => props.$isMobile ? 'auto' : '100vh'};
   display: flex;
+  flex-direction: column;
   background: linear-gradient(to bottom right, rgba(8, 8, 18, 1), rgba(8, 8, 18, 0.95), rgba(40, 40, 40, 0.1));
   overflow: visible;
   box-sizing: border-box;
@@ -205,6 +208,14 @@ const MainContent = styled.div`
   opacity: 1;
   width: 100%;
   box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    height: auto;
+    max-height: none;
+    overflow-y: visible; /* Отключаем внутренний скролл, пусть скроллится весь контейнер */
+    padding: ${theme.spacing.md};
+  }
 `;
 
 const LeftColumn = styled.div`
@@ -222,6 +233,16 @@ const LeftColumn = styled.div`
   border-radius: ${theme.borderRadius.xl};
   overflow: hidden;
   box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    width: 100%;
+    min-width: 0;
+    flex: none; /* Stack without trying to fill height */
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    padding: ${theme.spacing.md};
+  }
 `;
 
 const RightColumn = styled.div`
@@ -236,6 +257,15 @@ const RightColumn = styled.div`
   flex-direction: column;
   visibility: visible;
   opacity: 1;
+
+  @media (max-width: 768px) {
+    width: 100%;
+    flex: none; /* Stack without trying to fill height */
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    padding: ${theme.spacing.md} 0;
+  }
 `;
 
 const Form = styled.form`
@@ -246,6 +276,11 @@ const Form = styled.form`
   min-height: 0;
   visibility: visible;
   opacity: 1;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    height: auto;
+  }
 `;
 
 const ColumnContent = styled.div`
@@ -259,6 +294,13 @@ const ColumnContent = styled.div`
   overflow-y: auto !important;
   overflow-x: hidden !important;
   position: relative !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+
+  @media (max-width: 768px) {
+    min-height: auto !important;
+    overflow-y: visible !important;
+  }
   z-index: 10 !important;
   width: 100% !important;
   max-width: 100% !important;
@@ -294,10 +336,10 @@ const ColumnContent = styled.div`
 `;
 
 const FormGroup = styled.div`
-  margin-bottom: 0 !important;
+  margin-bottom: ${theme.spacing.lg} !important;
   background: linear-gradient(135deg, rgba(15, 15, 15, 0.95) 0%, rgba(22, 22, 22, 0.98) 100%);
   border-radius: ${theme.borderRadius.lg} !important;
-  padding: ${theme.spacing.xl} !important;
+  padding: ${theme.spacing.lg} !important;
   border: 1px solid rgba(70, 70, 70, 0.8) !important;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   animation: fadeIn 0.6s ease-out forwards;
@@ -318,6 +360,11 @@ const FormGroup = styled.div`
   position: relative !important;
   z-index: 100 !important;
   pointer-events: auto !important;
+
+  @media (max-width: 768px) {
+    padding: ${theme.spacing.md} !important;
+    margin-bottom: ${theme.spacing.md} !important;
+  }
   
   /* Убеждаемся, что все дочерние элементы видны */
   > * {
@@ -393,12 +440,18 @@ const FormGroup = styled.div`
 const Label = styled.label`
   display: flex !important;
   align-items: center !important;
-  gap: ${theme.spacing.md} !important;
+  gap: ${theme.spacing.sm} !important;
   color: rgba(230, 230, 230, 1) !important;
   font-size: ${theme.fontSize.base} !important;
   font-weight: 700 !important;
-  margin-bottom: ${theme.spacing.lg} !important;
+  margin-bottom: ${theme.spacing.md} !important;
   visibility: visible !important;
+  opacity: 1 !important;
+
+  @media (max-width: 768px) {
+    font-size: ${theme.fontSize.sm} !important;
+    margin-bottom: ${theme.spacing.sm} !important;
+  }
   opacity: 1 !important;
   width: 100% !important;
   position: relative !important;
@@ -728,16 +781,35 @@ const PhotoModalContent = styled.div`
   max-width: 95vw;
   max-height: 95vh;
   display: flex !important;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
   gap: ${theme.spacing.xl};
   cursor: default;
-  flex-wrap: wrap;
+  width: 100%;
+
+  @media (max-width: 768px) {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    max-width: 100vw;
+    max-height: 100vh;
+    background: #000;
+    display: flex !important;
+    flex-direction: column !important;
+    margin: 0;
+    padding: 0;
+    border-radius: 0;
+    overflow: hidden;
+  }
 `;
 
 const PhotoModalImage = styled.img`
   max-width: 100%;
-  max-height: 90vh;
+  max-height: 95vh;
   width: auto;
   height: auto;
   object-fit: contain;
@@ -745,6 +817,13 @@ const PhotoModalImage = styled.img`
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
   display: block !important;
   visibility: visible !important;
+
+  @media (max-width: 768px) {
+    max-height: 100%;
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+  }
 `;
 
 const PhotoModalClose = styled.button`
@@ -779,6 +858,13 @@ const ModalImageContainer = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
+
+  @media (max-width: 768px) {
+    width: 100%;
+    max-width: 100%;
+    flex: 1;
+    min-height: 0;
+  }
 `;
 
 const PromptPanel = styled.div`
@@ -795,6 +881,21 @@ const PromptPanel = styled.div`
   flex-direction: column;
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(10px);
+
+  @media (max-width: 768px) {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    max-height: 30vh;
+    background: rgba(20, 20, 20, 0.95);
+    border: none;
+    border-bottom: 1px solid rgba(251, 191, 36, 0.3);
+    border-radius: 0;
+    padding: ${theme.spacing.md};
+    z-index: 10;
+    flex-shrink: 0;
+  }
 `;
 
 const PromptPanelHeader = styled.div`
@@ -804,7 +905,7 @@ const PromptPanelHeader = styled.div`
 `;
 
 const PromptPanelTitle = styled.h3`
-  color: rgba(240, 240, 240, 1);
+  color: #fbbf24;
   font-size: ${theme.fontSize.xl};
   font-weight: 800;
   margin: 0;
@@ -924,10 +1025,10 @@ const PhotosCounter = styled.div<{ $limitReached: boolean }>`
   border-radius: ${theme.borderRadius.md};
   font-size: ${theme.fontSize.sm};
   font-weight: 600;
-  color: ${({ $limitReached }) =>
+  color: ${({ $limitReached }) => 
     $limitReached ? 'rgba(180, 180, 180, 0.9)' : theme.colors.text.secondary};
   background: rgba(40, 40, 40, 0.6);
-  border: 1px solid ${({ $limitReached }) =>
+  border: 1px solid ${({ $limitReached }) => 
     $limitReached ? 'rgba(150, 150, 150, 0.5)' : 'rgba(120, 120, 120, 0.3)'};
 `;
 
@@ -943,6 +1044,12 @@ const PhotoList = styled.div`
   box-sizing: border-box !important;
   align-content: start !important;
   grid-auto-rows: min-content !important;
+
+  @media (max-width: 768px) {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
+    padding: ${theme.spacing.sm};
+    gap: 8px !important;
+  }
 `;
 
 const PhotoTile = styled.div`
@@ -959,6 +1066,10 @@ const PhotoTile = styled.div`
   opacity: 1 !important;
   cursor: pointer;
   z-index: 1;
+
+  @media (max-width: 768px) {
+    height: 200px;
+  }
 
   &:hover {
     transform: translateY(-2px);
@@ -1001,6 +1112,13 @@ const PhotoOverlay = styled.div`
     opacity: 1;
     pointer-events: auto;
   }
+
+  @media (max-width: 768px) {
+    opacity: 1;
+    pointer-events: auto;
+    background: rgba(0, 0, 0, 0.6);
+    height: 50px;
+  }
 `;
 
 const OverlayActions = styled.div`
@@ -1010,6 +1128,11 @@ const OverlayActions = styled.div`
   gap: ${theme.spacing.md};
   width: 100%;
   padding: ${theme.spacing.sm} 0;
+
+  @media (max-width: 768px) {
+    gap: 4px;
+    padding: 2px 0;
+  }
 `;
 
 const OverlayButton = styled.button<{ $variant: 'primary' | 'danger' }>`
@@ -1020,7 +1143,7 @@ const OverlayButton = styled.button<{ $variant: 'primary' | 'danger' }>`
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  background: ${({ $variant }) =>
+  background: ${({ $variant }) => 
     $variant === 'primary'
       ? 'rgba(59, 130, 246, 0.9)'
       : 'rgba(239, 68, 68, 0.9)'};
@@ -1031,8 +1154,16 @@ const OverlayButton = styled.button<{ $variant: 'primary' | 'danger' }>`
   white-space: nowrap;
   min-width: 80px;
 
+  @media (max-width: 768px) {
+    min-width: 0;
+    padding: 4px 6px;
+    font-size: 10px;
+    flex: 1;
+    text-align: center;
+  }
+
   &:hover:not(:disabled) {
-    background: ${({ $variant }) =>
+    background: ${({ $variant }) => 
       $variant === 'primary'
         ? 'rgba(29, 78, 216, 1)'
         : 'rgba(220, 38, 38, 1)'};
@@ -1230,11 +1361,13 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   onCreateCharacter,
   onEditCharacters
 }) => {
-  console.log('[EDIT_CHAR_PAGE] Component rendering, character:', character);
-  console.log('[EDIT_CHAR_PAGE] Character name:', character?.name);
+  const isMobile = useIsMobile();
+  const generationSectionRef = useRef<HTMLDivElement>(null);
+  
+  
   
   useEffect(() => {
-    console.log('[EDIT_CHAR_PAGE] Component mounted');
+    
     window.history.pushState({ page: 'edit-character' }, '', window.location.href);
 
     const handlePopState = (event: PopStateEvent) => {
@@ -1274,8 +1407,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   // КРИТИЧНО: Используем name из character prop (это реальное имя из БД)
   const [characterIdentifier, setCharacterIdentifier] = useState<string>(() => {
     const name = character?.name || character?.id?.toString() || '';
-    console.log('[EDIT_CHAR] Initializing characterIdentifier from character prop:', name);
-    console.log('[EDIT_CHAR] Character prop:', character);
+    
+    
     return name;
   });
   type SelectedPhoto = { id: string; url: string };
@@ -1284,6 +1417,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const [isLoadingPhotos, setIsLoadingPhotos] = useState(true);
   const [generationSettings, setGenerationSettings] = useState<any>(null);
   const [selectedPhotos, setSelectedPhotos] = useState<SelectedPhoto[]>([]);
+  const [isPromptVisible, setIsPromptVisible] = useState(true);
   const [selectedPhotoForView, setSelectedPhotoForView] = useState<any>(null);
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
@@ -1362,13 +1496,13 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   // Безопасное обновление characterIdentifier при изменении character
   useEffect(() => {
     const newName = character?.name || character?.id?.toString() || '';
-    console.log('[EDIT_CHAR] Character prop changed, newName:', newName, 'current identifier:', characterIdentifier);
+    
     if (newName && newName !== characterIdentifier) {
-      console.log('[EDIT_CHAR] Character changed, updating identifier:', newName);
+      
       setCharacterIdentifier(newName);
       // Данные загрузятся автоматически через useEffect для characterIdentifier
     } else if (!newName && !characterIdentifier) {
-      console.warn('[EDIT_CHAR] Character name/id is missing!', character);
+      
       setIsLoadingData(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1377,7 +1511,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const fetchCharacterPhotos = useCallback(async (targetName?: string) => {
     const effectiveName = (targetName ?? characterIdentifier)?.trim();
     if (!effectiveName) {
-      console.warn('[EDIT_CHAR] fetchCharacterPhotos: No character name provided');
+      
       setIsLoadingPhotos(false);
       setGeneratedPhotos([]);
       return;
@@ -1385,7 +1519,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     
     try {
       setIsLoadingPhotos(true);
-      console.log('[EDIT_CHAR] Fetching character photos for:', effectiveName);
+      
       
       // Добавляем timestamp для обхода кеша
       const cacheBuster = `?t=${Date.now()}`;
@@ -1404,9 +1538,9 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Unknown error');
-        console.error('[EDIT_CHAR] Failed to load character photos:', response.status, response.statusText);
-        console.error('[EDIT_CHAR] Error response:', errorText);
-        console.error('[EDIT_CHAR] Request URL:', urlWithCache);
+        
+        
+        
         // НЕ показываем ошибку - просто пустой массив
         setGeneratedPhotos([]);
         setSelectedPhotos([]);
@@ -1415,14 +1549,12 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       }
 
       const photos = await response.json();
-      console.log('[EDIT_CHAR] Raw photos from API:', photos);
-      console.log('[EDIT_CHAR] Photos count:', Array.isArray(photos) ? photos.length : 'not array');
-      console.log('[EDIT_CHAR] Response status:', response.status);
-      console.log('[EDIT_CHAR] Response headers:', Object.fromEntries(response.headers.entries()));
+      
+      
+      
+      
       
       if (!Array.isArray(photos)) {
-        console.error('[EDIT_CHAR] Photos is not an array:', typeof photos, photos);
-        console.error('[EDIT_CHAR] Full response:', JSON.stringify(photos, null, 2));
         setGeneratedPhotos([]);
         setSelectedPhotos([]);
         setIsLoadingPhotos(false);
@@ -1430,23 +1562,23 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       }
 
       if (photos.length === 0) {
-        console.warn('[EDIT_CHAR] No photos returned from API');
-        console.warn('[EDIT_CHAR] Character name:', effectiveName);
-        console.warn('[EDIT_CHAR] API URL:', urlWithCache);
+        
+        
+        
         setGeneratedPhotos([]);
         setSelectedPhotos([]);
         setIsLoadingPhotos(false);
         return;
       }
       
-      console.log('[EDIT_CHAR] First photo example:', photos[0]);
+      
 
       const formattedPhotos = photos.map((photo: any, index: number) => {
         const photoId = photo.id?.toString() ?? (photo.url ? `photo_${index}_${Date.now()}` : String(Date.now()));
         const photoUrl = photo.url;
         
         if (!photoUrl) {
-          console.warn('Photo without URL:', photo);
+          
         }
         
         return {
@@ -1457,25 +1589,25 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         };
       }).filter(photo => photo.url); // Фильтруем фотографии без URL
 
-      console.log('[EDIT_CHAR] Formatted photos:', formattedPhotos);
-      console.log('[EDIT_CHAR] Formatted photos count:', formattedPhotos.length);
-      console.log('[EDIT_CHAR] Main photos (isSelected=true):', formattedPhotos.filter(p => p.isSelected));
+      
+      
+      
 
       setGeneratedPhotos(formattedPhotos);
       initialPhotosCountRef.current = formattedPhotos.length; // Сохраняем начальное количество фото
-      console.log('[EDIT_CHAR] setGeneratedPhotos called with', formattedPhotos.length, 'photos');
+      
       
       const selected = formattedPhotos
         .filter(photo => photo.isSelected)
         .slice(0, 3)
         .map(photo => ({ id: photo.id, url: photo.url }));
       
-      console.log('[EDIT_CHAR] Selected photos:', selected);
+      
       setSelectedPhotos(selected);
       setIsLoadingPhotos(false);
-      console.log('[EDIT_CHAR] Photos loading complete!');
+      
     } catch (error) {
-      console.error('[EDIT_CHAR] Error loading character photos:', error);
+      
       // НЕ показываем ошибку - просто пустой массив
       setGeneratedPhotos([]);
       setSelectedPhotos([]);
@@ -1491,7 +1623,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     // Если characterIdentifier - это ID, но у нас есть character.name, используем name
     if (character?.name && (characterIdentifier === character.id?.toString() || characterIdentifier === String(character.id))) {
       photoIdentifier = character.name;
-      console.log('[EDIT_CHAR] Using character.name for photos instead of ID:', photoIdentifier);
+      
     }
     
     // Если все еще нет идентификатора, пытаемся получить из URL
@@ -1499,7 +1631,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       const urlParams = new URLSearchParams(window.location.search);
       const characterIdFromUrl = urlParams.get('character');
       if (characterIdFromUrl) {
-        console.log('[EDIT_CHAR] No identifier found, trying to load character from URL:', characterIdFromUrl);
+        
         // Если это число, нужно загрузить персонажа по ID, чтобы получить name
         // Но пока просто используем ID
         photoIdentifier = characterIdFromUrl;
@@ -1507,12 +1639,12 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     }
     
     if (photoIdentifier) {
-      console.log('[EDIT_CHAR] Loading photos for character:', photoIdentifier);
-      console.log('[EDIT_CHAR] Character prop:', character);
-      console.log('[EDIT_CHAR] CharacterIdentifier state:', characterIdentifier);
+      
+      
+      
       fetchCharacterPhotos(photoIdentifier);
     } else {
-      console.warn('[EDIT_CHAR] No character name/identifier, skipping photo load');
+      
       setIsLoadingPhotos(false);
       setGeneratedPhotos([]);
     }
@@ -1545,8 +1677,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     const previousSelection = [...selectedPhotos];
     const previousGenerated = generatedPhotos.map(photo => ({ ...photo }));
 
-    setGeneratedPhotos(prev =>
-      prev.map(photo =>
+    setGeneratedPhotos(prev => 
+      prev.map(photo => 
         photo.id === photoId
           ? { ...photo, isSelected: !alreadySelected }
           : photo
@@ -1573,7 +1705,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       }
       
       const responseData = await response.json();
-      console.log('Main photos updated successfully:', responseData);
+      
       setSuccess('Фотографии для карточки обновлены!');
       
       // НЕ вызываем fetchCharacterPhotos() сразу, чтобы не потерять фото
@@ -1585,7 +1717,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         detail: { character_name: characterIdentifier }
       }));
     } catch (err) {
-      console.error('Error updating main photos:', err);
+      
       setGeneratedPhotos(previousGenerated);
       setSelectedPhotos(previousSelection);
       setError('Не удалось обновить карточку персонажа');
@@ -1618,17 +1750,17 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const loadCharacterData = useCallback(async (targetIdentifier?: string) => {
     let identifier = targetIdentifier || characterIdentifier;
     
-    console.log('[EDIT_CHAR] ========== loadCharacterData CALLED ==========');
-    console.log('[EDIT_CHAR] targetIdentifier:', targetIdentifier);
-    console.log('[EDIT_CHAR] characterIdentifier:', characterIdentifier);
-    console.log('[EDIT_CHAR] Character prop:', character);
-    console.log('[EDIT_CHAR] Character name:', character?.name);
-    console.log('[EDIT_CHAR] Character id:', character?.id);
+    
+    
+    
+    
+    
+    
     
     // КРИТИЧНО: Если identifier - это число (ID), но у нас есть character.name, используем name
     // API endpoint /with-creator работает по имени, а не по ID
     if (character?.name && (identifier === character.id?.toString() || identifier === String(character.id))) {
-      console.log('[EDIT_CHAR] Identifier is ID, but we have character.name, using name instead');
+      
       identifier = character.name;
     }
     
@@ -1637,42 +1769,42 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       // Пытаемся использовать character.id или character.name из prop
       if (character?.name) {
         identifier = character.name;
-        console.log('[EDIT_CHAR] Using character.name from prop:', identifier);
+        
       } else if (character?.id) {
         identifier = character.id.toString();
-        console.log('[EDIT_CHAR] Using character.id from prop:', identifier);
+        
       } else {
-      console.warn('[EDIT_CHAR] No valid characterIdentifier provided, setting isLoadingData to false');
+      
       setIsLoadingData(false);
       return;
       }
     }
     
-    console.log('[EDIT_CHAR] Final identifier for API request:', identifier);
+    
     
     try {
-      console.log('[EDIT_CHAR] Setting isLoadingData to true and clearing error');
+      
       setIsLoadingData(true);
       setError(null);
       setSuccess(null);
-      console.log('[EDIT_CHAR] Loading character data for:', identifier);
+      
       
       // Добавляем timestamp для обхода кеша
       const cacheBuster = `?t=${Date.now()}`;
       // Используем /with-creator endpoint для получения полных данных персонажа
       // КРИТИЧНО: Этот endpoint работает по имени персонажа, не по ID
       const url = `/api/v1/characters/${encodeURIComponent(identifier)}/with-creator${cacheBuster}`;
-      console.log('[EDIT_CHAR] Request URL:', url);
+      
       const response = await authManager.fetchWithAuth(url);
 
-      console.log('[EDIT_CHAR] Response status:', response.status, response.statusText);
+      
 
       if (response.ok) {
         const characterData = await response.json();
-        console.log('[EDIT_CHAR] Character data loaded successfully');
-        console.log('[EDIT_CHAR] Character name:', characterData?.name);
-        console.log('[EDIT_CHAR] Character prompt exists:', !!characterData?.prompt);
-        console.log('[EDIT_CHAR] Character prompt length:', characterData?.prompt?.length || 0);
+        
+        
+        
+        
         
         // Парсим промпт для извлечения полей пользователя
         const prompt = characterData?.prompt || '';
@@ -1729,21 +1861,15 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           location: location
         };
         
-        console.log('[EDIT_CHAR] ========== SETTING FORMDATA ==========');
-        console.log('[EDIT_CHAR] Character data received:', {
-          name: characterData?.name,
-          hasPrompt: !!characterData?.prompt,
-          promptLength: characterData?.prompt?.length || 0,
-          appearance: characterData?.character_appearance || characterData?.appearance,
-          location: characterData?.location
-        });
-        console.log('[EDIT_CHAR] FormData name:', newFormData.name);
-        console.log('[EDIT_CHAR] FormData personality length:', newFormData.personality.length);
-        console.log('[EDIT_CHAR] FormData situation length:', newFormData.situation.length);
-        console.log('[EDIT_CHAR] FormData instructions length:', newFormData.instructions.length);
-        console.log('[EDIT_CHAR] FormData appearance:', newFormData.appearance);
-        console.log('[EDIT_CHAR] FormData location:', newFormData.location);
-        console.log('[EDIT_CHAR] Full formData object:', JSON.stringify(newFormData, null, 2));
+        
+        
+        
+        
+        
+        
+        
+        
+        
         
         // КРИТИЧНО: Устанавливаем formData СРАЗУ перед установкой isLoadingData в false
         // Это гарантирует, что поля формы будут заполнены до рендеринга
@@ -1752,24 +1878,24 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         // Обновляем characterIdentifier только если имя изменилось
         const newName = characterData?.name || identifier;
         if (newName && newName !== characterIdentifier) {
-          console.log('[EDIT_CHAR] Updating characterIdentifier from', characterIdentifier, 'to', newName);
+          
           setCharacterIdentifier(newName);
         }
         
-        console.log('[EDIT_CHAR] FormData set successfully, about to set isLoadingData to false');
+        
         
         // После успешной загрузки данных загружаем фото
         // Используем name из characterData (реальное имя из БД)
         const photoIdentifier = characterData?.name || identifier;
         if (photoIdentifier) {
-          console.log('[EDIT_CHAR] Loading photos after data load:', photoIdentifier);
+          
           // Загружаем фото сразу после загрузки данных персонажа
           setTimeout(() => {
             fetchCharacterPhotos(photoIdentifier);
           }, 100); // Небольшая задержка, чтобы убедиться, что состояние обновилось
         }
       } else {
-        console.error('[EDIT_CHAR] Failed to load character data:', response.status);
+        
         if (response.status === 404) {
           setError('Персонаж не найден. Возможно, он был удален.');
         } else {
@@ -1777,8 +1903,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         }
       }
     } catch (error) {
-      console.error('[EDIT_CHAR] Error loading character data:', error);
-      console.error('[EDIT_CHAR] Error details:', error instanceof Error ? error.message : String(error));
       setError('Ошибка при загрузке данных персонажа');
       // Устанавливаем пустой formData при ошибке, чтобы форма не была пустой
       setFormData({
@@ -1791,10 +1915,10 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         location: character?.location || ''
       });
     } finally {
-      console.log('[EDIT_CHAR] ========== FINALLY BLOCK ==========');
-      console.log('[EDIT_CHAR] Setting isLoadingData to false');
+      
+      
       setIsLoadingData(false);
-      console.log('[EDIT_CHAR] isLoadingData should now be false');
+      
     }
   }, [characterIdentifier, character?.name]);
 
@@ -1818,7 +1942,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const checkAuth = async () => {
     // НЕ обновляем баланс, если идет обновление после сохранения
     if (balanceUpdateInProgressRef.current) {
-      console.log('[EDIT_CHAR] checkAuth пропущен - идет обновление баланса после сохранения');
+      
       return;
     }
     
@@ -1840,13 +1964,13 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
       if (response.ok) {
         const userData = await response.json();
-        console.log('[EDIT_CHAR] User data loaded from /api/v1/auth/me/:', userData);
-        console.log('[EDIT_CHAR] Subscription data:', userData.subscription, 'subscription_type:', userData.subscription_type);
+        
+        
         setIsAuthenticated(true);
         setUserInfo(prev => {
           // Обновляем только если баланс не обновляется после сохранения
           if (balanceUpdateInProgressRef.current) {
-            console.log('[EDIT_CHAR] checkAuth пропустил обновление баланса - идет обновление после сохранения');
+            
             return prev;
           }
           const updatedUserInfo = {
@@ -1855,17 +1979,17 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
             id: userData.id,
             subscription: userData.subscription || { subscription_type: userData.subscription_type || 'free' }
           };
-          console.log('[EDIT_CHAR] Updated userInfo with subscription:', updatedUserInfo.subscription);
+          
           return updatedUserInfo;
         });
       } else {
-        console.error('[EDIT_CHAR] Auth check failed, status:', response.status);
+        
         authManager.clearTokens();
         setIsAuthenticated(false);
         setUserInfo(null);
       }
     } catch (error) {
-      console.error('[EDIT_CHAR] Auth check error:', error);
+      
       setIsAuthenticated(false);
       setUserInfo(null);
     }
@@ -1874,20 +1998,20 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   // Загружаем настройки генерации
   const loadGenerationSettings = async () => {
     try {
-      console.log('Загружаем настройки генерации...');
+      
       const response = await fetch('/api/v1/fallback-settings/');
-      console.log('Response status:', response.status);
+      
       
       if (response.ok) {
         const settings = await response.json();
         setGenerationSettings(settings);
-        console.log('Настройки генерации загружены:', settings);
-        console.log('Steps:', settings.steps, 'CFG:', settings.cfg_scale);
+        
+        
       } else {
-        console.error('Ошибка загрузки настроек:', response.status);
+        
       }
     } catch (error) {
-      console.error('Ошибка загрузки настроек генерации:', error);
+      
     }
   };
 
@@ -1909,13 +2033,13 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       if (response.ok) {
         const statsData = await response.json();
         setSubscriptionStats(statsData);
-        console.log('[EDIT_CHAR] Subscription stats loaded:', statsData);
+        
       } else {
-        console.error('[EDIT_CHAR] Ошибка загрузки статистики подписки:', response.status);
+        
         setSubscriptionStats(null);
       }
     } catch (error) {
-      console.error('[EDIT_CHAR] Ошибка загрузки статистики подписки:', error);
+      
       setSubscriptionStats(null);
     }
   };
@@ -1926,11 +2050,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       const customEvent = event as CustomEvent;
       if (customEvent.detail && customEvent.detail.coins !== undefined) {
         const newCoins = customEvent.detail.coins;
-        console.log('[EDIT_CHAR] Получено событие обновления баланса:', newCoins);
+        
         setUserInfo(prev => {
           if (prev) {
             const updated = { ...prev, coins: newCoins };
-            console.log('[EDIT_CHAR] Обновление баланса через событие:', { old: prev.coins, new: updated.coins });
+            
             return updated;
           }
           return prev;
@@ -1939,7 +2063,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     };
 
     const handleProfileUpdate = async () => {
-      console.log('[EDIT_CHAR] Получено событие profile-update, обновляем баланс');
+      
       // НЕ вызываем checkAuth здесь, чтобы не перезаписывать баланс после сохранения
       // Вместо этого загружаем баланс напрямую
       const token = authManager.getToken();
@@ -1960,7 +2084,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
             });
           }
         } catch (error) {
-          console.error('[EDIT_CHAR] Error in handleProfileUpdate:', error);
+          
         }
       }
     };
@@ -1978,11 +2102,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
   // Инициализация при монтировании компонента и изменении character prop
   useEffect(() => {
-    console.log('[EDIT_CHAR] ========== COMPONENT MOUNTED/UPDATED ==========');
-    console.log('[EDIT_CHAR] Initial characterIdentifier:', characterIdentifier);
-    console.log('[EDIT_CHAR] Character prop:', character);
-    console.log('[EDIT_CHAR] Character name:', character?.name);
-    console.log('[EDIT_CHAR] Character id:', character?.id);
+    
+    
+    
+    
+    
     
     // Загружаем данные только при первом монтировании
     // НЕ вызываем checkAuth здесь, если идет обновление баланса после сохранения
@@ -1998,44 +2122,44 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     let effectiveIdentifier = '';
     if (character?.name) {
       effectiveIdentifier = character.name;
-      console.log('[EDIT_CHAR] Using character.name as identifier:', effectiveIdentifier);
+      
     } else if (character?.id) {
       // Если нет name, но есть id, используем id как fallback
       // Но loadCharacterData попытается загрузить по ID, что может не сработать
       effectiveIdentifier = character.id.toString();
-      console.log('[EDIT_CHAR] Using character.id as identifier (fallback):', effectiveIdentifier);
+      
     } else if (characterIdentifier) {
       effectiveIdentifier = characterIdentifier;
-      console.log('[EDIT_CHAR] Using characterIdentifier from state:', effectiveIdentifier);
+      
     }
     
-    console.log('[EDIT_CHAR] Effective identifier:', effectiveIdentifier);
+    
     
     // КРИТИЧНО: Загружаем данные персонажа сразу при монтировании или изменении character
     if (effectiveIdentifier && effectiveIdentifier.trim() !== '') {
-      console.log('[EDIT_CHAR] Loading data immediately:', effectiveIdentifier);
+      
       // Обновляем characterIdentifier если он был пустой или изменился
       // КРИТИЧНО: Сохраняем name, а не ID, так как API работает по имени
       const nameToStore = character?.name || effectiveIdentifier;
       if (!characterIdentifier || characterIdentifier !== nameToStore) {
-        console.log('[EDIT_CHAR] Setting characterIdentifier from prop:', nameToStore);
+        
         setCharacterIdentifier(nameToStore);
       }
       // Устанавливаем isLoadingData в true перед загрузкой
       setIsLoadingData(true);
       loadCharacterData(nameToStore).catch((error) => {
-        console.error('[EDIT_CHAR] Error in loadCharacterData:', error);
+        
         setIsLoadingData(false);
         setError('Ошибка при загрузке данных персонажа');
       });
     } else {
-      console.warn('[EDIT_CHAR] No valid identifier found, setting isLoadingData to false');
+      
       setIsLoadingData(false);
     }
     
     // Безопасная загрузка main_photos из character prop
     if (character?.photos && Array.isArray(character.photos) && character.photos.length > 0) {
-      console.log('[EDIT_CHAR] Loading main_photos from character prop:', character.photos);
+      
       const mainPhotos = character.photos
         .filter((url: any) => url && typeof url === 'string')
         .map((url: string, index: number) => ({
@@ -2046,7 +2170,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         }));
       if (mainPhotos.length > 0) {
         setSelectedPhotos(mainPhotos.slice(0, MAX_MAIN_PHOTOS));
-        console.log('[EDIT_CHAR] Main photos loaded from prop:', mainPhotos);
+        
       }
     }
 
@@ -2069,20 +2193,20 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const isLoadingRef = useRef<boolean>(false);
   
   useEffect(() => {
-    console.log('[EDIT_CHAR] useEffect triggered, characterIdentifier:', characterIdentifier, 'isLoadingData:', isLoadingData, 'isLoadingRef:', isLoadingRef.current);
+    
     
     // КРИТИЧНО: Используем name из character prop, так как API работает по имени
     const effectiveIdentifier = character?.name || characterIdentifier;
     
     if (effectiveIdentifier && effectiveIdentifier.trim() !== '' && lastLoadedIdentifierRef.current !== effectiveIdentifier && !isLoadingRef.current) {
-      console.log('[EDIT_CHAR] characterIdentifier valid, calling loadCharacterData:', effectiveIdentifier);
+      
       lastLoadedIdentifierRef.current = effectiveIdentifier;
       isLoadingRef.current = true;
       loadCharacterData(effectiveIdentifier).finally(() => {
         isLoadingRef.current = false;
       });
     } else if (!effectiveIdentifier || effectiveIdentifier.trim() === '') {
-      console.warn('[EDIT_CHAR] Invalid characterIdentifier, skipping load. Setting isLoadingData to false.');
+      
       setIsLoadingData(false);
       lastLoadedIdentifierRef.current = null;
       isLoadingRef.current = false;
@@ -2172,7 +2296,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           
           if (response.ok) {
             const userData = await response.json();
-            console.log(`[EDIT_CHAR] Попытка ${attempt}: Актуальный баланс из API после сохранения:`, userData.coins);
+            
             
             // Проверяем, изменился ли баланс (должен быть меньше на CHARACTER_EDIT_COST)
             const expectedBalance = userInfo ? userInfo.coins - CHARACTER_EDIT_COST : userData.coins;
@@ -2180,12 +2304,12 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
             
             if (balanceChanged || attempt === maxAttempts) {
               // Баланс изменился или это последняя попытка - обновляем
-              console.log('[EDIT_CHAR] Баланс обновлен:', { old: userInfo?.coins, new: userData.coins, expected: expectedBalance });
+              
               
               setUserInfo(prev => {
                 if (prev) {
                   const updated = { ...prev, coins: userData.coins };
-                  console.log('[EDIT_CHAR] setUserInfo вызван с новым балансом:', { old: prev.coins, new: updated.coins });
+                  
                   return updated;
                 }
                 return {
@@ -2206,11 +2330,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
               }, 2000);
             } else {
               // Баланс еще не обновился, пробуем еще раз
-              console.log(`[EDIT_CHAR] Баланс еще не обновился (${userData.coins} == ${userInfo?.coins}), повтор через 1 секунду...`);
+              
               setTimeout(() => updateBalanceWithRetries(attempt + 1, maxAttempts), 1000);
             }
           } else {
-            console.error('[EDIT_CHAR] Failed to fetch balance, status:', response.status);
+            
             if (attempt < maxAttempts) {
               setTimeout(() => updateBalanceWithRetries(attempt + 1, maxAttempts), 1000);
             } else {
@@ -2218,7 +2342,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
             }
           }
         } catch (error) {
-          console.error('[EDIT_CHAR] Error fetching balance:', error);
+          
           if (attempt < maxAttempts) {
             setTimeout(() => updateBalanceWithRetries(attempt + 1, maxAttempts), 1000);
           } else {
@@ -2285,14 +2409,14 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         
         // Логируем только при изменении статуса или раз в 5 попыток
         if (attempts % 5 === 0 || status.status === 'SUCCESS' || status.status === 'FAILURE') {
-          console.log(`[EDIT_CHAR] Generation status [attempt ${attempts + 1}]:`, status.status, status.message || '');
+          
         }
 
         // Бэкенд возвращает результат в поле "result", а не "data"
         const resultData = status.result || status.data;
         
         if (status.status === 'SUCCESS' && resultData) {
-          console.log('[EDIT_CHAR] Generation result data:', resultData);
+          
           
           // Проверяем разные варианты структуры ответа
           const imageUrl = resultData.image_url || resultData.cloud_url || resultData.url || 
@@ -2301,15 +2425,12 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           const imageId = resultData.image_id || resultData.id || resultData.task_id || resultData.filename || `${Date.now()}-${taskId}`;
           
           if (imageUrl) {
-            console.log('[EDIT_CHAR] Photo generated successfully:', { imageUrl, imageId });
+            
             setGenerationProgress(100); // Устанавливаем 100% при завершении
             return {
               id: imageId,
               url: imageUrl
             };
-          } else {
-            console.error('[EDIT_CHAR] No image URL in result:', resultData);
-            console.error('[EDIT_CHAR] Available keys:', Object.keys(resultData));
           }
         } else if (status.status === 'FAILURE') {
           throw new Error(status.error || 'Ошибка генерации изображения');
@@ -2318,7 +2439,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         // Для всех остальных статусов (PENDING, PROGRESS, generating) продолжаем цикл
         attempts++;
       } catch (err) {
-        console.error('[EDIT_CHAR] Error checking generation status:', err);
+        
         throw err;
       }
     }
@@ -2435,10 +2556,10 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       });
       
       if (addToGalleryResponse.ok) {
-        console.log('[EDIT_CHAR] Фото добавлено в галерею пользователя');
+        
       }
     } catch (galleryError) {
-      console.warn('[EDIT_CHAR] Ошибка добавления в галерею:', galleryError);
+      
     }
     
     return {
@@ -2488,6 +2609,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     setGenerationProgress(0);
     startFakeProgress();
 
+    // Плавный скролл к генерации на мобилках
+    if (isMobile && generationSectionRef.current) {
+      generationSectionRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+
     const processGeneration = async () => {
       try {
         // КРИТИЧНО: Получаем актуальный промпт из ref непосредственно перед генерацией
@@ -2507,8 +2633,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           }
         }
         
-        console.log('[EDIT_GENERATE] Актуальный промпт из ref:', customPromptRef.current);
-        console.log('[EDIT_GENERATE] Используемый промпт для генерации:', currentPrompt);
+        
+        
         
         const photo = await generateSinglePhoto(currentPrompt);
         if (photo) {
@@ -2516,7 +2642,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
             // Проверяем, нет ли уже фото с таким же id
             const existingIds = new Set(prev.map(p => p.id));
             if (existingIds.has(photo.id)) {
-              console.warn('[EDIT_CHAR] Photo with same id already exists, skipping:', photo.id);
+              
               return prev;
             }
             return [{ ...photo, isSelected: false }, ...prev];
@@ -2553,7 +2679,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
   // Сохранение выбранных фото
   const saveSelectedPhotos = async () => {
-    console.log('Saving selected photos:', selectedPhotos);
+    
     
     if (selectedPhotos.length === 0) {
       setError('Нет выбранных фото для сохранения');
@@ -2567,7 +2693,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         photo_ids: selectedPhotos  // Отправляем полные URL напрямую
       };
       
-      console.log('Sending request to API:', requestData);
+      
 
       const response = await authManager.fetchWithAuth('/api/v1/characters/set-main-photos/', {
         method: 'POST',
@@ -2577,28 +2703,29 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         body: JSON.stringify(requestData)
       });
 
-      console.log('API response status:', response.status);
+      
       
       if (response.ok) {
         const result = await response.json();
-        console.log('API response data:', result);
+        
         setSuccess('Главные фото успешно сохранены!');
-        console.log('Main photos saved:', selectedPhotos);
+        
       } else {
         const errorData = await response.json();
-        console.error('API error:', errorData);
+        
         setError(`Ошибка сохранения фото: ${errorData.detail || 'Неизвестная ошибка'}`);
       }
     } catch (err) {
-      console.error('Error saving main photos:', err);
+      
       setError('Ошибка при сохранении фото');
     }
   };
 
   const openPhotoModal = async (photo: any) => {
-    console.log('[MODAL] Opening photo modal for:', photo);
-    console.log('[MODAL] Photo URL:', photo.url);
+    
+    
     setSelectedPhotoForView(photo);
+    setIsPromptVisible(true);
     setSelectedPrompt(null);
     setPromptError(null);
     setIsLoadingPrompt(true);
@@ -2616,7 +2743,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   };
 
   const closePhotoModal = () => {
-    console.log('[MODAL] Closing photo modal');
+    
     setSelectedPhotoForView(null);
     setSelectedPrompt(null);
     setPromptError(null);
@@ -2635,7 +2762,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
   // Проверка на undefined character с более детальной информацией
   if (!character || (!character.name && !character.id)) {
-    console.error('[EDIT_CHAR] Character is undefined or invalid!', character);
+    
     return (
       <MainContainer>
         <MainContent style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
@@ -2664,16 +2791,16 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   }
 
   // Показываем индикатор загрузки, пока данные не загружены
-  console.log('[EDIT_CHAR] ========== RENDER CHECK ==========');
-  console.log('[EDIT_CHAR] isLoadingData:', isLoadingData);
-  console.log('[EDIT_CHAR] formData exists:', !!formData);
-  console.log('[EDIT_CHAR] formData.name:', formData?.name);
-  console.log('[EDIT_CHAR] characterIdentifier:', characterIdentifier);
-  console.log('[EDIT_CHAR] character prop:', character);
-  console.log('[EDIT_CHAR] ===================================');
+  
+  
+  
+  
+  
+  
+  
   
   if (isLoadingData) {
-    console.log('[EDIT_CHAR] Showing loading spinner because isLoadingData is true');
+    
     return (
       <MainContainer>
         <div className="content-area vertical">
@@ -2709,9 +2836,9 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   }
 
   // Проверка на undefined formData
-  console.log('[EDIT_CHAR] Render check - formData exists:', !!formData, 'formData:', formData);
+  
   if (!formData) {
-    console.error('[EDIT_CHAR] formData is undefined!');
+    
     return (
       <MainContainer>
         <MainContent style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
@@ -2728,37 +2855,29 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   }
 
   // Финальная проверка перед рендерингом формы
-  console.log('[EDIT_CHAR] ========== FINAL RENDER CHECK ==========');
-  console.log('[EDIT_CHAR] isLoadingData:', isLoadingData);
-  console.log('[EDIT_CHAR] formData:', formData);
-  console.log('[EDIT_CHAR] formData.name:', formData?.name);
-  console.log('[EDIT_CHAR] formData.personality:', formData?.personality?.substring(0, 50) + '...');
-  console.log('[EDIT_CHAR] Will render form:', !isLoadingData && !!formData);
-  console.log('[EDIT_CHAR] =========================================');
+  
+  
+  
+  
+  
+  
+  
   
   // Дополнительная проверка безопасности
   if (!formData) {
-    console.warn('[EDIT_CHAR] formData is null or undefined');
+    
     return <div>Загрузка...</div>;
   }
   
   if (!formData.name) {
-    console.warn('[EDIT_CHAR] formData.name is null or undefined');
+    
     return <div>Загрузка...</div>;
   }
   
-  console.log('[EDIT_CHAR] Rendering main form. formData.name:', formData.name, 'formData.personality length:', formData.personality?.length || 0);
+  
   
   return (
-    <MainContainer style={{ 
-      display: 'flex', 
-      flexDirection: 'column', 
-      height: '100vh', 
-      width: '100vw',
-      position: 'relative',
-      zIndex: 1,
-      overflow: 'visible'
-    }}>
+    <MainContainer $isMobile={isMobile}>
       <GlobalHeader 
         onShop={onShop}
         onLogin={() => {
@@ -2780,31 +2899,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         }
       />
       
-      <MainContent style={{ 
-          flex: 1, 
-          display: 'flex', 
-          height: 'calc(100vh - 80px)',
-          maxHeight: 'calc(100vh - 80px)',
-          overflow: 'hidden',
-          padding: theme.spacing.lg,
-          gap: theme.spacing.lg,
-          visibility: 'visible',
-          opacity: 1,
-          width: '100%',
-          boxSizing: 'border-box'
-        }}>
-          <Form onSubmit={handleSubmit} style={{ 
-            display: 'flex', 
-            flex: 1, 
-            width: '100%', 
-            height: '100%',
-            gap: theme.spacing.lg,
-            visibility: 'visible',
-            opacity: 1,
-            overflow: 'hidden',
-            position: 'relative',
-            zIndex: 10
-          }}>
+      <MainContent>
+          <Form onSubmit={handleSubmit}>
             <LeftColumn>
               <ColumnContent>
                 <FormGroup>
@@ -2897,7 +2993,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
               </ColumnContent>
             </LeftColumn>
 
-            <RightColumn>
+            <RightColumn ref={generationSectionRef}>
               <ColumnContent>
                 <div style={{ flex: '0 0 auto' }}>
                   <PhotoGenerationBox>
@@ -2921,12 +3017,12 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                     <GenerateSection>
                       <GenerateButton 
                         onClick={() => {
-                          console.log('[EDIT_CHAR] Generate button clicked');
+                          
                           generatePhoto();
                         }}
                         disabled={(() => {
                           if (!userInfo) {
-                            console.log('[EDIT_CHAR] Button disabled: no userInfo');
+                            
                             return true;
                           }
                           const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type;
@@ -2943,17 +3039,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                           const hasEnoughCoins = (userInfo?.coins || 0) >= 10;
                           const isQueueFull = activeGenerations >= queueLimit;
                           const isDisabled = isQueueFull || !hasEnoughCoins;
-                          console.log('[EDIT_CHAR] Button disabled check:', {
-                            userInfo: !!userInfo,
-                            subscriptionType,
-                            queueLimit,
-                            activeGenerations,
-                            queueCount,
-                            isGeneratingPhoto,
-                            hasEnoughCoins,
-                            coins: userInfo?.coins,
-                            isDisabled
-                          });
+                          
                           return isDisabled;
                         })()}
                       >
@@ -3041,9 +3127,9 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                           cursor: 'pointer'
                         }}
                       >
-                        <option value="anime-realism">Аниме реализм</option>
-                        <option value="anime">Аниме</option>
-                        <option value="realism">Реализм</option>
+                        <option value="anime-realism">Сочетание аниме и реалистичных текстур</option>
+                        <option value="anime">Классический аниме стиль</option>
+                        <option value="realism">Максимальная фотореалистичность</option>
                       </select>
                     </div>
 
@@ -3070,7 +3156,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
                 {/* Область для отображения сгенерированных фото - внизу контейнера */}
                 <div style={{ flex: '1 1 auto', marginTop: 'auto', paddingTop: theme.spacing.md }}>
-                  {console.log('[EDIT_CHAR] Render check - isLoadingPhotos:', isLoadingPhotos, 'photos count:', generatedPhotos?.length || 0, 'generatedPhotos:', generatedPhotos)}
+                  {}
                   
                   {isLoadingPhotos ? (
                     <div style={{ padding: '2rem', textAlign: 'center', color: '#fff', background: 'rgba(255,255,255,0.1)', borderRadius: '8px', margin: '1rem 0' }}>
@@ -3086,14 +3172,14 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                       </GeneratedPhotosHeader>
 
                       <PhotoList>
-                        {console.log('[EDIT_CHAR] Rendering photos, count:', generatedPhotos.length)}
+                        {}
                         {generatedPhotos.map((photo, index) => {
                           if (!photo || !photo.url) {
-                            console.warn(`[EDIT_CHAR] Photo ${index} is missing url:`, photo);
+                            
                             return null;
                           }
                           
-                          console.log(`[EDIT_CHAR] Rendering photo ${index}:`, photo.url);
+                          
                           const isSelected = Boolean(photo?.isSelected);
 
                           return (
@@ -3102,17 +3188,17 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                 src={photo.url}
                                 alt={`Photo ${index + 1}`}
                                 onClick={(e) => {
-                                  console.log('[MODAL] Клик на PhotoImage');
+                                  
                                   e.stopPropagation();
                                   if (photo) {
                                     openPhotoModal(photo);
                                   }
                                 }}
                                 onError={(e) => {
-                                  console.error('[EDIT_CHAR] Ошибка загрузки изображения:', photo?.url);
+                                  
                                 }}
                                 onLoad={() => {
-                                  console.log('[EDIT_CHAR] Фото загружено успешно');
+                                  
                                 }}
                               />
                               <PhotoOverlay>
@@ -3188,19 +3274,19 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       {selectedPhotoForView && (
         <PhotoModal 
           onClick={(e) => {
-            console.log('[MODAL] Click on PhotoModal background');
+            
             closePhotoModal();
           }}
         >
           <PhotoModalContent 
             onClick={(e) => {
-              console.log('[MODAL] Click on PhotoModalContent - stopping propagation');
+              
               e.stopPropagation();
             }}
           >
             <PhotoModalClose 
               onClick={(e) => {
-                console.log('[MODAL] Click on close button');
+                
                 e.stopPropagation();
                 closePhotoModal();
               }}
@@ -3211,13 +3297,29 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
               <PhotoModalImage 
                 src={selectedPhotoForView.url} 
                 alt="Generated photo full size"
-                onLoad={() => console.log('[MODAL] Image loaded in modal:', selectedPhotoForView.url)}
-                onError={() => console.error('[MODAL] Error loading image in modal:', selectedPhotoForView.url)}
               />
             </ModalImageContainer>
-            <PromptPanel>
+            <PromptPanel style={{
+              display: isPromptVisible ? 'flex' : 'none',
+              visibility: isPromptVisible ? 'visible' : 'hidden'
+            }}>
               <PromptPanelHeader>
-                <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+                  <button 
+                    onClick={() => setIsPromptVisible(false)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#fbbf24',
+                      cursor: 'pointer',
+                      padding: '4px'
+                    }}
+                    title="Скрыть промпт"
+                  >
+                    <CloseIcon size={20} />
+                  </button>
+                </div>
               </PromptPanelHeader>
               {isLoadingPrompt ? (
                 <PromptLoading>Загрузка промпта...</PromptLoading>
@@ -3227,6 +3329,26 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                 <PromptPanelText>{selectedPrompt}</PromptPanelText>
               ) : null}
             </PromptPanel>
+            {!isPromptVisible && (
+              <button
+                onClick={() => setIsPromptVisible(true)}
+                style={{
+                  position: 'absolute',
+                  top: '20px',
+                  left: '20px',
+                  background: 'rgba(0, 0, 0, 0.7)',
+                  border: '1px solid rgba(251, 191, 36, 0.5)',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  color: '#fbbf24',
+                  cursor: 'pointer',
+                  zIndex: 10002,
+                  fontWeight: '600'
+                }}
+              >
+                Показать промпт
+              </button>
+            )}
           </PhotoModalContent>
         </PhotoModal>
       )}
@@ -3253,8 +3375,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       )}
       
       {/* Отладочная информация */}
-      {console.log('[MODAL] Render check - selectedPhotoForView:', selectedPhotoForView)}
-      {console.log('[MODAL] Should show modal:', selectedPhotoForView !== null)}
+      {}
+      {}
     </MainContainer>
   );
 };

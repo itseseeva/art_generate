@@ -7,7 +7,7 @@ export type PromptFetchResult = {
   errorMessage: string | null;
 };
 
-const buildPromptEndpoint = (imageUrl: string): string =>
+const buildPromptEndpoint = (imageUrl: string): string => 
   `${API_CONFIG.BASE_URL}/api/v1/chat-history/prompt-by-image?image_url=${encodeURIComponent(imageUrl)}`;
 
 const parsePromptResponse = async (response: Response): Promise<PromptFetchResult> => {
@@ -27,7 +27,7 @@ const parsePromptResponse = async (response: Response): Promise<PromptFetchResul
       errorMessage: data?.message || 'Промпт недоступен для этого изображения'
     };
   } catch (error) {
-    console.error('[PROMPT] Ошибка чтения ответа:', error);
+    
     return {
       prompt: null,
       characterName: null,
@@ -61,7 +61,7 @@ export const fetchPromptByImage = async (imageUrl: string): Promise<PromptFetchR
     const response = await fetch(endpoint, { headers });
     return parsePromptResponse(response);
   } catch (error) {
-    console.error('[PROMPT] Ошибка запроса промпта:', error);
+    
     return {
       prompt: null,
       characterName: null,

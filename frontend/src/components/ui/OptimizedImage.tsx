@@ -165,8 +165,13 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
     };
   }, [eager, priority, shouldLoad]);
 
-  // Оптимизация: генерируем WebP fallback URL
+  // Оптимизация: генерируем WebP fallback URL только для локальных файлов
   const optimizedSrc = React.useMemo(() => {
+    // Отключаем WebP оптимизацию для прокси URL (/media/) так как изображения на Yandex.Cloud в формате PNG
+    if (src.includes('/media/') || src.includes('storage.yandexcloud.net')) {
+      return src;
+    }
+    
     if (src.includes('generated') && !src.includes('.webp')) {
       return src.replace(/\.(jpg|jpeg|png)$/i, '.webp');
     }

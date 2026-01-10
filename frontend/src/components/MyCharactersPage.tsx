@@ -6,7 +6,7 @@ import { API_CONFIG } from '../config/api';
 import { AuthModal } from './AuthModal';
 
 const MainContainer = styled.div`
-  width: 100vw;
+  width: 100%;
   height: 100vh;
   display: flex;
   position: relative;
@@ -14,16 +14,22 @@ const MainContainer = styled.div`
   overflow-x: hidden;
 `;
 
-
-
 const CharactersGrid = styled.div`
   flex: 1;
   padding: ${theme.spacing.lg};
   overflow-y: auto;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 0;
+  gap: ${theme.spacing.md};
   align-content: start;
+  width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    padding: ${theme.spacing.md};
+    gap: ${theme.spacing.sm};
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
 `;
 
 const EmptyState = styled.div`
@@ -135,7 +141,7 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
         setFavoriteCharacterIds(new Set());
       }
     } catch (error) {
-      console.error('Error loading favorites:', error);
+      
       setFavoriteCharacterIds(new Set());
     }
   }, []);
@@ -166,7 +172,7 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
       const currentUserId = userData?.id;
       
       if (!currentUserId) {
-        console.error('User ID not found in response');
+        
         setIsAuthenticated(false);
         return;
       }
@@ -182,7 +188,7 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
         
         // Защита от некорректных данных
         if (!Array.isArray(charactersData)) {
-          console.error('Characters data is not an array:', charactersData);
+          
           setCharacters([]);
           setIsAuthenticated(true);
           return;
@@ -217,7 +223,7 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
             try {
               parsedPhotos = JSON.parse(char.main_photos);
             } catch (e) {
-              console.error('Error parsing main_photos for character:', canonicalName, e);
+              
               parsedPhotos = [];
             }
           } else {
@@ -276,11 +282,11 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
         setCharacters(formattedCharacters);
         setIsAuthenticated(true);
       } else {
-        console.error('Failed to load characters:', response.status);
+        
         setIsAuthenticated(false);
       }
     } catch (error) {
-      console.error('Error loading characters:', error);
+      
       setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
@@ -336,7 +342,7 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
               return;
             }
           } catch (refreshError) {
-            console.error('Ошибка обновления токена:', refreshError);
+            
           }
         }
         // Если refresh не удался, удаляем токены
@@ -345,12 +351,12 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
         localStorage.removeItem('refreshToken');
       } else {
         // Для других ошибок не удаляем токены
-        console.warn('Auth check failed with status:', response.status, '- keeping tokens');
+        
         setIsAuthenticated(false);
       }
     } catch (error) {
       // При сетевых ошибках не удаляем токены
-      console.warn('Auth check error (network error):', error, '- keeping tokens');
+      
       setIsAuthenticated(false);
     } finally {
       setAuthCheckComplete(true);
@@ -389,7 +395,7 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
         await loadMyCharacters();
         }
       } catch (error) {
-        console.error('Error initializing page:', error);
+        
         setIsLoading(false);
         isLoadingRef.current = false;
       }

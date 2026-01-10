@@ -17,6 +17,10 @@ const HeaderContainer = styled.div`
   max-height: none;
   overflow: visible;
   position: relative;
+
+  @media (max-width: 768px) {
+    padding: 0.5rem ${theme.spacing.md};
+  }
 `;
 
 const LeftSection = styled.div`
@@ -112,7 +116,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
         if (!isMounted) {
           return;
         }
-        console.error('[GLOBAL HEADER] Auth check error:', error);
+        
         setIsAuthenticated(false);
         setUserInfo(null);
       }
@@ -183,21 +187,21 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   };
 
   const handleProfile = () => {
-    console.log('[GLOBAL HEADER] Profile button clicked');
+    
     // Сначала пробуем использовать переданный обработчик
     if (onProfile) {
-      console.log('[GLOBAL HEADER] Calling onProfile handler');
+      
       try {
         onProfile();
       } catch (error) {
-        console.error('[GLOBAL HEADER] Error calling onProfile:', error);
+        
         // Если обработчик выбросил ошибку, используем глобальное событие
         window.dispatchEvent(new CustomEvent('navigate-to-profile', { detail: { userId: undefined } }));
       }
       return;
     }
     // Если обработчик не передан, используем глобальное событие
-    console.log('[GLOBAL HEADER] Dispatching navigate-to-profile event');
+    
     window.dispatchEvent(new CustomEvent('navigate-to-profile', { detail: { userId: undefined } }));
   };
 

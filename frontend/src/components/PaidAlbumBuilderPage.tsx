@@ -7,6 +7,8 @@ import { ErrorMessage } from './ErrorMessage';
 import { SuccessToast } from './SuccessToast';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToEnglish, translateToRussian } from '../utils/translate';
+import { useIsMobile } from '../hooks/useIsMobile';
+import { FiX as CloseIcon } from 'react-icons/fi';
 
 const UpgradeOverlay = styled.div`
   position: fixed;
@@ -56,14 +58,18 @@ const UpgradeActions = styled.div`
 `;
 
 const PageContainer = styled.div`
-  width: 100vw;
-  height: 100vh;
-  min-height: 100vh;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
   background: rgba(20, 20, 20, 1);
   padding: 2rem;
   overflow-y: auto;
   overflow-x: hidden;
   box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    padding: 1rem;
+  }
 `;
 
 const ContentWrapper = styled.div`
@@ -73,6 +79,10 @@ const ContentWrapper = styled.div`
 
 const Header = styled.header`
   margin-bottom: 2rem;
+
+  @media (max-width: 768px) {
+    margin-bottom: 1rem;
+  }
 `;
 
 const Title = styled.h1`
@@ -80,12 +90,20 @@ const Title = styled.h1`
   font-weight: 700;
   color: rgba(240, 240, 240, 1);
   margin: 0;
+
+  @media (max-width: 768px) {
+    font-size: 1.5rem;
+  }
 `;
 
 const Subtitle = styled.p`
   margin-top: 0.5rem;
   color: rgba(160, 160, 160, 1);
   font-size: 1rem;
+
+  @media (max-width: 768px) {
+    font-size: 0.875rem;
+  }
 `;
 
 
@@ -103,7 +121,7 @@ const ActionButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   cursor: pointer;
   transition: all 0.3s ease;
 
-  ${({ $variant }) =>
+  ${({ $variant }) => 
     $variant === 'secondary'
       ? `
         background: rgba(60, 60, 60, 0.8);
@@ -153,6 +171,11 @@ const Section = styled.div`
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+
+  @media (max-width: 768px) {
+    padding: 1rem;
+    gap: 1rem;
+  }
 `;
 
 const SectionTitle = styled.h2`
@@ -193,6 +216,12 @@ const PhotoGrid = styled.div`
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 0.5rem;
+
+  @media (max-width: 768px) {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 0.75rem;
+    max-height: 400px;
+  }
   
   &::-webkit-scrollbar {
     width: 8px;
@@ -223,11 +252,15 @@ const PhotoCard = styled.div<{ $selected?: boolean }>`
   transition: all 0.3s ease;
   width: 100%;
   max-width: 220px;
-  min-width: 200px;
+  min-width: 140px;
   aspect-ratio: 2 / 3;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+
+  @media (max-width: 768px) {
+    max-width: 100%;
+  }
 
   &:hover {
     transform: translateY(-2px);
@@ -261,6 +294,12 @@ const PhotoOverlay = styled.div`
 
   ${PhotoCard}:hover & {
     opacity: 1;
+  }
+
+  @media (max-width: 768px) {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.6);
+    padding: 0.25rem 0.5rem;
   }
 `;
 
@@ -431,7 +470,7 @@ const OverlayActions = styled.div`
 `;
 
 const OverlayButton = styled.button<{ $variant?: 'primary' | 'danger' }>`
-  background: ${({ $variant }) =>
+  background: ${({ $variant }) => 
     $variant === 'primary'
       ? 'rgba(120, 120, 120, 0.85)'
       : $variant === 'danger'
@@ -449,7 +488,7 @@ const OverlayButton = styled.button<{ $variant?: 'primary' | 'danger' }>`
   justify-content: center;
 
   &:hover {
-    background: ${({ $variant }) =>
+    background: ${({ $variant }) => 
       $variant === 'primary'
         ? 'rgba(140, 140, 140, 0.95)'
         : $variant === 'danger'
@@ -462,26 +501,34 @@ const OverlayButton = styled.button<{ $variant?: 'primary' | 'danger' }>`
 const PreviewBackdrop = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 1); /* Full black for mobile */
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9999;
   backdrop-filter: blur(70px);
   -webkit-backdrop-filter: blur(70px);
-  padding: ${theme.spacing.xl};
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
 `;
 
 const PreviewContent = styled.div`
   position: relative;
-  max-width: 95vw;
-  max-height: 95vh;
+  max-width: 100vw;
+  max-height: 100vh;
   display: flex;
   align-items: stretch;
   justify-content: center;
   gap: ${theme.spacing.xl};
   width: 100%;
   min-width: 0;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
 `;
 
 const PreviewImageContainer = styled.div`
@@ -490,7 +537,14 @@ const PreviewImageContainer = styled.div`
   align-items: center;
   justify-content: center;
   min-width: 0;
-  max-width: 60%;
+  max-width: 70%;
+
+  @media (max-width: 768px) {
+    max-width: 100%;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+  }
 `;
 
 const PreviewImage = styled.img`
@@ -499,6 +553,13 @@ const PreviewImage = styled.img`
   object-fit: contain;
   border-radius: ${theme.borderRadius.lg};
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+
+  @media (max-width: 768px) {
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    border-radius: 0;
+  }
 `;
 
 const PromptPanel = styled.div`
@@ -517,16 +578,31 @@ const PromptPanel = styled.div`
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(10px);
   z-index: 10001;
+
+  @media (max-width: 768px) {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    max-height: 30vh;
+    background: rgba(20, 20, 20, 0.95);
+    border: none;
+    border-bottom: 1px solid rgba(251, 191, 36, 0.3);
+    border-radius: 0;
+    padding: ${theme.spacing.md};
+    z-index: 10;
+    flex-shrink: 0;
+  }
 `;
 
 const PromptPanelHeader = styled.div`
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
   border-bottom: 1px solid rgba(150, 150, 150, 0.3);
 `;
 
 const PromptPanelTitle = styled.h3`
-  color: rgba(240, 240, 240, 1);
+  color: #fbbf24;
   font-size: 1.25rem;
   font-weight: 800;
   margin: 0;
@@ -606,6 +682,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
   const [albumLoading, setAlbumLoading] = useState(true);
   const [previewPhoto, setPreviewPhoto] = useState<PaidAlbumImage | null>(null);
   const [fakeProgress, setFakeProgress] = useState(0);
+  const [isPromptVisible, setIsPromptVisible] = useState(true);
   const fakeProgressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fakeProgressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
@@ -634,20 +711,20 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
 
         if (response.ok) {
           const userData = await response.json();
-          console.log('User data from /api/v1/auth/me/:', userData);
+          
           const subscriptionType = userData.subscription?.subscription_type || 
                                   userData.subscription_type || 
                                   'free';
-          console.log('User subscription type (raw):', subscriptionType);
+          
           const normalizedSubscription = String(subscriptionType).toLowerCase();
-          console.log('User subscription type (normalized):', normalizedSubscription);
+          
           setUserSubscription(normalizedSubscription);
         } else {
-          console.log('Failed to get user data, status:', response.status);
+          
           setUserSubscription(null);
         }
       } catch (error) {
-        console.error('Error checking subscription:', error);
+        
         setUserSubscription(null);
       }
     };
@@ -772,7 +849,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
           }
         }
       } catch (error) {
-        console.error('Ошибка загрузки данных персонажа:', error);
+        
         // Если не удалось загрузить из API, используем данные из props
         if (character.appearance || character.location) {
           const appearance = character.appearance || '';
@@ -825,7 +902,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         const data = await response.json();
         setSelectedPhotos(Array.isArray(data.images) ? data.images : []);
       } catch (albumError) {
-        console.error('Ошибка загрузки платного альбома:', albumError);
+        
         setError(albumError instanceof Error ? albumError.message : 'Не удалось загрузить платный альбом');
       } finally {
         setAlbumLoading(false);
@@ -869,14 +946,14 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         
         // Логируем только при изменении статуса или раз в 5 попыток
         if (attempt % 5 === 0 || status.status === 'SUCCESS' || status.status === 'FAILURE') {
-          console.log(`Generation status [attempt ${attempt + 1}]:`, status.status, status.message || '');
+          
         }
 
         // Бэкенд возвращает результат в поле "result", а не "data"
         const resultData = status.result || status.data;
         
         if (status.status === 'SUCCESS' && resultData) {
-          console.log('Generation result data:', resultData);
+          
           
           // Проверяем разные варианты структуры ответа
           const imageUrl = resultData.image_url || resultData.cloud_url || resultData.url || 
@@ -885,15 +962,12 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
           const imageId = resultData.image_id || resultData.id || resultData.task_id || resultData.filename || `${Date.now()}-${taskId}`;
           
           if (imageUrl) {
-            console.log('Photo generated successfully:', { imageUrl, imageId });
+            
             return {
               id: imageId,
               url: imageUrl,
               created_at: new Date().toISOString()
             };
-          } else {
-            console.error('No image URL in result:', resultData);
-            console.error('Available keys:', Object.keys(resultData));
           }
         } else if (status.status === 'FAILURE') {
           throw new Error(status.error || 'Ошибка генерации изображения');
@@ -903,7 +977,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
           continue;
         }
       } catch (err) {
-        console.error('Error checking generation status:', err);
+        
         throw err;
       }
     }
@@ -914,7 +988,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
   const handleGeneratePhoto = async () => {
     // Защита от множественных вызовов
     if (isGenerating) {
-      console.log('Generation already in progress, ignoring duplicate call');
+      
       return;
     }
 
@@ -962,12 +1036,12 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
       }
 
       const result = await response.json();
-      console.log('Generation response:', result);
+      
       
       // Проверяем, есть ли task_id (асинхронная генерация) или сразу image_url (мок)
       if (result.task_id) {
         // Асинхронная генерация через Celery
-        console.log('Waiting for generation, task_id:', result.task_id);
+        
         
         // Ждем завершения генерации (параллельно с прогрессом)
         const photoPromise = waitForGeneration(result.task_id, token);
@@ -979,7 +1053,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         stopFakeProgress(false);
         
         if (image) {
-          console.log('Photo generated:', image);
+          
           setGeneratedPhotos(prev => [image, ...prev]);
           
           // КРИТИЧЕСКИ ВАЖНО: Добавляем фото в галерею пользователя
@@ -997,17 +1071,17 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
             });
             
             if (addToGalleryResponse.ok) {
-              console.log('[PaidAlbumBuilderPage] Фото добавлено в галерею пользователя');
+              
             }
           } catch (galleryError) {
-            console.warn('[PaidAlbumBuilderPage] Не удалось добавить фото в галерею:', galleryError);
+            
           }
         } else {
           throw new Error('Не удалось получить изображение');
         }
       } else if (result.image_url || result.cloud_url || result.url) {
         // Мок или синхронная генерация
-        console.log('Photo generated synchronously:', result.image_url || result.cloud_url || result.url);
+        
         
         const imageUrl = result.image_url || result.cloud_url || result.url;
         const image: PaidAlbumImage = {
@@ -1033,18 +1107,18 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
           });
           
           if (addToGalleryResponse.ok) {
-            console.log('[PaidAlbumBuilderPage] Фото добавлено в галерею пользователя (синхронная генерация)');
+            
           }
         } catch (galleryError) {
-          console.warn('[PaidAlbumBuilderPage] Не удалось добавить фото в галерею:', galleryError);
+          
         }
       } else {
-        console.error('No task_id or image_url in result:', result);
+        
         throw new Error('Сервер не вернул URL изображения или task_id');
       }
     } catch (generateError) {
       generationFailed = true;
-      console.error('Ошибка генерации фото:', generateError);
+      
       setError(generateError instanceof Error ? generateError.message : 'Не удалось сгенерировать фото');
     } finally {
       setIsGenerating(false);
@@ -1066,16 +1140,10 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
     // Используем canEditAlbum из пропсов или проверку подписки
     const canEdit = canEditAlbum || hasValidSubscription;
 
-    console.log('Toggle photo selection check:', {
-      userSubscription,
-      subscriptionType,
-      hasValidSubscription,
-      canEditAlbum,
-      canEdit
-    });
+    
 
     if (!canEdit) {
-      console.log('Cannot edit album. Subscription:', subscriptionType, 'canEditAlbum:', canEditAlbum);
+      
       setIsUpgradeModalOpen(true);
       return;
     }
@@ -1122,7 +1190,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
       setSelectedPhotos(Array.isArray(data.photos) ? data.photos : selectedPhotos);
       setSuccess('Платный альбом сохранён');
     } catch (saveError) {
-      console.error('Ошибка сохранения платного альбома:', saveError);
+      
       setError(saveError instanceof Error ? saveError.message : 'Не удалось сохранить платный альбом');
     } finally {
       setIsSaving(false);
@@ -1133,6 +1201,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
 
   const handleOpenPreview = async (photo: PaidAlbumImage) => {
     setPreviewPhoto(photo);
+    setIsPromptVisible(true);
     setSelectedPrompt(null);
     setPromptError(null);
     setIsLoadingPrompt(true);
@@ -1147,7 +1216,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         setPromptError(errorMessage || 'Промпт недоступен для этого изображения');
       }
     } catch (error) {
-      console.error('[PaidAlbumBuilderPage] Ошибка загрузки/перевода промпта:', error);
+      
       setPromptError('Ошибка загрузки промпта');
     } finally {
       setIsLoadingPrompt(false);
@@ -1232,9 +1301,9 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                 cursor: 'pointer'
               }}
             >
-              <option value="anime-realism">Аниме реализм</option>
-              <option value="anime">Аниме</option>
-              <option value="realism">Реализм</option>
+              <option value="anime-realism">Сочетание аниме и реалистичных текстур</option>
+              <option value="anime">Классический аниме стиль</option>
+              <option value="realism">Максимальная фотореалистичность</option>
             </select>
           </div>
           <PromptArea
@@ -1371,13 +1440,33 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
       {previewPhoto && (
         <PreviewBackdrop onClick={handleClosePreview}>
           <PreviewContent onClick={(event) => event.stopPropagation()}>
-            <PreviewClose onClick={handleClosePreview}>×</PreviewClose>
+            <PreviewClose onClick={handleClosePreview}>
+              <CloseIcon />
+            </PreviewClose>
             <PreviewImageContainer>
               <PreviewImage src={previewPhoto?.url || ''} alt={displayName} />
             </PreviewImageContainer>
-            <PromptPanel>
+            <PromptPanel style={{
+              display: isPromptVisible ? 'flex' : 'none',
+              visibility: isPromptVisible ? 'visible' : 'hidden'
+            }}>
               <PromptPanelHeader>
-                <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+                  <button 
+                    onClick={() => setIsPromptVisible(false)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#fbbf24',
+                      cursor: 'pointer',
+                      padding: '4px'
+                    }}
+                    title="Скрыть промпт"
+                  >
+                    <CloseIcon size={20} />
+                  </button>
+                </div>
               </PromptPanelHeader>
               {isLoadingPrompt ? (
                 <PromptLoading>Загрузка промпта...</PromptLoading>
@@ -1391,6 +1480,26 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                 </PromptPanelText>
               )}
             </PromptPanel>
+            {!isPromptVisible && (
+              <button
+                onClick={() => setIsPromptVisible(true)}
+                style={{
+                  position: 'absolute',
+                  top: '20px',
+                  left: '20px',
+                  background: 'rgba(0, 0, 0, 0.7)',
+                  border: '1px solid rgba(251, 191, 36, 0.5)',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  color: '#fbbf24',
+                  cursor: 'pointer',
+                  zIndex: 10002,
+                  fontWeight: '600'
+                }}
+              >
+                Показать промпт
+              </button>
+            )}
           </PreviewContent>
         </PreviewBackdrop>
       )}

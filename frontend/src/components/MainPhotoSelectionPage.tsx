@@ -60,7 +60,7 @@ const ActionButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   cursor: pointer;
   transition: ${theme.transition.fast};
 
-  ${({ $variant }) =>
+  ${({ $variant }) => 
     $variant === 'secondary'
       ? `
         background: transparent;
@@ -213,7 +213,7 @@ const OverlayActions = styled.div`
 `;
 
 const OverlayButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
-  background: ${({ $variant }) =>
+  background: ${({ $variant }) => 
     $variant === 'primary'
       ? 'rgba(129, 140, 248, 0.8)'
       : 'rgba(15, 23, 42, 0.7)'};
@@ -226,7 +226,7 @@ const OverlayButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   transition: ${theme.transition.fast};
 
   &:hover {
-    background: ${({ $variant }) =>
+    background: ${({ $variant }) => 
       $variant === 'primary'
         ? 'rgba(99, 102, 241, 0.9)'
         : 'rgba(37, 47, 82, 0.9)'};
@@ -477,7 +477,7 @@ export const MainPhotoSelectionPage: React.FC<MainPhotoSelectionPageProps> = ({
         } else if (mainResponse.status === 404) {
           setSelectedPhotos([]);
         } else {
-          console.warn('Не удалось загрузить главные фотографии персонажа', mainResponse.status);
+          
           setSelectedPhotos([]);
         }
 
@@ -519,11 +519,11 @@ export const MainPhotoSelectionPage: React.FC<MainPhotoSelectionPageProps> = ({
         } else if (galleryResponse.status === 404) {
           setAvailablePhotos([]);
         } else {
-          console.warn('Не удалось загрузить фотографии персонажа', galleryResponse.status);
+          
           setAvailablePhotos([]);
         }
       } catch (loadError) {
-        console.error('Ошибка загрузки фото персонажа:', loadError);
+        
         setError(loadError instanceof Error ? loadError.message : 'Не удалось загрузить фотографии');
       } finally {
         setIsLoading(false);
@@ -583,7 +583,7 @@ export const MainPhotoSelectionPage: React.FC<MainPhotoSelectionPageProps> = ({
         throw new Error(message);
       }
     } catch (toggleError) {
-      console.error('Ошибка сохранения главных фотографий:', toggleError);
+      
       setSelectedPhotos(prevSelected);
       setError(toggleError instanceof Error ? toggleError.message : 'Не удалось обновить главные фотографии');
     } finally {
@@ -642,7 +642,7 @@ export const MainPhotoSelectionPage: React.FC<MainPhotoSelectionPageProps> = ({
       setError(null);
       stopFakeProgress(100);
     } catch (generateError) {
-      console.error('Ошибка генерации фото:', generateError);
+      
       setError(generateError instanceof Error ? generateError.message : 'Не удалось сгенерировать фото');
       stopFakeProgress(0);
     } finally {

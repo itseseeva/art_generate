@@ -613,6 +613,11 @@ const ModalOverlay = styled.div`
   justify-content: center;
   z-index: 99999;
   padding: ${theme.spacing.xl};
+
+  @media (max-width: 768px) {
+    background: #000;
+    padding: 0;
+  }
 `;
 
 const ModalContent = styled.div`
@@ -624,6 +629,17 @@ const ModalContent = styled.div`
   justify-content: center;
   gap: ${theme.spacing.xl};
   width: 100%;
+
+  @media (max-width: 768px) {
+    width: 100vw;
+    height: 100vh;
+    max-width: 100vw;
+    max-height: 100vh;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    overflow: hidden;
+  }
 `;
 
 const ModalImageContainer = styled.div`
@@ -633,6 +649,13 @@ const ModalImageContainer = styled.div`
   justify-content: center;
   min-width: 0;
   max-width: 70%;
+
+  @media (max-width: 768px) {
+    max-width: 100%;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+  }
 `;
 
 const ModalImage = styled.img`
@@ -641,6 +664,13 @@ const ModalImage = styled.img`
   object-fit: contain;
   border-radius: ${theme.borderRadius.lg};
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+
+  @media (max-width: 768px) {
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    border-radius: 0;
+  }
 `;
 
 const PromptPanel = styled.div`
@@ -657,6 +687,21 @@ const PromptPanel = styled.div`
   flex-direction: column;
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(10px);
+
+  @media (max-width: 768px) {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    max-height: 30vh;
+    background: rgba(20, 20, 20, 0.95);
+    border: none;
+    border-bottom: 1px solid rgba(251, 191, 36, 0.3);
+    border-radius: 0;
+    padding: ${theme.spacing.md};
+    z-index: 10;
+    flex-shrink: 0;
+  }
 `;
 
 const PromptPanelHeader = styled.div`
@@ -666,7 +711,7 @@ const PromptPanelHeader = styled.div`
 `;
 
 const PromptPanelTitle = styled.h3`
-  color: rgba(240, 240, 240, 1);
+  color: #fbbf24;
   font-size: ${theme.fontSize.xl};
   font-weight: 800;
   margin: 0;
@@ -877,6 +922,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     const newNsfw = character?.is_nsfw === true || (character as any)?.raw?.is_nsfw === true;
     setIsNsfw(newNsfw);
   }, [character?.is_nsfw, (character as any)?.raw?.is_nsfw]);
+  const [isPromptVisible, setIsPromptVisible] = useState(true);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
@@ -964,7 +1010,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           }
         }
       } catch (error) {
-        console.error('Error checking favorite:', error);
+        
       } finally {
         if (isMounted) {
           setIsChecking(false);
@@ -1016,7 +1062,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         setPersonalityError('Ошибка загрузки данных персонажа');
       }
     } catch (error) {
-      console.error('Ошибка загрузки характера:', error);
+      
       setPersonalityError('Ошибка загрузки характера персонажа');
     } finally {
       setIsLoadingPersonality(false);
@@ -1041,11 +1087,11 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
       } else if (typeof character.id === 'string') {
         characterId = parseInt(character.id, 10);
         if (isNaN(characterId)) {
-          console.error('Invalid character ID:', character.id);
+          
           return;
         }
       } else {
-        console.error('Invalid character ID type:', character.id);
+        
         return;
       }
 
@@ -1063,7 +1109,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           }
         } else {
           const errorData = await response.json().catch(() => ({}));
-          console.error('Error removing from favorites:', errorData);
+          
         }
       } else {
         // Добавляем в избранное
@@ -1079,11 +1125,11 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           }
         } else {
           const errorData = await response.json().catch(() => ({}));
-          console.error('Error adding to favorites:', errorData);
+          
         }
       }
     } catch (error) {
-      console.error('Error toggling favorite:', error);
+      
     }
   };
 
@@ -1091,32 +1137,32 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   const toggleNsfw = async (e: React.MouseEvent) => {
     e.stopPropagation();
     
-    console.log('[CharacterCard] toggleNsfw вызван');
+    
     
     const token = authManager.getToken();
     if (!token) {
-      console.error('[CharacterCard] Нет токена авторизации');
+      
       return;
     }
 
     try {
       const characterName = character.name || (character as any).raw?.name;
       if (!characterName) {
-        console.error('[CharacterCard] Не удалось определить имя персонажа для переключения NSFW');
+        
         return;
       }
 
-      console.log('[CharacterCard] Отправка запроса на переключение NSFW для:', characterName);
+      
       const response = await authManager.fetchWithAuth(
         `${API_CONFIG.BASE_URL}/api/v1/characters/${encodeURIComponent(characterName)}/toggle-nsfw`,
         { method: 'PATCH' }
       );
       
-      console.log('[CharacterCard] Ответ получен, status:', response.status);
+      
 
       if (response.ok) {
         const updatedCharacter = await response.json();
-        console.log('[CharacterCard] NSFW статус обновлен:', updatedCharacter.is_nsfw);
+        
         // Обновляем локальное состояние
         setIsNsfw(updatedCharacter.is_nsfw === true);
         // Обновляем локальное состояние персонажа
@@ -1130,11 +1176,11 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         }
       } else {
         const errorData = await response.json().catch(() => ({}));
-        console.error('[CharacterCard] Error toggling NSFW status:', response.status, errorData);
+        
         alert(`Ошибка переключения статуса: ${errorData.detail || 'Неизвестная ошибка'}`);
       }
     } catch (error) {
-      console.error('Error toggling NSFW status:', error);
+      
     }
   };
 
@@ -1157,11 +1203,11 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
       } else if (typeof character.id === 'string') {
         characterId = parseInt(character.id, 10);
         if (isNaN(characterId)) {
-          console.error('Invalid character ID:', character.id);
+          
           return;
         }
       } else {
-        console.error('Invalid character ID type:', character.id);
+        
         return;
       }
 
@@ -1174,7 +1220,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         setUserRating(data.user_rating || null);
       }
     } catch (error) {
-      console.error('Error loading ratings:', error);
+      
     }
   };
 
@@ -1196,11 +1242,11 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
       } else if (typeof character.id === 'string') {
         characterId = parseInt(character.id, 10);
         if (isNaN(characterId)) {
-          console.error('Invalid character ID:', character.id);
+          
           return;
         }
       } else {
-        console.error('Invalid character ID type:', character.id);
+        
         return;
       }
 
@@ -1247,7 +1293,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         }
       }
     } catch (error) {
-      console.error('Error liking character:', error);
+      
       // Откатываем изменения при ошибке
       const wasDisliked = userRating === 'dislike';
       const wasLiked = userRating === 'like';
@@ -1283,11 +1329,11 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
       } else if (typeof character.id === 'string') {
         characterId = parseInt(character.id, 10);
         if (isNaN(characterId)) {
-          console.error('Invalid character ID:', character.id);
+          
           return;
         }
       } else {
-        console.error('Invalid character ID type:', character.id);
+        
         return;
       }
 
@@ -1334,7 +1380,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         }
       }
     } catch (error) {
-      console.error('Error disliking character:', error);
+      
       // Откатываем изменения при ошибке
       const wasLiked = userRating === 'like';
       const wasDisliked = userRating === 'dislike';
@@ -1362,6 +1408,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   const handleOpenPhoto = async (e: React.MouseEvent, imageUrl: string) => {
     e.stopPropagation();
     setSelectedPhoto(imageUrl);
+    setIsPromptVisible(true);
     setSelectedPrompt(null);
     setPromptError(null);
     setIsLoadingPrompt(true);
@@ -1376,7 +1423,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         setPromptError(errorMessage || 'Промпт недоступен для этого изображения');
       }
     } catch (error) {
-      console.error('[CharacterCard] Ошибка загрузки/перевода промпта:', error);
+      
       setPromptError('Ошибка загрузки промпта');
     } finally {
       setIsLoadingPrompt(false);
@@ -1420,9 +1467,27 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         <ModalImageContainer>
           <ModalImage src={selectedPhoto} alt="Full size" />
         </ModalImageContainer>
-        <PromptPanel>
+        <PromptPanel style={{
+          display: isPromptVisible ? 'flex' : 'none',
+          visibility: isPromptVisible ? 'visible' : 'hidden'
+        }}>
           <PromptPanelHeader>
-            <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+              <button 
+                onClick={() => setIsPromptVisible(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#fbbf24',
+                  cursor: 'pointer',
+                  padding: '4px'
+                }}
+                title="Скрыть промпт"
+              >
+                <CloseIcon size={20} />
+              </button>
+            </div>
           </PromptPanelHeader>
           {isLoadingPrompt ? (
             <PromptLoading>Загрузка промпта...</PromptLoading>
@@ -1432,6 +1497,26 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             <PromptPanelText>{selectedPrompt}</PromptPanelText>
           ) : null}
         </PromptPanel>
+        {!isPromptVisible && (
+          <button
+            onClick={() => setIsPromptVisible(true)}
+            style={{
+              position: 'absolute',
+              top: '20px',
+              left: '20px',
+              background: 'rgba(0, 0, 0, 0.7)',
+              border: '1px solid rgba(251, 191, 36, 0.5)',
+              borderRadius: '8px',
+              padding: '8px 16px',
+              color: '#fbbf24',
+              cursor: 'pointer',
+              zIndex: 10002,
+              fontWeight: '600'
+            }}
+          >
+            Показать промпт
+          </button>
+        )}
       </ModalContent>
     </ModalOverlay>
   ) : null;
@@ -1495,7 +1580,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                 <Switcher4
                   checked={isNsfw}
                   onToggle={async (checked) => {
-                    console.log('[CharacterCard] Switcher4 onToggle вызван, checked:', checked);
+                    
                     // Вызываем toggleNsfw при клике на переключатель
                     const syntheticEvent = {
                       stopPropagation: () => {},
@@ -1565,23 +1650,34 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             )}
         </ContentOverlay>
           <div 
-            onClick={() => onClick(character)}
+            onClick={() => {
+              
+              onClick(character);
+            }}
             style={{ 
               position: 'absolute', 
               top: 0, 
               left: 0, 
               right: 0, 
               bottom: 0, 
-              zIndex: 1,
+              zIndex: 10, // Увеличил z-index чтобы перекрывать контент, но не кнопки
               pointerEvents: 'auto',
               cursor: 'pointer'
             }}
             onMouseDown={(e) => {
-              // Не блокируем клики на кнопки рейтинга
+              // Не блокируем клики на кнопки рейтинга и другие интерактивные элементы
               const target = e.target as HTMLElement;
-              if (target.closest('button[class*="RatingButton"]') || target.closest('[class*="RatingButton"]')) {
-                e.stopPropagation();
+              if (
+                target.closest('button') || 
+                target.closest('a') || 
+                target.closest('[class*="RatingButton"]') ||
+                target.closest('[class*="Switcher"]') ||
+                target.closest('[class*="FavoriteButton"]')
+              ) {
+                // Если клик по кнопке - не перехватываем
+                return;
               }
+              // Для всего остального можем обработать здесь если нужно
             }}
           />
       </CardContainer>

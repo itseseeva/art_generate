@@ -40,6 +40,11 @@ const ModalContent = styled.div`
   border: 1px solid rgba(100, 100, 100, 0.3);
   box-shadow: 0 28px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
   animation: slideIn 0.3s ease-out;
+
+  @media (max-width: 768px) {
+    padding: ${theme.spacing.lg};
+    width: 95%;
+  }
   
   @keyframes slideIn {
     from {
@@ -221,13 +226,13 @@ export const PhotoGenerationHelpModal: React.FC<PhotoGenerationHelpModalProps> =
               <Highlight>Шаг 3:</Highlight> В открывшемся окне вы увидите предзаполненный текст — это описание будущей картинки
             </ListItem>
             <ListItem>
-              <Highlight>Шаг 4:</Highlight> Выберите стиль изображения: <Highlight>Аниме</Highlight>, <Highlight>Аниме реализм</Highlight> или <Highlight>Реализм</Highlight>
+              <Highlight>Шаг 4:</Highlight> Выберите стиль изображения: <Highlight>Сочетание аниме и реалистичных текстур</Highlight>, <Highlight>Классический аниме стиль</Highlight> или <Highlight>Максимальная фотореалистичность</Highlight>
             </ListItem>
             <ListItem>
               <Highlight>Шаг 5:</Highlight> При необходимости отредактируйте описание (можно писать на русском)
             </ListItem>
             <ListItem>
-              <Highlight>Шаг 6:</Highlight> Нажмите "Сгенерировать" и подождите 10-30 секунд
+              <Highlight>Шаг 6:</Highlight> Нажмите "Сгенерировать" и подождите 10-15 секунд
             </ListItem>
             <ListItem>
               <Highlight>Шаг 7:</Highlight> Готово! Фото появится в чате
@@ -241,15 +246,15 @@ export const PhotoGenerationHelpModal: React.FC<PhotoGenerationHelpModalProps> =
             Перед генерацией вы можете выбрать один из трех стилей:
           </Text>
           <List>
-            <ListItem>
-              <Highlight>Аниме</Highlight> — классический аниме-стиль, яркие цвета, большие глаза, стилизованная графика
-            </ListItem>
-            <ListItem>
-              <Highlight>Аниме реализм</Highlight> — смесь аниме и реализма, более реалистичные пропорции, но сохраняет аниме-эстетику
-            </ListItem>
-            <ListItem>
-              <Highlight>Реализм</Highlight> — максимально реалистичные изображения, как фотографии
-            </ListItem>
+          <ListItem>
+            <Highlight>Классический аниме стиль</Highlight> — яркие цвета, большие глаза, стилизованная графика
+          </ListItem>
+          <ListItem>
+            <Highlight>Сочетание аниме и реалистичных текстур</Highlight> — смесь аниме и реализма, более реалистичные пропорции, но сохраняет аниме-эстетику
+          </ListItem>
+          <ListItem>
+            <Highlight>Максимальная фотореалистичность</Highlight> — максимально реалистичные изображения, как фотографии
+          </ListItem>
           </List>
           <Text>
             <Highlight>Совет:</Highlight> Попробуйте все три стиля с одним и тем же описанием, чтобы увидеть разницу!
@@ -376,7 +381,7 @@ export const PhotoGenerationHelpModal: React.FC<PhotoGenerationHelpModalProps> =
               <Highlight>Вариант 1:</Highlight> Отредактируйте промпт и сгенерируйте снова. Попробуйте изменить порядок слов, добавить детали или использовать скобки для важных элементов
             </ListItem>
             <ListItem>
-              <Highlight>Вариант 2:</Highlight> Попробуйте другой стиль (Аниме, Аниме реализм, Реализм) — иногда это кардинально меняет результат
+              <Highlight>Вариант 2:</Highlight> Попробуйте другой стиль (Сочетание аниме и реализма, Классический аниме стиль, Максимальная фотореалистичность) — иногда это кардинально меняет результат
             </ListItem>
             <ListItem>
               <Highlight>Вариант 3:</Highlight> Сгенерируйте несколько раз с тем же промптом — каждый раз результат будет немного отличаться

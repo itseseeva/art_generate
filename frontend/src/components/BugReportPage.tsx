@@ -9,8 +9,8 @@ import { API_CONFIG } from '../config/api';
 import { authManager } from '../utils/auth';
 
 const MainContainer = styled.div`
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   background: rgba(20, 20, 20, 1);
@@ -456,10 +456,10 @@ export const BugReportPage: React.FC<BugReportPageProps> = ({
   }, [currentUserId]);
 
   useEffect(() => {
-    console.log('[BUG_REPORTS] currentUserId changed:', currentUserId);
-    console.log('[BUG_REPORTS] isAdmin:', isAdmin);
+    
+    
     if (bugs.length > 0) {
-      console.log('[BUG_REPORTS] First bug user_id:', bugs[0].user_id);
+      
     }
   }, [currentUserId, isAdmin, bugs]);
 
@@ -475,14 +475,14 @@ export const BugReportPage: React.FC<BugReportPageProps> = ({
       const response = await authManager.fetchWithAuth('/api/v1/auth/me/');
       if (response.ok) {
         const userData = await response.json();
-        console.log('[BUG_REPORTS] User data from /api/v1/auth/me/:', userData);
+        
         const userId = userData.id != null ? Number(userData.id) : null;
         setIsAdmin(userData.is_admin === true);
         setCurrentUserId(userId);
-        console.log('[BUG_REPORTS] Set currentUserId to:', userId, 'type:', typeof userId);
-        console.log('[BUG_REPORTS] Set isAdmin to:', userData.is_admin === true);
+        
+        
       } else {
-        console.error('[BUG_REPORTS] Failed to get user data, status:', response.status);
+        
       }
     } catch (err) {
       setIsAdmin(false);
@@ -504,7 +504,7 @@ export const BugReportPage: React.FC<BugReportPageProps> = ({
       const data = await response.json();
       setBugs(Array.isArray(data) ? data : []);
     } catch (err: any) {
-      console.error('Error loading bugs:', err);
+      
       setError(err.message || 'Ошибка загрузки баг-репортов');
       setBugs([]);
     } finally {
@@ -550,7 +550,7 @@ export const BugReportPage: React.FC<BugReportPageProps> = ({
       
       setTimeout(() => setSuccess(null), 5000);
     } catch (err: any) {
-      console.error('Error submitting bug:', err);
+      
       setError(err.message || 'Ошибка при создании баг-репорта');
     } finally {
       setIsSubmitting(false);
@@ -586,7 +586,7 @@ export const BugReportPage: React.FC<BugReportPageProps> = ({
       setCommentTexts({ ...commentTexts, [bugId]: '' });
       await loadBugs();
     } catch (err: any) {
-      console.error('Error submitting comment:', err);
+      
       setError(err.message || 'Ошибка при добавлении комментария');
     } finally {
       setSubmittingComments({ ...submittingComments, [bugId]: false });
@@ -620,7 +620,7 @@ export const BugReportPage: React.FC<BugReportPageProps> = ({
 
       await loadBugs();
     } catch (err: any) {
-      console.error('Error updating status:', err);
+      
       setError(err.message || 'Ошибка при обновлении статуса');
     } finally {
       setUpdatingStatuses({ ...updatingStatuses, [bugId]: false });
@@ -642,12 +642,12 @@ export const BugReportPage: React.FC<BugReportPageProps> = ({
     const isCreator = currentUserId != null && bug.user_id != null && Number(currentUserId) === Number(bug.user_id);
     const canDelete = isAdmin || isCreator;
     
-    console.log('[BUG_DELETE] Attempting to delete bug:', bugId);
-    console.log('[BUG_DELETE] currentUserId:', currentUserId, 'bug.user_id:', bug.user_id);
-    console.log('[BUG_DELETE] isAdmin:', isAdmin, 'isCreator:', isCreator, 'canDelete:', canDelete);
+    
+    
+    
     
     if (!canDelete) {
-      console.error('[BUG_DELETE] Access denied! User cannot delete this bug report.');
+      
       setError('У вас нет прав для удаления этого баг-репорта');
       return;
     }
@@ -676,7 +676,7 @@ export const BugReportPage: React.FC<BugReportPageProps> = ({
       await loadBugs();
       setTimeout(() => setSuccess(null), 5000);
     } catch (err: any) {
-      console.error('Error deleting bug:', err);
+      
       setError(err.message || 'Ошибка при удалении баг-репорта');
     } finally {
       setDeletingBugs({ ...deletingBugs, [bugId]: false });
@@ -761,9 +761,9 @@ export const BugReportPage: React.FC<BugReportPageProps> = ({
                 const canDelete = isAdmin || isCreator;
                 
                 // ВСЕГДА логируем для отладки
-                console.log('[BUG_CARD] Bug ID:', bug.id, 'canDelete:', canDelete, 'isAdmin:', isAdmin, 'isCreator:', isCreator);
-                console.log('[BUG_CARD] bug.user_id:', bug.user_id, 'currentUserId:', currentUserId);
-                console.log('[BUG_CARD] Number comparison:', Number(bug.user_id), '===', Number(currentUserId), '?', Number(bug.user_id) === Number(currentUserId));
+                
+                
+                
                 
                 return (
                 <BugCard key={bug.id}>

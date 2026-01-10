@@ -4,13 +4,14 @@ import { theme } from '../theme';
 import { authManager } from '../utils/auth';
 import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
-import { FiImage as ImageIcon } from 'react-icons/fi';
+import { FiImage as ImageIcon, FiX as CloseIcon } from 'react-icons/fi';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToRussian } from '../utils/translate';
 import { API_CONFIG } from '../config/api';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const PageContainer = styled.div`
-  width: 100vw;
+  width: 100%;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -19,6 +20,11 @@ const PageContainer = styled.div`
   box-sizing: border-box;
   gap: ${theme.spacing.xl};
   overflow-y: auto;
+
+  @media (max-width: 768px) {
+    padding: 1rem;
+    gap: 1rem;
+  }
 `;
 
 const Header = styled.div`
@@ -26,12 +32,22 @@ const Header = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: ${theme.spacing.lg};
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
 `;
 
 const Title = styled.h1`
   font-size: ${theme.fontSize['2xl']};
   font-weight: 700;
   color: ${theme.colors.text.primary};
+
+  @media (max-width: 768px) {
+    font-size: 1.5rem;
+  }
 `;
 
 const Description = styled.p`
@@ -45,6 +61,12 @@ const Actions = styled.div`
   display: flex;
   align-items: center;
   gap: ${theme.spacing.md};
+
+  @media (max-width: 768px) {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
 `;
 
 const UpgradeOverlay = styled.div`
@@ -108,7 +130,7 @@ const ActionButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   cursor: pointer;
   transition: ${theme.transition.fast};
 
-  ${({ $variant }) =>
+  ${({ $variant }) => 
     $variant === 'secondary'
       ? `
         background: transparent;
@@ -141,6 +163,12 @@ const GalleryGrid = styled.div`
   align-items: flex-start;
   align-content: start;
   width: 100%;
+
+  @media (max-width: 768px) {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    padding-right: 0;
+    gap: 0.75rem;
+  }
 `;
 
 const Card = styled.div`
@@ -154,6 +182,10 @@ const Card = styled.div`
   width: 100%;
   height: 300px;
   transition: ${theme.transition.fast};
+
+  @media (max-width: 768px) {
+    height: 200px;
+  }
 
   &:hover {
     transform: translateY(-2px);
@@ -187,6 +219,12 @@ const CardOverlay = styled.div`
 
   ${Card}:hover & {
     opacity: 1;
+  }
+
+  @media (max-width: 768px) {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.6);
+    padding: 0.25rem 0.5rem;
   }
 `;
 
@@ -260,25 +298,33 @@ const EmptyState = styled.div`
 const PreviewBackdrop = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: #000; /* Полностью черный для мобилок */
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9999;
   backdrop-filter: blur(70px);
   -webkit-backdrop-filter: blur(70px);
-  padding: ${theme.spacing.xl};
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
 `;
 
 const PreviewContent = styled.div`
   position: relative;
-  max-width: 95vw;
-  max-height: 95vh;
+  max-width: 100vw;
+  max-height: 100vh;
   display: flex;
   align-items: stretch;
   justify-content: center;
   gap: ${theme.spacing.xl};
   width: 100%;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
 `;
 
 const PreviewImageContainer = styled.div`
@@ -288,6 +334,13 @@ const PreviewImageContainer = styled.div`
   justify-content: center;
   min-width: 0;
   max-width: 70%;
+
+  @media (max-width: 768px) {
+    max-width: 100%;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+  }
 `;
 
 const PreviewImage = styled.img`
@@ -296,6 +349,13 @@ const PreviewImage = styled.img`
   object-fit: contain;
   border-radius: ${theme.borderRadius.lg};
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+
+  @media (max-width: 768px) {
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    border-radius: 0;
+  }
 `;
 
 const PromptPanel = styled.div`
@@ -312,17 +372,32 @@ const PromptPanel = styled.div`
   flex-direction: column;
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(10px);
+
+  @media (max-width: 768px) {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    max-height: 30vh;
+    background: rgba(20, 20, 20, 0.95);
+    border: none;
+    border-bottom: 1px solid rgba(251, 191, 36, 0.3);
+    border-radius: 0;
+    padding: ${theme.spacing.md};
+    z-index: 10;
+    flex-shrink: 0;
+  }
 `;
 
 const PromptPanelHeader = styled.div`
-  margin-bottom: ${theme.spacing.lg};
-  padding-bottom: ${theme.spacing.md};
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
   border-bottom: 1px solid rgba(150, 150, 150, 0.3);
 `;
 
 const PromptPanelTitle = styled.h3`
-  color: rgba(240, 240, 240, 1);
-  font-size: ${theme.fontSize.xl};
+  color: #fbbf24;
+  font-size: 1.25rem;
   font-weight: 800;
   margin: 0;
 `;
@@ -407,11 +482,13 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
   const [addingToGallery, setAddingToGallery] = useState<string | null>(null);
   const [galleryImageUrls, setGalleryImageUrls] = useState<Set<string>>(new Set());
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
+  const [isPromptVisible, setIsPromptVisible] = useState(true);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
 
   const handleOpenImage = async (image: PaidAlbumImage) => {
     setPreviewImage(image);
+    setIsPromptVisible(true);
     setSelectedPrompt(null);
     setPromptError(null);
     setIsLoadingPrompt(true);
@@ -426,7 +503,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
         setPromptError(errorMessage || 'Промпт недоступен для этого изображения');
       }
     } catch (error) {
-      console.error('[PaidAlbumPage] Ошибка загрузки/перевода промпта:', error);
+      
       setPromptError('Ошибка загрузки промпта');
     } finally {
       setIsLoadingPrompt(false);
@@ -450,7 +527,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
         setGalleryImageUrls(urls);
       }
     } catch (err) {
-      console.error('[PAID_ALBUM] Ошибка загрузки галереи пользователя:', err);
+      
     }
   }, []);
 
@@ -486,7 +563,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
           try {
             await authManager.refreshAccessToken();
           } catch (error) {
-            console.error('Failed to refresh token:', error);
+            
             setError('Требуется авторизация для просмотра платного альбома');
             setIsLoading(false);
             return;
@@ -519,7 +596,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
         const data = await response.json();
         setImages(Array.isArray(data.images) ? data.images : []);
       } catch (albumError) {
-        console.error('Ошибка загрузки платного альбома:', albumError);
+        
         setError(albumError instanceof Error ? albumError.message : 'Не удалось загрузить платный альбом');
       } finally {
         setIsLoading(false);
@@ -569,7 +646,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
       // Обновляем счетчик фото в профиле
       window.dispatchEvent(new CustomEvent('gallery-update'));
     } catch (err: any) {
-      console.error('[PAID_ALBUM] Ошибка при добавлении фото в галерею:', err);
+      
       if (!err.message?.includes('уже добавлено') && !err.message?.includes('already')) {
         alert(err.message || 'Не удалось добавить фото в галерею');
       } else {
@@ -671,13 +748,33 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
               setSelectedPrompt(null);
               setPromptError(null);
               setIsLoadingPrompt(false);
-            }}>×</PreviewClose>
+            }}>
+              <CloseIcon />
+            </PreviewClose>
             <PreviewImageContainer>
               <PreviewImage src={previewImage.url} alt={displayName} />
             </PreviewImageContainer>
-            <PromptPanel>
+            <PromptPanel style={{
+              display: isPromptVisible ? 'flex' : 'none',
+              visibility: isPromptVisible ? 'visible' : 'hidden'
+            }}>
               <PromptPanelHeader>
-                <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+                  <button 
+                    onClick={() => setIsPromptVisible(false)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#fbbf24',
+                      cursor: 'pointer',
+                      padding: '4px'
+                    }}
+                    title="Скрыть промпт"
+                  >
+                    <CloseIcon size={20} />
+                  </button>
+                </div>
               </PromptPanelHeader>
               {isLoadingPrompt ? (
                 <PromptLoading>Загрузка промпта...</PromptLoading>
@@ -687,6 +784,26 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
                 <PromptPanelText>{selectedPrompt}</PromptPanelText>
               ) : null}
             </PromptPanel>
+            {!isPromptVisible && (
+              <button
+                onClick={() => setIsPromptVisible(true)}
+                style={{
+                  position: 'absolute',
+                  top: '20px',
+                  left: '20px',
+                  background: 'rgba(0, 0, 0, 0.7)',
+                  border: '1px solid rgba(251, 191, 36, 0.5)',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  color: '#fbbf24',
+                  cursor: 'pointer',
+                  zIndex: 10002,
+                  fontWeight: '600'
+                }}
+              >
+                Показать промпт
+              </button>
+            )}
           </PreviewContent>
         </PreviewBackdrop>
       )}

@@ -11,7 +11,7 @@ const getApiBaseUrl = (): string => {
       // Проверяем, не является ли это IP адресом (Mixed Content проблема)
       const ipPattern = /^https?:\/\/(\d{1,3}\.){3}\d{1,3}/;
       if (ipPattern.test(viteApiUrl)) {
-        console.warn('[API Config] IP адрес обнаружен в VITE_API_URL, используем относительный путь для избежания Mixed Content');
+        
         return ''; // Используем относительный путь вместо IP
       }
       // Если это домен - используем его
@@ -62,7 +62,7 @@ const baseUrl = getApiBaseUrl();
 
 // Логируем используемый BASE_URL для отладки (только в development)
 if (import.meta.env.DEV) {
-  console.log('[API Config] BASE_URL:', baseUrl || '(относительный путь)');
+  
 }
 
 export const API_CONFIG = {

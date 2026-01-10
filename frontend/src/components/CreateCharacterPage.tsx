@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import '../styles/ContentArea.css';
@@ -10,10 +10,13 @@ import { CircularProgress } from './ui/CircularProgress';
 import { FiX as CloseIcon } from 'react-icons/fi';
 import { fetchPromptByImage } from '../utils/prompt';
 
-const MainContainer = styled.div`
-  width: 100vw;
-  height: 100vh;
+import { useIsMobile } from '../hooks/useIsMobile';
+
+const MainContainer = styled.div<{ $isMobile?: boolean }>`
+  width: 100%;
+  height: ${props => props.$isMobile ? 'auto' : '100vh'};
   display: flex;
+  flex-direction: column;
   background: linear-gradient(to bottom right, rgba(8, 8, 18, 1), rgba(8, 8, 18, 0.95), rgba(40, 40, 40, 0.1));
   overflow: visible;
   box-sizing: border-box;
@@ -66,7 +69,7 @@ const MainContent = styled.div`
   flex: 1;
   display: flex;
   height: calc(100vh - 80px);
-  maxHeight: calc(100vh - 80px);
+  max-height: calc(100vh - 80px);
   overflow: hidden;
   padding: ${theme.spacing.lg};
   gap: ${theme.spacing.lg};
@@ -74,23 +77,39 @@ const MainContent = styled.div`
   opacity: 1;
   width: 100%;
   box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    height: auto;
+    max-height: none;
+    overflow-y: visible;
+    padding: ${theme.spacing.md};
+  }
 `;
 
 const LeftColumn = styled.div`
   flex: 1;
   display: flex;
-  flexDirection: column;
-  minWidth: 300px;
+  flex-direction: column;
+  min-width: 300px;
   height: 100%;
-  maxHeight: 100%;
+  max-height: 100%;
   visibility: visible;
   opacity: 1;
   padding: ${theme.spacing.lg};
   background: linear-gradient(135deg, rgba(12, 12, 12, 0.95) 0%, rgba(20, 20, 20, 0.98) 100%);
   border: 2px solid rgba(60, 60, 60, 0.9);
-  borderRadius: ${theme.borderRadius.xl};
+  border-radius: ${theme.borderRadius.xl};
   overflow: hidden;
-  boxSizing: border-box;
+  box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
 `;
 
 
@@ -106,6 +125,11 @@ const RightColumn = styled.div`
   flex-direction: column;
   visibility: visible;
   opacity: 1;
+
+  @media (max-width: 768px) {
+    width: 100%;
+    overflow: visible;
+  }
 `;
 
 const Form = styled.form`
@@ -116,6 +140,11 @@ const Form = styled.form`
   min-height: 0;
   visibility: visible;
   opacity: 1;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    height: auto;
+  }
 `;
 
 const ColumnContent = styled.div`
@@ -856,10 +885,10 @@ const PhotosCounter = styled.div<{ $limitReached: boolean }>`
   border-radius: ${theme.borderRadius.md};
   font-size: ${theme.fontSize.sm};
   font-weight: 600;
-  color: ${({ $limitReached }) =>
+  color: ${({ $limitReached }) => 
     $limitReached ? 'rgba(180, 180, 180, 0.9)' : theme.colors.text.secondary};
   background: rgba(40, 40, 40, 0.6);
-  border: 1px solid ${({ $limitReached }) =>
+  border: 1px solid ${({ $limitReached }) => 
     $limitReached ? 'rgba(150, 150, 150, 0.5)' : 'rgba(120, 120, 120, 0.3)'};
 `;
 
@@ -933,6 +962,13 @@ const PhotoOverlay = styled.div`
     opacity: 1;
     pointer-events: auto;
   }
+
+  @media (max-width: 768px) {
+    opacity: 1;
+    pointer-events: auto;
+    background: rgba(0, 0, 0, 0.6);
+    height: 50px;
+  }
 `;
 
 const OverlayActions = styled.div`
@@ -942,6 +978,11 @@ const OverlayActions = styled.div`
   gap: ${theme.spacing.md};
   width: 100%;
   padding: ${theme.spacing.sm} 0;
+
+  @media (max-width: 768px) {
+    gap: 4px;
+    padding: 2px 0;
+  }
 `;
 
 const OverlayButton = styled.button<{ $variant: 'primary' | 'danger' }>`
@@ -952,7 +993,7 @@ const OverlayButton = styled.button<{ $variant: 'primary' | 'danger' }>`
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  background: ${({ $variant }) =>
+  background: ${({ $variant }) => 
     $variant === 'primary'
       ? 'rgba(59, 130, 246, 0.9)'
       : 'rgba(239, 68, 68, 0.9)'};
@@ -963,8 +1004,16 @@ const OverlayButton = styled.button<{ $variant: 'primary' | 'danger' }>`
   white-space: nowrap;
   min-width: 80px;
 
+  @media (max-width: 768px) {
+    min-width: 0;
+    padding: 4px 6px;
+    font-size: 10px;
+    flex: 1;
+    text-align: center;
+  }
+
   &:hover:not(:disabled) {
-    background: ${({ $variant }) =>
+    background: ${({ $variant }) => 
       $variant === 'primary'
         ? 'rgba(59, 130, 246, 1)'
         : 'rgba(239, 68, 68, 1)'};
@@ -1089,11 +1138,30 @@ const PhotoModalContent = styled.div`
   max-width: 95vw;
   max-height: 95vh;
   display: flex !important;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
   gap: ${theme.spacing.xl};
   cursor: default;
-  flex-wrap: wrap;
+  width: 100%;
+
+  @media (max-width: 768px) {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    max-width: 100vw;
+    max-height: 100vh;
+    background: #000;
+    display: flex !important;
+    flex-direction: column !important;
+    margin: 0;
+    padding: 0;
+    border-radius: 0;
+    overflow: hidden;
+  }
 `;
 
 const ModalImageContainer = styled.div`
@@ -1103,6 +1171,13 @@ const ModalImageContainer = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
+
+  @media (max-width: 768px) {
+    width: 100%;
+    max-width: 100%;
+    flex: 1;
+    min-height: 0;
+  }
 `;
 
 const PromptPanel = styled.div`
@@ -1119,6 +1194,21 @@ const PromptPanel = styled.div`
   flex-direction: column;
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(10px);
+
+  @media (max-width: 768px) {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    max-height: 30vh;
+    background: rgba(20, 20, 20, 0.95);
+    border: none;
+    border-bottom: 1px solid rgba(251, 191, 36, 0.3);
+    border-radius: 0;
+    padding: ${theme.spacing.md};
+    z-index: 10;
+    flex-shrink: 0;
+  }
 `;
 
 const PromptPanelHeader = styled.div`
@@ -1128,7 +1218,7 @@ const PromptPanelHeader = styled.div`
 `;
 
 const PromptPanelTitle = styled.h3`
-  color: rgba(240, 240, 240, 1);
+  color: #fbbf24;
   font-size: ${theme.fontSize.xl};
   font-weight: 800;
   margin: 0;
@@ -1245,7 +1335,7 @@ const SubscriptionModalButton = styled.button<{ $variant?: 'primary' | 'secondar
 
 const PhotoModalImage = styled.img`
   max-width: 100%;
-  max-height: 90vh;
+  max-height: 95vh;
   width: auto;
   height: auto;
   object-fit: contain;
@@ -1253,40 +1343,37 @@ const PhotoModalImage = styled.img`
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
   display: block !important;
   visibility: visible !important;
+
+  @media (max-width: 768px) {
+    max-height: 100%;
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+  }
 `;
 
 const PhotoModalClose = styled.button`
   position: absolute;
   top: ${theme.spacing.xl};
   right: ${theme.spacing.xl};
-  background: rgba(0, 0, 0, 0.7);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
   width: 48px;
   height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  background: rgba(0, 0, 0, 0.7);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
   color: ${theme.colors.text.primary};
   font-size: ${theme.fontSize.xl};
   transition: ${theme.transition.fast};
+  cursor: pointer;
   z-index: 10001;
 
   &:hover {
     background: rgba(0, 0, 0, 0.9);
     border-color: ${theme.colors.accent?.primary || 'rgba(255, 255, 255, 0.5)'};
     transform: scale(1.1);
-  }
-  height: 40px;
-  border-radius: 50%;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  
-  &:hover {
-    background: rgba(255, 255, 255, 0.3);
   }
 `;
 
@@ -1748,6 +1835,8 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   isAuthenticated: propIsAuthenticated,
   userInfo: propUserInfo
 }) => {
+  const isMobile = useIsMobile();
+  const generationSectionRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
     name: '',
     personality: '',
@@ -1782,6 +1871,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [isGeneratingPhoto, setIsGeneratingPhoto] = useState(false);
   const [generationSettings, setGenerationSettings] = useState<any>(null);
   const [isCharacterCreated, setIsCharacterCreated] = useState(false); // Новое состояние
+  const [isPromptVisible, setIsPromptVisible] = useState(true);
   const [selectedPhotoForView, setSelectedPhotoForView] = useState<any>(null); // Для модального окна просмотра фото
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
@@ -1808,6 +1898,13 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   
   // Индекс для слайдера сгенерированных фото
   const [examplePhotoIndex, setExamplePhotoIndex] = useState(0);
+
+  // Плавный скролл к генерации на мобилках
+  useEffect(() => {
+    if (isCharacterCreated && isMobile && generationSectionRef.current) {
+      generationSectionRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [isCharacterCreated, isMobile]);
 
   // Валидация имени персонажа
   const validateCharacterName = (name: string): string | null => {
@@ -1840,12 +1937,12 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const checkAuth = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      console.log('Auth token:', token ? 'exists' : 'not found');
+      
       
       if (!token) {
         setIsAuthenticated(false);
         setUserInfo(null);
-        console.log('No token, setting isAuthenticated to false');
+        
         return;
       }
 
@@ -1855,19 +1952,19 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         }
       });
 
-      console.log('Auth response status:', response.status);
+      
 
       if (response.ok) {
         const userData = await response.json();
-        console.log('User data:', userData);
-        console.log('User subscription:', userData.subscription);
-        console.log('User subscription_type:', userData.subscription?.subscription_type);
+        
+        
+        
         setIsAuthenticated(true);
         setUserInfo(userData);
-        console.log('Authentication successful, isAuthenticated set to true');
+        
       } else if (response.status === 401) {
         // Только при 401 пытаемся обновить токен
-        console.log('Auth failed with 401, attempting token refresh');
+        
         const refreshToken = localStorage.getItem('refreshToken');
         if (refreshToken) {
           try {
@@ -1890,23 +1987,23 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
               return;
             }
           } catch (refreshError) {
-            console.error('Ошибка обновления токена:', refreshError);
+            
           }
         }
         // Если refresh не удался, удаляем токены
-        console.log('Token refresh failed, removing tokens');
+        
         localStorage.removeItem('authToken');
         localStorage.removeItem('refreshToken');
         setIsAuthenticated(false);
         setUserInfo(null);
       } else {
         // Для других ошибок не удаляем токены
-        console.warn('Auth check failed with status:', response.status, '- keeping tokens');
+        
         setIsAuthenticated(false);
         setUserInfo(null);
       }
     } catch (error) {
-      console.error('Auth check error:', error);
+      
       setIsAuthenticated(false);
     } finally {
       setAuthCheckComplete(true);
@@ -1915,28 +2012,28 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
   useEffect(() => {
     const initPage = async () => {
-      console.log('[CREATE_CHAR] Инициализация страницы...');
+      
       
       // Если авторизация уже передана из пропсов, пропускаем проверку
       if (propIsAuthenticated !== undefined) {
-        console.log('[CREATE_CHAR] Используется авторизация из пропсов, пропускаем checkAuth');
+        
         setAuthCheckComplete(true);
       } else {
         // Иначе делаем свою проверку (для обратной совместимости)
         try {
           await checkAuth();
-          console.log('[CREATE_CHAR] checkAuth завершён');
+          
         } catch (error) {
-          console.error('[CREATE_CHAR] Ошибка checkAuth:', error);
+          
           setAuthCheckComplete(true);
         }
       }
       
       try {
         await loadGenerationSettings();
-        console.log('[CREATE_CHAR] Инициализация завершена');
+        
       } catch (error) {
-        console.error('[CREATE_CHAR] Ошибка loadGenerationSettings:', error);
+        
       }
     };
     
@@ -1973,19 +2070,19 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   // Загружаем настройки генерации из API
   const loadGenerationSettings = async () => {
     try {
-      console.log('[CREATE_CHAR] Загружаем настройки генерации...');
+      
       const response = await fetch('/api/v1/fallback-settings/');
-      console.log('[CREATE_CHAR] Response status:', response.status);
+      
       
       if (response.ok) {
         const settings = await response.json();
         setGenerationSettings(settings);
-        console.log('[CREATE_CHAR] Настройки генерации загружены:', settings);
+        
       } else {
-        console.error('[CREATE_CHAR] Ошибка загрузки настроек генерации:', response.status);
+        
       }
     } catch (error) {
-      console.error('[CREATE_CHAR] Ошибка загрузки настроек генерации:', error);
+      
     }
   };
 
@@ -1998,7 +2095,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     // Валидация имени в реальном времени
     if (name === 'name') {
       const error = validateCharacterName(value);
-      setNameError(error);
+      setNameError;
       // Показываем поле "Личность" когда имя валидно
       if (!error && value.trim().length >= 2) {
         setShowPersonality(true);
@@ -2061,7 +2158,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Form submitted!', formData); // Добавляем отладку
+     // Добавляем отладку
     setIsLoading(true);
     setError(null);
     setSuccess(null);
@@ -2100,11 +2197,11 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         throw new Error('Все обязательные поля должны быть заполнены');
       }
 
-      console.log('Sending request to API...', requestData); // Добавляем отладку
+       // Добавляем отладку
       // КРИТИЧНО: Используем готовый метод из API_CONFIG для правильного формирования URL
       // Это гарантирует использование домена, а не IP адреса (избегает Mixed Content)
       const apiUrl = API_CONFIG.CHARACTER_CREATE_FULL;
-      console.log('[CREATE_CHAR] API URL:', apiUrl);
+      
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
@@ -2114,15 +2211,15 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         body: JSON.stringify(requestData)
       });
 
-      console.log('Response status:', response.status); // Добавляем отладку
+       // Добавляем отладку
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('API Error:', errorData); // Добавляем отладку
+         // Добавляем отладку
         throw new Error(errorData.detail || 'Ошибка при создании персонажа');
       }
 
       const result = await response.json();
-      console.log('Character created successfully:', result); // Добавляем отладку
+       // Добавляем отладку
       setCreatedCharacterData(result);
       setIsCharacterCreated(true); // Устанавливаем состояние создания персонажа
       setSuccess('Персонаж успешно создан!');
@@ -2135,7 +2232,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
           const autoPrompt = parts.join(' | ');
           setCustomPrompt(autoPrompt);
           customPromptRef.current = autoPrompt; // Обновляем ref
-          console.log('[CREATE] Автоматически заполнен промпт для генерации фото:', autoPrompt);
+          
         }
       }
 
@@ -2147,18 +2244,18 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       
       // Отправляем событие для обновления персонажей на главной странице
       // Делаем это после задержки, чтобы убедиться, что персонаж сохранен в БД
-      console.log('Отправляем событие character-created для обновления главной страницы');
+      
       const event = new CustomEvent('character-created', { 
         detail: { character: result } 
       });
       window.dispatchEvent(event);
-      console.log('Событие отправлено. Персонаж должен появиться на главной странице.');
+      
       
       // Остаемся на странице создания - правая часть (генерация фото) уже активна
       // Не переходим на отдельную страницу генерации фото
       
     } catch (err) {
-      console.error('Error creating character:', err); // Добавляем отладку
+       // Добавляем отладку
       setError(err instanceof Error ? err.message : 'Ошибка при создании персонажа');
     } finally {
       setIsLoading(false);
@@ -2167,7 +2264,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
   const handleEditCharacter = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Editing character...', formData);
+    
     setIsLoading(true);
     setError(null);
     setSuccess(null);
@@ -2233,7 +2330,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         is_nsfw: contentMode === 'nsfw'
       };
 
-      console.log('Sending edit request to API...', requestData);
+      
       const response = await fetch(`/api/v1/characters/${createdCharacterData.name}`, {
         method: 'PUT',
         headers: {
@@ -2243,15 +2340,15 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         body: JSON.stringify(requestData)
       });
 
-      console.log('Edit response status:', response.status);
+      
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('API Error:', errorData);
+        
         throw new Error(errorData.detail || 'Ошибка при редактировании персонажа');
       }
 
       const result = await response.json();
-      console.log('Character edited successfully:', result);
+      
       setCreatedCharacterData(result);
       setSuccess('Персонаж успешно обновлен!');
 
@@ -2259,7 +2356,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
       await checkAuth();
       
     } catch (err) {
-      console.error('Error editing character:', err);
+      
       setError(err instanceof Error ? err.message : 'Ошибка при редактировании персонажа');
     } finally {
       setIsLoading(false);
@@ -2372,8 +2469,8 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
   // Сохранение выбранных фото
   const saveSelectedPhotos = async () => {
-    console.log('Saving selected photos:', selectedPhotos);
-    console.log('Created character data:', createdCharacterData);
+    
+    
     
     if (!createdCharacterData || selectedPhotos.length === 0) {
       setError('Нет выбранных фото для сохранения');
@@ -2395,9 +2492,9 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         }))
       };
       
-      console.log('Sending request to API:', requestData);
-      console.log('Selected photos (full):', selectedPhotos);
-      console.log('Photo IDs with URLs:', selectedPhotos.map(photo => ({ id: photo.id, url: photo.url })));
+      
+      
+      
 
       const response = await fetch(API_CONFIG.CHARACTER_SET_PHOTOS_FULL, {
         method: 'POST',
@@ -2408,35 +2505,36 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         body: JSON.stringify(requestData)
       });
 
-      console.log('API response status:', response.status);
+      
       
       if (response.ok) {
         const result = await response.json();
-        console.log('API response data:', result);
+        
         setSuccess('Главные фото успешно сохранены!');
-        console.log('Main photos saved:', selectedPhotos);
+        
         
         // Отправляем событие для обновления главной страницы
         const event = new CustomEvent('character-photos-updated', { 
           detail: { character: createdCharacterData, photos: selectedPhotos.map(p => p.id) } 
         });
         window.dispatchEvent(event);
-        console.log('Событие character-photos-updated отправлено');
+        
       } else {
         const errorData = await response.json();
-        console.error('API error:', errorData);
+        
         setError(`Ошибка сохранения фото: ${errorData.detail || 'Неизвестная ошибка'}`);
       }
     } catch (err) {
-      console.error('Error saving main photos:', err);
+      
       setError('Ошибка при сохранении фото');
     }
   };
 
   const openPhotoModal = async (photo: any) => {
-    console.log('[MODAL] Opening photo modal for:', photo);
-    console.log('[MODAL] Photo URL:', photo.url);
+    
+    
     setSelectedPhotoForView(photo);
+    setIsPromptVisible(true);
     setSelectedPrompt(null);
     setPromptError(null);
     setIsLoadingPrompt(true);
@@ -2454,7 +2552,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
   };
 
   const closePhotoModal = () => {
-    console.log('[MODAL] Closing photo modal');
+    
     setSelectedPhotoForView(null);
     setSelectedPrompt(null);
     setPromptError(null);
@@ -2498,12 +2596,12 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         throw new Error('Заполните поля "Внешность" и "Локация" или введите промпт вручную');
       }
       
-      console.log('[GENERATE] Исходный промпт из textarea (customPrompt):', customPrompt);
-      console.log('[GENERATE] Используемый промпт для генерации (после trim):', prompt);
+      
+      
 
       // Переводим промпт на английский перед отправкой
       prompt = await translateToEnglish(prompt);
-      console.log('[GENERATE] Промпт после перевода на английский:', prompt);
+      
 
       const effectiveSettings = {
         steps: generationSettings?.steps || 20,
@@ -2583,7 +2681,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
               }
             }
           } catch (statusError) {
-            console.error('Error checking status:', statusError);
+            
           }
         }
         
@@ -2615,11 +2713,11 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
           });
           
           if (addToGalleryResponse.ok) {
-            console.log('[CreateCharacterPage] Фото добавлено в галерею пользователя');
+            
           }
         }
       } catch (galleryError) {
-        console.warn('[CreateCharacterPage] Не удалось добавить фото в галерею:', galleryError);
+        
       }
       
     return {
@@ -2685,8 +2783,8 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
           }
         }
         
-        console.log('[GENERATE] Актуальный промпт из ref:', customPromptRef.current);
-        console.log('[GENERATE] Используемый промпт для генерации:', currentPrompt);
+        
+        
         
         const photo = await generateSinglePhoto(currentPrompt);
         if (photo) {
@@ -2730,11 +2828,11 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
   // Убрана блокировка - страница показывается всегда
   // authCheckComplete используется только для показа модалки входа
 
-  console.log('[CREATE_CHAR] Rendering component, authCheckComplete:', authCheckComplete, 'isAuthenticated:', isAuthenticated);
+  
   
   // Проверка на undefined states/props
   if (!formData) {
-    console.error('[CREATE_CHAR] formData is undefined!');
+    
   return (
     <MainContainer>
         <MainContent style={{ background: 'rgba(20, 20, 30, 0.9)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -2748,11 +2846,11 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
   }
   
   return (
-    <div className="w-full h-screen bg-black flex flex-col overflow-hidden">
-      <div className="flex-1 flex h-[calc(100vh-80px)] overflow-hidden p-6 gap-6">
-        <form onSubmit={isCharacterCreated ? handleEditCharacter : handleSubmit} className="flex-1 flex gap-6 h-full">
+    <MainContainer $isMobile={isMobile}>
+      <MainContent>
+        <form onSubmit={isCharacterCreated ? handleEditCharacter : handleSubmit} className={`flex-1 flex gap-6 ${isMobile ? 'h-auto' : 'h-full'} flex-col md:flex-row w-full`}>
           {/* Левая колонка - Форма */}
-          <div className="flex-1 flex flex-col min-w-[400px] bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 overflow-y-auto">
+          <div className={`flex-1 flex flex-col min-w-0 md:min-w-[400px] bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 ${isMobile ? 'overflow-visible' : 'overflow-y-auto'}`}>
             {/* Индикатор прогресса */}
             <div className="mb-6">
               <div className="flex items-center justify-between mb-2">
@@ -2975,7 +3073,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
           </div>
 
           {/* Правая колонка - Генерация фото */}
-          <div className="flex-1 flex flex-col min-w-[400px] bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 overflow-y-auto">
+          <div 
+            ref={generationSectionRef}
+            className={`flex-1 flex flex-col ${isMobile ? 'min-w-0' : 'min-w-[400px]'} bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 ${isMobile ? 'overflow-visible' : 'overflow-y-auto'}`}
+          >
             {createdCharacterData && (
               <div className="flex flex-col">
                 <div className="mb-4">
@@ -3101,7 +3202,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                               try {
                                 await saveSelectedPhotos();
                               } catch (err) {
-                                console.error('[CREATE_CHAR] Error saving photos:', err);
+                                
                                 setError('Ошибка при сохранении фото. Попробуйте еще раз.');
                                 return;
                               }
@@ -3118,12 +3219,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                               }
                             }
                             
-                            console.log('[CREATE_CHAR] Checking subscription:', {
-                              rawSubscriptionType,
-                              subscriptionType,
-                              userInfo: userInfo,
-                              subscription: userInfo?.subscription
-                            });
+                            
                             
                             const canCreatePaidAlbum = subscriptionType === 'standard' || subscriptionType === 'premium';
                             
@@ -3152,9 +3248,9 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                     onChange={(e) => setSelectedModel(e.target.value as 'anime-realism' | 'anime' | 'realism')}
                     className="w-full px-4 py-2 bg-black border border-zinc-700 rounded-lg text-zinc-200 text-sm focus:outline-none focus:border-zinc-500"
                   >
-                    <option value="anime-realism">Аниме реализм</option>
-                    <option value="anime">Аниме</option>
-                    <option value="realism">Реализм</option>
+                    <option value="anime-realism">Сочетание аниме и реалистичных текстур</option>
+                    <option value="anime">Классический аниме стиль</option>
+                    <option value="realism">Максимальная фотореалистичность</option>
                   </select>
                 </div>
 
@@ -3259,19 +3355,19 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
       {selectedPhotoForView && (
         <PhotoModal 
           onClick={(e) => {
-            console.log('[MODAL] Click on PhotoModal background');
+            
             closePhotoModal();
           }}
         >
           <PhotoModalContent 
             onClick={(e) => {
-              console.log('[MODAL] Click on PhotoModalContent - stopping propagation');
+              
               e.stopPropagation();
             }}
           >
             <PhotoModalClose 
               onClick={(e) => {
-                console.log('[MODAL] Click on close button');
+                
                 e.stopPropagation();
                 closePhotoModal();
               }}
@@ -3282,13 +3378,29 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
               <PhotoModalImage 
                 src={selectedPhotoForView.url} 
                 alt="Generated photo full size"
-                onLoad={() => console.log('[MODAL] Image loaded in modal:', selectedPhotoForView.url)}
-                onError={() => console.error('[MODAL] Error loading image in modal:', selectedPhotoForView.url)}
               />
             </ModalImageContainer>
-            <PromptPanel>
+            <PromptPanel style={{
+              display: isPromptVisible ? 'flex' : 'none',
+              visibility: isPromptVisible ? 'visible' : 'hidden'
+            }}>
               <PromptPanelHeader>
-                <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+                  <button 
+                    onClick={() => setIsPromptVisible(false)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#fbbf24',
+                      cursor: 'pointer',
+                      padding: '4px'
+                    }}
+                    title="Скрыть промпт"
+                  >
+                    <CloseIcon size={20} />
+                  </button>
+                </div>
               </PromptPanelHeader>
               {isLoadingPrompt ? (
                 <PromptLoading>Загрузка промпта...</PromptLoading>
@@ -3298,12 +3410,32 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                 <PromptPanelText>{selectedPrompt}</PromptPanelText>
               ) : null}
             </PromptPanel>
+            {!isPromptVisible && (
+              <button
+                onClick={() => setIsPromptVisible(true)}
+                style={{
+                  position: 'absolute',
+                  top: '20px',
+                  left: '20px',
+                  background: 'rgba(0, 0, 0, 0.7)',
+                  border: '1px solid rgba(251, 191, 36, 0.5)',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  color: '#fbbf24',
+                  cursor: 'pointer',
+                  zIndex: 10002,
+                  fontWeight: '600'
+                }}
+              >
+                Показать промпт
+              </button>
+            )}
           </PhotoModalContent>
         </PhotoModal>
       )}
       
       {/* Отладочная информация */}
-      {console.log('Selected photo for view:', selectedPhotoForView)}
+      {}
 
       {/* Модальное окно авторизации */}
       {isAuthModalOpen && (
@@ -3375,7 +3507,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
           </SubscriptionModalContent>
         </SubscriptionModal>
       )}
-      </div>
-    </div>
+      </MainContent>
+    </MainContainer>
   );
 }

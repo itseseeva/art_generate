@@ -28,6 +28,7 @@ export type DockProps = {
   magnification?: number;
   spring?: SpringOptions;
   vertical?: boolean;
+  showLabels?: boolean;
 };
 
 type DockItemProps = {
@@ -41,6 +42,7 @@ type DockItemProps = {
   baseItemSize: number;
   magnification: number;
   vertical?: boolean;
+  showLabels?: boolean;
 };
 
 function DockItem({
@@ -53,7 +55,8 @@ function DockItem({
   distance,
   magnification,
   baseItemSize,
-  vertical = false
+  vertical = false,
+  showLabels = false
 }: DockItemProps) {
   const ref = useRef<HTMLDivElement>(null);
   const isHovered = useMotionValue(0);
@@ -108,13 +111,14 @@ function DockItem({
       role="button"
       aria-haspopup="true"
     >
-      {Children.map(children, child =>
+      {Children.map(children, child => 
         React.isValidElement(child)
-          ? cloneElement(child as React.ReactElement<{ isHovered?: MotionValue<number>; isLocalHovered?: boolean; vertical?: boolean; itemClassName?: string }>, { 
+          ? cloneElement(child as React.ReactElement<{ isHovered?: MotionValue<number>; isLocalHovered?: boolean; vertical?: boolean; itemClassName?: string; showLabels?: boolean }>, { 
               isHovered,
               isLocalHovered,
               vertical,
-              itemClassName: className
+              itemClassName: className,
+              showLabels
             })
           : child
       )}
@@ -129,10 +133,11 @@ type DockLabelProps = {
   isLocalHovered?: boolean;
   vertical?: boolean;
   itemClassName?: string;
+  showLabels?: boolean;
 };
 
-function DockLabel({ children, className = '', isHovered, isLocalHovered = false, vertical = false, itemClassName = '' }: DockLabelProps) {
-  const isVisible = isLocalHovered === true;
+function DockLabel({ children, className = '', isHovered, isLocalHovered = false, vertical = false, itemClassName = '', showLabels = false }: DockLabelProps) {
+  const isVisible = showLabels || isLocalHovered === true;
 
   return (
     <>
@@ -144,7 +149,7 @@ function DockLabel({ children, className = '', isHovered, isLocalHovered = false
             pointerEvents: 'none',
             color: '#ffffff',
             opacity: 1,
-            transform: 'translateX(-50%) scale(1)',
+            transform: vertical ? 'translateX(-50%)' : 'translateX(-50%)',
             transformOrigin: 'center center',
             transition: 'none',
             animation: 'none',
@@ -182,7 +187,8 @@ export default function Dock({
   panelHeight = 68,
   dockHeight = 256,
   baseItemSize = 50,
-  vertical = false
+  vertical = false,
+  showLabels = false
 }: DockProps) {
   const mouseX = useMotionValue(Infinity);
   const mouseY = useMotionValue(Infinity);
@@ -228,9 +234,10 @@ export default function Dock({
             magnification={magnification}
             baseItemSize={baseItemSize}
             vertical={vertical}
+            showLabels={showLabels}
           >
             <DockIcon>{item.icon}</DockIcon>
-            <DockLabel vertical={vertical} itemClassName={item.className}>{item.label}</DockLabel>
+            <DockLabel vertical={vertical} itemClassName={item.className} showLabels={showLabels}>{item.label}</DockLabel>
           </DockItem>
         ))}
       </motion.div>

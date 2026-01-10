@@ -35,10 +35,18 @@ const ModalContent = styled.div`
   padding: ${theme.spacing.xxl};
   width: 90%;
   max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
   border: 1px solid rgba(100, 100, 100, 0.3);
   box-shadow: 0 28px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
   text-align: center;
   animation: slideIn 0.3s ease-out;
+  box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    padding: ${theme.spacing.xl};
+    width: 95%;
+  }
   
   @keyframes slideIn {
     from {
@@ -58,6 +66,11 @@ const Title = styled.h2`
   font-weight: 700;
   margin: 0 0 ${theme.spacing.lg} 0;
   letter-spacing: -0.5px;
+
+  @media (max-width: 768px) {
+    font-size: ${theme.fontSize.xl};
+    margin-bottom: ${theme.spacing.md};
+  }
 `;
 
 const Message = styled.p`
@@ -65,6 +78,11 @@ const Message = styled.p`
   font-size: ${theme.fontSize.base};
   margin: 0 0 ${theme.spacing.xl} 0;
   line-height: 1.6;
+
+  @media (max-width: 768px) {
+    font-size: ${theme.fontSize.sm};
+    margin-bottom: ${theme.spacing.lg};
+  }
 `;
 
 const ButtonGroup = styled.div`
@@ -72,6 +90,11 @@ const ButtonGroup = styled.div`
   gap: ${theme.spacing.md};
   justify-content: center;
   margin-top: ${theme.spacing.lg};
+
+  @media (max-width: 480px) {
+    flex-direction: column-reverse;
+    gap: ${theme.spacing.sm};
+  }
 `;
 
 const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
@@ -83,6 +106,16 @@ const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
   transition: all 0.3s ease;
   min-width: 120px;
   border: 1px solid transparent;
+
+  @media (max-width: 768px) {
+    padding: ${theme.spacing.sm} ${theme.spacing.lg};
+    min-width: 100px;
+    font-size: ${theme.fontSize.sm};
+  }
+
+  @media (max-width: 480px) {
+    width: 100%;
+  }
   
   ${props => {
     if (props.variant === 'primary') {

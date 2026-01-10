@@ -28,8 +28,15 @@ const ModalContent = styled.div`
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
   max-width: 420px;
   width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
   animation: slideIn 0.3s ease-out;
   border: 1px solid rgba(100, 100, 100, 0.2);
+
+  @media (max-width: 768px) {
+    padding: ${theme.spacing.lg};
+    width: 95vw;
+  }
 `;
 
 const ModalHeader = styled.div`
@@ -287,7 +294,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
           const result = await fp.get();
           setFingerprintId(result.visitorId);
         } catch (err) {
-          console.error('Ошибка получения fingerprint:', err);
+          
           // В случае ошибки продолжаем без fingerprint_id
           setFingerprintId(null);
         }

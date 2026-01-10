@@ -24,6 +24,10 @@ const MessageWithButtons = styled.div`
   gap: ${theme.spacing.sm};
   max-width: 75%;
   flex-shrink: 1;
+
+  @media (max-width: 768px) {
+    max-width: 85%;
+  }
 `;
 
 const MessageContent = styled.div<{ $isUser: boolean; $imageOnly?: boolean }>`
@@ -60,6 +64,12 @@ const MessageContent = styled.div<{ $isUser: boolean; $imageOnly?: boolean }>`
   white-space: pre-wrap;
   line-height: 1.7;
   transition: all 0.3s ease;
+
+  @media (max-width: 768px) {
+    padding: ${props => props.$imageOnly ? '0 !important' : '10px 14px'};
+    line-height: 1.5;
+    font-size: 0.95rem;
+  }
   
   &:hover {
     ${props => !props.$imageOnly && `
@@ -107,6 +117,11 @@ const MessageImage = styled.img`
   object-fit: contain;
   cursor: pointer;
   transition: all 0.2s ease;
+
+  @media (max-width: 768px) {
+    max-width: 100%;
+    max-height: 400px;
+  }
   
   &:hover {
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.8);
@@ -201,6 +216,12 @@ const Avatar = styled.div<{ $isUser: boolean; $avatarUrl?: string }>`
   };
   flex-shrink: 0;
   overflow: hidden;
+
+  @media (max-width: 768px) {
+    width: 32px;
+    height: 32px;
+    font-size: ${theme.fontSize.base};
+  }
 `;
 
 const AvatarImage = styled.img`
@@ -263,6 +284,25 @@ const ModalContent = styled.div`
   justify-content: center;
   gap: ${theme.spacing.xl};
   width: 100%;
+
+  @media (max-width: 768px) {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    max-width: 100vw;
+    max-height: 100vh;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    border-radius: 0;
+    overflow: hidden;
+  }
 `;
 
 const ModalImageContainer = styled.div`
@@ -272,6 +312,13 @@ const ModalImageContainer = styled.div`
   justify-content: center;
   min-width: 0;
   max-width: 70%;
+
+  @media (max-width: 768px) {
+    width: 100%;
+    max-width: 100%;
+    flex: 1;
+    min-height: 0;
+  }
 `;
 
 const ModalImage = styled.img`
@@ -280,6 +327,13 @@ const ModalImage = styled.img`
   object-fit: contain;
   border-radius: ${theme.borderRadius.lg};
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+
+  @media (max-width: 768px) {
+    max-height: 100%;
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+  }
 `;
 
 const PromptPanel = styled.div`
@@ -296,6 +350,21 @@ const PromptPanel = styled.div`
   flex-direction: column;
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(10px);
+
+  @media (max-width: 768px) {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    max-height: 30vh;
+    background: rgba(20, 20, 20, 0.95);
+    border: none;
+    border-bottom: 1px solid rgba(251, 191, 36, 0.3);
+    border-radius: 0;
+    padding: ${theme.spacing.md};
+    z-index: 10;
+    flex-shrink: 0;
+  }
 `;
 
 const PromptPanelHeader = styled.div`
@@ -305,7 +374,7 @@ const PromptPanelHeader = styled.div`
 `;
 
 const PromptPanelTitle = styled.h3`
-  color: rgba(240, 240, 240, 1);
+  color: #fbbf24;
   font-size: ${theme.fontSize.xl};
   font-weight: 800;
   margin: 0;
@@ -380,6 +449,7 @@ const MessageComponent: React.FC<MessageProps> = ({
   };
   const isUser = message.type === 'user';
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPromptVisible, setIsPromptVisible] = useState(true);
   const [isAddingToPaidAlbum, setIsAddingToPaidAlbum] = useState(false);
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
@@ -403,15 +473,16 @@ const MessageComponent: React.FC<MessageProps> = ({
       e.stopPropagation();
     }
     if (message.imageUrl) {
-      console.log('[MESSAGE] Клик по изображению, загружаем промпт для:', message.imageUrl);
+      
       setIsFullscreen(true);
+      setIsPromptVisible(true);
       setSelectedPrompt(null);
       setPromptError(null);
       setIsLoadingPrompt(true);
 
       try {
         const { prompt, errorMessage } = await fetchPromptByImage(message.imageUrl);
-        console.log('[MESSAGE] Результат загрузки промпта:', { prompt: prompt ? 'получен' : 'не получен', errorMessage });
+        
         if (prompt) {
           // Переводим промпт на русский для отображения
           const translatedPrompt = await translateToRussian(prompt);
@@ -420,7 +491,7 @@ const MessageComponent: React.FC<MessageProps> = ({
           setPromptError(errorMessage || 'Промпт недоступен для этого изображения');
         }
       } catch (error) {
-        console.error('[MESSAGE] Ошибка загрузки промпта:', error);
+        
         setPromptError('Не удалось загрузить промпт');
       } finally {
         setIsLoadingPrompt(false);
@@ -464,9 +535,9 @@ const MessageComponent: React.FC<MessageProps> = ({
     try {
       await onAddToPaidAlbum(message.imageUrl!, characterName);
       setIsAddedToPaidAlbum(true);
-      console.log('[MESSAGE] Фото добавлено в платный альбом, кнопка скрыта');
+      
     } catch (error) {
-      console.error('Ошибка при добавлении в платный альбом:', error);
+      
       alert(error instanceof Error ? error.message : 'Не удалось добавить фото в платный альбом');
     } finally {
       setIsAddingToPaidAlbum(false);
@@ -496,15 +567,7 @@ const MessageComponent: React.FC<MessageProps> = ({
   // Проверяем, что content пустой или содержит только пробелы
   // Убираем аватар при генерации фото
   const hasOnlyImage = hasValidImageUrl && (!message.content || message.content.trim() === '');
-  console.log('[MESSAGE] Rendering message:', { 
-    id: message.id, 
-    type: message.type, 
-    hasValidImageUrl, 
-    hasContent: !!message.content, 
-    contentLength: message.content?.length || 0,
-    hasOnlyImage,
-    isGenerationProgress
-  });
+  
   if (hasOnlyImage) {
     return (
       <>
@@ -567,10 +630,10 @@ const MessageComponent: React.FC<MessageProps> = ({
             onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.01)'}
             onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
             onLoad={() => {
-              console.log('[MESSAGE] Image loaded successfully:', message.imageUrl);
+              
             }}
             onError={(e) => {
-              console.error('[MESSAGE] Image failed to load:', message.imageUrl, e);
+              
               e.currentTarget.style.display = 'none';
             }}
           />
@@ -640,9 +703,27 @@ const MessageComponent: React.FC<MessageProps> = ({
             onClick={(e) => e.stopPropagation()}
           />
             </ModalImageContainer>
-            <PromptPanel>
+            <PromptPanel style={{
+              display: isPromptVisible ? 'flex' : 'none',
+              visibility: isPromptVisible ? 'visible' : 'hidden'
+            }}>
               <PromptPanelHeader>
-                <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+                  <button 
+                    onClick={() => setIsPromptVisible(false)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#fbbf24',
+                      cursor: 'pointer',
+                      padding: '4px'
+                    }}
+                    title="Скрыть промпт"
+                  >
+                    <FiX size={20} />
+                  </button>
+                </div>
               </PromptPanelHeader>
               {isLoadingPrompt ? (
                 <PromptLoading>Загрузка промпта...</PromptLoading>
@@ -654,6 +735,26 @@ const MessageComponent: React.FC<MessageProps> = ({
                 <PromptLoading>Промпт не найден</PromptLoading>
               )}
             </PromptPanel>
+            {!isPromptVisible && (
+              <button
+                onClick={() => setIsPromptVisible(true)}
+                style={{
+                  position: 'absolute',
+                  top: '20px',
+                  left: '20px',
+                  background: 'rgba(0, 0, 0, 0.7)',
+                  border: '1px solid rgba(251, 191, 36, 0.5)',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  color: '#fbbf24',
+                  cursor: 'pointer',
+                  zIndex: 100002,
+                  fontWeight: '600'
+                }}
+              >
+                Показать промпт
+              </button>
+            )}
           </ModalContent>
         </ModalOverlay>,
         document.body
@@ -767,9 +868,27 @@ const MessageComponent: React.FC<MessageProps> = ({
             onClick={(e) => e.stopPropagation()}
           />
             </ModalImageContainer>
-            <PromptPanel>
+            <PromptPanel style={{
+              display: isPromptVisible ? 'flex' : 'none',
+              visibility: isPromptVisible ? 'visible' : 'hidden'
+            }}>
               <PromptPanelHeader>
-                <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+                  <button 
+                    onClick={() => setIsPromptVisible(false)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#fbbf24',
+                      cursor: 'pointer',
+                      padding: '4px'
+                    }}
+                    title="Скрыть промпт"
+                  >
+                    <FiX size={20} />
+                  </button>
+                </div>
               </PromptPanelHeader>
               {isLoadingPrompt ? (
                 <PromptLoading>Загрузка промпта...</PromptLoading>
@@ -781,6 +900,26 @@ const MessageComponent: React.FC<MessageProps> = ({
                 <PromptLoading>Промпт не найден</PromptLoading>
               )}
             </PromptPanel>
+            {!isPromptVisible && (
+              <button
+                onClick={() => setIsPromptVisible(true)}
+                style={{
+                  position: 'absolute',
+                  top: '20px',
+                  left: '20px',
+                  background: 'rgba(0, 0, 0, 0.7)',
+                  border: '1px solid rgba(251, 191, 36, 0.5)',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  color: '#fbbf24',
+                  cursor: 'pointer',
+                  zIndex: 100002,
+                  fontWeight: '600'
+                }}
+              >
+                Показать промпт
+              </button>
+            )}
           </ModalContent>
         </ModalOverlay>,
         document.body

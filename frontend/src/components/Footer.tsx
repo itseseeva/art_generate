@@ -16,6 +16,10 @@ const FooterContainer = styled.footer`
   
   scrollbar-width: none;
   -ms-overflow-style: none;
+
+  @media (max-width: 768px) {
+    padding: 0.25rem 0.5rem;
+  }
 `;
 
 const FooterContent = styled.div`
@@ -28,6 +32,11 @@ const FooterContent = styled.div`
   gap: 1rem;
   color: #888888;
   font-size: 0.7rem;
+
+  @media (max-width: 768px) {
+    gap: 0.5rem;
+    font-size: 0.6rem;
+  }
 `;
 
 const FooterColumn = styled.div`
@@ -36,6 +45,11 @@ const FooterColumn = styled.div`
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
+
+  @media (max-width: 768px) {
+    gap: 0.4rem;
+    justify-content: center;
+  }
 `;
 
 const FooterTitle = styled.span`

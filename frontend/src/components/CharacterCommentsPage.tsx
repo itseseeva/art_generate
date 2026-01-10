@@ -9,8 +9,8 @@ import { GlobalHeader } from './GlobalHeader';
 import { API_CONFIG } from '../config/api';
 
 const PageContainer = styled.div`
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   background: rgba(15, 15, 15, 1);

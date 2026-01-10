@@ -440,20 +440,10 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-# Middleware для логирования запросов к character-ratings
+# Middleware для логирования запросов к YooMoney
 @app.middleware("http")
 async def log_ratings_requests(request: Request, call_next):
-	"""Middleware для логирования запросов к character-ratings."""
-	if "/character-ratings/" in str(request.url):
-		print("=" * 80)
-		print(f"[MIDDLEWARE] Запрос к character-ratings: {request.method} {request.url}")
-		print(f"[MIDDLEWARE] Path: {request.url.path}")
-		print("=" * 80)
-		logger.info("=" * 80)
-		logger.info(f"[MIDDLEWARE] Запрос к character-ratings: {request.method} {request.url}")
-		logger.info(f"[MIDDLEWARE] Path: {request.url.path}")
-		logger.info("=" * 80)
-	
+	"""Middleware для логирования POST-запросов к YooMoney."""
 	# Логирование ВСЕХ POST-запросов к YooMoney эндпоинтам
 	if request.method == "POST" and "/youmoney/" in str(request.url):
 		logger.info("=" * 80)
@@ -464,10 +454,6 @@ async def log_ratings_requests(request: Request, call_next):
 		logger.info("=" * 80)
 	
 	response = await call_next(request)
-	
-	if "/character-ratings/" in str(request.url):
-		print(f"[MIDDLEWARE] Ответ для character-ratings: {response.status_code}")
-		logger.info(f"[MIDDLEWARE] Ответ для character-ratings: {response.status_code}")
 	
 	if request.method == "POST" and "/youmoney/" in str(request.url):
 		logger.info(f"[YOUMONEY MIDDLEWARE] Ответ для YooMoney: {response.status_code}")
@@ -494,14 +480,6 @@ async def like_character_direct(
     from sqlalchemy import select
     from datetime import datetime
     
-    print("=" * 80)
-    print(f"[RATINGS DIRECT] POST /character-ratings/{character_id}/like вызван!")
-    print(f"[RATINGS DIRECT] User ID: {current_user.id if current_user else 'None'}")
-    print("=" * 80)
-    logger.info("=" * 80)
-    logger.info(f"[RATINGS DIRECT] POST /character-ratings/{character_id}/like вызван!")
-    logger.info(f"[RATINGS DIRECT] User ID: {current_user.id if current_user else 'None'}")
-    logger.info("=" * 80)
     
     try:
         result = await db.execute(select(CharacterDB).where(CharacterDB.id == character_id))
@@ -555,14 +533,6 @@ async def dislike_character_direct(
     from sqlalchemy import select
     from datetime import datetime
     
-    print("=" * 80)
-    print(f"[RATINGS DIRECT] POST /character-ratings/{character_id}/dislike вызван!")
-    print(f"[RATINGS DIRECT] User ID: {current_user.id if current_user else 'None'}")
-    print("=" * 80)
-    logger.info("=" * 80)
-    logger.info(f"[RATINGS DIRECT] POST /character-ratings/{character_id}/dislike вызван!")
-    logger.info(f"[RATINGS DIRECT] User ID: {current_user.id if current_user else 'None'}")
-    logger.info("=" * 80)
     
     try:
         result = await db.execute(select(CharacterDB).where(CharacterDB.id == character_id))
@@ -615,14 +585,6 @@ async def get_character_ratings_direct(
     from app.chat_bot.models.models import CharacterDB, CharacterRating
     from sqlalchemy import select, func
     
-    print("=" * 80)
-    print(f"[RATINGS DIRECT] GET /character-ratings/{character_id} вызван!")
-    print(f"[RATINGS DIRECT] User ID: {current_user.id if current_user else 'Anonymous'}")
-    print("=" * 80)
-    logger.info("=" * 80)
-    logger.info(f"[RATINGS DIRECT] GET /character-ratings/{character_id} вызван!")
-    logger.info(f"[RATINGS DIRECT] User ID: {current_user.id if current_user else 'Anonymous'}")
-    logger.info("=" * 80)
     
     try:
         result = await db.execute(select(CharacterDB).where(CharacterDB.id == character_id))
@@ -753,6 +715,12 @@ except Exception as e:
 # Роутер generation удален - используется только /api/v1/generate-image/ в main.py
 
 try:
+    # Подключаем роутер фотографий ПЕРЕД character_router, чтобы избежать конфликта маршрутов
+    # Роут /api/v1/characters/photos должен обрабатываться до /api/v1/characters/{character_name}/photos/
+    from app.api.endpoints.photos_endpoints import router as photos_router
+    app.include_router(photos_router)
+    logger.info("[ROUTER] Photos router подключен (перед character_router)")
+    
     from app.chat_bot.api.chat_endpoints import router as chat_router
     from app.chat_bot.api.character_endpoints import router as character_router
     # ПРИМЕЧАНИЕ: Роуты рейтингов теперь регистрируются напрямую в app выше,
@@ -985,15 +953,6 @@ except Exception as e:
     import traceback
     logger.error(f"Traceback: {traceback.format_exc()}")
 
-# Подключаем роутер фотографий персонажей
-try:
-    from app.api.endpoints.photos_endpoints import router as photos_router
-    app.include_router(photos_router)
-    # Убрано логирование подключения
-except Exception as e:
-    logger.error(f"[ERROR] Ошибка подключения роутера фотографий: {e}")
-    import traceback
-    logger.error(f"Traceback: {traceback.format_exc()}")
 
 # Подключаем интеграцию YouMoney
 try:
@@ -1171,6 +1130,47 @@ Crawl-delay: 1
 """
     return Response(content=robots_content, media_type="text/plain")
 
+
+@app.get("/media/{object_key:path}")
+async def proxy_media(object_key: str):
+    """Прокси для изображений из Yandex.Cloud через cherrylust.art/media/"""
+    try:
+        import httpx
+        from fastapi.responses import StreamingResponse
+        
+        # Построение исходного URL к Yandex.Cloud
+        bucket_url = f"https://storage.yandexcloud.net/jfpohpdofnhd/{object_key}"
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(bucket_url)
+            
+            if response.status_code == 404:
+                raise HTTPException(status_code=404, detail="Image not found")
+            elif response.status_code != 200:
+                raise HTTPException(
+                    status_code=response.status_code, 
+                    detail="Failed to fetch image"
+                )
+            
+            # Определяем content-type
+            content_type = response.headers.get('content-type', 'image/png')
+            
+            # Возвращаем изображение как поток
+            return StreamingResponse(
+                iter([response.content]),
+                media_type=content_type,
+                headers={
+                    'Cache-Control': 'public, max-age=3600',
+                    'Content-Length': str(len(response.content))
+                }
+            )
+    except Exception as e:
+        if "httpx" in str(type(e)):
+            raise HTTPException(
+                status_code=503, 
+                detail="Failed to fetch image from storage"
+            )
+        raise
 
 @app.get("/sitemap.xml")
 async def sitemap_xml():

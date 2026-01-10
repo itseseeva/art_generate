@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { FiPlusCircle, FiEdit, FiClock, FiHeart, FiGrid, FiHome, FiMessageSquare, FiTrendingUp, FiChevronRight, FiAlertTriangle, FiUser, FiLogIn, FiUserPlus, FiLogOut, FiShoppingBag, FiBarChart2 } from 'react-icons/fi';
+import { FiPlusCircle, FiEdit, FiClock, FiHeart, FiGrid, FiHome, FiMessageSquare, FiTrendingUp, FiChevronRight, FiAlertTriangle, FiUser, FiLogIn, FiUserPlus, FiLogOut, FiDollarSign, FiBarChart2 } from 'react-icons/fi';
 import Switcher4 from './Switcher4';
 import { NSFWWarningModal } from './NSFWWarningModal';
 
@@ -9,6 +9,7 @@ import { theme } from '../theme';
 import './LeftDockSidebar.css';
 
 interface LeftDockSidebarProps {
+  isMobile?: boolean;
   onCreateCharacter?: () => void;
   onEditCharacters?: () => void;
   onHistory?: () => void;
@@ -36,22 +37,24 @@ const SidebarWrapper = styled.div`
   z-index: 5;
 `;
 
-const SidebarContainer = styled.aside<{ $isCollapsed?: boolean }>`
-  width: ${props => props.$isCollapsed ? '0' : '76px'};
-  min-width: ${props => props.$isCollapsed ? '0' : '76px'};
+const SidebarContainer = styled.aside<{ $isCollapsed?: boolean; $isMobile?: boolean }>`
+  width: ${props => props.$isCollapsed ? '0' : (props.$isMobile ? '70px' : '76px')};
+  min-width: ${props => props.$isCollapsed ? '0' : (props.$isMobile ? '70px' : '76px')};
   height: 100%;
   padding: ${props => props.$isCollapsed ? '0' : '1.5rem 0.25rem 1.5rem 0.5rem'};
-  background: rgba(8, 8, 18, 0.85);
+  background: rgba(8, 8, 18, 0.95);
   border-right: ${props => props.$isCollapsed ? 'none' : '1px solid rgba(255, 255, 255, 0.06)'};
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: flex-start;
   gap: 1.25rem;
   position: relative;
   overflow: visible;
   transition: width 0.3s ease, min-width 0.3s ease, padding 0.3s ease, border 0.3s ease;
+  z-index: 1000;
 `;
 
 const HomeButton = styled.button`
@@ -105,19 +108,17 @@ const HomeButton = styled.button`
   }
 `;
 
-const DockWrapper = styled.div`
+const DockWrapper = styled.div<{ $isMobile?: boolean }>`
   flex: 1;
   width: 100%;
   display: flex;
-  flex-direction: column;
+  flex-direction: ${props => props.$isMobile ? 'row' : 'column'};
   align-items: center;
-  justify-content: flex-start;
+  justify-content: ${props => props.$isMobile ? 'center' : 'flex-start'};
   position: relative;
   gap: 0.8rem;
-  overflow-y: auto;
-  overflow-x: visible;
-  overflow: visible;
-  margin-top: 15%;
+  overflow: ${props => props.$isMobile ? 'visible' : 'visible'};
+  margin-top: ${props => props.$isMobile ? '0' : '15%'};
   
   &::-webkit-scrollbar {
     width: 0;
@@ -219,11 +220,12 @@ const SwitcherContainer = styled.div`
   }
 `;
 
-const SidebarContent = styled.div<{ $isCollapsed?: boolean }>`
+const SidebarContent = styled.div<{ $isCollapsed?: boolean; $isMobile?: boolean }>`
   width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: flex-start;
   gap: 1rem;
   flex: 1;
   overflow: visible;
@@ -235,6 +237,7 @@ const SidebarContent = styled.div<{ $isCollapsed?: boolean }>`
 `;
 
 export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
+  isMobile = false,
   onCreateCharacter,
   onEditCharacters,
   onHistory,
@@ -257,7 +260,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
 }) => {
   const [showNSFWWarning, setShowNSFWWarning] = useState(false);
   const [pendingMode, setPendingMode] = useState<'safe' | 'nsfw' | null>(null);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(isMobile);
   const [arrowTop, setArrowTop] = useState<string>('50%');
   const dockWrapperRef = useRef<HTMLDivElement>(null);
 
@@ -349,7 +352,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   // Магазин - всегда
   if (onShop) {
     additionalDockItems.push({
-      icon: <FiShoppingBag size={18} />,
+      icon: <FiDollarSign size={18} color="#facc15" />,
       label: 'Магазин',
       onClick: () => onShop?.(),
       className: 'dock-item-shop',
@@ -441,31 +444,32 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   }, [isCollapsed, isAuthenticated, onBalanceHistory, onMessages]);
 
   return (
-    <SidebarWrapper>
+    <SidebarWrapper style={{ height: '100%' }}>
       <ToggleArrowButton 
         onClick={() => setIsCollapsed(!isCollapsed)}
         title={isCollapsed ? "Развернуть панель" : "Свернуть панель"}
         $isCollapsed={isCollapsed}
-        style={{ top: isCollapsed ? '50%' : arrowTop }}
+        style={{ 
+          top: isCollapsed ? '50%' : arrowTop,
+          left: isCollapsed ? (isMobile ? '-4px' : '-8px') : (isMobile ? '64px' : '70px')
+        }}
       >
         <FiChevronRight size={14} />
       </ToggleArrowButton>
-      <SidebarContainer $isCollapsed={isCollapsed}>
-        <SidebarContent $isCollapsed={isCollapsed}>
+      <SidebarContainer $isCollapsed={isCollapsed} $isMobile={isMobile}>
+        <SidebarContent $isCollapsed={isCollapsed} $isMobile={isMobile}>
           <HomeButton onClick={onHome} title="Главная">
             <FiHome size={16} />
           </HomeButton>
-          <SwitcherContainer>
-            <FilterTooltip>Фильтр</FilterTooltip>
+          <SwitcherContainer style={{ display: 'flex' }}>
+            <FilterTooltip>NSFW</FilterTooltip>
             <Switcher4
               checked={contentMode === 'nsfw'}
               onToggle={(checked) => {
                 if (checked && contentMode === 'safe') {
-                  // Показываем предупреждение при переключении на NSFW
                   setPendingMode('nsfw');
                   setShowNSFWWarning(true);
                 } else {
-                  // Переключение обратно на SAFE не требует подтверждения
                   onContentModeChange?.(checked ? 'nsfw' : 'safe');
                 }
               }}
@@ -488,10 +492,10 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
               }}
             />
           )}
-          <DockWrapper ref={dockWrapperRef}>
+          <DockWrapper ref={dockWrapperRef} $isMobile={false}>
             <Dock
               items={[...topDockItems, ...mainBottomDockItems, ...additionalDockItems]}
-              vertical
+              vertical={true}
               dockHeight={420}
               panelHeight={58}
               baseItemSize={34}
@@ -499,6 +503,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
               distance={150}
               spring={{ mass: 0.15, stiffness: 180, damping: 35 }}
               className="left-dock-panel"
+              showLabels={false}
             />
           </DockWrapper>
         </SidebarContent>

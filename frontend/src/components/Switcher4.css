@@ -87,16 +87,15 @@
 
 .switcher4-toggle:hover .switcher4-track {
   transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(236, 72, 153, 0.4), 0 0 20px rgba(236, 72, 153, 0.2) !important;
-  animation: switcher-pulse 1.5s ease-in-out infinite;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
 }
 
 @keyframes switcher-pulse {
   0%, 100% {
-    box-shadow: 0 4px 12px rgba(236, 72, 153, 0.4), 0 0 20px rgba(236, 72, 153, 0.2);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   }
   50% {
-    box-shadow: 0 4px 16px rgba(236, 72, 153, 0.6), 0 0 30px rgba(236, 72, 153, 0.4);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
   }
 }
 

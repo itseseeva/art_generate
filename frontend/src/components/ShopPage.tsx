@@ -7,12 +7,13 @@ import { API_CONFIG } from '../config/api';
 import { authManager } from '../utils/auth';
 
 const MainContainer = styled.div`
-  width: 100vw;
+  width: 100%;
   min-height: 100vh;
   background: linear-gradient(145deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%);
   padding: 1.5rem 1rem;
   overflow-y: auto;
   position: relative;
+  box-sizing: border-box;
   
   &::before {
     content: '';
@@ -509,7 +510,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     if (!isAuthenticated) return;
 
     const handleUpdate = () => {
-      console.log('[SHOP] Получено событие обновления подписки');
+      
       loadSubscriptionStats();
       checkAuth();
       // Диспатчим событие обновления баланса
@@ -525,7 +526,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     if (!isAuthenticated) return;
 
     const interval = setInterval(() => {
-      console.log('[SHOP] Автообновление статистики подписки');
+      
       loadSubscriptionStats();
     }, 10000); // 10 секунд
 
@@ -558,7 +559,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
           setIsAuthenticated(true);
           setBalanceRefreshTrigger(prev => prev + 1);
         } else {
-          console.error('[SHOP] Auth check returned empty data');
+          
           setIsAuthenticated(false);
           setUserInfo(null);
         }
@@ -567,7 +568,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
         setUserInfo(null);
       }
     } catch (error) {
-      console.error('Auth check error:', error);
+      
       setIsAuthenticated(false);
     }
   };
@@ -577,7 +578,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       const token = localStorage.getItem('authToken');
       if (!token) return;
 
-      console.log('[SHOP] Загрузка статистики подписки...');
+      
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/profit/stats/`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -586,41 +587,41 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       
       if (response.ok) {
         const statsData = await response.json();
-        console.log('[SHOP] Статистика получена:', statsData);
-        console.log('[SHOP] is_active:', statsData.is_active);
-        console.log('[SHOP] subscription_type:', statsData.subscription_type);
-        console.log('[SHOP] expires_at:', statsData.expires_at);
+        
+        
+        
+        
         setStats(statsData);
       } else {
-        console.error('[SHOP] Ошибка получения статистики:', response.status);
+        
       }
     } catch (error) {
-      console.error('[SHOP] Ошибка загрузки статистики подписки:', error);
+      
     }
   };
 
   const loadCreditPackages = async () => {
     try {
       setIsLoadingPackages(true);
-      console.log('[SHOP] Загрузка пакетов кредитов...');
+      
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/subscription/credit-packages/`);
-      console.log('[SHOP] Ответ сервера:', response.status, response.statusText);
+      
       
       if (response.ok) {
         const data = await response.json();
-        console.log('[SHOP] Данные пакетов:', data);
+        
         if (data.success && data.packages) {
-          console.log('[SHOP] Установка пакетов:', data.packages);
+          
           setCreditPackages(data.packages);
         } else {
-          console.warn('[SHOP] Неожиданный формат данных:', data);
+          
         }
       } else {
         const errorText = await response.text();
-        console.error('[SHOP] Ошибка ответа сервера:', response.status, errorText);
+        
       }
     } catch (error) {
-      console.error('[SHOP] Ошибка загрузки пакетов кредитов:', error);
+      
     } finally {
       setIsLoadingPackages(false);
     }
@@ -651,7 +652,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
 
       window.location.href = quickPayUrl;
     } catch (err) {
-      console.error('[SHOP] Ошибка формирования ссылки QuickPay для пакета:', err);
+      
       setError('Не удалось открыть страницу оплаты YooMoney');
     }
   };
@@ -687,13 +688,13 @@ export const ShopPage: React.FC<ShopPageProps> = ({
           setIsAuthenticated(true);
         }
       } catch (e) {
-        console.error('[SHOP] Failed to fetch user info:', e);
+        
       }
     }
 
     // Если все еще нет ID, просто выводим ошибку, но не открываем окно входа
     if (!currentUserId) {
-      console.error('[SHOP] Не удалось определить пользователя для оплаты.');
+      
       setError('Ошибка: не удалось определить пользователя. Попробуйте обновить страницу.');
       return;
     }
@@ -701,11 +702,11 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     // Раскрываем кнопки оплаты для выбранного плана
     // Если уже выбран этот план - скрываем, иначе показываем
     setSelectedPlanForPayment(selectedPlanForPayment === subscriptionType ? null : subscriptionType);
-    console.log('[SHOP] Selected plan for payment:', selectedPlanForPayment === subscriptionType ? null : subscriptionType);
+    
   };
 
   const handleYoumoneyPayment = async (subscriptionType: string) => {
-    console.log('[SHOP] handleYoumoneyPayment вызван:', { subscriptionType, userInfo });
+    
     
     let currentUserId = userInfo?.id;
     
@@ -714,7 +715,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       const token = localStorage.getItem('authToken');
       if (token) {
         try {
-          console.log('[SHOP] Загружаем userInfo...');
+          
           const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`, {
             headers: {
               'Authorization': `Bearer ${token}`
@@ -729,16 +730,16 @@ export const ShopPage: React.FC<ShopPageProps> = ({
               id: userData.id
             });
             setIsAuthenticated(true);
-            console.log('[SHOP] userInfo загружен:', userData);
+            
           }
         } catch (e) {
-          console.error('[SHOP] Ошибка загрузки userInfo:', e);
+          
         }
       }
     }
     
     if (!currentUserId) {
-      console.error('[SHOP] Не удалось получить user ID');
+      
       setError('Ошибка: не удалось определить пользователя. Попробуйте обновить страницу.');
       return;
     }
@@ -767,8 +768,8 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       
       const quickPayUrl = `https://yoomoney.ru/quickpay/confirm.xml?${params.toString()}`;
 
-      console.log('[SHOP] YooMoney URL сформирован:', quickPayUrl);
-      console.log('[SHOP] Переход на страницу оплаты...');
+      
+      
       
       // Сохраняем состояние перед переходом на оплату
       window.history.pushState({ page: 'shop', fromPayment: true }, '', '/shop');
@@ -776,13 +777,13 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       // Переходим на страницу оплаты
       window.location.href = quickPayUrl;
     } catch (err) {
-      console.error('[SHOP] Ошибка формирования ссылки QuickPay:', err);
+      
       setError('Не удалось открыть страницу оплаты YooMoney');
     }
   };
 
   const handleYooKassaPayment = async (subscriptionType: string, paymentMethod: string) => {
-    console.log('[SHOP] handleYooKassaPayment вызван:', { subscriptionType, paymentMethod, userInfo });
+    
     
     if (!userInfo?.id) {
       setError('Не удалось определить пользователя для оплаты');
@@ -818,7 +819,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       // Переходим на страницу оплаты ЮKassa
       window.location.href = data.confirmation_url;
     } catch (err) {
-      console.error('[SHOP] Ошибка создания платежа ЮKassa:', err);
+      
       setError(err instanceof Error ? err.message : 'Не удалось создать платеж');
     } finally {
       setIsLoading(false);
@@ -826,7 +827,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   };
 
   const handleYooKassaCreditTopUp = async (packageId: string, price: number, credits: number, paymentMethod: string) => {
-    console.log('[SHOP] handleYooKassaCreditTopUp вызван:', { packageId, price, credits, paymentMethod });
+    
     
     if (!userInfo?.id) {
       setError('Не удалось определить пользователя для оплаты');
@@ -859,7 +860,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       // Переходим на страницу оплаты ЮKassa
       window.location.href = data.confirmation_url;
     } catch (err) {
-      console.error('[SHOP] Ошибка создания платежа ЮKassa:', err);
+      
       setError(err instanceof Error ? err.message : 'Не удалось создать платеж');
     } finally {
       setIsLoading(false);

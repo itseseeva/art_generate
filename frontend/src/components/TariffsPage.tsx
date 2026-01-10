@@ -5,6 +5,7 @@ import { theme } from '../theme';
 import { Footer } from './Footer';
 import { AuthModal } from './AuthModal';
 import { API_CONFIG } from '../config/api';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const Container = styled.div`
   padding: 4rem 2rem;
@@ -449,7 +450,7 @@ export const TariffsPage: React.FC = () => {
         setUserInfo(null);
       }
     } catch (error) {
-      console.error('Auth check error:', error);
+      
       setIsAuthenticated(false);
     }
   };
@@ -470,7 +471,7 @@ export const TariffsPage: React.FC = () => {
         setStats(statsData);
       }
     } catch (error) {
-      console.error('Ошибка загрузки статистики подписки:', error);
+      
     }
   };
 
@@ -502,12 +503,12 @@ export const TariffsPage: React.FC = () => {
           setIsAuthenticated(true);
         }
       } catch (e) {
-        console.error('Failed to fetch user info:', e);
+        
       }
     }
 
     if (!currentUserId) {
-      console.error('Не удалось определить пользователя для оплаты.');
+      
       return;
     }
     
@@ -541,7 +542,7 @@ export const TariffsPage: React.FC = () => {
 
       window.location.href = quickPayUrl;
     } catch (err) {
-      console.error('Ошибка формирования ссылки QuickPay:', err);
+      
     }
   };
 
@@ -579,7 +580,7 @@ export const TariffsPage: React.FC = () => {
       // Переходим на страницу оплаты ЮKassa
       window.location.href = data.confirmation_url;
     } catch (err) {
-      console.error('Ошибка создания платежа ЮKassa:', err);
+      
     }
   };
 
@@ -614,7 +615,7 @@ export const TariffsPage: React.FC = () => {
       // Переходим на страницу оплаты ЮKassa
       window.location.href = data.confirmation_url;
     } catch (err) {
-      console.error('Ошибка создания платежа ЮKassa:', err);
+      
     }
   };
 
@@ -630,7 +631,7 @@ export const TariffsPage: React.FC = () => {
         }
       }
     } catch (error) {
-      console.error('Ошибка загрузки пакетов кредитов:', error);
+      
     } finally {
       setIsLoadingPackages(false);
     }
@@ -661,9 +662,11 @@ export const TariffsPage: React.FC = () => {
 
       window.location.href = quickPayUrl;
     } catch (err) {
-      console.error('Ошибка формирования ссылки QuickPay для пакета:', err);
+      
     }
   };
+
+  const isMobile = useIsMobile();
 
   return (
     <Container>
@@ -875,7 +878,6 @@ export const TariffsPage: React.FC = () => {
           </SubscriptionSection>
         )}
       </Content>
-      <Footer />
 
       {isAuthModalOpen && (
         <AuthModal

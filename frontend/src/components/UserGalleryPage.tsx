@@ -10,8 +10,8 @@ import { API_CONFIG } from '../config/api';
 
 const MainContainer = styled.div`
   display: flex;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   background: ${theme.colors.background.primary};
 `;
@@ -21,10 +21,18 @@ const MainContent = styled.div`
   flex: 1;
   overflow-y: auto;
   padding: ${theme.spacing.xl};
+
+  @media (max-width: 768px) {
+    padding: ${theme.spacing.md};
+  }
 `;
 
 const GalleryHeader = styled.div`
   margin-bottom: ${theme.spacing.xl};
+
+  @media (max-width: 768px) {
+    margin-bottom: ${theme.spacing.lg};
+  }
 `;
 
 const GalleryTitle = styled.h1`
@@ -46,6 +54,12 @@ const GalleryGrid = styled.div`
   gap: ${theme.spacing.md};
   margin-top: ${theme.spacing.xl};
   align-content: start;
+
+  @media (max-width: 768px) {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: ${theme.spacing.sm};
+    margin-top: ${theme.spacing.lg};
+  }
 `;
 
 const GalleryImage = styled.div`
@@ -250,6 +264,25 @@ const ModalContent = styled.div`
   justify-content: center;
   gap: ${theme.spacing.xl};
   width: 100%;
+
+  @media (max-width: 768px) {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    max-width: 100vw;
+    max-height: 100vh;
+    background: #000;
+    display: flex !important;
+    flex-direction: column !important;
+    margin: 0;
+    padding: 0;
+    border-radius: 0;
+    overflow: hidden;
+  }
 `;
 
 const ModalImageContainer = styled.div`
@@ -259,6 +292,13 @@ const ModalImageContainer = styled.div`
   justify-content: center;
   min-width: 0;
   max-width: 70%;
+
+  @media (max-width: 768px) {
+    width: 100%;
+    max-width: 100%;
+    flex: 1;
+    min-height: 0;
+  }
 `;
 
 const ModalImage = styled.img`
@@ -267,6 +307,13 @@ const ModalImage = styled.img`
   object-fit: contain;
   border-radius: ${theme.borderRadius.lg};
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+
+  @media (max-width: 768px) {
+    max-height: 100%;
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+  }
 `;
 
 const PromptPanel = styled.div`
@@ -283,6 +330,21 @@ const PromptPanel = styled.div`
   flex-direction: column;
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(10px);
+
+  @media (max-width: 768px) {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    max-height: 30vh;
+    background: rgba(20, 20, 20, 0.95);
+    border: none;
+    border-bottom: 1px solid rgba(251, 191, 36, 0.3);
+    border-radius: 0;
+    padding: ${theme.spacing.md};
+    z-index: 10;
+    flex-shrink: 0;
+  }
 `;
 
 const PromptPanelHeader = styled.div`
@@ -292,7 +354,7 @@ const PromptPanelHeader = styled.div`
 `;
 
 const PromptPanelTitle = styled.h3`
-  color: rgba(240, 240, 240, 1);
+  color: #fbbf24;
   font-size: ${theme.fontSize.xl};
   font-weight: 800;
   margin: 0;
@@ -360,6 +422,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
   onEditCharacters,
   userId
 }) => {
+  const [isPromptVisible, setIsPromptVisible] = useState(true);
   const [photos, setPhotos] = useState<UserPhoto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -400,6 +463,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
 
   const handleOpenPhoto = async (imageUrl: string) => {
     setSelectedPhoto(imageUrl);
+    setIsPromptVisible(true);
     setSelectedPrompt(null);
     setPromptError(null);
     setIsLoadingPrompt(true);
@@ -414,7 +478,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
         setPromptError(errorMessage || 'Промпт недоступен для этого изображения');
       }
     } catch (error) {
-      console.error('[UserGalleryPage] Ошибка загрузки/перевода промпта:', error);
+      
       setPromptError('Ошибка загрузки промпта');
     } finally {
       setIsLoadingPrompt(false);
@@ -457,10 +521,10 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
       }
 
       // Показываем успешное сообщение и скрываем кнопку
-      console.log('[USER_GALLERY] Фото успешно добавлено в галерею');
+      
       setAddedPhotoIds(prev => new Set(prev).add(photo.id));
     } catch (error) {
-      console.error('[USER_GALLERY] Ошибка добавления фото в галерею:', error);
+      
       setError(error instanceof Error ? error.message : 'Не удалось добавить фото в галерею');
     } finally {
       setAddingPhotoIds(prev => {
@@ -498,9 +562,9 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
       // Удаляем фото из списка
       setPhotos(prev => prev.filter(p => p.id !== photo.id));
       setTotal(prev => Math.max(0, prev - 1));
-      console.log('[USER_GALLERY] Фото успешно удалено из галереи');
+      
     } catch (error) {
-      console.error('[USER_GALLERY] Ошибка удаления фото из галереи:', error);
+      
       setError(error instanceof Error ? error.message : 'Не удалось удалить фото из галереи');
     } finally {
       setDeletingPhotoIds(prev => {
@@ -527,7 +591,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
           setCurrentUserId(userData.id);
         }
       } catch (error) {
-        console.error('[USER_GALLERY] Ошибка загрузки ID текущего пользователя:', error);
+        
       }
     };
     
@@ -586,7 +650,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
           }
         }
       } catch (error) {
-        console.error('[USER_GALLERY] Ошибка проверки своей галереи:', error);
+        
       }
     };
     
@@ -602,7 +666,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
 
     // Предотвращаем множественные одновременные запросы
     if (offset === 0 && isLoadingRef.current) {
-      console.log('[USER_GALLERY] Загрузка уже выполняется, пропускаем');
+      
       return;
     }
 
@@ -648,7 +712,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
       }
 
       const data = await response.json();
-      console.log('[USER_GALLERY] Получены данные:', { userId, offset, data });
+      
       
       let newPhotos: UserPhoto[] = [];
       let totalCount = 0;
@@ -666,7 +730,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
         newPhotos = data.photos || [];
         totalCount = data.total || 0;
       } else {
-        console.warn('[USER_GALLERY] Не удалось определить формат данных');
+        
         newPhotos = [];
         totalCount = 0;
       }
@@ -687,7 +751,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
       }
     } catch (err: any) {
       setError(err.message || 'Ошибка при загрузке галереи');
-      console.error('[GALLERY] Ошибка загрузки:', err);
+      
     } finally {
       isLoadingRef.current = false;
       setIsLoading(false);
@@ -699,7 +763,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
     // Проверяем, не загружали ли мы уже эту галерею
     const currentUserIdKey = userId || 'me';
     if (lastLoadedUserIdRef.current === currentUserIdKey && photos.length > 0) {
-      console.log('[USER_GALLERY] Галерея уже загружена, пропускаем');
+      
       return;
     }
 
@@ -776,9 +840,27 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
             <>
             <GalleryGrid>
               {photos.map((photo, index) => {
-                const imageUrl = photo.image_url || (photo.image_filename ? `${API_CONFIG.BASE_URL}/paid_gallery/${photo.image_filename}` : null);
+                let imageUrl = photo.image_url || (photo.image_filename ? `${API_CONFIG.BASE_URL}/paid_gallery/${photo.image_filename}` : null);
+                
+                // Конвертируем старые Yandex.Cloud URL в новые через прокси
+                if (imageUrl && imageUrl.includes('.storage.yandexcloud.net/')) {
+                  // Извлекаем object_key из URL и создаем прокси URL
+                  if (imageUrl.includes('.storage.yandexcloud.net/')) {
+                    const objectKey = imageUrl.split('.storage.yandexcloud.net/')[1];
+                    imageUrl = `${API_CONFIG.BASE_URL}/media/${objectKey}`;
+                  } else if (imageUrl.includes('storage.yandexcloud.net/')) {
+                    const pathParts = imageUrl.split('storage.yandexcloud.net/')[1].split('/', 1);
+                    if (pathParts.length > 0) {
+                      const afterBucket = imageUrl.split('storage.yandexcloud.net/')[1].split('/', 1)[1];
+                      if (afterBucket) {
+                        imageUrl = `${API_CONFIG.BASE_URL}/media/${afterBucket}`;
+                      }
+                    }
+                  }
+                }
+                
                 if (!imageUrl) {
-                  console.warn('[USER_GALLERY] Photo without URL:', photo);
+                  
                   return null;
                 }
                 
@@ -799,8 +881,6 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
                         alt={photo.character_name}
                         style={{ width: '100%', height: '100%' }}
                         eager={shouldLoadEager}
-                        onLoad={() => console.log('[USER_GALLERY] Image loaded:', imageUrl, 'index:', index)}
-                        onError={() => console.error('[USER_GALLERY] Image load error:', imageUrl, photo, 'index:', index)}
                       />
                     {isOtherUserGallery && !isAdded && (
                       <AddToGalleryButton
@@ -858,9 +938,27 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
             <ModalImageContainer>
               <ModalImage src={selectedPhoto} alt="Full size" />
             </ModalImageContainer>
-            <PromptPanel>
+            <PromptPanel style={{ 
+              display: isPromptVisible ? 'flex' : 'none',
+              visibility: isPromptVisible ? 'visible' : 'hidden' 
+            }}>
               <PromptPanelHeader>
-                <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+                  <button 
+                    onClick={() => setIsPromptVisible(false)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#fbbf24',
+                      cursor: 'pointer',
+                      padding: '4px'
+                    }}
+                    title="Скрыть промпт"
+                  >
+                    <CloseIcon size={20} />
+                  </button>
+                </div>
               </PromptPanelHeader>
               {isLoadingPrompt ? (
                 <PromptLoading>Загрузка промпта...</PromptLoading>
@@ -870,6 +968,26 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
                 <PromptPanelText>{selectedPrompt}</PromptPanelText>
               ) : null}
             </PromptPanel>
+            {!isPromptVisible && (
+              <button
+                onClick={() => setIsPromptVisible(true)}
+                style={{
+                  position: 'absolute',
+                  top: '20px',
+                  left: '20px',
+                  background: 'rgba(0, 0, 0, 0.7)',
+                  border: '1px solid rgba(251, 191, 36, 0.5)',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  color: '#fbbf24',
+                  cursor: 'pointer',
+                  zIndex: 10002,
+                  fontWeight: '600'
+                }}
+              >
+                Показать промпт
+              </button>
+            )}
           </ModalContent>
         </ModalOverlay>
       )}
