@@ -94,11 +94,21 @@ cd Docker_all
 
 ### 3. Запуск
 
+#### Вариант А: Запуск всего приложения в Docker (Рекомендуется для VPS)
 Из директории `Docker_all`:
 
 ```bash
 docker-compose up -d
 ```
+
+#### Вариант Б: Запуск только БД и Redis в Docker (Рекомендуется для локальной разработки)
+Если вы хотите запускать код Python вручную (через venv), но вам нужны рабочие PostgreSQL и Redis:
+
+```bash
+cd Docker_all
+docker-compose -f docker-compose.local.yml up -d
+```
+Это запустит Postgres на порту 5432 и Redis на порту 6379 на вашем `localhost`.
 
 ### 4. Остановка
 

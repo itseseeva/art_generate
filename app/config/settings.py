@@ -91,6 +91,16 @@ class Settings(BaseSettings):
     # --- Performance ---
     MAX_WORKERS: int = Field(default=4, description="Максимальное количество воркеров")
     
+    # --- Redis ---
+    REDIS_URL: str = Field(
+        default_factory=lambda: os.getenv("REDIS_URL", "redis://localhost:6379/0"), 
+        description="URL для Redis"
+    )
+    REDIS_LOCAL: Optional[str] = Field(
+        default_factory=lambda: os.getenv("REDIS_LOCAL"), 
+        description="Локальный URL для Redis (приоритет)"
+    )
+    
     # --- LLAMA API ---
     LLAMA_API_URL: str = Field(default="http://localhost:8000", description="URL для LLAMA API")
     

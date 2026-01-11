@@ -1464,17 +1464,22 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           progressValue = Math.min(99, Math.max(0, rawProgress));
         }
 
-        // Определяем, нужно ли использовать заглушку (строго первые 8 секунд)
-        const startTime = generationStartTimesRef.current.get(messageId);
-        const elapsed = startTime ? Date.now() - startTime : 0;
-        const placeholderDuration = 8000; // Строго 8 секунд
-        const usePlaceholder = elapsed < placeholderDuration;
-
-        // Обновляем прогресс
+        // Обновляем прогресс, если он валиден и мы все еще генерируем
+        // Не используем заглушку на клиенте, так как она реализована на бэкенде
         if (progressValue !== undefined && !isNaN(progressValue)) {
-          updateMessageProgressContent(messageId, progressValue, usePlaceholder);
-        } else if (usePlaceholder) {
-          updateMessageProgressContent(messageId, 0, true);
+          // Гарантируем, что прогресс не идет назад
+          setMessages(prev => prev.map(msg => {
+            if (msg.id === messageId && msg.isGenerating) {
+              const currentMsgProgress = msg.progress || 0;
+              if (progressValue > currentMsgProgress) {
+                return { ...msg, progress: progressValue };
+              }
+            }
+            return msg;
+          }));
+        } else if (statusData.status === 'generating') {
+          // Если прогресс не пришел, но статус generating, оставляем как есть или показываем 5%
+          // (но бэкенд должен возвращать прогресс)
         }
 
         // Обрабатываем статус "generating" - продолжаем опрос

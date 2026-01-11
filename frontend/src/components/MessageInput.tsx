@@ -235,7 +235,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
-  }, [message]);
+  }, [message, isMobile]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

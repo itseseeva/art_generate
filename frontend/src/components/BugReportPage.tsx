@@ -15,6 +15,10 @@ const MainContainer = styled.div`
   flex-direction: column;
   background: rgba(20, 20, 20, 1);
   overflow: hidden;
+
+  @media (max-width: 768px) {
+    overflow-y: auto;
+  }
 `;
 
 const ContentContainer = styled.div`
@@ -24,6 +28,14 @@ const ContentContainer = styled.div`
   overflow: hidden;
   padding: ${theme.spacing.xl};
   gap: ${theme.spacing.lg};
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    overflow: visible;
+    padding: ${theme.spacing.md};
+    gap: ${theme.spacing.md};
+    height: auto;
+  }
 `;
 
 const LeftColumn = styled.div`
@@ -32,6 +44,12 @@ const LeftColumn = styled.div`
   flex-direction: column;
   overflow-y: auto;
   flex-shrink: 0;
+
+  @media (max-width: 768px) {
+    width: 100%;
+    overflow-y: visible;
+    height: auto;
+  }
 `;
 
 const RightColumn = styled.div`
@@ -40,6 +58,11 @@ const RightColumn = styled.div`
   flex-direction: column;
   overflow-y: auto;
   min-width: 0;
+
+  @media (max-width: 768px) {
+    overflow-y: visible;
+    height: auto;
+  }
 `;
 
 const PageTitle = styled.h1`
@@ -182,6 +205,11 @@ const BugHeader = styled.div`
   align-items: flex-start;
   margin-bottom: ${theme.spacing.md};
   gap: ${theme.spacing.md};
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    gap: ${theme.spacing.sm};
+  }
 `;
 
 const BugTitle = styled.h3`
@@ -199,6 +227,16 @@ const BugMeta = styled.div`
   gap: ${theme.spacing.xs};
   font-size: ${theme.fontSize.sm};
   color: rgba(160, 160, 160, 1);
+
+  @media (max-width: 768px) {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: ${theme.spacing.sm};
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
 `;
 
 const BugStatus = styled.div<{ $status: string }>`
@@ -686,9 +724,7 @@ export const BugReportPage: React.FC<BugReportPageProps> = ({
   return (
     <MainContainer>
       <GlobalHeader
-        onBack={onBackToMain}
-        title="Жалобы и баг-репорты"
-        showBackButton
+        onHome={onBackToMain}
       />
       <ContentContainer>
         <LeftColumn>

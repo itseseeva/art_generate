@@ -1424,62 +1424,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const [promptError, setPromptError] = useState<string | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-  const [fakeProgress, setFakeProgress] = useState(0);
   const [generationProgress, setGenerationProgress] = useState<number | undefined>(undefined);
-  const fakeProgressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const fakeProgressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const generationQueueRef = useRef<number>(0); // Счетчик задач в очереди
   const initialPhotosCountRef = useRef<number>(0); // Количество фото при загрузке страницы
   const customPromptRef = useRef<string>(''); // Ref для актуального промпта
   const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime' | 'realism'>('anime-realism');
-
-  const startFakeProgress = useCallback(() => {
-    if (fakeProgressIntervalRef.current) {
-      clearInterval(fakeProgressIntervalRef.current);
-      fakeProgressIntervalRef.current = null;
-    }
-    if (fakeProgressTimeoutRef.current) {
-      clearTimeout(fakeProgressTimeoutRef.current);
-      fakeProgressTimeoutRef.current = null;
-    }
-    setFakeProgress(0);
-    
-    // Моковый прогресс на 30 секунд (достаточно для генерации)
-    const duration = 30000; // 30 секунд
-    const interval = 300; // Обновление каждые 300ms
-    const steps = duration / interval; // 100 шагов
-    const increment = 99 / steps; // до 99% за время генерации
-    
-    let currentProgress = 0;
-    fakeProgressIntervalRef.current = setInterval(() => {
-      currentProgress += increment;
-      if (currentProgress >= 99) {
-        currentProgress = 99;
-        // Не останавливаем интервал, чтобы прогресс оставался видимым
-      }
-      setFakeProgress(Math.min(99, Math.round(currentProgress)));
-    }, interval);
-  }, []);
-
-  const stopFakeProgress = useCallback((immediate: boolean) => {
-    if (fakeProgressIntervalRef.current) {
-      clearInterval(fakeProgressIntervalRef.current);
-      fakeProgressIntervalRef.current = null;
-    }
-    if (fakeProgressTimeoutRef.current) {
-      clearTimeout(fakeProgressTimeoutRef.current);
-      fakeProgressTimeoutRef.current = null;
-    }
-    if (immediate) {
-      setFakeProgress(0);
-      return;
-    }
-    setFakeProgress(100);
-    fakeProgressTimeoutRef.current = setTimeout(() => {
-      setFakeProgress(0);
-      fakeProgressTimeoutRef.current = null;
-    }, 500);
-  }, []);
 
   // Функции для авторизации
   const handleLogin = () => {
@@ -2175,14 +2124,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     }
 
     return () => {
-      if (fakeProgressIntervalRef.current) {
-        clearInterval(fakeProgressIntervalRef.current);
-        fakeProgressIntervalRef.current = null;
-      }
-      if (fakeProgressTimeoutRef.current) {
-        clearTimeout(fakeProgressTimeoutRef.current);
-        fakeProgressTimeoutRef.current = null;
-      }
     };
   }, [character?.name, character?.id]); // Реагируем на изменения character prop
 
@@ -2387,7 +2328,10 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         // Извлекаем прогресс из ответа (как в ChatContainer)
         let progressValue: number | undefined = undefined;
         
-        if (status.status === 'generating' && status.result?.progress !== undefined) {
+        // Используем прогресс от сервера (там теперь заглушка на 10 сек)
+        if (status.progress !== undefined) {
+          progressValue = status.progress;
+        } else if (status.status === 'generating' && status.result?.progress !== undefined) {
           const rawProgress = typeof status.result.progress === 'number'
             ? status.result.progress
             : parseInt(String(status.result.progress).replace('%', ''), 10);
@@ -2401,10 +2345,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         
         // Обновляем прогресс в состоянии
         if (progressValue !== undefined && !isNaN(progressValue)) {
-          setGenerationProgress(progressValue);
-        } else if (status.status === 'generating' || status.status === 'PROGRESS' || status.status === 'PENDING') {
-          // Если статус generating, но прогресс не указан, используем fakeProgress как fallback
-          setGenerationProgress(fakeProgress);
+          setGenerationProgress(prev => Math.max(prev || 0, progressValue!));
         }
         
         // Логируем только при изменении статуса или раз в 5 попыток
@@ -2607,7 +2548,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     setIsGeneratingPhoto(true);
     setError(null);
     setGenerationProgress(0);
-    startFakeProgress();
 
     // Плавный скролл к генерации на мобилках
     if (isMobile && generationSectionRef.current) {
@@ -2649,14 +2589,12 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           });
           setSuccess('Фото успешно сгенерировано!');
         }
-        stopFakeProgress(false);
         setGenerationProgress(100);
         
         // Обновляем информацию о пользователе
         await checkAuth();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Ошибка генерации фото');
-        stopFakeProgress(true);
       } finally {
         setIsGeneratingPhoto(false);
         setGenerationProgress(0);
@@ -2817,12 +2755,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
             onLogout={handleLogout}
             onProfile={onProfile}
             onBalance={() => alert('Баланс пользователя')}
-            leftContent={
-              <>
-                <BackButton onClick={onBackToEditList}>← Назад к списку</BackButton>
-                <PageTitle>Загрузка...</PageTitle>
-              </>
-            }
           />
           <MainContent style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
             <div style={{ textAlign: 'center' }}>
@@ -2891,12 +2823,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         onLogout={handleLogout}
         onProfile={onProfile}
         onBalance={() => alert('Баланс пользователя')}
-        leftContent={
-          <>
-            <BackButton onClick={onBackToEditList}>← Назад к списку</BackButton>
-            <PageTitle>Редактирование: {formData.name || characterIdentifier}</PageTitle>
-          </>
-        }
       />
       
       <MainContent>
@@ -3057,7 +2983,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                             const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
                             const isQueueFull = activeGenerations >= queueLimit;
                             const progress = isGeneratingPhoto 
-                              ? (generationProgress !== undefined && generationProgress > 0 ? generationProgress : (fakeProgress || 0))
+                              ? (generationProgress !== undefined && generationProgress > 0 ? generationProgress : 0)
                               : 0;
                             const baseText = isQueueFull 
                               ? `Сгенерировать фото (10 монет) • Очередь заполнена`

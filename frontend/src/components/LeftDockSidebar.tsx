@@ -198,7 +198,7 @@ const FilterTooltip = styled.div`
   font-size: 0.75rem;
   font-weight: 500;
   white-space: nowrap;
-  opacity: 0;
+  opacity: 1;
   pointer-events: none;
   transition: opacity 0.2s ease;
   z-index: 1000;
@@ -214,10 +214,6 @@ const SwitcherContainer = styled.div`
   margin-top: calc(0.5rem - 4px);
   transform: translateY(-20%);
   position: relative;
-
-  &:hover ${FilterTooltip} {
-    opacity: 1;
-  }
 `;
 
 const SidebarContent = styled.div<{ $isCollapsed?: boolean; $isMobile?: boolean }>`

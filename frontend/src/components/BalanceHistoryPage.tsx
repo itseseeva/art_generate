@@ -182,29 +182,6 @@ export const BalanceHistoryPage: React.FC<BalanceHistoryPageProps> = ({
       <GlobalHeader
         onShop={onShop}
         onProfile={onProfile}
-        leftContent={
-          <>
-            {onBackToMain && (
-              <button
-                onClick={onBackToMain}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'rgba(240, 240, 240, 1)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  fontSize: theme.fontSize.base,
-                  padding: '0.5rem',
-                }}
-              >
-                <FiArrowLeft size={20} />
-                Назад
-              </button>
-            )}
-          </>
-        }
       />
       <ContentContainer>
         <PageTitle>

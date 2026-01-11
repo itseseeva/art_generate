@@ -6,6 +6,7 @@ import { ShopModal } from './ShopModal';
 import { AuthModal } from './AuthModal';
 import { PhotoGenerationPage } from './PhotoGenerationPage';
 import { Footer } from './Footer';
+import { GlobalHeader } from './GlobalHeader';
 import Switcher4 from './Switcher4';
 import { NSFWWarningModal } from './NSFWWarningModal';
 import { API_CONFIG } from '../config/api';
@@ -24,6 +25,14 @@ const MainContainer = styled.div`
     min-height: 100%;
     overflow: visible;
   }
+`;
+
+const HeaderWrapper = styled.div`
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  width: 100%;
+  background: transparent;
 `;
 
 
@@ -120,7 +129,7 @@ const FilterButton = styled.button<{ $active?: boolean }>`
 const CharactersGrid = styled.div`
   flex: 1;
   padding: ${theme.spacing.xs} ${theme.spacing.sm};
-  overflow-y: auto;
+  overflow-y: visible;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 0;
@@ -917,6 +926,14 @@ export const MainPage: React.FC<MainPageProps> = ({
 
   return (
     <MainContainer>
+      <HeaderWrapper>
+        <GlobalHeader 
+          onShop={onShop || handleShop}
+          onProfile={onProfile}
+          onLogin={handleLogin}
+          onHome={onHome}
+        />
+      </HeaderWrapper>
       {showNSFWWarning && (
         <NSFWWarningModal
           onConfirm={() => {
@@ -1005,6 +1022,7 @@ export const MainPage: React.FC<MainPageProps> = ({
         </>
       )}
       </ContentArea>
+      <Footer />
     </MainContainer>
   );
 };

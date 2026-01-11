@@ -224,7 +224,6 @@ export const FavoritesPage: React.FC<FavoritesPageProps> = ({
       <div className="content-area vertical">
         <GlobalHeader 
           onShop={onShop}
-          leftContent={<Title>Избранное</Title>}
         />
         
         <CharactersGrid>

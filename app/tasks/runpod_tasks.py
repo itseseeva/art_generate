@@ -17,15 +17,13 @@ class RunPodGenerationTask(Task):
     Обрабатывает ошибки и логирование.
     """
     
-    autoretry_for = (Exception,)
-    retry_kwargs = {"max_retries": 3, "countdown": 60}
-    retry_backoff = True
-    retry_backoff_max = 600
-    retry_jitter = True
+    # Мы будем управлять повторами вручную в методе задачи для большего контроля
+    max_retries = 2
     
     def on_failure(self, exc, task_id, args, kwargs, einfo):
         """Вызывается при неудачном выполнении задачи."""
-        logger.error(f"[RUNPOD TASK] Задача {task_id} завершилась с ошибкой: {exc}")
+        logger.error(f"[RUNPOD TASK] Задача {task_id} окончательно завершилась с ошибкой: {exc}")
+        # При окончательной ошибке списывать монеты мы уже списали в начале
         super().on_failure(exc, task_id, args, kwargs, einfo)
     
     def on_success(self, retval, task_id, args, kwargs):
@@ -35,7 +33,7 @@ class RunPodGenerationTask(Task):
     
     def on_retry(self, exc, task_id, args, kwargs, einfo):
         """Вызывается при повторной попытке выполнения задачи."""
-        logger.warning(f"[RUNPOD TASK] Задача {task_id} будет повторена из-за: {exc}")
+        logger.warning(f"[RUNPOD TASK] Задача {task_id} будет повторена (попытка {self.request.retries + 1}) из-за: {exc}")
         super().on_retry(exc, task_id, args, kwargs, einfo)
 
 
@@ -62,42 +60,16 @@ def generate_image_runpod_task(
 ) -> Dict[str, Any]:
     """
     Celery задача для генерации изображения через RunPod API.
-    
-    Args:
-        user_prompt: Промпт пользователя
-        width: Ширина изображения
-        height: Высота изображения
-        steps: Количество шагов
-        cfg_scale: CFG Scale
-        seed: Сид для генерации
-        sampler_name: Название сэмплера
-        scheduler: Планировщик
-        negative_prompt: Негативный промпт
-        use_enhanced_prompts: Использовать ли дефолтные промпты
-        timeout: Максимальное время ожидания в секундах
-        
-    Returns:
-        Dict с результатами:
-        {
-            "success": True,
-            "image_url": "https://...",
-            "prompt": "...",
-            "task_id": "..."
-        }
-        
-    Raises:
-        Exception: При ошибках генерации (будет автоматически обработано retry)
     """
     task_id = self.request.id
-    logger.info(f"[RUNPOD TASK] Запуск задачи {task_id} с промптом: {user_prompt[:100]}...")
+    current_retry = self.request.retries
+    logger.info(f"[RUNPOD TASK] Запуск задачи {task_id} (попытка {current_retry})")
     
-    # Функция, которая будет обновлять статус задачи в Redis/Celery
     def update_celery_progress(progress_str):
-        # Парсим "30%" -> 30
         try:
             percent = int(progress_str.replace('%', '').strip())
             self.update_state(
-                state='PROGRESS',  # Специальный статус
+                state='PROGRESS',
                 meta={
                     'status': 'generating',
                     'progress': percent,
@@ -108,12 +80,13 @@ def generate_image_runpod_task(
             pass
     
     try:
-        # Создаём новый event loop для этой задачи
+        import time
+        start_time = time.time()
+        
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
         try:
-            # Запускаем асинхронную генерацию
             image_url = loop.run_until_complete(
                 generate_image_async(
                     user_prompt=user_prompt,
@@ -129,13 +102,15 @@ def generate_image_runpod_task(
                     timeout=timeout,
                     model=model,
                     lora_scale=lora_scale,
-                    progress_callback=update_celery_progress  # <--- ПЕРЕДАЕМ КОЛЛБЕК
+                    progress_callback=update_celery_progress
                 )
             )
         finally:
             loop.close()
         
-        result = {
+        execution_time = int(time.time() - start_time)
+        
+        return {
             "success": True,
             "image_url": image_url,
             "prompt": user_prompt,
@@ -145,19 +120,35 @@ def generate_image_runpod_task(
             "steps": steps,
             "cfg_scale": cfg_scale,
             "seed": seed,
-            "progress": 100  # Финал
+            "progress": 100,
+            "generation_time": execution_time
         }
-        
-        logger.success(f"[RUNPOD TASK] Задача {task_id} завершена успешно: {image_url}")
-        return result
-        
-    except TimeoutError as e:
-        logger.error(f"[RUNPOD TASK] Таймаут для задачи {task_id}: {e}")
-        raise self.retry(exc=e, countdown=120)  # Повторная попытка через 2 минуты
-        
+    
     except Exception as e:
-        logger.error(f"[RUNPOD TASK] Ошибка в задаче {task_id}: {e}")
-        raise  # Позволяем autoretry обработать ошибку
+        error_msg = str(e)
+        logger.error(f"[RUNPOD TASK] Ошибка в задаче {task_id}: {error_msg}")
+        
+        # Если это ошибка CUDA out of memory, мы можем попробовать еще раз через паузу,
+        # но если это последняя попытка, нужно отдать детальную ошибку
+        is_oom = "CUDA out of memory" in error_msg
+        
+        if current_retry < self.max_retries:
+            # Обновляем состояние перед ретраем, чтобы фронтенд видел ошибку
+            self.update_state(
+                state='RETRY',
+                meta={
+                    'status': 'retrying',
+                    'error': error_msg,
+                    'message': f"Ошибка: {error_msg}. Повторная попытка..."
+                }
+            )
+            # Для OOM делаем паузу побольше, чтобы память успела очиститься
+            countdown = 10 if not is_oom else 30
+            raise self.retry(exc=e, countdown=countdown)
+        else:
+            # Если попытки исчерпаны, пробрасываем ошибку дальше
+            # Celery установит состояние FAILURE
+            raise RuntimeError(f"Генерация не удалась после {self.max_retries + 1} попыток. Последняя ошибка: {error_msg}")
 
 
 @celery_app.task(

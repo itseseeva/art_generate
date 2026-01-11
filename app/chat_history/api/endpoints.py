@@ -287,20 +287,60 @@ async def get_prompt_by_image(
         user_id = current_user.id
         # Логирование удалено для уменьшения шума в логах
 
-        # Нормализуем URL точно так же, как при сохранении
+        # Максимально простая и надежная нормализация
         normalized_url = image_url.split('?')[0].split('#')[0] if image_url else image_url
+        filename = normalized_url.split('/')[-1] if '/' in normalized_url else normalized_url
         
-        # ВАЖНО: Сначала ищем в ImageGenerationHistory, так как там всегда есть реальный промпт
-        # ChatHistory может содержать "Генерация изображения" вместо реального промпта
+        logger.info(f"[PROMPT] Поиск промпта для файла: {filename}")
+
+        # 1. Сначала ищем в ChatHistory (там сообщения чата)
+        from sqlalchemy.orm import load_only
+        from sqlalchemy import and_, not_
+        
+        # Список исключаемых паттернов для контента (заглушки)
+        exclude_patterns = ["Генерация изображения", "[image:", "Генерация..."]
+        
+        stmt = (
+            select(ChatHistory)
+            .options(load_only(
+                ChatHistory.id, ChatHistory.user_id, ChatHistory.character_name,
+                ChatHistory.message_content, ChatHistory.image_url, ChatHistory.created_at,
+                ChatHistory.generation_time
+            ))
+            .where(
+                ChatHistory.user_id == user_id,
+                ChatHistory.image_url.contains(filename),
+                ChatHistory.message_content.is_not(None),
+                ChatHistory.message_content != "",
+                # Исключаем заглушки
+                not_(ChatHistory.message_content.like("Генерация изображения%")),
+                not_(ChatHistory.message_content.like("[image:%"))
+            )
+            .order_by(ChatHistory.created_at.desc())
+            .limit(1)
+        )
+        message = (await db.execute(stmt)).scalars().first()
+        
+        if message and message.message_content:
+            return {
+                "success": True,
+                "prompt": message.message_content,
+                "character_name": message.character_name,
+                "generation_time": message.generation_time
+            }
+
+        # 2. Если не нашли в чате, ищем в глобальной истории генераций (там всегда чистый промпт)
         try:
             from app.models.image_generation_history import ImageGenerationHistory
-            from sqlalchemy import func
-            # Нормализуем URL при поиске, так как в базе теперь хранятся нормализованные URL
+            
+            # Пробуем найти по полному URL
             image_history_stmt = (
                 select(ImageGenerationHistory)
                 .where(
-                    func.regexp_replace(ImageGenerationHistory.image_url, '[?#].*$', '') == normalized_url,
-                    ImageGenerationHistory.user_id == user_id
+                    ImageGenerationHistory.image_url.contains(filename),
+                    ImageGenerationHistory.user_id == user_id,
+                    ImageGenerationHistory.prompt.is_not(None),
+                    ImageGenerationHistory.prompt != ""
                 )
                 .order_by(ImageGenerationHistory.created_at.desc())
                 .limit(1)
@@ -308,102 +348,51 @@ async def get_prompt_by_image(
             image_history_record = (await db.execute(image_history_stmt)).scalars().first()
             
             if image_history_record and image_history_record.prompt:
-                # Логирование удалено для уменьшения шума в логах
+                # Очищаем промпт от JSON если он там есть
+                clean_prompt = image_history_record.prompt
+                try:
+                    import json
+                    if clean_prompt.strip().startswith('{'):
+                        data = json.loads(clean_prompt)
+                        if isinstance(data, dict) and 'prompt' in data:
+                            clean_prompt = data['prompt']
+                except:
+                    pass
+                    
                 return {
                     "success": True,
-                    "prompt": image_history_record.prompt,
-                    "character_name": image_history_record.character_name
+                    "prompt": clean_prompt,
+                    "character_name": image_history_record.character_name,
+                    "generation_time": image_history_record.generation_time
                 }
         except Exception as img_history_err:
             logger.warning(f"[PROMPT] Ошибка поиска в ImageGenerationHistory: {img_history_err}")
-        
-        # Если не найдено в ImageGenerationHistory, ищем в ChatHistory
-        # Сначала ищем промпт у текущего пользователя (приоритет)
-        # Используем load_only чтобы избежать ошибок с отсутствующими полями в БД
-        from sqlalchemy.orm import load_only
+
+        # 3. Крайний случай: поиск по всем пользователям по имени файла (тоже исключая заглушки)
         stmt = (
             select(ChatHistory)
             .options(load_only(
-                ChatHistory.id,
-                ChatHistory.user_id,
-                ChatHistory.character_name,
-                ChatHistory.session_id,
-                ChatHistory.message_type,
-                ChatHistory.message_content,
-                ChatHistory.image_url,
-                ChatHistory.image_filename,
-                ChatHistory.created_at
+                ChatHistory.id, ChatHistory.user_id, ChatHistory.character_name,
+                ChatHistory.message_content, ChatHistory.image_url, ChatHistory.created_at,
+                ChatHistory.generation_time
             ))
             .where(
-                ChatHistory.image_url == normalized_url,
-                ChatHistory.user_id == user_id
+                ChatHistory.image_url.contains(filename),
+                ChatHistory.message_content.is_not(None),
+                ChatHistory.message_content != "",
+                not_(ChatHistory.message_content.like("Генерация изображения%")),
+                not_(ChatHistory.message_content.like("[image:%"))
             )
             .order_by(ChatHistory.created_at.desc())
             .limit(1)
         )
         message = (await db.execute(stmt)).scalars().first()
-        
-        # Если найдено, но это "Генерация изображения", продолжаем поиск
-        if message and message.message_content == "Генерация изображения":
-            message = None  # Сбрасываем, чтобы продолжить поиск
-        
-        # Если не найдено у текущего пользователя, ищем среди всех пользователей (fallback)
-        if not message:
-            stmt = (
-                select(ChatHistory)
-                .options(load_only(
-                    ChatHistory.id,
-                    ChatHistory.user_id,
-                    ChatHistory.character_name,
-                    ChatHistory.session_id,
-                    ChatHistory.message_type,
-                    ChatHistory.message_content,
-                    ChatHistory.image_url,
-                    ChatHistory.image_filename,
-                    ChatHistory.created_at
-                ))
-                .where(ChatHistory.image_url == normalized_url)
-                .order_by(ChatHistory.created_at.desc())
-                .limit(1)
-            )
-            message = (await db.execute(stmt)).scalars().first()
-        
-            # Если найдено, но это "Генерация изображения", продолжаем поиск
-            if message and message.message_content == "Генерация изображения":
-                logger.info(f"[PROMPT] Найдена запись с 'Генерация изображения' среди всех пользователей, продолжаем поиск")
-                message = None
-        
-        # Если не найдено в ChatHistory или найдено только "Генерация изображения", ищем в ImageGenerationHistory среди всех пользователей
-        if not message:
-            logger.info(f"[PROMPT] Промпт не найден в ChatHistory или это 'Генерация изображения', ищем в ImageGenerationHistory среди всех пользователей")
-            try:
-                from app.models.image_generation_history import ImageGenerationHistory
-                from sqlalchemy import func
-                # Нормализуем URL при поиске, так как в базе теперь хранятся нормализованные URL
-                image_history_stmt = (
-                    select(ImageGenerationHistory)
-                    .where(func.regexp_replace(ImageGenerationHistory.image_url, '[?#].*$', '') == normalized_url)
-                    .order_by(ImageGenerationHistory.created_at.desc())
-                    .limit(1)
-                )
-                image_history_record = (await db.execute(image_history_stmt)).scalars().first()
-                
-                if image_history_record and image_history_record.prompt:
-                    # Логирование удалено для уменьшения шума в логах
-                    return {
-                        "success": True,
-                        "prompt": image_history_record.prompt,
-                        "character_name": image_history_record.character_name
-                    }
-            except Exception as img_history_err:
-                logger.warning(f"[PROMPT] Ошибка поиска в ImageGenerationHistory: {img_history_err}")
-        
-        if message and message.message_content != "Генерация изображения":
-            # Логирование удалено для уменьшения шума в логах
+        if message and message.message_content:
             return {
                 "success": True,
                 "prompt": message.message_content,
-                "character_name": message.character_name
+                "character_name": message.character_name,
+                "generation_time": message.generation_time
             }
 
         # Дополнительная диагностика: проверяем, есть ли вообще записи для этого пользователя

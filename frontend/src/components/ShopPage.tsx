@@ -9,12 +9,14 @@ import { authManager } from '../utils/auth';
 import { FiCheck, FiCpu, FiImage, FiMessageSquare, FiZap } from 'react-icons/fi';
 import { FaBitcoin } from 'react-icons/fa';
 
+import { GlobalHeader } from './GlobalHeader';
+
 const MainContainer = styled.div`
   width: 100%;
   min-height: 100vh;
   background: #0a0a0a;
-  padding: 2rem 1rem;
-  overflow-y: scroll; /* Всегда показываем скроллбар, чтобы не было прыжков экрана по горизонтали */
+  padding: 0;
+  overflow-y: visible;
   position: relative;
   font-family: 'Inter', sans-serif;
   color: white;
@@ -23,6 +25,7 @@ const MainContainer = styled.div`
 const ContentWrapper = styled.div`
   max-width: 1200px;
   margin: 0 auto;
+  padding: 2rem 1rem;
   position: relative;
   z-index: 1;
   display: flex;
@@ -138,15 +141,18 @@ const DurationTab = styled.button<{ $active: boolean }>`
 
 const SaveTag = styled.span`
   position: absolute;
-  top: -10px;
-  right: -5px;
-  background: #be185d;
+  top: -12px;
+  right: -8px;
+  background: linear-gradient(135deg, #be185d 0%, #db2777 100%);
   color: white;
-  font-size: 0.6rem;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 700;
-  transform: rotate(5deg);
+  font-size: 0.55rem;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-weight: 800;
+  transform: rotate(3deg);
+  box-shadow: 0 2px 8px rgba(190, 24, 93, 0.4);
+  white-space: nowrap;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 `;
 
 const PlansGrid = styled.div`
@@ -170,21 +176,24 @@ const PlanCard = styled(motion.div)<{ $highlight?: boolean; $selected?: boolean;
       : 'linear-gradient(145deg, #1a1a1a 0%, #2d2d2d 100%)'};
   border: 2px solid rgba(255, 255, 255, 0.1);
   border-radius: 24px;
-  padding: 2rem 1.5rem; /* Немного уменьшил боковые отступы */
+  padding: 2rem 1.5rem;
   display: flex;
   flex-direction: column;
   position: relative;
-  /* Фиксированная минимальная высота для стабильности при смене контента */
   min-height: ${props => {
     if (props.$planType === 'free') return '480px';
     if (props.$planType === 'standard') return '580px';
     if (props.$planType === 'premium') return '610px';
-    return '550px'; // Значение по умолчанию для кредитов
+    return '550px';
   }};
   backdrop-filter: blur(20px);
   cursor: pointer;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease, min-height 0.3s ease;
-  overflow: visible; /* Чтобы бейдж не обрезался */
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  overflow: visible;
+  /* Улучшение рендеринга для предотвращения тряски */
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+  will-change: transform, box-shadow;
 
   @media (max-width: 900px) {
     min-height: auto;
@@ -394,9 +403,9 @@ type BillingCycle = 'monthly' | '3_months' | '6_months' | 'yearly';
 
 const DISCOUNTS = {
   'monthly': 0,
-  '3_months': 0.08,
+  '3_months': 0.10,
   '6_months': 0.15,
-  'yearly': 0.15 // Изменено с 0.21 на 0.15 (вместо скидки даем +10% бонуса к кредитам)
+  'yearly': 0.20
 };
 
 const CYCLE_MONTHS = {
@@ -409,7 +418,8 @@ const CYCLE_MONTHS = {
 export const ShopPage: React.FC<any> = ({
   onBackToMain,
   isAuthenticated: propIsAuthenticated,
-  userInfo: propUserInfo
+  userInfo: propUserInfo,
+  onProfile
 }) => {
   const [viewMode, setViewMode] = useState<'subscription' | 'credits'>('subscription');
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('yearly');
@@ -581,15 +591,15 @@ export const ShopPage: React.FC<any> = ({
         <DurationTabs>
           <DurationTab $active={billingCycle === 'yearly'} onClick={() => setBillingCycle('yearly')}>
             Год
-            <SaveTag>+10% БОНУС</SaveTag>
+            <SaveTag>SAVE 20% + 10% БОНУС</SaveTag>
           </DurationTab>
           <DurationTab $active={billingCycle === '6_months'} onClick={() => setBillingCycle('6_months')}>
             6 Месяцев
-            <SaveTag>+5% БОНУС</SaveTag>
+            <SaveTag>SAVE 15% + 5% БОНУС</SaveTag>
           </DurationTab>
           <DurationTab $active={billingCycle === '3_months'} onClick={() => setBillingCycle('3_months')}>
             3 Месяца
-            <SaveTag>SAVE 8%</SaveTag>
+            <SaveTag>SAVE 10%</SaveTag>
           </DurationTab>
           <DurationTab $active={billingCycle === 'monthly'} onClick={() => setBillingCycle('monthly')}>
             Месяц
@@ -911,6 +921,10 @@ export const ShopPage: React.FC<any> = ({
 
   return (
     <MainContainer>
+      <GlobalHeader 
+        onHome={onBackToMain}
+        onProfile={onProfile}
+      />
       <ContentWrapper>
         <ToggleContainer>
           <ToggleButton 

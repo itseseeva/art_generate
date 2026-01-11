@@ -692,7 +692,6 @@ useEffect(() => {
         <div className="content-area vertical">
           <GlobalHeader 
             onShop={onShop}
-            leftContent={<Title>Генерация фото персонажа</Title>}
           />
           <MainContent>
             <div style={{ textAlign: 'center', padding: '2rem' }}>
@@ -725,7 +724,6 @@ useEffect(() => {
           }}
           onProfile={onProfile}
           onBalance={() => alert('Баланс пользователя')}
-          leftContent={<Title>Генерация фото персонажа</Title>}
         />
         
         <MainContent>

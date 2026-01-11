@@ -11,6 +11,7 @@ import { FiX as CloseIcon } from 'react-icons/fi';
 import { fetchPromptByImage } from '../utils/prompt';
 
 import { useIsMobile } from '../hooks/useIsMobile';
+import { GlobalHeader } from './GlobalHeader';
 
 const MainContainer = styled.div<{ $isMobile?: boolean }>`
   width: 100%;
@@ -64,6 +65,14 @@ const MainContainer = styled.div<{ $isMobile?: boolean }>`
 `;
 
 
+
+const HeaderWrapper = styled.div`
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  width: 100%;
+  background: transparent;
+`;
 
 const MainContent = styled.div`
   flex: 1;
@@ -1882,10 +1891,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [authCheckComplete, setAuthCheckComplete] = useState(false);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime' | 'realism'>('anime-realism');
-  const [fakeProgress, setFakeProgress] = useState(0);
   const [generationProgress, setGenerationProgress] = useState<number | undefined>(undefined);
-  const fakeProgressIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
-  const fakeProgressTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const generationQueueRef = React.useRef<number>(0); // Счетчик задач в очереди
   const customPromptRef = React.useRef<string>(''); // Ref для актуального промпта
   
@@ -2038,17 +2044,6 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     };
     
     initPage();
-
-    return () => {
-      if (fakeProgressIntervalRef.current) {
-        clearInterval(fakeProgressIntervalRef.current);
-        fakeProgressIntervalRef.current = null;
-      }
-      if (fakeProgressTimeoutRef.current) {
-        clearTimeout(fakeProgressTimeoutRef.current);
-        fakeProgressTimeoutRef.current = null;
-      }
-    };
   }, []);
 
   // Показываем модалку ТОЛЬКО один раз после проверки
@@ -2368,53 +2363,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
     window.location.reload();
   };
 
-  // Генерация фото
-  const startFakeProgress = React.useCallback(() => {
-    if (fakeProgressIntervalRef.current) {
-      clearInterval(fakeProgressIntervalRef.current);
-      fakeProgressIntervalRef.current = null;
-    }
-    if (fakeProgressTimeoutRef.current) {
-      clearTimeout(fakeProgressTimeoutRef.current);
-      fakeProgressTimeoutRef.current = null;
-    }
-    setFakeProgress(0);
-    
-    const duration = 30000;
-    const interval = 300;
-    const steps = duration / interval;
-    const increment = 99 / steps;
-    
-    let currentProgress = 0;
-    fakeProgressIntervalRef.current = setInterval(() => {
-      currentProgress += increment;
-      if (currentProgress >= 99) {
-        currentProgress = 99;
-      }
-      setFakeProgress(Math.min(99, Math.round(currentProgress)));
-    }, interval);
-  }, []);
-
-  const stopFakeProgress = React.useCallback((immediate: boolean) => {
-    if (fakeProgressIntervalRef.current) {
-      clearInterval(fakeProgressIntervalRef.current);
-      fakeProgressIntervalRef.current = null;
-    }
-    if (fakeProgressTimeoutRef.current) {
-      clearTimeout(fakeProgressTimeoutRef.current);
-      fakeProgressTimeoutRef.current = null;
-    }
-    if (immediate) {
-      setFakeProgress(0);
-      return;
-    }
-    setFakeProgress(100);
-    fakeProgressTimeoutRef.current = setTimeout(() => {
-      setFakeProgress(0);
-      fakeProgressTimeoutRef.current = null;
-    }, 500);
-  }, []);
-
   const togglePhotoSelection = async (photoId: string) => {
     const targetPhoto = generatedPhotos.find(photo => photo.id === photoId);
     if (!targetPhoto) return;
@@ -2662,11 +2610,19 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
             if (statusResponse.ok) {
               const statusData = await statusResponse.json();
               
-              if (statusData.status === 'generating' && statusData.result?.progress !== undefined) {
-                const progress = typeof statusData.result.progress === 'number'
+              // Используем прогресс от сервера (там теперь заглушка на 10 сек)
+              let newProgress = 0;
+              if (statusData.progress !== undefined) {
+                newProgress = statusData.progress;
+              } else if (statusData.result?.progress !== undefined) {
+                const prog = typeof statusData.result.progress === 'number'
                   ? statusData.result.progress
                   : parseInt(String(statusData.result.progress).replace('%', ''), 10);
-                setGenerationProgress(Math.min(99, Math.max(0, progress)));
+                newProgress = Math.min(99, Math.max(0, prog));
+              }
+
+              if (newProgress > 0) {
+                setGenerationProgress(prev => Math.max(prev || 0, newProgress));
               }
               
               if (statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED') {
@@ -2767,7 +2723,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
     setIsGeneratingPhoto(true);
     setError(null);
     setGenerationProgress(undefined);
-    startFakeProgress();
 
     const processGeneration = async () => {
       try {
@@ -2791,14 +2746,12 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
           setGeneratedPhotos(prev => [...prev, { ...photo, isSelected: false }]);
               setSuccess('Фото успешно сгенерировано!');
         }
-      stopFakeProgress(false);
       setGenerationProgress(100);
       
       // Обновляем информацию о пользователе
       await checkAuth();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка генерации фото');
-      stopFakeProgress(true);
     } finally {
       setIsGeneratingPhoto(false);
         setGenerationProgress(undefined);
@@ -2847,6 +2800,26 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
   
   return (
     <MainContainer $isMobile={isMobile}>
+      <HeaderWrapper>
+        <GlobalHeader
+          onShop={onShop}
+          onHome={onBackToMain}
+          onLogin={() => {
+            setAuthMode('login');
+            setIsAuthModalOpen(true);
+          }}
+          onRegister={() => {
+            setAuthMode('register');
+            setIsAuthModalOpen(true);
+          }}
+          onLogout={() => {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('refreshToken');
+            window.location.reload();
+          }}
+          refreshTrigger={0}
+        />
+      </HeaderWrapper>
       <MainContent>
         <form onSubmit={isCharacterCreated ? handleEditCharacter : handleSubmit} className={`flex-1 flex gap-6 ${isMobile ? 'h-auto' : 'h-full'} flex-col md:flex-row w-full`}>
           {/* Левая колонка - Форма */}
@@ -3137,7 +3110,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                       const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
                       const isQueueFull = activeGenerations >= queueLimit;
                       const progress = isGeneratingPhoto 
-                        ? (generationProgress !== undefined && generationProgress > 0 ? generationProgress : (fakeProgress || 0))
+                        ? (generationProgress !== undefined && generationProgress > 0 ? generationProgress : 0)
                         : 0;
                       const baseText = isQueueFull 
                         ? `Сгенерировать фото (10 монет) • Очередь заполнена`

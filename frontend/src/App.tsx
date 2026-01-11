@@ -47,7 +47,8 @@ const PageContainer = styled.div<{ $isMobile?: boolean }>`
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: ${props => props.$isMobile ? 'auto' : 'hidden'};
+  overflow-x: hidden;
+  overflow-y: auto;
   position: relative;
   padding-top: 0;
   scroll-behavior: smooth;
@@ -782,6 +783,8 @@ function App() {
             onPaymentMethod={handlePaymentMethod}
             isAuthenticated={isAuthenticated}
             userInfo={userInfo}
+            onProfile={handleProfile}
+            onHome={handleBackToMain}
           />
         );
       case 'profile':
@@ -799,6 +802,7 @@ function App() {
             onMyCharacters={handleMyCharacters}
             onMessages={handleMessages}
             onHistory={handleHistory}
+            onBalanceHistory={handleBalanceHistory}
             onCreateCharacter={handleCreateCharacter}
             onEditCharacters={handleEditCharacters}
             onCharacterSelect={handleCharacterSelect}
@@ -1426,7 +1430,6 @@ function App() {
         />
         <PageContainer className="app-scroll-container" $isMobile={isMobile}>
           {renderPage()}
-          {currentPage === 'main' && <Footer />}
         </PageContainer>
       </AppContainer>
 

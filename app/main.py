@@ -2241,6 +2241,7 @@ async def chat_endpoint(
         subscription = None
         subscription_type_enum = None
         
+        from app.models.subscription import SubscriptionType
         async with async_session_maker() as db:
             # 1. Проверяем возможность отправки сообщения (если авторизован)
             use_credits = False  # Флаг: использовать кредиты подписки или монеты
@@ -2586,7 +2587,7 @@ async def chat_endpoint(
         from app.chat_bot.utils.context_manager import count_messages_tokens
         final_tokens = count_messages_tokens(openai_messages)
         logger.info(f"[CHAT_MAIN] ОТПРАВКА ЗАПРОСА: Модель={model_used}, Контекст={final_tokens}/{max_context_tokens} токенов, Стриминг={use_streaming}")
-
+        
         # Если запрошен стриминг, возвращаем StreamingResponse
         logger.info(f"[STREAM CHECK] use_streaming={use_streaming}, проверяем условие...")
         if use_streaming:
@@ -2695,7 +2696,7 @@ async def chat_endpoint(
         # Определяем эффективную модель
         from app.chat_bot.services.openrouter_service import get_model_for_subscription
         model_used = selected_model if selected_model else get_model_for_subscription(subscription_type_enum)
-
+        
         response = await openrouter_service.generate_text(
             messages=openai_messages,
             max_tokens=max_tokens,
@@ -3414,8 +3415,18 @@ async def generate_image(
     logger.info(f"[GENERATE IMAGE] POST /api/v1/generate-image/")
     logger.info(f"[GENERATE IMAGE] User: {current_user.email if current_user else 'Anonymous'} (ID: {current_user.id if current_user else 'N/A'})")
     logger.info(f"[GENERATE IMAGE] Character: {request.character}")
-    logger.info(f"[GENERATE IMAGE] Steps: {request.steps}, CFG: {request.cfg_scale}, Size: {request.width}x{request.height}, Model: {request.model}")
-    logger.info(f"[GENERATE IMAGE] Промпт (полный): {request.prompt}")
+    
+    # Загружаем параметры по умолчанию для логирования, если в запросе пришел None
+    from app.config.generation_defaults import get_generation_params
+    default_params_for_log = get_generation_params("default")
+    
+    log_steps = request.steps or default_params_for_log.get("steps")
+    log_cfg = request.cfg_scale or default_params_for_log.get("cfg_scale")
+    log_width = request.width or default_params_for_log.get("width")
+    log_height = request.height or default_params_for_log.get("height")
+    
+    logger.info(f"[GENERATE IMAGE] Steps: {log_steps}, CFG: {log_cfg}, Size: {log_width}x{log_height}, Model: {request.model}")
+    logger.info(f"[GENERATE IMAGE] Промпт (полный): {request.prompt[:200]}..." if request.prompt and len(request.prompt) > 200 else f"[GENERATE IMAGE] Промпт (полный): {request.prompt}")
     logger.info(f"[GENERATE IMAGE] Negative prompt: {request.negative_prompt}")
     logger.info(f"[GENERATE IMAGE] Use default prompts: {request.use_default_prompts}")
     logger.info(f"[GENERATE IMAGE] Тип модели: {type(request.model)}, Значение: {repr(request.model)}")
@@ -3853,11 +3864,56 @@ async def generate_image(
         logger.info(f"[GENERATE] =========================================")
         
         try:
+            from app.celery_app import celery_app
+            from app.config.settings import settings
+            # Проверяем доступность Redis перед отправкой задачи
+            try:
+                import redis
+                # Приоритет: REDIS_LOCAL (для локальной разработки) > REDIS_URL (для VPS/Docker)
+                if settings.REDIS_LOCAL:
+                    r_url = settings.REDIS_LOCAL
+                    source = "REDIS_LOCAL"
+                else:
+                    r_url = settings.REDIS_URL
+                    source = "REDIS_URL"
+                
+                # Если мы на Windows/Local и используем localhost, заменяем на 127.0.0.1 для стабильности
+                if "localhost" in r_url:
+                    r_url = r_url.replace("localhost", "127.0.0.1")
+                
+                logger.info(f"[REDIS] Попытка подключения к Redis ({source}): {r_url}")
+                # Используем redis.from_url для корректной обработки всех параметров
+                r = redis.from_url(r_url, socket_connect_timeout=3, socket_timeout=3)
+                r.ping()
+                logger.info(f"[REDIS] Успешное подключение к {r_url}")
+            except Exception as r_err:
+                logger.error(f"[REDIS] Redis недоступен ({source}): {r_url}. Ошибка: {r_err}")
+                # Если 127.0.0.1 не сработал, а мы возможно в Docker (на VPS), пробуем имя сервиса
+                if "127.0.0.1" in r_url:
+                    try:
+                        alt_url = r_url.replace("127.0.0.1", "art_generation_redis")
+                        logger.info(f"[REDIS] Пробуем альтернативный адрес для Docker/VPS: {alt_url}")
+                        r_alt = redis.from_url(alt_url, socket_connect_timeout=2, socket_timeout=2)
+                        r_alt.ping()
+                        r_url = alt_url
+                        logger.info(f"[REDIS] Успешное подключение к {alt_url}")
+                    except Exception:
+                        raise HTTPException(
+                            status_code=503, 
+                            detail=f"Redis не отвечает. Проверьте запущен ли контейнер Redis. Ошибка: {r_err}"
+                        )
+                    else:
+                        raise HTTPException(
+                            status_code=503, 
+                            detail=f"Ошибка связи с Redis ({r_url}): {r_err}"
+                        )
+
             from app.tasks.runpod_tasks import generate_image_runpod_task
             import time
             
             # Определяем приоритет задачи
             task_priority = 5  # Нормальный приоритет по умолчанию
+            from app.models.subscription import SubscriptionType
             if subscription_type_enum == SubscriptionType.PREMIUM:
                 task_priority = 9
                 logger.info(f"[PRIORITY] Установлен приоритет 9 для PREMIUM пользователя {user_id}")
@@ -3914,10 +3970,81 @@ async def generate_image(
                     
                     await db.commit()
                     logger.info(f"[COINS] Списано {PHOTO_GENERATION_COST} монет за запуск Celery задачи для user_id={user_id}")
-            
+
             logger.info(f"[GENERATE] ✅ ЗАДАЧА ОТПРАВЛЕНА В CELERY (priority={task_priority})")
             logger.info(f"[GENERATE] Task ID: {task.id}, Модель: {selected_model}")
             
+            # ВАЖНО: Создаем запись в ChatHistory СРАЗУ, чтобы промпт был виден
+            try:
+                from sqlalchemy import text
+                from app.database.db import async_session_maker
+                import datetime
+                
+                async with async_session_maker() as history_db:
+                    # Используем raw SQL, чтобы избежать проблем с отсутствующей колонкой generation_time
+                    await history_db.execute(
+                        text("""
+                            INSERT INTO chat_history (user_id, character_name, session_id, message_type, message_content, image_url, image_filename, created_at)
+                            VALUES (:user_id, :character_name, :session_id, :message_type, :message_content, :image_url, :image_filename, NOW())
+                        """),
+                        {
+                            "user_id": user_id,
+                            "character_name": request.character or "неизвестный",
+                            "session_id": f"task_{task.id}",
+                            "message_type": "assistant",
+                            "message_content": generation_settings.prompt,
+                            "image_url": None,
+                            "image_filename": None
+                        }
+                    )
+                    await history_db.commit()
+                    logger.info(f"[PROMPT] Создана начальная запись в ChatHistory для task_{task.id}")
+            except Exception as e:
+                logger.warning(f"[PROMPT] Не удалось создать начальную запись в ChatHistory: {e}")
+
+            # Сохраняем метаданные задачи для корректной проверки статуса
+            try:
+                from app.utils.redis_cache import cache_set
+                from app.services.runpod_client import RUNPOD_URL_BASE, RUNPOD_URL_BASE_2, RUNPOD_URL_BASE_3
+                
+                # Определяем базовый URL на основе модели
+                url_base = RUNPOD_URL_BASE
+                if selected_model == "anime-realism":
+                    url_base = RUNPOD_URL_BASE_2
+                elif selected_model == "realism":
+                    url_base = RUNPOD_URL_BASE_3
+                
+                # Создаем временную запись в ImageGenerationHistory
+                try:
+                    from app.services.image_generation_history_service import ImageGenerationHistoryService
+                    async with async_session_maker() as history_db:
+                        history_service = ImageGenerationHistoryService(history_db)
+                        # Сохраняем с временным URL
+                        await history_service.save_generation(
+                            user_id=user_id,
+                            character_name=request.character or "неизвестный",
+                            prompt=generation_settings.prompt,
+                            image_url=f"pending:{task.id}", # Временный маркер
+                            task_id=task.id
+                        )
+                except Exception as db_history_err:
+                    logger.warning(f"[GENERATE] Ошибка создания временной записи в истории: {db_history_err}")
+
+                meta = {
+                    "user_id": user_id,
+                    "character_name": request.character,
+                    "prompt": generation_settings.prompt, # Сохраняем ФИНАЛЬНЫЙ промпт
+                    "model": selected_model,
+                    "runpod_url_base": url_base,
+                    "created_at": time.time(),
+                    "type": "celery"
+                }
+                # Сохраняем на 1 час
+                await cache_set(f"generation:{task.id}", meta, ttl_seconds=3600)
+                logger.info(f"[GENERATE] Метаданные сохранены в Redis для task_id={task.id}")
+            except Exception as meta_err:
+                logger.warning(f"[GENERATE] Ошибка сохранения метаданных: {meta_err}")
+
             return {
                 "task_id": task.id,
                 "status_url": f"/api/v1/generation-status/{task.id}",
@@ -4247,572 +4374,258 @@ async def get_generation_status(
 ):
     """
     Получить статус генерации изображения по task_id.
-    Поддерживает как Celery task_id, так и RunPod job_id.
-    
-    Args:
-        task_id: ID задачи Celery или RunPod job_id
-        
-    Returns:
-        dict: Статус задачи и результат (если готово)
     """
     try:
+        from app.celery_app import celery_app
+        from app.utils.redis_cache import cache_get
         
-        # Проверяем, является ли это RunPod job_id (формат: UUID с дефисами)
-        # RunPod job_id обычно выглядит как: "95c8aded-6fa3-4737-9728-7d34a88c277a-e1"
-        import re
-        runpod_job_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(-[0-9a-f]+)?$', re.IGNORECASE)
+        # 1. Сначала проверяем, есть ли метаданные в Redis (наши задачи)
+        metadata = await cache_get(f"generation:{task_id}")
         
-        if runpod_job_pattern.match(task_id):
-            # Это RunPod job_id - проверяем статус через RunPod API
-            from app.services.runpod_client import check_status
-            import httpx
-            
-            # Пытаемся получить runpod_url_base из метаданных
-            runpod_url_base = None
-            try:
-                from app.utils.redis_cache import cache_get
-                generation_metadata = await cache_get(f"generation:{task_id}")
-                if generation_metadata:
-                    if isinstance(generation_metadata, str):
-                        import json
-                        try:
-                            generation_metadata = json.loads(generation_metadata)
-                        except json.JSONDecodeError:
-                            logger.warning(f"[RUNPOD STATUS] Не удалось распарсить метаданные из Redis")
-                            generation_metadata = None
-                    
-                    if generation_metadata and isinstance(generation_metadata, dict):
-                        runpod_url_base = generation_metadata.get("runpod_url_base")
-                        model = generation_metadata.get("model", "unknown")
-                    else:
-                        logger.warning(f"[RUNPOD STATUS] Метаданные не являются словарем: {type(generation_metadata)}")
-                else:
-                    logger.warning(f"[RUNPOD STATUS] Метаданные не найдены в Redis для task_id={task_id}")
-            except Exception as meta_error:
-                logger.warning(f"[RUNPOD STATUS] Не удалось получить runpod_url_base из метаданных: {meta_error}")
-                import traceback
-                logger.warning(f"[RUNPOD STATUS] Трейсбек: {traceback.format_exc()}")
-            
-            # Если не нашли в метаданных, пытаемся найти в БД
-            if not runpod_url_base:
-                try:
-                    from app.models.image_generation_history import ImageGenerationHistory
-                    from sqlalchemy import select
-                    from app.database.db import async_session_maker
-                    async with async_session_maker() as fallback_db:
-                        stmt = select(ImageGenerationHistory).where(
-                            ImageGenerationHistory.task_id == task_id
-                        ).limit(1)
-                        result = await fallback_db.execute(stmt)
-                        pending_entry = result.scalar_one_or_none()
-                        if pending_entry and pending_entry.image_url and pending_entry.image_url.startswith("pending:"):
-                            # Пытаемся извлечь runpod_url_base из JSON в prompt
-                            try:
-                                import json
-                                if pending_entry.prompt:
-                                    prompt_data = json.loads(pending_entry.prompt)
-                                    if isinstance(prompt_data, dict) and "runpod_url_base" in prompt_data:
-                                        runpod_url_base = prompt_data["runpod_url_base"]
-                                        model = prompt_data.get("model", "anime")
-                                        logger.info(f"[RUNPOD STATUS] ✓ Извлечен runpod_url_base из БД: {runpod_url_base}, модель: {model}")
-                                    else:
-                                        logger.warning(f"[RUNPOD STATUS] Найдена pending запись, но runpod_url_base не найден в JSON prompt")
-                                else:
-                                    logger.warning(f"[RUNPOD STATUS] Найдена pending запись, но prompt пуст")
-                            except (json.JSONDecodeError, TypeError) as json_error:
-                                logger.warning(f"[RUNPOD STATUS] Не удалось распарсить JSON из prompt: {json_error}")
-                except Exception as db_error:
-                    logger.warning(f"[RUNPOD STATUS] Ошибка поиска в БД: {db_error}")
-            
-            # Если runpod_url_base не найден, пытаемся определить по модели из метаданных или используем дефолтный
-            if not runpod_url_base:
-                from app.services.runpod_client import RUNPOD_URL_BASE, RUNPOD_URL_BASE_2, RUNPOD_URL_BASE_3
-                # Пытаемся определить модель из метаданных
-                try:
-                    from app.utils.redis_cache import cache_get
-                    generation_metadata = await cache_get(f"generation:{task_id}")
-                    if generation_metadata:
-                        if isinstance(generation_metadata, str):
-                            import json
-                            try:
-                                generation_metadata = json.loads(generation_metadata)
-                            except json.JSONDecodeError:
-                                generation_metadata = None
-                        if generation_metadata and isinstance(generation_metadata, dict):
-                            model = generation_metadata.get("model", "anime")
-                            if model == "anime-realism":
-                                runpod_url_base = RUNPOD_URL_BASE_2
-                                logger.info(f"[RUNPOD STATUS] Определен runpod_url_base по модели 'anime-realism': {runpod_url_base}")
-                            elif model == "realism":
-                                runpod_url_base = RUNPOD_URL_BASE_3
-                                logger.info(f"[RUNPOD STATUS] Определен runpod_url_base по модели 'realism': {runpod_url_base}")
-                            else:
-                                runpod_url_base = RUNPOD_URL_BASE
-                                logger.info(f"[RUNPOD STATUS] Определен runpod_url_base по модели '{model}': {runpod_url_base}")
-                except Exception:
-                    pass
-                
-                # Если все еще не найден, используем дефолтный
-                if not runpod_url_base:
-                    runpod_url_base = RUNPOD_URL_BASE
-                    logger.warning(f"[RUNPOD STATUS] runpod_url_base не найден, используем дефолтный RUNPOD_URL_BASE: {runpod_url_base}")
-            
-            async with httpx.AsyncClient() as client:
-                try:
-                    status_response = await check_status(client, task_id, runpod_url_base)
-                    status = status_response.get("status")
-                    
-                    # Извлекаем прогресс из ответа RunPod API
-                    progress = None
-                    try:
-                        from app.services.runpod_progress_tracker import extract_progress_from_response
-                        progress = extract_progress_from_response(status_response)
-                        if progress is not None:
-                            logger.info(f"[RUNPOD STATUS] ✓ Извлечен прогресс: {progress}%")
-                        # Логирование структуры ответа удалено для уменьшения шума в логах
-                    except Exception as progress_err:
-                        logger.warning(f"[RUNPOD STATUS] Ошибка извлечения прогресса: {progress_err}")
-                        import traceback
-                        logger.debug(f"[RUNPOD STATUS] Traceback: {traceback.format_exc()}")
-                except Exception as check_error:
-                    logger.error(f"[RUNPOD STATUS] Ошибка проверки статуса: {check_error}")
-                    import traceback
-                    logger.error(f"[RUNPOD STATUS] Трейсбек: {traceback.format_exc()}")
-                    # Возвращаем ошибку вместо проброса исключения
-                    return {
-                        "task_id": task_id,
-                        "status": "ERROR",
-                        "message": "Ошибка проверки статуса генерации",
-                        "error": str(check_error),
-                        "progress": 0
-                    }
-            
-            # Если статус IN_PROGRESS и есть прогресс, возвращаем его
-            if status == "IN_PROGRESS" and progress is not None:
-                return {
-                    "status": "generating",  # Используем кастомный статус для фронта
-                    "task_id": task_id,
-                    "progress": progress,
-                    "result": {
-                        "status": "generating",
-                        "progress": progress,
-                        "message": f"Generating: {progress}%"
-                    }
-                }
-            
-            # Если статус IN_PROGRESS но прогресс еще не получен
-            # ВАЖНО: RunPod API не возвращает поле progress в ответе /status для этого типа endpoint
-            # Используем время с момента запуска задачи для оценки прогресса
-            if status == "IN_PROGRESS":
-                estimated_progress = 0
-                execution_time = status_response.get("executionTime", 0)
-                
-                # Пытаемся получить время запуска из метаданных
-                try:
-                    from app.utils.redis_cache import cache_get
-                    import json
-                    import time
-                    generation_metadata = await cache_get(f"generation:{task_id}")
-                    if generation_metadata:
-                        if isinstance(generation_metadata, str):
-                            try:
-                                generation_metadata = json.loads(generation_metadata)
-                            except json.JSONDecodeError:
-                                generation_metadata = None
-                        
-                        if generation_metadata and isinstance(generation_metadata, dict):
-                            start_time = generation_metadata.get("created_at")
-                            if start_time:
-                                elapsed_seconds = time.time() - start_time
-                                # Среднее время генерации ~20 секунд (20000ms), оцениваем прогресс
-                                # Используем более консервативную оценку: первые 5 секунд = 10%, затем линейно до 90%
-                                if elapsed_seconds < 5:
-                                    estimated_progress = min(10, int((elapsed_seconds / 5) * 10))
-                                else:
-                                    # После 5 секунд: от 10% до 90% за оставшиеся 15 секунд
-                                    remaining_time = elapsed_seconds - 5
-                                    estimated_progress = min(90, 10 + int((remaining_time / 15) * 80))
-                                
-                                logger.debug(f"[RUNPOD STATUS] Оценка прогресса на основе времени: {estimated_progress}% (elapsed={elapsed_seconds:.1f}s)")
-                except Exception as time_err:
-                    logger.debug(f"[RUNPOD STATUS] Не удалось оценить прогресс по времени: {time_err}")
-                
-                # Если есть executionTime, используем его для более точной оценки
-                if execution_time > 0:
-                    # executionTime в миллисекундах, среднее время ~20000ms
-                    execution_seconds = execution_time / 1000
-                    # Более консервативная оценка: первые 5 секунд = 10%, затем линейно до 90%
-                    if execution_seconds < 5:
-                        exec_progress = min(10, int((execution_seconds / 5) * 10))
-                    else:
-                        # После 5 секунд: от 10% до 90% за оставшиеся 15 секунд
-                        remaining_time = execution_seconds - 5
-                        exec_progress = min(90, 10 + int((remaining_time / 15) * 80))
-                    # Используем максимум из двух оценок (по времени запуска и по executionTime)
-                    estimated_progress = max(estimated_progress, exec_progress)
-                    logger.debug(f"[RUNPOD STATUS] Оценка прогресса на основе executionTime: {estimated_progress}% (executionTime={execution_time}ms, {execution_seconds:.1f}s)")
-                
-                return {
-                    "status": "generating",
-                    "task_id": task_id,
-                    "progress": estimated_progress,
-                    "result": {
-                        "status": "generating",
-                        "progress": estimated_progress,
-                        "message": f"Generating: {estimated_progress}%" if estimated_progress > 0 else "Generating..."
-                    }
-                }
-            
-            if status == "COMPLETED":
-                output = status_response.get("output", {})
-                logger.info(f"[RUNPOD STATUS] Полный output: {output}")
-                image_url = output.get("image_url")
-                generation_time = output.get("generation_time")  # Время генерации от RunPod
-                seed_used = output.get("seed")  # Seed, который использовался для генерации
-                logger.info(f"[RUNPOD STATUS] generation_time из output: {generation_time}")
-                if seed_used is not None:
-                    logger.info(f"[RUNPOD STATUS] 🎲 SEED использованный для генерации: {seed_used}")
-                
-                if image_url:
-                    # Конвертируем URL через прокси
-                    from app.services.yandex_storage import YandexCloudStorageService
-                    image_url = YandexCloudStorageService.convert_yandex_url_to_proxy(image_url)
-                    
-                    result = {
-                        "image_url": image_url,
-                        "cloud_url": image_url,
-                        "success": True
-                    }
-                    # Добавляем generation_time если оно есть
-                    if generation_time is not None:
-                        result["generation_time"] = generation_time
-                        logger.info(f"[RUNPOD STATUS] Добавлено generation_time в result: {generation_time}")
-                    else:
-                        logger.warning(f"[RUNPOD STATUS] generation_time отсутствует в output!")
-                    
-                    # КРИТИЧЕСКИ ВАЖНО: Сохраняем историю генерации изображения
-                    try:
-                        from app.utils.redis_cache import cache_get
-                        from app.services.image_generation_history_service import ImageGenerationHistoryService
-                        from app.database.db import async_session_maker
-                        from app.models.image_generation_history import ImageGenerationHistory
-                        from sqlalchemy import select, update
-                        import json
-                        
-                        user_id = None
-                        character_name = None
-                        prompt = "Генерация изображения"
-                        
-                        # Пытаемся получить метаданные из Redis
-                        metadata_raw = await cache_get(f"generation:{task_id}")
-                        if metadata_raw:
-                            # cache_get уже возвращает распарсенный JSON (dict) или строку
-                            if isinstance(metadata_raw, str):
-                                try:
-                                    metadata = json.loads(metadata_raw)
-                                except json.JSONDecodeError:
-                                    metadata = None
-                            else:
-                                metadata = metadata_raw
-                            
-                            if metadata and isinstance(metadata, dict):
-                                user_id = metadata.get("user_id")
-                                character_name = metadata.get("character_name")
-                                prompt = metadata.get("prompt", "Генерация изображения")
-                                logger.info(f"[IMAGE_HISTORY] Получены метаданные из Redis: user_id={user_id}, character={character_name}, task_id={task_id}")
-                        
-                        # Если не нашли в Redis, пытаемся найти временную запись в БД
-                        if not user_id or not character_name:
-                            logger.info(f"[IMAGE_HISTORY] Метаданные не найдены в Redis, ищем в БД по task_id={task_id}")
-                            async with async_session_maker() as search_db:
-                                temp_entry = await search_db.execute(
-                                    select(ImageGenerationHistory).where(
-                                        ImageGenerationHistory.task_id == task_id,
-                                        ImageGenerationHistory.image_url.like("pending:%")
-                                    ).limit(1)
-                                )
-                                temp_record = temp_entry.scalars().first()
-                                
-                                if temp_record:
-                                    user_id = temp_record.user_id
-                                    character_name = temp_record.character_name
-                                    # Извлекаем оригинальный промпт из JSON, если он там сохранен
-                                    prompt_text = temp_record.prompt or "Генерация изображения"
-                                    try:
-                                        import json
-                                        prompt_data = json.loads(prompt_text)
-                                        if isinstance(prompt_data, dict) and "prompt" in prompt_data:
-                                            prompt = prompt_data["prompt"]
-                                        else:
-                                            prompt = prompt_text
-                                    except (json.JSONDecodeError, TypeError):
-                                        prompt = prompt_text
-                                    logger.info(f"[IMAGE_HISTORY] Найдена временная запись в БД: user_id={user_id}, character={character_name}")
-                        
-                        # Сохраняем историю если есть все данные
-                        if user_id and character_name and image_url:
-                            logger.info(f"[IMAGE_HISTORY] Сохраняем историю генерации: user_id={user_id}, character={character_name}, image_url={image_url[:50]}...")
-                            
-                            async with async_session_maker() as history_db:
-                                # Используем сервис для сохранения (он сам проверит дубликаты и обновит pending записи)
-                                history_service = ImageGenerationHistoryService(history_db)
-                                saved = await history_service.save_generation(
-                                    user_id=user_id,
-                                    character_name=character_name,
-                                    image_url=image_url,
-                                    prompt=prompt,
-                                    generation_time=generation_time,
-                                    task_id=task_id
-                                )
-                                
-                                if saved:
-                                    logger.info(f"[IMAGE_HISTORY] ✓ История сохранена для task_id={task_id}")
-                                else:
-                                    logger.warning(f"[IMAGE_HISTORY] Не удалось сохранить историю для task_id={task_id}")
-                            
-                            # КРИТИЧЕСКИ ВАЖНО: НЕ сохраняем в ChatHistory здесь!
-                            # Chat API уже сохраняет сообщения через process_chat_history_storage.
-                            # Сохранение здесь создает дублирующиеся сообщения.
-                            # save_generation в ImageGenerationHistoryService сохраняет только в ImageGenerationHistory (галерея/статистика),
-                            # но НЕ создает записи в ChatHistory - это правильно.
-                            logger.info(f"[CHAT_HISTORY] Пропускаем сохранение в ChatHistory - Chat API уже обработал сообщение для task_id={task_id}")
-                        else:
-                            logger.warning(f"[IMAGE_HISTORY] Недостаточно данных для сохранения: user_id={user_id}, character={character_name}, image_url={bool(image_url)}, task_id={task_id}")
-                    except Exception as history_error:
-                        logger.error(f"[IMAGE_HISTORY] Ошибка сохранения истории: {history_error}")
-                        import traceback
-                        logger.error(f"[IMAGE_HISTORY] Трейсбек: {traceback.format_exc()}")
-                        # Не прерываем выполнение, история - дополнительная функция
-                    
-                    logger.info(f"[RUNPOD STATUS] Финальный result: {result}")
-                    return {
-                        "task_id": task_id,
-                        "status": "SUCCESS",
-                        "message": "Генерация завершена успешно",
-                        "result": result
-                    }
-                else:
-                    return {
-                        "task_id": task_id,
-                        "status": "PROGRESS",
-                        "message": "Генерация завершена, обработка результата..."
-                    }
-            elif status == "FAILED":
-                error = status_response.get("error", "Unknown error")
-                return {
-                    "task_id": task_id,
-                    "status": "FAILURE",
-                    "message": "Ошибка при генерации изображения",
-                    "error": error
-                }
-            elif status in ["IN_QUEUE", "IN_PROGRESS"]:
-                result = {
-                    "task_id": task_id,
-                    "status": "PROGRESS",
-                    "message": "Генерация выполняется..."
-                }
-                # Добавляем прогресс если он есть
-                if progress is not None:
-                    result["progress"] = progress
-                    logger.info(f"[RUNPOD STATUS] Возвращаем прогресс: {progress}%")
-                return result
-            elif status == "IN_QUEUE":
-                return {
-                    "task_id": task_id,
-                    "status": "pending",
-                    "progress": 0,
-                    "result": {
-                        "status": "pending",
-                        "progress": 0,
-                        "message": "Задача в очереди"
-                    }
-                }
-            else:
-                # Другие статусы (FAILED, CANCELLED и т.д.)
-                return {
-                    "task_id": task_id,
-                    "status": status.lower(),
-                    "message": f"Статус: {status}",
-                    "progress": progress if progress is not None else 0
-                }
-        else:
-            # Это Celery task_id - используем стандартную логику
-            logger.info(f"[CELERY STATUS] Проверяем статус Celery задачи: {task_id}")
+        # 2. Проверяем Celery статус
+        celery_app = None
+        try:
             from app.celery_app import celery_app
-            
-            # Получаем информацию о задаче
-            task = celery_app.AsyncResult(task_id)
-            logger.info(f"[CELERY STATUS] Запрос статуса задачи {task_id}, состояние: {task.state}")
+            celery_task = celery_app.AsyncResult(task_id)
+        except Exception as celery_err:
+            logger.error(f"[CELERY] Ошибка получения статуса задачи: {celery_err}")
+            return {"status": "ERROR", "message": "Celery unavailable"}
         
-        # Логируем результат задачи для диагностики
-        if task.state == "SUCCESS":
-            logger.info(f"[CELERY STATUS] Задача {task_id} SUCCESS, результат: {task.result}")
-        elif task.state == "FAILURE":
-            logger.warning(f"[CELERY STATUS] Задача {task_id} FAILURE, info: {task.info}")
-        
-        if task.state == "PENDING":
-            # Задача еще не началась
-            response = {
-                "task_id": task_id,
-                "status": "PENDING",
-                "message": "Задача ожидает выполнения"
-            }
-        elif task.state == "PROGRESS":
-            # Задача выполняется с прогрессом
-            progress = task.info.get("progress", 0)
-            response = {
-                "task_id": task_id,
-                "status": "generating",  # Используем кастомный статус для фронта
-                "message": task.info.get("message", f"Generating: {progress}%"),
-                "progress": progress,
-                "result": {
-                    "status": "generating",
-                    "progress": progress,
-                    "message": f"Generating: {progress}%"
-                }
-            }
-        elif task.state == "SUCCESS":
-            # Задача выполнена успешно
-            result = task.result
-            
-            # Логируем результат для диагностики
-            logger.info(f"[CELERY STATUS] Результат задачи {task_id}: {result}")
-            logger.info(f"[CELERY STATUS] Тип результата: {type(result)}")
-            if isinstance(result, dict):
-                logger.info(f"[CELERY STATUS] Ключи в результате: {list(result.keys())}")
-                logger.info(f"[CELERY STATUS] user_id в результате: {result.get('user_id')}")
-                logger.info(f"[CELERY STATUS] character_name в результате: {result.get('character_name')}")
-                logger.info(f"[CELERY STATUS] original_user_prompt в результате: {'present' if result.get('original_user_prompt') else 'missing'}")
-            
-            # Проверяем, что результат содержит image_url
-            if isinstance(result, dict):
-                if "image_url" in result or "cloud_url" in result:
-                    logger.info(f"[CELERY STATUS] URL изображения найден в результате")
-                else:
-                    logger.warning(f"[CELERY STATUS] URL изображения НЕ найден в результате! Ключи: {list(result.keys())}")
-            
-            # Обновляем промпт с image_url (промпт уже сохранен в generate_image с task_id)
+        # === ЗАГЛУШКА ПРОГРЕССА (10 сек -> 100%) ===
+        # Пользователь попросил всегда показывать плавное заполнение за 10 секунд
+        import time
+        current_progress = 5
+        start_time = None
+
+        if metadata and "created_at" in metadata:
             try:
-                if isinstance(result, dict):
-                    image_url = result.get("image_url") or result.get("cloud_url")
+                start_time = float(metadata["created_at"])
+            except:
+                pass
+        
+        # Если метаданных нет в Redis, пробуем найти в БД время создания записи
+        if not start_time:
+            try:
+                from app.models.image_generation_history import ImageGenerationHistory
+                from sqlalchemy import select
+                stmt_time = select(ImageGenerationHistory.created_at).where(
+                    ImageGenerationHistory.task_id == task_id
+                )
+                db_time = (await db.execute(stmt_time)).scalar()
+                if db_time:
+                    # Превращаем datetime в timestamp
+                    start_time = db_time.timestamp()
+                    # Восстанавливаем минимальные метаданные для логики ниже
+                    if not metadata:
+                        metadata = {"created_at": start_time}
+                        # Пытаемся восстановить и другие поля для SUCCESS блока
+                        stmt_full = select(ImageGenerationHistory).where(
+                            ImageGenerationHistory.task_id == task_id
+                        )
+                        hist = (await db.execute(stmt_full)).scalars().first()
+                        if hist:
+                            metadata["user_id"] = hist.user_id
+                            metadata["character_name"] = hist.character_name
+                            metadata["prompt"] = hist.prompt
+            except Exception as db_time_err:
+                logger.warning(f"[PROGRESS] Не удалось найти время старта в БД: {db_time_err}")
+
+        if start_time:
+            try:
+                elapsed = time.time() - start_time
+                # 10 секунд для достижения 100%
+                calculated = int((elapsed / 10.0) * 100)
+                # Ограничиваем 99%, чтобы не показывать 100% раньше времени
+                current_progress = max(5, min(99, calculated))
+            except Exception:
+                current_progress = 5
+        # Если мы все еще генерируем, но время старта не нашли - 
+        # возвращаем хотя бы 10%, чтобы кружок не сбрасывался в 0
+        elif metadata or celery_task.state != "PENDING":
+             current_progress = 10
+        # ===========================================
+
+        # Если это наша Celery задача (есть метаданные или она известна Celery)
+        if metadata or celery_task.state != "PENDING":
+            logger.info(f"[CELERY STATUS] Статус Celery задачи {task_id}: {celery_task.state}, Progress: {current_progress}%")
+
+            if celery_task.state == "PENDING":
+                return {
+                    "task_id": task_id,
+                    "status": "generating", # Меняем на generating, чтобы кружок крутился сразу
+                    "progress": current_progress,
+                    "message": "Задача ожидает выполнения в очереди",
+                    "result": {
+                        "status": "generating",
+                        "progress": current_progress,
+                        "message": f"Generating: {current_progress}%"
+                    }
+                }
+            
+            if celery_task.state == "PROGRESS" or celery_task.state == "STARTED":
+                # Игнорируем реальный прогресс от воркера, используем заглушку
+                return {
+                    "task_id": task_id,
+                    "status": "generating",
+                    "progress": current_progress,
+                    "result": {
+                        "status": "generating",
+                        "progress": current_progress,
+                        "message": f"Generating: {current_progress}%"
+                    }
+                }
+            
+            if celery_task.state == "SUCCESS":
+                result = celery_task.result
+                
+                # КРИТИЧЕСКИ ВАЖНО: Обновляем промпт в ChatHistory реальным текстом из метаданных или из БД
+                try:
+                    image_url = None
+                    if isinstance(result, dict):
+                        image_url = result.get("image_url") or result.get("cloud_url")
                     
                     if image_url:
-                        # Ищем запись по task_id и обновляем её с image_url
-                        from sqlalchemy import select
                         from app.models.chat_history import ChatHistory
+                        from sqlalchemy import update, select
                         
-                        logger.info(f"[PROMPT] Обновляем промпт с image_url: task_id={task_id}, image_url={image_url}")
-                        
-                        from sqlalchemy.orm import load_only
-                        existing_query = (
-                            select(ChatHistory)
-                            .options(load_only(
-                                ChatHistory.id,
-                                ChatHistory.user_id,
-                                ChatHistory.character_name,
-                                ChatHistory.session_id,
-                                ChatHistory.message_type,
-                                ChatHistory.message_content,
-                                ChatHistory.image_url,
-                                ChatHistory.image_filename,
-                                ChatHistory.created_at
-                            ))
-                            .where(ChatHistory.session_id == f"task_{task_id}")
-                            .order_by(ChatHistory.created_at.desc())
-                            .limit(1)
-                        )
-                        existing_result = await db.execute(existing_query)
-                        existing = existing_result.scalars().first()
-                        
-                        if existing:
-                            normalized_url = image_url.split('?')[0].split('#')[0]
-                            existing.image_url = normalized_url
-                            await db.flush()
-                            await db.commit()
-                            logger.info(f"[PROMPT] ✓ Промпт обновлен с image_url: task_id={task_id}, image_url={normalized_url}")
+                        real_prompt = None
+                        if metadata:
+                            # Берем реальный промпт из метаданных, которые мы сохранили при запуске
+                            real_prompt = metadata.get("prompt")
                         else:
-                            logger.warning(f"[PROMPT] Запись с task_id={task_id} не найдена для обновления")
-                    else:
-                        logger.warning(f"[PROMPT] image_url отсутствует в результате, пропускаем обновление")
-                else:
-                    logger.warning(f"[PROMPT] Результат не является словарем: {type(result)}")
-            except Exception as e:
-                logger.error(f"[PROMPT] Ошибка при обновлении промпта: {e}")
-                import traceback
-                logger.error(f"[PROMPT] Трейсбек: {traceback.format_exc()}")
-                # Не прерываем выполнение, промпт - дополнительная функция
-            
-            # Конвертируем URL в результате через прокси
-            if isinstance(result, dict):
-                from app.services.yandex_storage import YandexCloudStorageService
-                if "image_url" in result and result["image_url"]:
-                    result["image_url"] = YandexCloudStorageService.convert_yandex_url_to_proxy(result["image_url"])
-                if "cloud_url" in result and result["cloud_url"]:
-                    result["cloud_url"] = YandexCloudStorageService.convert_yandex_url_to_proxy(result["cloud_url"])
-                if "cloud_urls" in result and isinstance(result["cloud_urls"], list):
-                    result["cloud_urls"] = [
-                        YandexCloudStorageService.convert_yandex_url_to_proxy(url) 
-                        for url in result["cloud_urls"]
-                    ]
-            
-            response = {
-                "task_id": task_id,
-                "status": "SUCCESS",
-                "message": "Генерация завершена успешно",
-                "result": result
-            }
-            
-            logger.info(f"[CELERY STATUS] Возвращаем ответ для задачи {task_id}: status={response['status']}, result keys={list(result.keys()) if isinstance(result, dict) else 'not dict'}")
-        elif task.state == "FAILURE":
-            # Задача завершилась с ошибкой
-            # Получаем информацию об ошибке из result или info
-            error_info = task.info
-            error_message = "Неизвестная ошибка"
-            
-            if isinstance(error_info, dict):
-                # Пробуем разные ключи для получения сообщения об ошибке
-                error_message = (
-                    error_info.get("error") or 
-                    error_info.get("exc_message") or 
-                    error_info.get("message") or
-                    str(error_info)
-                )
-            elif error_info:
-                error_message = str(error_info)
-            
-            # Также проверяем result задачи, если он есть
-            if task.result and isinstance(task.result, dict):
-                if "error" in task.result:
-                    error_message = task.result["error"]
-            
-            response = {
+                            # Если метаданных нет (Redis недоступен), ищем в ImageGenerationHistory по task_id
+                            try:
+                                from app.models.image_generation_history import ImageGenerationHistory
+                                logger.warning(f"[PROMPT] Метаданные недоступны, ищем промпт в БД для task_id={task_id}")
+                                
+                                stmt_history = select(ImageGenerationHistory).where(
+                                    ImageGenerationHistory.task_id == task_id
+                                )
+                                history_record = (await db.execute(stmt_history)).scalars().first()
+                                if history_record:
+                                    # Пытаемся извлечь промпт, очищая от JSON если нужно
+                                    raw_prompt = history_record.prompt
+                                    if raw_prompt:
+                                        try:
+                                            import json
+                                            if raw_prompt.strip().startswith('{'):
+                                                data = json.loads(raw_prompt)
+                                                if isinstance(data, dict) and 'prompt' in data:
+                                                    real_prompt = data['prompt']
+                                                else:
+                                                    real_prompt = raw_prompt
+                                            else:
+                                                real_prompt = raw_prompt
+                                        except:
+                                            real_prompt = raw_prompt
+                                    
+                                    # Также нам нужны user_id и character_name для обновления ImageGenerationHistory
+                                    if not metadata:
+                                        metadata = {
+                                            "user_id": history_record.user_id,
+                                            "character_name": history_record.character_name
+                                        }
+                            except Exception as db_prompt_err:
+                                logger.error(f"[PROMPT] Ошибка поиска промпта в БД: {db_prompt_err}")
+
+                        # Берем время генерации (если есть)
+                        generation_time = result.get("generation_time") if isinstance(result, dict) else None
+                        
+                        if real_prompt:
+                            logger.info(f"[PROMPT] Обновляем историю чата: task_id={task_id}, prompt_len={len(real_prompt)}, time={generation_time}")
+                            
+                            # Нормализуем URL
+                            normalized_url = image_url.split('?')[0].split('#')[0]
+                            
+                            # Ищем запись в истории, которая была создана как заглушка
+                            # Мы ищем по session_id, который в generate_image сохраняется как f"task_{task.id}"
+                            stmt = (
+                                update(ChatHistory)
+                                .where(ChatHistory.session_id == f"task_{task_id}")
+                                .values(
+                                    message_content=real_prompt,
+                                    image_url=normalized_url,
+                                    generation_time=generation_time
+                                )
+                            )
+                            await db.execute(stmt)
+                            await db.commit()
+                            logger.info(f"[PROMPT] ✓ Запись ChatHistory успешно обновлена реальным промптом и временем")
+                            
+                            # Также сохраняем в ImageGenerationHistory для галереи
+                            try:
+                                if metadata:
+                                    from app.services.image_generation_history_service import ImageGenerationHistoryService
+                                    history_service = ImageGenerationHistoryService(db)
+                                    await history_service.save_generation(
+                                        user_id=metadata.get("user_id"),
+                                        character_name=metadata.get("character_name"),
+                                        prompt=real_prompt,
+                                        image_url=normalized_url,
+                                        task_id=task_id,
+                                        generation_time=generation_time
+                                    )
+                                    logger.info(f"[IMAGE_HISTORY] ✓ Запись в ImageGenerationHistory создана/обновлена")
+                            except Exception as e:
+                                logger.warning(f"[IMAGE_HISTORY] Ошибка сохранения: {e}")
+                except Exception as e:
+                    logger.error(f"[PROMPT] Ошибка при обновлении промпта в истории: {e}")
+                    import traceback
+                    logger.error(traceback.format_exc())
+
+                return {
+                    "task_id": task_id,
+                    "status": "SUCCESS",
+                    "progress": 100, # Всегда возвращаем 100 при успехе
+                    "result": result
+                }
+
+            if celery_task.state == "RETRY":
+                # Извлекаем информацию об ошибке из метаданных задачи при ретрае
+                error_info = celery_task.info
+                error_msg = str(error_info)
+                if isinstance(error_info, dict):
+                    error_msg = error_info.get("error", str(error_info))
+                
+                logger.warning(f"[CELERY STATUS] Задача {task_id} в режиме RETRY. Ошибка: {error_msg}")
+                return {
+                    "task_id": task_id,
+                    "status": "generating", # Для фронтенда оставляем 'generating', но с сообщением о ретрае
+                    "progress": current_progress,
+                    "result": {
+                        "status": "retrying",
+                        "progress": current_progress,
+                        "message": f"Проблема на сервере генерации, пробуем еще раз... ({error_msg})"
+                    }
+                }
+                
+            if celery_task.state == "FAILURE":
+                # Извлекаем подробности ошибки
+                error_info = celery_task.info
+                error_msg = "Внутренняя ошибка сервера генерации"
+                
+                if isinstance(error_info, Exception):
+                    error_msg = str(error_info)
+                elif isinstance(error_info, str):
+                    error_msg = error_info
+                
+                logger.error(f"[CELERY STATUS] Задача {task_id} завершилась FAILURE: {error_msg}")
+                return {
                 "task_id": task_id,
                 "status": "FAILURE",
-                "message": "Ошибка при генерации изображения",
-                "error": error_message
-            }
-        else:
-            # Неизвестное состояние
-            response = {
-                "task_id": task_id,
-                "status": task.state,
-                "message": f"Состояние задачи: {task.state}",
-                "info": task.info
-            }
-        
-        return response
-        
-    except Exception as e:
-        logger.error(f"[ERROR] Ошибка получения статуса задачи {task_id}: {e}", exc_info=True)
-        import traceback
-        logger.error(f"[ERROR] Трейсбек: {traceback.format_exc()}")
-        # Возвращаем ошибку вместо raise HTTPException, чтобы фронтенд мог обработать
+                    "message": "Ошибка генерации",
+                    "error": error_msg
+                }
+
+        # Очистка остатков старого кода (который вызывал 404)
         return {
             "task_id": task_id,
-            "status": "ERROR",
-            "message": "Ошибка получения статуса задачи",
-            "error": str(e)
+            "status": "NOT_FOUND",
+            "message": "Задача не найдена"
         }
+    except Exception as e:
+        logger.error(f"[STATUS ERROR] {e}")
+        return {"status": "ERROR", "message": str(e)}
 
 
 @app.get("/api/v1/cloud-save-status/{task_id}")
@@ -4902,46 +4715,6 @@ async def translate_ru_to_en(request: dict):
         logger.error(f"[TRANSLATE] Ошибка перевода ru->en: {e}")
         return {"translated_text": request.get("text", "")}
 
-@app.post("/api/v1/translate/en-ru")
-async def translate_en_to_ru(request: dict):
-    """
-    Переводит текст с английского на русский.
-    
-    Args:
-        request: Словарь с ключом "text" - текст для перевода
-        
-    Returns:
-        dict: Словарь с ключом "translated_text" - переведенный текст
-    """
-    try:
-        text = request.get("text", "").strip()
-        if not text:
-            return {"translated_text": ""}
-        
-        # Проверяем, содержит ли текст кириллицу
-        import re
-        has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', text))
-        if has_cyrillic:
-            # Если есть кириллица, считаем что текст уже на русском
-            return {"translated_text": text}
-        
-        # Переводим с английского на русский
-        from deep_translator import GoogleTranslator
-        translator = GoogleTranslator(source='en', target='ru')
-        translated_text = translator.translate(text)
-        
-        return {"translated_text": translated_text}
-    except Exception as e:
-        logger.error(f"[TRANSLATE] Ошибка перевода en->ru: {e}")
-        return {"translated_text": request.get("text", "")}
-            
-    except Exception as e:
-        logger.error(f"[TRANSLATE] Критическая ошибка: {e}")
-        import traceback
-        logger.error(f"[TRANSLATE] Трейсбек: {traceback.format_exc()}")
-        # В случае критической ошибки возвращаем оригинальный текст
-        text = request.get("text", "")
-        return {"translated_text": text}
 
 @app.post("/api/v1/translate/en-ru")
 async def translate_en_to_ru(request: dict):

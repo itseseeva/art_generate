@@ -12,9 +12,23 @@ from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-# Получаем URL Redis из переменных окружения или используем дефолтный
-# Приоритет: REDIS_LOCAL > REDIS_URL > дефолт
-redis_url = os.getenv("REDIS_LOCAL") or os.getenv("REDIS_URL", "redis://localhost:6379/0")
+# Получаем URL Redis из настроек с учетом окружения (Docker или локально)
+def get_redis_url():
+    # Простейшая проверка на нахождение внутри Docker
+    is_docker = os.path.exists('/.dockerenv') or os.getenv('IS_DOCKER') == 'true'
+    
+    r_local = settings.REDIS_LOCAL
+    r_url = settings.REDIS_URL
+    
+    if is_docker:
+        # Если мы в Docker, игнорируем localhost из REDIS_LOCAL
+        if r_local and ("localhost" in r_local or "127.0.0.1" in r_local):
+            return r_url
+        return r_local or r_url
+    
+    return r_local or r_url
+
+redis_url = get_redis_url()
 
 
 class SafeRedisBackend(RedisBackend):

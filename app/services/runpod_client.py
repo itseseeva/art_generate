@@ -470,9 +470,47 @@ async def generate_image_async(
             # === НОВАЯ ЛОГИКА ОБРАБОТКИ ПРОГРЕССА ===
             if status == "IN_PROGRESS":
                 # Извлекаем прогресс из ответа RunPod API
-                from app.services.runpod_progress_tracker import extract_progress_from_response
-                progress_percent = extract_progress_from_response(status_response)
+                progress_percent = None
                 
+                # 1. Сначала пробуем найти 'progress' в самом ответе
+                if "progress" in status_response:
+                    progress_val = status_response.get("progress")
+                    # Может быть строкой "50%" или числом 50 или 0.5
+                    if isinstance(progress_val, str):
+                        progress_val = progress_val.replace('%', '')
+                    try:
+                        progress_percent = int(float(progress_val))
+                    except (ValueError, TypeError):
+                        pass
+                
+                # 2. Если нет, пробуем найти в 'output' (некоторые воркеры пишут туда)
+                if progress_percent is None and "output" in status_response:
+                    output_data = status_response.get("output")
+                    if isinstance(output_data, dict):
+                        # Иногда прогресс вложен глубоко или с другим ключом
+                        if "progress" in output_data:
+                            progress_percent = int(float(output_data.get("progress", 0)))
+                        elif "percentage" in output_data:
+                            progress_percent = int(float(output_data.get("percentage", 0)))
+                
+                # 3. Если все еще нет, используем эвристику по времени
+                if progress_percent is None:
+                    # Если есть поле executionTime, можем оценить прогресс (SD обычно генерит 20-30 сек)
+                    exec_time = status_response.get("executionTime", 0)
+                    if exec_time > 0:
+                        # Предполагаем среднее время 25 сек (25000 мс)
+                        # Но чтобы не застревать на 100%, ограничиваем 95%
+                        estimated = int((exec_time / 25000) * 100)
+                        progress_percent = min(95, max(5, estimated)) # Минимум 5%, максимум 95%
+                        logger.debug(f"[RUNPOD DEBUG] Оценочный прогресс по времени ({exec_time}ms): {progress_percent}%")
+                    else:
+                        # Если совсем ничего нет, но задача в IN_PROGRESS, показываем хотя бы что-то
+                        # Вычисляем время от начала нашего опроса
+                        elapsed_since_start = time.time() - start_time
+                        estimated = int((elapsed_since_start / 25.0) * 100)
+                        progress_percent = min(90, max(10, estimated))
+                        logger.debug(f"[RUNPOD DEBUG] Оценочный прогресс по таймеру клиента ({elapsed_since_start:.1f}s): {progress_percent}%")
+
                 # Вызываем коллбек, если прогресс изменился
                 if progress_percent is not None:
                     progress_str = f"{progress_percent}%"
@@ -539,7 +577,6 @@ async def generate_image_async(
                         storage_service = get_yandex_storage_service()
                         
                         # Загружаем через upload_file для автоматической конвертации
-                        import asyncio
                         loop = asyncio.new_event_loop()
                         asyncio.set_event_loop(loop)
                         try:

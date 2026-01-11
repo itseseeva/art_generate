@@ -510,12 +510,6 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
           onLogout={handleLogout}
           onProfile={onProfile}
           onBalance={() => alert('Баланс пользователя')}
-          leftContent={
-            <>
-              <BackButton onClick={onBackToMain}>← Назад</BackButton>
-              <PageTitle>Редактирование персонажей</PageTitle>
-            </>
-          }
         />
         
         <MainContent>

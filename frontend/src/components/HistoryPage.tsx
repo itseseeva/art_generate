@@ -8,6 +8,7 @@ import { ErrorMessage } from './ErrorMessage';
 import { CharacterCard } from './CharacterCard';
 import { API_CONFIG } from '../config/api';
 import '../styles/ContentArea.css';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const MainContainer = styled.div`
   width: 100%;
@@ -15,36 +16,7 @@ const MainContainer = styled.div`
   display: flex;
   position: relative;
   overflow: hidden;
-`;
-
-const Header = styled.div`
-  background: rgba(15, 23, 42, 0.65);
-  backdrop-filter: blur(6px);
-  padding: ${theme.spacing.lg} ${theme.spacing.xl};
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
-  z-index: 10;
-`;
-
-const BackButton = styled.button`
   background: transparent;
-  border: none;
-  color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.md};
-  cursor: pointer;
-  transition: color ${theme.transition.fast};
-  
-  &:hover {
-    color: ${theme.colors.text.primary};
-  }
-`;
-
-const PageTitle = styled.h2`
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.xl};
-  margin: 0;
 `;
 
 const CharactersGrid = styled.div`
@@ -53,8 +25,32 @@ const CharactersGrid = styled.div`
   overflow-y: auto;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 0;
+  gap: 1rem;
   align-content: start;
+
+  @media (max-width: 768px) {
+    padding: ${theme.spacing.md};
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 0.75rem;
+  }
+
+  @media (max-width: 480px) {
+    padding: ${theme.spacing.sm};
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+  }
+`;
+
+const MobileActionContainer = styled.div`
+  display: none;
+  
+  @media (max-width: 768px) {
+    display: flex;
+    padding: 0.5rem 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    justify-content: flex-end;
+  }
 `;
 
 const CardWrapper = styled.div`
@@ -227,6 +223,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
   onProfile,
   onOpenChat
 }) => {
+  const isMobile = useIsMobile();
   const [characters, setCharacters] = useState<CharacterWithHistory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -638,12 +635,59 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
             localStorage.removeItem('refreshToken');
             window.location.reload();
           }}
+          leftContent={
+            !isMobile && characters.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <button
+                  onClick={async () => {
+                    if (!window.confirm('Вы уверены, что хотите удалить всю историю чатов? Это действие нельзя отменить.')) {
+                      return;
+                    }
+                    try {
+                      const token = authManager.getToken();
+                      if (!token) {
+                        setError('Необходима авторизация');
+                        return;
+                      }
+                      const response = await authManager.fetchWithAuth('/api/v1/chat-history/clear-all-history', {
+                        method: 'POST'
+                      });
+                      if (response.ok) {
+                        // Очищаем список персонажей и перезагружаем
+                        setCharacters([]);
+                        await loadCharacters();
+                      } else {
+                        const errorData = await response.json().catch(() => ({}));
+                        setError(errorData.detail || 'Не удалось удалить историю');
+                      }
+                    } catch (err) {
+                      setError('Ошибка при удалении истории');
+                    }
+                  }}
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.12)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    color: '#ff5c5c',
+                    padding: '0.25rem 0.6rem',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    transition: 'all 0.2s',
+                    whiteSpace: 'nowrap'
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'}
+                  onMouseOut={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)'}
+                >
+                  Удалить все
+                </button>
+              </div>
+            )
+          }
         />
 
-        <Header>
-          <BackButton onClick={onBackToMain}>← Назад</BackButton>
-          <PageTitle>История чатов</PageTitle>
-          {characters.length > 0 && (
+        {isMobile && characters.length > 0 && (
+          <MobileActionContainer>
             <button
               onClick={async () => {
                 if (!window.confirm('Вы уверены, что хотите удалить всю историю чатов? Это действие нельзя отменить.')) {
@@ -659,7 +703,6 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                     method: 'POST'
                   });
                   if (response.ok) {
-                    // Очищаем список персонажей и перезагружаем
                     setCharacters([]);
                     await loadCharacters();
                   } else {
@@ -667,25 +710,24 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                     setError(errorData.detail || 'Не удалось удалить историю');
                   }
                 } catch (err) {
-                  
                   setError('Ошибка при удалении истории');
                 }
               }}
               style={{
-                background: 'rgba(239, 68, 68, 0.1)',
+                background: 'rgba(239, 68, 68, 0.15)',
                 border: '1px solid rgba(239, 68, 68, 0.3)',
-                color: theme.colors.status.error,
-                padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                borderRadius: theme.borderRadius.md,
+                color: '#ff4d4d',
+                padding: '0.4rem 0.8rem',
+                borderRadius: '8px',
                 cursor: 'pointer',
-                fontSize: theme.fontSize.sm,
+                fontSize: '0.8rem',
                 fontWeight: 600
               }}
             >
-              Удалить все истории
+              Удалить всю историю
             </button>
-          )}
-        </Header>
+          </MobileActionContainer>
+        )}
 
         {error && (
           <div style={{ padding: '1rem' }}>

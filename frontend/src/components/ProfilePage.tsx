@@ -2530,11 +2530,17 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             window.location.reload();
           }}
           onProfile={() => {
-            
             if (onProfile) {
               onProfile(undefined);
             } else {
               window.dispatchEvent(new CustomEvent('navigate-to-profile', { detail: { userId: undefined } }));
+            }
+          }}
+          onHome={() => {
+            if (onBackToMain) {
+              onBackToMain();
+            } else {
+              window.location.href = '/';
             }
           }}
           onBalance={() => {}}
