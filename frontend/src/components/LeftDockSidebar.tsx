@@ -188,21 +188,74 @@ const ToggleArrowButton = styled.button<{ $isCollapsed?: boolean }>`
 
 const FilterTooltip = styled.div`
   position: absolute;
-  top: calc(100% + 10%);
+  top: calc(100% - 12px);
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.85);
-  color: rgba(255, 255, 255, 0.9);
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 0.75rem;
-  font-weight: 500;
+  font-weight: 700;
   white-space: nowrap;
   opacity: 1;
   pointer-events: none;
-  transition: opacity 0.2s ease;
   z-index: 1000;
-  backdrop-filter: blur(5px);
+  color: #ff0080;
+  text-shadow: 0 0 10px rgba(255, 0, 128, 0.8),
+               0 0 20px rgba(255, 140, 0, 0.6),
+               0 0 30px rgba(138, 43, 226, 0.4);
+  animation: colorShift 4s ease infinite;
+  
+  @keyframes colorShift {
+    0% {
+      color: #ff0080;
+      text-shadow: 0 0 10px rgba(255, 0, 128, 1),
+                   0 0 20px rgba(255, 140, 0, 0.8),
+                   0 0 30px rgba(138, 43, 226, 0.6),
+                   0 0 40px rgba(255, 0, 128, 0.4);
+    }
+    16.66% {
+      color: #ff8c00;
+      text-shadow: 0 0 10px rgba(255, 140, 0, 1),
+                   0 0 20px rgba(255, 215, 0, 0.8),
+                   0 0 30px rgba(255, 0, 128, 0.6),
+                   0 0 40px rgba(255, 140, 0, 0.4);
+    }
+    33.33% {
+      color: #ffd700;
+      text-shadow: 0 0 10px rgba(255, 215, 0, 1),
+                   0 0 20px rgba(50, 205, 50, 0.8),
+                   0 0 30px rgba(255, 140, 0, 0.6),
+                   0 0 40px rgba(255, 215, 0, 0.4);
+    }
+    50% {
+      color: #32cd32;
+      text-shadow: 0 0 10px rgba(50, 205, 50, 1),
+                   0 0 20px rgba(0, 191, 255, 0.8),
+                   0 0 30px rgba(255, 215, 0, 0.6),
+                   0 0 40px rgba(50, 205, 50, 0.4);
+    }
+    66.66% {
+      color: #00bfff;
+      text-shadow: 0 0 10px rgba(0, 191, 255, 1),
+                   0 0 20px rgba(138, 43, 226, 0.8),
+                   0 0 30px rgba(50, 205, 50, 0.6),
+                   0 0 40px rgba(0, 191, 255, 0.4);
+    }
+    83.33% {
+      color: #8a2be2;
+      text-shadow: 0 0 10px rgba(138, 43, 226, 1),
+                   0 0 20px rgba(255, 0, 128, 0.8),
+                   0 0 30px rgba(0, 191, 255, 0.6),
+                   0 0 40px rgba(138, 43, 226, 0.4);
+    }
+    100% {
+      color: #ff0080;
+      text-shadow: 0 0 10px rgba(255, 0, 128, 1),
+                   0 0 20px rgba(255, 140, 0, 0.8),
+                   0 0 30px rgba(138, 43, 226, 0.6),
+                   0 0 40px rgba(255, 0, 128, 0.4);
+    }
+  }
 `;
 
 const SwitcherContainer = styled.div`
