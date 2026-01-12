@@ -3,9 +3,13 @@ import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import { FiX, FiImage, FiFolder } from 'react-icons/fi';
+import { Plus } from 'lucide-react';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToRussian } from '../utils/translate';
 import { CircularProgress } from './ui/CircularProgress';
+import { useIsMobile } from '../hooks/useIsMobile';
+import { API_CONFIG } from '../config/api';
+import { authManager } from '../utils/auth';
 
 const MessageContainer = styled.div<{ $isUser: boolean }>`
   display: flex;
@@ -134,8 +138,9 @@ const ImageButtons = styled.div`
   left: 0;
   right: 0;
   display: flex;
-  gap: 4px;
-  padding: 6px;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  justify-content: center;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.4), transparent);
   opacity: 0;
   transition: opacity 0.2s ease;
@@ -144,44 +149,45 @@ const ImageButtons = styled.div`
   ${ImageContainer}:hover & {
     opacity: 1;
   }
+  
+  @media (max-width: 768px) {
+    opacity: 1;
+  }
 `;
 
 const ImageButton = styled.button`
-  flex: 1;
+  padding: 0.375rem 0.75rem;
+  background: rgba(100, 100, 100, 0.9);
+  border: 1px solid rgba(150, 150, 150, 1);
+  border-radius: 0.5rem;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 4px 8px;
-  background: rgba(60, 60, 60, 0.9);
-  border: 1px solid rgba(150, 150, 150, 0.3);
-  border-radius: ${theme.borderRadius.sm};
-  color: rgba(240, 240, 240, 1);
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
+  gap: 0.375rem;
   transition: all 0.2s ease;
   backdrop-filter: blur(10px);
-  min-height: 28px;
-  
-  &:hover {
-    background: rgba(80, 80, 80, 0.95);
-    border-color: rgba(180, 180, 180, 0.5);
-    transform: translateY(-1px);
+
+  &:hover:not(:disabled) {
+    background: rgba(120, 120, 120, 1);
+    transform: scale(1.05);
   }
-  
-  &:active {
-    transform: translateY(0);
+
+  &:active:not(:disabled) {
+    transform: scale(0.98);
   }
-  
+
   &:disabled {
-    opacity: 0.5;
+    opacity: 0.6;
     cursor: not-allowed;
+    transform: none;
   }
-  
+
   svg {
-    width: 12px;
-    height: 12px;
+    width: 14px;
+    height: 14px;
   }
 `;
 
@@ -273,6 +279,63 @@ const ModalOverlay = styled.div`
   justify-content: center;
   z-index: 99999;
   padding: ${theme.spacing.xl};
+`;
+
+const ErrorModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100001;
+  padding: ${theme.spacing.xl};
+`;
+
+const ErrorModalContent = styled.div`
+  background: rgba(30, 30, 30, 0.95);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: ${theme.borderRadius.lg};
+  padding: ${theme.spacing.xl};
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+`;
+
+const ErrorModalTitle = styled.h2`
+  color: ${theme.colors.status.error};
+  font-size: ${theme.fontSize.lg};
+  font-weight: 600;
+  margin: 0 0 ${theme.spacing.md} 0;
+`;
+
+const ErrorModalMessage = styled.div`
+  color: ${theme.colors.text.primary};
+  font-size: ${theme.fontSize.base};
+  line-height: 1.6;
+  margin-bottom: ${theme.spacing.lg};
+`;
+
+const ErrorModalCloseButton = styled.button`
+  width: 100%;
+  padding: ${theme.spacing.md};
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: ${theme.borderRadius.md};
+  color: ${theme.colors.status.error};
+  font-size: ${theme.fontSize.sm};
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: rgba(239, 68, 68, 0.3);
+    border-color: rgba(239, 68, 68, 0.6);
+  }
 `;
 
 const ModalContent = styled.div`
@@ -448,12 +511,16 @@ const MessageComponent: React.FC<MessageProps> = ({
     return 'U';
   };
   const isUser = message.type === 'user';
+  const isMobile = useIsMobile();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPromptVisible, setIsPromptVisible] = useState(true);
   const [isAddingToPaidAlbum, setIsAddingToPaidAlbum] = useState(false);
+  const [isAddingToGallery, setIsAddingToGallery] = useState(false);
+  const [isAddedToGallery, setIsAddedToGallery] = useState(false);
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
+  const [errorModalMessage, setErrorModalMessage] = useState<string | null>(null);
   
   const timeString = message.timestamp.toLocaleTimeString('ru-RU', {
     hour: '2-digit',
@@ -508,11 +575,16 @@ const MessageComponent: React.FC<MessageProps> = ({
 
   // Обработка клавиши Escape для закрытия модального окна
   useEffect(() => {
-    if (!isFullscreen) return;
+    if (!isFullscreen && !errorModalMessage) return;
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        handleCloseFullscreen();
+        if (isFullscreen) {
+          handleCloseFullscreen();
+        }
+        if (errorModalMessage) {
+          setErrorModalMessage(null);
+        }
       }
     };
 
@@ -520,9 +592,49 @@ const MessageComponent: React.FC<MessageProps> = ({
     return () => {
       window.removeEventListener('keydown', handleEscape);
     };
-  }, [isFullscreen]);
+  }, [isFullscreen, errorModalMessage]);
 
   const [isAddedToPaidAlbum, setIsAddedToPaidAlbum] = useState(false);
+
+  // Проверяем, добавлено ли фото уже в альбом при загрузке компонента
+  useEffect(() => {
+    const checkIfPhotoInAlbum = async () => {
+      const hasValidImageUrl = message.imageUrl && message.imageUrl.trim() !== '' && message.imageUrl !== 'null' && message.imageUrl !== 'undefined';
+      if (!hasValidImageUrl || !characterName || !isAuthenticated || !onAddToPaidAlbum) {
+        return;
+      }
+
+      try {
+        const token = authManager.getToken();
+        if (!token) {
+          return;
+        }
+
+        const encodedName = encodeURIComponent(characterName);
+        const response = await fetch(
+          `${API_CONFIG.BASE_URL}/api/v1/paid-gallery/${encodedName}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          const photos = data.images || [];
+          const photoExists = photos.some((photo: any) => photo.url === message.imageUrl);
+          if (photoExists) {
+            setIsAddedToPaidAlbum(true);
+          }
+        }
+      } catch (error) {
+        // Игнорируем ошибки при проверке
+      }
+    };
+
+    checkIfPhotoInAlbum();
+  }, [message.imageUrl, characterName, isAuthenticated, onAddToPaidAlbum]);
 
   const handleAddToPaidAlbumClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -537,10 +649,28 @@ const MessageComponent: React.FC<MessageProps> = ({
       setIsAddedToPaidAlbum(true);
       
     } catch (error) {
-      
-      alert(error instanceof Error ? error.message : 'Не удалось добавить фото в платный альбом');
+      const errorMessage = error instanceof Error ? error.message : 'Не удалось добавить фото в платный альбом';
+      setErrorModalMessage(errorMessage);
     } finally {
       setIsAddingToPaidAlbum(false);
+    }
+  };
+
+  const handleAddToGalleryClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const hasValidImageUrl = message.imageUrl && message.imageUrl.trim() !== '' && message.imageUrl !== 'null' && message.imageUrl !== 'undefined';
+    if (!hasValidImageUrl || !characterName || !onAddToGallery || !isAuthenticated) {
+      return;
+    }
+
+    setIsAddingToGallery(true);
+    try {
+      await onAddToGallery(message.imageUrl!, characterName);
+      setIsAddedToGallery(true);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Не удалось добавить фото в альбом');
+    } finally {
+      setIsAddingToGallery(false);
     }
   };
 
@@ -586,54 +716,13 @@ const MessageComponent: React.FC<MessageProps> = ({
           border: 'none',
           boxShadow: 'none'
         }}>
-        <div 
-          style={{
-            position: 'relative',
-            margin: 0,
-            padding: 0,
-            background: 'transparent',
-            border: 'none',
-            borderRadius: '12px',
-            overflow: 'hidden',
-            cursor: 'pointer',
-            display: 'inline-block'
-          }}
-          onMouseEnter={(e) => {
-            const buttons = e.currentTarget.querySelector('.image-buttons-overlay') as HTMLElement;
-            if (buttons) buttons.style.opacity = '1';
-          }}
-          onMouseLeave={(e) => {
-            const buttons = e.currentTarget.querySelector('.image-buttons-overlay') as HTMLElement;
-            if (buttons) buttons.style.opacity = '0';
-          }}
+        <ImageContainer 
+          onClick={hasValidImageUrl ? handleImageClick : undefined}
         >
-          <img
+          <MessageImage
             src={hasValidImageUrl ? message.imageUrl : undefined}
             alt="Generated image"
-            onClick={hasValidImageUrl ? handleImageClick : undefined}
-            style={{
-              maxWidth: '600px',
-              maxHeight: '600px',
-              width: 'auto',
-              height: 'auto',
-              borderRadius: '12px',
-              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.7)',
-              display: 'block',
-              margin: 0,
-              padding: 0,
-              background: 'transparent',
-              border: 'none',
-              objectFit: 'contain',
-              cursor: 'pointer',
-              transition: 'transform 0.2s ease'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.01)'}
-            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-            onLoad={() => {
-              
-            }}
             onError={(e) => {
-              
               e.currentTarget.style.display = 'none';
             }}
           />
@@ -657,37 +746,19 @@ const MessageComponent: React.FC<MessageProps> = ({
                 : `${Math.round(message.generationTime / 60)}м ${Math.round(message.generationTime % 60)}с`}
             </div>
           )}
-          {isAuthenticated && characterName && (
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="image-buttons-overlay"
-              style={{
-                position: 'absolute',
-                bottom: 0,
-                left: 0,
-                right: 0,
-                display: 'flex',
-                gap: '4px',
-                padding: '6px',
-                background: 'linear-gradient(to top, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.5), transparent)',
-                opacity: 0,
-                transition: 'opacity 0.2s ease',
-                pointerEvents: 'auto'
-              }}
-            >
-                {onAddToPaidAlbum && !isAddedToPaidAlbum && isCharacterOwner && (
-                  <ImageButton
-                    onClick={handleAddToPaidAlbumClick}
-                    disabled={isAddingToPaidAlbum}
-                    title="Добавить в платный альбом"
-                  >
-                    <FiFolder size={12} />
-                    {isAddingToPaidAlbum ? 'Добавление...' : 'В альбом'}
-                  </ImageButton>
-                )}
-              </div>
-            )}
-          </div>
+          {isAuthenticated && characterName && onAddToPaidAlbum && !isAddedToPaidAlbum && (
+            <ImageButtons onClick={(e) => e.stopPropagation()}>
+              <ImageButton
+                onClick={handleAddToPaidAlbumClick}
+                disabled={isAddingToPaidAlbum}
+                title="Добавить в альбом"
+              >
+                <Plus size={14} />
+                {isAddingToPaidAlbum ? 'Добавление...' : 'В альбом'}
+              </ImageButton>
+            </ImageButtons>
+          )}
+        </ImageContainer>
         </div>
       </div>
       {isFullscreen && message.imageUrl && createPortal(
@@ -759,6 +830,19 @@ const MessageComponent: React.FC<MessageProps> = ({
         </ModalOverlay>,
         document.body
       )}
+
+      {errorModalMessage && createPortal(
+        <ErrorModalOverlay onClick={() => setErrorModalMessage(null)}>
+          <ErrorModalContent onClick={(e) => e.stopPropagation()}>
+            <ErrorModalTitle>Ошибка</ErrorModalTitle>
+            <ErrorModalMessage>{errorModalMessage}</ErrorModalMessage>
+            <ErrorModalCloseButton onClick={() => setErrorModalMessage(null)}>
+              Закрыть
+            </ErrorModalCloseButton>
+          </ErrorModalContent>
+        </ErrorModalOverlay>,
+        document.body
+      )}
     </>
     );
   }
@@ -818,20 +902,6 @@ const MessageComponent: React.FC<MessageProps> = ({
                   e.currentTarget.style.display = 'none';
                 }}
               />
-              {isAuthenticated && characterName && (
-                <ImageButtons onClick={(e) => e.stopPropagation()}>
-                  {onAddToPaidAlbum && !isAddedToPaidAlbum && isCharacterOwner && (
-                    <ImageButton
-                      onClick={handleAddToPaidAlbumClick}
-                      disabled={isAddingToPaidAlbum}
-                      title="Добавить в платный альбом"
-                    >
-                      <FiFolder size={12} />
-                      {isAddingToPaidAlbum ? 'Добавление...' : 'В альбом'}
-                    </ImageButton>
-                  )}
-                </ImageButtons>
-              )}
             </ImageContainer>
           )}
           
@@ -922,6 +992,19 @@ const MessageComponent: React.FC<MessageProps> = ({
             )}
           </ModalContent>
         </ModalOverlay>,
+        document.body
+      )}
+
+      {errorModalMessage && createPortal(
+        <ErrorModalOverlay onClick={() => setErrorModalMessage(null)}>
+          <ErrorModalContent onClick={(e) => e.stopPropagation()}>
+            <ErrorModalTitle>Ошибка</ErrorModalTitle>
+            <ErrorModalMessage>{errorModalMessage}</ErrorModalMessage>
+            <ErrorModalCloseButton onClick={() => setErrorModalMessage(null)}>
+              Закрыть
+            </ErrorModalCloseButton>
+          </ErrorModalContent>
+        </ErrorModalOverlay>,
         document.body
       )}
     </>

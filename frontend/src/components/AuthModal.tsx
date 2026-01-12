@@ -19,23 +19,39 @@ const ModalOverlay = styled.div`
 `;
 
 const ModalContent = styled.div`
-  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
-  border-radius: 20px;
+  background: rgba(30, 30, 30, 0.6);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border-radius: 24px;
   padding: ${theme.spacing.xxl};
   box-shadow: 
     0 20px 60px rgba(0, 0, 0, 0.8),
-    0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
   max-width: 420px;
   width: 90vw;
   max-height: 90vh;
   overflow-y: auto;
   animation: slideIn 0.3s ease-out;
-  border: 1px solid rgba(100, 100, 100, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 
   @media (max-width: 768px) {
-    padding: ${theme.spacing.lg};
+    padding: ${theme.spacing.xl} ${theme.spacing.lg};
     width: 95vw;
+  }
+`;
+
+const LogoWrapper = styled.div`
+  display: flex;
+  justify-content: center;
+  margin-bottom: ${theme.spacing.lg};
+  
+  img {
+    height: 60px;
+    object-fit: contain;
   }
 `;
 
@@ -54,6 +70,7 @@ const ModalHeader = styled.div`
   p {
     color: #b0b0b0;
     font-size: ${theme.fontSize.sm};
+    line-height: 1.5;
   }
 `;
 
@@ -270,6 +287,7 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess, mode = 'login', onGoogleLogin }) => {
+  const [currentMode, setCurrentMode] = useState<'login' | 'register'>(mode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
@@ -285,9 +303,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
   const [confirmPassword, setConfirmPassword] = useState('');
   const [resetStep, setResetStep] = useState<'email' | 'code' | 'password'>('email');
 
+  // Синхронизируем currentMode с пропом mode
+  useEffect(() => {
+    setCurrentMode(mode);
+  }, [mode]);
+
   // Получаем fingerprint_id при открытии модального окна
   useEffect(() => {
-    if (isOpen && mode === 'register') {
+    if (isOpen && currentMode === 'register') {
       const getFingerprint = async () => {
         try {
           const fp = await FingerprintJS.load();
@@ -301,7 +324,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
       };
       getFingerprint();
     }
-  }, [isOpen, mode]);
+  }, [isOpen, currentMode]);
 
   if (!isOpen) return null;
 
@@ -311,9 +334,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
     setError(null);
 
     try {
-      const endpoint = mode === 'register' ? '/api/v1/auth/register/' : '/api/v1/auth/login/';
+      const endpoint = currentMode === 'register' ? '/api/v1/auth/register/' : '/api/v1/auth/login/';
       // Формируем body с fingerprint_id только если он есть
-      const body = mode === 'register' 
+      const body = currentMode === 'register' 
         ? { 
             email, 
             password, 
@@ -332,7 +355,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
 
       if (!response.ok) {
         // Пытаемся получить текст ошибки (может быть JSON или текст)
-        let errorMessage = `Ошибка ${mode === 'register' ? 'регистрации' : 'авторизации'}`;
+        let errorMessage = `Ошибка ${currentMode === 'register' ? 'регистрации' : 'авторизации'}`;
         try {
           const errorData = await response.json();
           errorMessage = errorData.detail || errorMessage;
@@ -347,7 +370,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
       const data = await response.json();
       
       // Если это регистрация, показываем окно для ввода кода верификации
-      if (mode === 'register') {
+      if (currentMode === 'register') {
         // Очищаем предыдущий код при повторной регистрации
         setVerificationCode('');
         setError(null);
@@ -533,11 +556,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
   return (
     <ModalOverlay>
       <ModalContent>
+        <LogoWrapper>
+          <img src="/logo-header.png" alt="Site Logo" />
+        </LogoWrapper>
         <ModalHeader>
           <h3>
             {showForgotPassword 
               ? 'Восстановление пароля'
-              : mode === 'register' 
+              : currentMode === 'register' 
                 ? 'Регистрация' 
                 : 'Вход в систему'
             }
@@ -551,7 +577,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                   : 'Введите новый пароль'
               : showVerificationCode 
                 ? `Мы отправили код верификации на ${email}. Введите код из письма:`
-                : mode === 'register' 
+                : currentMode === 'register' 
                   ? 'Создайте новый аккаунт' 
                   : 'Войдите в свой аккаунт для продолжения'
             }
@@ -829,7 +855,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
           </Form>
         ) : (
           <Form onSubmit={handleSubmit}>
-          {mode === 'register' && (
+          {currentMode === 'register' && (
             <div style={{ marginBottom: '16px' }}>
               <label htmlFor="username" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#e2e8f0', fontSize: '14px' }}>Имя пользователя:</label>
               <input
@@ -904,10 +930,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
             />
           </div>
 
-          {mode === 'login' && (
-            <div style={{ marginBottom: '16px', textAlign: 'right' }}>
-              <button
+          {currentMode === 'login' && (
+            <div style={{ marginBottom: '16px' }}>
+              <Button
                 type="button"
+                $variant="secondary"
                 onClick={() => {
                   setShowForgotPassword(true);
                   setResetEmail(email);
@@ -915,18 +942,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                   setError(null);
                 }}
                 disabled={isLoading}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#60a5fa',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  textDecoration: 'underline',
-                  padding: 0
-                }}
+                style={{ width: '100%', fontSize: '12px', padding: '10px' }}
               >
                 Забыл пароль?
-              </button>
+              </Button>
             </div>
           )}
 
@@ -936,9 +955,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
             <Button
               type="submit"
               $variant="primary"
-              disabled={isLoading || !email || !password || (mode === 'register' && !username)}
+              disabled={isLoading || !email || !password || (currentMode === 'register' && !username)}
             >
-              {isLoading ? <LoadingSpinner /> : (mode === 'register' ? 'Готово' : 'Войти')}
+              {isLoading ? <LoadingSpinner /> : (currentMode === 'register' ? 'Готово' : 'Войти')}
             </Button>
             <Button
               type="button"
@@ -949,6 +968,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
               Отмена
             </Button>
           </ButtonGroup>
+          <div style={{ textAlign: 'center', marginTop: theme.spacing.lg }}>
+            <Button
+              type="button"
+              $variant="secondary"
+              onClick={() => {
+                setCurrentMode(currentMode === 'login' ? 'register' : 'login');
+                setError(null);
+              }}
+              disabled={isLoading}
+              style={{ width: '100%' }}
+            >
+              {currentMode === 'login' ? 'Нет аккаунта? Зарегистрироваться' : 'Уже есть аккаунт? Войти'}
+            </Button>
+          </div>
         </Form>
         )}
 

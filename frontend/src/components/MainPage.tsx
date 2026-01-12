@@ -10,21 +10,26 @@ import { GlobalHeader } from './GlobalHeader';
 import Switcher4 from './Switcher4';
 import { NSFWWarningModal } from './NSFWWarningModal';
 import { API_CONFIG } from '../config/api';
+import { authManager } from '../utils/auth';
 import '../styles/ContentArea.css';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 const MainContainer = styled.div`
   width: 100%;
-  height: 100%;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   position: relative;
   
   @media (max-width: 768px) {
-    height: auto;
-    min-height: 100%;
     overflow: visible;
   }
+`;
+
+const FooterWrapper = styled.div`
+  width: 100%;
+  margin-top: auto;
+  flex-shrink: 0;
 `;
 
 const HeaderWrapper = styled.div`
@@ -232,6 +237,9 @@ interface MainPageProps {
   onPaymentMethod?: (subscriptionType: string) => void;
   contentMode?: 'safe' | 'nsfw';
   onContentModeChange?: (mode: 'safe' | 'nsfw') => void;
+  onRegister?: () => void;
+  onLogout?: () => void;
+  onLogin?: () => void;
 }
 
 export const MainPage: React.FC<MainPageProps> = ({ 
@@ -249,7 +257,10 @@ export const MainPage: React.FC<MainPageProps> = ({
   onHome,
   onPaymentMethod,
   contentMode = 'safe',
-  onContentModeChange
+  onContentModeChange,
+  onRegister,
+  onLogout,
+  onLogin
 }) => {
   const isMobile = useIsMobile();
   const [isShopModalOpen, setIsShopModalOpen] = useState(false);
@@ -616,9 +627,8 @@ export const MainPage: React.FC<MainPageProps> = ({
     const refreshToken = urlParams.get('refresh_token');
     
     if (accessToken && refreshToken) {
-      // Сохраняем токены в localStorage
-      localStorage.setItem('authToken', accessToken);
-      localStorage.setItem('refreshToken', refreshToken);
+      // Сохраняем токены через authManager
+      authManager.setTokens(accessToken, refreshToken);
       
       // Очищаем URL от токенов
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -719,10 +729,7 @@ export const MainPage: React.FC<MainPageProps> = ({
             
             if (refreshResponse.ok) {
               const tokenData = await refreshResponse.json();
-              localStorage.setItem('authToken', tokenData.access_token);
-              if (tokenData.refresh_token) {
-                localStorage.setItem('refreshToken', tokenData.refresh_token);
-              }
+              authManager.setTokens(tokenData.access_token, tokenData.refresh_token);
               // Повторяем проверку авторизации с новым токеном
               await checkAuth();
               return;
@@ -865,10 +872,7 @@ export const MainPage: React.FC<MainPageProps> = ({
   };
 
   const handleAuthSuccess = (accessToken: string, refreshToken?: string) => {
-    localStorage.setItem('authToken', accessToken);
-    if (refreshToken) {
-      localStorage.setItem('refreshToken', refreshToken);
-    }
+    authManager.setTokens(accessToken, refreshToken);
     setIsAuthenticated(true);
     setIsAuthModalOpen(false);
     checkAuth(); // Обновляем информацию о пользователе
@@ -930,7 +934,9 @@ export const MainPage: React.FC<MainPageProps> = ({
         <GlobalHeader 
           onShop={onShop || handleShop}
           onProfile={onProfile}
-          onLogin={handleLogin}
+          onLogin={onLogin || handleLogin}
+          onRegister={onRegister || handleRegister}
+          onLogout={onLogout}
           onHome={onHome}
         />
       </HeaderWrapper>
@@ -1022,7 +1028,9 @@ export const MainPage: React.FC<MainPageProps> = ({
         </>
       )}
       </ContentArea>
-      <Footer />
+      <FooterWrapper>
+        <Footer />
+      </FooterWrapper>
     </MainContainer>
   );
 };

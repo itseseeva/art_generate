@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
-import { GlobalHeader } from './GlobalHeader';
 import { authManager } from '../utils/auth';
+import { GlobalHeader } from './GlobalHeader';
 import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
 import { CharacterCard } from './CharacterCard';

@@ -21,50 +21,85 @@ import { API_CONFIG } from '../config/api';
 import { ModelSelectorModal } from './ModelSelectorModal';
 import { ModelAccessDeniedModal } from './ModelAccessDeniedModal';
 
-const TopActionsContainer = styled.div`
-  display: none; /* Скрыто по умолчанию для ПК */
+const MobileAlbumButtonsContainer = styled.div`
+  display: none;
 
   @media (max-width: 768px) {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 4px 8px; /* Уменьшил отступы */
+    gap: ${theme.spacing.sm};
+    padding: ${theme.spacing.sm} ${theme.spacing.md};
     background: rgba(10, 10, 10, 0.6);
     backdrop-filter: blur(15px);
     position: sticky;
     top: 0;
     left: 0;
     right: 0;
-    z-index: 100;
+    z-index: 99;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
 `;
 
-const TopActionButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
+const MobileAlbumButton = styled.button`
+  flex: 1;
+  height: 38px;
+  border: none;
+  border-radius: 10px;
+  padding: 0 1rem;
+  color: white;
+  font-weight: 800;
+  font-size: 0.85rem;
+  cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 10px; /* Уменьшил размер */
-  background: ${props => props.$variant === 'secondary' 
-    ? 'rgba(60, 60, 60, 0.6)' 
-    : 'rgba(59, 130, 246, 0.3)'};
-  border: 1px solid ${props => props.$variant === 'secondary' 
-    ? 'rgba(120, 120, 120, 0.4)' 
-    : 'rgba(59, 130, 246, 0.5)'};
-  border-radius: ${theme.borderRadius.sm};
-  color: ${props => props.$variant === 'secondary' ? '#eee' : '#93c5fd'};
-  font-size: 11px; /* Уменьшил шрифт */
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  justify-content: center;
+  gap: 6px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+  background: #343042;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.2),
+      transparent
+    );
+    transition: 0.5s;
+  }
+
+  &:hover::before {
+    left: 100%;
+  }
+
+  &:hover:not(:disabled) {
+    background: #3d394d;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  }
 
   &:active {
-    transform: scale(0.95);
+    transform: scale(0.98);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #333;
+    transform: none;
+    box-shadow: none;
   }
 
   svg {
-    width: 12px;
-    height: 12px;
+    width: 14px;
+    height: 14px;
   }
 `;
 
@@ -268,9 +303,8 @@ const ChatContentWrapper = styled.div`
 
 const CharacterCardWrapper = styled.div`
   width: 100%;
-  margin-top: ${theme.spacing.xl};
-  padding-top: ${theme.spacing.xl};
-  border-top: 1px solid rgba(150, 150, 150, 0.2);
+  margin-top: ${theme.spacing.md};
+  padding-top: 0;
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -406,50 +440,59 @@ const PaidAlbumBadge = styled.div`
 `;
 
 const PaidAlbumButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
+  width: 100%;
+  height: 38px;
+  border: none;
+  border-radius: 10px;
+  padding: 0 1rem;
+  color: white;
+  font-weight: 800;
+  font-size: 0.85rem;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: ${theme.spacing.xs};
-  padding: ${theme.spacing.sm} ${theme.spacing.md};
-  border-radius: ${theme.borderRadius.lg};
-  font-size: ${theme.fontSize.xs};
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: 1px solid transparent;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
   margin-bottom: ${theme.spacing.sm};
+  transition: all 0.3s ease;
+  background: #343042;
 
-  ${({ $variant }) => 
-    $variant === 'secondary'
-      ? `
-        background: rgba(60, 60, 60, 0.8);
-        border-color: rgba(150, 150, 150, 0.3);
-        color: rgba(200, 200, 200, 1);
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.2),
+      transparent
+    );
+    transition: 0.5s;
+  }
 
-        &:hover {
-          border-color: rgba(180, 180, 180, 0.5);
-          color: rgba(240, 240, 240, 1);
-          background: rgba(80, 80, 80, 0.9);
-        }
-      `
-      : `
-        background: rgba(120, 120, 120, 0.8);
-        color: rgba(240, 240, 240, 1);
-        border: none;
+  &:hover::before {
+    left: 100%;
+  }
 
-        &:hover:not(:disabled) {
-          background: rgba(140, 140, 140, 0.9);
-          transform: translateY(-1px);
-        }
+  &:hover:not(:disabled) {
+    background: #3d394d;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  }
 
-        &:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-          transform: none;
-        }
-      `}
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #333;
+    transform: none;
+    box-shadow: none;
+  }
 `;
 
 const PaidAlbumInfo = styled.div`
@@ -525,6 +568,8 @@ interface Message {
   timestamp: Date;
   imageUrl?: string;
   generationTime?: number; // Время генерации изображения в секундах
+  isGenerating?: boolean;
+  progress?: number;
 }
 
 interface Character {
@@ -2858,9 +2903,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     }
 
     try {
+      const encodedName = encodeURIComponent(characterName);
       // Получаем текущие фото из платного альбома
       const currentPhotosResponse = await fetch(
-        `${API_CONFIG.BASE_URL}/api/v1/paid-gallery/${characterName}`,
+        `${API_CONFIG.BASE_URL}/api/v1/paid-gallery/${encodedName}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -2900,7 +2946,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
       // Отправляем обновленный список фото
       const saveResponse = await fetch(
-        `${API_CONFIG.BASE_URL}/api/v1/paid-gallery/${characterName}/photos`,
+        `${API_CONFIG.BASE_URL}/api/v1/paid-gallery/${encodedName}/photos`,
         {
           method: 'POST',
           headers: {
@@ -3193,6 +3239,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   // Используем effectiveCharacterForRender для рендера
   const characterForRender = currentCharacter || initialCharacter;
 
+  // Проверка владельца персонажа
+  const isOwnerByCreatorInfo = creatorInfo && userInfo && creatorInfo.id === userInfo.id;
+  const isOwnerByCharacter = (characterForRender as any)?.user_id && userInfo && (characterForRender as any).user_id === userInfo.id;
+  const isOwner = paidAlbumStatus?.is_owner || isOwnerByCreatorInfo || isOwnerByCharacter;
+
   // Дедупликация сообщений перед рендером - используем useMemo для оптимизации
   // Улучшенная дедупликация: для изображений используем content+imageUrl, для текста - id
   const uniqueMessages = useMemo(() => {
@@ -3252,41 +3303,56 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             setUserInfo(null);
             setBalanceRefreshTrigger(prev => prev + 1);
           }}
-          onProfile={onOwnProfile}
+          onProfile={onOwnProfile || (() => userInfo?.id && onProfile?.(userInfo.id))}
           onBalance={() => alert('Баланс пользователя')}
           refreshTrigger={balanceRefreshTrigger}
         />
         
+        {/* Кнопки альбома для мобильных устройств - под хедером */}
+        <MobileAlbumButtonsContainer>
+          {isPaidAlbumUnlocked || (normalizedSubscriptionType as string) === 'premium' ? (
+            <MobileAlbumButton onClick={handleOpenPaidAlbumView}>
+              <FiUnlock />
+              Открыть альбом
+            </MobileAlbumButton>
+          ) : (
+            <MobileAlbumButton 
+              onClick={handleUnlockPaidAlbum}
+              disabled={isUnlockingAlbum || !isAuthenticated || userCoins < PAID_ALBUM_COST}
+            >
+              {isUnlockingAlbum ? (
+                <>
+                  <LoadingSpinner size="sm" />
+                  Разблокируем...
+                </>
+              ) : (
+                <>
+                  <FiLock />
+                  Разблокировать
+                </>
+              )}
+            </MobileAlbumButton>
+          )}
+
+          {/* Кнопка расширения для владельца */}
+          {isOwner && (
+            <MobileAlbumButton 
+              onClick={() => {
+                if (canCreatePaidAlbum) {
+                  handleOpenPaidAlbumBuilderView();
+                } else {
+                  setIsUpgradeModalOpen(true);
+                }
+              }}
+              style={{ background: 'rgba(60, 60, 60, 0.8)', borderColor: 'rgba(150, 150, 150, 0.3)' }}
+            >
+              <FiImage />
+              Расширить
+            </MobileAlbumButton>
+          )}
+        </MobileAlbumButtonsContainer>
+        
         <ChatContentWrapper>
-          {(() => {
-            const isOwnerByCreatorInfo = creatorInfo && userInfo && creatorInfo.id === userInfo.id;
-            const isOwnerByCharacter = characterForRender?.user_id && userInfo && characterForRender.user_id === userInfo.id;
-            const isOwner = paidAlbumStatus?.is_owner || isOwnerByCreatorInfo || isOwnerByCharacter;
-
-            if (!isOwner) return null;
-
-            return (
-              <TopActionsContainer>
-                {isPaidAlbumUnlocked ? (
-                  <TopActionButton onClick={handleOpenPaidAlbumView} $variant="secondary">
-                    <FiUnlock /> Альбом
-                  </TopActionButton>
-                ) : (
-                  <div /> // Placeholder for spacing
-                )}
-                
-                {canCreatePaidAlbum ? (
-                  <TopActionButton onClick={handleOpenPaidAlbumBuilderView}>
-                    <FiImage /> {isPaidAlbumUnlocked ? 'Расширить' : 'Создать альбом'}
-                  </TopActionButton>
-                ) : (
-                  <TopActionButton onClick={() => setIsUpgradeModalOpen(true)}>
-                    <FiImage /> Расширить
-                  </TopActionButton>
-                )}
-              </TopActionsContainer>
-            );
-          })()}
           <ChatMessagesArea style={{ zIndex: 10, position: 'relative' }}>
             <ChatArea 
               messages={uniqueMessages}
@@ -3393,6 +3459,79 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             <PaidAlbumDescription>
               Доступ к эксклюзивному альбому персонажа. После разблокировки фотографии будут доступны всегда.
             </PaidAlbumDescription>
+
+            {/* Индикатор очереди генераций - вверху панели */}
+            <GenerationQueueIndicator>
+              {Array.from({ length: getGenerationQueueLimit }).map((_, index) => (
+                <QueueBar 
+                  key={index} 
+                  $isFilled={index < activeGenerations.size}
+                />
+              ))}
+            </GenerationQueueIndicator>
+            <QueueLabel>Очередь генерации</QueueLabel>
+
+            {/* Карточка персонажа сразу после очереди */}
+            {currentCharacter && (
+              <CharacterCardWrapper>
+                <CharacterCard
+                  character={{
+                    id: currentCharacter.id,
+                    name: currentCharacter.name,
+                    description: currentCharacter.description || '',
+                    avatar: currentCharacter.avatar || currentCharacter.name.charAt(0).toUpperCase(),
+                    photos: characterPhotos,
+                    tags: [],
+                    author: creatorInfo?.username || 'Unknown',
+                    likes: 0,
+                    views: 0,
+                    comments: 0
+                  }}
+                  onClick={() => {}}
+                  isAuthenticated={isAuthenticated}
+                  isFavorite={isCharacterFavorite}
+                  showRatings={true}
+                  onFavoriteToggle={async () => {
+                    // Обновляем состояние избранного после переключения, загружая актуальное состояние с сервера
+                    if (currentCharacter?.id) {
+                      try {
+                        const characterId = typeof currentCharacter.id === 'number' 
+                          ? currentCharacter.id 
+                          : parseInt(currentCharacter.id, 10);
+                        
+                        if (!isNaN(characterId)) {
+                          const favoriteResponse = await authManager.fetchWithAuth(
+                            API_CONFIG.CHECK_FAVORITE(characterId)
+                          );
+                          if (favoriteResponse.ok) {
+                            const favoriteData = await favoriteResponse.json();
+                            setIsCharacterFavorite(favoriteData?.is_favorite || false);
+                          }
+                        }
+                      } catch (error) {
+                        
+                        // В случае ошибки просто переключаем состояние локально
+                        setIsCharacterFavorite(!isCharacterFavorite);
+                      }
+                    } else {
+                      setIsCharacterFavorite(!isCharacterFavorite);
+                    }
+                  }}
+                  onPhotoGeneration={() => {
+                    if (onOpenPaidAlbumBuilder && currentCharacter) {
+                      onOpenPaidAlbumBuilder(currentCharacter);
+                    }
+                  }}
+                  onPaidAlbum={() => {
+                    if (onOpenPaidAlbum && currentCharacter) {
+                      onOpenPaidAlbum(currentCharacter);
+                    } else {
+                      handleOpenPaidAlbumView();
+                    }
+                  }}
+                />
+              </CharacterCardWrapper>
+            )}
 
             {creatorInfo && (
               <CreatorInfoWrapper>
@@ -3607,79 +3746,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               </>
               );
             })()}
-            
-            {/* Карточка персонажа внизу панели */}
-            {currentCharacter && (
-              <CharacterCardWrapper>
-                <CharacterCard
-                  character={{
-                    id: currentCharacter.id,
-                    name: currentCharacter.name,
-                    description: currentCharacter.description || '',
-                    avatar: currentCharacter.avatar || currentCharacter.name.charAt(0).toUpperCase(),
-                    photos: characterPhotos,
-                    tags: [],
-                    author: creatorInfo?.username || 'Unknown',
-                    likes: 0,
-                    views: 0,
-                    comments: 0
-                  }}
-                  onClick={() => {}}
-                  isAuthenticated={isAuthenticated}
-                  isFavorite={isCharacterFavorite}
-                  showRatings={true}
-                  onFavoriteToggle={async () => {
-                    // Обновляем состояние избранного после переключения, загружая актуальное состояние с сервера
-                    if (currentCharacter?.id) {
-                      try {
-                        const characterId = typeof currentCharacter.id === 'number' 
-                          ? currentCharacter.id 
-                          : parseInt(currentCharacter.id, 10);
-                        
-                        if (!isNaN(characterId)) {
-                          const favoriteResponse = await authManager.fetchWithAuth(
-                            API_CONFIG.CHECK_FAVORITE(characterId)
-                          );
-                          if (favoriteResponse.ok) {
-                            const favoriteData = await favoriteResponse.json();
-                            setIsCharacterFavorite(favoriteData?.is_favorite || false);
-                          }
-                        }
-                      } catch (error) {
-                        
-                        // В случае ошибки просто переключаем состояние локально
-                        setIsCharacterFavorite(!isCharacterFavorite);
-                      }
-                    } else {
-                      setIsCharacterFavorite(!isCharacterFavorite);
-                    }
-                  }}
-                  onPhotoGeneration={() => {
-                    if (onOpenPaidAlbumBuilder && currentCharacter) {
-                      onOpenPaidAlbumBuilder(currentCharacter);
-                    }
-                  }}
-                  onPaidAlbum={() => {
-                    if (onOpenPaidAlbum && currentCharacter) {
-                      onOpenPaidAlbum(currentCharacter);
-                    } else {
-                      handleOpenPaidAlbumView();
-                    }
-                  }}
-                />
-              </CharacterCardWrapper>
-            )}
-            
-            {/* Индикатор очереди генераций - в самом низу панели */}
-                <GenerationQueueIndicator>
-                  {Array.from({ length: getGenerationQueueLimit }).map((_, index) => (
-                    <QueueBar 
-                      key={index} 
-                      $isFilled={index < activeGenerations.size}
-                    />
-                  ))}
-                </GenerationQueueIndicator>
-                <QueueLabel>Очередь генерации</QueueLabel>
           </PaidAlbumPanel>
           )}
         </ChatContentWrapper>

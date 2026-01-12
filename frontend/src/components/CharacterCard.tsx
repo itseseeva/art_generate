@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import ElectricBorder from './ElectricBorder';
-import { FiHeart, FiX as CloseIcon, FiTrash2, FiThumbsUp, FiThumbsDown } from 'react-icons/fi';
+import { FiHeart, FiX as CloseIcon, FiTrash2, FiThumbsUp, FiThumbsDown, FiEdit } from 'react-icons/fi';
 import { authManager } from '../utils/auth';
 import { API_CONFIG } from '../config/api';
 import { fetchPromptByImage } from '../utils/prompt';
@@ -188,6 +188,18 @@ const ActionButton = styled.button<{ variant?: 'edit' | 'delete' }>`
   &:active {
     transform: scale(0.95);
   }
+  
+  @media (max-width: 768px) {
+    padding: 4px 6px;
+    min-width: 32px;
+    min-height: 32px;
+    font-size: ${theme.fontSize.xs};
+    
+    svg {
+      width: 14px;
+      height: 14px;
+    }
+  }
 `;
 
 const AlbumButton = styled.button`
@@ -209,41 +221,15 @@ const AlbumButton = styled.button`
   z-index: 11;
   position: relative;
   
+  @media (max-width: 768px) {
+    padding: 4px 8px;
+    min-width: 60px;
+    font-size: ${theme.fontSize.xs};
+  }
+  
   &:hover {
     transform: scale(1.05);
   background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.4);
-    color: rgba(255, 255, 255, 0.9);
-    box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2);
-  }
-  
-  &:active {
-    transform: scale(0.95);
-  }
-`;
-
-const CharacterButton = styled.button`
-  padding: ${theme.spacing.sm} ${theme.spacing.md};
-  border-radius: ${theme.borderRadius.lg};
-  background: rgba(255, 255, 255, 0.05);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  color: rgba(255, 255, 255, 0.95);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all ${theme.transition.fast};
-  cursor: pointer;
-  font-size: ${theme.fontSize.sm};
-  font-weight: 600;
-  text-align: center;
-  white-space: nowrap;
-  min-width: 80px;
-  z-index: 11;
-  position: relative;
-  
-  &:hover {
-    transform: scale(1.05);
-    background: rgba(255, 255, 255, 0.1);
     border-color: rgba(255, 255, 255, 0.4);
     color: rgba(255, 255, 255, 0.9);
     box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2);
@@ -335,6 +321,213 @@ const PersonalityError = styled.div`
   font-size: ${theme.fontSize.md};
   text-align: center;
   padding: ${theme.spacing.xl};
+`;
+
+const EditPromptModal = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10001;
+  padding: ${theme.spacing.lg};
+`;
+
+const EditPromptModalContent = styled.div`
+  background: ${theme.colors.background.primary};
+  border-radius: ${theme.borderRadius.lg};
+  padding: ${theme.spacing.xl};
+  max-width: 1200px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  border: 1px solid ${theme.colors.border.accent};
+  box-shadow: ${theme.colors.shadow.glow};
+`;
+
+const EditPromptModalHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: ${theme.spacing.lg};
+`;
+
+const EditPromptModalTitle = styled.h2`
+  color: ${theme.colors.text.primary};
+  font-size: ${theme.fontSize.xl};
+  font-weight: 600;
+  margin: 0;
+`;
+
+const EditPromptModalCloseButton = styled.button`
+  background: transparent;
+  border: none;
+  color: ${theme.colors.text.primary};
+  cursor: pointer;
+  padding: ${theme.spacing.sm};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: ${theme.borderRadius.md};
+  transition: all ${theme.transition.fast};
+  
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  
+  svg {
+    width: 24px;
+    height: 24px;
+  }
+`;
+
+const EditPromptPhotoGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: ${theme.spacing.xl};
+  margin-bottom: ${theme.spacing.xl};
+  
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+    gap: ${theme.spacing.lg};
+  }
+`;
+
+const EditPromptPhotoItem = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${theme.spacing.md};
+`;
+
+const EditPromptPhotoImage = styled.img`
+  width: 100%;
+  max-height: 300px;
+  object-fit: contain;
+  border-radius: ${theme.borderRadius.md};
+  background: rgba(20, 20, 20, 0.8);
+  border: 1px solid rgba(100, 100, 100, 0.3);
+`;
+
+const EditPromptPhotoTextarea = styled.textarea`
+  width: 100%;
+  min-height: 150px;
+  padding: ${theme.spacing.md};
+  border: 2px solid rgba(100, 100, 100, 0.3);
+  border-radius: ${theme.borderRadius.md};
+  background: rgba(20, 20, 20, 0.8);
+  color: ${theme.colors.text.primary};
+  font-size: ${theme.fontSize.sm};
+  font-family: 'Courier New', monospace;
+  resize: vertical;
+  line-height: 1.6;
+  
+  &:focus {
+    outline: none;
+    border-color: rgba(139, 92, 246, 0.6);
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+  }
+  
+  &::placeholder {
+    color: rgba(150, 150, 150, 0.7);
+  }
+`;
+
+const EditPromptButtonGroup = styled.div`
+  display: flex;
+  gap: ${theme.spacing.md};
+  justify-content: flex-end;
+`;
+
+const EditPromptSaveButton = styled.button`
+  padding: ${theme.spacing.sm} ${theme.spacing.lg};
+  border-radius: ${theme.borderRadius.md};
+  background: rgba(139, 92, 246, 0.8);
+  border: 2px solid rgba(139, 92, 246, 0.6);
+  color: white;
+  font-size: ${theme.fontSize.md};
+  font-weight: 600;
+  cursor: pointer;
+  transition: all ${theme.transition.fast};
+  
+  &:hover {
+    background: rgba(139, 92, 246, 1);
+    border-color: rgba(139, 92, 246, 0.8);
+    transform: translateY(-1px);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+`;
+
+const EditPromptCancelButton = styled.button`
+  padding: ${theme.spacing.sm} ${theme.spacing.lg};
+  border-radius: ${theme.borderRadius.md};
+  background: transparent;
+  border: 2px solid rgba(100, 100, 100, 0.5);
+  color: ${theme.colors.text.secondary};
+  font-size: ${theme.fontSize.md};
+  font-weight: 600;
+  cursor: pointer;
+  transition: all ${theme.transition.fast};
+  
+  &:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(100, 100, 100, 0.7);
+    color: ${theme.colors.text.primary};
+  }
+  
+  &:active {
+    transform: scale(0.98);
+  }
+`;
+
+const EditPromptButton = styled.button`
+  padding: ${theme.spacing.sm} ${theme.spacing.md};
+  border-radius: ${theme.borderRadius.lg};
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.95);
+  display: flex;
+  align-items: center;
+  gap: ${theme.spacing.xs};
+  transition: all ${theme.transition.fast};
+  cursor: pointer;
+  font-size: ${theme.fontSize.sm};
+  font-weight: 600;
+  z-index: 11;
+  
+  @media (max-width: 768px) {
+    padding: 4px 6px;
+    font-size: ${theme.fontSize.xs};
+    gap: 3px;
+    
+    svg {
+      width: 12px;
+      height: 12px;
+    }
+  }
+  
+  &:hover {
+    transform: scale(1.05);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.4);
+  }
+  
+  &:active {
+    transform: scale(0.95);
+  }
 `;
 
 const Tooltip = styled.div`
@@ -583,6 +776,15 @@ const ShowPromptButton = styled.button`
   opacity: 0;
   transform: translateY(10px);
   
+  @media (max-width: 768px) {
+    padding: 3px 6px;
+    font-size: 10px;
+    bottom: ${theme.spacing.sm};
+    right: ${theme.spacing.sm};
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+  }
+  
   ${CardContainer}:hover & {
     opacity: 1;
     transform: translateY(0);
@@ -605,7 +807,7 @@ const ModalOverlay = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(70px);
   -webkit-backdrop-filter: blur(70px);
   display: flex;
@@ -615,7 +817,7 @@ const ModalOverlay = styled.div`
   padding: ${theme.spacing.xl};
 
   @media (max-width: 768px) {
-    background: #000;
+    background: rgba(0, 0, 0, 0.95);
     padding: 0;
   }
 `;
@@ -644,29 +846,38 @@ const ModalContent = styled.div`
 
 const ModalImageContainer = styled.div`
   flex: 1;
-  display: flex;
+  display: flex !important;
   align-items: center;
   justify-content: center;
-  min-width: 0;
+  min-width: 300px;
   max-width: 70%;
+  visibility: visible !important;
+  opacity: 1 !important;
 
   @media (max-width: 768px) {
     max-width: 100%;
     width: 100%;
     flex: 1;
-    min-height: 0;
+    min-height: 200px;
+    min-width: 0;
   }
 `;
 
 const ModalImage = styled.img`
   max-width: 100%;
   max-height: 95vh;
+  width: auto;
+  height: auto;
   object-fit: contain;
   border-radius: ${theme.borderRadius.lg};
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 
   @media (max-width: 768px) {
-    max-height: 100%;
+    max-height: 70vh;
+    max-width: 100vw;
     width: auto;
     height: auto;
     border-radius: 0;
@@ -934,6 +1145,10 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   const [personality, setPersonality] = useState<string | null>(null);
   const [isLoadingPersonality, setIsLoadingPersonality] = useState(false);
   const [personalityError, setPersonalityError] = useState<string | null>(null);
+  const [isEditPromptModalOpen, setIsEditPromptModalOpen] = useState(false);
+  const [editingPhotos, setEditingPhotos] = useState<Array<{url: string, prompt: string}>>([]);
+  const [isSavingPrompt, setIsSavingPrompt] = useState(false);
+  const [promptSaveError, setPromptSaveError] = useState<string | null>(null);
   const [likesCount, setLikesCount] = useState<number>(0);
   const [dislikesCount, setDislikesCount] = useState<number>(0);
   const [userRating, setUserRating] = useState<'like' | 'dislike' | null>(null);
@@ -1066,6 +1281,80 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
       setPersonalityError('Ошибка загрузки характера персонажа');
     } finally {
       setIsLoadingPersonality(false);
+    }
+  };
+
+  // Функция для загрузки промптов для всех фото
+  const loadPromptsForPhotos = async (photoUrls: string[]): Promise<Array<{url: string, prompt: string}>> => {
+    const photosWithPrompts: Array<{url: string, prompt: string}> = [];
+    
+    for (const url of photoUrls) {
+      try {
+        const { prompt } = await fetchPromptByImage(url);
+        photosWithPrompts.push({
+          url,
+          prompt: prompt || ''
+        });
+      } catch (error) {
+        photosWithPrompts.push({
+          url,
+          prompt: ''
+        });
+      }
+    }
+    
+    return photosWithPrompts;
+  };
+
+  // Функция для сохранения админских промптов
+  const handleSaveAdminPrompt = async () => {
+    if (editingPhotos.length === 0) {
+      return;
+    }
+
+    setIsSavingPrompt(true);
+    setPromptSaveError(null);
+
+    try {
+      // Сохраняем промпты для всех фото
+      const savePromises = editingPhotos.map(photo =>
+        authManager.fetchWithAuth(
+          `${API_CONFIG.BASE_URL}/api/v1/image-generation/set-admin-prompt/`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              image_url: photo.url,
+              admin_prompt: photo.prompt.trim() || null
+            })
+          }
+        )
+      );
+
+      const responses = await Promise.all(savePromises);
+      const allSuccess = responses.every(r => r.ok);
+
+      if (allSuccess) {
+        // Обновляем selectedPrompt, если модальное окно открыто для одного из отредактированных фото
+        const editedPhoto = editingPhotos.find(p => p.url === selectedPhoto);
+        if (editedPhoto && editedPhoto.prompt.trim()) {
+          // Переводим промпт на русский для отображения
+          const translatedPrompt = await translateToRussian(editedPhoto.prompt.trim());
+          setSelectedPrompt(translatedPrompt);
+        }
+        setIsEditPromptModalOpen(false);
+        setEditingPhotos([]);
+      } else {
+        const errorResponses = responses.filter(r => !r.ok);
+        const errorData = await errorResponses[0].json().catch(() => ({}));
+        setPromptSaveError(errorData.detail || 'Ошибка сохранения промптов');
+      }
+    } catch (error) {
+      setPromptSaveError('Ошибка сохранения промптов');
+    } finally {
+      setIsSavingPrompt(false);
     }
   };
 
@@ -1442,84 +1731,16 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         if (isPersonalityModalOpen) {
           setIsPersonalityModalOpen(false);
         }
+        if (isEditPromptModalOpen) {
+          setIsEditPromptModalOpen(false);
+          setEditingPhotos([]);
+          setPromptSaveError(null);
+        }
       }
     };
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
-  }, [selectedPhoto, isPersonalityModalOpen]);
-
-  const modalContent = selectedPhoto ? (
-    <ModalOverlay onClick={() => {
-      setSelectedPhoto(null);
-      setSelectedPrompt(null);
-      setPromptError(null);
-      setIsLoadingPrompt(false);
-    }}>
-      <ModalContent onClick={(e) => e.stopPropagation()}>
-        <CloseButton onClick={() => {
-          setSelectedPhoto(null);
-          setSelectedPrompt(null);
-          setPromptError(null);
-          setIsLoadingPrompt(false);
-        }}>
-          <CloseIcon />
-        </CloseButton>
-        <ModalImageContainer>
-          <ModalImage src={selectedPhoto} alt="Full size" />
-        </ModalImageContainer>
-        <PromptPanel style={{
-          display: isPromptVisible ? 'flex' : 'none',
-          visibility: isPromptVisible ? 'visible' : 'hidden'
-        }}>
-          <PromptPanelHeader>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
-              <button 
-                onClick={() => setIsPromptVisible(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#fbbf24',
-                  cursor: 'pointer',
-                  padding: '4px'
-                }}
-                title="Скрыть промпт"
-              >
-                <CloseIcon size={20} />
-              </button>
-            </div>
-          </PromptPanelHeader>
-          {isLoadingPrompt ? (
-            <PromptLoading>Загрузка промпта...</PromptLoading>
-          ) : promptError ? (
-            <PromptError>{promptError}</PromptError>
-          ) : selectedPrompt ? (
-            <PromptPanelText>{selectedPrompt}</PromptPanelText>
-          ) : null}
-        </PromptPanel>
-        {!isPromptVisible && (
-          <button
-            onClick={() => setIsPromptVisible(true)}
-            style={{
-              position: 'absolute',
-              top: '20px',
-              left: '20px',
-              background: 'rgba(0, 0, 0, 0.7)',
-              border: '1px solid rgba(251, 191, 36, 0.5)',
-              borderRadius: '8px',
-              padding: '8px 16px',
-              color: '#fbbf24',
-              cursor: 'pointer',
-              zIndex: 10002,
-              fontWeight: '600'
-            }}
-          >
-            Показать промпт
-          </button>
-        )}
-      </ModalContent>
-    </ModalOverlay>
-  ) : null;
+  }, [selectedPhoto, isPersonalityModalOpen, isEditPromptModalOpen]);
 
   return (
     <>
@@ -1606,15 +1827,28 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
               Альбом
             </AlbumButton>
           )}
-          <CharacterButton 
-            onClick={async (e) => {
-              e.stopPropagation();
-              setIsPersonalityModalOpen(true);
-              await loadPersonality();
-            }}
-          >
-            Характер
-          </CharacterButton>
+          {userInfo && userInfo.is_admin === true && character.photos && character.photos.length > 0 && (
+            <EditPromptButton
+              onClick={async (e) => {
+                e.stopPropagation();
+                // Берем до 3 фото персонажа
+                const photosToEdit = character.photos.slice(0, 3);
+                setIsEditPromptModalOpen(true);
+                setPromptSaveError(null);
+                setIsSavingPrompt(false);
+                // Загружаем текущие промпты для всех фото
+                try {
+                  const photosWithPrompts = await loadPromptsForPhotos(photosToEdit);
+                  setEditingPhotos(photosWithPrompts);
+                } catch (error) {
+                  setEditingPhotos(photosToEdit.map(url => ({ url, prompt: '' })));
+                }
+              }}
+            >
+              <FiEdit size={14} />
+              Вписать промит фото
+            </EditPromptButton>
+          )}
           {onDelete && (
             <ActionButtonWithTooltip>
               <ActionButton
@@ -1650,9 +1884,41 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             )}
         </ContentOverlay>
           <div 
-            onClick={() => {
-              
+            onClick={(e) => {
+              // Не блокируем клики на кнопки рейтинга и другие интерактивные элементы
+              const target = e.target as HTMLElement;
+              if (
+                target.closest('button') || 
+                target.closest('a') || 
+                target.closest('[class*="RatingButton"]') ||
+                target.closest('[class*="Switcher"]') ||
+                target.closest('[class*="FavoriteButton"]') ||
+                target.closest('[class*="ShowPromptButton"]') ||
+                target.closest('[class*="ActionButton"]')
+              ) {
+                // Если клик по кнопке - не перехватываем
+                e.stopPropagation();
+                return;
+              }
+              // Для всего остального вызываем onClick
+              e.stopPropagation();
               onClick(character);
+            }}
+            onTouchStart={(e) => {
+              // Для мобильных устройств также проверяем, не кликнули ли по кнопке
+              const target = e.target as HTMLElement;
+              if (
+                target.closest('button') || 
+                target.closest('a') || 
+                target.closest('[class*="RatingButton"]') ||
+                target.closest('[class*="Switcher"]') ||
+                target.closest('[class*="FavoriteButton"]') ||
+                target.closest('[class*="ShowPromptButton"]') ||
+                target.closest('[class*="ActionButton"]')
+              ) {
+                // Если клик по кнопке - не перехватываем
+                return;
+              }
             }}
             style={{ 
               position: 'absolute', 
@@ -1663,21 +1929,6 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
               zIndex: 10, // Увеличил z-index чтобы перекрывать контент, но не кнопки
               pointerEvents: 'auto',
               cursor: 'pointer'
-            }}
-            onMouseDown={(e) => {
-              // Не блокируем клики на кнопки рейтинга и другие интерактивные элементы
-              const target = e.target as HTMLElement;
-              if (
-                target.closest('button') || 
-                target.closest('a') || 
-                target.closest('[class*="RatingButton"]') ||
-                target.closest('[class*="Switcher"]') ||
-                target.closest('[class*="FavoriteButton"]')
-              ) {
-                // Если клик по кнопке - не перехватываем
-                return;
-              }
-              // Для всего остального можем обработать здесь если нужно
             }}
           />
       </CardContainer>
@@ -1693,7 +1944,79 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         </RatingButton>
       )}
     </CardWrapper>
-      {modalContent && createPortal(modalContent, document.body)}
+      {selectedPhoto && createPortal(
+        <ModalOverlay onClick={() => {
+          setSelectedPhoto(null);
+          setSelectedPrompt(null);
+          setPromptError(null);
+          setIsLoadingPrompt(false);
+        }}>
+          <ModalContent onClick={(e) => e.stopPropagation()}>
+            <CloseButton onClick={() => {
+              setSelectedPhoto(null);
+              setSelectedPrompt(null);
+              setPromptError(null);
+              setIsLoadingPrompt(false);
+            }}>
+              <CloseIcon />
+            </CloseButton>
+            <ModalImageContainer>
+              <ModalImage src={selectedPhoto} alt="Full size" />
+            </ModalImageContainer>
+            <PromptPanel style={{
+              display: isPromptVisible ? 'flex' : 'none',
+              visibility: isPromptVisible ? 'visible' : 'hidden'
+            }}>
+              <PromptPanelHeader>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+                  <button 
+                    onClick={() => setIsPromptVisible(false)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#fbbf24',
+                      cursor: 'pointer',
+                      padding: '4px'
+                    }}
+                    title="Скрыть промпт"
+                  >
+                    <CloseIcon size={20} />
+                  </button>
+                </div>
+              </PromptPanelHeader>
+              {isLoadingPrompt ? (
+                <PromptLoading>Загрузка промпта...</PromptLoading>
+              ) : promptError ? (
+                <PromptError>{promptError}</PromptError>
+              ) : selectedPrompt ? (
+                <PromptPanelText>{selectedPrompt}</PromptPanelText>
+              ) : null}
+            </PromptPanel>
+            {!isPromptVisible && (
+              <button
+                onClick={() => setIsPromptVisible(true)}
+                style={{
+                  position: 'absolute',
+                  top: '20px',
+                  left: '20px',
+                  background: 'rgba(0, 0, 0, 0.7)',
+                  border: '1px solid rgba(251, 191, 36, 0.5)',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  color: '#fbbf24',
+                  cursor: 'pointer',
+                  zIndex: 10002,
+                  fontWeight: '600'
+                }}
+              >
+                Показать промпт
+              </button>
+            )}
+          </ModalContent>
+        </ModalOverlay>,
+        document.body
+      )}
       {isPersonalityModalOpen && createPortal(
         <PersonalityModal onClick={(e) => {
           if (e.target === e.currentTarget) {
@@ -1718,6 +2041,68 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             )}
           </PersonalityModalContent>
         </PersonalityModal>,
+        document.body
+      )}
+      {isEditPromptModalOpen && editingPhotos.length > 0 && createPortal(
+        <EditPromptModal onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            setIsEditPromptModalOpen(false);
+            setEditingPhotos([]);
+            setPromptSaveError(null);
+          }
+        }}>
+          <EditPromptModalContent onClick={(e) => e.stopPropagation()}>
+            <EditPromptModalHeader>
+              <EditPromptModalTitle>Редактирование промптов фото</EditPromptModalTitle>
+              <EditPromptModalCloseButton onClick={() => {
+                setIsEditPromptModalOpen(false);
+                setEditingPhotos([]);
+                setPromptSaveError(null);
+              }}>
+                <CloseIcon />
+              </EditPromptModalCloseButton>
+            </EditPromptModalHeader>
+            <EditPromptPhotoGrid>
+              {editingPhotos.map((photo, index) => (
+                <EditPromptPhotoItem key={photo.url}>
+                  <EditPromptPhotoImage src={photo.url} alt={`Фото ${index + 1}`} />
+                  <EditPromptPhotoTextarea
+                    value={photo.prompt}
+                    onChange={(e) => {
+                      const updated = [...editingPhotos];
+                      updated[index] = { ...updated[index], prompt: e.target.value };
+                      setEditingPhotos(updated);
+                    }}
+                    placeholder="Введите промпт для изображения..."
+                  />
+                </EditPromptPhotoItem>
+              ))}
+            </EditPromptPhotoGrid>
+            {promptSaveError && (
+              <div style={{ color: '#ff6b6b', marginBottom: '16px', fontSize: '14px' }}>
+                {promptSaveError}
+              </div>
+            )}
+            <EditPromptButtonGroup>
+              <EditPromptCancelButton
+                onClick={() => {
+                  setIsEditPromptModalOpen(false);
+                  setEditingPhotos([]);
+                  setPromptSaveError(null);
+                }}
+                disabled={isSavingPrompt}
+              >
+                Отмена
+              </EditPromptCancelButton>
+              <EditPromptSaveButton
+                onClick={handleSaveAdminPrompt}
+                disabled={isSavingPrompt}
+              >
+                {isSavingPrompt ? 'Сохранение...' : 'Сохранить все'}
+              </EditPromptSaveButton>
+            </EditPromptButtonGroup>
+          </EditPromptModalContent>
+        </EditPromptModal>,
         document.body
       )}
     </>

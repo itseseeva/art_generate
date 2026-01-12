@@ -25,7 +25,6 @@ import { LeftDockSidebar } from './components/LeftDockSidebar';
 import { AuthModal } from './components/AuthModal';
 import { LegalPage } from './components/LegalPage';
 import { AboutPage } from './components/AboutPage';
-import { TariffsPage } from './components/TariffsPage';
 import { HowItWorksPage } from './components/HowItWorksPage';
 import { PaidAlbumPurchaseModal } from './components/PaidAlbumPurchaseModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -76,7 +75,6 @@ type PageType =
   | 'character-comments'
   | 'legal'
   | 'about'
-  | 'tariffs'
   | 'how-it-works'
   | 'bug-report'
   | 'admin-logs';
@@ -120,7 +118,6 @@ function App() {
         'character-comments': 'Комментарии',
         'legal': 'Правовая информация',
         'about': 'О проекте',
-        'tariffs': 'Тарифы',
         'how-it-works': 'Как это работает',
         'bug-report': 'Сообщить об ошибке',
         'admin-logs': 'Логи администратора'
@@ -242,9 +239,6 @@ function App() {
     } else if (path.includes('/about')) {
       setCurrentPage('about');
       window.history.replaceState({ page: 'about' }, '', path);
-    } else if (path.includes('/tariffs')) {
-      setCurrentPage('tariffs');
-      window.history.replaceState({ page: 'tariffs' }, '', path);
     } else if (path.includes('/how-it-works')) {
       setCurrentPage('how-it-works');
       window.history.replaceState({ page: 'how-it-works' }, '', path);
@@ -276,9 +270,15 @@ function App() {
         });
         return; // Выходим, чтобы не устанавливать main
       } else {
-        // Если нет characterId, переходим на список редактирования
-        setCurrentPage('edit-characters');
-        window.history.replaceState({ page: 'edit-characters' }, '', '/edit-characters');
+        // Если нет characterId, проверяем, может быть это просто /edit-characters
+        if (path === '/edit-characters') {
+            setCurrentPage('edit-characters');
+            window.history.replaceState({ page: 'edit-characters' }, '', path);
+        } else {
+            // Иначе, считаем что это попытка редактировать без ID
+            setCurrentPage('edit-characters');
+            window.history.replaceState({ page: 'edit-characters' }, '', '/edit-characters');
+        }
       }
     } else if (path.includes('/edit-characters')) {
       setCurrentPage('edit-characters');
@@ -700,6 +700,9 @@ function App() {
             onHome={handleBackToMain}
             onPaymentMethod={handlePaymentMethod}
             contentMode={contentMode}
+            onLogin={handleLogin}
+            onLogout={handleLogout}
+            onRegister={handleRegister}
           />
         );
       case 'chat':
@@ -806,6 +809,7 @@ function App() {
             onCreateCharacter={handleCreateCharacter}
             onEditCharacters={handleEditCharacters}
             onCharacterSelect={handleCharacterSelect}
+            onLogout={handleLogout}
           />
         );
       case 'messages':
@@ -1018,30 +1022,33 @@ function App() {
         return <LegalPage />;
       case 'about':
         return <AboutPage />;
-      case 'tariffs':
-        return <TariffsPage />;
       case 'how-it-works':
         return <HowItWorksPage />;
       case 'bug-report':
-        return <BugReportPage onBackToMain={handleBackToMain} onProfile={handleProfile} />;
+        return <BugReportPage onBackToMain={handleBackToMain} onProfile={handleProfile} onLogout={handleLogout} />;
       case 'admin-logs':
         return <AdminLogsPage onBackToMain={handleBackToMain} />;
       case 'character-comments':
-        return selectedCharacter ? (
-          <CharacterCommentsPage
-            characterName={selectedCharacter.name || selectedCharacter.id || ''}
-            onBack={() => {
-              // Возвращаемся на чат с тем же персонажем
-              setCurrentPage('chat');
-              const characterIdentifier = selectedCharacter?.id || selectedCharacter?.name || '';
-              if (characterIdentifier) {
-                window.history.pushState({ page: 'chat', character: characterIdentifier }, '', `/chat?character=${encodeURIComponent(characterIdentifier)}`);
-              }
-            }}
-            onShop={handleShop}
-            onProfile={handleProfile}
-          />
-        ) : null;
+        if (selectedCharacter && selectedCharacter.name) {
+          return (
+            <CharacterCommentsPage
+              characterName={selectedCharacter.name}
+              onBack={() => {
+                // Возвращаемся на чат с тем же персонажем
+                setCurrentPage('chat');
+                const characterIdentifier = selectedCharacter?.id || selectedCharacter?.name || '';
+                if (characterIdentifier) {
+                  window.history.pushState({ page: 'chat', character: characterIdentifier }, '', `/chat?character=${encodeURIComponent(characterIdentifier)}`);
+                }
+              }}
+              onShop={handleShop}
+              onProfile={handleProfile}
+            />
+          );
+        } else {
+          // Если персонаж не выбран, показываем заглушку или перенаправляем
+          return null;
+        }
       default:
         return (
           <MainPage 
@@ -1393,9 +1400,13 @@ function App() {
   const handleLogout = async () => {
     try {
       await authManager.logout();
+      // Явное удаление токенов (на всякий случай, хотя authManager должен это делать)
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('refreshToken');
       setIsAuthenticated(false);
       setUserInfo(null);
-      window.location.reload();
+      // Принудительная перезагрузка страницы для очистки всех состояний
+      window.location.href = '/';
     } catch (error) {
       
     }
@@ -1472,10 +1483,7 @@ function App() {
             setAuthMode('login');
           }}
           onAuthSuccess={(accessToken, refreshToken) => {
-            localStorage.setItem('authToken', accessToken);
-            if (refreshToken) {
-              localStorage.setItem('refreshToken', refreshToken);
-            }
+            authManager.setTokens(accessToken, refreshToken);
             setIsAuthenticated(true);
             setIsAuthModalOpen(false);
             setAuthMode('login');

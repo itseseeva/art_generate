@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
+import { authManager } from '../utils/auth';
 import { theme } from '../theme';
 import '../styles/ContentArea.css';
 import { AuthModal } from './AuthModal';
@@ -8,6 +9,7 @@ import { API_CONFIG } from '../config/api';
 import { motion, AnimatePresence } from 'motion/react';
 import { CircularProgress } from './ui/CircularProgress';
 import { FiX as CloseIcon } from 'react-icons/fi';
+import { Plus } from 'lucide-react';
 import { fetchPromptByImage } from '../utils/prompt';
 
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -138,6 +140,36 @@ const RightColumn = styled.div`
   @media (max-width: 768px) {
     width: 100%;
     overflow: visible;
+  }
+`;
+
+const PhotoGenerationContainer = styled.div<{ $isMobile?: boolean; $isFullscreen?: boolean }>`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: ${props => props.$isMobile ? '0' : '400px'};
+  background: rgba(39, 39, 42, 0.5);
+  border: 1px solid rgba(63, 63, 70, 1);
+  border-radius: ${theme.borderRadius.xl};
+  padding: ${theme.spacing.xl};
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  @media (max-width: 768px) {
+    position: ${props => props.$isFullscreen ? 'fixed' : 'relative'};
+    top: ${props => props.$isFullscreen ? '0' : 'auto'};
+    left: ${props => props.$isFullscreen ? '0' : 'auto'};
+    right: ${props => props.$isFullscreen ? '0' : 'auto'};
+    bottom: ${props => props.$isFullscreen ? '0' : 'auto'};
+    width: ${props => props.$isFullscreen ? '100vw' : '100%'};
+    height: ${props => props.$isFullscreen ? '100vh' : 'auto'};
+    min-height: ${props => props.$isFullscreen ? '100vh' : 'auto'};
+    max-height: ${props => props.$isFullscreen ? '100vh' : 'none'};
+    z-index: ${props => props.$isFullscreen ? '9999' : 'auto'};
+    border-radius: ${props => props.$isFullscreen ? '0' : theme.borderRadius.xl};
+    padding: ${props => props.$isFullscreen ? theme.spacing.lg : theme.spacing.xl};
+    overflow-y: ${props => props.$isFullscreen ? 'auto' : 'visible'};
+    min-width: 0;
   }
 `;
 
@@ -930,6 +962,11 @@ const PhotoTile = styled.div`
   cursor: pointer;
   z-index: 1;
 
+  @media (max-width: 768px) {
+    height: 300px;
+    min-height: 300px;
+  }
+
   &:hover {
     transform: translateY(-2px);
     box-shadow: ${theme.colors.shadow.glow};
@@ -980,58 +1017,52 @@ const PhotoOverlay = styled.div`
   }
 `;
 
-const OverlayActions = styled.div`
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
-  gap: ${theme.spacing.md};
+const OverlayButtons = styled.div`
+  display: flex;
+  gap: 0.5rem;
   width: 100%;
-  padding: ${theme.spacing.sm} 0;
-
-  @media (max-width: 768px) {
-    gap: 4px;
-    padding: 2px 0;
-  }
+  justify-content: center;
 `;
 
-const OverlayButton = styled.button<{ $variant: 'primary' | 'danger' }>`
-  padding: ${theme.spacing.xs} ${theme.spacing.sm};
-  border-radius: ${theme.borderRadius.sm};
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  font-size: ${theme.fontSize.xs};
+const OverlayButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
+  padding: 0.375rem 0.75rem;
+  background: ${props => props.$variant === 'primary' 
+    ? 'rgba(100, 100, 100, 0.9)' 
+    : 'rgba(255, 255, 255, 0.15)'};
+  border: 1px solid ${props => props.$variant === 'primary'
+    ? 'rgba(150, 150, 150, 1)'
+    : 'rgba(255, 255, 255, 0.2)'};
+  border-radius: 0.5rem;
+  color: #ffffff;
+  font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
   transition: all 0.2s ease;
-  background: ${({ $variant }) => 
-    $variant === 'primary'
-      ? 'rgba(59, 130, 246, 0.9)'
-      : 'rgba(239, 68, 68, 0.9)'};
-  color: #ffffff;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
-  white-space: nowrap;
-  min-width: 80px;
-
-  @media (max-width: 768px) {
-    min-width: 0;
-    padding: 4px 6px;
-    font-size: 10px;
-    flex: 1;
-    text-align: center;
-  }
+  backdrop-filter: blur(10px);
 
   &:hover:not(:disabled) {
-    background: ${({ $variant }) => 
-      $variant === 'primary'
-        ? 'rgba(59, 130, 246, 1)'
-        : 'rgba(239, 68, 68, 1)'};
+    background: ${props => props.$variant === 'primary'
+      ? 'rgba(120, 120, 120, 1)'
+      : 'rgba(255, 255, 255, 0.25)'};
     transform: scale(1.05);
   }
 
+  &:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
   &:disabled {
-    opacity: 0.5;
+    opacity: 0.6;
     cursor: not-allowed;
+    transform: none;
+  }
+
+  svg {
+    width: 14px;
+    height: 14px;
   }
 `;
 
@@ -1905,10 +1936,17 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   // Индекс для слайдера сгенерированных фото
   const [examplePhotoIndex, setExamplePhotoIndex] = useState(0);
 
-  // Плавный скролл к генерации на мобилках
+  // Плавный скролл к генерации на мобилках после создания персонажа
   useEffect(() => {
     if (isCharacterCreated && isMobile && generationSectionRef.current) {
-      generationSectionRef.current.scrollIntoView({ behavior: 'smooth' });
+      // Увеличиваем задержку, чтобы блок успел отрендериться и страница успела перерисоваться
+      const timeoutId = setTimeout(() => {
+        if (generationSectionRef.current) {
+          generationSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 500);
+      
+      return () => clearTimeout(timeoutId);
     }
   }, [isCharacterCreated, isMobile]);
 
@@ -1984,10 +2022,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
             
             if (refreshResponse.ok) {
               const tokenData = await refreshResponse.json();
-              localStorage.setItem('authToken', tokenData.access_token);
-              if (tokenData.refresh_token) {
-                localStorage.setItem('refreshToken', tokenData.refresh_token);
-              }
+              authManager.setTokens(tokenData.access_token, tokenData.refresh_token);
               // Повторяем проверку с новым токеном
               await checkAuth();
               return;
@@ -2003,14 +2038,16 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         setIsAuthenticated(false);
         setUserInfo(null);
       } else {
-        // Для других ошибок не удаляем токены
-        
+        // Для других ошибок (500, 502, и т.д.) не удаляем токены, только сбрасываем состояние локально
+        // Это позволяет пользователю оставаться авторизованным при временных проблемах с сервером
         setIsAuthenticated(false);
         setUserInfo(null);
       }
     } catch (error) {
-      
+      // При сетевых ошибках не удаляем токены, только сбрасываем состояние локально
+      // Это позволяет пользователю оставаться авторизованным при временных проблемах с сетью
       setIsAuthenticated(false);
+      setUserInfo(null);
     } finally {
       setAuthCheckComplete(true);
     }
@@ -2695,7 +2732,14 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
       }
     }
     
-    const queueLimit = subscriptionType === 'premium' ? 5 : 3;
+    let queueLimit;
+    if (subscriptionType === 'premium') {
+      queueLimit = 5; // PREMIUM: 5 фото одновременно
+    } else if (subscriptionType === 'standard') {
+      queueLimit = 3; // STANDARD: 3 фото одновременно
+    } else {
+      queueLimit = 1; // FREE/BASE: только 1 фото одновременно
+    }
     
     // Проверяем кредиты (10 монет за одно фото)
     if (!userInfo || userInfo.coins < 10) {
@@ -3046,9 +3090,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
           </div>
 
           {/* Правая колонка - Генерация фото */}
-          <div 
+          <PhotoGenerationContainer
             ref={generationSectionRef}
-            className={`flex-1 flex flex-col ${isMobile ? 'min-w-0' : 'min-w-[400px]'} bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 ${isMobile ? 'overflow-visible' : 'overflow-y-auto'}`}
+            $isMobile={isMobile}
+            $isFullscreen={false}
           >
             {createdCharacterData && (
               <div className="flex flex-col">
@@ -3081,7 +3126,14 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         ? rawSubscriptionType.toLowerCase().trim() 
                         : String(rawSubscriptionType).toLowerCase().trim();
                     }
-                    const queueLimit = subscriptionType === 'premium' ? 5 : 3;
+                    let queueLimit;
+                    if (subscriptionType === 'premium') {
+                      queueLimit = 5; // PREMIUM: 5 фото одновременно
+                    } else if (subscriptionType === 'standard') {
+                      queueLimit = 3; // STANDARD: 3 фото одновременно
+                    } else {
+                      queueLimit = 1; // FREE/BASE: только 1 фото одновременно
+                    }
                     // Проверяем только размер очереди и монеты
                     const queueCount = generationQueueRef.current || 0;
                     const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
@@ -3105,7 +3157,14 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                           ? rawSubscriptionType.toLowerCase().trim() 
                           : String(rawSubscriptionType).toLowerCase().trim();
                       }
-                      const queueLimit = subscriptionType === 'premium' ? 5 : 3;
+                      let queueLimit;
+                      if (subscriptionType === 'premium') {
+                        queueLimit = 5; // PREMIUM: 5 фото одновременно
+                      } else if (subscriptionType === 'standard') {
+                        queueLimit = 3; // STANDARD: 3 фото одновременно
+                      } else {
+                        queueLimit = 1; // FREE/BASE: только 1 фото одновременно
+                      }
                       const queueCount = generationQueueRef.current || 0;
                       const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
                       const isQueueFull = activeGenerations >= queueLimit;
@@ -3131,7 +3190,14 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                       ? rawSubscriptionType.toLowerCase().trim() 
                       : String(rawSubscriptionType).toLowerCase().trim();
                   }
-                  const queueLimit = subscriptionType === 'premium' ? 5 : 3;
+                  let queueLimit;
+                  if (subscriptionType === 'premium') {
+                    queueLimit = 5; // PREMIUM: 5 фото одновременно
+                  } else if (subscriptionType === 'standard') {
+                    queueLimit = 3; // STANDARD: 3 фото одновременно
+                  } else {
+                    queueLimit = 1; // FREE/BASE: только 1 фото одновременно
+                  }
                   // Активные генерации = текущая генерация (если есть) + очередь
                   const queueCount = generationQueueRef.current || 0;
                   const activeGenerations = Math.min((isGeneratingPhoto ? 1 : 0) + queueCount, queueLimit);
@@ -3278,32 +3344,26 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                               }}
                             />
                             <PhotoOverlay>
-                              <OverlayActions>
+                              <OverlayButtons>
                                 <OverlayButton
-                                  $variant="primary"
-                                  disabled={isSelected || isLimitReached}
+                                  $variant={isSelected ? 'secondary' : 'primary'}
+                                  disabled={!isSelected && isLimitReached}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     if (photo?.id) {
-                                      handleAddPhoto(photo.id);
+                                      togglePhotoSelection(photo.id);
                                     }
                                   }}
                                 >
-                                  Добавить
+                                  {isSelected ? (
+                                    <>Убрать</>
+                                  ) : (
+                                    <>
+                                      <Plus size={14} /> Добавить
+                                    </>
+                                  )}
                                 </OverlayButton>
-                                <OverlayButton
-                                  $variant="danger"
-                                  disabled={!isSelected}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (photo?.id) {
-                                      handleRemovePhoto(photo.id);
-                                    }
-                                  }}
-                                >
-                                  Удалить
-                                </OverlayButton>
-                              </OverlayActions>
+                              </OverlayButtons>
                             </PhotoOverlay>
                           </PhotoTile>
                         );
@@ -3321,7 +3381,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                 )}
               </div>
             )}
-          </div>
+          </PhotoGenerationContainer>
         </form>
       
       {/* Модальное окно для просмотра фото в полный размер */}
@@ -3424,10 +3484,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
             }
           }}
           onAuthSuccess={(accessToken, refreshToken) => {
-            localStorage.setItem('authToken', accessToken);
-            if (refreshToken) {
-              localStorage.setItem('refreshToken', refreshToken);
-            }
+            authManager.setTokens(accessToken, refreshToken);
             setIsAuthModalOpen(false);
             setAuthMode('login');
             // Диспатчим событие для обновления App.tsx

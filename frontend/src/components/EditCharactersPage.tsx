@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
+import { authManager } from '../utils/auth';
 import { theme } from '../theme';
 import '../styles/ContentArea.css';
 import { CharacterCard } from './CharacterCard';
 import { GlobalHeader } from './GlobalHeader';
 import { AuthModal } from './AuthModal';
 import SplitText from './SplitText';
-import { authManager } from '../utils/auth';
 import { API_CONFIG } from '../config/api';
 
 const MainContainer = styled.div`
@@ -138,16 +138,27 @@ const MainContent = styled.div`
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+
+  @media (max-width: 768px) {
+    padding: ${theme.spacing.sm};
+  }
 `;
 
 const CharactersGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 0;
+  gap: ${theme.spacing.md};
   margin-top: ${theme.spacing.lg};
   padding: ${theme.spacing.lg};
   overflow-y: auto;
   align-content: start;
+
+  @media (max-width: 768px) {
+    grid-template-columns: repeat(2, 1fr);
+    gap: ${theme.spacing.sm};
+    padding: ${theme.spacing.sm};
+    margin-top: ${theme.spacing.md};
+  }
 `;
 
 const LoadingSpinner = styled.div`
@@ -259,7 +270,8 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
     }
 
     try {
-      const charactersResponse = await authManager.fetchWithAuth('/api/v1/characters/');
+      // Используем force_refresh=true чтобы получить актуальный список после редактирования
+      const charactersResponse = await authManager.fetchWithAuth(`/api/v1/characters/?force_refresh=true&_t=${Date.now()}`);
       
       if (charactersResponse.ok) {
         const charactersData = await charactersResponse.json();
@@ -330,7 +342,8 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
       setIsLoading(true);
       const photosMap = await loadCharacterPhotos(userId); // Загружаем фото
       
-      const response = await authManager.fetchWithAuth('/api/v1/characters/');
+      // Используем force_refresh=true чтобы получить актуальный список после редактирования
+      const response = await authManager.fetchWithAuth(`/api/v1/characters/?force_refresh=true&_t=${Date.now()}`);
 
       if (response.ok) {
         const charactersData = await response.json();
@@ -338,7 +351,7 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
         const myCharacters = charactersData.filter((char: any) => char.user_id === userId);
         
         const formattedCharacters: Character[] = myCharacters.map((char: any) => ({
-          id: char.id.toString(),
+          id: char.id ? char.id.toString() : char.name, // Используем id если есть, иначе имя как fallback
           name: char.name,
           description: char.character_appearance || 'No description available',
           avatar: char.name.charAt(0).toUpperCase(),
@@ -447,51 +460,26 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
     loadMyCharacters(currentUserId);
   }, [currentUserId]);
 
-  const handleLogout = () => {
-    authManager.clearTokens();
-    setIsAuthenticated(false);
-    setCurrentUserId(null);
-    setCharacters([]);
-    setCharacterPhotos({});
-    setIsLoading(false);
+  const handleLogout = async () => {
+    try {
+      await authManager.logout();
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('refreshToken');
+      setIsAuthenticated(false);
+      setCurrentUserId(null);
+      setCharacters([]);
+      setCharacterPhotos({});
+      setIsLoading(false);
+      window.location.href = '/';
+    } catch (error) {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('refreshToken');
+      window.location.href = '/';
+    }
   };
 
   const handleCharacterClick = (character: Character) => {
-    
-    
-    
-    
-    // Строгая проверка на валидность character
-    if (!character) {
-      
-      alert('Ошибка: данные персонажа не найдены. Пожалуйста, обновите страницу.');
-      return;
-    }
-    
-    // Проверяем наличие хотя бы одного идентификатора (name или id)
-    if (!character.name && !character.id) {
-      
-      alert('Ошибка: персонаж не имеет имени или ID. Пожалуйста, обновите страницу.');
-      return;
-    }
-    
-    // Создаем безопасную копию character с гарантированными полями
-    const safeCharacter: Character = {
-      ...character,
-      name: character.name || character.id?.toString() || 'Unknown',
-      id: character.id || character.name || 'unknown',
-      description: character.description || '',
-      avatar: character.avatar || '',
-      photos: character.photos || [],
-      tags: character.tags || [],
-      author: character.author || '',
-      likes: character.likes || 0,
-      views: character.views || 0,
-      comments: character.comments || 0
-    };
-    
-    
-    onEditCharacter(safeCharacter);
+    onEditCharacter(character);
   };
 
   return (

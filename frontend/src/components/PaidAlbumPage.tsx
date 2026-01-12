@@ -594,7 +594,26 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
         }
 
         const data = await response.json();
-        setImages(Array.isArray(data.images) ? data.images : []);
+        const loadedImages = Array.isArray(data.images) ? data.images : [];
+        // Обрабатываем URL'ы, чтобы они были абсолютными
+        const processedImages = loadedImages.map((img: any) => {
+          if (typeof img === 'string') {
+            return {
+              id: img.split('/').pop()?.split('.')[0] || img,
+              url: img.startsWith('http') ? img : `${API_CONFIG.BASE_URL}${img.startsWith('/') ? '' : '/'}${img}`,
+              created_at: new Date().toISOString()
+            };
+          }
+          if (img && typeof img === 'object') {
+            return {
+              id: img.id || img.url?.split('/').pop()?.split('.')[0] || `${Date.now()}-${Math.random()}`,
+              url: img.url?.startsWith('http') ? img.url : (img.url?.startsWith('/') ? `${API_CONFIG.BASE_URL}${img.url}` : `${API_CONFIG.BASE_URL}/${img.url}`),
+              created_at: img.created_at || new Date().toISOString()
+            };
+          }
+          return null;
+        }).filter((img: any): img is PaidAlbumImage => img !== null);
+        setImages(processedImages);
       } catch (albumError) {
         
         setError(albumError instanceof Error ? albumError.message : 'Не удалось загрузить платный альбом');
@@ -615,44 +634,66 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
       return;
     }
 
+    if (!character?.name) {
+      alert('Персонаж не выбран');
+      return;
+    }
+
+    // Кнопка показывается только для владельца, поэтому всегда добавляем в платный альбом
     setAddingToGallery(imageId);
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/add/`, {
+      const encodedName = encodeURIComponent(character.name);
+      // Получаем текущий список фото из альбома
+      const currentResponse = await authManager.fetchWithAuth(`/api/v1/paid-gallery/${encodedName}`);
+      if (!currentResponse.ok) {
+        throw new Error('Не удалось загрузить текущий альбом');
+      }
+      
+      const currentData = await currentResponse.json();
+      const currentPhotos = Array.isArray(currentData.images) ? currentData.images : [];
+      
+      // Проверяем, нет ли уже этого фото в альбоме
+      const photoExists = currentPhotos.some((photo: any) => 
+        (photo.id === imageId) || (photo.url === imageUrl)
+      );
+      
+      if (photoExists) {
+        // Фото уже в альбоме
+        setGalleryImageUrls(prev => new Set(prev).add(imageUrl));
+        return;
+      }
+      
+      // Добавляем новое фото в список
+      const newPhotos = [...currentPhotos, {
+        id: imageId,
+        url: imageUrl,
+        created_at: new Date().toISOString()
+      }];
+      
+      // Сохраняем обновленный альбом
+      const saveResponse = await authManager.fetchWithAuth(`/api/v1/paid-gallery/${encodedName}/photos`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          image_url: imageUrl,
-          character_name: character?.name || null
+          photos: newPhotos
         })
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const errorMessage = errorData.detail || 'Не удалось добавить фото в галерею';
-        // Если фото уже добавлено, это не критическая ошибка
-        if (response.status === 400 && (errorMessage.includes('уже добавлено') || errorMessage.includes('already'))) {
-          // Фото уже в галерее - это нормально
-          return;
-        }
+      
+      if (!saveResponse.ok) {
+        const errorData = await saveResponse.json().catch(() => ({}));
+        const errorMessage = errorData.detail || 'Не удалось добавить фото в альбом';
         throw new Error(errorMessage);
       }
-
-      // Добавляем URL в Set, чтобы скрыть кнопку
+      
+      // Обновляем список изображений
+      const saveData = await saveResponse.json();
+      const savedPhotos = Array.isArray(saveData.photos) ? saveData.photos : (Array.isArray(saveData.images) ? saveData.images : newPhotos);
+      setImages(savedPhotos);
       setGalleryImageUrls(prev => new Set(prev).add(imageUrl));
-      
-      // Обновляем счетчик фото в профиле
-      window.dispatchEvent(new CustomEvent('gallery-update'));
     } catch (err: any) {
-      
-      if (!err.message?.includes('уже добавлено') && !err.message?.includes('already')) {
-        alert(err.message || 'Не удалось добавить фото в галерею');
-      } else {
-        // Если фото уже добавлено, добавляем его в Set
-        setGalleryImageUrls(prev => new Set(prev).add(imageUrl));
-      }
+      alert(err.message || 'Не удалось добавить фото в альбом');
     } finally {
       setAddingToGallery(null);
     }
@@ -716,7 +757,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
               />
               <CardOverlay>
                 <OverlayActions>
-                  {!galleryImageUrls.has(image.url) && (
+                  {isOwner && !galleryImageUrls.has(image.url) && (
                     <OverlayButton 
                       onClick={(e) => {
                         e.stopPropagation();
@@ -725,7 +766,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
                       disabled={addingToGallery === image.id}
                     >
                       <ImageIcon />
-                      {addingToGallery === image.id ? 'Добавление...' : 'Добавить в галерею'}
+                      {addingToGallery === image.id ? 'Добавление...' : 'В альбом'}
                     </OverlayButton>
                   )}
                 </OverlayActions>

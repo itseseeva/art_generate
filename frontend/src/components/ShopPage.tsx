@@ -10,16 +10,28 @@ import { FiCheck, FiCpu, FiImage, FiMessageSquare, FiZap } from 'react-icons/fi'
 import { FaBitcoin } from 'react-icons/fa';
 
 import { GlobalHeader } from './GlobalHeader';
+import DarkVeil from '../../@/components/DarkVeil';
 
 const MainContainer = styled.div`
   width: 100%;
   min-height: 100vh;
-  background: #0a0a0a;
   padding: 0;
   overflow-y: visible;
   position: relative;
   font-family: 'Inter', sans-serif;
   color: white;
+`;
+
+const BackgroundWrapper = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
 `;
 
 const ContentWrapper = styled.div`
@@ -455,7 +467,7 @@ export const ShopPage: React.FC<any> = ({
         setStats(data);
       }
     } catch (e) {
-      console.error(e);
+      // Ошибка загрузки статистики подписки
     }
   };
 
@@ -467,7 +479,7 @@ export const ShopPage: React.FC<any> = ({
         if (data.success) setCreditPackages(data.packages);
       }
     } catch (e) {
-      console.error(e);
+      // Ошибка загрузки пакетов кредитов
     }
   };
 
@@ -537,7 +549,7 @@ export const ShopPage: React.FC<any> = ({
         window.location.href = data.confirmation_url;
       }
     } catch (e) {
-      console.error(e);
+      // Ошибка обработки платежа
     }
   };
 
@@ -570,7 +582,7 @@ export const ShopPage: React.FC<any> = ({
         window.location.href = data.confirmation_url;
       }
     } catch (e) {
-      console.error(e);
+      // Ошибка обработки платежа за кредиты
     }
   };
 
@@ -921,6 +933,9 @@ export const ShopPage: React.FC<any> = ({
 
   return (
     <MainContainer>
+      <BackgroundWrapper>
+        <DarkVeil speed={1.1} />
+      </BackgroundWrapper>
       <GlobalHeader 
         onHome={onBackToMain}
         onProfile={onProfile}
@@ -950,8 +965,7 @@ export const ShopPage: React.FC<any> = ({
           mode={authMode}
           onClose={() => setIsAuthModalOpen(false)}
           onAuthSuccess={(accessToken, refreshToken) => {
-            localStorage.setItem('authToken', accessToken);
-            if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
+            authManager.setTokens(accessToken, refreshToken);
             setIsAuthenticated(true);
             setIsAuthModalOpen(false);
             loadSubscriptionStats();

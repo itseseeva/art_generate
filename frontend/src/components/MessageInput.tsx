@@ -80,13 +80,15 @@ const LanguageButton = styled.button<{ $isActive: boolean }>`
   }
 `;
 
-const TextAreaWrapper = styled.div`
+const TextAreaWrapper = styled.div<{ $isMobile?: boolean }>`
   display: flex;
   flex-direction: row;
   gap: ${theme.spacing.sm};
   align-items: flex-end;
   flex: 1;
   width: 100%;
+  position: relative;
+  z-index: ${props => props.$isMobile ? 2 : 1};
 `;
 
 const TextArea = styled.textarea<{ $isDisabled: boolean; $isMobile?: boolean }>`
@@ -110,6 +112,8 @@ const TextArea = styled.textarea<{ $isDisabled: boolean; $isMobile?: boolean }>`
     inset 0 1px 2px rgba(255, 255, 255, 0.05);
   width: 100%;
   box-sizing: border-box;
+  position: relative;
+  z-index: ${props => props.$isMobile ? 2 : 1};
 
   &:focus {
     border-color: rgba(80, 80, 80, 0.8);
@@ -152,19 +156,71 @@ const TextArea = styled.textarea<{ $isDisabled: boolean; $isMobile?: boolean }>`
 `;
 
 const MobileActions = styled.div`
-  display: flex;
+  display: flex !important;
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
   margin-top: 4px;
   width: 100%;
+  position: relative;
+  z-index: 10;
+  overflow: visible;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-height: 44px;
+  flex-shrink: 0;
 `;
 
 const MobileButtons = styled.div`
-  display: flex;
+  display: flex !important;
   flex-direction: row;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
+  position: relative;
+  z-index: 10;
+  overflow: visible;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-height: 44px;
+  flex-shrink: 0;
+`;
+
+const MobileIconButton = styled.button<{ $disabled?: boolean }>`
+  background: transparent;
+  border: none;
+  color: ${props => props.$disabled ? 'rgba(150, 150, 150, 0.4)' : 'rgba(240, 240, 240, 0.9)'};
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  cursor: ${props => props.$disabled ? 'not-allowed' : 'pointer'};
+  padding: 2px 4px;
+  gap: 2px;
+  transition: transform 0.2s;
+  min-width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: relative;
+  z-index: 2;
+
+  &:active {
+    transform: scale(0.9);
+  }
+`;
+
+const MobileButtonLabel = styled.span`
+  font-size: 0.65rem;
+  color: inherit;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2px;
 `;
 
 const IconButton = styled.button<{ $disabled?: boolean }>`
@@ -359,7 +415,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             </LanguageToggle>
           )}
           
-          <TextAreaWrapper>
+          <TextAreaWrapper $isMobile={isMobile}>
             <TextArea
               ref={textareaRef}
               value={message}
@@ -417,39 +473,45 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
               <MobileButtons>
                 {onSelectModel && (
-                  <IconButton type="button" onClick={onSelectModel} title="Выбрать модель">
+                  <MobileIconButton type="button" onClick={onSelectModel} title="Выбрать модель">
+                    <MobileButtonLabel>Модель</MobileButtonLabel>
                     <span style={{ fontSize: '20px' }}>🤖</span>
-                  </IconButton>
+                  </MobileIconButton>
                 )}
                 {onGenerateImage && (
-                  <IconButton 
+                  <MobileIconButton 
                     type="button" 
                     onClick={handleImageGeneration} 
                     disabled={disableImageGeneration}
                     title="Сгенерировать фото"
                   >
+                    <MobileButtonLabel>Фото</MobileButtonLabel>
                     <FiImage size={22} />
-                  </IconButton>
+                  </MobileIconButton>
                 )}
                 {onShowHelp && (
-                  <IconButton type="button" onClick={handleShowHelp} title="Помощь">
+                  <MobileIconButton type="button" onClick={handleShowHelp} title="Помощь">
+                    <MobileButtonLabel>Помощь</MobileButtonLabel>
                     <span style={{ fontSize: '24px', fontWeight: 600, color: 'white' }}>?</span>
-                  </IconButton>
+                  </MobileIconButton>
                 )}
                 {onTipCreator && (
-                  <IconButton type="button" onClick={onTipCreator} title="Поблагодарить">
+                  <MobileIconButton type="button" onClick={onTipCreator} title="Поблагодарить">
+                    <MobileButtonLabel>Донат</MobileButtonLabel>
                     <span style={{ fontSize: '20px' }}>💝</span>
-                  </IconButton>
+                  </MobileIconButton>
                 )}
                 {onShowComments && (
-                  <IconButton type="button" onClick={onShowComments} title="Комментарии">
+                  <MobileIconButton type="button" onClick={onShowComments} title="Комментарии">
+                    <MobileButtonLabel>Чат</MobileButtonLabel>
                     <span style={{ fontSize: '20px' }}>💬</span>
-                  </IconButton>
+                  </MobileIconButton>
                 )}
                 {onClearChat && hasMessages && (
-                  <IconButton type="button" onClick={handleClear} title="Очистить чат">
+                  <MobileIconButton type="button" onClick={handleClear} title="Очистить чат">
+                    <MobileButtonLabel>Очистить</MobileButtonLabel>
                     <FiTrash2 size={20} />
-                  </IconButton>
+                  </MobileIconButton>
                 )}
               </MobileButtons>
             </MobileActions>

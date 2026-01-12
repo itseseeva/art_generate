@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
+import { authManager } from '../utils/auth';
 import { theme } from '../theme';
 
 import { Footer } from './Footer';
@@ -892,10 +893,7 @@ export const TariffsPage: React.FC = () => {
             setAuthMode('login');
           }}
           onAuthSuccess={(accessToken, refreshToken) => {
-            localStorage.setItem('authToken', accessToken);
-            if (refreshToken) {
-              localStorage.setItem('refreshToken', refreshToken);
-            }
+            authManager.setTokens(accessToken, refreshToken);
             setIsAuthenticated(true);
             setIsAuthModalOpen(false);
             setAuthMode('login');

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled, { keyframes } from 'styled-components';
+import { authManager } from '../utils/auth';
 import { theme } from '../theme';
 import { GlobalHeader } from './GlobalHeader';
 import SplitText from './SplitText';
@@ -34,7 +35,8 @@ import {
 } from 'react-icons/fi';
 import { User, Coins, Crown, History, LogOut } from 'lucide-react';
 import { motion } from 'motion/react';
-import { CircularGallery } from './ui/circular-gallery';
+import CircularGallery from '../../@/components/CircularGallery';
+import '../../@/components/CircularGallery.css';
 
 const UNLOCKED_USER_GALLERIES_KEY = 'userGalleryUnlocked';
 
@@ -190,6 +192,7 @@ interface ProfilePageProps {
   onHistory?: () => void;
   onBalanceHistory?: () => void;
   onCharacterSelect?: (character: any) => void;
+  onLogout?: () => void;
   userId?: number; // ID пользователя, профиль которого показывается (если не указан - показывается свой профиль)
 }
 
@@ -1310,6 +1313,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   onHistory,
   onBalanceHistory,
   onCharacterSelect,
+  onLogout,
   userId: profileUserId
 }) => {
   
@@ -1342,9 +1346,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [userCharacters, setUserCharacters] = useState<any[]>([]);
   const [selectedCharacterIndex, setSelectedCharacterIndex] = useState(0);
   const [rawCharactersData, setRawCharactersData] = useState<any[]>([]);
+  const [photosMap, setPhotosMap] = useState<Record<string, string[]>>({});
 
   const isViewingOwnProfile = !profileUserId || (currentUserId !== null && profileUserId === currentUserId);
   const isMobile = useIsMobile();
+  
+  // Callback для изменения активного персонажа в CircularGallery
+  const handleCharacterChange = useCallback((index: number) => {
+    setSelectedCharacterIndex(index);
+  }, []);
   
   // Загрузка персонажей пользователя
   const loadUserCharacters = useCallback(async () => {
@@ -1431,21 +1441,71 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 return null;
               }
 
+              let photoUrl: string | null = null;
+
               if (typeof photo === 'string') {
-                return photo.startsWith('http')
-                  ? photo
-                  : `/static/photos/${normalizedKey}/${photo}.png`;
+                if (photo.startsWith('http')) {
+                  photoUrl = photo;
+                } else {
+                  // Если это относительный путь, формируем полный URL
+                  photoUrl = photo.startsWith('/') 
+                    ? `${API_CONFIG.BASE_URL || window.location.origin}${photo}`
+                    : `${API_CONFIG.BASE_URL || window.location.origin}/static/photos/${normalizedKey}/${photo}.png`;
+                }
+              } else if (photo.url) {
+                photoUrl = photo.url.startsWith('http')
+                  ? photo.url
+                  : `${API_CONFIG.BASE_URL || window.location.origin}${photo.url.startsWith('/') ? photo.url : '/' + photo.url}`;
+              } else if (photo.id) {
+                photoUrl = `${API_CONFIG.BASE_URL || window.location.origin}/static/photos/${normalizedKey}/${photo.id}.png`;
               }
 
-              if (photo.url) {
-                return photo.url;
+              // Конвертируем URL с других доменов в прокси через API_CONFIG.BASE_URL для избежания CORS
+              if (photoUrl && photoUrl.startsWith('http')) {
+                try {
+                  const urlObj = new URL(photoUrl);
+                  const currentOrigin = API_CONFIG.BASE_URL || window.location.origin;
+                  const currentUrlObj = new URL(currentOrigin);
+                  
+                  // Если домен отличается от текущего, проксируем через API_CONFIG.BASE_URL/media/
+                  if (urlObj.origin !== currentUrlObj.origin) {
+                    // Извлекаем путь к изображению
+                    let imagePath = urlObj.pathname;
+                    // Если путь начинается с /media/, удаляем ведущий /media/ и используем остальное
+                    // Это нужно, так как прокси /media/ уже содержит этот префикс
+                    if (imagePath.startsWith('/media/')) {
+                      imagePath = imagePath.substring('/media/'.length);
+                    } else if (imagePath.startsWith('/')) {
+                      imagePath = imagePath.substring(1);
+                    }
+                    // Формируем URL через прокси /media/
+                    photoUrl = `${API_CONFIG.BASE_URL || window.location.origin}/media/${imagePath}`;
+                  }
+                } catch (e) {
+                  // Если не удалось распарсить URL, оставляем как есть
+                }
               }
 
-              if (photo.id) {
-                return `/static/photos/${normalizedKey}/${photo.id}.png`;
+              // Конвертируем старые Yandex.Cloud URL в прокси URL
+              if (photoUrl && photoUrl.includes('storage.yandexcloud.net/')) {
+                if (photoUrl.includes('.storage.yandexcloud.net/')) {
+                  const objectKey = photoUrl.split('.storage.yandexcloud.net/')[1];
+                  if (objectKey) {
+                    photoUrl = `${API_CONFIG.BASE_URL || window.location.origin}/media/${objectKey}`;
+                  }
+                } else {
+                  const parts = photoUrl.split('storage.yandexcloud.net/')[1];
+                  if (parts) {
+                    const pathSegments = parts.split('/');
+                    if (pathSegments.length > 1) {
+                      const objectKey = pathSegments.slice(1).join('/');
+                      photoUrl = `${API_CONFIG.BASE_URL || window.location.origin}/media/${objectKey}`;
+                    }
+                  }
+                }
               }
 
-              return null;
+              return photoUrl;
             })
             .filter((url): url is string => Boolean(url));
 
@@ -1456,17 +1516,30 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         
         // Сохраняем raw данные персонажей
         setRawCharactersData(myCharacters);
+        // Сохраняем photosMap в состояние
+        setPhotosMap(photosMap);
         
-        // Форматируем персонажей для CircularGallery
+        // Форматируем персонажей для CircularGallery (WebGL версия ожидает {image: string, text: string})
         const formattedCharacters = myCharacters
           .filter((char: any) => char && char.id != null)
           .map((char: any) => {
             const normalizedKey = (char.name || char.display_name || '').toLowerCase();
             const charName = char.name || char.display_name || 'Unknown';
+            const photos = photosMap[normalizedKey] || [];
+            let imageUrl = photos.length > 0 ? photos[0] : '/avatar_default.jpg';
+            
+            // КРИТИЧНО: Если URL относительный (начинается с /), добавляем полный путь через API_CONFIG.BASE_URL
+            if (imageUrl && !imageUrl.startsWith('http')) {
+              if (imageUrl.startsWith('/')) {
+                imageUrl = `${API_CONFIG.BASE_URL || window.location.origin}${imageUrl}`;
+              } else {
+                imageUrl = `${API_CONFIG.BASE_URL || window.location.origin}/${imageUrl}`;
+              }
+            }
+            
             return {
-              id: String(char.id || ''),
-              name: charName,
-              photos: photosMap[normalizedKey] || [],
+              image: imageUrl,
+              text: charName,
             };
           });
         
@@ -2415,40 +2488,36 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.5 }}
-                className="md:col-span-3 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 hover:border-pink-500/30 transition-all duration-300 shadow-lg shadow-pink-500/5"
+                className="md:col-span-3 p-6"
+                style={{ background: 'transparent', border: 'none', boxShadow: 'none' }}
               >
                 <div className="flex flex-col items-center gap-4">
                   <h3 className="text-xl font-bold text-white text-center">Персонажи</h3>
-                  <CircularGallery
-                    items={userCharacters}
-                    itemHeight={isMobile ? 220 : 300}
-                    itemWidth={isMobile ? 150 : 200}
-                    visibleCount={isMobile ? 3 : 5}
-                    bend={10}
-                    borderRadius={0.22}
-                    scrollSpeed={3.4}
-                    scrollEase={0.11}
-                    onIndexChange={(index) => setSelectedCharacterIndex(index)}
-                    onItemClick={(item) => {
-                      if (onMyCharacters) {
-                        onMyCharacters();
-                      }
-                    }}
-                    className="min-h-[400px]"
-                  />
+                  <div className="w-full" style={{ minHeight: isMobile ? '400px' : '600px', height: isMobile ? '400px' : '600px', background: 'transparent', border: 'none' }}>
+                    <CircularGallery
+                      items={userCharacters}
+                      bend={3}
+                      borderRadius={0.05}
+                      scrollSpeed={2}
+                      scrollEase={0.05}
+                      textColor="#ffffff"
+                      font="bold 30px Figtree"
+                      onActiveItemChange={handleCharacterChange}
+                    />
+                  </div>
                   {userCharacters.length > 0 && onCharacterSelect && (
                     <button
                       onClick={() => {
-                        const selectedItem = userCharacters[selectedCharacterIndex];
+                        const selectedItem = userCharacters[selectedCharacterIndex]; // Используем selectedCharacterIndex для выбора персонажа в центре
                         if (!selectedItem) return;
                         
-                        // Находим raw данные выбранного персонажа
+                        // Находим raw данные выбранного персонажа по text (имя персонажа)
                         const rawChar = rawCharactersData.find(
-                          (char: any) => String(char.id) === selectedItem.id
+                          (char: any) => (char.name || char.display_name || '') === selectedItem.text
                         );
                         
                         if (rawChar) {
-                          const charName = rawChar.name || rawChar.display_name || selectedItem.name;
+                          const charName = rawChar.name || rawChar.display_name || selectedItem.text;
                           const normalizedId = (rawChar.id ?? charName).toString();
                           
                           const character = {
@@ -2456,7 +2525,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                             name: charName,
                             description: rawChar.description || rawChar.character_appearance || 'No description available',
                             avatar: charName.charAt(0).toUpperCase(),
-                            photos: selectedItem.photos || [],
+                            photos: photosMap[(charName || '').toLowerCase()] || [],
                             tags: Array.isArray(rawChar.tags) && rawChar.tags.length ? rawChar.tags : ['User Created'],
                             author: 'User',
                             likes: Number(rawChar.likes) || 0,
@@ -2524,18 +2593,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             setIsAuthModalOpen(true);
           }}
           onLogout={() => {
-            localStorage.removeItem('authToken');
-            localStorage.removeItem('refreshToken');
-            setAuthToken(null);
-            window.location.reload();
-          }}
-          onProfile={() => {
-            if (onProfile) {
-              onProfile(undefined);
+            if (onLogout) {
+              onLogout();
             } else {
-              window.dispatchEvent(new CustomEvent('navigate-to-profile', { detail: { userId: undefined } }));
+              localStorage.removeItem('authToken');
+              localStorage.removeItem('refreshToken');
+              setAuthToken(null);
+              window.location.href = '/';
             }
           }}
+          onProfile={onProfile}
           onHome={() => {
             if (onBackToMain) {
               onBackToMain();
@@ -2560,10 +2627,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             setAuthMode('login');
           }}
           onAuthSuccess={(accessToken, refreshToken) => {
-            localStorage.setItem('authToken', accessToken);
-            if (refreshToken) {
-              localStorage.setItem('refreshToken', refreshToken);
-            }
+            authManager.setTokens(accessToken, refreshToken);
             setAuthToken(accessToken);
             setIsAuthModalOpen(false);
             setAuthMode('login');

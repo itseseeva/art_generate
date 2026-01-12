@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import styled from 'styled-components';
+import { authManager } from '../utils/auth';
 import { theme } from '../theme';
 import { CharacterCard } from './CharacterCard';
 import { API_CONFIG } from '../config/api';
@@ -333,10 +334,7 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
             
             if (refreshResponse.ok) {
               const tokenData = await refreshResponse.json();
-              localStorage.setItem('authToken', tokenData.access_token);
-              if (tokenData.refresh_token) {
-                localStorage.setItem('refreshToken', tokenData.refresh_token);
-              }
+              authManager.setTokens(tokenData.access_token, tokenData.refresh_token);
               // Повторяем проверку с новым токеном
               await checkAuth();
               return;
@@ -485,10 +483,7 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
             }
           }}
           onAuthSuccess={(accessToken, refreshToken) => {
-            localStorage.setItem('authToken', accessToken);
-            if (refreshToken) {
-              localStorage.setItem('refreshToken', refreshToken);
-            }
+            authManager.setTokens(accessToken, refreshToken);
             setIsAuthModalOpen(false);
             setAuthMode('login');
             // Диспатчим событие для обновления App.tsx

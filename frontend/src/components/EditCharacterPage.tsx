@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import styled from 'styled-components';
+import { authManager } from '../utils/auth';
 import { theme } from '../theme';
 import { API_CONFIG } from '../config/api';
 import { GlobalHeader } from './GlobalHeader';
 import { AuthModal } from './AuthModal';
-import { authManager } from '../utils/auth';
 import { LoadingSpinner } from './LoadingSpinner';
 import { CircularProgress } from './ui/CircularProgress';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToEnglish, translateToRussian } from '../utils/translate';
 import { FiX as CloseIcon } from 'react-icons/fi';
+import { Plus } from 'lucide-react';
 
 import { useIsMobile } from '../hooks/useIsMobile';
 
@@ -237,7 +238,6 @@ const LeftColumn = styled.div`
   @media (max-width: 768px) {
     width: 100%;
     min-width: 0;
-    flex: none; /* Stack without trying to fill height */
     height: auto;
     max-height: none;
     overflow: visible;
@@ -260,11 +260,8 @@ const RightColumn = styled.div`
 
   @media (max-width: 768px) {
     width: 100%;
-    flex: none; /* Stack without trying to fill height */
-    height: auto;
-    max-height: none;
     overflow: visible;
-    padding: ${theme.spacing.md} 0;
+    padding: ${theme.spacing.md};
   }
 `;
 
@@ -1046,7 +1043,7 @@ const PhotoList = styled.div`
   grid-auto-rows: min-content !important;
 
   @media (max-width: 768px) {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
     padding: ${theme.spacing.sm};
     gap: 8px !important;
   }
@@ -1068,7 +1065,8 @@ const PhotoTile = styled.div`
   z-index: 1;
 
   @media (max-width: 768px) {
-    height: 200px;
+    height: 300px;
+    min-height: 300px;
   }
 
   &:hover {
@@ -1121,59 +1119,52 @@ const PhotoOverlay = styled.div`
   }
 `;
 
-const OverlayActions = styled.div`
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
-  gap: ${theme.spacing.md};
+const OverlayButtons = styled.div`
+  display: flex;
+  gap: 0.5rem;
   width: 100%;
-  padding: ${theme.spacing.sm} 0;
-
-  @media (max-width: 768px) {
-    gap: 4px;
-    padding: 2px 0;
-  }
+  justify-content: center;
 `;
 
-const OverlayButton = styled.button<{ $variant: 'primary' | 'danger' }>`
-  padding: ${theme.spacing.xs} ${theme.spacing.sm};
-  border-radius: ${theme.borderRadius.sm};
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  font-size: ${theme.fontSize.xs};
+const OverlayButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
+  padding: 0.375rem 0.75rem;
+  background: ${props => props.$variant === 'primary' 
+    ? 'rgba(100, 100, 100, 0.9)' 
+    : 'rgba(255, 255, 255, 0.15)'};
+  border: 1px solid ${props => props.$variant === 'primary'
+    ? 'rgba(150, 150, 150, 1)'
+    : 'rgba(255, 255, 255, 0.2)'};
+  border-radius: 0.5rem;
+  color: #ffffff;
+  font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
   transition: all 0.2s ease;
-  background: ${({ $variant }) => 
-    $variant === 'primary'
-      ? 'rgba(59, 130, 246, 0.9)'
-      : 'rgba(239, 68, 68, 0.9)'};
-  color: #ffffff;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
-  white-space: nowrap;
-  min-width: 80px;
-
-  @media (max-width: 768px) {
-    min-width: 0;
-    padding: 4px 6px;
-    font-size: 10px;
-    flex: 1;
-    text-align: center;
-  }
+  backdrop-filter: blur(10px);
 
   &:hover:not(:disabled) {
-    background: ${({ $variant }) => 
-      $variant === 'primary'
-        ? 'rgba(29, 78, 216, 1)'
-        : 'rgba(220, 38, 38, 1)'};
+    background: ${props => props.$variant === 'primary'
+      ? 'rgba(120, 120, 120, 1)'
+      : 'rgba(255, 255, 255, 0.25)'};
     transform: scale(1.05);
   }
 
+  &:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
   &:disabled {
-    opacity: 0.3;
+    opacity: 0.6;
     cursor: not-allowed;
-    background: rgba(80, 80, 80, 0.6);
+    transform: none;
+  }
+
+  svg {
+    width: 14px;
+    height: 14px;
   }
 `;
 
@@ -1436,10 +1427,19 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     setIsAuthModalOpen(true);
   };
 
-  const handleLogout = () => {
-    authManager.clearTokens();
-    setIsAuthenticated(false);
-    setUserInfo(null);
+  const handleLogout = async () => {
+    try {
+      await authManager.logout();
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('refreshToken');
+      setIsAuthenticated(false);
+      setUserInfo(null);
+      window.location.href = '/';
+    } catch (error) {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('refreshToken');
+      window.location.href = '/';
+    }
   };
 
   // Безопасное обновление characterIdentifier при изменении character
@@ -1536,7 +1536,10 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           isSelected: Boolean(photo.is_main),
           created_at: photo.created_at ?? null
         };
-      }).filter(photo => photo.url); // Фильтруем фотографии без URL
+      }).filter(photo => photo.url) // Фильтруем фотографии без URL
+        .filter((photo, index, self) => 
+          index === self.findIndex(p => p.url === photo.url)
+        ); // Удаляем дубликаты по URL
 
       
       
@@ -1845,7 +1848,15 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         }
       } else {
         
-        if (response.status === 404) {
+        if (response.status === 403) {
+          setError('У вас нет прав для редактирования этого персонажа');
+          // Возвращаемся на список персонажей через 2 секунды
+          setTimeout(() => {
+            if (onBackToEditList) {
+              onBackToEditList();
+            }
+          }, 2000);
+        } else if (response.status === 404) {
           setError('Персонаж не найден. Возможно, он был удален.');
         } else {
           setError('Не удалось загрузить данные персонажа');
@@ -2066,20 +2077,18 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     loadSubscriptionStats();
     
     // КРИТИЧНО: Определяем идентификатор персонажа из prop или state
-    // ПРИОРИТЕТ: Используем name из character prop (это реальное имя из БД)
+    // ПРИОРИТЕТ: Используем characterIdentifier (который может быть обновлен после редактирования) над character?.name
     // API endpoint /with-creator работает по имени, а не по ID
     let effectiveIdentifier = '';
-    if (character?.name) {
+    if (characterIdentifier) {
+      // ПРИОРИТЕТ: Используем characterIdentifier (может быть обновлен после редактирования)
+      effectiveIdentifier = characterIdentifier;
+    } else if (character?.name) {
       effectiveIdentifier = character.name;
-      
     } else if (character?.id) {
       // Если нет name, но есть id, используем id как fallback
       // Но loadCharacterData попытается загрузить по ID, что может не сработать
       effectiveIdentifier = character.id.toString();
-      
-    } else if (characterIdentifier) {
-      effectiveIdentifier = characterIdentifier;
-      
     }
     
     
@@ -2087,16 +2096,16 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     // КРИТИЧНО: Загружаем данные персонажа сразу при монтировании или изменении character
     if (effectiveIdentifier && effectiveIdentifier.trim() !== '') {
       
-      // Обновляем characterIdentifier если он был пустой или изменился
+      // Обновляем characterIdentifier только если он был пустой
       // КРИТИЧНО: Сохраняем name, а не ID, так как API работает по имени
-      const nameToStore = character?.name || effectiveIdentifier;
-      if (!characterIdentifier || characterIdentifier !== nameToStore) {
-        
+      if (!characterIdentifier) {
+        const nameToStore = character?.name || effectiveIdentifier;
         setCharacterIdentifier(nameToStore);
       }
       // Устанавливаем isLoadingData в true перед загрузкой
       setIsLoadingData(true);
-      loadCharacterData(nameToStore).catch((error) => {
+      // Используем effectiveIdentifier (может быть characterIdentifier или character?.name)
+      loadCharacterData(effectiveIdentifier).catch((error) => {
         
         setIsLoadingData(false);
         setError('Ошибка при загрузке данных персонажа');
@@ -2136,8 +2145,9 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   useEffect(() => {
     
     
-    // КРИТИЧНО: Используем name из character prop, так как API работает по имени
-    const effectiveIdentifier = character?.name || characterIdentifier;
+    // КРИТИЧНО: Используем characterIdentifier (который обновляется после сохранения), а не character?.name
+    // Это гарантирует, что мы используем актуальное имя после редактирования
+    const effectiveIdentifier = characterIdentifier || character?.name;
     
     if (effectiveIdentifier && effectiveIdentifier.trim() !== '' && lastLoadedIdentifierRef.current !== effectiveIdentifier && !isLoadingRef.current) {
       
@@ -2201,20 +2211,46 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
       if (!response.ok) {
         const errorData = await response.json();
+        // Обрабатываем ошибку доступа
+        if (response.status === 403) {
+          const errorMessage = errorData.detail || 'У вас нет прав для редактирования этого персонажа';
+          setError(errorMessage);
+          // Возвращаемся на список персонажей через 2 секунды
+          setTimeout(() => {
+            if (onBackToEditList) {
+              onBackToEditList();
+            }
+          }, 2000);
+          return;
+        }
         throw new Error(errorData.detail || 'Ошибка при редактировании персонажа');
       }
 
       const updatedCharacter = await response.json();
       const updatedName = updatedCharacter?.name ?? requestData.name;
-      setCharacterIdentifier(updatedName);
-      setFormData(prev => ({
-        ...prev,
-        name: updatedName,
-        appearance: updatedCharacter?.character_appearance ?? prev.appearance,
-        location: updatedCharacter?.location ?? prev.location
-      }));
+      
       setSuccess('Персонаж успешно обновлен!');
-      await fetchCharacterPhotos(updatedName);
+      
+      // КРИТИЧНО: Обновляем formData из requestData (данные уже сохранены на сервере)
+      // Это гарантирует, что форма останется заполненной после сохранения
+      setFormData({
+        name: requestData.name,
+        personality: requestData.personality,
+        situation: requestData.situation,
+        instructions: requestData.instructions,
+        style: '', // style не сохраняется отдельно, он в промпте
+        appearance: requestData.appearance || '',
+        location: requestData.location || ''
+      });
+      
+      // КРИТИЧНО: Обновляем characterIdentifier на новое имя (используем requestData.name, который был сохранен)
+      // И сбрасываем lastLoadedIdentifierRef, чтобы разрешить повторную загрузку по новому имени
+      const newName = requestData.name; // Используем имя, которое было отправлено и сохранено
+      if (newName && newName !== characterIdentifier) {
+        lastLoadedIdentifierRef.current = null; // Сбрасываем, чтобы разрешить загрузку по новому имени
+        isLoadingRef.current = false; // Сбрасываем флаг загрузки
+        setCharacterIdentifier(newName);
+      }
       
       // КРИТИЧНО: Обновляем баланс из API после сохранения
       balanceUpdateInProgressRef.current = true; // Устанавливаем флаг, чтобы предотвратить перезапись
@@ -2520,7 +2556,14 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         : String(rawSubscriptionType).toLowerCase().trim();
     }
     
-    const queueLimit = subscriptionType === 'premium' ? 5 : 3;
+    let queueLimit;
+    if (subscriptionType === 'premium') {
+      queueLimit = 5; // PREMIUM: 5 фото одновременно
+    } else if (subscriptionType === 'standard') {
+      queueLimit = 3; // STANDARD: 3 фото одновременно
+    } else {
+      queueLimit = 1; // FREE/BASE: только 1 фото одновременно
+    }
     
     // Проверяем кредиты (10 монет за одно фото)
     if (!userInfo || (userInfo.coins || 0) < 10) {
@@ -2801,10 +2844,10 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     return <div>Загрузка...</div>;
   }
   
-  if (!formData.name) {
-    
-    return <div>Загрузка...</div>;
-  }
+  // УБРАНО: проверка !formData.name - она выкидывает пользователя со страницы при удалении строки
+  // if (!formData.name) {
+  //   return <div>Загрузка...</div>;
+  // }
   
   
   
@@ -2958,7 +3001,14 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                               ? rawSubscriptionType.toLowerCase().trim() 
                               : String(rawSubscriptionType).toLowerCase().trim();
                           }
-                          const queueLimit = subscriptionType === 'premium' ? 5 : 3;
+                          let queueLimit;
+                          if (subscriptionType === 'premium') {
+                            queueLimit = 5; // PREMIUM: 5 фото одновременно
+                          } else if (subscriptionType === 'standard') {
+                            queueLimit = 3; // STANDARD: 3 фото одновременно
+                          } else {
+                            queueLimit = 1; // FREE/BASE: только 1 фото одновременно
+                          }
                           // Проверяем только размер очереди и монеты
                           const queueCount = generationQueueRef.current || 0;
                           const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
@@ -2978,7 +3028,14 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                 ? rawSubscriptionType.toLowerCase().trim() 
                                 : String(rawSubscriptionType).toLowerCase().trim();
                             }
-                            const queueLimit = subscriptionType === 'premium' ? 5 : 3;
+                            let queueLimit;
+                            if (subscriptionType === 'premium') {
+                              queueLimit = 5; // PREMIUM: 5 фото одновременно
+                            } else if (subscriptionType === 'standard') {
+                              queueLimit = 3; // STANDARD: 3 фото одновременно
+                            } else {
+                              queueLimit = 1; // FREE/BASE: только 1 фото одновременно
+                            }
                             const queueCount = generationQueueRef.current || 0;
                             const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
                             const isQueueFull = activeGenerations >= queueLimit;
@@ -3004,7 +3061,14 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                             ? rawSubscriptionType.toLowerCase().trim() 
                             : String(rawSubscriptionType).toLowerCase().trim();
                         }
-                        const queueLimit = subscriptionType === 'premium' ? 5 : 3;
+                        let queueLimit;
+                        if (subscriptionType === 'premium') {
+                          queueLimit = 5; // PREMIUM: 5 фото одновременно
+                        } else if (subscriptionType === 'standard') {
+                          queueLimit = 3; // STANDARD: 3 фото одновременно
+                        } else {
+                          queueLimit = 1; // FREE/BASE: только 1 фото одновременно
+                        }
                         // Активные генерации = текущая генерация (если есть) + очередь
                         const queueCount = generationQueueRef.current || 0;
                         const activeGenerations = Math.min((isGeneratingPhoto ? 1 : 0) + queueCount, queueLimit);
@@ -3114,7 +3178,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                 src={photo.url}
                                 alt={`Photo ${index + 1}`}
                                 onClick={(e) => {
-                                  
                                   e.stopPropagation();
                                   if (photo) {
                                     openPhotoModal(photo);
@@ -3127,33 +3190,29 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                   
                                 }}
                               />
-                              <PhotoOverlay>
-                                <OverlayActions>
+                              <PhotoOverlay
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <OverlayButtons>
                                   <OverlayButton
-                                    $variant="primary"
-                                    disabled={isSelected || isLimitReached}
+                                    $variant={isSelected ? 'secondary' : 'primary'}
+                                    disabled={!isSelected && isLimitReached}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       if (photo?.id) {
-                                        handleAddPhoto(photo.id);
+                                        togglePhotoSelection(photo.id);
                                       }
                                     }}
                                   >
-                                    Добавить
+                                    {isSelected ? (
+                                      <>Убрать</>
+                                    ) : (
+                                      <>
+                                        <Plus size={14} /> Добавить
+                                      </>
+                                    )}
                                   </OverlayButton>
-                                  <OverlayButton
-                                    $variant="danger"
-                                    disabled={!isSelected}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (photo?.id) {
-                                        handleRemovePhoto(photo.id);
-                                      }
-                                    }}
-                                  >
-                                    Удалить
-                                  </OverlayButton>
-                                </OverlayActions>
+                                </OverlayButtons>
                               </PhotoOverlay>
                             </PhotoTile>
                           );

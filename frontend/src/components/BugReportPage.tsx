@@ -446,6 +446,7 @@ interface BugComment {
 interface BugReportPageProps {
   onBackToMain?: () => void;
   onProfile?: (userId?: number) => void;
+  onLogout?: () => void;
 }
 
 const UsernameLink = styled.span<{ $clickable: boolean }>`
@@ -462,6 +463,7 @@ const UsernameLink = styled.span<{ $clickable: boolean }>`
 export const BugReportPage: React.FC<BugReportPageProps> = ({
   onBackToMain,
   onProfile,
+  onLogout,
 }) => {
   const [bugs, setBugs] = useState<BugReport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -665,6 +667,23 @@ export const BugReportPage: React.FC<BugReportPageProps> = ({
     }
   };
 
+  const handleLogout = async () => {
+    if (onLogout) {
+      onLogout();
+      return;
+    }
+    try {
+      await authManager.logout();
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('refreshToken');
+      window.location.href = '/';
+    } catch (error) {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('refreshToken');
+      window.location.href = '/';
+    }
+  };
+
   const handleDeleteBug = async (bugId: number) => {
     if (!window.confirm('Вы уверены, что хотите удалить этот баг-репорт?')) {
       return;
@@ -725,6 +744,8 @@ export const BugReportPage: React.FC<BugReportPageProps> = ({
     <MainContainer>
       <GlobalHeader
         onHome={onBackToMain}
+        onProfile={onProfile}
+        onLogout={handleLogout}
       />
       <ContentContainer>
         <LeftColumn>

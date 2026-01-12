@@ -6,6 +6,7 @@ import { NSFWWarningModal } from './NSFWWarningModal';
 
 import Dock from './Dock';
 import { theme } from '../theme';
+import { authManager } from '../utils/auth';
 import './LeftDockSidebar.css';
 
 interface LeftDockSidebarProps {
@@ -408,34 +409,11 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
     });
   }
 
-  // Кнопки авторизации - для неавторизованных
+  // Кнопки авторизации - УДАЛЕНЫ (перенесены в хедер)
   if (!isAuthenticated) {
-    if (onLogin) {
-      additionalDockItems.push({
-        icon: <FiLogIn size={18} />,
-        label: 'Войти',
-        onClick: () => onLogin?.(),
-        className: 'dock-item-login',
-      });
-    }
-    if (onRegister) {
-      additionalDockItems.push({
-        icon: <FiUserPlus size={18} />,
-        label: 'Регистрация',
-        onClick: () => onRegister?.(),
-        className: 'dock-item-register',
-      });
-    }
+    // Больше ничего не добавляем
   } else {
-    // Кнопка выхода - для авторизованных
-    if (onLogout) {
-      additionalDockItems.push({
-        icon: <FiLogOut size={18} />,
-        label: 'Выйти',
-        onClick: () => onLogout?.(),
-        className: 'dock-item-logout',
-      });
-    }
+    // Кнопка выхода - УДАЛЕНА (перенесена в хедер)
   }
 
   useEffect(() => {

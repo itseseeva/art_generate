@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styled from 'styled-components';
+import { authManager } from '../utils/auth';
 import { theme } from '../theme';
 import { GlobalHeader } from './GlobalHeader';
 import '../styles/ContentArea.css';
@@ -424,10 +425,7 @@ export const PhotoGenerationPage: React.FC<PhotoGenerationPageProps> = ({
             
             if (refreshResponse.ok) {
               const tokenData = await refreshResponse.json();
-              localStorage.setItem('authToken', tokenData.access_token);
-              if (tokenData.refresh_token) {
-                localStorage.setItem('refreshToken', tokenData.refresh_token);
-              }
+              authManager.setTokens(tokenData.access_token, tokenData.refresh_token);
               // Повторяем проверку с новым токеном
               await checkAuth();
               return;
@@ -858,14 +856,10 @@ useEffect(() => {
             setAuthMode('login');
           }}
           onAuthSuccess={(accessToken, refreshToken) => {
-            localStorage.setItem('authToken', accessToken);
-            if (refreshToken) {
-              localStorage.setItem('refreshToken', refreshToken);
-            }
+            authManager.setTokens(accessToken, refreshToken);
             setIsAuthenticated(true);
             setIsAuthModalOpen(false);
             setAuthMode('login');
-            window.location.reload();
           }}
         />
       )}

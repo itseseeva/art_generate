@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import { authManager } from '../utils/auth';
-import { ShoppingBag, User, Coins, DollarSign } from 'lucide-react';
+import { ShoppingBag, User, Coins, DollarSign, LogOut, LogIn, UserPlus } from 'lucide-react';
 
 const HeaderContainer = styled.div`
   background: rgba(0, 0, 0, 0.2);
@@ -435,9 +435,23 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
         )}
         
         {!isAuthenticated && (
-          <ShopButton onClick={onLogin || handleProfile}>
-            <User size={18} />
-            <span>Войти</span>
+          <>
+            <ShopButton onClick={onLogin} title="Войти">
+              <LogIn size={20} />
+            </ShopButton>
+            <ShopButton onClick={onRegister} title="Регистрация">
+              <UserPlus size={20} />
+            </ShopButton>
+          </>
+        )}
+
+        {isAuthenticated && (
+          <ShopButton onClick={onLogout || (() => {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('refreshToken');
+            window.location.href = '/';
+          })} title="Выйти">
+            <LogOut size={20} />
           </ShopButton>
         )}
 
