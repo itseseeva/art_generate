@@ -73,29 +73,75 @@ def _character_slug(character_name: str) -> str:
 
 
 def _metadata_path(character_name: str) -> Path:
+    """Устаревшая функция для обратной совместимости. Используйте async версии."""
     return _get_gallery_metadata_dir() / f"{_character_slug(character_name)}.json"
 
 
-def _load_photo_metadata(character_name: str) -> list[dict]:
-    metadata_file = _metadata_path(character_name)
-    if not metadata_file.exists():
+async def _load_photo_metadata(character_name: str, db: AsyncSession) -> list[dict]:
+    """Загружает метаданные фотографий платного альбома из БД."""
+    from app.chat_bot.models.models import PaidAlbumPhoto, CharacterDB
+    
+    # Получаем персонажа по имени
+    result = await db.execute(
+        select(CharacterDB).where(CharacterDB.name.ilike(character_name))
+    )
+    character = result.scalar_one_or_none()
+    
+    if not character:
         return []
-    try:
-        with metadata_file.open("r", encoding="utf-8") as fh:
-            data = json.load(fh)
-            if isinstance(data, list):
-                return data
-            return []
-    except Exception:
-        logger.exception("Failed to load photo metadata for %s", character_name)
-        return []
+    
+    # Загружаем фотографии из БД
+    photos_result = await db.execute(
+        select(PaidAlbumPhoto)
+        .where(PaidAlbumPhoto.character_id == character.id)
+        .order_by(PaidAlbumPhoto.created_at.desc())
+    )
+    photos = photos_result.scalars().all()
+    
+    return [
+        {
+            "id": photo.photo_id,
+            "url": photo.photo_url,
+            "created_at": photo.created_at.isoformat() + "Z" if photo.created_at else None,
+        }
+        for photo in photos
+    ]
 
 
-def _save_photo_metadata(character_name: str, photos: list[dict]) -> None:
-    metadata_file = _metadata_path(character_name)
-    metadata_file.parent.mkdir(parents=True, exist_ok=True)
-    with metadata_file.open("w", encoding="utf-8") as fh:
-        json.dump(photos, fh, ensure_ascii=False, indent=2)
+async def _save_photo_metadata(character_name: str, photos: list[dict], db: AsyncSession) -> None:
+    """Сохраняет метаданные фотографий платного альбома в БД."""
+    from app.chat_bot.models.models import PaidAlbumPhoto, CharacterDB
+    from sqlalchemy import delete
+    
+    # Получаем персонажа по имени
+    result = await db.execute(
+        select(CharacterDB).where(CharacterDB.name.ilike(character_name))
+    )
+    character = result.scalar_one_or_none()
+    
+    if not character:
+        logger.warning(f"Персонаж {character_name} не найден при сохранении метаданных платного альбома")
+        return
+    
+    # Удаляем существующие фотографии для этого персонажа
+    await db.execute(
+        delete(PaidAlbumPhoto).where(PaidAlbumPhoto.character_id == character.id)
+    )
+    
+    # Добавляем новые фотографии
+    for photo in photos:
+        photo_id = photo.get("id")
+        photo_url = photo.get("url")
+        if photo_id and photo_url:
+            db.add(
+                PaidAlbumPhoto(
+                    character_id=character.id,
+                    photo_id=photo_id,
+                    photo_url=photo_url,
+                )
+            )
+    
+    await db.commit()
 
 
 def _append_photo_metadata(character_name: str, photo_id: str, photo_url: str) -> list[dict]:

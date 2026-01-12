@@ -233,12 +233,6 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
   // Загрузка избранных персонажей
   const loadFavorites = async () => {
     try {
-      const token = authManager.getToken();
-      if (!token) {
-        setFavoriteCharacterIds(new Set());
-        return;
-      }
-
       const response = await authManager.fetchWithAuth(API_CONFIG.FAVORITES);
       
       if (response.ok) {
@@ -374,11 +368,6 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
       setIsLoading(true);
       setError(null);
       try {
-        const token = authManager.getToken();
-        if (!token) {
-          throw new Error('Необходимо войти, чтобы просматривать историю чатов');
-        }
-
         // Всегда загружаем с принудительным обновлением, чтобы очистить кэш
         const [historyResponse, charactersResponse] = await Promise.all([
           authManager.fetchWithAuth(`/api/v1/chat-history/characters?force_refresh=true&_t=${Date.now()}`),
@@ -559,6 +548,24 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
   useEffect(() => {
     loadCharacterPhotos();
     loadFavorites();
+  }, []);
+
+  // Синхронизация состояния авторизации
+  useEffect(() => {
+    const unsubscribe = authManager.subscribeAuthChanges((state) => {
+      if (!state.isAuthenticated) {
+        // Если пользователь вышел, очищаем данные
+        setCharacters([]);
+        setFavoriteCharacterIds(new Set());
+        setCharacterPhotos({});
+      } else {
+        // Если пользователь вошел, перезагружаем данные
+        loadCharacterPhotos();
+        loadFavorites();
+      }
+    });
+
+    return unsubscribe;
   }, []);
 
   // Используем ref для отслеживания первого вызова loadCharacters

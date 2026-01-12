@@ -1517,23 +1517,13 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   // Функция для переключения NSFW статуса (только для админов)
   const toggleNsfw = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    
-    
-    
-    const token = authManager.getToken();
-    if (!token) {
-      
-      return;
-    }
 
     try {
       const characterName = character.name || (character as any).raw?.name;
       if (!characterName) {
-        
         return;
       }
 
-      
       const response = await authManager.fetchWithAuth(
         `${API_CONFIG.BASE_URL}/api/v1/characters/${encodeURIComponent(characterName)}/toggle-nsfw`,
         { method: 'PATCH' }

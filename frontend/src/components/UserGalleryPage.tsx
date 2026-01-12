@@ -7,6 +7,7 @@ import { fetchPromptByImage } from '../utils/prompt';
 import { translateToRussian } from '../utils/translate';
 import { OptimizedImage } from './ui/OptimizedImage';
 import { API_CONFIG } from '../config/api';
+import { authManager } from '../utils/auth';
 
 const MainContainer = styled.div`
   display: flex;
@@ -487,11 +488,6 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
 
   const handleAddToGallery = async (e: React.MouseEvent, photo: UserPhoto) => {
     e.stopPropagation();
-    
-    if (!authToken) {
-      setError('Необходима авторизация');
-      return;
-    }
 
     const imageUrl = photo.image_url || (photo.image_filename ? `${API_CONFIG.BASE_URL}/paid_gallery/${photo.image_filename}` : null);
     if (!imageUrl) {
@@ -502,11 +498,10 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
     setAddingPhotoIds(prev => new Set(prev).add(photo.id));
 
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/add/`, {
+      const response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/add/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`
         },
         body: JSON.stringify({
           image_url: imageUrl,
@@ -537,20 +532,12 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
 
   const handleDeletePhoto = async (e: React.MouseEvent, photo: UserPhoto) => {
     e.stopPropagation();
-    
-    if (!authToken) {
-      setError('Необходима авторизация');
-      return;
-    }
 
     setDeletingPhotoIds(prev => new Set(prev).add(photo.id));
 
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/${photo.id}/`, {
+      const response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/${photo.id}/`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${authToken}`
-        }
       });
 
       if (!response.ok) {
@@ -578,14 +565,8 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
   // Загружаем ID текущего пользователя
   useEffect(() => {
     const loadCurrentUserId = async () => {
-      if (!authToken) return;
-      
       try {
-        const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`, {
-          headers: {
-            'Authorization': `Bearer ${authToken}`
-          }
-        });
+        const response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`);
         if (response.ok) {
           const userData = await response.json();
           setCurrentUserId(userData.id);
@@ -596,7 +577,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
     };
     
     loadCurrentUserId();
-  }, [authToken]);
+  }, []);
 
   // Проверяем, какие фото уже есть в галерее текущего пользователя
   const photosRef = useRef<UserPhoto[]>([]);
@@ -617,11 +598,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
       }
 
       try {
-        const galleryResponse = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/`, {
-          headers: {
-            'Authorization': `Bearer ${authToken}`
-          }
-        });
+        const galleryResponse = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/`);
         
         if (galleryResponse.ok) {
           const galleryData = await galleryResponse.json();
@@ -655,24 +632,17 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
     };
     
     checkExistingPhotos();
-  }, [authToken, currentUserId, userId]);
+  }, [currentUserId, userId]);
 
   const loadGallery = useCallback(async (offset: number = 0, append: boolean = false) => {
-    if (!authToken) {
-      setError('Необходима авторизация');
-      setIsLoading(false);
-      return;
-    }
-
     // Предотвращаем множественные одновременные запросы
     if (offset === 0 && isLoadingRef.current) {
-      
       return;
     }
 
     if (offset === 0) {
       isLoadingRef.current = true;
-    setIsLoading(true);
+      setIsLoading(true);
     } else {
       setIsLoadingMore(true);
     }
@@ -693,11 +663,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
         ? baseUrl
         : `${baseUrl}?limit=${PAGE_SIZE}&offset=${offset}`;
       
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${authToken}`
-        }
-      });
+      const response = await authManager.fetchWithAuth(url);
 
       if (!response.ok) {
         if (response.status === 403) {
@@ -776,14 +742,44 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
       lastLoadedUserIdRef.current = currentUserIdKey;
     }
     
-    // Загружаем галерею только если есть токен авторизации
-    if (authToken && !isLoadingRef.current) {
-    loadGallery(0, false);
-    } else if (!authToken) {
-      setIsLoading(false);
-      setError('Необходима авторизация');
+    // Загружаем галерею
+    if (!isLoadingRef.current) {
+      loadGallery(0, false);
     }
-  }, [authToken, userId, loadGallery]);
+  }, [userId, loadGallery]);
+
+  // Синхронизация состояния авторизации
+  useEffect(() => {
+    const unsubscribe = authManager.subscribeAuthChanges((state) => {
+      if (!state.isAuthenticated) {
+        // Если пользователь вышел, очищаем данные
+        setPhotos([]);
+        setTotal(0);
+        setCurrentUserId(null);
+        setAddedPhotoIds(new Set());
+        photosCacheRef.current.clear();
+        lastLoadedUserIdRef.current = undefined;
+      } else {
+        // Если пользователь вошел, перезагружаем данные
+        lastLoadedUserIdRef.current = undefined;
+        loadGallery(0, false);
+        const loadCurrentUserId = async () => {
+          try {
+            const response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`);
+            if (response.ok) {
+              const userData = await response.json();
+              setCurrentUserId(userData.id);
+            }
+          } catch (error) {
+            // Игнорируем ошибки
+          }
+        };
+        loadCurrentUserId();
+      }
+    });
+
+    return unsubscribe;
+  }, [loadGallery]);
 
   const handleLoadMore = useCallback(() => {
     if (!isLoadingMore && hasMore) {

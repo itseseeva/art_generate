@@ -13,9 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user
 from app.chat_bot.api.character_endpoints import (
     _character_slug,
-    _load_photo_metadata,
     _normalize_main_photos,
-    _save_photo_metadata,
 )
 from app.chat_bot.models.models import CharacterDB, PaidAlbumUnlock
 from app.database.db_depends import get_db
@@ -470,7 +468,30 @@ async def save_paid_gallery_photos(
             detail=f"В платном альбоме может быть не более {PAID_ALBUM_LIMIT} фотографий",
         )
 
-    _save_photo_metadata(character_db.name, unique_photos)
+    # Сохраняем в БД
+    from app.chat_bot.models.models import PaidAlbumPhoto
+    from sqlalchemy import delete
+    
+    # Удаляем существующие фотографии для этого персонажа
+    await db.execute(
+        delete(PaidAlbumPhoto).where(PaidAlbumPhoto.character_id == character_db.id)
+    )
+    
+    # Добавляем новые фотографии
+    for photo in unique_photos:
+        photo_id = photo.get("id")
+        photo_url = photo.get("url")
+        if photo_id and photo_url:
+            db.add(
+                PaidAlbumPhoto(
+                    character_id=character_db.id,
+                    photo_id=photo_id,
+                    photo_url=photo_url,
+                )
+            )
+    
+    await db.commit()
+    
     return {
         "character": character_db.name,
         "character_slug": _character_slug(character_db.name),
@@ -511,8 +532,25 @@ async def list_paid_gallery(
         logger.warning(f"[PAID_ALBUM] Пользователь {current_user.id} не имеет доступа к альбому {character_db.name}")
         raise HTTPException(status_code=403, detail="Сначала разблокируйте платный альбом персонажа")
 
-    metadata_photos = _load_photo_metadata(character_db.name)
-    if metadata_photos:
+    # Загружаем фотографии из БД
+    from app.chat_bot.models.models import PaidAlbumPhoto
+    
+    photos_result = await db.execute(
+        select(PaidAlbumPhoto)
+        .where(PaidAlbumPhoto.character_id == character_db.id)
+        .order_by(PaidAlbumPhoto.created_at.desc())
+    )
+    db_photos = photos_result.scalars().all()
+    
+    if db_photos:
+        metadata_photos = [
+            {
+                "id": photo.photo_id,
+                "url": photo.photo_url,
+                "created_at": photo.created_at.isoformat() + "Z" if photo.created_at else None,
+            }
+            for photo in db_photos
+        ]
         return {
             "character": character_db.name,
             "character_slug": slug,

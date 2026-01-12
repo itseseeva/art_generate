@@ -1131,11 +1131,10 @@ const getInitials = (username?: string | null, email?: string): string => {
 
 interface EditProfileFormProps {
   userInfo: UserInfoResponse | null;
-  authToken: string | null;
   onUpdate: () => void;
 }
 
-const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, authToken, onUpdate }) => {
+const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, onUpdate }) => {
   const [username, setUsername] = useState(userInfo?.username || '');
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -1152,15 +1151,14 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, authToken, 
   }, [userInfo]);
 
   const handleUpdateUsername = async () => {
-    if (!authToken || !username.trim()) return;
+    if (!username.trim()) return;
     setIsLoading(true);
     setMessage(null);
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/update-username/`, {
+      const response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/auth/update-username/`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`
         },
         body: JSON.stringify({ username: username.trim() })
       });
@@ -1178,7 +1176,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, authToken, 
   };
 
   const handleRequestPasswordChange = async () => {
-    if (!authToken || !oldPassword.trim() || !newPassword.trim() || !confirmPassword.trim()) return;
+    if (!oldPassword.trim() || !newPassword.trim() || !confirmPassword.trim()) return;
     
     // Проверяем, что новый пароль и повтор совпадают
     if (newPassword !== confirmPassword) {
@@ -1189,11 +1187,10 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, authToken, 
     setIsLoading(true);
     setMessage(null);
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/request-password-change-with-old/`, {
+      const response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/auth/request-password-change-with-old/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`
         },
         body: JSON.stringify({
           old_password: oldPassword,
@@ -1215,15 +1212,14 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, authToken, 
   };
 
   const handleConfirmPasswordChange = async () => {
-    if (!authToken || !passwordVerificationCode.trim()) return;
+    if (!passwordVerificationCode.trim()) return;
     setIsLoading(true);
     setMessage(null);
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/confirm-password-change-with-code/`, {
+      const response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/auth/confirm-password-change-with-code/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`
         },
         body: JSON.stringify({ verification_code: passwordVerificationCode.trim() })
       });
@@ -1390,17 +1386,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   // Загрузка избранных персонажей
   const loadFavorites = useCallback(async () => {
     try {
-      const token = authToken;
-      if (!token) {
-        setFavoriteCharacterIds(new Set());
-        return;
-      }
-
-      const response = await fetch(API_CONFIG.FAVORITES, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await authManager.fetchWithAuth(API_CONFIG.FAVORITES);
       
       if (response.ok) {
         const favorites = await response.json();
@@ -1418,38 +1404,23 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     } catch (error) {
       setFavoriteCharacterIds(new Set());
     }
-  }, [authToken]);
+  }, []);
   
-  // Загружаем избранные при монтировании и изменении authToken
+  // Загружаем избранные при монтировании
   useEffect(() => {
-    if (authToken) {
-      loadFavorites();
-    } else {
-      setFavoriteCharacterIds(new Set());
-    }
-  }, [authToken, loadFavorites]);
+    loadFavorites();
+  }, [loadFavorites]);
   
   
   // Загрузка персонажей пользователя
   const loadUserCharacters = useCallback(async () => {
-    if (!authToken) {
-      setUserCharacters([]);
-      return;
-    }
-
     try {
-      const token = authToken;
-      
       // Определяем ID пользователя, чьих персонажей нужно загрузить
       let targetUserId: number | null = null;
       
       if (isViewingOwnProfile) {
         // Для своего профиля получаем ID текущего пользователя
-        const userResponse = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        const userResponse = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`);
 
         if (!userResponse.ok) {
           return;
@@ -1466,11 +1437,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         return;
       }
 
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/characters/`);
 
       if (response.ok) {
         const charactersData = await response.json();
@@ -1633,7 +1600,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       
       setUserCharacters([]);
     }
-  }, [authToken, isViewingOwnProfile, profileUserId]);
+  }, [isViewingOwnProfile, profileUserId]);
   const viewedUserName = userInfo?.username || userInfo?.email?.split('@')[0] || 'Пользователь';
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -1667,21 +1634,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     }
   }, []);
 
-  const fetchUserInfo = useCallback(async (token: string) => {
+  const fetchUserInfo = useCallback(async () => {
     // Если передан profileUserId, загружаем данные этого пользователя
     // Иначе загружаем данные текущего пользователя
     const url = profileUserId 
       ? `${API_CONFIG.BASE_URL}/api/v1/auth/users/${profileUserId}/`
       : `${API_CONFIG.BASE_URL}/api/v1/auth/me/`;
     
-    
-    
-    
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    const response = await authManager.fetchWithAuth(url);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -1708,12 +1668,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     return data as UserInfoResponse;
   }, [profileUserId]);
 
-  const fetchSubscriptionStats = useCallback(async (token: string) => {
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/profit/stats/`, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+  const fetchSubscriptionStats = useCallback(async () => {
+    const response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/profit/stats/`);
 
     if (!response.ok) {
       throw new Error('Не удалось загрузить статистику подписки');
@@ -1725,15 +1681,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   }, []);
 
   const fetchCurrentUserProfile = useCallback(async () => {
-    if (!authToken) {
-      return null;
-    }
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`, {
-        headers: {
-          Authorization: `Bearer ${authToken}`
-        }
-      });
+      const response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`);
       if (!response.ok) {
         return null;
       }
@@ -1745,15 +1694,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       
       return null;
     }
-  }, [authToken]);
+  }, []);
 
-  const loadPhotosCount = useCallback(async (token: string) => {
+  const loadPhotosCount = useCallback(async () => {
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/`);
 
       if (response.ok) {
         const data = await response.json();
@@ -1765,13 +1710,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     }
   }, []);
 
-  const fetchProfileStats = useCallback(async (token: string) => {
+  const fetchProfileStats = useCallback(async () => {
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/profile-stats/`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/auth/profile-stats/`);
 
       if (response.ok) {
         const data = await response.json();
@@ -1787,12 +1728,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   }, []);
 
 
-  const unlockUserGallery = useCallback(async (token: string, targetUserId: number) => {
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/unlock-user-gallery/`, {
+  const unlockUserGallery = useCallback(async (targetUserId: number) => {
+    const response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/auth/unlock-user-gallery/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify({ user_id: targetUserId })
     });
@@ -1809,13 +1749,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     return await response.json();
   }, []);
 
-  const loadGeneratedPhotosCount = useCallback(async (token: string, userId: number) => {
+  const loadGeneratedPhotosCount = useCallback(async (userId: number) => {
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/user-generated-photos/${userId}/`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/auth/user-generated-photos/${userId}/`);
 
       if (response.ok) {
         const data = await response.json();
@@ -1834,15 +1770,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   }, []);
 
   const verifyGalleryAccess = useCallback(async (): Promise<boolean> => {
-    if (!authToken || !profileUserId) {
+    if (!profileUserId) {
       return false;
     }
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/user-generated-photos/${profileUserId}/?limit=1`, {
-        headers: {
-          Authorization: `Bearer ${authToken}`
-        }
-      });
+      const response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/auth/user-generated-photos/${profileUserId}/?limit=1`);
 
       if (response.ok) {
         rememberUnlockedUserGallery(profileUserId);
@@ -1863,7 +1795,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       
       return false;
     }
-  }, [authToken, profileUserId]);
+  }, [profileUserId]);
 
   useEffect(() => {
     if (!authToken) {
@@ -1907,17 +1839,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   }, [authToken, profileUserId, fetchCurrentUserProfile, verifyGalleryAccess]);
 
   const handleOpenUserGallery = useCallback(async () => {
-    
-    
-    if (!authToken) {
-      setIsAuthModalOpen(true);
-      setAuthMode('login');
-      return;
-    }
-
     if (!profileUserId || isViewingOwnProfile) {
       // Открываем свою галерею
-      
       onOpenUserGallery?.();
       return;
     }
@@ -1929,9 +1852,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     let currentUserInfo = userInfo;
     
     if (!currentStats) {
-      
       try {
-        currentStats = await fetchSubscriptionStats(authToken);
+        currentStats = await fetchSubscriptionStats();
       } catch (error) {
         
       }
@@ -1940,13 +1862,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     // Всегда загружаем данные текущего пользователя через /api/v1/auth/me/
     // чтобы получить правильную информацию о подписке
     if (!currentUserInfo?.subscription?.subscription_type || currentUserInfo?.id !== currentUserId) {
-      
       try {
-        const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`, {
-          headers: {
-            Authorization: `Bearer ${authToken}`
-          }
-        });
+        const response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`);
         if (response.ok) {
           const meData = await response.json();
           currentUserInfo = meData;
@@ -1988,7 +1905,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     setIsLoadingGallery(true);
     try {
       // Вызываем разблокировку - бэкенд проверит баланс, подписку и списал кредиты
-      await unlockUserGallery(authToken, profileUserId);
+      await unlockUserGallery(profileUserId);
       const updatedProfile = await fetchCurrentUserProfile();
       rememberUnlockedUserGallery(profileUserId);
       setHasUnlockedGallery(true);
@@ -2062,9 +1979,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
   useEffect(() => {
     const handleGalleryUpdate = () => {
-      if (authToken) {
-        loadPhotosCount(authToken);
-      }
+      loadPhotosCount();
     };
 
     window.addEventListener('gallery-update', handleGalleryUpdate);
@@ -2098,16 +2013,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     }
 
     const results = await Promise.allSettled([
-      fetchUserInfo(authToken),
-      fetchSubscriptionStats(authToken), // Всегда загружаем статистику текущего пользователя (нужна для проверки подписки при разблокировке галереи)
-      profileUserId ? Promise.resolve(null) : loadPhotosCount(authToken), // Фото только для своего профиля
-      isViewingOwnProfile ? fetchProfileStats(authToken) : Promise.resolve(null) // Расширенная статистика только для своего профиля
+      fetchUserInfo(),
+      fetchSubscriptionStats(), // Всегда загружаем статистику текущего пользователя (нужна для проверки подписки при разблокировке галереи)
+      profileUserId ? Promise.resolve(null) : loadPhotosCount(), // Фото только для своего профиля
+      isViewingOwnProfile ? fetchProfileStats() : Promise.resolve(null) // Расширенная статистика только для своего профиля
     ]);
 
     // Если это чужой профиль, загружаем количество сгенерированных фото
     if (profileUserId && myUserId && profileUserId !== myUserId) {
       try {
-        await loadGeneratedPhotosCount(authToken, profileUserId);
+        await loadGeneratedPhotosCount(profileUserId);
       } catch (error) {
         
       }
@@ -2141,7 +2056,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     } finally {
     setIsLoading(false);
     }
-  }, [authToken, fetchSubscriptionStats, fetchUserInfo, loadPhotosCount, profileUserId, currentUserId, loadGeneratedPhotosCount, fetchCurrentUserProfile, fetchProfileStats, isViewingOwnProfile]);
+  }, [fetchSubscriptionStats, fetchUserInfo, loadPhotosCount, profileUserId, currentUserId, loadGeneratedPhotosCount, fetchCurrentUserProfile, fetchProfileStats, isViewingOwnProfile]);
 
   // Логируем изменения profileUserId
   useEffect(() => {
@@ -2278,6 +2193,27 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     return () => window.removeEventListener('subscription-update', handler);
   }, [hasAuthToken, loadProfileData]);
 
+  // Синхронизация состояния авторизации
+  useEffect(() => {
+    const unsubscribe = authManager.subscribeAuthChanges((state) => {
+      if (!state.isAuthenticated) {
+        // Если пользователь вышел, очищаем данные
+        setUserInfo(null);
+        setStats(null);
+        setUserCharacters([]);
+        setPhotosCount(0);
+        setGeneratedPhotosCount(0);
+        clearRealtimeConnection();
+      } else {
+        // Если пользователь вошел, перезагружаем данные
+        loadProfileData();
+        loadUserCharacters();
+      }
+    });
+
+    return unsubscribe;
+  }, [loadProfileData, loadUserCharacters, clearRealtimeConnection]);
+
   const subscriptionType = stats?.subscription_type ?? userInfo?.subscription?.subscription_type ?? '—';
   const photosRemaining = stats?.photos_remaining ?? userInfo?.subscription?.monthly_photos ?? 0;
   const coinBalance = userInfo?.coins ?? 0;
@@ -2329,7 +2265,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   <p className="text-white/60 text-sm mt-1">Изменить данные учетной записи</p>
                 </div>
               </div>
-            <EditProfileForm userInfo={userInfo} authToken={authToken} onUpdate={loadProfileData} />
+            <EditProfileForm userInfo={userInfo} onUpdate={loadProfileData} />
             </motion.div>
           </div>
         </div>

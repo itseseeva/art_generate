@@ -193,11 +193,6 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
       setIsLoading(true);
       setError(null);
       try {
-        const token = authManager.getToken();
-        if (!token) {
-          throw new Error('Необходимо войти, чтобы просматривать сообщения благодарности');
-        }
-
         // Загружаем tip messages и персонажей параллельно
         const [messagesResponse, charactersResponse] = await Promise.all([
           authManager.fetchWithAuth('/api/v1/auth/tip-messages/'),
@@ -256,6 +251,80 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
     };
 
     loadTipMessages();
+  }, []);
+
+  // Синхронизация состояния авторизации
+  useEffect(() => {
+    const unsubscribe = authManager.subscribeAuthChanges((state) => {
+      if (!state.isAuthenticated) {
+        // Если пользователь вышел, очищаем данные
+        setMessages([]);
+        setCharactersMap(new Map());
+        hasLoadedRef.current = false;
+      } else if (!hasLoadedRef.current) {
+        // Если пользователь вошел и данные еще не загружены, перезагружаем
+        hasLoadedRef.current = false;
+        const loadTipMessages = async () => {
+          setIsLoading(true);
+          setError(null);
+          try {
+            const [messagesResponse, charactersResponse] = await Promise.all([
+              authManager.fetchWithAuth('/api/v1/auth/tip-messages/'),
+              authManager.fetchWithAuth('/api/v1/characters/'),
+            ]);
+
+            if (!messagesResponse.ok) {
+              if (messagesResponse.status === 404) {
+                setMessages([]);
+                setIsLoading(false);
+                return;
+              }
+              throw new Error('Не удалось получить сообщения благодарности');
+            }
+
+            const tipMessages = await messagesResponse.json().catch(() => []);
+            const charactersData = await charactersResponse.json().catch(() => []);
+
+            const map = new Map<string, any>();
+            if (Array.isArray(charactersData)) {
+              charactersData.forEach((char: any) => {
+                if (char?.name) {
+                  map.set(char.name.toLowerCase(), char);
+                }
+              });
+            }
+            setCharactersMap(map);
+            const messagesArray = Array.isArray(tipMessages) ? tipMessages : [];
+            setMessages(messagesArray);
+            
+            const unreadMessages = messagesArray.filter((msg: TipMessage) => !msg.is_read);
+            if (unreadMessages.length > 0) {
+              try {
+                await Promise.all(
+                  unreadMessages.map((msg: TipMessage) =>
+                    authManager.fetchWithAuth(`/api/v1/auth/tip-messages/${msg.id}/read/`, {
+                      method: 'POST'
+                    })
+                  )
+                );
+                window.dispatchEvent(new CustomEvent('tip-messages-read'));
+              } catch (err) {
+                console.error('Ошибка при отметке сообщений как прочитанных:', err);
+              }
+            }
+            
+            hasLoadedRef.current = true;
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Неизвестная ошибка загрузки');
+          } finally {
+            setIsLoading(false);
+          }
+        };
+        loadTipMessages();
+      }
+    });
+
+    return unsubscribe;
   }, []);
 
   const handleCharacterClick = (characterName: string) => {

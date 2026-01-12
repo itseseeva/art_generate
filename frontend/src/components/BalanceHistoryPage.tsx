@@ -147,19 +147,28 @@ export const BalanceHistoryPage: React.FC<BalanceHistoryPageProps> = ({
     loadBalanceHistory();
   }, []);
 
+  // Синхронизация состояния авторизации
+  useEffect(() => {
+    const unsubscribe = authManager.subscribeAuthChanges((state) => {
+      if (!state.isAuthenticated) {
+        // Если пользователь вышел, очищаем данные
+        setHistory([]);
+        setTotal(0);
+      } else {
+        // Если пользователь вошел, перезагружаем данные
+        loadBalanceHistory();
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
   const loadBalanceHistory = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      const token = authManager.getToken();
-      if (!token) {
-        setError('Необходима авторизация');
-        setIsLoading(false);
-        return;
-      }
-
-      const response = await authManager.fetchWithAuth('/api/v1/balance/history?skip=0&limit=1000');
+      const response = await authManager.fetchWithAuth('/api/v1/auth/balance-history/');
       
       if (!response.ok) {
         if (response.status === 401) {
@@ -187,7 +196,6 @@ export const BalanceHistoryPage: React.FC<BalanceHistoryPageProps> = ({
         setTotal(0);
       }
     } catch (err) {
-      
       setError('Ошибка загрузки истории баланса');
     } finally {
       setIsLoading(false);
