@@ -1781,6 +1781,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     e.preventDefault();
     
     if (!imageUrl) {
+      console.error('[handleOpenPhoto] URL изображения отсутствует');
       return;
     }
     
@@ -1811,14 +1812,23 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     try {
       const { prompt, errorMessage } = await fetchPromptByImage(normalizedUrl);
       if (prompt) {
-        // Переводим промпт на русский для отображения
-        const translatedPrompt = await translateToRussian(prompt);
-        setSelectedPrompt(translatedPrompt);
+        try {
+          // Переводим промпт на русский для отображения
+          const translatedPrompt = await translateToRussian(prompt);
+          setSelectedPrompt(translatedPrompt);
+        } catch (translateError) {
+          console.error('[handleOpenPhoto] Ошибка перевода промпта:', translateError);
+          // Если перевод не удался, показываем оригинальный промпт
+          setSelectedPrompt(prompt);
+        }
       } else {
-        setPromptError(errorMessage || 'Промпт недоступен для этого изображения');
+        const finalErrorMessage = errorMessage || 'Промпт недоступен для этого изображения';
+        setPromptError(finalErrorMessage);
       }
     } catch (error) {
-      setPromptError('Ошибка загрузки промпта');
+      const errorMsg = error instanceof Error ? error.message : 'Неизвестная ошибка загрузки промпта';
+      setPromptError(errorMsg);
+      console.error('[handleOpenPhoto] Критическая ошибка загрузки промпта:', error);
     } finally {
       setIsLoadingPrompt(false);
     }

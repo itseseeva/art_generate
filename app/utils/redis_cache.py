@@ -358,7 +358,7 @@ TTL_CHARACTER_PHOTOS = 86400  # 24 часа (обновляется при ге�
 TTL_GENERATION_SETTINGS = 3600  # 1 час
 TTL_GENERATION_FALLBACK = 3600  # 1 час
 TTL_PROMPTS_DEFAULT = 3600  # 1 час
-TTL_CHAT_HISTORY = 600  # 10 минут
+TTL_CHAT_HISTORY = 86400  # 24 часа (3600 * 24 секунд)
 TTL_CHAT_STATUS = 30  # 30 секунд
 TTL_USER_CHARACTERS = 300  # 5 минут
 

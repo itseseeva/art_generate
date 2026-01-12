@@ -249,29 +249,38 @@ class AuthManager {
 
     // Если получили 401, пытаемся обновить токен и повторить запрос
     if (response.status === 401) {
-      
+      console.log('[authManager] Получен 401, пытаемся обновить токен...');
       const refreshToken = this.getRefreshToken();
       if (!refreshToken) {
-        
+        console.error('[authManager] Нет refresh token для обновления');
         this.clearTokens();
         throw new Error('Authentication failed: No refresh token');
       }
       
       try {
         const newTokens = await this.refreshAccessToken();
+        console.log('[authManager] Токен обновлен, повторяем запрос...');
         const newHeaders = {
           ...options.headers,
           'Authorization': `Bearer ${newTokens.access_token}`
         };
 
-        return fetch(url.startsWith('http') ? url : API_CONFIG.BASE_URL + url, {
+        const retryResponse = await fetch(url.startsWith('http') ? url : API_CONFIG.BASE_URL + url, {
           ...options,
           headers: newHeaders
         });
-      } catch (error) {
         
+        if (retryResponse.status === 401) {
+          console.error('[authManager] Повторный запрос также вернул 401 после обновления токена');
+          this.clearTokens();
+          throw new Error('Authentication failed: Token refresh did not help');
+        }
+        
+        return retryResponse;
+      } catch (error) {
+        console.error('[authManager] Ошибка при обновлении токена:', error);
         this.clearTokens();
-        throw new Error('Authentication failed');
+        throw error instanceof Error ? error : new Error('Authentication failed');
       }
     }
 

@@ -45,27 +45,17 @@ export const fetchPromptByImage = async (imageUrl: string): Promise<PromptFetchR
     };
   }
 
-  const token = authManager.getToken();
-  if (!token) {
-    return {
-      prompt: null,
-      characterName: null,
-      errorMessage: 'Необходима авторизация'
-    };
-  }
-
   const endpoint = buildPromptEndpoint(imageUrl);
-  const headers: HeadersInit = { Authorization: `Bearer ${token}` };
 
   try {
-    const response = await fetch(endpoint, { headers });
+    const response = await authManager.fetchWithAuth(endpoint);
     return parsePromptResponse(response);
   } catch (error) {
-    
+    console.error('[fetchPromptByImage] Ошибка загрузки промпта:', error);
     return {
       prompt: null,
       characterName: null,
-      errorMessage: 'Не удалось загрузить промпт'
+      errorMessage: error instanceof Error ? error.message : 'Не удалось загрузить промпт'
     };
   }
 };

@@ -12,14 +12,24 @@ export function useIsMobile() {
 
   React.useEffect(() => {
     const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
-    const onChange = () => {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+    
+    const onChange = (e: MediaQueryListEvent) => {
+      setIsMobile(e.matches)
     }
-    mql.addEventListener('change', onChange)
-    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
-    return () => mql.removeEventListener('change', onChange)
+    
+    // Устанавливаем начальное значение из MediaQueryList
+    setIsMobile(mql.matches)
+    
+    // Используем addEventListener для современных браузеров
+    if (mql.addEventListener) {
+      mql.addEventListener('change', onChange)
+      return () => mql.removeEventListener('change', onChange)
+    } else {
+      // Fallback для старых браузеров (не должно понадобиться в современных)
+      mql.addListener(onChange)
+      return () => mql.removeListener(onChange)
+    }
   }, [])
 
   return !!isMobile
 }
-

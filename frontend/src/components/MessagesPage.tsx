@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import { GlobalHeader } from './GlobalHeader';
@@ -184,74 +184,91 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
   const [charactersMap, setCharactersMap] = useState<Map<string, any>>(new Map());
   const hasLoadedRef = React.useRef(false);
 
-  useEffect(() => {
-    if (hasLoadedRef.current) {
-      return;
-    }
-    
-    const loadTipMessages = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        // Загружаем tip messages и персонажей параллельно
-        const [messagesResponse, charactersResponse] = await Promise.all([
-          authManager.fetchWithAuth('/api/v1/auth/tip-messages/'),
-          authManager.fetchWithAuth('/api/v1/characters/'),
-        ]);
+  const loadTipMessages = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      console.log('[MessagesPage] Загрузка tip messages...');
+      // Загружаем tip messages и персонажей параллельно
+      const [messagesResponse, charactersResponse] = await Promise.all([
+        authManager.fetchWithAuth('/api/v1/auth/tip-messages/'),
+        authManager.fetchWithAuth('/api/v1/characters/'),
+      ]);
 
-        if (!messagesResponse.ok) {
-          if (messagesResponse.status === 404) {
-            setMessages([]);
-            setIsLoading(false);
-            return;
-          }
-          throw new Error('Не удалось получить сообщения благодарности');
-        }
+      console.log('[MessagesPage] messagesResponse status:', messagesResponse.status, 'ok:', messagesResponse.ok);
 
-        const tipMessages = await messagesResponse.json().catch(() => []);
-        const charactersData = await charactersResponse.json().catch(() => []);
-
-        // Создаем карту персонажей для быстрого доступа
-        const map = new Map<string, any>();
-        if (Array.isArray(charactersData)) {
-          charactersData.forEach((char: any) => {
-            if (char?.name) {
-              map.set(char.name.toLowerCase(), char);
-            }
-          });
+      if (!messagesResponse.ok) {
+        if (messagesResponse.status === 404) {
+          console.log('[MessagesPage] 404 - сообщений нет');
+          setMessages([]);
+          setIsLoading(false);
+          return;
         }
-        setCharactersMap(map);
-        const messagesArray = Array.isArray(tipMessages) ? tipMessages : [];
-        setMessages(messagesArray);
-        
-        // Отмечаем все непрочитанные сообщения как прочитанные
-        const unreadMessages = messagesArray.filter((msg: TipMessage) => !msg.is_read);
-        if (unreadMessages.length > 0) {
-          try {
-            await Promise.all(
-              unreadMessages.map((msg: TipMessage) =>
-                authManager.fetchWithAuth(`/api/v1/auth/tip-messages/${msg.id}/read/`, {
-                  method: 'POST'
-                })
-              )
-            );
-            // Отправляем событие для обновления счетчика
-            window.dispatchEvent(new CustomEvent('tip-messages-read'));
-          } catch (err) {
-            console.error('Ошибка при отметке сообщений как прочитанных:', err);
-          }
-        }
-        
-        hasLoadedRef.current = true;
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Неизвестная ошибка загрузки');
-      } finally {
-        setIsLoading(false);
+        const errorText = await messagesResponse.text().catch(() => 'Неизвестная ошибка');
+        console.error('[MessagesPage] Ошибка загрузки сообщений:', messagesResponse.status, errorText);
+        throw new Error('Не удалось получить сообщения благодарности');
       }
-    };
 
-    loadTipMessages();
+      const tipMessages = await messagesResponse.json().catch((err) => {
+        console.error('[MessagesPage] Ошибка парсинга JSON сообщений:', err);
+        return [];
+      });
+      const charactersData = await charactersResponse.json().catch((err) => {
+        console.error('[MessagesPage] Ошибка парсинга JSON персонажей:', err);
+        return [];
+      });
+
+      console.log('[MessagesPage] Загружено сообщений:', Array.isArray(tipMessages) ? tipMessages.length : 0);
+      console.log('[MessagesPage] Загружено персонажей:', Array.isArray(charactersData) ? charactersData.length : 0);
+
+      // Создаем карту персонажей для быстрого доступа
+      const map = new Map<string, any>();
+      if (Array.isArray(charactersData)) {
+        charactersData.forEach((char: any) => {
+          if (char?.name) {
+            map.set(char.name.toLowerCase(), char);
+          }
+        });
+      }
+      setCharactersMap(map);
+      const messagesArray = Array.isArray(tipMessages) ? tipMessages : [];
+      console.log('[MessagesPage] Установлено сообщений в состояние:', messagesArray.length);
+      setMessages(messagesArray);
+      
+      // Отмечаем все непрочитанные сообщения как прочитанные
+      const unreadMessages = messagesArray.filter((msg: TipMessage) => !msg.is_read);
+      if (unreadMessages.length > 0) {
+        try {
+          await Promise.all(
+            unreadMessages.map((msg: TipMessage) =>
+              authManager.fetchWithAuth(`/api/v1/auth/tip-messages/${msg.id}/read/`, {
+                method: 'POST'
+              })
+            )
+          );
+          // Отправляем событие для обновления счетчика
+          window.dispatchEvent(new CustomEvent('tip-messages-read'));
+        } catch (err) {
+          console.error('Ошибка при отметке сообщений как прочитанных:', err);
+        }
+      }
+      
+      hasLoadedRef.current = true;
+      console.log('[MessagesPage] Загрузка завершена успешно');
+    } catch (err) {
+      console.error('[MessagesPage] Ошибка загрузки:', err);
+      setError(err instanceof Error ? err.message : 'Неизвестная ошибка загрузки');
+      hasLoadedRef.current = false; // Позволяем повторить загрузку при ошибке
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    if (!hasLoadedRef.current) {
+      loadTipMessages();
+    }
+  }, [loadTipMessages]);
 
   // Синхронизация состояния авторизации
   useEffect(() => {
@@ -261,71 +278,15 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
         setMessages([]);
         setCharactersMap(new Map());
         hasLoadedRef.current = false;
-      } else if (!hasLoadedRef.current) {
-        // Если пользователь вошел и данные еще не загружены, перезагружаем
+      } else {
+        // Если пользователь вошел, перезагружаем данные
         hasLoadedRef.current = false;
-        const loadTipMessages = async () => {
-          setIsLoading(true);
-          setError(null);
-          try {
-            const [messagesResponse, charactersResponse] = await Promise.all([
-              authManager.fetchWithAuth('/api/v1/auth/tip-messages/'),
-              authManager.fetchWithAuth('/api/v1/characters/'),
-            ]);
-
-            if (!messagesResponse.ok) {
-              if (messagesResponse.status === 404) {
-                setMessages([]);
-                setIsLoading(false);
-                return;
-              }
-              throw new Error('Не удалось получить сообщения благодарности');
-            }
-
-            const tipMessages = await messagesResponse.json().catch(() => []);
-            const charactersData = await charactersResponse.json().catch(() => []);
-
-            const map = new Map<string, any>();
-            if (Array.isArray(charactersData)) {
-              charactersData.forEach((char: any) => {
-                if (char?.name) {
-                  map.set(char.name.toLowerCase(), char);
-                }
-              });
-            }
-            setCharactersMap(map);
-            const messagesArray = Array.isArray(tipMessages) ? tipMessages : [];
-            setMessages(messagesArray);
-            
-            const unreadMessages = messagesArray.filter((msg: TipMessage) => !msg.is_read);
-            if (unreadMessages.length > 0) {
-              try {
-                await Promise.all(
-                  unreadMessages.map((msg: TipMessage) =>
-                    authManager.fetchWithAuth(`/api/v1/auth/tip-messages/${msg.id}/read/`, {
-                      method: 'POST'
-                    })
-                  )
-                );
-                window.dispatchEvent(new CustomEvent('tip-messages-read'));
-              } catch (err) {
-                console.error('Ошибка при отметке сообщений как прочитанных:', err);
-              }
-            }
-            
-            hasLoadedRef.current = true;
-          } catch (err) {
-            setError(err instanceof Error ? err.message : 'Неизвестная ошибка загрузки');
-          } finally {
-            setIsLoading(false);
-          }
-        };
         loadTipMessages();
       }
     });
 
     return unsubscribe;
-  }, []);
+  }, [loadTipMessages]);
 
   const handleCharacterClick = (characterName: string) => {
     const character = charactersMap.get(characterName.toLowerCase());
