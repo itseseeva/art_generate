@@ -289,17 +289,122 @@ async def get_prompt_by_image(
 
         # Максимально простая и надежная нормализация
         normalized_url = image_url.split('?')[0].split('#')[0] if image_url else image_url
-        filename = normalized_url.split('/')[-1] if '/' in normalized_url else normalized_url
         
-        logger.info(f"[PROMPT] Поиск промпта для файла: {filename}")
+        # Извлекаем имя файла или путь после /generated/ или /media/generated/
+        # Это позволяет находить промпты независимо от домена (localhost, cherrylust.art, yandexcloud и т.д.)
+        def extract_file_identifier(url: str) -> str:
+            """Извлекает уникальный идентификатор файла из URL (имя файла или путь после /generated/)"""
+            if not url:
+                return ""
+            # Убираем параметры запроса и якоря
+            clean_url = url.split('?')[0].split('#')[0]
+            # Извлекаем путь после /generated/ или /media/generated/
+            if '/generated/' in clean_url:
+                parts = clean_url.split('/generated/')
+                if len(parts) > 1:
+                    return parts[-1]  # Имя файла после /generated/
+            elif '/media/generated/' in clean_url:
+                parts = clean_url.split('/media/generated/')
+                if len(parts) > 1:
+                    return parts[-1]  # Имя файла после /media/generated/
+            # Если не нашли /generated/, берем просто имя файла
+            if '/' in clean_url:
+                return clean_url.split('/')[-1]
+            return clean_url
+        
+        file_identifier = extract_file_identifier(normalized_url)
+        logger.info(f"[PROMPT] Поиск промпта для изображения: {normalized_url} (file_id: {file_identifier})")
 
-        # 1. Сначала ищем в ChatHistory (там сообщения чата)
+        # 1. СНАЧАЛА ищем в ImageGenerationHistory (там может быть admin_prompt)
+        # Приоритет: admin_prompt важнее всего
+        try:
+            from app.models.image_generation_history import ImageGenerationHistory
+            
+            # Функция для нормализации URL из базы и извлечения идентификатора
+            def normalize_db_url(url: str) -> str:
+                if not url:
+                    return ""
+                return url.split('?')[0].split('#')[0]
+            
+            def get_file_id_from_url(url: str) -> str:
+                """Извлекает идентификатор файла из URL в базе"""
+                return extract_file_identifier(normalize_db_url(url))
+            
+            # Пробуем найти по точному совпадению нормализованного URL
+            # Сначала пробуем точное совпадение, затем ищем среди записей пользователя
+            # Для админов ищем по всем пользователям, для обычных пользователей - только по своему user_id
+            
+            # Ищем по идентификатору файла (имя файла после /generated/), игнорируя домен
+            if current_user.is_admin:
+                image_history_stmt = (
+                    select(ImageGenerationHistory)
+                    .where(
+                        ImageGenerationHistory.image_url.is_not(None),
+                        ImageGenerationHistory.image_url != ""
+                    )
+                    .order_by(ImageGenerationHistory.created_at.desc())
+                )
+            else:
+                image_history_stmt = (
+                    select(ImageGenerationHistory)
+                    .where(
+                        ImageGenerationHistory.image_url.is_not(None),
+                        ImageGenerationHistory.image_url != "",
+                        ImageGenerationHistory.user_id == user_id
+                    )
+                    .order_by(ImageGenerationHistory.created_at.desc())
+                )
+            
+            image_history_records = (await db.execute(image_history_stmt)).scalars().all()
+            image_history_record = None
+            for record in image_history_records:
+                record_file_id = get_file_id_from_url(record.image_url)
+                if record_file_id == file_identifier and file_identifier:
+                    image_history_record = record
+                    break
+            
+            if image_history_record:
+                # Приоритет: сначала admin_prompt, затем обычный prompt
+                clean_prompt = None
+                if image_history_record.admin_prompt:
+                    clean_prompt = image_history_record.admin_prompt
+                elif image_history_record.prompt:
+                    clean_prompt = image_history_record.prompt
+                
+                if clean_prompt:
+                    # Очищаем промпт от JSON если он там есть
+                    try:
+                        import json
+                        if clean_prompt.strip().startswith('{'):
+                            data = json.loads(clean_prompt)
+                            if isinstance(data, dict) and 'prompt' in data:
+                                clean_prompt = data['prompt']
+                    except:
+                        pass
+                        
+                    return {
+                        "success": True,
+                        "prompt": clean_prompt,
+                        "character_name": image_history_record.character_name,
+                        "generation_time": image_history_record.generation_time
+                    }
+        except Exception as img_history_err:
+            logger.warning(f"[PROMPT] Ошибка поиска в ImageGenerationHistory: {img_history_err}")
+
+        # 2. Если не нашли в ImageGenerationHistory, ищем в ChatHistory (там сообщения чата)
         from sqlalchemy.orm import load_only
         from sqlalchemy import and_, not_
+        
+        # Функция для нормализации URL из базы
+        def normalize_db_url(url: str) -> str:
+            if not url:
+                return ""
+            return url.split('?')[0].split('#')[0]
         
         # Список исключаемых паттернов для контента (заглушки)
         exclude_patterns = ["Генерация изображения", "[image:", "Генерация..."]
         
+        # Получаем все записи пользователя с изображениями и ищем по идентификатору файла
         stmt = (
             select(ChatHistory)
             .options(load_only(
@@ -309,7 +414,8 @@ async def get_prompt_by_image(
             ))
             .where(
                 ChatHistory.user_id == user_id,
-                ChatHistory.image_url.contains(filename),
+                ChatHistory.image_url.is_not(None),
+                ChatHistory.image_url != "",
                 ChatHistory.message_content.is_not(None),
                 ChatHistory.message_content != "",
                 # Исключаем заглушки
@@ -317,9 +423,14 @@ async def get_prompt_by_image(
                 not_(ChatHistory.message_content.like("[image:%"))
             )
             .order_by(ChatHistory.created_at.desc())
-            .limit(1)
         )
-        message = (await db.execute(stmt)).scalars().first()
+        messages = (await db.execute(stmt)).scalars().all()
+        message = None
+        for msg in messages:
+            msg_file_id = extract_file_identifier(msg.image_url)
+            if msg_file_id == file_identifier and file_identifier:
+                message = msg
+                break
         
         if message and message.message_content:
             return {
@@ -329,46 +440,7 @@ async def get_prompt_by_image(
                 "generation_time": message.generation_time
             }
 
-        # 2. Если не нашли в чате, ищем в глобальной истории генераций (там всегда чистый промпт)
-        try:
-            from app.models.image_generation_history import ImageGenerationHistory
-            
-            # Пробуем найти по полному URL
-            image_history_stmt = (
-                select(ImageGenerationHistory)
-                .where(
-                    ImageGenerationHistory.image_url.contains(filename),
-                    ImageGenerationHistory.user_id == user_id,
-                    ImageGenerationHistory.prompt.is_not(None),
-                    ImageGenerationHistory.prompt != ""
-                )
-                .order_by(ImageGenerationHistory.created_at.desc())
-                .limit(1)
-            )
-            image_history_record = (await db.execute(image_history_stmt)).scalars().first()
-            
-            if image_history_record and image_history_record.prompt:
-                # Очищаем промпт от JSON если он там есть
-                clean_prompt = image_history_record.prompt
-                try:
-                    import json
-                    if clean_prompt.strip().startswith('{'):
-                        data = json.loads(clean_prompt)
-                        if isinstance(data, dict) and 'prompt' in data:
-                            clean_prompt = data['prompt']
-                except:
-                    pass
-                    
-                return {
-                    "success": True,
-                    "prompt": clean_prompt,
-                    "character_name": image_history_record.character_name,
-                    "generation_time": image_history_record.generation_time
-                }
-        except Exception as img_history_err:
-            logger.warning(f"[PROMPT] Ошибка поиска в ImageGenerationHistory: {img_history_err}")
-
-        # 3. Крайний случай: поиск по всем пользователям по имени файла (тоже исключая заглушки)
+        # 3. Крайний случай: поиск по всем пользователям по идентификатору файла (тоже исключая заглушки)
         stmt = (
             select(ChatHistory)
             .options(load_only(
@@ -377,16 +449,22 @@ async def get_prompt_by_image(
                 ChatHistory.generation_time
             ))
             .where(
-                ChatHistory.image_url.contains(filename),
+                ChatHistory.image_url.is_not(None),
+                ChatHistory.image_url != "",
                 ChatHistory.message_content.is_not(None),
                 ChatHistory.message_content != "",
                 not_(ChatHistory.message_content.like("Генерация изображения%")),
                 not_(ChatHistory.message_content.like("[image:%"))
             )
             .order_by(ChatHistory.created_at.desc())
-            .limit(1)
         )
-        message = (await db.execute(stmt)).scalars().first()
+        all_messages = (await db.execute(stmt)).scalars().all()
+        message = None
+        for msg in all_messages:
+            msg_file_id = extract_file_identifier(msg.image_url)
+            if msg_file_id == file_identifier and file_identifier:
+                message = msg
+                break
         if message and message.message_content:
             return {
                 "success": True,

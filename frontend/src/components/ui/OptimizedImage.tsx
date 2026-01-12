@@ -100,7 +100,12 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
     }
   };
 
-  const handleError = () => {
+  const handleError = (e?: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    // Подавляем ошибки загрузки изображений в консоль
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setIsLoading(false);
     setHasError(true);
     if (onError) {

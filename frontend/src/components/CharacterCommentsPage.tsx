@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import { authManager } from '../utils/auth';
@@ -152,10 +152,16 @@ const UserDetails = styled.div`
   gap: 0.25rem;
 `;
 
-const Username = styled.div`
+const Username = styled.div<{ $clickable?: boolean }>`
   color: rgba(255, 255, 255, 1);
   font-weight: 600;
   font-size: 14px;
+  cursor: ${props => props.$clickable ? 'pointer' : 'default'};
+  transition: color 0.2s ease;
+  
+  &:hover {
+    color: ${props => props.$clickable ? 'rgba(139, 92, 246, 1)' : 'rgba(255, 255, 255, 1)'};
+  }
 `;
 
 const CommentDate = styled.div`
@@ -309,11 +315,11 @@ interface CharacterCommentsPageProps {
   characterName: string;
   onBack: () => void;
   onShop?: () => void;
-  onProfile?: () => void;
+  onProfile?: (userId?: number) => void;
 }
 
 export const CharacterCommentsPage: React.FC<CharacterCommentsPageProps> = ({
-  characterName,
+  characterName: propCharacterName,
   onBack,
   onShop,
   onProfile
@@ -328,7 +334,34 @@ export const CharacterCommentsPage: React.FC<CharacterCommentsPageProps> = ({
   const [totalCount, setTotalCount] = useState(0);
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
+  // Получаем characterName из пропсов или из URL
+  const getCharacterName = useCallback((): string => {
+    if (propCharacterName) {
+      return propCharacterName;
+    }
+    // Если characterName не передан в пропсах, извлекаем из URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const characterFromUrl = urlParams.get('character');
+    if (characterFromUrl) {
+      return decodeURIComponent(characterFromUrl);
+    }
+    // Пытаемся извлечь из пути
+    const pathMatch = window.location.pathname.match(/character-comments[?&]character=([^&]+)/);
+    if (pathMatch) {
+      return decodeURIComponent(pathMatch[1]);
+    }
+    return '';
+  }, [propCharacterName]);
+
+  const characterName = getCharacterName();
+
   const loadComments = async () => {
+    if (!characterName) {
+      setError('Имя персонажа не указано');
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     try {
@@ -357,6 +390,7 @@ export const CharacterCommentsPage: React.FC<CharacterCommentsPageProps> = ({
 
   useEffect(() => {
     loadComments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [characterName]);
 
   useEffect(() => {
@@ -528,7 +562,7 @@ export const CharacterCommentsPage: React.FC<CharacterCommentsPageProps> = ({
             </BackButton>
             <Title>
               <FiMessageSquare size={24} />
-              Комментарии к {characterName} ({totalCount})
+              Комментарии к {characterName || 'персонажу'} ({totalCount})
             </Title>
           </div>
         </Header>
@@ -558,7 +592,16 @@ export const CharacterCommentsPage: React.FC<CharacterCommentsPageProps> = ({
                           {!comment.avatar_url && getUserInitial(comment.username, comment.email)}
                         </Avatar>
                         <UserDetails>
-                          <Username>{comment.username || comment.email || 'Аноним'}</Username>
+                          <Username 
+                            $clickable={!!onProfile && !!comment.user_id}
+                            onClick={() => {
+                              if (onProfile && comment.user_id) {
+                                onProfile(comment.user_id);
+                              }
+                            }}
+                          >
+                            {comment.username || 'Аноним'}
+                          </Username>
                           <CommentDate>
                             {formatDate(comment.created_at)}
                             {comment.is_edited && ' (отредактировано)'}

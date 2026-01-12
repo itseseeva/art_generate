@@ -603,6 +603,7 @@ async def get_current_user_info(
         # Загружаем пользователя с подпиской явно
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
+        from app.services.profit_activate import ProfitActivateService
         
         stmt = select(Users).options(selectinload(Users.subscription)).filter(Users.id == current_user.id)
         result = await db.execute(stmt)
@@ -613,27 +614,25 @@ async def get_current_user_info(
         if user_with_subscription:
             current_user = user_with_subscription
         
-        # Получаем информацию о подписке
+        # КРИТИЧНО: Используем ProfitActivateService.get_user_subscription() для получения актуальной подписки
+        # Это гарантирует, что используется самая последняя подписка (если их несколько)
+        # и правильная логика кэширования
         subscription_info = None
-        if user_with_subscription and user_with_subscription.subscription:
+        service = ProfitActivateService(db)
+        subscription = await service.get_user_subscription(current_user.id)
+        
+        if subscription:
             subscription_info = {
-                "subscription_type": user_with_subscription.subscription.subscription_type.value,
-                "status": user_with_subscription.subscription.status.value,
-                "monthly_credits": user_with_subscription.subscription.monthly_credits,
-                "monthly_photos": user_with_subscription.subscription.monthly_photos,
-                "max_message_length": user_with_subscription.subscription.max_message_length,
-                "used_credits": user_with_subscription.subscription.used_credits,
-                "used_photos": user_with_subscription.subscription.used_photos,
-                "activated_at": user_with_subscription.subscription.activated_at,
-                "expires_at": user_with_subscription.subscription.expires_at
+                "subscription_type": subscription.subscription_type.value,
+                "status": subscription.status.value,
+                "monthly_credits": subscription.monthly_credits,
+                "monthly_photos": subscription.monthly_photos,
+                "max_message_length": subscription.max_message_length,
+                "used_credits": subscription.used_credits,
+                "used_photos": subscription.used_photos,
+                "activated_at": subscription.activated_at,
+                "expires_at": subscription.expires_at
             }
-            
-            # КРИТИЧЕСКИ ВАЖНО: обновляем кэш подписки, чтобы изменения из БД сразу отображались
-            from app.utils.redis_cache import cache_set, cache_delete, key_subscription, key_subscription_stats, TTL_SUBSCRIPTION
-            cache_key = key_subscription(current_user.id)
-            await cache_set(cache_key, user_with_subscription.subscription.to_dict(), ttl_seconds=TTL_SUBSCRIPTION)
-            # Также инвалидируем кэш статистики подписки
-            await cache_delete(key_subscription_stats(current_user.id))
         
         return UserResponse(
             id=current_user.id,
@@ -1009,6 +1008,28 @@ async def get_tip_messages(
         ))
     
     return messages
+
+
+@auth_router.get("/auth/tip-messages/unread-count/")
+async def get_unread_tip_messages_count(
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Получить количество непрочитанных сообщений благодарности для текущего пользователя.
+    """
+    from app.chat_bot.models.models import TipMessage
+    
+    result = await db.execute(
+        select(func.count(TipMessage.id))
+        .where(
+            TipMessage.receiver_id == current_user.id,
+            TipMessage.is_read.is_(False)
+        )
+    )
+    count = result.scalar() or 0
+    
+    return {"unread_count": count}
 
 
 @auth_router.post("/auth/tip-messages/{message_id}/read/")

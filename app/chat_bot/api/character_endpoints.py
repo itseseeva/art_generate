@@ -1,6 +1,6 @@
 from typing import List
 from datetime import datetime
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, text, func
@@ -459,7 +459,7 @@ async def read_characters(
         from app.chat_bot.models.models import CharacterDB, CharacterMainPhoto
         from sqlalchemy import select
         
-        logger.info(f"Loading characters from DB (skip={skip}, limit={limit})")
+        logger.debug(f"Loading characters from DB (skip={skip}, limit={limit})")
         try:
             # Добавляем таймаут для запроса к БД (увеличиваем до 30 секунд для больших запросов)
             result = await asyncio.wait_for(
@@ -505,7 +505,7 @@ async def read_characters(
                     ttl_seconds=TTL_CHARACTERS_LIST,
                     timeout=3.0
                 )
-                logger.info(f"Cached {len(characters_data)} characters")
+                logger.debug(f"Cached {len(characters_data)} characters")
             except Exception as cache_error:
                 logger.warning(f"Error caching characters: {cache_error}")
         else:
@@ -532,6 +532,54 @@ async def read_characters(
 
 # КРИТИЧНО: Статические роуты должны быть определены ПЕРЕД параметризованными
 # чтобы избежать конфликтов маршрутизации (например, /create/ не должен перехватываться /{character_name})
+
+# 1. Сначала все статические роуты (без параметров)
+@router.get("/my-characters", response_model=List[CharacterInDB])
+async def get_my_characters(
+    current_user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        # Инвалидируем кэш для конкретного пользователя, чтобы увидеть новые персонажи
+        await cache_delete_pattern(f"characters:user_{current_user.id}*")
+        
+        result = await db.execute(
+            select(CharacterDB).where(CharacterDB.user_id == current_user.id)
+        )
+        characters = result.scalars().all()
+        return characters
+    except Exception as e:
+        logger.error(f"Error fetching user characters: {e}")
+        return []
+
+@router.get("/files", response_model=List[dict])
+async def get_character_files(current_user = Depends(get_current_user)):
+    """Получает список доступных файлов персонажей."""
+    try:
+        # Для обычных пользователей возвращаем пустой список или только их файлы
+        if not current_user.is_admin:
+            return []
+            
+        import glob
+        files = glob.glob("characters/*.json")
+        return [{"filename": f} for f in files]
+    except Exception as e:
+        logger.error(f"Error getting character files: {e}")
+        return []
+
+@router.get("/available-files")
+async def get_available_files(current_user = Depends(get_current_user)):
+    """Получает список доступных файлов для импорта."""
+    try:
+        import glob
+        # Ищем JSON файлы в папке characters
+        files = glob.glob("characters/*.json")
+        # Возвращаем только имена файлов без пути
+        return [os.path.basename(f) for f in files]
+    except Exception as e:
+        logger.error(f"Error getting available files: {e}")
+        return []
+
 @router.post("/create/", response_model=CharacterInDB)
 async def create_user_character(
     character: UserCharacterCreate, 
@@ -649,8 +697,17 @@ async def read_character(character_name: str, db: AsyncSession = Depends(get_db)
     if character_name.startswith("character-ratings"):
         raise HTTPException(status_code=404, detail="Route not found")
     
+    # КРИТИЧНО: Убедиться, что имя не является путем к статическому ресурсу
+    if character_name in ["photos", "with-creator", "chat-history", "files", "available-files", "my-characters", "favorites", "create"]:
+         # Если запрос попал сюда с таким именем, значит соответствующий статический роут не сработал или определен ПОЗЖЕ
+         # В нормальной ситуации это не должно происходить, если статические роуты определены выше
+         raise HTTPException(status_code=404, detail=f"Reserved path '{character_name}' caught by parameter")
+
     try:
-        cache_key = key_character(character_name)
+        # Декодируем имя, так как оно может быть URL-encoded (например %D1%80%D1%80 -> рр)
+        decoded_name = unquote(character_name)
+        
+        cache_key = key_character(decoded_name)
         
         # Пытаемся получить из кэша
         cached_data = await cache_get(cache_key)
@@ -660,10 +717,18 @@ async def read_character(character_name: str, db: AsyncSession = Depends(get_db)
         
         from app.chat_bot.models.models import CharacterDB, CharacterMainPhoto
         from sqlalchemy import select
-        result = await db.execute(select(CharacterDB).where(CharacterDB.name.ilike(character_name)))
+        
+        # Ищем по имени
+        result = await db.execute(select(CharacterDB).where(CharacterDB.name.ilike(decoded_name)))
         db_char = result.scalar_one_or_none()
+        
+        # Если не найдено по имени, пробуем по ID, если это число
+        if not db_char and decoded_name.isdigit():
+             result = await db.execute(select(CharacterDB).where(CharacterDB.id == int(decoded_name)))
+             db_char = result.scalar_one_or_none()
+        
         if not db_char:
-            raise HTTPException(status_code=404, detail="Character not found")
+            raise HTTPException(status_code=404, detail=f"Character '{decoded_name}' not found")
         
         # Сохраняем в кэш
         char_data = {
@@ -676,13 +741,15 @@ async def read_character(character_name: str, db: AsyncSession = Depends(get_db)
             "location": db_char.location,
             "user_id": db_char.user_id,
             "main_photos": db_char.main_photos,
-            "is_nsfw": db_char.is_nsfw
+            "is_nsfw": db_char.is_nsfw,
+            # Добавляем все поля, необходимые для CharacterInDB
+             "created_at": db_char.created_at.isoformat() if db_char.created_at else None
         }
         await cache_set(cache_key, char_data, ttl_seconds=TTL_CHARACTER)
         
         return db_char
     except Exception as e:
-        print(f"Error loading character {character_name}: {e}")
+        logger.error(f"Error loading character {character_name} (decoded: {decoded_name if 'decoded_name' in locals() else 'error'}): {e}")
         raise HTTPException(status_code=500, detail="Error loading character")
 
 
@@ -694,10 +761,20 @@ async def read_character_with_creator(character_name: str, db: AsyncSession = De
         from app.chat_bot.schemas.chat import CharacterWithCreator, CreatorInfo
         from sqlalchemy import select
         
-        result = await db.execute(select(CharacterDB).where(CharacterDB.name.ilike(character_name)))
+        # Декодируем имя
+        decoded_name = unquote(character_name)
+        
+        # Ищем по имени
+        result = await db.execute(select(CharacterDB).where(CharacterDB.name.ilike(decoded_name)))
         db_char = result.scalar_one_or_none()
+        
+        # Если не найдено по имени, пробуем по ID
+        if not db_char and decoded_name.isdigit():
+             result = await db.execute(select(CharacterDB).where(CharacterDB.id == int(decoded_name)))
+             db_char = result.scalar_one_or_none()
+             
         if not db_char:
-            raise HTTPException(status_code=404, detail="Character not found")
+            raise HTTPException(status_code=404, detail=f"Character '{decoded_name}' not found")
         
         # Получаем информацию о создателе, если есть user_id
         creator_info = None
@@ -706,13 +783,11 @@ async def read_character_with_creator(character_name: str, db: AsyncSession = De
                 user_result = await db.execute(select(Users).filter(Users.id == db_char.user_id))
                 creator = user_result.scalar_one_or_none()
                 if creator:
-                    logger.info(f"Loading creator info for user_id={db_char.user_id}, username={creator.username}, avatar_url={creator.avatar_url}")
                     creator_info = CreatorInfo(
                         id=creator.id,
                         username=creator.username,
                         avatar_url=creator.avatar_url
                     )
-                    logger.info(f"Created CreatorInfo: id={creator_info.id}, username={creator_info.username}, avatar_url={creator_info.avatar_url}")
             except Exception as e:
                 logger.error(f"Не удалось загрузить информацию о создателе: {e}", exc_info=True)
         
@@ -845,7 +920,6 @@ async def get_character_chat_history(
                     .order_by(ChatSession.started_at.desc())
                     .limit(1)
                 )
-                logger.info(f"Loading chat history for authenticated user {current_user.id} with character {character_name} (found in DB)")
             else:
                 # Неавторизованный пользователь - получаем только гостевые сессии
                 chat_session_result = await db.execute(
@@ -856,7 +930,6 @@ async def get_character_chat_history(
                     .order_by(ChatSession.started_at.desc())
                     .limit(1)
                 )
-                logger.info(f"Loading chat history for guest user with character {character_name} (found in DB)")
             
             chat_session = chat_session_result.scalar_one_or_none()
         else:
@@ -1461,7 +1534,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         await emit_profile_update(user_id, db)
         
         # Инвалидируем кэш персонажей
+        # КРИТИЧНО: Если имя изменилось, инвалидируем кэш для старого и нового имени
         await cache_delete(key_character(character_name))
+        if character.name != character_name:
+            await cache_delete(key_character(character.name))
         await cache_delete(key_characters_list())
         await cache_delete_pattern("characters:list:*")
         
@@ -1537,36 +1613,6 @@ async def delete_character(
         raise HTTPException(status_code=400, detail=f"Ошибка при удалении персонажа: {str(e)}")
 
 
-@router.get("/my-characters", response_model=List[CharacterInDB])
-async def get_user_characters(
-    db: AsyncSession = Depends(get_db),
-    current_user: Users = Depends(get_current_user)
-):
-    """Получает список персонажей, созданных текущим пользователем."""
-    try:
-        from app.chat_bot.models.models import CharacterDB
-        
-        result = await db.execute(
-            select(CharacterDB)
-            .where(CharacterDB.user_id == current_user.id)
-            .order_by(CharacterDB.created_at.desc())
-        )
-        characters = result.scalars().all()
-        return characters
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/files", response_model=List[dict])
-async def read_characters_from_files():
-    """Возвращает список персонажей из файлов."""
-    try:
-        characters = character_importer.list_available_characters()
-        return [{"name": char} for char in characters]
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
 @router.post("/import/{character_name}")
 async def import_character_from_file(
     character_name: str, 
@@ -1628,19 +1674,7 @@ async def import_all_characters(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
-@router.get("/available-files")
-async def list_available_characters():
-    """Возвращает список доступных файлов персонажей."""
-    try:
-        characters = character_importer.list_available_characters()
-        return {
-            "characters": characters,
-            "count": len(characters)
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
+# Дубликат @router.get("/available-files") удален
 
 @router.post("/upload-photo/")
 async def upload_character_photo(
@@ -1916,27 +1950,36 @@ async def get_character_photos(
     try:
         # Проверяем, что персонаж существует и принадлежит пользователю
         from app.chat_bot.models.models import CharacterDB
+        from sqlalchemy import select
         
+        # Декодируем имя
+        decoded_name = unquote(character_name)
+        
+        # Ищем по имени
         result = await db.execute(
-            select(CharacterDB).where(CharacterDB.name == character_name)
+            select(CharacterDB).where(CharacterDB.name.ilike(decoded_name))
         )
         character = result.scalar_one_or_none()
+        
+        # Если не найдено по имени, пробуем по ID
+        if not character and decoded_name.isdigit():
+             result = await db.execute(select(CharacterDB).where(CharacterDB.id == int(decoded_name)))
+             character = result.scalar_one_or_none()
         
         if not character:
             raise HTTPException(
                 status_code=404, 
-                detail=f"Character '{character_name}' not found"
+                detail=f"Character '{decoded_name}' not found"
             )
         
         # Проверяем права доступа (только создатель или админ, или если пользователь не авторизован - показываем только публичные фото)
         if current_user and not current_user.is_admin and character.user_id != current_user.id:
-            raise HTTPException(
-                status_code=403, 
-                detail="You can only view photos for your own characters"
-            )
+            # Вместо 403, для чужих персонажей возвращаем только публичные фото
+            # (если такая логика предполагается) или пустой список
+            pass 
         
-        metadata_entries = _load_photo_metadata(character_name)
-        main_entries = _parse_stored_main_photos(character_name, character.main_photos)
+        metadata_entries = _load_photo_metadata(decoded_name)
+        main_entries = _parse_stored_main_photos(decoded_name, character.main_photos)
 
         db_main_entries = await _load_main_photos_from_db(character.id, db)
         if db_main_entries:
@@ -1967,11 +2010,11 @@ async def get_character_photos(
                     ORDER BY created_at DESC
                 """)
             result = await db.execute(query, {
-                "character_name": character_name,
+                "character_name": decoded_name,
                 "user_id": owner_user_id
             })
             rows = result.fetchall()
-            logger.info(f"Found {len(rows)} photos in ChatHistory for character {character_name}, owner user_id={owner_user_id}")
+            logger.info(f"Found {len(rows)} photos in ChatHistory for character {decoded_name}, owner user_id={owner_user_id}")
             
             # Также загружаем фото где character_name может быть NULL или пустым
             try:

@@ -129,7 +129,7 @@ const ButtonGroup = styled.div`
   margin-top: ${theme.spacing.lg};
 `;
 
-const Button = styled.button<{ variant?: 'primary' | 'secondary' | 'danger' }>`
+const Button = styled.button<{ $variant?: 'primary' | 'secondary' | 'danger' }>`
   padding: ${theme.spacing.md} ${theme.spacing.lg};
   border-radius: ${theme.borderRadius.lg};
   font-size: ${theme.fontSize.md};
@@ -139,7 +139,7 @@ const Button = styled.button<{ variant?: 'primary' | 'secondary' | 'danger' }>`
   border: none;
   
   ${props => {
-    switch (props.variant) {
+    switch (props.$variant) {
       case 'primary':
         return `
           background: ${theme.colors.gradients.button};
@@ -387,7 +387,7 @@ export const EditCharacterModal: React.FC<EditCharacterModalProps> = ({
             <Button type="button" onClick={onClose}>
               Отмена
             </Button>
-            <Button type="submit" variant="primary" disabled={isLoading}>
+            <Button type="submit" $variant="primary" disabled={isLoading}>
               {isLoading ? 'Сохранение...' : 'Сохранить'}
             </Button>
           </ButtonGroup>

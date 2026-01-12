@@ -6,6 +6,7 @@ import { authManager } from '../utils/auth';
 import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
 import '../styles/ContentArea.css';
+import DarkVeil from '../../@/components/DarkVeil';
 
 const MainContainer = styled.div`
   width: 100%;
@@ -13,6 +14,19 @@ const MainContainer = styled.div`
   display: flex;
   position: relative;
   overflow: hidden;
+  background: transparent;
+`;
+
+const BackgroundWrapper = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
 `;
 
 const MessagesList = styled.div`
@@ -22,6 +36,9 @@ const MessagesList = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${theme.spacing.md};
+  position: relative;
+  z-index: 1;
+  min-height: 0;
 `;
 
 const MessageCard = styled.div`
@@ -204,7 +221,26 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
           });
         }
         setCharactersMap(map);
-        setMessages(Array.isArray(tipMessages) ? tipMessages : []);
+        const messagesArray = Array.isArray(tipMessages) ? tipMessages : [];
+        setMessages(messagesArray);
+        
+        // Отмечаем все непрочитанные сообщения как прочитанные
+        const unreadMessages = messagesArray.filter((msg: TipMessage) => !msg.is_read);
+        if (unreadMessages.length > 0) {
+          try {
+            await Promise.all(
+              unreadMessages.map((msg: TipMessage) =>
+                authManager.fetchWithAuth(`/api/v1/auth/tip-messages/${msg.id}/read/`, {
+                  method: 'POST'
+                })
+              )
+            );
+            // Отправляем событие для обновления счетчика
+            window.dispatchEvent(new CustomEvent('tip-messages-read'));
+          } catch (err) {
+            console.error('Ошибка при отметке сообщений как прочитанных:', err);
+          }
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Неизвестная ошибка загрузки');
       } finally {
@@ -278,7 +314,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
           <MessagesList>
             {messages.length === 0 ? (
               <EmptyState>
-                Пока у вас нет сообщений благодарности. Пользователи могут поблагодарить вас за созданных персонажей!
+                У вас пока нету сообщений
               </EmptyState>
             ) : (
               messages.map((msg) => (
@@ -315,6 +351,9 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
           </MessagesList>
         )}
       </div>
+      <BackgroundWrapper>
+        <DarkVeil speed={1.1} />
+      </BackgroundWrapper>
     </MainContainer>
   );
 };

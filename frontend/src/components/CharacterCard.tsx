@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
+import { motion, AnimatePresence } from 'motion/react';
 import { theme } from '../theme';
 import ElectricBorder from './ElectricBorder';
 import { FiHeart, FiX as CloseIcon, FiTrash2, FiThumbsUp, FiThumbsDown, FiEdit } from 'react-icons/fi';
@@ -8,10 +9,12 @@ import { authManager } from '../utils/auth';
 import { API_CONFIG } from '../config/api';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToRussian } from '../utils/translate';
+import { extractRolePlayingSituation } from '../utils/characterUtils';
+import { useIsMobile } from '../hooks/useIsMobile';
 import Switcher4 from './Switcher4';
 import { OptimizedImage } from './ui/OptimizedImage';
 
-const CardContainer = styled.div`
+const CardContainer = styled.div<{ $isHovered?: boolean }>`
   background: rgba(22, 33, 62, 0.3); /* Очень прозрачный */
   backdrop-filter: blur(5px);
   border-radius: ${theme.borderRadius.lg};
@@ -24,14 +27,20 @@ const CardContainer = styled.div`
   height: 300px; /* Фиксированная высота карточки как на главной */
   width: 100%;
   min-width: 200px;
+  border: 2px solid transparent;
   
   &:hover {
     transform: translateY(-2px);
     box-shadow: ${theme.colors.shadow.glow};
   }
+  
+  ${props => props.$isHovered && `
+    box-shadow: ${theme.colors.shadow.glow}, 0 0 20px rgba(139, 92, 246, 0.4);
+    border-color: rgba(139, 92, 246, 0.5);
+  `}
 `;
 
-const PhotoContainer = styled.div<{ $clickable?: boolean }>`
+const PhotoContainer = styled.div<{ $clickable?: boolean; $isHovered?: boolean }>`
   width: 100%;
   height: 100%;
   position: absolute;
@@ -39,13 +48,21 @@ const PhotoContainer = styled.div<{ $clickable?: boolean }>`
   left: 0;
   z-index: 1;
   cursor: ${props => props.$clickable !== false ? 'pointer' : 'default'};
+  transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
   
   img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     object-position: center;
+    transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.6s ease;
   }
+  
+  ${props => props.$isHovered && `
+    img {
+      transform: scale(1.05);
+    }
+  `}
 `;
 
 const ActionButtons = styled.div<{ $alwaysVisible?: boolean }>`
@@ -71,6 +88,11 @@ const ActionButtons = styled.div<{ $alwaysVisible?: boolean }>`
   ${CardContainer}:hover & {
     opacity: 1;
     transform: translateY(0);
+  }
+  
+  @media (max-width: 768px) {
+    opacity: 1 !important;
+    transform: translateY(0) !important;
   }
 `;
 
@@ -138,8 +160,8 @@ const FavoriteButton = styled.button<{ $isFavorite: boolean }>`
 `;
 
 const ActionButton = styled.button<{ variant?: 'edit' | 'delete' }>`
-  padding: ${theme.spacing.sm} ${theme.spacing.md};
-  border-radius: ${theme.borderRadius.lg};
+  padding: ${theme.spacing.xs} ${theme.spacing.sm};
+  border-radius: ${theme.borderRadius.md};
   background: rgba(255, 255, 255, 0.05);
   border: 2px solid rgba(255, 255, 255, 0.2);
   color: rgba(255, 255, 255, 0.95);
@@ -148,12 +170,12 @@ const ActionButton = styled.button<{ variant?: 'edit' | 'delete' }>`
   justify-content: center;
   transition: all ${theme.transition.fast};
   cursor: pointer;
-  font-size: ${theme.fontSize.sm};
+  font-size: ${theme.fontSize.xs};
   font-weight: 600;
   text-align: center;
   white-space: nowrap;
-  min-width: 40px;
-  min-height: 40px;
+  min-width: 32px;
+  min-height: 28px;
   z-index: 11;
   position: relative;
   
@@ -203,8 +225,8 @@ const ActionButton = styled.button<{ variant?: 'edit' | 'delete' }>`
 `;
 
 const AlbumButton = styled.button`
-  padding: ${theme.spacing.sm} ${theme.spacing.md};
-  border-radius: ${theme.borderRadius.lg};
+  padding: ${theme.spacing.xs} ${theme.spacing.sm};
+  border-radius: ${theme.borderRadius.md};
   background: rgba(255, 255, 255, 0.05);
   border: 2px solid rgba(255, 255, 255, 0.2);
   color: rgba(255, 255, 255, 0.95);
@@ -213,18 +235,20 @@ const AlbumButton = styled.button`
   justify-content: center;
   transition: all ${theme.transition.fast};
   cursor: pointer;
-  font-size: ${theme.fontSize.sm};
+  font-size: ${theme.fontSize.xs};
   font-weight: 600;
   text-align: center;
   white-space: nowrap;
-  min-width: 80px;
+  min-width: 60px;
+  min-height: 28px;
   z-index: 11;
   position: relative;
   
   @media (max-width: 768px) {
-    padding: 4px 8px;
-    min-width: 60px;
-    font-size: ${theme.fontSize.xs};
+    padding: 3px 6px;
+    min-width: 50px;
+    min-height: 24px;
+    font-size: 10px;
   }
   
   &:hover {
@@ -753,51 +777,87 @@ const RatingCount = styled.span`
 `;
 
 const ShowPromptButton = styled.button`
-  position: absolute;
-  bottom: ${theme.spacing.md};
-  right: ${theme.spacing.md};
   padding: ${theme.spacing.xs} ${theme.spacing.sm};
   border-radius: ${theme.borderRadius.md};
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.95);
   display: flex;
   align-items: center;
-  z-index: 100;
-  pointer-events: auto;
   justify-content: center;
   transition: all ${theme.transition.fast};
   cursor: pointer;
   font-size: ${theme.fontSize.xs};
-  font-weight: 500;
-  z-index: 12;
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
-  opacity: 0;
-  transform: translateY(10px);
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  min-width: 60px;
+  min-height: 28px;
+  z-index: 1001;
+  position: relative;
+  pointer-events: auto !important;
   
   @media (max-width: 768px) {
     padding: 3px 6px;
+    min-width: 50px;
+    min-height: 24px;
     font-size: 10px;
-    bottom: ${theme.spacing.sm};
-    right: ${theme.spacing.sm};
-    opacity: 1 !important;
-    transform: translateY(0) !important;
-  }
-  
-  ${CardContainer}:hover & {
-    opacity: 1;
-    transform: translateY(0);
   }
   
   &:hover {
-    background: rgba(0, 0, 0, 0.5);
-    border-color: rgba(255, 255, 255, 0.5);
-    transform: translateY(-2px);
+    transform: scale(1.05);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.4);
+    color: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2);
   }
   
   &:active {
-    transform: translateY(0);
+    transform: scale(0.95);
+  }
+`;
+
+const RoleplaySituationButton = styled.button`
+  padding: ${theme.spacing.xs} ${theme.spacing.sm};
+  border-radius: ${theme.borderRadius.md};
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all ${theme.transition.fast};
+  cursor: pointer;
+  font-size: ${theme.fontSize.xs};
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  min-width: 60px;
+  min-height: 28px;
+  z-index: 11;
+  position: relative;
+  
+  @media (min-width: 769px) {
+    display: none;
+  }
+  
+  @media (max-width: 768px) {
+    padding: 3px 6px;
+    min-width: 50px;
+    min-height: 24px;
+    font-size: 10px;
+  }
+  
+  &:hover {
+    transform: scale(1.05);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.4);
+    color: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2);
+  }
+  
+  &:active {
+    transform: scale(0.95);
   }
 `;
 
@@ -841,6 +901,7 @@ const ModalContent = styled.div`
     align-items: center;
     gap: 0;
     overflow: hidden;
+    padding: 0;
   }
 `;
 
@@ -855,11 +916,12 @@ const ModalImageContainer = styled.div`
   opacity: 1 !important;
 
   @media (max-width: 768px) {
-    max-width: 100%;
     width: 100%;
+    max-width: 100%;
     flex: 1;
-    min-height: 200px;
+    min-height: 0;
     min-width: 0;
+    height: 100%;
   }
 `;
 
@@ -876,10 +938,9 @@ const ModalImage = styled.img`
   opacity: 1 !important;
 
   @media (max-width: 768px) {
-    max-height: 70vh;
-    max-width: 100vw;
-    width: auto;
-    height: auto;
+    max-height: 100%;
+    width: 100%;
+    height: 100%;
     border-radius: 0;
   }
 `;
@@ -912,6 +973,7 @@ const PromptPanel = styled.div`
     padding: ${theme.spacing.md};
     z-index: 10;
     flex-shrink: 0;
+    overflow-y: auto;
   }
 `;
 
@@ -1030,7 +1092,8 @@ const SlideShow: React.FC<{
   characterName: string; 
   onPhotoClick?: (photoUrl: string) => void;
   onCurrentPhotoChange?: (photoUrl: string) => void;
-}> = ({ photos, characterName, onPhotoClick, onCurrentPhotoChange }) => {
+  isHovered?: boolean;
+}> = ({ photos, characterName, onPhotoClick, onCurrentPhotoChange, isHovered = false }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
 
   useEffect(() => {
@@ -1071,7 +1134,7 @@ const SlideShow: React.FC<{
 
   return (
     <>
-      <PhotoContainer $clickable={false}>
+      <PhotoContainer $clickable={false} $isHovered={isHovered}>
         <OptimizedImage
           src={photos[currentSlide] || ''}
           alt={`${characterName || 'Character'} - Slide ${currentSlide + 1}`}
@@ -1109,6 +1172,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   onNsfwToggle, // Callback при изменении статуса NSFW
   showRatings = false // По умолчанию не показываем кнопки лайка/дизлайка
 }) => {
+  const isMobile = useIsMobile();
   // КРИТИЧЕСКИ ВАЖНО: если isFavoriteProp не передан, начинаем с false
   // Это нужно для главной страницы, где проверка выполняется через API
   const [isFavorite, setIsFavorite] = useState(isFavoriteProp ?? false);
@@ -1141,6 +1205,24 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   const [currentPhotoUrl, setCurrentPhotoUrl] = useState<string | null>(
     character.photos && character.photos.length > 0 ? character.photos[0] : null
   );
+  
+  // Обновляем currentPhotoUrl при изменении character.photos
+  useEffect(() => {
+    if (character.photos && character.photos.length > 0) {
+      // Нормализуем первое фото - убеждаемся, что это абсолютный URL
+      let firstPhoto = character.photos[0];
+      if (firstPhoto && !firstPhoto.startsWith('http')) {
+        if (firstPhoto.startsWith('/')) {
+          firstPhoto = `${API_CONFIG.BASE_URL || window.location.origin}${firstPhoto}`;
+        } else {
+          firstPhoto = `${API_CONFIG.BASE_URL || window.location.origin}/${firstPhoto}`;
+        }
+      }
+      setCurrentPhotoUrl(firstPhoto);
+    } else {
+      setCurrentPhotoUrl(null);
+    }
+  }, [character.photos]);
   const [isPersonalityModalOpen, setIsPersonalityModalOpen] = useState(false);
   const [personality, setPersonality] = useState<string | null>(null);
   const [isLoadingPersonality, setIsLoadingPersonality] = useState(false);
@@ -1152,6 +1234,16 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   const [likesCount, setLikesCount] = useState<number>(0);
   const [dislikesCount, setDislikesCount] = useState<number>(0);
   const [userRating, setUserRating] = useState<'like' | 'dislike' | null>(null);
+  
+  // Состояние для Smart Hover overlay
+  const [isHovered, setIsHovered] = useState(false);
+  const [showOverlay, setShowOverlay] = useState(false);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const [roleplaySituation, setRoleplaySituation] = useState<string | null>(null);
+  const [isLoadingSituation, setIsLoadingSituation] = useState(false);
+  const [situationError, setSituationError] = useState<string | null>(null);
+  const [cardPosition, setCardPosition] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
 
   // Загружаем состояние избранного из API при монтировании
   // КРИТИЧЕСКИ ВАЖНО: проверяем избранное только если isFavoriteProp не передан
@@ -1696,14 +1788,38 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
   const handleOpenPhoto = async (e: React.MouseEvent, imageUrl: string) => {
     e.stopPropagation();
-    setSelectedPhoto(imageUrl);
+    e.preventDefault();
+    
+    if (!imageUrl) {
+      return;
+    }
+    
+    // Нормализуем URL - добавляем полный путь если нужно
+    let normalizedUrl = imageUrl;
+    if (imageUrl && !imageUrl.startsWith('http') && !imageUrl.startsWith('/')) {
+      normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}/${imageUrl}`;
+    } else if (imageUrl && imageUrl.startsWith('/') && !imageUrl.startsWith('http')) {
+      normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}${imageUrl}`;
+    }
+    
+    // КРИТИЧНО: Сначала открываем фото в полный экран, устанавливая selectedPhoto
+    // Это должно открыть модальное окно с фото
+    // Убеждаемся, что URL абсолютный перед установкой
+    if (!normalizedUrl.startsWith('http')) {
+      if (normalizedUrl.startsWith('/')) {
+        normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}${normalizedUrl}`;
+      } else {
+        normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}/${normalizedUrl}`;
+      }
+    }
+    setSelectedPhoto(normalizedUrl);
     setIsPromptVisible(true);
     setSelectedPrompt(null);
     setPromptError(null);
     setIsLoadingPrompt(true);
 
     try {
-      const { prompt, errorMessage } = await fetchPromptByImage(imageUrl);
+      const { prompt, errorMessage } = await fetchPromptByImage(normalizedUrl);
       if (prompt) {
         // Переводим промпт на русский для отображения
         const translatedPrompt = await translateToRussian(prompt);
@@ -1712,7 +1828,6 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         setPromptError(errorMessage || 'Промпт недоступен для этого изображения');
       }
     } catch (error) {
-      
       setPromptError('Ошибка загрузки промпта');
     } finally {
       setIsLoadingPrompt(false);
@@ -1742,6 +1857,134 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     return () => window.removeEventListener('keydown', handleEscape);
   }, [selectedPhoto, isPersonalityModalOpen, isEditPromptModalOpen]);
 
+  // Функция для загрузки ролевой ситуации
+  const loadRoleplaySituation = async () => {
+    if (roleplaySituation) {
+      return; // Уже загружена
+    }
+
+    setIsLoadingSituation(true);
+    setSituationError(null);
+
+    try {
+      const encodedName = encodeURIComponent(character.name);
+      const response = await authManager.fetchWithAuth(`/api/v1/characters/${encodedName}`);
+      
+      if (response.ok) {
+        const characterData = await response.json();
+        const prompt = characterData?.prompt || '';
+        
+        if (prompt) {
+          const situation = extractRolePlayingSituation(prompt);
+          if (situation) {
+            // Переводим на русский
+            const translatedSituation = await translateToRussian(situation);
+            setRoleplaySituation(translatedSituation);
+          } else {
+            setSituationError('Ролевая ситуация не найдена');
+          }
+        } else {
+          setSituationError('Данные персонажа не найдены');
+        }
+      } else {
+        setSituationError('Ошибка загрузки данных персонажа');
+      }
+    } catch (error) {
+      setSituationError('Ошибка загрузки ролевой ситуации');
+    } finally {
+      setIsLoadingSituation(false);
+    }
+  };
+
+  // Обновление позиции карточки для позиционирования overlay
+  useEffect(() => {
+    const updatePosition = () => {
+      if (cardRef.current) {
+        const rect = cardRef.current.getBoundingClientRect();
+        // Для position: fixed используем координаты относительно viewport (без scroll offset)
+        setCardPosition({
+          top: rect.top,
+          left: rect.left,
+          width: rect.width,
+          height: rect.height
+        });
+      }
+    };
+
+    // Обновляем позицию при hover или когда overlay показывается
+    if (isHovered || showOverlay) {
+      updatePosition();
+      const interval = setInterval(updatePosition, 100);
+      window.addEventListener('scroll', updatePosition, true);
+      window.addEventListener('resize', updatePosition);
+
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener('scroll', updatePosition, true);
+        window.removeEventListener('resize', updatePosition);
+      };
+    }
+  }, [isHovered, showOverlay]);
+
+  // Обработка hover с задержкой для Smart Hover overlay (только для десктопа)
+  useEffect(() => {
+    if (isMobile) {
+      // На мобильных не используем hover
+      return;
+    }
+    
+    if (isHovered) {
+      // Убеждаемся, что позиция карточки установлена сразу при hover
+      if (cardRef.current) {
+        const rect = cardRef.current.getBoundingClientRect();
+        setCardPosition({
+          top: rect.top,
+          left: rect.left,
+          width: rect.width,
+          height: rect.height
+        });
+      }
+      
+      hoverTimeoutRef.current = setTimeout(() => {
+        // Проверяем, что мышь все еще на карточке
+        if (isHovered && cardRef.current) {
+          setShowOverlay(true);
+          // Загружаем ролевую ситуацию при показе overlay
+          loadRoleplaySituation();
+        }
+      }, 500);
+    } else {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+        hoverTimeoutRef.current = null;
+      }
+      // Закрываем overlay сразу при уходе мыши с карточки
+      setShowOverlay(false);
+    }
+
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHovered, isMobile]);
+
+  // Функция для показа overlay по клику (для мобильных) с toggle логикой
+  const handleShowRoleplaySituation = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    // Если уже открыто - закрываем
+    if (showOverlay) {
+      setShowOverlay(false);
+      return;
+    }
+    
+    // Иначе открываем и загружаем данные
+    setShowOverlay(true);
+    await loadRoleplaySituation();
+  };
+
   return (
     <>
     <CardWrapper>
@@ -1762,7 +2005,40 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         thickness={2}
         style={{ borderRadius: 16, flex: '0 0 auto' }}
       >
-        <CardContainer>
+        <CardContainer
+          ref={cardRef}
+          $isHovered={showOverlay && isHovered}
+          onMouseEnter={(e) => {
+            e.stopPropagation();
+            setIsHovered(true);
+            // Обновляем позицию сразу при hover
+            if (cardRef.current) {
+              const rect = cardRef.current.getBoundingClientRect();
+              setCardPosition({
+                top: rect.top,
+                left: rect.left,
+                width: rect.width,
+                height: rect.height
+              });
+            }
+          }}
+          onMouseLeave={(e) => {
+            // При уходе мыши с карточки
+            setIsHovered(false);
+            // Проверяем, не переходим ли мы на overlay
+            const relatedTarget = e.relatedTarget as HTMLElement | null;
+            const isMovingToOverlay = relatedTarget && 
+              typeof relatedTarget.closest === 'function' && (
+                relatedTarget.closest('[class*="bg-black/80"]') !== null ||
+                relatedTarget.closest('[class*="backdrop-blur-md"]') !== null
+              );
+            
+            // Если не переходим на overlay, закрываем сразу
+            if (!isMovingToOverlay) {
+              setShowOverlay(false);
+            }
+          }}
+        >
           <SlideShow 
             photos={character.photos || []} 
             characterName={character.name}
@@ -1770,6 +2046,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             onCurrentPhotoChange={(photoUrl) => {
               setCurrentPhotoUrl(photoUrl);
                 }}
+            isHovered={showOverlay}
           />
           
           {/* На странице favorites всегда показываем кнопку, даже если идет проверка */}
@@ -1809,7 +2086,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                     } as React.MouseEvent;
                     await toggleNsfw(syntheticEvent);
                   }}
-                  variant="pink"
+                  $variant="pink"
                 />
               </div>
               <span style={{ fontSize: '11px', color: '#fff', whiteSpace: 'nowrap' }}>
@@ -1826,6 +2103,39 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             >
               Альбом
             </AlbumButton>
+          )}
+          {showPromptButton && character.photos && character.photos.length > 0 && (
+            <ShowPromptButton
+              onClick={async (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                // Используем текущее фото из слайдера или первое фото персонажа
+                const photoToShow = currentPhotoUrl || (character.photos && character.photos.length > 0 ? character.photos[0] : null);
+                if (!photoToShow) {
+                  return;
+                }
+                // Нормализуем URL перед передачей - убеждаемся, что это абсолютный URL
+                let normalizedUrl = photoToShow;
+                if (!normalizedUrl.startsWith('http')) {
+                  if (normalizedUrl.startsWith('/')) {
+                    normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}${normalizedUrl}`;
+                  } else {
+                    normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}/${normalizedUrl}`;
+                  }
+                }
+                // Вызываем handleOpenPhoto для открытия фото в полный экран
+                await handleOpenPhoto(e, normalizedUrl);
+              }}
+            >
+              Промпт
+            </ShowPromptButton>
+          )}
+          {isMobile && (
+            <RoleplaySituationButton
+              onClick={handleShowRoleplaySituation}
+            >
+              Ролевая ситуация
+            </RoleplaySituationButton>
           )}
           {userInfo && userInfo.is_admin === true && character.photos && character.photos.length > 0 && (
             <EditPromptButton
@@ -1852,7 +2162,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           {onDelete && (
             <ActionButtonWithTooltip>
               <ActionButton
-                variant="delete"
+                $variant="delete"
                 onClick={(e) => {
                   e.stopPropagation();
                   e.preventDefault();
@@ -1870,19 +2180,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         
         <ContentOverlay>
           <CharacterName>{character.name}</CharacterName>
-            {showPromptButton && character.photos && character.photos.length > 0 && (
-              <ShowPromptButton
-                onClick={(e) => {
-                  e.stopPropagation();
-                  // Используем текущее фото из слайдшоу, если оно есть, иначе первое фото
-                  const photoToShow = currentPhotoUrl || character.photos[0];
-                  handleOpenPhoto(e, photoToShow);
-                }}
-              >
-                Show Prompt
-              </ShowPromptButton>
-            )}
         </ContentOverlay>
+        
           <div 
             onClick={(e) => {
               // Не блокируем клики на кнопки рейтинга и другие интерактивные элементы
@@ -1894,7 +2193,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                 target.closest('[class*="Switcher"]') ||
                 target.closest('[class*="FavoriteButton"]') ||
                 target.closest('[class*="ShowPromptButton"]') ||
-                target.closest('[class*="ActionButton"]')
+                target.closest('[class*="ActionButton"]') ||
+                target.closest('[class*="RoleplaySituationButton"]')
               ) {
                 // Если клик по кнопке - не перехватываем
                 e.stopPropagation();
@@ -1914,7 +2214,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                 target.closest('[class*="Switcher"]') ||
                 target.closest('[class*="FavoriteButton"]') ||
                 target.closest('[class*="ShowPromptButton"]') ||
-                target.closest('[class*="ActionButton"]')
+                target.closest('[class*="ActionButton"]') ||
+                target.closest('[class*="RoleplaySituationButton"]')
               ) {
                 // Если клик по кнопке - не перехватываем
                 return;
@@ -1926,13 +2227,182 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
               left: 0, 
               right: 0, 
               bottom: 0, 
-              zIndex: 10, // Увеличил z-index чтобы перекрывать контент, но не кнопки
+              zIndex: 2, // Ниже кнопок (z-index: 11+), но выше контента
               pointerEvents: 'auto',
               cursor: 'pointer'
             }}
           />
+          
+          {/* Smart Hover Popup - справа от карточки (десктоп) - через Portal */}
+          {showOverlay && cardPosition && !isMobile && cardPosition.width > 0 && createPortal(
+            <AnimatePresence>
+              <motion.div
+                initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                transition={{
+                  type: "spring",
+                  stiffness: 300,
+                  damping: 25,
+                  mass: 0.8
+                }}
+                className="bg-black/80 backdrop-blur-[10px] border border-purple-500/50 rounded-2xl shadow-2xl shadow-purple-500/20 pointer-events-auto"
+                style={{
+                  position: 'fixed' as const,
+                  zIndex: 10000,
+                  left: (() => {
+                    // Увеличиваем ширину окошка до 120% от ширины карточки или минимум 400px
+                    const overlayWidth = Math.max(cardPosition.width * 1.2, 400);
+                    const cardRightEdge = cardPosition.left + cardPosition.width;
+                    const spaceOnRight = window.innerWidth - cardRightEdge;
+                    
+                    // Если справа достаточно места (ширина окошка) - показываем справа вплотную
+                    if (spaceOnRight >= overlayWidth) {
+                      return `${cardRightEdge}px`;
+                    }
+                    // Если справа нет места - показываем слева вплотную
+                    else {
+                      return `${cardPosition.left - overlayWidth}px`;
+                    }
+                  })(),
+                  top: `${cardPosition.top}px`,
+                  width: (() => {
+                    // Увеличиваем ширину окошка до 120% от ширины карточки или минимум 400px
+                    return `${Math.max(cardPosition.width * 1.2, 400)}px`;
+                  })(),
+                  height: '180px',
+                  maxHeight: '180px',
+                }}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => {
+                  setIsHovered(false);
+                  setShowOverlay(false);
+                }}
+              >
+                <div className="p-4 flex flex-col h-full" style={{ 
+                  height: '180px',
+                  maxHeight: '180px',
+                  minHeight: 0
+                }}>
+                  {/* Title with gradient - pink/purple bold */}
+                  <h3 className="text-lg font-bold mb-2 bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent flex-shrink-0" style={{
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text'
+                  }}>
+                    {character.name}
+                  </h3>
+                  
+                  {/* Scrollable content area */}
+                  <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0" style={{
+                    scrollbarWidth: 'thin',
+                    scrollbarColor: 'rgba(139, 92, 246, 0.5) transparent',
+                    WebkitOverflowScrolling: 'touch'
+                  }}>
+                    {isLoadingSituation ? (
+                      <div className="text-sm text-white/70 animate-pulse">Загрузка...</div>
+                    ) : situationError ? (
+                      <div className="text-sm text-red-400">{situationError}</div>
+                    ) : roleplaySituation ? (
+                      <p className="text-sm text-white/90 leading-relaxed whitespace-pre-wrap pr-2">
+                        {roleplaySituation}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-white/50">Ролевая ситуация не найдена</p>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            </AnimatePresence>,
+            document.body
+          )}
       </CardContainer>
     </ElectricBorder>
+    
+    {/* Smart Hover Popup для мобильных - на весь экран */}
+    {showOverlay && cardPosition && isMobile && createPortal(
+        <AnimatePresence>
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{
+              type: "spring",
+              stiffness: 300,
+              damping: 25,
+              mass: 0.8
+            }}
+            className="fixed bg-black/80 backdrop-blur-md border border-purple-500/50 rounded-xl shadow-2xl shadow-purple-500/20 pointer-events-auto z-[10000]"
+            style={{
+              left: '0',
+              right: '0',
+              top: '0',
+              bottom: '0',
+              width: '100vw',
+              height: '100vh',
+              borderRadius: '0',
+            }}
+            onMouseEnter={() => {
+              if (!isMobile) {
+                setIsHovered(true);
+              }
+            }}
+            onMouseLeave={() => {
+              if (!isMobile) {
+                setIsHovered(false);
+                setShowOverlay(false);
+              }
+            }}
+            onClick={(e) => {
+              if (isMobile && e.target === e.currentTarget) {
+                setShowOverlay(false);
+              }
+            }}
+          >
+            <div className="p-4 md:p-6 flex flex-col overflow-y-auto relative" style={{ 
+              maxHeight: '100vh',
+              height: '100vh',
+              paddingTop: '60px'
+            }}>
+              {/* Кнопка закрытия для мобильных */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowOverlay(false);
+                }}
+                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 border border-white/20 text-white transition-colors z-10"
+              >
+                <CloseIcon size={18} />
+              </button>
+              
+              {/* Title with gradient */}
+              <h3 className="text-xl md:text-2xl font-bold mb-3 bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent pr-8">
+                {character.name}
+              </h3>
+              
+              {/* Roleplay Situation */}
+              <div>
+                <h4 className="text-sm font-semibold text-purple-300 mb-2 uppercase tracking-wide">
+                  Ролевая ситуация
+                </h4>
+                {isLoadingSituation ? (
+                  <div className="text-sm text-white/70 animate-pulse">Загрузка...</div>
+                ) : situationError ? (
+                  <div className="text-sm text-red-400">{situationError}</div>
+                ) : roleplaySituation ? (
+                  <p className="text-sm md:text-base text-white/90 leading-relaxed whitespace-pre-wrap">
+                    {roleplaySituation}
+                  </p>
+                ) : (
+                  <p className="text-sm text-white/50">Ролевая ситуация не найдена</p>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </AnimatePresence>,
+        document.body
+    )}
+    
       {showRatings && (
         <RatingButton
           $isActive={userRating === 'dislike'}
@@ -1985,21 +2455,27 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                   </button>
                 </div>
               </PromptPanelHeader>
-              {isLoadingPrompt ? (
-                <PromptLoading>Загрузка промпта...</PromptLoading>
-              ) : promptError ? (
-                <PromptError>{promptError}</PromptError>
-              ) : selectedPrompt ? (
-                <PromptPanelText>{selectedPrompt}</PromptPanelText>
-              ) : null}
+              <div style={{ 
+                flex: 1, 
+                overflowY: 'auto',
+                minHeight: 0
+              }}>
+                {isLoadingPrompt ? (
+                  <PromptLoading>Загрузка промпта...</PromptLoading>
+                ) : promptError ? (
+                  <PromptError>{promptError}</PromptError>
+                ) : selectedPrompt ? (
+                  <PromptPanelText>{selectedPrompt}</PromptPanelText>
+                ) : null}
+              </div>
             </PromptPanel>
             {!isPromptVisible && (
               <button
                 onClick={() => setIsPromptVisible(true)}
                 style={{
                   position: 'absolute',
-                  top: '20px',
-                  left: '20px',
+                  top: '80px',
+                  right: '20px',
                   background: 'rgba(0, 0, 0, 0.7)',
                   border: '1px solid rgba(251, 191, 36, 0.5)',
                   borderRadius: '8px',

@@ -23,6 +23,7 @@ class ImageGenerationHistory(Base):
     user_id = Column(Integer, nullable=False, index=True)
     character_name = Column(String(100), nullable=False, index=True)
     prompt = Column(Text, nullable=True)  # Промпт пользователя
+    admin_prompt = Column(Text, nullable=True)  # Промпт админа (приоритетный)
     image_url = Column(String(1000), nullable=False)  # URL изображения (обязательно)
     generation_time = Column(Integer, nullable=True)  # Время генерации в секундах
     task_id = Column(String(100), nullable=True, index=True)  # ID задачи генерации

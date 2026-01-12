@@ -34,7 +34,7 @@ async def get_character_photos():
                 if photos:  # Добавляем только если есть фото
                     character_photos[character_name] = photos
         
-        logger.info(f"Загружено фото для {len(character_photos)} персонажей")
+        logger.debug(f"Загружено фото для {len(character_photos)} персонажей")
         return character_photos
     except Exception as e:
         logger.error(f"Ошибка загрузки фото персонажей: {e}", exc_info=True)

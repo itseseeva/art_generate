@@ -120,7 +120,7 @@ async def chat_with_character(
             subscription = subscription_result.scalar_one_or_none()
             if subscription and subscription.is_active:
                 subscription_type_enum = subscription.subscription_type
-
+        
         # Импортируем утилиты для работы с контекстом
         from app.chat_bot.utils.context_manager import (
             get_context_limit, 
@@ -168,49 +168,63 @@ async def chat_with_character(
             messages_result = await db.execute(messages_query)
             db_messages = messages_result.scalars().all()
             
-        # Формируем массив messages для OpenAI API
-        openai_messages = []
-        
-        # 1. Системное сообщение с описанием персонажа
-        openai_messages.append({
-            "role": "system",
-            "content": character_config.prompt
-        })
-        
-        # 2. История диалога из БД
-        from app.chat_bot.utils.message_filter import should_include_message_in_context
-        for msg in reversed(db_messages):
-            if not should_include_message_in_context(msg.content, msg.role):
-                continue
+            # Импортируем фильтр сообщений
+            from app.chat_bot.utils.message_filter import should_include_message_in_context
+            
+            # Формируем массив messages для OpenAI API
+            openai_messages = []
+            
+            # 1. Системное сообщение с описанием персонажа
             openai_messages.append({
-                "role": msg.role,
-                "content": msg.content
+                "role": "system",
+                "content": character_config.prompt
             })
-        
-        # 3. Текущее сообщение пользователя
-        openai_messages.append({
-            "role": "user",
-            "content": request.message
-        })
-        
-        # 4. Проверяем и обрезаем по лимиту токенов контекста
-        openai_messages = await trim_messages_to_token_limit(
-            openai_messages, 
-            max_tokens=max_context_tokens, 
-            system_message_index=0
-        )
-        
-        # 5. Добавляем инструкции к системному промпту
-        if openai_messages and openai_messages[0]["role"] == "system":
-            openai_messages[0]["content"] += f"\n\nIMPORTANT: Be concise. Your response must be strictly within {max_tokens} tokens."
-            openai_messages[0]["content"] += lang_instruction
+            
+            # 2. История диалога из БД
+            for msg in reversed(db_messages):
+                if not should_include_message_in_context(msg.content, msg.role):
+                    continue
+                openai_messages.append({
+                    "role": msg.role,
+                    "content": msg.content
+                })
+            
+            # 3. Текущее сообщение пользователя
+            openai_messages.append({
+                "role": "user",
+                "content": request.message
+            })
+            
+            # 4. Проверяем и обрезаем по лимиту токенов контекста
+            openai_messages = await trim_messages_to_token_limit(
+                openai_messages, 
+                max_tokens=max_context_tokens, 
+                system_message_index=0
+            )
+            
+            # 5. Добавляем инструкции к системному промпту
+            if openai_messages and openai_messages[0]["role"] == "system":
+                openai_messages[0]["content"] += f"\n\nIMPORTANT: Be concise. Your response must be strictly within {max_tokens} tokens."
+                openai_messages[0]["content"] += lang_instruction
             
             # Добавляем финальное напоминание для Euryale
             if model_used == "sao10k/l3-euryale-70b":
                 openai_messages[0]["content"] += f"\n\nREMINDER: Write your response ONLY in {target_lang.upper()}. NO CHINESE CHARACTERS."
-        
-        messages = openai_messages
-        
+            
+            messages = openai_messages
+        else:
+            # Нет истории - создаем базовые сообщения
+            messages = [
+                {
+                    "role": "system",
+                    "content": character_config.prompt + f"\n\nIMPORTANT: Be concise. Your response must be strictly within {max_tokens} tokens." + lang_instruction + (f"\n\nREMINDER: Write your response ONLY in {target_lang.upper()}. NO CHINESE CHARACTERS." if model_used == "sao10k/l3-euryale-70b" else "")
+                },
+                {
+                    "role": "user",
+                    "content": request.message
+                }
+            ]
+            
         # ЕСЛИ ИСПОЛЬЗУЕТСЯ CYDONIA, ДОБАВЛЯЕМ СПЕЦИФИЧНЫЕ ИНСТРУКЦИИ
         if model_used == "thedrummer/cydonia-24b-v4.1":
             from app.chat_bot.config.cydonia_config import CYDONIA_CONFIG
@@ -411,7 +425,7 @@ async def chat_with_character_stream(
         from app.chat_bot.services.openrouter_service import get_model_for_subscription
         selected_model = request.model if request.model and subscription_type_enum == SubscriptionType.PREMIUM else None
         model_used = selected_model if selected_model else get_model_for_subscription(subscription_type_enum)
-
+        
         context_limit = get_context_limit(subscription_type_enum)
         max_context_tokens = get_max_context_tokens(subscription_type_enum, model_used)
         max_tokens = get_max_tokens(subscription_type_enum)
@@ -440,7 +454,7 @@ async def chat_with_character_stream(
 - NEVER use Chinese characters or hieroglyphs
 - Write in Russian using Cyrillic alphabet
 - STRICTLY RUSSIAN ONLY."""
-
+        
         # Формируем массив messages для OpenAI API
         if chat_session:
             # ...
@@ -535,7 +549,7 @@ async def chat_with_character_stream(
         from app.chat_bot.utils.context_manager import count_messages_tokens
         final_tokens = count_messages_tokens(messages)
         logger.info(f"[CHAT_BOT STREAM] НАЧАЛО СТРИМИНГА: Модель={model_used}, Контекст={final_tokens}/{max_context_tokens} токенов, Подписка={subscription_type_enum.value if subscription_type_enum else 'FREE'}")
-
+        
         # Создаем асинхронный генератор для SSE
         async def generate_sse_stream() -> AsyncGenerator[str, None]:
             """

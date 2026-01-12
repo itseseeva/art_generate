@@ -6,14 +6,28 @@ import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
 import { authManager } from '../utils/auth';
 import { FiArrowLeft, FiDollarSign } from 'react-icons/fi';
+import DarkVeil from '../../@/components/DarkVeil';
 
 const MainContainer = styled.div`
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: rgba(20, 20, 20, 1);
+  background: transparent;
   overflow: hidden;
+  position: relative;
+`;
+
+const BackgroundWrapper = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
 `;
 
 const ContentContainer = styled.div`
@@ -23,6 +37,8 @@ const ContentContainer = styled.div`
   max-width: 1200px;
   margin: 0 auto;
   width: 100%;
+  position: relative;
+  z-index: 1;
 `;
 
 const PageTitle = styled.h1`
@@ -156,8 +172,20 @@ export const BalanceHistoryPage: React.FC<BalanceHistoryPageProps> = ({
       }
 
       const data = await response.json();
-      setHistory(data.history || []);
-      setTotal(data.total || 0);
+      // Обрабатываем разные форматы ответа API
+      if (Array.isArray(data)) {
+        setHistory(data);
+        setTotal(data.length);
+      } else if (data.history) {
+        setHistory(Array.isArray(data.history) ? data.history : []);
+        setTotal(data.total || (Array.isArray(data.history) ? data.history.length : 0));
+      } else if (data.items) {
+        setHistory(Array.isArray(data.items) ? data.items : []);
+        setTotal(data.total || (Array.isArray(data.items) ? data.items.length : 0));
+      } else {
+        setHistory([]);
+        setTotal(0);
+      }
     } catch (err) {
       
       setError('Ошибка загрузки истории баланса');
@@ -221,6 +249,9 @@ export const BalanceHistoryPage: React.FC<BalanceHistoryPageProps> = ({
           </>
         )}
       </ContentContainer>
+      <BackgroundWrapper>
+        <DarkVeil speed={1.1} />
+      </BackgroundWrapper>
     </MainContainer>
   );
 };

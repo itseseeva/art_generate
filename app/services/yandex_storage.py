@@ -177,20 +177,41 @@ class YandexCloudStorageService:
             raise ValueError(error_msg)
         
         # Настройка клиента S3 для Yandex Cloud
+        # КРИТИЧНО: Отключаем прокси для работы с Yandex Bucket
+        # boto3 использует HTTP_PROXY/HTTPS_PROXY из переменных окружения,
+        # поэтому временно очищаем их перед созданием клиента
         try:
-            self.s3_client = boto3.client(
-                's3',
-                endpoint_url=self.endpoint_url,
-                aws_access_key_id=self.access_key,
-                aws_secret_access_key=self.secret_key,
-                config=Config(
-                    region_name='ru-central1',
-                    signature_version='s3v4',
-                    s3={
-                        'addressing_style': 'virtual'
-                    }
+            # Сохраняем текущие значения прокси (если есть)
+            old_http_proxy = os.environ.pop('HTTP_PROXY', None)
+            old_https_proxy = os.environ.pop('HTTPS_PROXY', None)
+            old_no_proxy = os.environ.get('NO_PROXY', '')
+            
+            try:
+                # Добавляем домен Yandex в NO_PROXY для гарантии
+                no_proxy_list = old_no_proxy.split(',') if old_no_proxy else []
+                no_proxy_list.extend(['storage.yandexcloud.net', '*.storage.yandexcloud.net'])
+                os.environ['NO_PROXY'] = ','.join(filter(None, no_proxy_list))
+                
+                self.s3_client = boto3.client(
+                    's3',
+                    endpoint_url=self.endpoint_url,
+                    aws_access_key_id=self.access_key,
+                    aws_secret_access_key=self.secret_key,
+                    config=Config(
+                        region_name='ru-central1',
+                        signature_version='s3v4',
+                        s3={
+                            'addressing_style': 'virtual'
+                        }
+                    )
                 )
-            )
+            finally:
+                # Восстанавливаем переменные прокси (если они были)
+                if old_http_proxy is not None:
+                    os.environ['HTTP_PROXY'] = old_http_proxy
+                if old_https_proxy is not None:
+                    os.environ['HTTPS_PROXY'] = old_https_proxy
+                os.environ['NO_PROXY'] = old_no_proxy
         except Exception as e:
             logger.error(f"Ошибка создания S3 клиента: {e}")
             logger.error(f"Проверьте переменные: access_key длина={len(self.access_key) if self.access_key else 0}, "

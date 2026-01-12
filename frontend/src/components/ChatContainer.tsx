@@ -20,6 +20,7 @@ import { CharacterCard } from './CharacterCard';
 import { API_CONFIG } from '../config/api';
 import { ModelSelectorModal } from './ModelSelectorModal';
 import { ModelAccessDeniedModal } from './ModelAccessDeniedModal';
+import { generationTracker } from '../utils/generationTracker';
 
 const MobileAlbumButtonsContainer = styled.div`
   display: none;
@@ -1075,6 +1076,86 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     }
   }, [currentCharacter?.name, currentCharacter?.raw?.name, isAuthenticated, balanceRefreshTrigger]);
 
+  // Храним связь между taskId и messageId для обновления сообщений
+  const taskIdToMessageIdRef = useRef<Map<string, string>>(new Map());
+
+  // Слушатель для обновления сообщений при получении готового изображения из generationTracker
+  useEffect(() => {
+    const unsubscribe = generationTracker.addListener((taskId, imageUrl, characterName, characterId) => {
+      // Проверяем, что это изображение для текущего персонажа
+      const currentCharacterName = currentCharacter?.raw?.name || currentCharacter?.name;
+      const currentCharacterId = currentCharacter?.raw?.id || currentCharacter?.id;
+      
+      const isForCurrentCharacter = 
+        (characterName && currentCharacterName && characterName.toLowerCase() === currentCharacterName.toLowerCase()) ||
+        (characterId && currentCharacterId && String(characterId) === String(currentCharacterId));
+      
+      if (!isForCurrentCharacter) {
+        return; // Это изображение не для текущего персонажа
+      }
+
+      // Получаем messageId для этого taskId
+      const messageId = taskIdToMessageIdRef.current.get(taskId);
+      
+      if (messageId) {
+        // Обновляем конкретное сообщение по messageId
+        setMessages(prev => 
+          prev.map(msg => {
+            if (msg.id === messageId) {
+              return {
+                ...msg,
+                imageUrl: imageUrl,
+                content: '', // Очищаем контент, если есть изображение
+                isGenerating: false,
+                progress: undefined
+              };
+            }
+            return msg;
+          })
+        );
+        
+        // Удаляем из карты после обновления
+        taskIdToMessageIdRef.current.delete(taskId);
+      } else {
+        // Если messageId не найден, ищем последнее сообщение ассистента без изображения
+        setMessages(prev => {
+          // Ищем последнее сообщение ассистента без imageUrl
+          let found = false;
+          const updated = prev.map(msg => {
+            if (!found && msg.type === 'assistant' && !msg.imageUrl) {
+              found = true;
+              return {
+                ...msg,
+                imageUrl: imageUrl,
+                content: '',
+                isGenerating: false,
+                progress: undefined
+              };
+            }
+            return msg;
+          });
+          
+          // Если не нашли подходящее сообщение, добавляем новое
+          if (!found) {
+            updated.push({
+              id: `generated-${taskId}`,
+              type: 'assistant',
+              content: '',
+              timestamp: new Date(),
+              imageUrl: imageUrl
+            });
+          }
+          
+          return updated;
+        });
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [currentCharacter]);
+
   // Загружаем состояние избранного при изменении персонажа или авторизации
   useEffect(() => {
     const loadFavoriteStatus = async () => {
@@ -1544,6 +1625,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           generationTime = result.generation_time || statusData.generation_time;
 
             if (generatedImageUrl) {
+              // НЕ удаляем генерацию из трекера здесь - пусть generationTracker сам уведомит слушателей
+              // generationTracker.removeGeneration(taskId);
+              
               // Останавливаем прогресс заглушки
               stopPlaceholderProgress(messageId);
               setMessages(prev => prev.map(msg => 
@@ -1589,6 +1673,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               break;
             }
         } else if (statusData.status === 'FAILURE' || statusData.status === 'ERROR') {
+          // Удаляем генерацию из трекера при ошибке (только при ошибке)
+          generationTracker.removeGeneration(taskId);
+          
           stopPlaceholderProgress(messageId);
           setError(statusData.message || statusData.error || 'Ошибка генерации изображения');
           setMessages(prev => prev.filter(msg => msg.id !== messageId));
@@ -1604,6 +1691,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
         attempts++;
       } catch (error) {
+        // Не удаляем из трекера при ошибке опроса - продолжаем отслеживать
+        // generationTracker.removeGeneration(taskId);
         
         setError('Ошибка проверки статуса генерации');
         setMessages(prev => prev.filter(msg => msg.id !== messageId));
@@ -1619,6 +1708,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     }
 
     if (!generatedImageUrl) {
+      // Не удаляем из трекера при таймауте - продолжаем отслеживать в фоне
+      // generationTracker.removeGeneration(taskId);
+      
       stopPlaceholderProgress(messageId);
       setError('Превышено время ожидания генерации изображения');
       setMessages(prev => prev.filter(msg => msg.id !== messageId));
@@ -1765,6 +1857,18 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       
       // Если пришел task_id, опрашиваем статус до получения изображения
       if (!generatedImageUrl && data.task_id) {
+        // Добавляем генерацию в трекер для отслеживания даже после выхода из чата
+        const characterName = currentCharacter?.raw?.name || currentCharacter?.name;
+        const characterId = currentCharacter?.raw?.id || currentCharacter?.id;
+        // Сохраняем связь между taskId и messageId
+        taskIdToMessageIdRef.current.set(data.task_id, assistantMessageId);
+        generationTracker.addGeneration(
+          data.task_id,
+          assistantMessageId,
+          characterName || undefined,
+          characterId || undefined,
+          token
+        );
         
         const statusUrl = data.status_url || `/api/v1/generation-status/${data.task_id}`;
         
@@ -2191,7 +2295,18 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 
                 // Обработка генерации изображений: если пришел task_id, запускаем опрос статуса
                 if (generateImage && data.task_id && !data.image_url && !data.cloud_url) {
-                  // 
+                  // Добавляем генерацию в трекер для отслеживания даже после выхода из чата
+                  const characterName = currentCharacter?.raw?.name || currentCharacter?.name;
+                  const characterId = currentCharacter?.raw?.id || currentCharacter?.id;
+                  // Сохраняем связь между taskId и messageId
+                  taskIdToMessageIdRef.current.set(data.task_id, assistantMessageId);
+                  generationTracker.addGeneration(
+                    data.task_id,
+                    assistantMessageId,
+                    characterName || undefined,
+                    characterId || undefined,
+                    authToken || undefined
+                  );
                   // Запускаем опрос статуса генерации в фоне
                   pollImageGenerationStatus(data.task_id, assistantMessageId, authToken || undefined);
                   continue;
@@ -2495,6 +2610,64 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           
           const finalMessages = deduplicateMessages(uniqueMessages);
           
+          // Проверяем активные генерации и обновляем сообщения, если изображения готовы
+          // Это нужно для случая, когда пользователь вернулся в чат после генерации
+          const activeGenerations = generationTracker.getGenerations();
+          for (const [taskId, generation] of activeGenerations.entries()) {
+            const genCharacterName = generation.characterName;
+            const genCharacterId = generation.characterId;
+            const currentCharacterName = expectedCharacter?.raw?.name || expectedCharacter?.name || currentCharacter?.raw?.name || currentCharacter?.name;
+            const currentCharacterId = expectedCharacter?.raw?.id || expectedCharacter?.id || currentCharacter?.raw?.id || currentCharacter?.id;
+            
+            const isForCurrentCharacter = 
+              (genCharacterName && currentCharacterName && genCharacterName.toLowerCase() === currentCharacterName.toLowerCase()) ||
+              (genCharacterId && currentCharacterId && String(genCharacterId) === String(currentCharacterId));
+            
+            if (isForCurrentCharacter) {
+              // Проверяем статус генерации
+              const checkGenerationStatus = async () => {
+                try {
+                  const statusUrl = `/api/v1/generation-status/${taskId}`;
+                  const token = authManager.getToken();
+                  const response = await fetch(statusUrl, {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : undefined
+                  });
+                  
+                  if (response.ok) {
+                    const statusData = await response.json();
+                    if (statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED') {
+                      const result = statusData.result || {};
+                      const imageUrl = result.image_url || result.cloud_url || statusData.image_url || statusData.cloud_url;
+                      
+                      if (imageUrl) {
+                        // Обновляем сообщение с готовым изображением
+                        const messageId = generation.messageId;
+                        setMessages(prev => 
+                          prev.map(msg => {
+                            if (msg.id === messageId) {
+                              return {
+                                ...msg,
+                                imageUrl: imageUrl,
+                                content: '',
+                                isGenerating: false,
+                                progress: undefined
+                              };
+                            }
+                            return msg;
+                          })
+                        );
+                      }
+                    }
+                  }
+                } catch (error) {
+                  // Игнорируем ошибки проверки статуса
+                }
+              };
+              
+              // Проверяем статус асинхронно
+              checkGenerationStatus();
+            }
+          }
           
           // Устанавливаем messages синхронно, чтобы избежать race condition
           // Проверяем, что мы все еще загружаем историю для того же персонажа (защита от race condition)

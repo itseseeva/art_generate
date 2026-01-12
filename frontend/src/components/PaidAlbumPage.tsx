@@ -639,61 +639,40 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
       return;
     }
 
-    // Кнопка показывается только для владельца, поэтому всегда добавляем в платный альбом
+    // Кнопка показывается только для не-владельцев, добавляем в галерею пользователя
     setAddingToGallery(imageId);
     try {
-      const encodedName = encodeURIComponent(character.name);
-      // Получаем текущий список фото из альбома
-      const currentResponse = await authManager.fetchWithAuth(`/api/v1/paid-gallery/${encodedName}`);
-      if (!currentResponse.ok) {
-        throw new Error('Не удалось загрузить текущий альбом');
-      }
-      
-      const currentData = await currentResponse.json();
-      const currentPhotos = Array.isArray(currentData.images) ? currentData.images : [];
-      
-      // Проверяем, нет ли уже этого фото в альбоме
-      const photoExists = currentPhotos.some((photo: any) => 
-        (photo.id === imageId) || (photo.url === imageUrl)
+      const response = await fetch(
+        `${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/add/`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            image_url: imageUrl,
+            character_name: character.name || null
+          })
+        }
       );
-      
-      if (photoExists) {
-        // Фото уже в альбоме
-        setGalleryImageUrls(prev => new Set(prev).add(imageUrl));
-        return;
-      }
-      
-      // Добавляем новое фото в список
-      const newPhotos = [...currentPhotos, {
-        id: imageId,
-        url: imageUrl,
-        created_at: new Date().toISOString()
-      }];
-      
-      // Сохраняем обновленный альбом
-      const saveResponse = await authManager.fetchWithAuth(`/api/v1/paid-gallery/${encodedName}/photos`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          photos: newPhotos
-        })
-      });
-      
-      if (!saveResponse.ok) {
-        const errorData = await saveResponse.json().catch(() => ({}));
-        const errorMessage = errorData.detail || 'Не удалось добавить фото в альбом';
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.detail || errorData.message || 'Не удалось добавить фото в галерею';
+        // Если фото уже добавлено, это не критическая ошибка
+        if (response.status === 400 && (errorMessage.includes('уже добавлено') || errorMessage.includes('already'))) {
+          setGalleryImageUrls(prev => new Set(prev).add(imageUrl));
+          return;
+        }
         throw new Error(errorMessage);
       }
-      
-      // Обновляем список изображений
-      const saveData = await saveResponse.json();
-      const savedPhotos = Array.isArray(saveData.photos) ? saveData.photos : (Array.isArray(saveData.images) ? saveData.images : newPhotos);
-      setImages(savedPhotos);
+
+      // Обновляем состояние и галерею
       setGalleryImageUrls(prev => new Set(prev).add(imageUrl));
+      window.dispatchEvent(new CustomEvent('gallery-update'));
     } catch (err: any) {
-      alert(err.message || 'Не удалось добавить фото в альбом');
+      alert(err.message || 'Не удалось добавить фото в галерею');
     } finally {
       setAddingToGallery(null);
     }
@@ -757,7 +736,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
               />
               <CardOverlay>
                 <OverlayActions>
-                  {isOwner && !galleryImageUrls.has(image.url) && (
+                  {!isOwner && !galleryImageUrls.has(image.url) && (
                     <OverlayButton 
                       onClick={(e) => {
                         e.stopPropagation();
@@ -766,7 +745,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
                       disabled={addingToGallery === image.id}
                     >
                       <ImageIcon />
-                      {addingToGallery === image.id ? 'Добавление...' : 'В альбом'}
+                      {addingToGallery === image.id ? 'Добавление...' : 'В галерею'}
                     </OverlayButton>
                   )}
                 </OverlayActions>

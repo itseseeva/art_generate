@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
 import { theme } from '../theme';
 import { authManager } from '../utils/auth';
-import { ShoppingBag, User, Coins, DollarSign, LogOut, LogIn, UserPlus } from 'lucide-react';
+import { ShoppingBag, User, Coins, DollarSign, LogOut, LogIn, UserPlus, X } from 'lucide-react';
+import { generationTracker } from '../utils/generationTracker';
 
 const HeaderContainer = styled.div`
   background: rgba(0, 0, 0, 0.2);
@@ -198,6 +199,8 @@ const ProfileButton = styled.div<{ $isAuthenticated?: boolean }>`
   align-items: center;
   justify-content: center;
   position: relative;
+  z-index: 1001;
+  pointer-events: auto;
   box-shadow: 0 0 15px rgba(139, 92, 246, 0.3), inset 0 0 10px rgba(139, 92, 246, 0.1);
   
   &::before {
@@ -273,6 +276,104 @@ const ProfileButton = styled.div<{ $isAuthenticated?: boolean }>`
   }
 `;
 
+const slideDown = keyframes`
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+`;
+
+const NotificationContainer = styled.div`
+  position: fixed;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  animation: ${slideDown} 0.3s ease-out;
+  
+  @media (max-width: 768px) {
+    top: 60px;
+    left: 1rem;
+    right: 1rem;
+    transform: none;
+  }
+`;
+
+const Notification = styled.div`
+  background: rgba(30, 30, 30, 0.95);
+  border: 2px solid rgba(100, 100, 100, 0.3);
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  min-width: 300px;
+  max-width: 500px;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 600;
+  font-size: 0.95rem;
+`;
+
+const NotificationText = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+`;
+
+const NotificationTitle = styled.div`
+  font-weight: 700;
+  font-size: 1rem;
+`;
+
+const NotificationMessage = styled.div`
+  font-weight: 500;
+  font-size: 0.85rem;
+  opacity: 0.9;
+`;
+
+const NotificationButton = styled.button`
+  background: rgba(60, 60, 60, 0.8);
+  border: 1px solid rgba(100, 100, 100, 0.5);
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: rgba(80, 80, 80, 0.9);
+    border-color: rgba(120, 120, 120, 0.7);
+    color: rgba(255, 255, 255, 1);
+  }
+`;
+
+const CloseButton = styled.button`
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;
+  transition: opacity 0.2s ease;
+  
+  &:hover {
+    opacity: 1;
+    color: rgba(255, 255, 255, 1);
+  }
+`;
+
 interface GlobalHeaderProps {
   onShop?: () => void;
   onLogin?: () => void;
@@ -298,6 +399,12 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
 }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userInfo, setUserInfo] = useState<{username: string, coins: number, avatar_url?: string} | null>(null);
+  const [notification, setNotification] = useState<{
+    taskId: string;
+    imageUrl: string;
+    characterName?: string;
+    characterId?: string | number;
+  } | null>(null);
 
   // Проверка авторизации и обновление баланса
   useEffect(() => {
@@ -381,6 +488,54 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     };
   }, [refreshTrigger]);
 
+  // Подписка на уведомления о готовности генерации
+  useEffect(() => {
+    const unsubscribe = generationTracker.addListener((taskId, imageUrl, characterName, characterId) => {
+      // Проверяем, что пользователь не находится на странице чата
+      const isOnChatPage = window.location.pathname.includes('/chat');
+      
+      // Показываем уведомление только если пользователь не на странице чата
+      if (!isOnChatPage) {
+        setNotification({ taskId, imageUrl, characterName, characterId });
+        
+        // Автоматически скрываем уведомление через 10 секунд
+        setTimeout(() => {
+          setNotification(null);
+        }, 10000);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  const handleNotificationClick = async () => {
+    // Переходим в чат с персонажем, если указан
+    if (notification?.characterId || notification?.characterName) {
+      // Используем ID персонажа, если он есть, иначе используем имя
+      const characterIdentifier = notification.characterId || notification.characterName;
+      
+      // Отправляем событие для навигации через App.tsx
+      const event = new CustomEvent('navigate-to-chat-with-character', {
+        detail: { 
+          characterId: notification.characterId,
+          characterName: notification.characterName,
+          characterIdentifier: String(characterIdentifier)
+        }
+      });
+      window.dispatchEvent(event);
+    } else {
+      // Иначе просто переходим в чат
+      window.dispatchEvent(new CustomEvent('navigate-to-chat'));
+    }
+    setNotification(null);
+  };
+
+  const handleCloseNotification = () => {
+    setNotification(null);
+  };
+
   const handleShop = () => {
     if (onShop) {
       onShop();
@@ -420,6 +575,27 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
         {leftContent}
       </LeftSection>
       
+      {notification && (
+        <NotificationContainer>
+          <Notification>
+            <NotificationText>
+              <NotificationTitle>Генерация завершена!</NotificationTitle>
+              <NotificationMessage>
+                {notification.characterName 
+                  ? `Ваше фото для персонажа "${notification.characterName}" готово`
+                  : 'Ваше фото готово'}
+              </NotificationMessage>
+            </NotificationText>
+            <NotificationButton onClick={handleNotificationClick}>
+              Открыть
+            </NotificationButton>
+            <CloseButton onClick={handleCloseNotification}>
+              <X size={18} />
+            </CloseButton>
+          </Notification>
+        </NotificationContainer>
+      )}
+      
       <RightSection>
         {isAuthenticated && (
           <>
@@ -457,9 +633,21 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
 
         <ProfileButton onClick={handleProfile} $isAuthenticated={isAuthenticated}>
           {userInfo?.avatar_url ? (
-            <img src={userInfo.avatar_url} alt={userInfo.username} />
+            <img 
+              src={userInfo.avatar_url} 
+              alt={userInfo.username}
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
           ) : (
-            <img src="/avatar_default.jpg" alt="Профиль" />
+            <img 
+              src="/avatar_default.jpg" 
+              alt="Профиль"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
           )}
         </ProfileButton>
       </RightSection>

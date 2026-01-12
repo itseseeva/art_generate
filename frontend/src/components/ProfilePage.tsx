@@ -7,6 +7,7 @@ import SplitText from './SplitText';
 import { AuthModal } from './AuthModal';
 import { API_CONFIG } from '../config/api';
 import { LoadingSpinner } from './LoadingSpinner';
+import DarkVeil from '../../@/components/DarkVeil';
 import {
   FiAward as AwardIcon,
   FiTrendingUp as TrendingUpIcon,
@@ -35,8 +36,7 @@ import {
 } from 'react-icons/fi';
 import { User, Coins, Crown, History, LogOut } from 'lucide-react';
 import { motion } from 'motion/react';
-import CircularGallery from '../../@/components/CircularGallery';
-import '../../@/components/CircularGallery.css';
+import { CharacterCard } from './CharacterCard';
 
 const UNLOCKED_USER_GALLERIES_KEY = 'userGalleryUnlocked';
 
@@ -193,6 +193,7 @@ interface ProfilePageProps {
   onBalanceHistory?: () => void;
   onCharacterSelect?: (character: any) => void;
   onLogout?: () => void;
+  onPaidAlbum?: (character: any) => void;
   userId?: number; // ID пользователя, профиль которого показывается (если не указан - показывается свой профиль)
 }
 
@@ -244,15 +245,31 @@ const MainContainer = styled.div`
   height: 100vh;
   display: flex;
   overflow: hidden;
-  background: rgba(20, 20, 20, 1);
+  position: relative;
 `;
 
+const BackgroundWrapper = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+`;
 
 const MainContent = styled.div`
   flex: 1;
   overflow-y: auto;
   padding: ${theme.spacing.xxl};
-  background: rgba(20, 20, 20, 1);
+  position: relative;
+  z-index: 1;
+
+  @media (max-width: 768px) {
+    padding: ${theme.spacing.md} ${theme.spacing.sm};
+  }
 `;
 
 const ProfileHeader = styled.div`
@@ -472,6 +489,24 @@ const SectionTitle = styled.h2`
 const SectionSubtitle = styled.p`
   color: ${theme.colors.text.tertiary};
   font-size: ${theme.fontSize.sm};
+`;
+
+const CharactersGrid = styled.div`
+  flex: 1;
+  padding: ${theme.spacing.xs} ${theme.spacing.sm};
+  overflow-y: visible;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0;
+  align-content: start;
+  width: 100%;
+  min-height: 0;
+  
+  @media (max-width: 768px) {
+    flex: none;
+    overflow-y: visible;
+    grid-template-columns: repeat(2, 1fr);
+  }
 `;
 
 const StatsGrid = styled.div`
@@ -1314,6 +1349,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   onBalanceHistory,
   onCharacterSelect,
   onLogout,
+  onPaidAlbum,
   userId: profileUserId
 }) => {
   
@@ -1344,21 +1380,59 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   } | null>(null);
   const [showSettingsPage, setShowSettingsPage] = useState(false);
   const [userCharacters, setUserCharacters] = useState<any[]>([]);
-  const [selectedCharacterIndex, setSelectedCharacterIndex] = useState(0);
   const [rawCharactersData, setRawCharactersData] = useState<any[]>([]);
   const [photosMap, setPhotosMap] = useState<Record<string, string[]>>({});
+  const [favoriteCharacterIds, setFavoriteCharacterIds] = useState<Set<number>>(new Set());
 
   const isViewingOwnProfile = !profileUserId || (currentUserId !== null && profileUserId === currentUserId);
   const isMobile = useIsMobile();
   
-  // Callback для изменения активного персонажа в CircularGallery
-  const handleCharacterChange = useCallback((index: number) => {
-    setSelectedCharacterIndex(index);
-  }, []);
+  // Загрузка избранных персонажей
+  const loadFavorites = useCallback(async () => {
+    try {
+      const token = authToken;
+      if (!token) {
+        setFavoriteCharacterIds(new Set());
+        return;
+      }
+
+      const response = await fetch(API_CONFIG.FAVORITES, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const favorites = await response.json();
+        // Извлекаем ID избранных персонажей
+        const favoriteIds = new Set<number>(
+          favorites.map((char: any) => {
+            const id = typeof char.id === 'number' ? char.id : parseInt(char.id, 10);
+            return isNaN(id) ? null : id;
+          }).filter((id: number | null): id is number => id !== null)
+        );
+        setFavoriteCharacterIds(favoriteIds);
+      } else {
+        setFavoriteCharacterIds(new Set());
+      }
+    } catch (error) {
+      setFavoriteCharacterIds(new Set());
+    }
+  }, [authToken]);
+  
+  // Загружаем избранные при монтировании и изменении authToken
+  useEffect(() => {
+    if (authToken) {
+      loadFavorites();
+    } else {
+      setFavoriteCharacterIds(new Set());
+    }
+  }, [authToken, loadFavorites]);
+  
   
   // Загрузка персонажей пользователя
   const loadUserCharacters = useCallback(async () => {
-    if (!authToken || !isViewingOwnProfile) {
+    if (!authToken) {
       setUserCharacters([]);
       return;
     }
@@ -1366,21 +1440,29 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     try {
       const token = authToken;
       
-      // Получаем ID текущего пользователя
-      const userResponse = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!userResponse.ok) {
-        return;
-      }
-
-      const userData = await userResponse.json();
-      const currentUserIdValue = userData?.id;
+      // Определяем ID пользователя, чьих персонажей нужно загрузить
+      let targetUserId: number | null = null;
       
-      if (!currentUserIdValue) {
+      if (isViewingOwnProfile) {
+        // Для своего профиля получаем ID текущего пользователя
+        const userResponse = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!userResponse.ok) {
+          return;
+        }
+
+        const userData = await userResponse.json();
+        targetUserId = userData?.id;
+      } else if (profileUserId) {
+        // Для чужого профиля используем ID профиля
+        targetUserId = profileUserId;
+      }
+      
+      if (!targetUserId) {
         return;
       }
 
@@ -1398,43 +1480,52 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           return;
         }
         
-        // Фильтруем только персонажей текущего пользователя
+        // Фильтруем только персонажей целевого пользователя
         const myCharacters = charactersData.filter((char: any) => {
           if (!char || !char.id) {
             return false;
           }
-          return Number(char.user_id) === Number(currentUserIdValue);
+          return Number(char.user_id) === Number(targetUserId);
         });
         
         // Загружаем фото из main_photos
         const photosMap: Record<string, string[]> = {};
         
         for (const char of myCharacters) {
-          if (!char || !char.main_photos) {
+          if (!char) {
             continue;
           }
 
-          const canonicalName = char.name || char.display_name;
-          if (!canonicalName) {
+          // Используем name в первую очередь, как на главной странице
+          // КРИТИЧНО: На главной странице (строка 449) используется (char.name || char.display_name)
+          // но при поиске (строка 561) используется char.name.toLowerCase()
+          // Поэтому создаем ключ по name, но также сохраняем по display_name для совместимости
+          const charName = char.name;
+          const charDisplayName = char.display_name;
+          
+          if (!charName && !charDisplayName) {
             continue;
           }
 
+          // Основной ключ - по name (как на главной странице при поиске)
+          const normalizedKeyByName = charName ? charName.toLowerCase() : null;
+          const normalizedKeyByDisplayName = charDisplayName ? charDisplayName.toLowerCase() : null;
+          // Используем name в первую очередь, как на главной странице
+          const normalizedKey = normalizedKeyByName || normalizedKeyByDisplayName;
           let parsedPhotos: any[] = [];
 
-          if (Array.isArray(char.main_photos)) {
-            parsedPhotos = char.main_photos;
-          } else if (typeof char.main_photos === 'string') {
-            try {
-              parsedPhotos = JSON.parse(char.main_photos);
-            } catch (e) {
-              
-              parsedPhotos = [];
+          // Обрабатываем main_photos из БД (основной источник) - как на главной странице
+          if (char.main_photos) {
+            if (Array.isArray(char.main_photos)) {
+              parsedPhotos = char.main_photos;
+            } else if (typeof char.main_photos === 'string' && char.main_photos.trim()) {
+              try {
+                parsedPhotos = JSON.parse(char.main_photos);
+              } catch (e) {
+                parsedPhotos = [];
+              }
             }
-          } else {
-            parsedPhotos = [char.main_photos];
           }
-
-          const normalizedKey = canonicalName.toLowerCase();
           const photoUrls = parsedPhotos
             .map((photo: any) => {
               if (!photo) {
@@ -1443,63 +1534,38 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
               let photoUrl: string | null = null;
 
-              if (typeof photo === 'string') {
-                if (photo.startsWith('http')) {
-                  photoUrl = photo;
-                } else {
-                  // Если это относительный путь, формируем полный URL
-                  photoUrl = photo.startsWith('/') 
-                    ? `${API_CONFIG.BASE_URL || window.location.origin}${photo}`
-                    : `${API_CONFIG.BASE_URL || window.location.origin}/static/photos/${normalizedKey}/${photo}.png`;
-                }
-              } else if (photo.url) {
-                photoUrl = photo.url.startsWith('http')
-                  ? photo.url
-                  : `${API_CONFIG.BASE_URL || window.location.origin}${photo.url.startsWith('/') ? photo.url : '/' + photo.url}`;
-              } else if (photo.id) {
-                photoUrl = `${API_CONFIG.BASE_URL || window.location.origin}/static/photos/${normalizedKey}/${photo.id}.png`;
+              // Если это объект с url полем, используем url
+              if (typeof photo === 'object' && photo !== null && photo.url) {
+                photoUrl = photo.url;
               }
-
-              // Конвертируем URL с других доменов в прокси через API_CONFIG.BASE_URL для избежания CORS
-              if (photoUrl && photoUrl.startsWith('http')) {
-                try {
-                  const urlObj = new URL(photoUrl);
-                  const currentOrigin = API_CONFIG.BASE_URL || window.location.origin;
-                  const currentUrlObj = new URL(currentOrigin);
-                  
-                  // Если домен отличается от текущего, проксируем через API_CONFIG.BASE_URL/media/
-                  if (urlObj.origin !== currentUrlObj.origin) {
-                    // Извлекаем путь к изображению
-                    let imagePath = urlObj.pathname;
-                    // Если путь начинается с /media/, удаляем ведущий /media/ и используем остальное
-                    // Это нужно, так как прокси /media/ уже содержит этот префикс
-                    if (imagePath.startsWith('/media/')) {
-                      imagePath = imagePath.substring('/media/'.length);
-                    } else if (imagePath.startsWith('/')) {
-                      imagePath = imagePath.substring(1);
-                    }
-                    // Формируем URL через прокси /media/
-                    photoUrl = `${API_CONFIG.BASE_URL || window.location.origin}/media/${imagePath}`;
-                  }
-                } catch (e) {
-                  // Если не удалось распарсить URL, оставляем как есть
-                }
+              // Если это строка и начинается с http, это полный URL
+              else if (typeof photo === 'string') {
+                photoUrl = photo.startsWith('http')
+                  ? photo
+                  : `/static/photos/${normalizedKey}/${photo}.png`;
+              }
+              // Если это объект с id, но без url (как в HistoryPage)
+              else if (typeof photo === 'object' && photo !== null && photo.id) {
+                photoUrl = `/static/photos/${normalizedKey}/${photo.id}.png`;
               }
 
               // Конвертируем старые Yandex.Cloud URL в прокси URL
               if (photoUrl && photoUrl.includes('storage.yandexcloud.net/')) {
                 if (photoUrl.includes('.storage.yandexcloud.net/')) {
+                  // Формат: https://bucket-name.storage.yandexcloud.net/path/to/file
                   const objectKey = photoUrl.split('.storage.yandexcloud.net/')[1];
                   if (objectKey) {
-                    photoUrl = `${API_CONFIG.BASE_URL || window.location.origin}/media/${objectKey}`;
+                    photoUrl = `${API_CONFIG.BASE_URL}/media/${objectKey}`;
                   }
                 } else {
+                  // Формат: https://storage.yandexcloud.net/bucket-name/path/to/file
                   const parts = photoUrl.split('storage.yandexcloud.net/')[1];
                   if (parts) {
+                    // Пропускаем bucket-name и берем остальное
                     const pathSegments = parts.split('/');
                     if (pathSegments.length > 1) {
                       const objectKey = pathSegments.slice(1).join('/');
-                      photoUrl = `${API_CONFIG.BASE_URL || window.location.origin}/media/${objectKey}`;
+                      photoUrl = `${API_CONFIG.BASE_URL}/media/${objectKey}`;
                     }
                   }
                 }
@@ -1509,48 +1575,65 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             })
             .filter((url): url is string => Boolean(url));
 
-          if (photoUrls.length) {
+          if (photoUrls.length > 0) {
+            // Сохраняем по основному ключу
             photosMap[normalizedKey] = photoUrls;
+            // Также сохраняем по name, если он отличается (для совместимости с главной страницей)
+            if (normalizedKeyByName && normalizedKeyByName !== normalizedKey) {
+              photosMap[normalizedKeyByName] = photoUrls;
+            }
+            // И по display_name, если он отличается
+            if (normalizedKeyByDisplayName && normalizedKeyByDisplayName !== normalizedKey) {
+              photosMap[normalizedKeyByDisplayName] = photoUrls;
+            }
           }
         }
         
-        // Сохраняем raw данные персонажей
-        setRawCharactersData(myCharacters);
+        // Дополнительно пытаемся загрузить из API endpoint для персонажей без фото
+        try {
+          const photosResponse = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/photos`);
+          if (photosResponse.ok) {
+            const apiPhotos = await photosResponse.json();
+            for (const [key, photos] of Object.entries(apiPhotos)) {
+              const normalizedKey = key.toLowerCase();
+              if (Array.isArray(photos) && photos.length > 0) {
+                // Добавляем только если нет фото из БД
+                if (!photosMap[normalizedKey] || photosMap[normalizedKey].length === 0) {
+                  // Преобразуем относительные пути в абсолютные
+                  const fullPhotos = (photos as string[]).map(photo => {
+                    if (photo.startsWith('http')) {
+                      return photo;
+                    } else if (photo.startsWith('/')) {
+                      return `${API_CONFIG.BASE_URL || window.location.origin}${photo}`;
+                    } else {
+                      return `${API_CONFIG.BASE_URL || window.location.origin}/${photo}`;
+                    }
+                  });
+                  photosMap[normalizedKey] = fullPhotos;
+                }
+              }
+            }
+          }
+        } catch (apiError) {
+          // Игнорируем ошибки при загрузке фото из API
+        }
+        
+        // Фильтруем персонажей с валидным id (та же фильтрация, что и для formattedCharacters)
+        const filteredCharacters = myCharacters.filter((char: any) => char && char.id != null);
+        
+        // Сохраняем raw данные персонажей (только отфильтрованные, чтобы индексы совпадали с userCharacters)
+        setRawCharactersData(filteredCharacters);
         // Сохраняем photosMap в состояние
         setPhotosMap(photosMap);
         
-        // Форматируем персонажей для CircularGallery (WebGL версия ожидает {image: string, text: string})
-        const formattedCharacters = myCharacters
-          .filter((char: any) => char && char.id != null)
-          .map((char: any) => {
-            const normalizedKey = (char.name || char.display_name || '').toLowerCase();
-            const charName = char.name || char.display_name || 'Unknown';
-            const photos = photosMap[normalizedKey] || [];
-            let imageUrl = photos.length > 0 ? photos[0] : '/avatar_default.jpg';
-            
-            // КРИТИЧНО: Если URL относительный (начинается с /), добавляем полный путь через API_CONFIG.BASE_URL
-            if (imageUrl && !imageUrl.startsWith('http')) {
-              if (imageUrl.startsWith('/')) {
-                imageUrl = `${API_CONFIG.BASE_URL || window.location.origin}${imageUrl}`;
-              } else {
-                imageUrl = `${API_CONFIG.BASE_URL || window.location.origin}/${imageUrl}`;
-              }
-            }
-            
-            return {
-              image: imageUrl,
-              text: charName,
-            };
-          });
-        
-        setUserCharacters(formattedCharacters);
-        setSelectedCharacterIndex(0); // Сбрасываем индекс при загрузке новых персонажей
+        // Сохраняем персонажей (используем rawCharactersData для отображения)
+        setUserCharacters(filteredCharacters);
       }
     } catch (error) {
       
       setUserCharacters([]);
     }
-  }, [authToken, isViewingOwnProfile]);
+  }, [authToken, isViewingOwnProfile, profileUserId]);
   const viewedUserName = userInfo?.username || userInfo?.email?.split('@')[0] || 'Пользователь';
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -2065,14 +2148,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     
   }, [profileUserId]);
 
-  // Загружаем персонажей пользователя
+  // Загружаем персонажей пользователя (для своего и чужого профиля)
   useEffect(() => {
-    if (isViewingOwnProfile && authToken) {
+    if (authToken) {
       loadUserCharacters();
     } else {
       setUserCharacters([]);
     }
-  }, [isViewingOwnProfile, authToken, loadUserCharacters]);
+  }, [authToken, loadUserCharacters]);
 
   const startRealtimeConnection = useCallback(() => {
     if (!authToken || !isViewingOwnProfile) {
@@ -2130,7 +2213,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     };
 
     socket.onerror = () => {
-      setError('Ошибка соединения с сервером профиля');
+      // Тихая обработка ошибки WebSocket без логирования
     };
 
     socket.onclose = () => {
@@ -2289,106 +2372,132 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           </div>
         )}
 
-        {isViewingOwnProfile ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 max-w-7xl mx-auto">
-            {/* Блок 1 (2x1): Карточка пользователя */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="md:col-span-2 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 md:p-8 hover:border-pink-500/30 transition-all duration-300 shadow-lg shadow-pink-500/5"
-            >
-              <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
-                <div className="relative">
-                  <div className={`w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden border-2 ${
-                    isPremium 
-                      ? 'border-yellow-400/50 shadow-[0_0_20px_rgba(250,204,21,0.3)]' 
-                      : 'border-pink-500/50 shadow-[0_0_20px_rgba(236,72,153,0.3)]'
-                  } relative ${isViewingOwnProfile ? 'cursor-pointer' : ''}`}>
-                {userInfo?.avatar_url ? (
-                      <img src={userInfo.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
-                ) : userInfo?.username || userInfo?.email ? (
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-500/20 to-purple-500/20 text-3xl md:text-4xl font-bold text-white">
-                        {getInitials(userInfo.username, userInfo.email)}
-                      </div>
-                ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-500/20 to-purple-500/20">
-                        <User className="w-12 h-12 text-white/70" />
-                      </div>
-                )}
-                {isViewingOwnProfile && (
-                      <input
-                    id="avatar-upload"
-                    type="file"
-                    accept="image/*"
-                    onChange={async (e) => {
-                    if (isUploadingRef.current) {
-                      e.target.value = '';
-                      return;
-                    }
-                    const file = e.target.files?.[0];
-                    if (!file || !authToken) {
-                      e.target.value = '';
-                      return;
-                    }
-                    isUploadingRef.current = true;
-                    
-                    const formData = new FormData();
-                    formData.append('avatar', file);
-                    try {
-                      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/avatar/`, {
-                        method: 'POST',
-                              headers: { Authorization: `Bearer ${authToken}` },
-                        body: formData
-                      });
-                      if (response.ok) {
-                        const data = await response.json();
-                        
-                        setUserInfo(prev => prev ? { ...prev, avatar_url: data.avatar_url } : null);
-                      } else {
-                        const errorData = await response.json().catch(() => ({ detail: 'Неизвестная ошибка' }));
-                        
-                        setError(errorData.detail || 'Не удалось загрузить фото');
-                      }
-                    } catch (err) {
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 max-w-7xl mx-auto">
+          {/* Блок 1 (2x1): Карточка пользователя */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="md:col-span-2 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 md:p-8 hover:border-pink-500/30 transition-all duration-300 shadow-lg shadow-pink-500/5"
+          >
+            <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
+              <div className="relative">
+                <div className={`w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden border-2 ${
+                  isPremium 
+                    ? 'border-yellow-400/50 shadow-[0_0_20px_rgba(250,204,21,0.3)]' 
+                    : 'border-pink-500/50 shadow-[0_0_20px_rgba(236,72,153,0.3)]'
+                } relative ${isViewingOwnProfile ? 'cursor-pointer' : ''}`}>
+              {userInfo?.avatar_url ? (
+                    <img 
+                      src={userInfo.avatar_url} 
+                      alt="Avatar" 
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+              ) : userInfo?.username || userInfo?.email ? (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-500/20 to-purple-500/20 text-3xl md:text-4xl font-bold text-white">
+                      {getInitials(userInfo.username, userInfo.email)}
+                    </div>
+              ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-500/20 to-purple-500/20">
+                      <User className="w-12 h-12 text-white/70" />
+                    </div>
+              )}
+              {isViewingOwnProfile && (
+                    <input
+                  id="avatar-upload"
+                  type="file"
+                  accept="image/*"
+                  onChange={async (e) => {
+                  if (isUploadingRef.current) {
+                    e.target.value = '';
+                    return;
+                  }
+                  const file = e.target.files?.[0];
+                  if (!file || !authToken) {
+                    e.target.value = '';
+                    return;
+                  }
+                  isUploadingRef.current = true;
+                  
+                  const formData = new FormData();
+                  formData.append('avatar', file);
+                  try {
+                    const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/avatar/`, {
+                      method: 'POST',
+                            headers: { Authorization: `Bearer ${authToken}` },
+                      body: formData
+                    });
+                    if (response.ok) {
+                      const data = await response.json();
                       
-                      setError('Ошибка при загрузке фото');
-                    } finally {
-                      isUploadingRef.current = false;
-                      e.target.value = '';
+                      setUserInfo(prev => prev ? { ...prev, avatar_url: data.avatar_url } : null);
+                    } else {
+                      const errorData = await response.json().catch(() => ({ detail: 'Неизвестная ошибка' }));
+                      
+                      setError(errorData.detail || 'Не удалось загрузить фото');
                     }
-                    }}
-                        className="absolute inset-0 opacity-0 cursor-pointer"
-                      />
-                    )}
-                  </div>
+                  } catch (err) {
+                    
+                    setError('Ошибка при загрузке фото');
+                  } finally {
+                    isUploadingRef.current = false;
+                    e.target.value = '';
+                  }
+                  }}
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                    />
+                  )}
                 </div>
-                <div className="flex-1">
-                  <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">{viewedUserName}</h1>
-                  <p className="text-white/60 mb-4">{userInfo?.email || '—'}</p>
-                  <div className="flex items-center gap-3 flex-wrap">
-                    {subscriptionTypeUpper && (
-                      <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm ${
-                        isPremium
-                          ? 'bg-gradient-to-r from-yellow-400/20 to-yellow-600/20 text-yellow-300 border border-yellow-400/30 shadow-[0_0_15px_rgba(250,204,21,0.2)]'
-                          : 'bg-gradient-to-r from-pink-500/20 to-rose-500/20 text-pink-300 border border-pink-500/30 shadow-[0_0_15px_rgba(236,72,153,0.2)]'
-                      }`}>
-                        <Crown className={`w-4 h-4 ${isPremium ? 'text-yellow-400' : 'text-pink-400'}`} />
-                        {subscriptionTypeUpper}
-                      </div>
-                    )}
+              </div>
+              <div className="flex-1">
+                <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">{viewedUserName}</h1>
+                <p className="text-white/60 mb-4">{userInfo?.email || '—'}</p>
+                <div className="flex items-center gap-3 flex-wrap">
+                  {subscriptionTypeUpper && (
+                    <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm ${
+                      isPremium
+                        ? 'bg-gradient-to-r from-yellow-400/20 to-yellow-600/20 text-yellow-300 border border-yellow-400/30 shadow-[0_0_15px_rgba(250,204,21,0.2)]'
+                        : 'bg-gradient-to-r from-pink-500/20 to-rose-500/20 text-pink-300 border border-pink-500/30 shadow-[0_0_15px_rgba(236,72,153,0.2)]'
+                    }`}>
+                      <Crown className={`w-4 h-4 ${isPremium ? 'text-yellow-400' : 'text-pink-400'}`} />
+                      {subscriptionTypeUpper}
+                    </div>
+                  )}
+                  {isViewingOwnProfile && (
+                    <>
+                      <button
+                        onClick={() => setShowSettingsPage(true)}
+                        className="px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-white font-semibold text-sm transition-all duration-200 flex items-center gap-2"
+                      >
+                        <EditIcon className="w-4 h-4" />
+                        Редактировать профиль
+                      </button>
+                      <button
+                        onClick={handleOpenUserGallery}
+                        className="px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-600 rounded-lg text-white font-semibold text-sm hover:from-pink-600 hover:to-rose-700 transition-all duration-200 shadow-lg shadow-pink-500/25"
+                      >
+                        Галерея пользователя
+                      </button>
+                    </>
+                  )}
+                  {!isViewingOwnProfile && (
                     <button
                       onClick={handleOpenUserGallery}
                       className="px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-600 rounded-lg text-white font-semibold text-sm hover:from-pink-600 hover:to-rose-700 transition-all duration-200 shadow-lg shadow-pink-500/25"
                     >
                       Галерея пользователя
                     </button>
-                  </div>
+                  )}
                 </div>
               </div>
-            </motion.div>
+            </div>
+          </motion.div>
 
-            {/* Блок 2 (1x1): Виджет баланса */}
+          {/* Блок 2 (1x1): Виджет баланса - только для своего профиля */}
+          {isViewingOwnProfile && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -2414,8 +2523,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 </button>
               )}
             </motion.div>
+          )}
 
-            {/* Блок 3 (1x1): Прогресс подписки */}
+          {/* Блок 3 (1x1): Прогресс подписки - только для своего профиля */}
+          {isViewingOwnProfile && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -2442,8 +2553,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               </div>
               <div className="text-white/40 text-xs mt-2">{progressPercentage}% использовано</div>
             </motion.div>
+          )}
 
-            {/* Блок 4 (1x1): История транзакций */}
+          {/* Блок 4 (1x1): История транзакций - только для своего профиля */}
+          {isViewingOwnProfile && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -2459,8 +2572,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               </div>
               <div className="text-white/40 text-xs">Просмотр всех операций</div>
             </motion.div>
+          )}
 
-            {/* Блок 5 (1x1): Выход */}
+          {/* Блок 5 (1x1): Выход - только для своего профиля */}
+          {isViewingOwnProfile && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -2481,106 +2596,93 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               </div>
               <div className="text-white/40 text-xs">Выйти из аккаунта</div>
             </motion.div>
+          )}
 
-            {/* Блок 6 (3x1): Галерея персонажей */}
-            {userCharacters.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.5 }}
-                className="md:col-span-3 p-6"
-                style={{ background: 'transparent', border: 'none', boxShadow: 'none' }}
-              >
-                <div className="flex flex-col items-center gap-4">
-                  <h3 className="text-xl font-bold text-white text-center">Персонажи</h3>
-                  <div className="w-full" style={{ minHeight: isMobile ? '400px' : '600px', height: isMobile ? '400px' : '600px', background: 'transparent', border: 'none' }}>
-                    <CircularGallery
-                      items={userCharacters}
-                      bend={3}
-                      borderRadius={0.05}
-                      scrollSpeed={2}
-                      scrollEase={0.05}
-                      textColor="#ffffff"
-                      font="bold 30px Figtree"
-                      onActiveItemChange={handleCharacterChange}
-                    />
-                  </div>
-                  {userCharacters.length > 0 && onCharacterSelect && (
-                    <button
-                      onClick={() => {
-                        const selectedItem = userCharacters[selectedCharacterIndex]; // Используем selectedCharacterIndex для выбора персонажа в центре
-                        if (!selectedItem) return;
-                        
-                        // Находим raw данные выбранного персонажа по text (имя персонажа)
-                        const rawChar = rawCharactersData.find(
-                          (char: any) => (char.name || char.display_name || '') === selectedItem.text
-                        );
-                        
-                        if (rawChar) {
-                          const charName = rawChar.name || rawChar.display_name || selectedItem.text;
-                          const normalizedId = (rawChar.id ?? charName).toString();
-                          
-                          const character = {
-                            id: normalizedId,
-                            name: charName,
-                            description: rawChar.description || rawChar.character_appearance || 'No description available',
-                            avatar: charName.charAt(0).toUpperCase(),
-                            photos: photosMap[(charName || '').toLowerCase()] || [],
-                            tags: Array.isArray(rawChar.tags) && rawChar.tags.length ? rawChar.tags : ['User Created'],
-                            author: 'User',
-                            likes: Number(rawChar.likes) || 0,
-                            views: Number(rawChar.views) || 0,
-                            comments: Number(rawChar.comments) || 0,
-                            is_nsfw: rawChar.is_nsfw === true,
-                            raw: rawChar,
-                          };
-                          
-                          onCharacterSelect(character);
-                        }
-                      }}
-                      className="px-6 py-2.5 bg-gradient-to-r from-pink-500 to-rose-600 rounded-lg text-white font-semibold text-sm hover:from-pink-600 hover:to-rose-700 transition-all duration-200 shadow-lg shadow-pink-500/25 hover:shadow-pink-500/40"
-                    >
-                      В чат
-                    </button>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </div>
-        ) : (
-          userInfo && (
-            <div className="max-w-4xl mx-auto">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-8 shadow-lg shadow-pink-500/5"
-              >
-                <h2 className="text-2xl font-bold text-white mb-6">Информация о пользователе</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                    <div className="text-white/60 text-sm mb-2">Имя пользователя</div>
-                    <div className="text-white text-lg font-semibold">{viewedUserName}</div>
-                  </div>
-                  <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                    <div className="text-white/60 text-sm mb-2">Email</div>
-                    <div className="text-white text-lg font-semibold">{userInfo.email ?? '—'}</div>
-                  </div>
-                  <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                    <div className="text-white/60 text-sm mb-2">Статус</div>
-                    <div className="text-white text-lg font-semibold">{userInfo.is_active ? 'Активен' : 'Неактивен'}</div>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-          )
-        )}
+          {/* Блок 6 (3x1): Галерея персонажей */}
+          {rawCharactersData.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.5 }}
+              className="md:col-span-3 p-0 md:p-6"
+              style={{ background: 'transparent', border: 'none', boxShadow: 'none' }}
+            >
+              <div className="flex flex-col gap-4" style={{ position: 'relative', zIndex: 10 }}>
+                <h3 className="text-xl font-bold text-white text-center">Персонажи</h3>
+                <CharactersGrid>
+                  {rawCharactersData.map((rawChar) => {
+                    const charName = rawChar.name || rawChar.display_name || 'Unknown';
+                    const normalizedId = (rawChar.id ?? charName).toString();
+                    const normalizedKey = charName.toLowerCase();
+                    
+                    // Используем name в первую очередь для ключа, как на главной странице
+                    const keyForPhotos = rawChar.name ? rawChar.name.toLowerCase() : (rawChar.display_name || '').toLowerCase();
+                    const photos = photosMap[keyForPhotos] || [];
+                    // Если не нашли по name, пробуем по display_name
+                    const fallbackKey = rawChar.display_name ? rawChar.display_name.toLowerCase() : null;
+                    const fallbackPhotos = photos.length === 0 && fallbackKey && fallbackKey !== keyForPhotos 
+                      ? (photosMap[fallbackKey] || [])
+                      : [];
+                    const finalPhotos = photos.length > 0 ? photos : fallbackPhotos;
+                    
+                    const character = {
+                      id: normalizedId,
+                      name: charName,
+                      description: rawChar.description || rawChar.character_appearance || 'No description available',
+                      avatar: charName.charAt(0).toUpperCase(),
+                      photos: finalPhotos,
+                      tags: Array.isArray(rawChar.tags) && rawChar.tags.length ? rawChar.tags : ['User Created'],
+                      author: 'User',
+                      likes: Number(rawChar.likes) || 0,
+                      views: Number(rawChar.views) || 0,
+                      comments: Number(rawChar.comments) || 0,
+                      is_nsfw: rawChar.is_nsfw === true,
+                      raw: rawChar,
+                    };
+                    
+                    // Проверяем, находится ли персонаж в избранном
+                    const characterId = typeof character.id === 'number' 
+                      ? character.id 
+                      : parseInt(character.id, 10);
+                    const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
+                    
+                    return (
+                      <CharacterCard
+                        key={character.id}
+                        character={character}
+                        onClick={onCharacterSelect}
+                        isAuthenticated={!!authToken}
+                        onPhotoGeneration={onOpenUserGallery ? (char) => {
+                          // Открываем галерею пользователя для генерации фото
+                          const userId = profileUserId || currentUserId || undefined;
+                          if (userId) {
+                            onOpenUserGallery(userId);
+                          }
+                        } : undefined}
+                        onPaidAlbum={onPaidAlbum ? (char) => {
+                          // Открываем альбом персонажа
+                          onPaidAlbum(char);
+                        } : undefined}
+                        showPromptButton={true}
+                        isFavorite={isFavorite}
+                        onFavoriteToggle={loadFavorites}
+                      />
+                    );
+                  })}
+                </CharactersGrid>
+              </div>
+            </motion.div>
+          )}
+        </div>
       </div>
     );
   };
 
   return (
-    <div className="w-screen h-screen flex overflow-hidden bg-black">
+    <MainContainer>
+      <BackgroundWrapper>
+        <DarkVeil speed={1.1} />
+      </BackgroundWrapper>
       <div className="content-area vertical flex-1 flex flex-col">
         <GlobalHeader
           onShop={onShop}
@@ -2602,7 +2704,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               window.location.href = '/';
             }
           }}
-          onProfile={onProfile}
+          onProfile={onProfile ? () => {
+            // При клике на профиль открываем свой профиль (без userId)
+            // Вызываем onProfile без параметров, чтобы открыть свой профиль
+            onProfile();
+          } : undefined}
           onHome={() => {
             if (onBackToMain) {
               onBackToMain();
@@ -2666,6 +2772,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           }}
         />
       )}
-    </div>
+    </MainContainer>
   );
 };

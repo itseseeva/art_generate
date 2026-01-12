@@ -16,6 +16,7 @@ export type DockItemData = {
   label: React.ReactNode;
   onClick: () => void;
   className?: string;
+  badgeCount?: number;
 };
 
 export type DockProps = {
@@ -172,10 +173,39 @@ type DockIconProps = {
   className?: string;
   children: React.ReactNode;
   isHovered?: MotionValue<number>;
+  badgeCount?: number;
 };
 
-function DockIcon({ children, className = '' }: DockIconProps) {
-  return <div className={`dock-icon ${className}`}>{children}</div>;
+function DockIcon({ children, className = '', badgeCount }: DockIconProps) {
+  return (
+    <div className={`dock-icon ${className}`} style={{ position: 'relative' }}>
+      {children}
+      {badgeCount !== undefined && badgeCount > 0 && (
+        <span
+          style={{
+            position: 'absolute',
+            top: '-4px',
+            right: '-4px',
+            background: '#ef4444',
+            color: 'white',
+            borderRadius: '10px',
+            minWidth: '18px',
+            height: '18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '10px',
+            fontWeight: 'bold',
+            padding: '0 4px',
+            border: '2px solid rgba(0, 0, 0, 0.8)',
+            zIndex: 10
+          }}
+        >
+          {badgeCount > 99 ? '99+' : badgeCount}
+        </span>
+      )}
+    </div>
+  );
 }
 
 export default function Dock({
@@ -236,7 +266,7 @@ export default function Dock({
             vertical={vertical}
             showLabels={showLabels}
           >
-            <DockIcon>{item.icon}</DockIcon>
+            <DockIcon badgeCount={item.badgeCount}>{item.icon}</DockIcon>
             <DockLabel vertical={vertical} itemClassName={item.className} showLabels={showLabels}>{item.label}</DockLabel>
           </DockItem>
         ))}

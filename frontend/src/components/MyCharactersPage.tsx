@@ -5,6 +5,7 @@ import { theme } from '../theme';
 import { CharacterCard } from './CharacterCard';
 import { API_CONFIG } from '../config/api';
 import { AuthModal } from './AuthModal';
+import { GlobalHeader } from './GlobalHeader';
 
 const MainContainer = styled.div`
   width: 100%;
@@ -17,18 +18,18 @@ const MainContainer = styled.div`
 
 const CharactersGrid = styled.div`
   flex: 1;
-  padding: ${theme.spacing.lg};
+  padding: ${theme.spacing.xs} ${theme.spacing.sm};
   overflow-y: auto;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: ${theme.spacing.md};
+  gap: 0;
   align-content: start;
   width: 100%;
   box-sizing: border-box;
 
   @media (max-width: 768px) {
-    padding: ${theme.spacing.md};
-    gap: ${theme.spacing.sm};
+    padding: ${theme.spacing.xs} ${theme.spacing.sm};
+    gap: 0;
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   }
 `;
@@ -86,6 +87,7 @@ interface MyCharactersPageProps {
   onBackToMain: () => void;
   onCreateCharacter: () => void;
   onShop?: () => void;
+  onProfile?: () => void;
   onEditCharacters?: () => void;
   onPhotoGeneration?: (character: Character) => void;
   onPaidAlbum?: (character: Character) => void;
@@ -96,6 +98,7 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
   onBackToMain,
   onCreateCharacter,
   onShop,
+  onProfile,
   onPhotoGeneration,
   onPaidAlbum,
   onCharacterSelect
@@ -427,6 +430,11 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
 
   return (
     <MainContainer>
+      <div className="content-area vertical">
+        <GlobalHeader 
+          onShop={onShop}
+          onProfile={onProfile}
+        />
         <CharactersGrid>
           {isLoading ? (
             <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2rem', color: '#a8a8a8' }}>
@@ -468,6 +476,7 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
             })
           )}
         </CharactersGrid>
+      </div>
 
         {/* Модальное окно авторизации */}
         {isAuthModalOpen && (

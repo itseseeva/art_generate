@@ -172,12 +172,16 @@ function App() {
             String(char.id) === String(characterId)
           );
           
-          // Если не нашли по ID, ищем по имени
+          // Если не нашли по ID, ищем по имени (без учета регистра)
           if (!character) {
-            character = characters.find((char: any) => 
-              char.name === characterId || 
-              char.name === String(characterId)
-            );
+            const searchName = String(characterId).toLowerCase().trim();
+            character = characters.find((char: any) => {
+              if (!char.name) return false;
+              const charName = String(char.name).toLowerCase().trim();
+              return charName === searchName || 
+                     char.name === characterId || 
+                     char.name === String(characterId);
+            });
           }
           
           if (character) {
@@ -429,6 +433,54 @@ function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Обработка навигации в чат с персонажем из уведомлений
+  useEffect(() => {
+    const handleNavigateToChat = async (event: CustomEvent) => {
+      const { characterId, characterName, characterIdentifier } = event.detail || {};
+      
+      if (characterId || characterName || characterIdentifier) {
+        const identifier = characterId || characterName || characterIdentifier;
+        
+        // Пытаемся загрузить персонажа
+        const character = await loadCharacterById(identifier);
+        
+        if (character) {
+          setSelectedCharacter(character);
+          setCurrentPage('chat');
+          // Сохраняем персонажа в localStorage
+          const storageKey = character.id ? `character_${character.id}` : `character_${character.name}`;
+          localStorage.setItem(storageKey, JSON.stringify(character));
+          // Обновляем URL
+          const urlIdentifier = character.id || character.name || identifier;
+          window.history.pushState(
+            { page: 'chat', character: urlIdentifier }, 
+            '', 
+            `/chat?character=${encodeURIComponent(String(urlIdentifier))}`
+          );
+        }
+      } else {
+        // Просто переход в чат без персонажа
+        setCurrentPage('chat');
+        setSelectedCharacter(null);
+        window.history.pushState({ page: 'chat' }, '', '/chat');
+      }
+    };
+
+    const handleNavigateToChatSimple = () => {
+      setCurrentPage('chat');
+      setSelectedCharacter(null);
+      window.history.pushState({ page: 'chat' }, '', '/chat');
+    };
+
+    window.addEventListener('navigate-to-chat-with-character', handleNavigateToChat as EventListener);
+    window.addEventListener('navigate-to-chat', handleNavigateToChatSimple);
+
+    return () => {
+      window.removeEventListener('navigate-to-chat-with-character', handleNavigateToChat as EventListener);
+      window.removeEventListener('navigate-to-chat', handleNavigateToChatSimple);
+    };
+  }, []);
+
   // Обработка OAuth callback - сохранение токенов из URL
   React.useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -499,10 +551,24 @@ function App() {
   };
 
   const handleProfile = (userId?: number) => {
-    setCurrentPage('profile');
+    // Принудительно обновляем состояние, даже если мы уже на странице профиля
     if (userId) {
+      setCurrentPage('profile');
       window.history.pushState({ page: 'profile', userId }, '', `/profile?user=${userId}`);
     } else {
+      // Если userId не указан, открываем свой профиль
+      // Проверяем, есть ли параметр user в URL
+      const hasUserIdParam = window.location.search.includes('user=');
+      
+      if (hasUserIdParam) {
+        // Если мы на чужом профиле, принудительно переходим на свой
+        // Используем window.location.replace для перехода без создания записи в истории
+        window.location.replace('/profile');
+        return;
+      }
+      
+      // Если мы уже на своем профиле, просто обновляем состояние
+      setCurrentPage('profile');
       window.history.pushState({ page: 'profile' }, '', '/profile');
     }
   };
@@ -747,6 +813,7 @@ function App() {
             onPhotoGeneration={handlePhotoGeneration}
             onPaidAlbum={handlePaidAlbum}
             onCharacterSelect={handleCharacterSelect}
+            onProfile={handleProfile}
           />
         );
       case 'create-character':
@@ -756,6 +823,7 @@ function App() {
             onBackToMain={handleBackToMain}
             onShop={handleShop}
             onMyCharacters={handleMyCharacters}
+            onProfile={handleProfile}
             onOpenPaidAlbumBuilder={(character) => {
               setSelectedCharacter(character);
               setCurrentPage('paid-album-builder');
@@ -810,6 +878,7 @@ function App() {
             onEditCharacters={handleEditCharacters}
             onCharacterSelect={handleCharacterSelect}
             onLogout={handleLogout}
+            onPaidAlbum={handlePaidAlbum}
           />
         );
       case 'messages':
@@ -880,6 +949,7 @@ function App() {
             onBackToMain={handleBackToMain}
             onCreateCharacter={handleCreateCharacter}
             onShop={handleShop}
+            onProfile={handleProfile}
             onEditCharacter={(character) => {
               
               
@@ -1016,6 +1086,7 @@ function App() {
             onShop={handleShop}
             onPhotoGeneration={handlePhotoGeneration}
             onPaidAlbum={handlePaidAlbum}
+            onProfile={handleProfile}
           />
         );
       case 'legal':

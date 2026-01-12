@@ -14,13 +14,26 @@ import { fetchPromptByImage } from '../utils/prompt';
 
 import { useIsMobile } from '../hooks/useIsMobile';
 import { GlobalHeader } from './GlobalHeader';
+import DarkVeil from '../../@/components/DarkVeil';
+
+const BackgroundWrapper = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+`;
 
 const MainContainer = styled.div<{ $isMobile?: boolean }>`
   width: 100%;
   height: ${props => props.$isMobile ? 'auto' : '100vh'};
   display: flex;
   flex-direction: column;
-  background: linear-gradient(to bottom right, rgba(8, 8, 18, 1), rgba(8, 8, 18, 0.95), rgba(40, 40, 40, 0.1));
+  background: transparent;
   overflow: visible;
   box-sizing: border-box;
   position: relative;
@@ -88,6 +101,8 @@ const MainContent = styled.div`
   opacity: 1;
   width: 100%;
   box-sizing: border-box;
+  position: relative;
+  z-index: 1;
 
   @media (max-width: 768px) {
     flex-direction: column;
@@ -1857,6 +1872,7 @@ interface CreateCharacterPageProps {
   onPhotoGeneration?: (character: any) => void;
   onOpenPaidAlbumBuilder?: (character: any) => void;
   onOpenChat?: (character: any) => void;
+  onProfile?: () => void;
   contentMode?: 'safe' | 'nsfw';
   isAuthenticated?: boolean;
   userInfo?: {username: string, coins: number, id?: number, subscription?: {subscription_type?: string}} | null;
@@ -1871,6 +1887,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   onPhotoGeneration,
   onOpenPaidAlbumBuilder,
   onOpenChat,
+  onProfile,
   contentMode = 'safe',
   isAuthenticated: propIsAuthenticated,
   userInfo: propUserInfo
@@ -2848,6 +2865,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         <GlobalHeader
           onShop={onShop}
           onHome={onBackToMain}
+          onProfile={onProfile}
           onLogin={() => {
             setAuthMode('login');
             setIsAuthModalOpen(true);
@@ -3538,6 +3556,9 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         </SubscriptionModal>
       )}
       </MainContent>
+      <BackgroundWrapper>
+        <DarkVeil speed={1.1} />
+      </BackgroundWrapper>
     </MainContainer>
   );
 }

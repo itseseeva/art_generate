@@ -21,23 +21,23 @@ const MainContainer = styled.div`
 
 const CharactersGrid = styled.div`
   flex: 1;
-  padding: ${theme.spacing.lg};
+  padding: ${theme.spacing.xs} ${theme.spacing.sm};
   overflow-y: auto;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 1rem;
+  gap: 0;
   align-content: start;
 
   @media (max-width: 768px) {
-    padding: ${theme.spacing.md};
+    padding: ${theme.spacing.xs} ${theme.spacing.sm};
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 0.75rem;
+    gap: 0;
   }
 
   @media (max-width: 480px) {
-    padding: ${theme.spacing.sm};
+    padding: ${theme.spacing.xs} ${theme.spacing.sm};
     grid-template-columns: repeat(2, 1fr);
-    gap: 0.5rem;
+    gap: 0;
   }
 `;
 
@@ -56,7 +56,7 @@ const MobileActionContainer = styled.div`
 const CardWrapper = styled.div`
   display: flex;
   flex-direction: column;
-  gap: ${theme.spacing.sm};
+  gap: 0;
 `;
 
 const LastMessage = styled.div`
@@ -752,7 +752,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                 const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
                 
                 return (
-                <CardWrapper key={character.id}>
+                <CardWrapper key={character.id} style={{ gap: 0 }}>
                   <CharacterCard
                     character={character}
                     onClick={() => onOpenChat(character)}

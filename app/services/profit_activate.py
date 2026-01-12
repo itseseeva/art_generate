@@ -227,10 +227,10 @@ class ProfitActivateService:
         subscription = result.scalars().first()
         
         if subscription:
-            logger.info(f"[GET_SUBSCRIPTION] Подписка загружена из БД для user_id={user_id}, subscription_type={subscription.subscription_type.value}, is_active={subscription.is_active}, subscription_id={subscription.id}")
+            logger.debug(f"[GET_SUBSCRIPTION] Подписка загружена из БД для user_id={user_id}, subscription_type={subscription.subscription_type.value}, is_active={subscription.is_active}, subscription_id={subscription.id}")
             await cache_set(cache_key, subscription.to_dict(), ttl_seconds=TTL_SUBSCRIPTION)
         else:
-            logger.info(f"[GET_SUBSCRIPTION] Подписка не найдена в БД для user_id={user_id}")
+            logger.debug(f"[GET_SUBSCRIPTION] Подписка не найдена в БД для user_id={user_id}")
             await cache_set(cache_key, {"id": None}, ttl_seconds=TTL_SUBSCRIPTION)
         
         return subscription
@@ -628,7 +628,7 @@ class ProfitActivateService:
             # Логируем для отладки
             cached_type = cached_stats.get('subscription_type')
             cached_active = cached_stats.get('is_active')
-            logger.info(f"[STATS] Кэш найден для user_id={user_id}, subscription_type={cached_type}, is_active={cached_active}")
+            logger.debug(f"[STATS] Кэш найден для user_id={user_id}, subscription_type={cached_type}, is_active={cached_active}")
             # ВАЖНО: Если в кэше PREMIUM для пользователя без подписки - принудительно инвалидируем кэш
             # КРИТИЧНО: Инвалидируем ОБА кэша (subscription_stats и subscription)
             if cached_type == "premium" and cached_active:
@@ -644,7 +644,7 @@ class ProfitActivateService:
         
         if not subscription:
             # Если подписки нет, возвращаем значения по умолчанию для FREE подписки
-            logger.info(f"[STATS] Подписка не найдена для user_id={user_id}, возвращаем FREE по умолчанию")
+            logger.debug(f"[STATS] Подписка не найдена для user_id={user_id}, возвращаем FREE по умолчанию")
             default_stats = {
                 "subscription_type": "free",
                 "status": "inactive",
@@ -666,7 +666,7 @@ class ProfitActivateService:
         # Логируем найденную подписку
         sub_type = subscription.subscription_type.value
         sub_active = subscription.is_active
-        logger.info(f"[STATS] Подписка найдена для user_id={user_id}, subscription_type={sub_type}, is_active={sub_active}, status={subscription.status.value}")
+        logger.debug(f"[STATS] Подписка найдена для user_id={user_id}, subscription_type={sub_type}, is_active={sub_active}, status={subscription.status.value}")
         
         # КРИТИЧНО: Проверяем, что подписка действительно существует в БД
         if not subscription.id:

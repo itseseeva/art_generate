@@ -134,29 +134,29 @@ const AuthButton = styled.button`
 
 const MainContent = styled.div`
   flex: 1;
-  padding: ${theme.spacing.xl};
+  padding: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
 
   @media (max-width: 768px) {
-    padding: ${theme.spacing.sm};
+    padding: 0;
   }
 `;
 
 const CharactersGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: ${theme.spacing.md};
+  gap: 0;
   margin-top: ${theme.spacing.lg};
-  padding: ${theme.spacing.lg};
+  padding: ${theme.spacing.xs} ${theme.spacing.sm};
   overflow-y: auto;
   align-content: start;
 
   @media (max-width: 768px) {
     grid-template-columns: repeat(2, 1fr);
-    gap: ${theme.spacing.sm};
-    padding: ${theme.spacing.sm};
+    gap: 0;
+    padding: ${theme.spacing.xs} ${theme.spacing.sm};
     margin-top: ${theme.spacing.md};
   }
 `;
@@ -487,6 +487,7 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
       <div className="content-area vertical">
         <GlobalHeader 
           onShop={onShop}
+          onProfile={onProfile}
           onLogin={() => {
             setAuthMode('login');
             setIsAuthModalOpen(true);

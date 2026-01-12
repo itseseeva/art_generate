@@ -313,6 +313,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   const [isCollapsed, setIsCollapsed] = useState(isMobile);
   const [arrowTop, setArrowTop] = useState<string>('50%');
   const dockWrapperRef = useRef<HTMLDivElement>(null);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState<number>(0);
 
   const topDockItems = [
     {
@@ -371,6 +372,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
         label: 'Сообщения',
         onClick: () => onMessages?.(),
         className: 'dock-item-messages',
+        badgeCount: unreadMessagesCount > 0 ? unreadMessagesCount : undefined,
       });
     }
   }
@@ -415,6 +417,40 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   } else {
     // Кнопка выхода - УДАЛЕНА (перенесена в хедер)
   }
+
+  useEffect(() => {
+    const loadUnreadCount = async () => {
+      if (!isAuthenticated) {
+        setUnreadMessagesCount(0);
+        return;
+      }
+      
+      try {
+        const response = await authManager.fetchWithAuth('/api/v1/auth/tip-messages/unread-count/');
+        if (response.ok) {
+          const data = await response.json();
+          setUnreadMessagesCount(data.unread_count || 0);
+        }
+      } catch (error) {
+        console.error('Ошибка загрузки количества непрочитанных сообщений:', error);
+      }
+    };
+    
+    loadUnreadCount();
+    
+    const interval = setInterval(loadUnreadCount, 30000);
+    
+    const handleMessagesRead = () => {
+      loadUnreadCount();
+    };
+    
+    window.addEventListener('tip-messages-read', handleMessagesRead);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('tip-messages-read', handleMessagesRead);
+    };
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (dockWrapperRef.current && !isCollapsed) {

@@ -558,12 +558,21 @@ async def generate_image_async(
                         image_bytes = base64.b64decode(image_base64)
                         
                         # Загружаем в Yandex S3
-                        s3_client = boto3.client(
-                            's3',
-                            endpoint_url=os.getenv('YANDEX_ENDPOINT_URL', 'https://storage.yandexcloud.net'),
-                            aws_access_key_id=os.getenv('YANDEX_ACCESS_KEY'),
-                            aws_secret_access_key=os.getenv('YANDEX_SECRET_KEY')
-                        )
+                        # КРИТИЧНО: Отключаем прокси для работы с Yandex Bucket
+                        old_http_proxy = os.environ.pop('HTTP_PROXY', None)
+                        old_https_proxy = os.environ.pop('HTTPS_PROXY', None)
+                        try:
+                            s3_client = boto3.client(
+                                's3',
+                                endpoint_url=os.getenv('YANDEX_ENDPOINT_URL', 'https://storage.yandexcloud.net'),
+                                aws_access_key_id=os.getenv('YANDEX_ACCESS_KEY'),
+                                aws_secret_access_key=os.getenv('YANDEX_SECRET_KEY')
+                            )
+                        finally:
+                            if old_http_proxy is not None:
+                                os.environ['HTTP_PROXY'] = old_http_proxy
+                            if old_https_proxy is not None:
+                                os.environ['HTTPS_PROXY'] = old_https_proxy
                         
                         bucket_name = os.getenv('YANDEX_BUCKET_NAME')
                         if not bucket_name:

@@ -203,6 +203,22 @@ class Media {
       texture.image = img;
       this.program.uniforms.uImageSizes.value = [img.naturalWidth, img.naturalHeight];
     };
+    img.onerror = () => {
+      // Если изображение не загрузилось, создаем placeholder
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#333333';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 48px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('?', canvas.width / 2, canvas.height / 2);
+      texture.image = canvas;
+      this.program.uniforms.uImageSizes.value = [canvas.width, canvas.height];
+    };
   }
   createMesh() {
     this.plane = new Mesh(this.gl, {
@@ -297,7 +313,7 @@ class App {
     } = {}
   ) {
     this.onActiveItemChange = onActiveItemChange;
-    this.lastActiveIndex = -1; // Отслеживаем последний активный индекс
+    this.lastActiveIndex = 0; // Отслеживаем последний активный индекс, инициализируем 0
     this.originalItemsLength = items && items.length ? items.length : 0; // Сохраняем длину оригинального массива
     document.documentElement.classList.remove('no-js');
     this.container = container;
@@ -399,9 +415,13 @@ class App {
     const itemIndex = Math.round(Math.abs(this.scroll.target) / width);
     const item = width * itemIndex;
     this.scroll.target = this.scroll.target < 0 ? -item : item;
-    // КРИТИЧНО: Вызываем callback при изменении активного элемента
+    // КРИТИЧНО: Вычисляем реальный индекс с учетом модуля (элементы дублируются для бесконечной прокрутки)
+    const realIndex = itemIndex % this.originalItemsLength;
+    // Обновляем lastActiveIndex сразу при остановке скролла
+    this.lastActiveIndex = realIndex;
+    // КРИТИЧНО: Вызываем callback при изменении активного элемента с реальным индексом
     if (this.onActiveItemChange) {
-      this.onActiveItemChange(itemIndex);
+      this.onActiveItemChange(realIndex);
     }
   }
   onResize() {
@@ -429,14 +449,32 @@ class App {
     }
     
     // КРИТИЧНО: Обновляем активный индекс в реальном времени на основе текущей позиции скролла
-    if (this.medias && this.medias[0] && this.onActiveItemChange && this.originalItemsLength > 0) {
-      const width = this.medias[0].width;
-      const rawIndex = Math.round(Math.abs(this.scroll.current) / width);
-      // Используем модуль для получения реального индекса (элементы дублируются для бесконечной прокрутки)
-      const currentIndex = rawIndex % this.originalItemsLength;
+    if (this.medias && this.medias[0] && this.originalItemsLength > 0) {
+      // Находим элемент, который находится ближе всего к центру (позиция x = 0)
+      // Это более точный способ, чем вычисление через scroll.target, так как учитывает extra
+      let closestIndex = 0;
+      let minDistance = Infinity;
+      
+      for (let i = 0; i < this.medias.length; i++) {
+        const media = this.medias[i];
+        // Позиция элемента относительно центра viewport
+        // Центральный элемент имеет позицию x ≈ 0
+        const x = media.x - this.scroll.current - media.extra;
+        const distance = Math.abs(x);
+        if (distance < minDistance) {
+          minDistance = distance;
+          closestIndex = i;
+        }
+      }
+      
+      // Преобразуем индекс в реальный индекс (с учетом дублирования)
+      const currentIndex = closestIndex % this.originalItemsLength;
+      
+      // Всегда обновляем lastActiveIndex для точного определения центрального элемента
+      const previousIndex = this.lastActiveIndex;
+      this.lastActiveIndex = currentIndex;
       // Вызываем callback только если активный индекс изменился
-      if (currentIndex !== this.lastActiveIndex) {
-        this.lastActiveIndex = currentIndex;
+      if (this.onActiveItemChange && currentIndex !== previousIndex) {
         this.onActiveItemChange(currentIndex);
       }
     }
@@ -486,13 +524,78 @@ export default function CircularGallery({
   font = 'bold 30px Figtree',
   scrollSpeed = 2,
   scrollEase = 0.05,
-  onActiveItemChange
+  onActiveItemChange,
+  onGetCurrentIndex
 }) {
   const containerRef = useRef(null);
+  const appRef = useRef(null);
+  const onGetCurrentIndexRef = useRef(onGetCurrentIndex);
+  
+  // Обновляем ref при изменении callback
+  useEffect(() => {
+    onGetCurrentIndexRef.current = onGetCurrentIndex;
+  }, [onGetCurrentIndex]);
+  
   useEffect(() => {
     const app = new App(containerRef.current, { items, bend, textColor, borderRadius, font, scrollSpeed, scrollEase, onActiveItemChange });
+    appRef.current = app;
+    
+    // Предоставляем способ получить текущий индекс
+    if (onGetCurrentIndexRef.current) {
+      onGetCurrentIndexRef.current(() => {
+        if (!appRef.current) {
+          return 0;
+        }
+        
+        // ВСЕГДА вычисляем индекс напрямую из scroll.target в момент вызова (самый точный способ)
+        // Не полагаемся на lastActiveIndex, так как он может быть устаревшим
+        if (appRef.current.medias && appRef.current.medias[0] && appRef.current.originalItemsLength > 0) {
+          const width = appRef.current.medias[0].width;
+          // Используем scroll.target для определения индекса (целевая позиция скролла)
+          const scrollTarget = appRef.current.scroll.target;
+          
+          // КРИТИЧНО: При прокрутке влево scroll.target отрицательный, но мы должны правильно вычислить индекс
+          // Находим элемент, который находится ближе всего к центру (позиция 0)
+          // Центральный элемент имеет позицию x = 0 относительно viewport
+          // Позиция элемента: x = this.x - scroll.current - this.extra
+          // Для центрального элемента: x ≈ 0, значит this.x - scroll.current - this.extra ≈ 0
+          // this.x = width * index, поэтому: width * index - scroll.current - this.extra ≈ 0
+          // index ≈ (scroll.current + this.extra) / width
+          
+          // Используем scroll.current (текущая позиция) вместо scroll.target для более точного определения
+          // scroll.current - это интерполированная позиция, которая ближе к реальной визуальной позиции
+          const scrollCurrent = appRef.current.scroll.current;
+          
+          // Находим элемент, который ближе всего к центру (позиция x = 0)
+          // Для этого находим элемент с минимальным расстоянием от центра
+          let closestIndex = 0;
+          let minDistance = Infinity;
+          
+          for (let i = 0; i < appRef.current.medias.length; i++) {
+            const media = appRef.current.medias[i];
+            const x = media.x - scrollCurrent - media.extra;
+            const distance = Math.abs(x);
+            if (distance < minDistance) {
+              minDistance = distance;
+              closestIndex = i;
+            }
+          }
+          
+          // Преобразуем индекс в реальный индекс (с учетом дублирования)
+          const realIndex = closestIndex % appRef.current.originalItemsLength;
+          
+          return realIndex;
+        }
+        
+        // Fallback: используем lastActiveIndex
+        const fallbackIndex = appRef.current.lastActiveIndex ?? 0;
+        return fallbackIndex;
+      });
+    }
+    
     return () => {
       app.destroy();
+      appRef.current = null;
     };
   }, [items, bend, textColor, borderRadius, font, scrollSpeed, scrollEase, onActiveItemChange]);
   return <div className="circular-gallery" ref={containerRef} />;

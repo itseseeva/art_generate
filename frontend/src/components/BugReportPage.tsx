@@ -7,18 +7,32 @@ import { ErrorMessage } from './ErrorMessage';
 import { FiArrowLeft, FiAlertTriangle, FiSend, FiMessageSquare, FiTrash2 } from 'react-icons/fi';
 import { API_CONFIG } from '../config/api';
 import { authManager } from '../utils/auth';
+import DarkVeil from '../../@/components/DarkVeil';
 
 const MainContainer = styled.div`
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: rgba(20, 20, 20, 1);
+  background: transparent;
   overflow: hidden;
+  position: relative;
 
   @media (max-width: 768px) {
     overflow-y: auto;
   }
+`;
+
+const BackgroundWrapper = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
 `;
 
 const ContentContainer = styled.div`
@@ -28,6 +42,8 @@ const ContentContainer = styled.div`
   overflow: hidden;
   padding: ${theme.spacing.xl};
   gap: ${theme.spacing.lg};
+  position: relative;
+  z-index: 1;
 
   @media (max-width: 768px) {
     flex-direction: column;
@@ -943,6 +959,9 @@ export const BugReportPage: React.FC<BugReportPageProps> = ({
           )}
         </RightColumn>
       </ContentContainer>
+      <BackgroundWrapper>
+        <DarkVeil speed={1.1} />
+      </BackgroundWrapper>
     </MainContainer>
   );
 };

@@ -6,6 +6,7 @@ import { CharacterCard } from './CharacterCard';
 import { authManager } from '../utils/auth';
 import { API_CONFIG } from '../config/api';
 import { GlobalHeader } from './GlobalHeader';
+import DarkVeil from '../../@/components/DarkVeil';
 
 const MainContainer = styled.div`
   width: 100%;
@@ -13,6 +14,19 @@ const MainContainer = styled.div`
   display: flex;
   position: relative;
   overflow: hidden;
+  background: transparent;
+`;
+
+const BackgroundWrapper = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
 `;
 
 const Header = styled.div`
@@ -34,12 +48,14 @@ const Title = styled.h1`
 
 const CharactersGrid = styled.div`
   flex: 1;
-  padding: ${theme.spacing.lg};
+  padding: ${theme.spacing.xs} ${theme.spacing.sm};
   overflow-y: auto;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 0;
   align-content: start;
+  position: relative;
+  z-index: 1;
 `;
 
 const EmptyState = styled.div`
@@ -76,6 +92,7 @@ interface Character {
 interface FavoritesPageProps {
   onBackToMain: () => void;
   onCharacterSelect: (character: Character) => void;
+  onProfile?: () => void;
   onShop?: () => void;
   onPhotoGeneration?: (character: Character) => void;
   onPaidAlbum?: (character: Character) => void;
@@ -84,6 +101,7 @@ interface FavoritesPageProps {
 export const FavoritesPage: React.FC<FavoritesPageProps> = ({
   onBackToMain,
   onCharacterSelect,
+  onProfile,
   onShop,
   onPhotoGeneration,
   onPaidAlbum
@@ -215,6 +233,9 @@ export const FavoritesPage: React.FC<FavoritesPageProps> = ({
             </EmptyDescription>
           </EmptyState>
         </div>
+        <BackgroundWrapper>
+          <DarkVeil speed={1.1} />
+        </BackgroundWrapper>
       </MainContainer>
     );
   }
@@ -224,6 +245,7 @@ export const FavoritesPage: React.FC<FavoritesPageProps> = ({
       <div className="content-area vertical">
         <GlobalHeader 
           onShop={onShop}
+          onProfile={onProfile}
         />
         
         <CharactersGrid>

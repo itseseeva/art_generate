@@ -13,6 +13,19 @@ import { FiX as CloseIcon } from 'react-icons/fi';
 import { Plus } from 'lucide-react';
 
 import { useIsMobile } from '../hooks/useIsMobile';
+import DarkVeil from '../../@/components/DarkVeil';
+
+const BackgroundWrapper = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+`;
 
 const MainContainer = styled.div<{ $isMobile?: boolean }>`
   width: 100%;
@@ -209,6 +222,8 @@ const MainContent = styled.div`
   opacity: 1;
   width: 100%;
   box-sizing: border-box;
+  position: relative;
+  z-index: 1;
 
   @media (max-width: 768px) {
     flex-direction: column;
@@ -3229,24 +3244,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                     </FullSizePhotoSlider>
                   ) : (
                     <PhotoGenerationPlaceholder>
-                      {isLoadingPhotos ? (
-                        'Загрузка фотографий...'
-                      ) : (
-                        <>
-                          Фотографии будут здесь
-                          <div style={{ marginTop: theme.spacing.sm, fontSize: theme.fontSize.sm, color: theme.colors.text.muted }}>
-                            {generatedPhotos && Array.isArray(generatedPhotos) && generatedPhotos.length === 0 
-                              ? 'Нет доступных фотографий. Сгенерируйте фото для персонажа или добавьте существующие.'
-                              : 'Сгенерируйте фото для персонажа или добавьте существующие'
-                            }
-                          </div>
-                          {character?.name && (
-                            <div style={{ marginTop: theme.spacing.xs, fontSize: theme.fontSize.xs, color: theme.colors.text.muted, opacity: 0.7 }}>
-                              Персонаж: {character.name} {character.id && `(ID: ${character.id})`}
-                            </div>
-                          )}
-                        </>
-                      )}
+                      {isLoadingPhotos && 'Загрузка фотографий...'}
                     </PhotoGenerationPlaceholder>
                   )}
                 </div>
@@ -3362,6 +3360,9 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       {/* Отладочная информация */}
       {}
       {}
+      <BackgroundWrapper>
+        <DarkVeil speed={1.1} />
+      </BackgroundWrapper>
     </MainContainer>
   );
 };

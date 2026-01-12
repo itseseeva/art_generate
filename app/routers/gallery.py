@@ -141,7 +141,6 @@ async def get_paid_album_status(
         subscription_type = subscription.subscription_type.value.lower()
         if subscription_type == 'premium':
             is_premium = True
-            logger.info(f"[PAID_ALBUM STATUS] Пользователь {current_user.id} имеет PREMIUM подписку - доступ к альбому {character_db.name}")
     
     unlocked = bool(is_unlocked or is_owner or is_admin or is_premium)
 
@@ -507,7 +506,6 @@ async def list_paid_gallery(
             subscription_type = subscription.subscription_type.value.lower()
             if subscription_type == 'premium':
                 is_premium = True
-                logger.info(f"[PAID_ALBUM] Пользователь {current_user.id} имеет PREMIUM подписку - доступ к альбому {character_db.name} разрешен")
 
     if not (unlocked or is_owner or current_user.is_admin or is_premium):
         logger.warning(f"[PAID_ALBUM] Пользователь {current_user.id} не имеет доступа к альбому {character_db.name}")

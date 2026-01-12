@@ -1001,6 +1001,16 @@ except Exception as e:
     import traceback
     logger.error(f"Traceback: {traceback.format_exc()}")
 
+# Подключаем роутер генерации изображений
+try:
+    from app.api.endpoints.image_generation_endpoints import router as image_generation_router
+    app.include_router(image_generation_router, prefix="/api/v1", tags=["image-generation"])
+    logger.info("[ROUTER] Image generation router подключен")
+except Exception as e:
+    logger.error(f"[ERROR] Ошибка подключения роутера генерации изображений: {e}")
+    import traceback
+    logger.error(f"Traceback: {traceback.format_exc()}")
+
 # Убрано логирование всех зарегистрированных роутов
 
 # Подключаем тестовый роутер для llama-cpp-python (если существует)
@@ -1141,7 +1151,7 @@ async def proxy_media(object_key: str):
         # Построение исходного URL к Yandex.Cloud
         bucket_url = f"https://storage.yandexcloud.net/jfpohpdofnhd/{object_key}"
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=30.0, trust_env=False) as client:
             response = await client.get(bucket_url)
             
             if response.status_code == 404:
@@ -3912,14 +3922,15 @@ async def generate_image(
             import time
             
             # Определяем приоритет задачи
+            # В Celery: чем меньше число, тем выше приоритет (1 = самый высокий)
             task_priority = 5  # Нормальный приоритет по умолчанию
             from app.models.subscription import SubscriptionType
             if subscription_type_enum == SubscriptionType.PREMIUM:
-                task_priority = 9
-                logger.info(f"[PRIORITY] Установлен приоритет 9 для PREMIUM пользователя {user_id}")
+                task_priority = 1  # Самый высокий приоритет для PREMIUM
+                logger.info(f"[PRIORITY] Установлен приоритет 1 (высокий) для PREMIUM пользователя {user_id}")
             elif subscription_type_enum == SubscriptionType.STANDARD:
-                task_priority = 7
-                logger.info(f"[PRIORITY] Установлен приоритет 7 для STANDARD пользователя {user_id}")
+                task_priority = 3  # Средний приоритет для STANDARD
+                logger.info(f"[PRIORITY] Установлен приоритет 3 (средний) для STANDARD пользователя {user_id}")
 
             # Подготавливаем параметры для задачи
             selected_model = getattr(generation_settings, 'model', None) or (getattr(request, 'model', None) or "anime-realism")
@@ -3944,7 +3955,7 @@ async def generate_image(
                 },
                 priority=task_priority
             )
-            
+                    
             # ВАЖНО: Тратим монеты СРАЗУ при запуске задачи
             if user_id:
                 from app.services.coins_service import CoinsService
@@ -3969,8 +3980,8 @@ async def generate_image(
                         logger.warning(f"Не удалось записать историю баланса: {e}")
                     
                     await db.commit()
-                    logger.info(f"[COINS] Списано {PHOTO_GENERATION_COST} монет за запуск Celery задачи для user_id={user_id}")
-
+                logger.info(f"[COINS] Списано {PHOTO_GENERATION_COST} монет за запуск Celery задачи для user_id={user_id}")
+                    
             logger.info(f"[GENERATE] ✅ ЗАДАЧА ОТПРАВЛЕНА В CELERY (priority={task_priority})")
             logger.info(f"[GENERATE] Task ID: {task.id}, Модель: {selected_model}")
             
@@ -4013,7 +4024,7 @@ async def generate_image(
                     url_base = RUNPOD_URL_BASE_2
                 elif selected_model == "realism":
                     url_base = RUNPOD_URL_BASE_3
-                
+                                    
                 # Создаем временную запись в ImageGenerationHistory
                 try:
                     from app.services.image_generation_history_service import ImageGenerationHistoryService
@@ -4051,7 +4062,7 @@ async def generate_image(
                 "success": True,
                 "message": f"Генерация запущена (приоритет: {task_priority}), используйте task_id для проверки статуса"
             }
-            
+
         except Exception as celery_error:
             logger.error(f"[CELERY] Ошибка отправки задачи в Celery: {celery_error}")
             raise HTTPException(status_code=500, detail=f"Ошибка запуска генерации: {str(celery_error)}")
@@ -4447,7 +4458,6 @@ async def get_generation_status(
 
         # Если это наша Celery задача (есть метаданные или она известна Celery)
         if metadata or celery_task.state != "PENDING":
-            logger.info(f"[CELERY STATUS] Статус Celery задачи {task_id}: {celery_task.state}, Progress: {current_progress}%")
 
             if celery_task.state == "PENDING":
                 return {
@@ -4483,14 +4493,13 @@ async def get_generation_status(
                     image_url = None
                     if isinstance(result, dict):
                         image_url = result.get("image_url") or result.get("cloud_url")
-                    
+                
                     if image_url:
                         from app.models.chat_history import ChatHistory
                         from sqlalchemy import update, select
                         
                         real_prompt = None
-                        if metadata:
-                            # Берем реальный промпт из метаданных, которые мы сохранили при запуске
+                        if metadata and metadata.get("prompt"):
                             real_prompt = metadata.get("prompt")
                         else:
                             # Если метаданных нет (Redis недоступен), ищем в ImageGenerationHistory по task_id
@@ -4532,8 +4541,6 @@ async def get_generation_status(
                         generation_time = result.get("generation_time") if isinstance(result, dict) else None
                         
                         if real_prompt:
-                            logger.info(f"[PROMPT] Обновляем историю чата: task_id={task_id}, prompt_len={len(real_prompt)}, time={generation_time}")
-                            
                             # Нормализуем URL
                             normalized_url = image_url.split('?')[0].split('#')[0]
                             
@@ -4550,7 +4557,6 @@ async def get_generation_status(
                             )
                             await db.execute(stmt)
                             await db.commit()
-                            logger.info(f"[PROMPT] ✓ Запись ChatHistory успешно обновлена реальным промптом и временем")
                             
                             # Также сохраняем в ImageGenerationHistory для галереи
                             try:
@@ -4565,9 +4571,8 @@ async def get_generation_status(
                                         task_id=task_id,
                                         generation_time=generation_time
                                     )
-                                    logger.info(f"[IMAGE_HISTORY] ✓ Запись в ImageGenerationHistory создана/обновлена")
-                            except Exception as e:
-                                logger.warning(f"[IMAGE_HISTORY] Ошибка сохранения: {e}")
+                            except Exception as history_save_err:
+                                logger.warning(f"[IMAGE_HISTORY] Ошибка сохранения: {history_save_err}")
                 except Exception as e:
                     logger.error(f"[PROMPT] Ошибка при обновлении промпта в истории: {e}")
                     import traceback
@@ -4576,10 +4581,10 @@ async def get_generation_status(
                 return {
                     "task_id": task_id,
                     "status": "SUCCESS",
-                    "progress": 100, # Всегда возвращаем 100 при успехе
+                    "progress": 100,
                     "result": result
                 }
-
+            
             if celery_task.state == "RETRY":
                 # Извлекаем информацию об ошибке из метаданных задачи при ретрае
                 error_info = celery_task.info
@@ -4611,13 +4616,12 @@ async def get_generation_status(
                 
                 logger.error(f"[CELERY STATUS] Задача {task_id} завершилась FAILURE: {error_msg}")
                 return {
-                "task_id": task_id,
-                "status": "FAILURE",
+                    "task_id": task_id,
+                    "status": "FAILURE",
                     "message": "Ошибка генерации",
                     "error": error_msg
                 }
 
-        # Очистка остатков старого кода (который вызывал 404)
         return {
             "task_id": task_id,
             "status": "NOT_FOUND",
@@ -4625,6 +4629,8 @@ async def get_generation_status(
         }
     except Exception as e:
         logger.error(f"[STATUS ERROR] {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return {"status": "ERROR", "message": str(e)}
 
 
@@ -4752,4 +4758,4 @@ async def translate_en_to_ru(request: dict):
 
 if __name__ == "__main__":
     logger.info("Запуск основного приложения...")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000, access_log=False)

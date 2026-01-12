@@ -97,11 +97,11 @@ async def start_image_generation(
             
             if subscription and subscription.is_active:
                 if subscription.subscription_type == SubscriptionType.PREMIUM:
-                    task_priority = 9  # Максимальный приоритет для Premium
-                    logger.info(f"[PRIORITY] Установлен приоритет 9 для PREMIUM пользователя {current_user.id}")
+                    task_priority = 1  # Самый высокий приоритет для Premium (в Celery: меньше = выше)
+                    logger.info(f"[PRIORITY] Установлен приоритет 1 (высокий) для PREMIUM пользователя {current_user.id}")
                 elif subscription.subscription_type == SubscriptionType.STANDARD:
-                    task_priority = 7  # Повышенный приоритет для Standard
-                    logger.info(f"[PRIORITY] Установлен приоритет 7 для STANDARD пользователя {current_user.id}")
+                    task_priority = 3  # Средний приоритет для Standard
+                    logger.info(f"[PRIORITY] Установлен приоритет 3 (средний) для STANDARD пользователя {current_user.id}")
 
         # Запускаем Celery задачу с указанием приоритета
         task = generate_image_runpod_task.apply_async(
@@ -156,9 +156,9 @@ async def start_batch_generation(
             
             if subscription and subscription.is_active:
                 if subscription.subscription_type == SubscriptionType.PREMIUM:
-                    task_priority = 9
+                    task_priority = 1  # Самый высокий приоритет для Premium (в Celery: меньше = выше)
                 elif subscription.subscription_type == SubscriptionType.STANDARD:
-                    task_priority = 7
+                    task_priority = 3  # Средний приоритет для Standard
 
         task = generate_image_batch_task.apply_async(
             kwargs={

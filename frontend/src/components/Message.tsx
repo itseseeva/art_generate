@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, memo } from 'react';
+import React, { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { theme } from '../theme';
@@ -104,6 +104,8 @@ const ImageContainer = styled.div`
   transition: transform 0.2s ease;
   background: transparent !important;
   border: none !important;
+  cursor: pointer;
+  pointer-events: auto;
   
   &:hover {
     transform: scale(1.02);
@@ -121,6 +123,8 @@ const MessageImage = styled.img`
   object-fit: contain;
   cursor: pointer;
   transition: all 0.2s ease;
+  pointer-events: auto;
+  user-select: none;
 
   @media (max-width: 768px) {
     max-width: 100%;
@@ -537,10 +541,10 @@ const MessageComponent: React.FC<MessageProps> = ({
 
   const handleImageClick = async (e?: React.MouseEvent) => {
     if (e) {
+      e.preventDefault();
       e.stopPropagation();
     }
-    if (message.imageUrl) {
-      
+    if (message.imageUrl && hasValidImageUrl) {
       setIsFullscreen(true);
       setIsPromptVisible(true);
       setSelectedPrompt(null);
@@ -558,7 +562,6 @@ const MessageComponent: React.FC<MessageProps> = ({
           setPromptError(errorMessage || 'Промпт недоступен для этого изображения');
         }
       } catch (error) {
-        
         setPromptError('Не удалось загрузить промпт');
       } finally {
         setIsLoadingPrompt(false);
@@ -596,6 +599,30 @@ const MessageComponent: React.FC<MessageProps> = ({
 
   const [isAddedToPaidAlbum, setIsAddedToPaidAlbum] = useState(false);
 
+  // Функция для нормализации URL (убираем параметры запроса и нормализуем)
+  const normalizeUrl = useCallback((url: string): string => {
+    if (!url) return '';
+    try {
+      // Если URL относительный, делаем его абсолютным
+      let absoluteUrl = url;
+      if (!url.startsWith('http')) {
+        absoluteUrl = `${window.location.origin}${url.startsWith('/') ? url : '/' + url}`;
+      }
+      const urlObj = new URL(absoluteUrl);
+      // Убираем параметры запроса для сравнения, нормализуем путь
+      const normalized = `${urlObj.origin}${urlObj.pathname}`.toLowerCase().replace(/\/$/, '');
+      return normalized;
+    } catch {
+      // Если не валидный URL, возвращаем нормализованную версию
+      const cleaned = url.split('?')[0].split('#')[0].toLowerCase().trim();
+      // Если относительный путь, добавляем origin
+      if (cleaned.startsWith('/')) {
+        return `${window.location.origin}${cleaned}`.toLowerCase();
+      }
+      return cleaned;
+    }
+  }, []);
+
   // Проверяем, добавлено ли фото уже в альбом при загрузке компонента
   useEffect(() => {
     const checkIfPhotoInAlbum = async () => {
@@ -623,7 +650,36 @@ const MessageComponent: React.FC<MessageProps> = ({
         if (response.ok) {
           const data = await response.json();
           const photos = data.images || [];
-          const photoExists = photos.some((photo: any) => photo.url === message.imageUrl);
+          const normalizedMessageUrl = normalizeUrl(message.imageUrl);
+          
+          // Проверяем как точное совпадение, так и нормализованное
+          const photoExists = photos.some((photo: any) => {
+            if (!photo) return false;
+            
+            // Поддерживаем разные форматы: photo.url, photo.image_url, photo.photo_url
+            const photoUrl = photo.url || photo.image_url || photo.photo_url;
+            if (!photoUrl) return false;
+            
+            // Точное совпадение
+            if (photoUrl === message.imageUrl) return true;
+            
+            // Нормализованное сравнение
+            const normalizedPhotoUrl = normalizeUrl(photoUrl);
+            if (normalizedPhotoUrl === normalizedMessageUrl) return true;
+            
+            // Сравнение без учета протокола и домена (только путь)
+            const messagePath = message.imageUrl.split('?')[0].split('#')[0];
+            const photoPath = photoUrl.split('?')[0].split('#')[0];
+            if (messagePath === photoPath) return true;
+            
+            // Сравнение последней части пути (имя файла)
+            const messageFileName = messagePath.split('/').pop();
+            const photoFileName = photoPath.split('/').pop();
+            if (messageFileName && photoFileName && messageFileName === photoFileName) return true;
+            
+            return false;
+          });
+          
           if (photoExists) {
             setIsAddedToPaidAlbum(true);
           }
@@ -634,23 +690,81 @@ const MessageComponent: React.FC<MessageProps> = ({
     };
 
     checkIfPhotoInAlbum();
-  }, [message.imageUrl, characterName, isAuthenticated, onAddToPaidAlbum]);
+  }, [message.imageUrl, characterName, isAuthenticated, onAddToPaidAlbum, normalizeUrl]);
 
   const handleAddToPaidAlbumClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
     const hasValidImageUrl = message.imageUrl && message.imageUrl.trim() !== '' && message.imageUrl !== 'null' && message.imageUrl !== 'undefined';
-    if (!hasValidImageUrl || !characterName || !onAddToPaidAlbum || !isAuthenticated) {
+    if (!hasValidImageUrl || !characterName || !onAddToPaidAlbum || !isAuthenticated || isAddedToPaidAlbum) {
       return;
     }
 
     setIsAddingToPaidAlbum(true);
     try {
       await onAddToPaidAlbum(message.imageUrl!, characterName);
+      // Устанавливаем состояние сразу после успешного добавления
       setIsAddedToPaidAlbum(true);
       
+      // Дополнительно проверяем через небольшую задержку, чтобы убедиться
+      setTimeout(async () => {
+        try {
+          const token = authManager.getToken();
+          if (!token) return;
+          
+          const encodedName = encodeURIComponent(characterName);
+          const response = await fetch(
+            `${API_CONFIG.BASE_URL}/api/v1/paid-gallery/${encodedName}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            }
+          );
+          
+          if (response.ok) {
+            const data = await response.json();
+            const photos = data.images || [];
+            const normalizedMessageUrl = normalizeUrl(message.imageUrl!);
+            
+            const photoExists = photos.some((photo: any) => {
+              if (!photo) return false;
+              
+              // Поддерживаем разные форматы: photo.url, photo.image_url, photo.photo_url
+              const photoUrl = photo.url || photo.image_url || photo.photo_url;
+              if (!photoUrl) return false;
+              
+              // Точное совпадение
+              if (photoUrl === message.imageUrl) return true;
+              
+              // Нормализованное сравнение
+              const normalizedPhotoUrl = normalizeUrl(photoUrl);
+              if (normalizedPhotoUrl === normalizedMessageUrl) return true;
+              
+              // Сравнение без учета протокола и домена (только путь)
+              const messagePath = message.imageUrl!.split('?')[0].split('#')[0];
+              const photoPath = photoUrl.split('?')[0].split('#')[0];
+              if (messagePath === photoPath) return true;
+              
+              // Сравнение последней части пути (имя файла)
+              const messageFileName = messagePath.split('/').pop();
+              const photoFileName = photoPath.split('/').pop();
+              if (messageFileName && photoFileName && messageFileName === photoFileName) return true;
+              
+              return false;
+            });
+            
+            if (photoExists) {
+              setIsAddedToPaidAlbum(true);
+            }
+          }
+        } catch (error) {
+          // Игнорируем ошибки при дополнительной проверке
+        }
+      }, 500);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Не удалось добавить фото в платный альбом';
       setErrorModalMessage(errorMessage);
+      // Не устанавливаем isAddedToPaidAlbum в true при ошибке
     } finally {
       setIsAddingToPaidAlbum(false);
     }
@@ -718,10 +832,12 @@ const MessageComponent: React.FC<MessageProps> = ({
         }}>
         <ImageContainer 
           onClick={hasValidImageUrl ? handleImageClick : undefined}
+          style={{ cursor: hasValidImageUrl ? 'pointer' : 'default' }}
         >
           <MessageImage
             src={hasValidImageUrl ? message.imageUrl : undefined}
             alt="Generated image"
+            onClick={hasValidImageUrl ? handleImageClick : undefined}
             onError={(e) => {
               e.currentTarget.style.display = 'none';
             }}
@@ -746,7 +862,7 @@ const MessageComponent: React.FC<MessageProps> = ({
                 : `${Math.round(message.generationTime / 60)}м ${Math.round(message.generationTime % 60)}с`}
             </div>
           )}
-          {isAuthenticated && characterName && onAddToPaidAlbum && !isAddedToPaidAlbum && (
+          {isAuthenticated && characterName && onAddToPaidAlbum && !isAddedToPaidAlbum && isCharacterOwner && (
             <ImageButtons onClick={(e) => e.stopPropagation()}>
               <ImageButton
                 onClick={handleAddToPaidAlbumClick}

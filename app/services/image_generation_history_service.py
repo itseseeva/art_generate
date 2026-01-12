@@ -41,8 +41,6 @@ class ImageGenerationHistoryService:
             True если сохранено успешно, False в противном случае
         """
         try:
-            logger.info(f"[IMAGE_HISTORY] Начинаем сохранение: user_id={user_id}, character={character_name}, task_id={task_id}, image_url={image_url[:50] if image_url else 'None'}...")
-            
             # Проверяем, не сохранили ли мы уже эту генерацию
             if task_id:
                 existing = await self.db.execute(
@@ -54,7 +52,6 @@ class ImageGenerationHistoryService:
                 if existing_record:
                     # Если это временная запись (pending), обновляем её
                     if existing_record.image_url and existing_record.image_url.startswith("pending:"):
-                        logger.info(f"[IMAGE_HISTORY] Найдена временная запись, обновляем: task_id={task_id}")
                         # Нормализуем URL перед сохранением (убираем query параметры и якоря)
                         normalized_image_url = image_url.split('?')[0].split('#')[0] if image_url and not image_url.startswith("pending:") else image_url
                         existing_record.image_url = normalized_image_url
@@ -79,10 +76,8 @@ class ImageGenerationHistoryService:
                         
                         await self.db.commit()
                         await self.db.refresh(existing_record)
-                        logger.info(f"[IMAGE_HISTORY] ✓ Временная запись обновлена для task_id={task_id}")
                         return True
                     else:
-                        logger.info(f"[IMAGE_HISTORY] Генерация с task_id={task_id} уже сохранена, пропускаем")
                         return True
             
             # Нормализуем URL перед сохранением (убираем query параметры и якоря)
@@ -127,12 +122,6 @@ class ImageGenerationHistoryService:
             self.db.add(history_entry)
             await self.db.commit()
             await self.db.refresh(history_entry)
-            
-            logger.info(
-                f"[IMAGE_HISTORY] ✓ Сохранена история генерации: "
-                f"user_id={user_id}, character={character_name}, "
-                f"image_url={image_url[:50]}..., task_id={task_id}"
-            )
             
             return True
             
