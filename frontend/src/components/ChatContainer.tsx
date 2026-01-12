@@ -2236,23 +2236,68 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         requestBody.model = selectedChatModel;
       }
       
+      console.log('[ChatContainer] Отправка сообщения:', {
+        character: currentCharacter.name,
+        message: originalMessage.substring(0, 50),
+        generateImage,
+        userId: effectiveUserId,
+        hasToken: !!authToken
+      });
+
       const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody)
       });
       
-      // 
+      console.log('[ChatContainer] Ответ от сервера:', {
+        status: response.status,
+        ok: response.ok,
+        contentType: response.headers.get('content-type')
+      });
 
       // Проверяем, является ли ответ SSE потоком
       const contentType = response.headers.get('content-type');
-      // 
 
       if (!response.ok) {
+        console.error('[ChatContainer] Ошибка отправки сообщения:', {
+          status: response.status,
+          statusText: response.statusText,
+          contentType
+        });
+
+        // Обработка 401 - неавторизован
+        if (response.status === 401) {
+          console.warn('[ChatContainer] Получен 401, очищаем токены и перенаправляем на логин');
+          authManager.clearTokens();
+          setAuthMode('login');
+          setIsAuthModalOpen(true);
+          setError('Сессия истекла. Пожалуйста, войдите снова.');
+          // Удаляем сообщения пользователя и ассистента
+          setMessages(prev => prev.filter(msg => msg.id !== userMessage.id && msg.id !== assistantMessageId));
+          setIsLoading(false);
+          return;
+        }
+
+        // Обработка 404 - чат не найден, создаем новый
+        if (response.status === 404) {
+          console.warn('[ChatContainer] Получен 404, чат не найден. Создаем новый chat_id');
+          // Удаляем текущий chat_id из состояния, чтобы создать новый
+          // Это произойдет автоматически при следующем запросе
+          setError('Чат не найден. Создаю новый чат...');
+          // Повторяем запрос через небольшую задержку
+          setTimeout(() => {
+            console.log('[ChatContainer] Повторная попытка отправки сообщения после 404');
+            sendChatMessage(message, generateImage);
+          }, 500);
+          return;
+        }
+
         // Если это не SSE, пытаемся получить JSON ошибку
         if (!contentType || !contentType.includes('text/event-stream')) {
           const errorData = await response.json().catch(() => ({ detail: 'Ошибка отправки сообщения' }));
-        throw new Error(errorData.detail || 'Ошибка отправки сообщения');
+          console.error('[ChatContainer] Детали ошибки:', errorData);
+          throw new Error(errorData.detail || `Ошибка отправки сообщения (${response.status})`);
         } else {
           // Если это SSE с ошибкой, обрабатываем её в потоке
           // (ошибка будет обработана в цикле чтения)
@@ -2466,9 +2511,32 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         await refreshUserStats();
       }
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Произошла ошибка');
-      // Удаляем пустое сообщение ассистента в случае ошибки
+      console.error('[ChatContainer] Критическая ошибка отправки сообщения:', {
+        error: error,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        character: currentCharacter?.name,
+        generateImage,
+        userId: effectiveUserId,
+        assistantMessageId,
+        hasToken: !!authManager.getToken()
+      });
+      
+      setError(error instanceof Error ? error.message : 'Ошибка отправки сообщения');
+      
+      // Удаляем сообщение ассистента при ошибке
       setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
+      
+      // Если была генерация изображения, удаляем из очереди
+      if (generateImage) {
+        setActiveGenerations(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(assistantMessageId);
+          return newSet;
+        });
+        generationStartTimesRef.current.delete(assistantMessageId);
+        stopPlaceholderProgress(assistantMessageId);
+      }
     } finally {
       setIsLoading(false);
     }

@@ -20,9 +20,23 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Add admin_prompt column to image_generation_history table."""
-    op.add_column('image_generation_history', sa.Column('admin_prompt', sa.Text(), nullable=True))
+    # Проверяем существование колонки перед добавлением
+    from sqlalchemy import inspect
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    columns = [col['name'] for col in inspector.get_columns('image_generation_history')]
+    
+    if 'admin_prompt' not in columns:
+        op.add_column('image_generation_history', sa.Column('admin_prompt', sa.Text(), nullable=True))
 
 
 def downgrade() -> None:
     """Remove admin_prompt column from image_generation_history table."""
-    op.drop_column('image_generation_history', 'admin_prompt')
+    # Проверяем существование колонки перед удалением
+    from sqlalchemy import inspect
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    columns = [col['name'] for col in inspector.get_columns('image_generation_history')]
+    
+    if 'admin_prompt' in columns:
+        op.drop_column('image_generation_history', 'admin_prompt')

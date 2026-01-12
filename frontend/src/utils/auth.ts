@@ -38,7 +38,16 @@ class AuthManager {
    * Получает токен из localStorage
    */
   public getToken(): string | null {
-    return localStorage.getItem('authToken');
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      console.log('[AuthManager] Токен получен из localStorage:', {
+        tokenLength: token.length,
+        tokenPreview: token.substring(0, 20) + '...'
+      });
+    } else {
+      console.log('[AuthManager] Токен не найден в localStorage');
+    }
+    return token;
   }
 
   /**
@@ -52,11 +61,18 @@ class AuthManager {
    * Сохраняет токены в localStorage
    */
   public setTokens(accessToken: string, refreshToken?: string | null): void {
+    console.log('[AuthManager] Сохранение токенов в localStorage:', {
+      hasAccessToken: !!accessToken,
+      hasRefreshToken: !!refreshToken,
+      accessTokenLength: accessToken?.length || 0
+    });
     localStorage.setItem('authToken', accessToken);
     if (refreshToken) {
       localStorage.setItem('refreshToken', refreshToken);
+      console.log('[AuthManager] Refresh token сохранен');
     } else {
       localStorage.removeItem('refreshToken');
+      console.log('[AuthManager] Refresh token удален');
     }
     this.startAutoRefresh();
     this.notifyAuthChange({ isAuthenticated: true });
@@ -336,26 +352,27 @@ class AuthManager {
    */
   public async logout(): Promise<void> {
     try {
-      // Пытаемся вызвать API для выхода (если есть такой endpoint)
-      const token = this.getToken();
-      if (token) {
+      // Пытаемся вызвать API для выхода
+      const refreshToken = this.getRefreshToken();
+      if (refreshToken) {
         try {
+          // Отправляем refresh_token в теле запроса, если он есть
           await fetch(API_CONFIG.BASE_URL + '/api/v1/auth/logout/', {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json'
-            }
+            },
+            body: JSON.stringify({ refresh_token: refreshToken })
           });
         } catch (error) {
           // Игнорируем ошибки API, все равно очищаем токены локально
-          
+          console.log('[AuthManager] Ошибка при вызове API logout (игнорируем):', error);
         }
       }
     } catch (error) {
-      
+      console.log('[AuthManager] Ошибка в logout (игнорируем):', error);
     } finally {
-      // Всегда очищаем токены локально
+      // Всегда очищаем токены локально, даже если сервер вернул ошибку
       this.clearTokens();
     }
   }

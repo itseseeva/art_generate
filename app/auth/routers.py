@@ -3,8 +3,8 @@
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import List
-from fastapi import APIRouter, HTTPException, Request, Depends, UploadFile, File
+from typing import List, Optional
+from fastapi import APIRouter, HTTPException, Request, Depends, UploadFile, File, Body
 from sqlalchemy import select, update, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 import traceback
@@ -550,31 +550,33 @@ async def refresh_token(
 
 @auth_router.post("/auth/logout/", response_model=Message)
 async def logout_user(
-    refresh_request: RefreshTokenRequest,
+    refresh_request: Optional[RefreshTokenRequest] = None,
     db: AsyncSession = Depends(get_db)
 ):
     """
     Logs out user by deactivating refresh token.
 
     Parameters:
-    - refresh_request: Refresh token request.
+    - refresh_request: Refresh token request (опционально). Если не передан, просто возвращаем успех.
     - db: Database session.
 
     Returns:
     - Message: Logout confirmation.
     """
-    refresh_token_hash = hash_token(refresh_request.refresh_token)
-    
-    # Find and deactivate refresh token
-    result = await db.execute(select(RefreshToken).filter(
-        RefreshToken.token_hash == refresh_token_hash,
-        RefreshToken.is_active == True
-    ))
-    db_refresh_token = result.scalar_one_or_none()
-    
-    if db_refresh_token:
-        db_refresh_token.is_active = False
-        await db.commit()
+    # Если refresh_token передан, деактивируем его
+    if refresh_request and refresh_request.refresh_token:
+        refresh_token_hash = hash_token(refresh_request.refresh_token)
+        
+        # Find and deactivate refresh token
+        result = await db.execute(select(RefreshToken).filter(
+            RefreshToken.token_hash == refresh_token_hash,
+            RefreshToken.is_active == True
+        ))
+        db_refresh_token = result.scalar_one_or_none()
+        
+        if db_refresh_token:
+            db_refresh_token.is_active = False
+            await db.commit()
     
     return Message(message="Successfully logged out")
 

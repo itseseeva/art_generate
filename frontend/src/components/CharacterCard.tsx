@@ -1780,6 +1780,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     e.stopPropagation();
     e.preventDefault();
     
+    console.log('[handleOpenPhoto] Начало открытия фото:', imageUrl);
+    
     if (!imageUrl) {
       console.error('[handleOpenPhoto] URL изображения отсутствует');
       return;
@@ -1803,33 +1805,56 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}/${normalizedUrl}`;
       }
     }
+    
+    console.log('[handleOpenPhoto] Нормализованный URL:', normalizedUrl);
+    console.log('[handleOpenPhoto] Устанавливаем состояние - selectedPhoto, isPromptVisible=true');
+    
+    // Устанавливаем состояние синхронно, чтобы модальное окно открылось сразу
     setSelectedPhoto(normalizedUrl);
     setIsPromptVisible(true);
+    console.log('[handleOpenPhoto] Состояние установлено, selectedPhoto должен быть:', normalizedUrl);
     setSelectedPrompt(null);
     setPromptError(null);
     setIsLoadingPrompt(true);
 
     try {
+      console.log('[handleOpenPhoto] Запрашиваем промпт...');
       const { prompt, errorMessage } = await fetchPromptByImage(normalizedUrl);
+      console.log('[handleOpenPhoto] Результат fetchPromptByImage:', {
+        hasPrompt: !!prompt,
+        promptLength: prompt?.length || 0,
+        hasErrorMessage: !!errorMessage,
+        errorMessage
+      });
+      
       if (prompt) {
         try {
+          console.log('[handleOpenPhoto] Переводим промпт на русский...');
           // Переводим промпт на русский для отображения
           const translatedPrompt = await translateToRussian(prompt);
+          console.log('[handleOpenPhoto] Промпт переведен, устанавливаем в состояние');
           setSelectedPrompt(translatedPrompt);
         } catch (translateError) {
           console.error('[handleOpenPhoto] Ошибка перевода промпта:', translateError);
           // Если перевод не удался, показываем оригинальный промпт
+          console.log('[handleOpenPhoto] Используем оригинальный промпт без перевода');
           setSelectedPrompt(prompt);
         }
       } else {
         const finalErrorMessage = errorMessage || 'Промпт недоступен для этого изображения';
+        console.log('[handleOpenPhoto] Промпт не найден, устанавливаем ошибку:', finalErrorMessage);
         setPromptError(finalErrorMessage);
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Неизвестная ошибка загрузки промпта';
+      console.error('[handleOpenPhoto] Критическая ошибка загрузки промпта:', {
+        error: error,
+        message: errorMsg,
+        stack: error instanceof Error ? error.stack : undefined
+      });
       setPromptError(errorMsg);
-      console.error('[handleOpenPhoto] Критическая ошибка загрузки промпта:', error);
     } finally {
+      console.log('[handleOpenPhoto] Завершение загрузки, setIsLoadingPrompt(false)');
       setIsLoadingPrompt(false);
     }
   };
@@ -1856,6 +1881,29 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
   }, [selectedPhoto, isPersonalityModalOpen, isEditPromptModalOpen]);
+
+  // Очищаем состояние промпта только при выходе пользователя (не при каждом событии авторизации)
+  useEffect(() => {
+    console.log('[CharacterCard] Подписка на изменения авторизации установлена');
+    const unsubscribe = authManager.subscribeAuthChanges((state) => {
+      console.log('[CharacterCard] Изменение состояния авторизации:', {
+        isAuthenticated: state.isAuthenticated
+      });
+      
+      // Очищаем состояние промпта ТОЛЬКО при выходе пользователя
+      // Не очищаем при входе, чтобы не мешать работе с промптами
+      if (!state.isAuthenticated) {
+        console.log('[CharacterCard] Пользователь вышел, очищаем состояние промпта');
+        setSelectedPhoto(null);
+        setSelectedPrompt(null);
+        setPromptError(null);
+        setIsLoadingPrompt(false);
+      }
+      // Убираем блок else - не очищаем при входе/смене пользователя
+    });
+
+    return unsubscribe;
+  }, []); // Убираем зависимость от selectedPhoto - эффект должен запускаться только один раз
 
   // Функция для загрузки ролевой ситуации
   const loadRoleplaySituation = async () => {
@@ -2414,14 +2462,20 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         </RatingButton>
       )}
     </CardWrapper>
-      {selectedPhoto && createPortal(
+      {selectedPhoto && (() => {
+        console.log('[CharacterCard Render] Рендерим модальное окно с selectedPhoto:', selectedPhoto);
+        return createPortal(
         <ModalOverlay onClick={() => {
+          console.log('[ModalOverlay] Клик по overlay, закрываем модальное окно');
           setSelectedPhoto(null);
           setSelectedPrompt(null);
           setPromptError(null);
           setIsLoadingPrompt(false);
         }}>
-          <ModalContent onClick={(e) => e.stopPropagation()}>
+          <ModalContent onClick={(e) => {
+            console.log('[ModalContent] Клик по контенту, предотвращаем закрытие');
+            e.stopPropagation();
+          }}>
             <CloseButton onClick={() => {
               setSelectedPhoto(null);
               setSelectedPrompt(null);
@@ -2492,7 +2546,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           </ModalContent>
         </ModalOverlay>,
         document.body
-      )}
+        );
+      })()}
       {isPersonalityModalOpen && createPortal(
         <PersonalityModal onClick={(e) => {
           if (e.target === e.currentTarget) {

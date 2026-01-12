@@ -256,7 +256,12 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
       hasLoadedRef.current = true;
       console.log('[MessagesPage] Загрузка завершена успешно');
     } catch (err) {
-      console.error('[MessagesPage] Ошибка загрузки:', err);
+      console.error('[MessagesPage] Критическая ошибка загрузки:', {
+        error: err,
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        hasToken: !!authManager.getToken()
+      });
       setError(err instanceof Error ? err.message : 'Неизвестная ошибка загрузки');
       hasLoadedRef.current = false; // Позволяем повторить загрузку при ошибке
     } finally {
@@ -265,23 +270,55 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
   }, []);
 
   useEffect(() => {
-    if (!hasLoadedRef.current) {
+    // Проверяем наличие токена в localStorage перед загрузкой
+    const token = authManager.getToken();
+    console.log('[MessagesPage] useEffect - проверка токена:', {
+      hasToken: !!token,
+      hasLoaded: hasLoadedRef.current,
+      messagesCount: messages.length
+    });
+
+    // Если токен есть, но данные не загружены, принудительно загружаем
+    if (token && !hasLoadedRef.current) {
+      console.log('[MessagesPage] Токен найден, но данные не загружены. Запускаем загрузку...');
       loadTipMessages();
+    } else if (token && messages.length === 0 && !isLoading) {
+      // Если токен есть, но сообщений нет и не идет загрузка, принудительно загружаем
+      console.log('[MessagesPage] Токен найден, но сообщений нет. Принудительная загрузка...');
+      hasLoadedRef.current = false;
+      loadTipMessages();
+    } else if (!hasLoadedRef.current && !token) {
+      console.log('[MessagesPage] Токен отсутствует, пропускаем загрузку');
     }
-  }, [loadTipMessages]);
+  }, [loadTipMessages, messages.length, isLoading]);
 
   // Синхронизация состояния авторизации
   useEffect(() => {
+    console.log('[MessagesPage] Подписка на изменения авторизации установлена');
     const unsubscribe = authManager.subscribeAuthChanges((state) => {
+      console.log('[MessagesPage] Изменение состояния авторизации:', {
+        isAuthenticated: state.isAuthenticated,
+        hasLoaded: hasLoadedRef.current
+      });
+      
       if (!state.isAuthenticated) {
         // Если пользователь вышел, очищаем данные
+        console.log('[MessagesPage] Пользователь вышел, очищаем данные');
         setMessages([]);
         setCharactersMap(new Map());
         hasLoadedRef.current = false;
+        setError(null);
       } else {
-        // Если пользователь вошел, перезагружаем данные
+        // Если пользователь вошел (или сменился), перезагружаем данные
+        console.log('[MessagesPage] Пользователь вошел (или сменился), сбрасываем флаг загрузки и перезагружаем данные');
         hasLoadedRef.current = false;
-        loadTipMessages();
+        setMessages([]);
+        setCharactersMap(new Map());
+        setError(null);
+        // Небольшая задержка, чтобы убедиться, что токен обновлен
+        setTimeout(() => {
+          loadTipMessages();
+        }, 100);
       }
     });
 

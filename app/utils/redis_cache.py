@@ -48,17 +48,20 @@ async def get_redis_client() -> Optional[Redis]:
     
     if _redis_client is None:
         try:
-            # Приоритет: REDIS_URL (для Docker) -> REDIS_LOCAL (для локалки) -> дефолт
-            # В Docker контейнере всегда используем REDIS_URL, который указывает на имя сервиса "redis"
-            redis_url = os.getenv("REDIS_URL") or os.getenv("REDIS_LOCAL") or "redis://localhost:6379/0"
+            # Приоритет: REDIS_URL из settings (читает из .env) -> REDIS_LOCAL -> дефолт
+            # Используем settings для чтения из .env файла
+            from app.config.settings import settings
+            redis_url = settings.REDIS_URL or settings.REDIS_LOCAL or "redis://localhost:6379/0"
             
             # ФИКС для локальной разработки: если hostname "redis" - заменяем на "localhost"
             # Это нужно когда .env настроен для Docker (redis://redis:6379), но backend запущен локально
             # НО: если мы в Docker контейнере (переменная DATABASE_URL содержит имя сервиса), используем имя сервиса "redis"
             is_docker = os.getenv("DATABASE_URL", "").find("postgres:") != -1
-            if "://redis:" in redis_url and not is_docker and os.getenv("REDIS_URL") is None:
+            if "://redis:" in redis_url and not is_docker:
                 redis_url = redis_url.replace("://redis:", "://localhost:")
                 logger.info(f"[REDIS] Заменён Docker hostname 'redis' на 'localhost' для локальной разработки")
+            
+            logger.info(f"[REDIS] Подключение к Redis: {redis_url.split('@')[-1] if '@' in redis_url else redis_url}")
             
             # Оптимизированная конфигурация с connection pooling
             # Определяем, локальная разработка или Docker
@@ -88,20 +91,33 @@ async def get_redis_client() -> Optional[Redis]:
                 await asyncio.wait_for(_redis_client.ping(), timeout=ping_timeout)
                 logger.info("[OK] Redis подключен успешно с connection pooling")
                 _redis_unavailable = False
-            except (asyncio.TimeoutError, Exception) as e:
-                logger.warning(f"[WARNING] Redis недоступен: {e}. Кэширование отключено.")
+            except asyncio.TimeoutError:
+                error_msg = f"Timeout при ping Redis (timeout={ping_timeout}s)"
+                logger.warning(f"[WARNING] Redis недоступен: {error_msg}. Кэширование отключено.")
                 if _redis_client:
                     try:
                         await _redis_client.aclose()
                     except Exception:
                         pass
                 _redis_client = None
-                _redis_unavailable = True  # Помечаем как недоступный
+                _redis_unavailable = True
+                return None
+            except Exception as e:
+                error_msg = f"{type(e).__name__}: {str(e)}"
+                logger.warning(f"[WARNING] Redis недоступен: {error_msg}. Кэширование отключено.")
+                if _redis_client:
+                    try:
+                        await _redis_client.aclose()
+                    except Exception:
+                        pass
+                _redis_client = None
+                _redis_unavailable = True
                 return None
         except Exception as e:
-            logger.warning(f"[WARNING] Redis недоступен: {e}. Кэширование отключено.")
+            error_msg = f"{type(e).__name__}: {str(e)}"
+            logger.warning(f"[WARNING] Redis недоступен (при создании клиента): {error_msg}. Кэширование отключено.")
             _redis_client = None
-            _redis_unavailable = True  # Помечаем как недоступный
+            _redis_unavailable = True
             return None
     
     return _redis_client
@@ -159,13 +175,13 @@ async def cache_get(key: str, timeout: float = 0.3) -> Optional[Any]:
         # Пытаемся распарсить JSON
         try:
             parsed = json.loads(value)
-            logger.debug(f"[REDIS GET] JSON распарсен для ключа: {key}")
+            logger.info(f"[REDIS GET] ✓ JSON распарсен для ключа: {key} (размер: {len(value)} байт)")
             return parsed
-        except (json.JSONDecodeError, TypeError):
-            logger.debug(f"[REDIS GET] Возвращаем значение как строку: {key}")
+        except (json.JSONDecodeError, TypeError) as parse_err:
+            logger.debug(f"[REDIS GET] Возвращаем значение как строку (не JSON): {key}. Ошибка парсинга: {parse_err}")
             return value
     except Exception as e:
-        logger.error(f"[REDIS GET] ✗ Критическая ошибка чтения {key}: {e}")
+        logger.error(f"[REDIS GET] ✗ Критическая ошибка чтения {key}: {type(e).__name__}: {e}")
         return None
 
 
@@ -183,7 +199,7 @@ async def cache_set(
         key: Ключ кэша
         value: Значение для сохранения
         ttl: TTL в секундах (устаревший параметр, используйте ttl_seconds)
-        ttl_seconds: TTL в секундах
+        ttl_seconds: TTL в секундах (по умолчанию 86400 секунд = 24 часа)
         timeout: Таймаут в секундах (по умолчанию 0.3 секунды для быстрого fallback)
         
     Returns:
@@ -193,10 +209,12 @@ async def cache_set(
     try:
         # Быстрая проверка: если Redis помечен как недоступный, сразу возвращаем False
         if _redis_unavailable:
+            logger.debug(f"[REDIS SET] Redis недоступен, пропускаем запись ключа: {key}")
             return False
         
         client = await get_redis_client()
         if not client:
+            logger.debug(f"[REDIS SET] Клиент Redis не получен, пропускаем запись ключа: {key}")
             return False
         
         # Сериализуем значение
@@ -207,33 +225,34 @@ async def cache_set(
             serialized_value = str(value)
             value_type = "STRING"
         
-        # Используем ttl_seconds если указан, иначе ttl
-        expire_seconds = ttl_seconds if ttl_seconds is not None else ttl
+        # Используем ttl_seconds если указан, иначе ttl, иначе дефолт 24 часа (86400 секунд)
+        expire_seconds = ttl_seconds if ttl_seconds is not None else (ttl if ttl is not None else 86400)
         
         # Добавляем таймаут для Redis запроса
         try:
-            logger.debug(f"[REDIS SET] Запись ключа: {key} (тип: {value_type}, TTL: {expire_seconds}с)")
+            logger.info(f"[REDIS SET] Запись ключа: {key} (тип: {value_type}, TTL: {expire_seconds}с, размер: {len(serialized_value)} байт)")
             if expire_seconds:
                 await asyncio.wait_for(
                     client.setex(key, expire_seconds, serialized_value),
                     timeout=timeout
                 )
+                logger.info(f"[REDIS SET] ✓ Сохранен ключ: {key} с TTL {expire_seconds}с")
             else:
                 await asyncio.wait_for(
                     client.set(key, serialized_value),
                     timeout=timeout
                 )
-            logger.debug(f"[REDIS SET] ✓ Сохранен ключ: {key}")
+                logger.info(f"[REDIS SET] ✓ Сохранен ключ: {key} без TTL (бессрочно)")
             return True
         except asyncio.TimeoutError:
             # При таймауте помечаем Redis как недоступный для быстрого fallback в будущем
             _redis_unavailable = True
-            logger.debug(f"[REDIS SET] ⏱ Таймаут записи ключа: {key} (>{timeout}с)")
+            logger.warning(f"[REDIS SET] ⏱ Таймаут записи ключа: {key} (>{timeout}с). Redis может быть перегружен.")
             return False
         except Exception as e:
             # При ошибке помечаем Redis как недоступный
             _redis_unavailable = True
-            logger.debug(f"[REDIS SET] ✗ Ошибка записи ключа {key}: {e}")
+            logger.error(f"[REDIS SET] ✗ Ошибка записи ключа {key}: {type(e).__name__}: {e}")
             return False
         
     except Exception as e:
