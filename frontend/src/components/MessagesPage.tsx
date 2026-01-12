@@ -182,8 +182,13 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [charactersMap, setCharactersMap] = useState<Map<string, any>>(new Map());
+  const hasLoadedRef = React.useRef(false);
 
   useEffect(() => {
+    if (hasLoadedRef.current) {
+      return;
+    }
+    
     const loadTipMessages = async () => {
       setIsLoading(true);
       setError(null);
@@ -241,6 +246,8 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
             console.error('Ошибка при отметке сообщений как прочитанных:', err);
           }
         }
+        
+        hasLoadedRef.current = true;
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Неизвестная ошибка загрузки');
       } finally {
