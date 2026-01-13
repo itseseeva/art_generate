@@ -59,4 +59,3 @@ def get_kassa_config() -> YooKassaConfig:
 		"capture": capture,
 	}
 
-

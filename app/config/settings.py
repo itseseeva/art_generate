@@ -100,6 +100,10 @@ class Settings(BaseSettings):
         default_factory=lambda: os.getenv("REDIS_LOCAL"), 
         description="Локальный URL для Redis (приоритет)"
     )
+    REDIS_PASSWORD: Optional[str] = Field(
+        default_factory=lambda: os.getenv("REDIS_PASSWORD"), 
+        description="Пароль для Redis (если требуется)"
+    )
     
     # --- LLAMA API ---
     LLAMA_API_URL: str = Field(default="http://localhost:8000", description="URL для LLAMA API")

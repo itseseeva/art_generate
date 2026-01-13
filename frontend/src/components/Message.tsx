@@ -275,7 +275,7 @@ const ModalOverlay = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.85);
+  background: rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   display: flex;
@@ -343,32 +343,18 @@ const ErrorModalCloseButton = styled.button`
 `;
 
 const ModalContent = styled.div`
-  position: relative;
-  max-width: 95vw;
-  max-height: 95vh;
   display: flex;
-  align-items: stretch;
-  justify-content: center;
-  gap: ${theme.spacing.xl};
   width: 100%;
-
+  max-width: 1400px;
+  height: 90vh;
+  max-height: 90vh;
+  gap: ${theme.spacing.lg};
+  position: relative;
+  
   @media (max-width: 768px) {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: 100vw;
-    height: 100vh;
-    max-width: 100vw;
-    max-height: 100vh;
-    background: #000;
-    display: flex;
     flex-direction: column;
-    margin: 0;
-    padding: 0;
-    border-radius: 0;
-    overflow: hidden;
+    height: auto;
+    max-height: 100vh;
   }
 `;
 
@@ -377,14 +363,30 @@ const ModalImageContainer = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 0;
-  max-width: 70%;
+  position: relative;
+  background: transparent;
+  border-radius: ${theme.borderRadius.lg};
+  overflow: hidden;
+  
+  img {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    object-position: center;
+  }
 
   @media (max-width: 768px) {
-    width: 100%;
-    max-width: 100%;
-    flex: 1;
-    min-height: 0;
+    max-height: none;
+    height: auto;
+    
+    img {
+      max-width: 100vw;
+      max-height: 100vh;
+      width: auto;
+      height: auto;
+    }
   }
 `;
 
@@ -407,16 +409,19 @@ const PromptPanel = styled.div`
   width: 400px;
   min-width: 350px;
   max-width: 30%;
-  background: rgba(30, 30, 30, 0.95);
-  border: 2px solid rgba(150, 150, 150, 0.5);
-  border-radius: ${theme.borderRadius.xl};
+  background: rgba(10, 10, 15, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: ${theme.borderRadius.lg};
   padding: ${theme.spacing.xl};
-  overflow-y: auto;
-  max-height: 95vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: ${theme.colors.shadow.glow};
+  transition: all ${theme.transition.fast};
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
 
   @media (max-width: 768px) {
     position: relative;
@@ -435,27 +440,71 @@ const PromptPanel = styled.div`
 `;
 
 const PromptPanelHeader = styled.div`
-  margin-bottom: ${theme.spacing.lg};
-  padding-bottom: ${theme.spacing.md};
-  border-bottom: 1px solid rgba(150, 150, 150, 0.3);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: ${theme.spacing.md};
 `;
 
 const PromptPanelTitle = styled.h3`
-  color: #fbbf24;
-  font-size: ${theme.fontSize.xl};
-  font-weight: 800;
+  color: ${theme.colors.text.primary};
+  font-size: ${theme.fontSize.lg};
+  font-weight: 600;
   margin: 0;
+  flex: 1;
+`;
+
+const PromptCloseButton = styled.button`
+  background: transparent;
+  border: none;
+  color: ${theme.colors.text.primary};
+  cursor: pointer;
+  padding: ${theme.spacing.sm};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: ${theme.borderRadius.md};
+  transition: all ${theme.transition.fast};
+  
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  
+  svg {
+    width: 20px;
+    height: 20px;
+  }
 `;
 
 const PromptPanelText = styled.div`
-  color: rgba(200, 200, 200, 1);
-  font-size: ${theme.fontSize.sm};
-  line-height: 1.8;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  padding: ${theme.spacing.md};
   flex: 1;
   overflow-y: auto;
+  color: ${theme.colors.text.secondary};
+  font-size: ${theme.fontSize.sm};
+  line-height: 1.6;
+  white-space: pre-wrap;
+  font-family: 'Courier New', monospace;
+  padding: ${theme.spacing.md};
+  background: rgba(20, 20, 20, 0.5);
+  border-radius: ${theme.borderRadius.md};
+  border: 1px solid rgba(100, 100, 100, 0.3);
+  
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: rgba(20, 20, 20, 0.5);
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(139, 92, 246, 0.5);
+    border-radius: 4px;
+    
+    &:hover {
+      background: rgba(139, 92, 246, 0.7);
+    }
+  }
 `;
 
 const PromptLoading = styled.div`
@@ -574,6 +623,10 @@ const MessageComponent: React.FC<MessageProps> = ({
     setSelectedPrompt(null);
     setPromptError(null);
     setIsLoadingPrompt(false);
+  };
+
+  const handleClosePrompt = () => {
+    setIsPromptVisible(false);
   };
 
   // Обработка клавиши Escape для закрытия модального окна
@@ -895,22 +948,10 @@ const MessageComponent: React.FC<MessageProps> = ({
               visibility: isPromptVisible ? 'visible' : 'hidden'
             }}>
               <PromptPanelHeader>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
-                  <button 
-                    onClick={() => setIsPromptVisible(false)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#fbbf24',
-                      cursor: 'pointer',
-                      padding: '4px'
-                    }}
-                    title="Скрыть промпт"
-                  >
-                    <FiX size={20} />
-                  </button>
-                </div>
+                <PromptPanelTitle>Промпт</PromptPanelTitle>
+                <PromptCloseButton onClick={handleClosePrompt}>
+                  <FiX />
+                </PromptCloseButton>
               </PromptPanelHeader>
               {isLoadingPrompt ? (
                 <PromptLoading>Загрузка промпта...</PromptLoading>
@@ -1059,22 +1100,10 @@ const MessageComponent: React.FC<MessageProps> = ({
               visibility: isPromptVisible ? 'visible' : 'hidden'
             }}>
               <PromptPanelHeader>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
-                  <button 
-                    onClick={() => setIsPromptVisible(false)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#fbbf24',
-                      cursor: 'pointer',
-                      padding: '4px'
-                    }}
-                    title="Скрыть промпт"
-                  >
-                    <FiX size={20} />
-                  </button>
-                </div>
+                <PromptPanelTitle>Промпт</PromptPanelTitle>
+                <PromptCloseButton onClick={handleClosePrompt}>
+                  <FiX />
+                </PromptCloseButton>
               </PromptPanelHeader>
               {isLoadingPrompt ? (
                 <PromptLoading>Загрузка промпта...</PromptLoading>

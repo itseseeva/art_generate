@@ -1848,7 +1848,9 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
     try {
       const encodedName = encodeURIComponent(character.name);
-      const response = await authManager.fetchWithAuth(`/api/v1/characters/${encodedName}`);
+      // Используем обычный fetch, так как эндпоинт доступен без авторизации
+      const url = `${API_CONFIG.BASE_URL || ''}/api/v1/characters/${encodedName}`;
+      const response = await fetch(url);
       
       if (response.ok) {
         const characterData = await response.json();

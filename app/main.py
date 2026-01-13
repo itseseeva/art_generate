@@ -124,6 +124,7 @@ class ImageGenerationRequest(BaseModel):
     sampler_name: Optional[str] = None
     character: Optional[str] = None
     user_id: Optional[int] = None  # ID пользователя для проверки подписки
+    skip_chat_history: Optional[bool] = False  # Пропускать сохранение в ChatHistory (для генераций не из чата)
     # Модель: anime, anime-realism или realism (точно так же как для anime и anime-realism)
     model: Literal["anime", "anime-realism", "realism"] = Field(
         default="anime-realism", 
@@ -3854,32 +3855,63 @@ async def generate_image(
                     r_url = settings.REDIS_URL
                     source = "REDIS_URL"
                 
-                # Если мы на Windows/Local и используем localhost, заменяем на 127.0.0.1 для стабильности
-                if "localhost" in r_url:
-                    r_url = r_url.replace("localhost", "127.0.0.1")
+                # НЕ заменяем localhost на 127.0.0.1, так как localhost работает лучше с Docker port mapping
+                # Оставляем localhost как есть для локального подключения к Redis в Docker
                 
                 # Используем redis.from_url для корректной обработки всех параметров
                 r = redis.from_url(r_url, socket_connect_timeout=3, socket_timeout=3)
-                r.ping()
+                try:
+                    r.ping()
+                except redis.exceptions.AuthenticationError:
+                    # Если требуется аутентификация, пробуем с паролем из переменной окружения
+                    if '@' not in r_url and ('localhost' in r_url or '127.0.0.1' in r_url):
+                        # Пробуем получить пароль из settings
+                        redis_password = settings.REDIS_PASSWORD or ''
+                        if redis_password:
+                            # Используем пароль из переменной окружения
+                            host = 'localhost' if 'localhost' in r_url else '127.0.0.1'
+                            r_url_with_auth = r_url.replace(f'redis://{host}', f'redis://:{redis_password}@{host}')
+                            r = redis.from_url(r_url_with_auth, socket_connect_timeout=3, socket_timeout=3)
+                            r.ping()
+                            r_url = r_url_with_auth
+                            logger.info(f"[REDIS] Успешно подключились к Redis с паролем из переменной окружения")
+                        else:
+                            # Пробуем с пустым паролем
+                            r_url_with_auth = r_url.replace('redis://localhost', 'redis://:@localhost').replace('redis://127.0.0.1', 'redis://:@127.0.0.1')
+                            r = redis.from_url(r_url_with_auth, socket_connect_timeout=3, socket_timeout=3)
+                            r.ping()
+                            r_url = r_url_with_auth
+                    else:
+                        raise
             except Exception as r_err:
                 logger.error(f"[REDIS] Redis недоступен ({source}): {r_url}. Ошибка: {r_err}")
                 # Если 127.0.0.1 не сработал, а мы возможно в Docker (на VPS), пробуем имя сервиса
-                if "127.0.0.1" in r_url:
+                if "127.0.0.1" in r_url or "localhost" in r_url:
                     try:
-                        alt_url = r_url.replace("127.0.0.1", "art_generation_redis")
+                        # Пробуем имя сервиса Docker
+                        alt_url = r_url.replace("127.0.0.1", "art_generation_redis").replace("localhost", "art_generation_redis")
                         r_alt = redis.from_url(alt_url, socket_connect_timeout=2, socket_timeout=2)
                         r_alt.ping()
                         r_url = alt_url
+                        logger.info(f"[REDIS] Успешно подключились к Redis через Docker сервис: {alt_url}")
                     except Exception:
+                        # Формируем понятное сообщение об ошибке
+                        error_msg = (
+                            f"Redis недоступен по адресу {r_url}. "
+                            f"Для локальной разработки запустите Redis:\n"
+                            f"1. Через Docker: docker-compose -f docker-compose.local.yml up -d redis\n"
+                            f"2. Или установите Redis локально и запустите: redis-server\n"
+                            f"Ошибка подключения: {r_err}"
+                        )
                         raise HTTPException(
                             status_code=503, 
-                            detail=f"Redis не отвечает. Проверьте запущен ли контейнер Redis. Ошибка: {r_err}"
+                            detail=error_msg
                         )
-                    else:
-                        raise HTTPException(
-                            status_code=503, 
-                            detail=f"Ошибка связи с Redis ({r_url}): {r_err}"
-                        )
+                else:
+                    raise HTTPException(
+                        status_code=503, 
+                        detail=f"Ошибка связи с Redis ({r_url}): {r_err}"
+                    )
 
             from app.tasks.runpod_tasks import generate_image_runpod_task
             import time
@@ -3944,31 +3976,35 @@ async def generate_image(
                     
             
             # ВАЖНО: Создаем запись в ChatHistory СРАЗУ, чтобы промпт был виден
-            try:
-                from sqlalchemy import text
-                from app.database.db import async_session_maker
-                import datetime
-                
-                async with async_session_maker() as history_db:
-                    # Используем raw SQL, чтобы избежать проблем с отсутствующей колонкой generation_time
-                    await history_db.execute(
-                        text("""
-                            INSERT INTO chat_history (user_id, character_name, session_id, message_type, message_content, image_url, image_filename, created_at)
-                            VALUES (:user_id, :character_name, :session_id, :message_type, :message_content, :image_url, :image_filename, NOW())
-                        """),
-                        {
-                            "user_id": user_id,
-                            "character_name": request.character or "неизвестный",
-                            "session_id": f"task_{task.id}",
-                            "message_type": "assistant",
-                            "message_content": generation_settings.prompt,
-                            "image_url": None,
-                            "image_filename": None
-                        }
-                    )
-                    await history_db.commit()
-            except Exception as e:
-                logger.warning(f"[PROMPT] Не удалось создать начальную запись в ChatHistory: {e}")
+            # НО только если skip_chat_history = False (генерации из чата)
+            if not getattr(request, 'skip_chat_history', False):
+                try:
+                    from sqlalchemy import text
+                    from app.database.db import async_session_maker
+                    import datetime
+                    
+                    async with async_session_maker() as history_db:
+                        # Используем raw SQL, чтобы избежать проблем с отсутствующей колонкой generation_time
+                        await history_db.execute(
+                            text("""
+                                INSERT INTO chat_history (user_id, character_name, session_id, message_type, message_content, image_url, image_filename, created_at)
+                                VALUES (:user_id, :character_name, :session_id, :message_type, :message_content, :image_url, :image_filename, NOW())
+                            """),
+                            {
+                                "user_id": user_id,
+                                "character_name": request.character or "неизвестный",
+                                "session_id": f"task_{task.id}",
+                                "message_type": "assistant",
+                                "message_content": generation_settings.prompt,
+                                "image_url": None,
+                                "image_filename": None
+                            }
+                        )
+                        await history_db.commit()
+                except Exception as e:
+                    logger.warning(f"[PROMPT] Не удалось создать начальную запись в ChatHistory: {e}")
+            else:
+                logger.info(f"[CHAT_HISTORY] Пропуск сохранения в ChatHistory для генерации task_{task.id} (skip_chat_history=True)")
 
             # Сохраняем метаданные задачи для корректной проверки статуса
             try:
@@ -4005,6 +4041,7 @@ async def generate_image(
                     "model": selected_model,
                     "runpod_url_base": url_base,
                     "created_at": time.time(),
+                    "skip_chat_history": getattr(request, 'skip_chat_history', False),  # Сохраняем флаг пропуска ChatHistory
                     "type": "celery"
                 }
                 # Сохраняем на 1 час
@@ -4496,19 +4533,23 @@ async def get_generation_status(
                             # Нормализуем URL
                             normalized_url = image_url.split('?')[0].split('#')[0]
                             
-                            # Ищем запись в истории, которая была создана как заглушка
-                            # Мы ищем по session_id, который в generate_image сохраняется как f"task_{task.id}"
-                            stmt = (
-                                update(ChatHistory)
-                                .where(ChatHistory.session_id == f"task_{task_id}")
-                                .values(
-                                    message_content=real_prompt,
-                                    image_url=normalized_url,
-                                    generation_time=generation_time
+                            # Обновляем ChatHistory только если skip_chat_history = False
+                            if not metadata.get("skip_chat_history", False):
+                                # Ищем запись в истории, которая была создана как заглушка
+                                # Мы ищем по session_id, который в generate_image сохраняется как f"task_{task.id}"
+                                stmt = (
+                                    update(ChatHistory)
+                                    .where(ChatHistory.session_id == f"task_{task_id}")
+                                    .values(
+                                        message_content=real_prompt,
+                                        image_url=normalized_url,
+                                        generation_time=generation_time
+                                    )
                                 )
-                            )
-                            await db.execute(stmt)
-                            await db.commit()
+                                await db.execute(stmt)
+                                await db.commit()
+                            else:
+                                logger.info(f"[CHAT_HISTORY] Пропуск обновления ChatHistory для task_{task_id} (skip_chat_history=True)")
                             
                             # Также сохраняем в ImageGenerationHistory для галереи
                             try:
@@ -4544,7 +4585,6 @@ async def get_generation_status(
                 if isinstance(error_info, dict):
                     error_msg = error_info.get("error", str(error_info))
                 
-                logger.warning(f"[CELERY STATUS] Задача {task_id} в режиме RETRY. Ошибка: {error_msg}")
                 return {
                     "task_id": task_id,
                     "status": "generating", # Для фронтенда оставляем 'generating', но с сообщением о ретрае

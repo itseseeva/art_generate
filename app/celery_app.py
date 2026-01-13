@@ -18,14 +18,40 @@ def get_redis_url():
     is_docker = os.path.exists('/.dockerenv') or os.getenv('IS_DOCKER') == 'true'
     
     # Сначала проверяем переменную окружения напрямую (для Docker)
-    env_redis = os.getenv('REDIS_LOCAL') or os.getenv('REDIS_URL')
+    # REDIS_URL имеет приоритет, так как он явно указывается в docker-compose
+    env_redis_url = os.getenv('REDIS_URL')
+    env_redis_local = os.getenv('REDIS_LOCAL')
+    
+    logger.warning(f"[CELERY] Проверка переменных окружения: REDIS_URL={env_redis_url}, REDIS_LOCAL={env_redis_local}, is_docker={is_docker}")
+    
+    # Используем REDIS_URL если он установлен и не пустой
+    env_redis = None
+    if env_redis_url and env_redis_url.strip():
+        env_redis = env_redis_url.strip()
+        logger.debug(f"[CELERY] Используется REDIS_URL из окружения: {env_redis}")
+    elif env_redis_local and env_redis_local.strip():
+        env_redis = env_redis_local.strip()
+        logger.debug(f"[CELERY] Используется REDIS_LOCAL из окружения: {env_redis}")
+    
     if env_redis:
-        # Если в переменной окружения есть redis://redis:6379, используем её
-        if 'redis://redis:' in env_redis or 'redis://art_generation_redis_local:' in env_redis:
+        # Если в переменной окружения уже указано имя сервиса Docker, используем его
+        # Проверяем оба варианта: redis и art_generation_redis_local
+        if '://redis:' in env_redis or '://art_generation_redis_local:' in env_redis or 'art_generation_redis_local' in env_redis:
+            logger.debug(f"[CELERY] Найдено имя сервиса в переменной окружения, возвращаем: {env_redis}")
             return env_redis
         # Если в Docker и переменная содержит localhost, заменяем на имя сервиса
         if is_docker and ('localhost' in env_redis or '127.0.0.1' in env_redis):
-            return env_redis.replace('localhost', 'redis').replace('127.0.0.1', 'redis')
+            # Пробуем разные варианты имени сервиса в зависимости от docker-compose файла
+            # Для Docker_all/docker-compose.local.yml: art_generation_redis_local
+            # Для docker-compose.local.yml: redis
+            # Сначала пробуем art_generation_redis_local (более специфичное имя)
+            if 'art_generation_redis_local' not in env_redis:
+                # Если не указано явно, заменяем на стандартное имя сервиса
+                result = env_redis.replace('localhost', 'redis').replace('127.0.0.1', 'redis')
+                logger.debug(f"[CELERY] Заменен localhost на redis, результат: {result}")
+                return result
+            logger.debug(f"[CELERY] Используется env_redis как есть: {env_redis}")
+            return env_redis
     
     r_local = settings.REDIS_LOCAL
     r_url = settings.REDIS_URL

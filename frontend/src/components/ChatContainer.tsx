@@ -2071,9 +2071,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       generationStartTimesRef.current.delete(assistantMessageId);
 
       // КРИТИЧЕСКИ ВАЖНО: Добавляем фото в галерею пользователя
+      // Для генераций из чата всегда добавляем в галерею (add_to_gallery по умолчанию true)
       try {
         const token = authManager.getToken();
-        if (token) {
+        if (token && generatedImageUrl) {
           const addToGalleryResponse = await fetch('/api/v1/auth/user-gallery/add/', {
             method: 'POST',
             headers: {

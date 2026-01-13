@@ -9,6 +9,7 @@ import { fetchPromptByImage } from '../utils/prompt';
 import { translateToEnglish, translateToRussian } from '../utils/translate';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { Sparkles, Plus, X, ArrowLeft, Save, Wand2 } from 'lucide-react';
+import DarkVeil from '../../@/components/DarkVeil';
 
 // Animations
 const shimmer = keyframes`
@@ -25,24 +26,23 @@ const pulse = keyframes`
 const PageContainer = styled.div`
   width: 100%;
   min-height: 100vh;
-  background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 50%, #252525 100%);
+  padding: 0;
+  overflow-y: visible;
   position: relative;
-  overflow-x: hidden;
+  font-family: 'Inter', sans-serif;
+  color: white;
+`;
 
-  &::before {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: 
-      radial-gradient(circle at 20% 50%, rgba(100, 100, 100, 0.08) 0%, transparent 50%),
-      radial-gradient(circle at 80% 80%, rgba(120, 120, 120, 0.08) 0%, transparent 50%),
-      radial-gradient(circle at 40% 20%, rgba(80, 80, 80, 0.05) 0%, transparent 50%);
-    pointer-events: none;
-    z-index: 0;
-  }
+const BackgroundWrapper = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
 `;
 
 const ContentWrapper = styled.div`
@@ -695,46 +695,74 @@ const UpgradeActions = styled.div`
 
 const PreviewBackdrop = styled.div`
   position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.95);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10000;
-  backdrop-filter: blur(70px);
-  -webkit-backdrop-filter: blur(70px);
-  padding: 2rem;
-
-  @media (max-width: 768px) {
-    padding: 0;
-  }
+  z-index: 99999;
+  padding: ${theme.spacing.xl};
 `;
 
 const PreviewContent = styled.div`
-  position: relative;
-  max-width: 90vw;
+  display: flex;
+  width: 100%;
+  max-width: 1400px;
+  height: 90vh;
   max-height: 90vh;
+  gap: ${theme.spacing.lg};
+  position: relative;
+  
+  @media (max-width: 768px) {
+    flex-direction: column;
+    height: auto;
+    max-height: 100vh;
+  }
+`;
+
+const ModalImageContainer = styled.div`
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2rem;
+  position: relative;
+  background: transparent;
+  border-radius: ${theme.borderRadius.lg};
+  overflow: hidden;
+  
+  img {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    object-position: center;
+  }
 
   @media (max-width: 768px) {
-    flex-direction: column;
-    gap: 1rem;
-    max-width: 100vw;
-    max-height: 100vh;
+    max-height: none;
+    height: auto;
+    
+    img {
+      max-width: 100vw;
+      max-height: 100vh;
+      width: auto;
+      height: auto;
+    }
   }
 `;
 
 const PreviewImage = styled.img`
   max-width: 100%;
   max-height: 95vh;
-  width: auto;
-  height: auto;
   object-fit: contain;
-  border-radius: 1rem;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+  border-radius: ${theme.borderRadius.lg};
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 
   @media (max-width: 768px) {
     max-height: 100%;
@@ -746,31 +774,163 @@ const PreviewImage = styled.img`
 
 const PreviewClose = styled.button`
   position: absolute;
-  top: 1.5rem;
-  right: 1.5rem;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(60, 60, 60, 0.8);
-  color: #ffffff;
-  cursor: pointer;
+  top: ${theme.spacing.xl};
+  right: ${theme.spacing.xl};
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s ease;
-  z-index: 10001;
+  background: rgba(60, 60, 60, 0.9);
+  border: 1px solid rgba(150, 150, 150, 0.3);
+  border-radius: ${theme.borderRadius.full};
+  color: rgba(240, 240, 240, 1);
+  font-size: ${theme.fontSize.xl};
+  cursor: pointer;
+  transition: all 0.2s ease;
   backdrop-filter: blur(10px);
-
+  z-index: 10001;
+  
   &:hover {
-    background: rgba(80, 80, 80, 0.9);
-    border-color: rgba(255, 255, 255, 0.3);
-    transform: scale(1.1) rotate(90deg);
+    background: rgba(80, 80, 80, 0.95);
+    border-color: rgba(180, 180, 180, 0.5);
+    transform: scale(1.1);
   }
+`;
 
+const PromptPanel = styled.div`
+  width: 400px;
+  min-width: 350px;
+  max-width: 30%;
+  background: rgba(10, 10, 15, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: ${theme.borderRadius.lg};
+  padding: ${theme.spacing.xl};
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: ${theme.colors.shadow.glow};
+  transition: all ${theme.transition.fast};
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+
+  @media (max-width: 768px) {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    max-height: 30vh;
+    background: rgba(20, 20, 20, 0.95);
+    border: none;
+    border-bottom: 1px solid rgba(251, 191, 36, 0.3);
+    border-radius: 0;
+    padding: ${theme.spacing.md};
+    z-index: 10;
+    flex-shrink: 0;
+  }
+`;
+
+const PromptPanelHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: ${theme.spacing.md};
+`;
+
+const PromptPanelTitle = styled.h3`
+  color: ${theme.colors.text.primary};
+  font-size: ${theme.fontSize.lg};
+  font-weight: 600;
+  margin: 0;
+  flex: 1;
+`;
+
+const PromptCloseButton = styled.button`
+  background: transparent;
+  border: none;
+  color: ${theme.colors.text.primary};
+  cursor: pointer;
+  padding: ${theme.spacing.sm};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: ${theme.borderRadius.md};
+  transition: all ${theme.transition.fast};
+  
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  
   svg {
     width: 20px;
     height: 20px;
+  }
+`;
+
+const PromptPanelText = styled.div`
+  flex: 1;
+  overflow-y: auto;
+  color: ${theme.colors.text.secondary};
+  font-size: ${theme.fontSize.sm};
+  line-height: 1.6;
+  white-space: pre-wrap;
+  font-family: 'Courier New', monospace;
+  padding: ${theme.spacing.md};
+  background: rgba(20, 20, 20, 0.5);
+  border-radius: ${theme.borderRadius.md};
+  border: 1px solid rgba(100, 100, 100, 0.3);
+  
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: rgba(20, 20, 20, 0.5);
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(139, 92, 246, 0.5);
+    border-radius: 4px;
+    
+    &:hover {
+      background: rgba(139, 92, 246, 0.7);
+    }
+  }
+`;
+
+const PromptLoading = styled.div`
+  color: rgba(200, 200, 200, 1);
+  font-size: ${theme.fontSize.sm};
+  text-align: center;
+  padding: ${theme.spacing.xl};
+`;
+
+const PromptError = styled.div`
+  color: ${theme.colors.error || '#ff6b6b'};
+  font-size: ${theme.fontSize.sm};
+  text-align: center;
+  padding: ${theme.spacing.xl};
+`;
+
+const ShowPromptButton = styled.button`
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  border-radius: 8px;
+  padding: 8px 16px;
+  color: #fbbf24;
+  cursor: pointer;
+  z-index: 100002;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: rgba(0, 0, 0, 0.9);
+    border-color: rgba(251, 191, 36, 0.7);
   }
 `;
 
@@ -816,6 +976,7 @@ interface PaidAlbumBuilderPageProps {
     name: string;
     display_name?: string;
     appearance?: string;
+    character_appearance?: string;
     location?: string;
   } | null;
   onBackToAlbum: () => void;
@@ -844,6 +1005,10 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
   const [selectedPhotos, setSelectedPhotos] = useState<PaidAlbumImage[]>([]);
   const [albumLoading, setAlbumLoading] = useState(true);
   const [previewPhoto, setPreviewPhoto] = useState<PaidAlbumImage | null>(null);
+  const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
+  const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
+  const [promptError, setPromptError] = useState<string | null>(null);
+  const [isPromptVisible, setIsPromptVisible] = useState(false);
   const [fakeProgress, setFakeProgress] = useState(0);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [userSubscription, setUserSubscription] = useState<string | null>(null);
@@ -955,7 +1120,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
 
       setPromptLoadedFromDB(false);
 
-      const initialAppearance = character?.appearance || '';
+      const initialAppearance = character?.character_appearance || character?.appearance || '';
       const initialLocation = character?.location || '';
       
       if (initialAppearance || initialLocation) {
@@ -972,7 +1137,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         if (response.ok) {
           const characterData = await response.json();
           
-          const appearance = characterData?.appearance || character?.appearance || '';
+          const appearance = characterData?.character_appearance || characterData?.appearance || character?.character_appearance || character?.appearance || '';
           const location = characterData?.location || character?.location || '';
           
           const needsAppearanceTranslation = appearance && appearance.trim() && !/[а-яёА-ЯЁ]/.test(appearance);
@@ -999,8 +1164,8 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
           }
         }
       } catch (error) {
-        if (character.appearance || character.location) {
-          const appearance = character.appearance || '';
+        if (character.character_appearance || character.appearance || character.location) {
+          const appearance = character.character_appearance || character.appearance || '';
           const location = character.location || '';
           
           const needsAppearanceTranslation = appearance && appearance.trim() && !/[а-яёА-ЯЁ]/.test(appearance);
@@ -1135,7 +1300,8 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         character: character.name,
         prompt: effectivePrompt,
         use_default_prompts: false,
-        model: selectedModel
+        model: selectedModel,
+        skip_chat_history: true  // Не сохраняем в ChatHistory для генераций со страницы альбома
       })
     });
 
@@ -1215,7 +1381,9 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
       try {
         let effectivePrompt = prompt.trim();
         if (!effectivePrompt) {
-          const parts = [character.appearance, character.location].filter(p => p && p.trim());
+          const appearance = character?.character_appearance || character?.appearance || '';
+          const location = character?.location || '';
+          const parts = [appearance, location].filter(p => p && p.trim());
           effectivePrompt = parts.length > 0 ? parts.join(' | ') : '';
         }
         
@@ -1363,12 +1531,39 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
   const progressPercentage = (selectedPhotos.length / MAX_PAID_ALBUM_PHOTOS) * 100;
   const isFull = selectedPhotos.length >= MAX_PAID_ALBUM_PHOTOS;
 
-  const handleOpenPreview = (photo: PaidAlbumImage) => {
+  const handleOpenPreview = async (photo: PaidAlbumImage) => {
     setPreviewPhoto(photo);
+    setSelectedPrompt(null);
+    setPromptError(null);
+    setIsPromptVisible(true);
+    
+    // Загружаем промпт для изображения
+    setIsLoadingPrompt(true);
+    try {
+      const result = await fetchPromptByImage(photo.url);
+      if (result.hasPrompt && result.prompt) {
+        // Переводим промпт на русский для отображения
+        const translatedPrompt = await translateToRussian(result.prompt);
+        setSelectedPrompt(translatedPrompt);
+      } else {
+        setPromptError(result.errorMessage || 'Промпт недоступен для этого изображения');
+      }
+    } catch (error) {
+      setPromptError('Не удалось загрузить промпт');
+    } finally {
+      setIsLoadingPrompt(false);
+    }
   };
 
   const handleClosePreview = () => {
     setPreviewPhoto(null);
+    setSelectedPrompt(null);
+    setPromptError(null);
+    setIsLoadingPrompt(false);
+  };
+
+  const handleClosePrompt = () => {
+    setIsPromptVisible(false);
   };
 
   useEffect(() => {
@@ -1383,6 +1578,9 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
 
   return (
     <PageContainer>
+      <BackgroundWrapper>
+        <DarkVeil speed={1.1} />
+      </BackgroundWrapper>
       <ContentWrapper>
         <Header>
           <Title>Платный альбом {displayName}</Title>
@@ -1697,7 +1895,34 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
             <PreviewClose onClick={handleClosePreview}>
               <X size={20} />
             </PreviewClose>
-            <PreviewImage src={previewPhoto.url} alt={displayName} />
+            <ModalImageContainer>
+              <PreviewImage src={previewPhoto.url} alt={displayName} />
+            </ModalImageContainer>
+            <PromptPanel style={{
+              display: isPromptVisible ? 'flex' : 'none',
+              visibility: isPromptVisible ? 'visible' : 'hidden'
+            }}>
+              <PromptPanelHeader>
+                <PromptPanelTitle>Промпт</PromptPanelTitle>
+                <PromptCloseButton onClick={handleClosePrompt}>
+                  <X size={20} />
+                </PromptCloseButton>
+              </PromptPanelHeader>
+              {isLoadingPrompt ? (
+                <PromptLoading>Загрузка промпта...</PromptLoading>
+              ) : promptError ? (
+                <PromptError>{promptError}</PromptError>
+              ) : selectedPrompt ? (
+                <PromptPanelText>{selectedPrompt}</PromptPanelText>
+              ) : (
+                <PromptLoading>Промпт не найден</PromptLoading>
+              )}
+            </PromptPanel>
+            {!isPromptVisible && (
+              <ShowPromptButton onClick={() => setIsPromptVisible(true)}>
+                Показать промпт
+              </ShowPromptButton>
+            )}
           </PreviewContent>
         </PreviewBackdrop>
       )}

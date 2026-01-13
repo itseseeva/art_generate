@@ -522,8 +522,11 @@ export const ShopPage: React.FC<any> = ({
     if (!userInfo?.id) return;
 
     try {
-      // Используем актуальные цены (Standard теперь 499)
-      const priceInfo = calculatePrice(plan === 'premium' ? 1299 : 499);
+      // Для 1 месяца используем цену 20₽, для остальных - оригинальные цены
+      const basePrice = billingCycle === 'monthly' 
+        ? 20 
+        : (plan === 'premium' ? 1299 : 499);
+      const priceInfo = calculatePrice(basePrice);
       const amount = priceInfo.total;
       const description = `${plan.toUpperCase()} Subscription (${billingCycle.replace('_', ' ')})`;
 
@@ -587,8 +590,11 @@ export const ShopPage: React.FC<any> = ({
   };
 
   const renderSubscriptionContent = () => {
-    const premiumPrice = calculatePrice(1299);
-    const standardPrice = calculatePrice(499); // Изменено с 599 на 499
+    // Для 1 месяца используем цену 20₽, для остальных - оригинальные цены
+    const premiumBasePrice = billingCycle === 'monthly' ? 20 : 1299;
+    const standardBasePrice = billingCycle === 'monthly' ? 20 : 499;
+    const premiumPrice = calculatePrice(premiumBasePrice);
+    const standardPrice = calculatePrice(standardBasePrice);
     const months = CYCLE_MONTHS[billingCycle];
     const isYearly = billingCycle === 'yearly';
     const is6Months = billingCycle === '6_months';

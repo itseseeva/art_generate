@@ -5,7 +5,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Request, Depends, UploadFile, File, Body
-from sqlalchemy import select, update, func, delete
+from sqlalchemy import select, update, func, delete, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 import traceback
 import os
@@ -2419,4 +2419,58 @@ async def get_profile_stats(
         raise HTTPException(
             status_code=500,
             detail=f"Не удалось получить статистику профиля: {str(e)}"
+        )
+
+
+@auth_router.get("/auth/balance-history/")
+async def get_balance_history(
+    skip: int = 0,
+    limit: int = 1000,
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Получает историю изменений баланса пользователя.
+    """
+    try:
+        from app.models.balance_history import BalanceHistory
+        
+        # Получаем историю баланса для текущего пользователя
+        result = await db.execute(
+            select(BalanceHistory)
+            .where(BalanceHistory.user_id == current_user.id)
+            .order_by(desc(BalanceHistory.created_at))
+            .offset(skip)
+            .limit(limit)
+        )
+        history_items = result.scalars().all()
+
+        # Получаем общее количество записей
+        count_result = await db.execute(
+            select(func.count(BalanceHistory.id))
+            .where(BalanceHistory.user_id == current_user.id)
+        )
+        total = count_result.scalar_one() or 0
+
+        return {
+            "history": [
+                {
+                    "id": item.id,
+                    "amount": item.amount,
+                    "balance_before": item.balance_before,
+                    "balance_after": item.balance_after,
+                    "reason": item.reason,
+                    "created_at": item.created_at.isoformat() if item.created_at else None
+                }
+                for item in history_items
+            ],
+            "total": total
+        }
+    except Exception as e:
+        logger.error(f"[ERROR] Ошибка получения истории баланса: {e}")
+        import traceback
+        logger.error(f"[ERROR] Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка получения истории баланса: {str(e)}"
         )
