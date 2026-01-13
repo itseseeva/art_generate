@@ -1807,38 +1807,70 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     }
   }, [character.id, showRatings]);
 
-  // Восстановление состояния из sessionStorage ТОЛЬКО при первом рендере
+  // Используем useRef для отслеживания, было ли уже восстановление
+  const hasRestoredRef = useRef(false);
+  
+  // Восстановление состояния из sessionStorage ТОЛЬКО для последнего открытого персонажа
   // Это позволяет восстановить просмотр промпта после обновления страницы
   useEffect(() => {
+    // Восстанавливаем только один раз при первом монтировании
+    if (hasRestoredRef.current) {
+      return;
+    }
+    
     if (typeof window === 'undefined') {
       return;
     }
     
-    // Проверяем, есть ли сохраненное фото для этого персонажа
-    const savedPhoto = sessionStorage.getItem(`character_photo_${character.id}`);
-    const savedPrompt = sessionStorage.getItem(`character_prompt_${character.id}`);
+    // Проверяем, какой персонаж был открыт последним
+    const lastOpenedCharacterId = sessionStorage.getItem('last_opened_character_id');
+    console.log('[Restore State] Проверка восстановления:', {
+      lastOpenedCharacterId,
+      currentCharacterId: character.id,
+      match: lastOpenedCharacterId && String(character.id) === String(lastOpenedCharacterId)
+    });
     
-    if (savedPhoto && savedPhoto.trim() !== '') {
-      console.log('[Restore State] Восстанавливаем состояние из sessionStorage:', {
+    // Восстанавливаем состояние ТОЛЬКО для последнего открытого персонажа
+    if (lastOpenedCharacterId && String(character.id) === String(lastOpenedCharacterId)) {
+      const savedPhoto = sessionStorage.getItem(`character_photo_${character.id}`);
+      const savedPrompt = sessionStorage.getItem(`character_prompt_${character.id}`);
+      
+      console.log('[Restore State] Найдены сохраненные данные:', {
+        hasPhoto: !!savedPhoto,
+        hasPrompt: !!savedPrompt,
         photo: savedPhoto,
-        hasPrompt: !!savedPrompt
+        promptLength: savedPrompt?.length || 0,
+        promptPreview: savedPrompt?.substring(0, 50) || ''
       });
       
-      // Восстанавливаем состояние в правильном порядке
-      setSelectedPhoto(savedPhoto);
-      setIsPromptVisible(true);
-      
-      if (savedPrompt && savedPrompt.trim() !== '') {
-        setSelectedPrompt(savedPrompt);
-        setIsLoadingPrompt(false);
-        setPromptError(null);
+      if (savedPhoto && savedPhoto.trim() !== '') {
+        console.log('[Restore State] ✅ Восстанавливаем состояние из sessionStorage для персонажа:', character.id);
+        
+        // Восстанавливаем состояние в правильном порядке
+        setSelectedPhoto(savedPhoto);
+        setIsPromptVisible(true);
+        
+        if (savedPrompt && savedPrompt.trim() !== '' && savedPrompt.length > 1) {
+          console.log('[Restore State] ✅ Восстановлен промпт, длина:', savedPrompt.length);
+          setSelectedPrompt(savedPrompt);
+          setIsLoadingPrompt(false);
+          setPromptError(null);
+        } else {
+          console.log('[Restore State] ⚠️ Промпт не сохранен или слишком короткий, показываем ошибку');
+          // Если промпт не сохранен, показываем индикатор загрузки
+          setIsLoadingPrompt(false);
+          setPromptError('Промпт не найден');
+        }
       } else {
-        // Если промпт не сохранен, показываем индикатор загрузки
-        setIsLoadingPrompt(false);
-        setPromptError('Промпт не найден');
+        console.log('[Restore State] ❌ Фото не найдено в sessionStorage');
       }
+    } else {
+      console.log('[Restore State] ⏭️ Пропускаем - это не последний открытый персонаж');
     }
-  }, []); // Запускаем ТОЛЬКО один раз при монтировании
+    
+    // Отмечаем, что восстановление выполнено
+    hasRestoredRef.current = true;
+  }, []); // Пустой массив - запускается только один раз при монтировании
 
   const handleOpenPhoto = async (e: React.MouseEvent, imageUrl: string) => {
     e.stopPropagation();
@@ -1886,6 +1918,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     
     // Сохраняем в sessionStorage
     sessionStorage.setItem(`character_photo_${character.id}`, normalizedUrl);
+    // Сохраняем ID последнего открытого персонажа
+    sessionStorage.setItem('last_opened_character_id', String(character.id));
     console.log('[7] Сохранено в sessionStorage');
 
     // ============================================
@@ -1931,21 +1965,63 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         // КРИТИЧНО: Устанавливаем промпт ПЕРЕД выключением загрузки
         // ============================================
         console.log('[21] Устанавливаем selectedPrompt...');
-        setSelectedPrompt(translatedPrompt);
+        console.log('[21.1] Проверка промпта перед установкой:', {
+          length: translatedPrompt.length,
+          isEmpty: translatedPrompt.trim() === '',
+          preview: translatedPrompt.substring(0, 100)
+        });
         
-        console.log('[22] Сохраняем в sessionStorage...');
-        sessionStorage.setItem(`character_prompt_${character.id}`, translatedPrompt);
-        
-        console.log('[23] ✅ Промпт успешно установлен в состояние!');
+        if (translatedPrompt && translatedPrompt.trim() !== '' && translatedPrompt.length > 1) {
+          setSelectedPrompt(translatedPrompt);
+          
+          console.log('[22] Сохраняем в sessionStorage...');
+          console.log('[22.1] Промпт перед сохранением:', {
+            length: translatedPrompt.length,
+            firstChars: translatedPrompt.substring(0, 50)
+          });
+          sessionStorage.setItem(`character_prompt_${character.id}`, translatedPrompt);
+          
+          // Проверяем, что промпт сохранился правильно
+          const savedCheck = sessionStorage.getItem(`character_prompt_${character.id}`);
+          console.log('[22.2] Проверка сохраненного промпта:', {
+            savedLength: savedCheck?.length || 0,
+            matches: savedCheck === translatedPrompt
+          });
+          
+          console.log('[23] ✅ Промпт успешно установлен в состояние!');
+        } else {
+          console.error('[21] ❌ ОШИБКА: Промпт слишком короткий или пустой!', {
+            length: translatedPrompt?.length || 0,
+            value: translatedPrompt
+          });
+        }
         
       } catch (translateError) {
         console.warn('[24] Ошибка перевода, используем оригинал:', translateError);
         
         // Устанавливаем оригинальный промпт без перевода
-        setSelectedPrompt(prompt);
-        sessionStorage.setItem(`character_prompt_${character.id}`, prompt);
-        
-        console.log('[25] ✅ Оригинальный промпт установлен в состояние!');
+        if (prompt && prompt.trim() !== '' && prompt.length > 1) {
+          console.log('[24.1] Сохраняем оригинальный промпт:', {
+            length: prompt.length,
+            preview: prompt.substring(0, 50)
+          });
+          setSelectedPrompt(prompt);
+          sessionStorage.setItem(`character_prompt_${character.id}`, prompt);
+          
+          // Проверяем сохранение
+          const savedCheck = sessionStorage.getItem(`character_prompt_${character.id}`);
+          console.log('[24.2] Проверка сохраненного оригинального промпта:', {
+            savedLength: savedCheck?.length || 0,
+            matches: savedCheck === prompt
+          });
+          
+          console.log('[25] ✅ Оригинальный промпт установлен в состояние!');
+        } else {
+          console.error('[24] ❌ ОШИБКА: Оригинальный промпт слишком короткий!', {
+            length: prompt?.length || 0,
+            value: prompt
+          });
+        }
       }
       
     } catch (error) {
@@ -2008,6 +2084,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         // Очищаем sessionStorage при выходе
         sessionStorage.removeItem(`character_photo_${character.id}`);
         sessionStorage.removeItem(`character_prompt_${character.id}`);
+        sessionStorage.removeItem('last_opened_character_id');
       }
       // Убираем блок else - не очищаем при входе/смене пользователя
     });
@@ -2588,6 +2665,11 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             // Очищаем sessionStorage при закрытии
             sessionStorage.removeItem(`character_photo_${character.id}`);
             sessionStorage.removeItem(`character_prompt_${character.id}`);
+            // Очищаем ID последнего открытого персонажа
+            const lastOpenedId = sessionStorage.getItem('last_opened_character_id');
+            if (lastOpenedId && String(character.id) === String(lastOpenedId)) {
+              sessionStorage.removeItem('last_opened_character_id');
+            }
           }}>
             <PreviewContent onClick={(event) => event.stopPropagation()}>
             <PreviewClose onClick={() => {
@@ -2598,6 +2680,11 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
               // Очищаем sessionStorage при закрытии
               sessionStorage.removeItem(`character_photo_${character.id}`);
               sessionStorage.removeItem(`character_prompt_${character.id}`);
+              // Очищаем ID последнего открытого персонажа
+              const lastOpenedId = sessionStorage.getItem('last_opened_character_id');
+              if (lastOpenedId && String(character.id) === String(lastOpenedId)) {
+                sessionStorage.removeItem('last_opened_character_id');
+              }
             }}>
               <CloseIcon />
             </PreviewClose>
