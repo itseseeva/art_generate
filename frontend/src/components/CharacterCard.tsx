@@ -861,31 +861,27 @@ const RoleplaySituationButton = styled.button`
   }
 `;
 
-const ModalOverlay = styled.div`
+const PreviewBackdrop = styled.div`
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(70px);
-  -webkit-backdrop-filter: blur(70px);
-  display: flex;
+  inset: 0;
+  background: #000;
+  display: flex !important;
   align-items: center;
   justify-content: center;
-  z-index: 99999;
-  padding: ${theme.spacing.xl};
-
-  @media (max-width: 768px) {
-    background: rgba(0, 0, 0, 0.95);
-    padding: 0;
-  }
+  z-index: 99999 !important;
+  backdrop-filter: blur(70px);
+  -webkit-backdrop-filter: blur(70px);
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  visibility: visible !important;
+  opacity: 1 !important;
 `;
 
-const ModalContent = styled.div`
+const PreviewContent = styled.div`
   position: relative;
-  max-width: 95vw;
-  max-height: 95vh;
+  max-width: 100vw;
+  max-height: 100vh;
   display: flex;
   align-items: stretch;
   justify-content: center;
@@ -893,55 +889,75 @@ const ModalContent = styled.div`
   width: 100%;
 
   @media (max-width: 768px) {
-    width: 100vw;
-    height: 100vh;
-    max-width: 100vw;
-    max-height: 100vh;
     flex-direction: column;
     align-items: center;
     gap: 0;
-    overflow: hidden;
-    padding: 0;
   }
 `;
 
-const ModalImageContainer = styled.div`
+const PreviewImageContainer = styled.div`
   flex: 1;
   display: flex !important;
   align-items: center;
   justify-content: center;
-  min-width: 300px;
+  min-width: 0;
   max-width: 70%;
   visibility: visible !important;
   opacity: 1 !important;
 
   @media (max-width: 768px) {
-    width: 100%;
     max-width: 100%;
+    width: 100%;
     flex: 1;
     min-height: 0;
-    min-width: 0;
-    height: 100%;
   }
 `;
 
-const ModalImage = styled.img`
+const PreviewImage = styled.img`
   max-width: 100%;
   max-height: 95vh;
-  width: auto;
-  height: auto;
   object-fit: contain;
   border-radius: ${theme.borderRadius.lg};
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
+  display: block !important;
 
   @media (max-width: 768px) {
     max-height: 100%;
-    width: 100%;
-    height: 100%;
+    width: auto;
+    height: auto;
     border-radius: 0;
+  }
+`;
+
+const PreviewClose = styled.button`
+  position: absolute;
+  top: ${theme.spacing.lg};
+  right: ${theme.spacing.lg};
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid rgba(244, 63, 94, 0.4);
+  background: rgba(244, 63, 94, 0.2);
+  color: ${theme.colors.text.primary};
+  font-size: ${theme.fontSize.xl};
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 10;
+
+  &:hover {
+    background: rgba(244, 63, 94, 0.4);
+    border-color: rgba(244, 63, 94, 0.6);
+    transform: scale(1.1) rotate(90deg);
+    box-shadow: 0 4px 12px rgba(244, 63, 94, 0.4);
+  }
+  
+  &:active {
+    transform: scale(0.95) rotate(90deg);
   }
 `;
 
@@ -959,6 +975,11 @@ const PromptPanel = styled.div`
   flex-direction: column;
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(10px);
+  position: relative;
+  z-index: 10001;
+  pointer-events: auto;
+  visibility: visible !important;
+  opacity: 1 !important;
 
   @media (max-width: 768px) {
     position: relative;
@@ -971,7 +992,7 @@ const PromptPanel = styled.div`
     border-bottom: 1px solid rgba(251, 191, 36, 0.3);
     border-radius: 0;
     padding: ${theme.spacing.md};
-    z-index: 10;
+    z-index: 10001;
     flex-shrink: 0;
     overflow-y: auto;
   }
@@ -1002,6 +1023,10 @@ const PromptPanelText = styled.div`
   border: 1px solid rgba(150, 150, 150, 0.3);
   font-family: 'Courier New', monospace;
   flex: 1;
+  visibility: visible !important;
+  opacity: 1 !important;
+  display: block !important;
+  min-height: 50px;
 `;
 
 const PromptLoading = styled.div`
@@ -1009,6 +1034,9 @@ const PromptLoading = styled.div`
   font-size: ${theme.fontSize.sm};
   text-align: center;
   padding: ${theme.spacing.xl};
+  visibility: visible !important;
+  opacity: 1 !important;
+  display: block !important;
 `;
 
 const PromptError = styled.div`
@@ -1016,6 +1044,9 @@ const PromptError = styled.div`
   font-size: ${theme.fontSize.sm};
   text-align: center;
   padding: ${theme.spacing.xl};
+  visibility: visible !important;
+  opacity: 1 !important;
+  display: block !important;
 `;
 
 const CloseButton = styled.button`
@@ -1833,12 +1864,16 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           // Переводим промпт на русский для отображения
           const translatedPrompt = await translateToRussian(prompt);
           console.log('[handleOpenPhoto] Промпт переведен, устанавливаем в состояние');
+          console.log('[handleOpenPhoto] Переведенный промпт:', translatedPrompt);
+          // Обязательно сначала ставим данные, потом выключаем загрузку
           setSelectedPrompt(translatedPrompt);
+          console.log('[handleOpenPhoto] Промпт установлен в стейт:', translatedPrompt);
         } catch (translateError) {
           console.error('[handleOpenPhoto] Ошибка перевода промпта:', translateError);
           // Если перевод не удался, показываем оригинальный промпт
           console.log('[handleOpenPhoto] Используем оригинальный промпт без перевода');
           setSelectedPrompt(prompt);
+          console.log('[handleOpenPhoto] Оригинальный промпт установлен в стейт:', prompt);
         }
       } else {
         const finalErrorMessage = errorMessage || 'Промпт недоступен для этого изображения';
@@ -1855,6 +1890,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
       setPromptError(errorMsg);
     } finally {
       console.log('[handleOpenPhoto] Завершение загрузки, setIsLoadingPrompt(false)');
+      // Это должно быть последним
       setIsLoadingPrompt(false);
     }
   };
@@ -2463,73 +2499,92 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
       )}
     </CardWrapper>
       {selectedPhoto && (() => {
-        console.log('[CharacterCard Render] Рендерим модальное окно с selectedPhoto:', selectedPhoto);
-        return createPortal(
-        <ModalOverlay onClick={() => {
-          console.log('[ModalOverlay] Клик по overlay, закрываем модальное окно');
-          setSelectedPhoto(null);
-          setSelectedPrompt(null);
-          setPromptError(null);
-          setIsLoadingPrompt(false);
-        }}>
-          <ModalContent onClick={(e) => {
-            console.log('[ModalContent] Клик по контенту, предотвращаем закрытие');
-            e.stopPropagation();
+        console.log('[Modal Render] Модальное окно рендерится:', {
+          selectedPhoto,
+          isPromptVisible,
+          hasPrompt: !!selectedPrompt,
+          isLoadingPrompt
+        });
+        return (
+          <PreviewBackdrop onClick={() => {
+            setSelectedPhoto(null);
+            setSelectedPrompt(null);
+            setPromptError(null);
+            setIsLoadingPrompt(false);
           }}>
-            <CloseButton onClick={() => {
+            <PreviewContent onClick={(event) => event.stopPropagation()}>
+            <PreviewClose onClick={() => {
               setSelectedPhoto(null);
               setSelectedPrompt(null);
               setPromptError(null);
               setIsLoadingPrompt(false);
             }}>
               <CloseIcon />
-            </CloseButton>
-            <ModalImageContainer>
-              <ModalImage src={selectedPhoto} alt="Full size" />
-            </ModalImageContainer>
-            <PromptPanel style={{
-              display: isPromptVisible ? 'flex' : 'none',
-              visibility: isPromptVisible ? 'visible' : 'hidden'
-            }}>
-              <PromptPanelHeader>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
-                  <button 
-                    onClick={() => setIsPromptVisible(false)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#fbbf24',
-                      cursor: 'pointer',
-                      padding: '4px'
-                    }}
-                    title="Скрыть промпт"
-                  >
-                    <CloseIcon size={20} />
-                  </button>
-                </div>
-              </PromptPanelHeader>
-              <div style={{ 
-                flex: 1, 
-                overflowY: 'auto',
-                minHeight: 0
-              }}>
-                {isLoadingPrompt ? (
-                  <PromptLoading>Загрузка промпта...</PromptLoading>
-                ) : promptError ? (
-                  <PromptError>{promptError}</PromptError>
-                ) : selectedPrompt ? (
-                  <PromptPanelText>{selectedPrompt}</PromptPanelText>
-                ) : null}
-              </div>
-            </PromptPanel>
+            </PreviewClose>
+            <PreviewImageContainer>
+              <PreviewImage 
+                src={selectedPhoto} 
+                alt={character.name}
+                onLoad={() => {
+                  console.log('[PreviewImage] Изображение успешно загружено:', selectedPhoto);
+                }}
+                onError={(e) => {
+                  console.error('[PreviewImage] Ошибка загрузки изображения:', selectedPhoto, e);
+                }}
+                style={{
+                  visibility: 'visible',
+                  opacity: 1,
+                  display: 'block'
+                }}
+              />
+            </PreviewImageContainer>
+            {isPromptVisible && (() => {
+              console.log('[UI Render check]', {
+                isPromptVisible,
+                hasPrompt: !!selectedPrompt,
+                isLoadingPrompt,
+                promptLength: selectedPrompt?.length || 0,
+                hasError: !!promptError
+              });
+              return (
+                <PromptPanel>
+                  <PromptPanelHeader>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+                      <button 
+                        onClick={() => setIsPromptVisible(false)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#fbbf24',
+                          cursor: 'pointer',
+                          padding: '4px'
+                        }}
+                        title="Скрыть промпт"
+                      >
+                        <CloseIcon size={20} />
+                      </button>
+                    </div>
+                  </PromptPanelHeader>
+                  {isLoadingPrompt ? (
+                    <PromptLoading>Загрузка промпта...</PromptLoading>
+                  ) : promptError ? (
+                    <PromptError>{promptError}</PromptError>
+                  ) : selectedPrompt ? (
+                    <PromptPanelText>{selectedPrompt}</PromptPanelText>
+                  ) : (
+                    <PromptLoading>Промпт не найден</PromptLoading>
+                  )}
+                </PromptPanel>
+              );
+            })()}
             {!isPromptVisible && (
               <button
                 onClick={() => setIsPromptVisible(true)}
                 style={{
                   position: 'absolute',
-                  top: '80px',
-                  right: '20px',
+                  top: '20px',
+                  left: '20px',
                   background: 'rgba(0, 0, 0, 0.7)',
                   border: '1px solid rgba(251, 191, 36, 0.5)',
                   borderRadius: '8px',
@@ -2543,9 +2598,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                 Показать промпт
               </button>
             )}
-          </ModalContent>
-        </ModalOverlay>,
-        document.body
+          </PreviewContent>
+        </PreviewBackdrop>
         );
       })()}
       {isPersonalityModalOpen && createPortal(
