@@ -2598,6 +2598,118 @@ async def chat_endpoint(
         final_tokens = count_messages_tokens(openai_messages)
         logger.info(f"[CHAT_MAIN] ОТПРАВКА ЗАПРОСА: Модель={model_used}, Контекст={final_tokens}/{max_context_tokens} токенов, Стриминг={use_streaming}")
         
+        # Инициализируем переменные для генерации изображения (если нужно)
+        task_id = None
+        status_url = None
+        image_url = None
+        cloud_url = None
+        image_filename = None
+        generation_time = None
+        
+        # КРИТИЧЕСКИ ВАЖНО: Генерируем изображение ДО создания SSE потока, чтобы task_id был доступен
+        if generate_image:
+            try:
+                # Проверяем, может ли пользователь генерировать фото
+                if user_id:
+                    if coins_user_id is None:
+                        raise HTTPException(status_code=400, detail="Некорректный идентификатор пользователя")
+                    async with async_session_maker() as db:
+                        from app.services.coins_service import CoinsService
+                        coins_service = CoinsService(db)
+                        can_generate_photo = await coins_service.can_user_generate_photo(coins_user_id)
+                        if not can_generate_photo:
+                            coins = await coins_service.get_user_coins(coins_user_id)
+                            raise HTTPException(
+                                status_code=403, 
+                                detail="Недостаточно монет для генерации фото! Нужно 10 монет."
+                            )
+                
+                # Получаем промпт для генерации изображения
+                image_prompt = request.get("image_prompt", "")
+                if not image_prompt and message:
+                    image_prompt = message
+                
+                # Применяем лимит токенов для промпта изображения
+                from app.chat_bot.utils.context_manager import get_max_image_prompt_tokens
+                max_image_prompt_tokens = get_max_image_prompt_tokens(subscription_type_enum)
+                
+                # Обрезаем промпт если нужно
+                if image_prompt:
+                    encoding = None
+                    try:
+                        import tiktoken
+                        encoding = tiktoken.get_encoding("cl100k_base")
+                    except Exception:
+                        pass
+                    
+                    if encoding:
+                        prompt_tokens = len(encoding.encode(image_prompt))
+                        if prompt_tokens > max_image_prompt_tokens:
+                            tokens = encoding.encode(image_prompt)
+                            trimmed_tokens = tokens[:max_image_prompt_tokens]
+                            image_prompt = encoding.decode(trimmed_tokens)
+                            logger.warning(f"[IMAGE PROMPT] Промпт обрезан с {prompt_tokens} до {max_image_prompt_tokens} токенов")
+                    else:
+                        estimated_tokens = len(image_prompt) // 4
+                        if estimated_tokens > max_image_prompt_tokens:
+                            max_chars = max_image_prompt_tokens * 4
+                            image_prompt = image_prompt[:max_chars]
+                            logger.warning(f"[IMAGE PROMPT] Промпт обрезан (примерно) до {max_image_prompt_tokens} токенов")
+                
+                # Сохраняем промпт для истории
+                history_message = image_prompt if image_prompt else "Генерация изображения"
+                
+                # Получаем параметры генерации изображения
+                image_steps = request.get("image_steps")
+                image_width = request.get("image_width") 
+                image_height = request.get("image_height")
+                image_cfg_scale = request.get("image_cfg_scale")
+                image_model = request.get("image_model") or request.get("model") or "anime-realism"
+                
+                image_request = ImageGenerationRequest(
+                    character=character_name,
+                    prompt=image_prompt,
+                    negative_prompt=request.get("negative_prompt"),
+                    width=image_width,
+                    height=image_height,
+                    steps=image_steps,
+                    cfg_scale=image_cfg_scale,
+                    model=image_model
+                )
+                
+                # Вызываем существующий эндпоинт генерации изображений через HTTP
+                import httpx
+                from app.config.settings import settings
+                
+                base_url = settings.BASE_URL or "http://localhost:8000"
+                
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(
+                        f"{base_url}/api/v1/generate-image/",
+                        json=image_request.dict(),
+                        headers={"Authorization": f"Bearer {request.get('token', '')}"} if request.get('token') else {}
+                    )
+                    if response.status_code == 200:
+                        image_result = response.json()
+                        if image_result.get("task_id"):
+                            task_id = image_result.get("task_id")
+                            status_url = image_result.get("status_url", f"/api/v1/generation-status/{task_id}")
+                        else:
+                            image_url = image_result.get("image_url")
+                            cloud_url = image_result.get("cloud_url")
+                            image_filename = image_result.get("filename")
+                            generation_time = image_result.get("generation_time")
+                            if user_id and image_url:
+                                if coins_user_id is None:
+                                    raise HTTPException(status_code=400, detail="Некорректный идентификатор пользователя")
+                                await spend_photo_resources(coins_user_id)
+                    else:
+                        raise Exception(f"Ошибка генерации изображения: {response.status_code}")
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"[ERROR] /chat: Ошибка генерации изображения: {e}")
+        
         # Если запрошен стриминг, возвращаем StreamingResponse
         logger.info(f"[STREAM CHECK] use_streaming={use_streaming}, проверяем условие...")
         if use_streaming:
@@ -2613,6 +2725,10 @@ async def chat_endpoint(
                     logger.warning(f"[STREAM] Выбор модели доступен только для PREMIUM подписки, игнорируем model={request.get('model')}")
             
             # Создаем асинхронный генератор для SSE
+            # Сохраняем task_id и status_url в локальные переменные для использования в замыкании
+            sse_task_id = task_id
+            sse_status_url = status_url
+            
             async def generate_sse_stream() -> AsyncGenerator[str, None]:
                 """
                 Генерирует SSE события из потока OpenRouter.
@@ -2620,6 +2736,10 @@ async def chat_endpoint(
                 full_response = ""  # Собираем полный ответ для сохранения в БД
                 
                 try:
+                    # Если была запрошена генерация изображения и есть task_id, отправляем его в начале потока
+                    if generate_image and sse_task_id:
+                        yield f"data: {json.dumps({'task_id': sse_task_id, 'status_url': sse_status_url or f'/api/v1/generation-status/{sse_task_id}', 'is_generating': True})}\n\n"
+                    
                     # Получаем поток от OpenRouter
                     async for chunk in openrouter_service.generate_text_stream(
                         messages=openai_messages,
@@ -2832,125 +2952,7 @@ async def chat_endpoint(
             history_response = response
             logger.info(f"[HISTORY] Обновлен history_response из response: '{history_response[:50]}...'")
         
-        image_url = None
-        image_filename = None
-        cloud_url = None
-        
-        if generate_image:
-            try:
-                logger.info("[ART] Генерируем изображение для чата...")
-                
-                # Проверяем, может ли пользователь генерировать фото
-                if user_id:
-                    logger.info(f"[DEBUG] DEBUG: Проверка монет для генерации фото пользователя {user_id}")
-                    if coins_user_id is None:
-                        raise HTTPException(status_code=400, detail="Некорректный идентификатор пользователя")
-                    async with async_session_maker() as db:
-                        from app.services.coins_service import CoinsService
-                        coins_service = CoinsService(db)
-                        can_generate_photo = await coins_service.can_user_generate_photo(coins_user_id)
-                        logger.info(f"[DEBUG] DEBUG: Может генерировать фото: {can_generate_photo}")
-                        if not can_generate_photo:
-                            coins = await coins_service.get_user_coins(coins_user_id)
-                            logger.error(f"[ERROR] DEBUG: Недостаточно монет для генерации фото! У пользователя {user_id}: {coins} монет, нужно 10")
-                            raise HTTPException(
-                                status_code=403, 
-                                detail="Недостаточно монет для генерации фото! Нужно 10 монет."
-                            )
-                        else:
-                            logger.info(f"[OK] DEBUG: Пользователь {user_id} может генерировать фото")
-                else:
-                    logger.warning(f"[WARNING] DEBUG: user_id не передан, пропускаем проверку монет")
-                
-                # Получаем промпт для изображения
-                image_prompt = request.get("image_prompt") or message
-                
-                # Применяем лимит токенов для промпта изображения
-                from app.chat_bot.utils.context_manager import get_max_image_prompt_tokens
-                max_image_prompt_tokens = get_max_image_prompt_tokens(subscription_type_enum)
-                
-                # Проверяем длину промпта и обрезаем если нужно
-                if image_prompt:
-                    encoding = None
-                    try:
-                        import tiktoken
-                        encoding = tiktoken.get_encoding("cl100k_base")
-                    except Exception:
-                        pass
-                    
-                    if encoding:
-                        prompt_tokens = len(encoding.encode(image_prompt))
-                        if prompt_tokens > max_image_prompt_tokens:
-                            # Обрезаем промпт до лимита токенов
-                            tokens = encoding.encode(image_prompt)
-                            trimmed_tokens = tokens[:max_image_prompt_tokens]
-                            image_prompt = encoding.decode(trimmed_tokens)
-                            logger.warning(f"[IMAGE PROMPT] Промпт обрезан с {prompt_tokens} до {max_image_prompt_tokens} токенов")
-                    else:
-                        # Fallback: примерная оценка (1 токен ≈ 4 символа)
-                        estimated_tokens = len(image_prompt) // 4
-                        if estimated_tokens > max_image_prompt_tokens:
-                            max_chars = max_image_prompt_tokens * 4
-                            image_prompt = image_prompt[:max_chars]
-                            logger.warning(f"[IMAGE PROMPT] Промпт обрезан (примерно) до {max_image_prompt_tokens} токенов")
-                
-                # Сохраняем промпт для истории (будет использован при сохранении)
-                history_message = image_prompt if image_prompt else "Генерация изображения"
-                
-                # Получаем параметры генерации изображения
-                image_steps = request.get("image_steps")
-                image_width = request.get("image_width") 
-                image_height = request.get("image_height")
-                image_cfg_scale = request.get("image_cfg_scale")
-                
-                # Создаем запрос для генерации изображения
-                # Получаем model из request если есть, иначе используем дефолт
-                image_model = request.get("image_model") or request.get("model") or "anime-realism"
-                image_request = ImageGenerationRequest(
-                    prompt=image_prompt,
-                    character=character_name,
-                    steps=image_steps,
-                    width=image_width,
-                    height=image_height,
-                    cfg_scale=image_cfg_scale,
-                    model=image_model
-                )
-                
-                # Вызываем существующий эндпоинт генерации изображений через HTTP
-                import httpx
-                generation_time = None
-                async with httpx.AsyncClient() as client:
-                    response = await client.post(
-                        "http://localhost:8000/api/v1/generate-image/",
-                        json=image_request.dict()
-                    )
-                    if response.status_code == 200:
-                        image_result = response.json()
-                        image_url = image_result.get("image_url")  # Теперь это cloud URL
-                        cloud_url = image_result.get("cloud_url")  # Тот же URL
-                        image_filename = image_result.get("filename")
-                        generation_time = image_result.get("generation_time")  # Время генерации в секундах
-                    else:
-                        raise Exception(f"Ошибка генерации изображения: {response.status_code}")
-                
-                logger.info(f"[OK] /chat: Изображение сгенерировано: {image_filename}")
-                
-                # Проверяем доступность изображения (теперь это cloud URL)
-                if image_url:
-                    logger.info(f"[OK] Cloud URL получен: {image_url}")
-                else:
-                    logger.error(f"[ERROR] Cloud URL не получен")
-                    image_url = None
-                
-                # Тратим монеты за генерацию фото (если пользователь авторизован)
-                if user_id and image_url:
-                    if coins_user_id is None:
-                        raise HTTPException(status_code=400, detail="Некорректный идентификатор пользователя")
-                    await spend_photo_resources(coins_user_id)
-                
-            except Exception as e:
-                logger.error(f"[ERROR] /chat: Ошибка генерации изображения: {e}")
-                # Продолжаем без изображения, не прерываем чат
+        # Генерация изображения уже выполнена выше перед проверкой стриминга
         
         # Возвращаем ответ с изображением (если есть)
         result = {
@@ -2958,15 +2960,20 @@ async def chat_endpoint(
             "session_id": session_id,
             "character": character_data["name"],
             "message": message,
-            "image_generated": generate_image and image_url is not None
+            "image_generated": generate_image and (image_url is not None or task_id is not None)
         }
         
-        logger.info(f"[DEBUG] DEBUG: image_url = {image_url}, image_filename = {image_filename}")
-        logger.info(f"[DEBUG] DEBUG: generate_image = {generate_image}, image_generated = {result['image_generated']}")
-        
-        if image_url:
+        # Если есть task_id, добавляем его в ответ для опроса статуса
+        if generate_image and task_id:
+            result["task_id"] = task_id
+            result["status_url"] = status_url or f"/api/v1/generation-status/{task_id}"
+            result["is_generating"] = True
+        elif generate_image and image_url:
             result["image_url"] = image_url
-            result["image_filename"] = image_filename
+            result["cloud_url"] = cloud_url if 'cloud_url' in locals() else image_url
+            result["generation_time"] = generation_time
+            if 'image_filename' in locals():
+                result["image_filename"] = image_filename
             if cloud_url:
                 result["cloud_url"] = cloud_url
             if generation_time is not None:
@@ -3418,40 +3425,14 @@ async def generate_image(
     import traceback
     # КРИТИЧЕСКАЯ ПРОВЕРКА: Если вы видите этот лог, значит новый код выполняется
     print("=" * 80)
-    print("[GENERATE IMAGE] ========== НАЧАЛО ГЕНЕРАЦИИ ФОТО ==========")
-    print(f"[GENERATE IMAGE] POST /api/v1/generate-image/")
-    logger.info("=" * 80)
-    logger.info("[GENERATE IMAGE] ========== НАЧАЛО ГЕНЕРАЦИИ ФОТО ==========")
-    logger.info(f"[GENERATE IMAGE] POST /api/v1/generate-image/")
-    logger.info(f"[GENERATE IMAGE] User: {current_user.email if current_user else 'Anonymous'} (ID: {current_user.id if current_user else 'N/A'})")
-    logger.info(f"[GENERATE IMAGE] Character: {request.character}")
-    
-    # Загружаем параметры по умолчанию для логирования, если в запросе пришел None
-    from app.config.generation_defaults import get_generation_params
-    default_params_for_log = get_generation_params("default")
-    
-    log_steps = request.steps or default_params_for_log.get("steps")
-    log_cfg = request.cfg_scale or default_params_for_log.get("cfg_scale")
-    log_width = request.width or default_params_for_log.get("width")
-    log_height = request.height or default_params_for_log.get("height")
-    
-    logger.info(f"[GENERATE IMAGE] Steps: {log_steps}, CFG: {log_cfg}, Size: {log_width}x{log_height}, Model: {request.model}")
-    logger.info(f"[GENERATE IMAGE] Промпт (полный): {request.prompt[:200]}..." if request.prompt and len(request.prompt) > 200 else f"[GENERATE IMAGE] Промпт (полный): {request.prompt}")
-    logger.info(f"[GENERATE IMAGE] Negative prompt: {request.negative_prompt}")
-    logger.info(f"[GENERATE IMAGE] Use default prompts: {request.use_default_prompts}")
-    logger.info(f"[GENERATE IMAGE] Тип модели: {type(request.model)}, Значение: {repr(request.model)}")
-    print(f"[GENERATE IMAGE] User: {current_user.email if current_user else 'Anonymous'} (ID: {current_user.id if current_user else 'N/A'})")
-    print(f"[GENERATE IMAGE] Character: {request.character}")
-    print(f"[GENERATE IMAGE] Промпт: {request.prompt}")
     # Проверяем валидность модели
     valid_models = ["anime", "anime-realism", "realism"]
     if request.model and request.model not in valid_models:
-        logger.error(f"[ENDPOINT IMG] ОШИБКА: Недопустимая модель '{request.model}'. Допустимые значения: {valid_models}")
+        logger.error(f"ОШИБКА: Недопустимая модель '{request.model}'. Допустимые значения: {valid_models}")
         raise HTTPException(
             status_code=400,
             detail=f"Недопустимая модель '{request.model}'. Допустимые значения: {valid_models}"
         )
-    logger.info(f"[ENDPOINT IMG] ========================================")
     
     # ВРЕМЕННАЯ ЗАГЛУШКА ДЛЯ ПРОВЕРКИ ФРОНТЕНДА
     # Можно включить через переменную окружения для тестирования
@@ -3519,16 +3500,13 @@ async def generate_image(
         
         # Получаем user_id из текущего пользователя или из request
         user_id = current_user.id if current_user else request.user_id
-        logger.info(f"[DEBUG] DEBUG: Эндпоинт generate-image, user_id: {user_id}")
         if user_id:
-            logger.info(f"[DEBUG] DEBUG: Проверка монет для генерации фото пользователя {user_id}")
             from app.services.coins_service import CoinsService
             from app.database.db import async_session_maker
             
             async with async_session_maker() as db:
                 coins_service = CoinsService(db)
                 can_generate_photo = await coins_service.can_user_generate_photo(user_id)
-                logger.info(f"[DEBUG] DEBUG: Может генерировать фото: {can_generate_photo}")
                 if not can_generate_photo:
                     coins = await coins_service.get_user_coins(user_id)
                     logger.error(f"[ERROR] DEBUG: Недостаточно монет для генерации фото! У пользователя {user_id}: {coins} монет, нужно 10")
@@ -3549,17 +3527,14 @@ async def generate_image(
                 sys.path.insert(0, str(webui_path))
                 from model_config import get_model_info
                 model_info = get_model_info()
-                if model_info:
-                    logger.info(f"[TARGET] Генерация изображения с моделью: {model_info['name']} ({model_info['size_mb']} MB)")
-                else:
-                    logger.warning("[WARNING] Информация о модели недоступна")
+                if not model_info:
+                    logger.warning("Информация о модели недоступна")
         except ImportError:
             # Модуль model_config не найден - это нормально
             pass
         except Exception as e:
             logger.warning(f"[WARNING] Не удалось получить информацию о модели: {e}")
         
-        logger.info(f"[TARGET] Генерация изображения: {request.prompt}")
 
         # Проверяем наличие переменных окружения для RunPod
         if not os.environ.get("RUNPOD_API_KEY"):
@@ -3710,7 +3685,6 @@ async def generate_image(
         
         # Если пришел custom_prompt, используем его как есть (без добавления данных персонажа)
         if request.custom_prompt and request.custom_prompt.strip():
-            logger.info(f"[CUSTOM_PROMPT] Используем отредактированный промпт от пользователя: {request.custom_prompt[:100]}...")
             generation_settings.prompt = request.custom_prompt.strip()
             # Переводим custom_prompt на английский если нужно
             try:
@@ -3737,7 +3711,6 @@ async def generate_image(
                         generation_settings.prompt = '\n'.join(translated_parts)
                     else:
                         generation_settings.prompt = translator.translate(prompt_text)
-                    logger.info(f"[CUSTOM_PROMPT] Промпт переведен на английский: {generation_settings.prompt[:100]}...")
             except (ImportError, Exception) as translate_error:
                 logger.error(f"[TRANSLATE] Ошибка перевода custom_prompt: {translate_error}")
         else:
@@ -3862,16 +3835,10 @@ async def generate_image(
         generation_settings.prompt = deduplicate_prompt(generation_settings.prompt)
         enhanced_prompt = generation_settings.prompt  # Обновляем для логирования
         
-        logger.info(f"[PROMPT] Финальный промпт после дедупликации ({len(generation_settings.prompt)} символов)")
-        
         # Обновляем промпт в настройках для логирования
         full_settings_for_logging["prompt"] = enhanced_prompt
         
         # Генерация изображения через Celery с приоритетом
-        logger.info(f"[GENERATE] =========================================")
-        logger.info(f"[GENERATE] === ГЕНЕРАЦИЯ ИЗОБРАЖЕНИЯ ЧЕРЕЗ CELERY ===")
-        logger.info(f"[GENERATE] Начинаем генерацию изображения (user_id={user_id})")
-        logger.info(f"[GENERATE] =========================================")
         
         try:
             from app.celery_app import celery_app
@@ -3891,22 +3858,18 @@ async def generate_image(
                 if "localhost" in r_url:
                     r_url = r_url.replace("localhost", "127.0.0.1")
                 
-                logger.info(f"[REDIS] Попытка подключения к Redis ({source}): {r_url}")
                 # Используем redis.from_url для корректной обработки всех параметров
                 r = redis.from_url(r_url, socket_connect_timeout=3, socket_timeout=3)
                 r.ping()
-                logger.info(f"[REDIS] Успешное подключение к {r_url}")
             except Exception as r_err:
                 logger.error(f"[REDIS] Redis недоступен ({source}): {r_url}. Ошибка: {r_err}")
                 # Если 127.0.0.1 не сработал, а мы возможно в Docker (на VPS), пробуем имя сервиса
                 if "127.0.0.1" in r_url:
                     try:
                         alt_url = r_url.replace("127.0.0.1", "art_generation_redis")
-                        logger.info(f"[REDIS] Пробуем альтернативный адрес для Docker/VPS: {alt_url}")
                         r_alt = redis.from_url(alt_url, socket_connect_timeout=2, socket_timeout=2)
                         r_alt.ping()
                         r_url = alt_url
-                        logger.info(f"[REDIS] Успешное подключение к {alt_url}")
                     except Exception:
                         raise HTTPException(
                             status_code=503, 
@@ -3927,10 +3890,8 @@ async def generate_image(
             from app.models.subscription import SubscriptionType
             if subscription_type_enum == SubscriptionType.PREMIUM:
                 task_priority = 1  # Самый высокий приоритет для PREMIUM
-                logger.info(f"[PRIORITY] Установлен приоритет 1 (высокий) для PREMIUM пользователя {user_id}")
             elif subscription_type_enum == SubscriptionType.STANDARD:
                 task_priority = 3  # Средний приоритет для STANDARD
-                logger.info(f"[PRIORITY] Установлен приоритет 3 (средний) для STANDARD пользователя {user_id}")
 
             # Подготавливаем параметры для задачи
             selected_model = getattr(generation_settings, 'model', None) or (getattr(request, 'model', None) or "anime-realism")
@@ -3980,10 +3941,7 @@ async def generate_image(
                         logger.warning(f"Не удалось записать историю баланса: {e}")
                     
                     await db.commit()
-                logger.info(f"[COINS] Списано {PHOTO_GENERATION_COST} монет за запуск Celery задачи для user_id={user_id}")
                     
-            logger.info(f"[GENERATE] ✅ ЗАДАЧА ОТПРАВЛЕНА В CELERY (priority={task_priority})")
-            logger.info(f"[GENERATE] Task ID: {task.id}, Модель: {selected_model}")
             
             # ВАЖНО: Создаем запись в ChatHistory СРАЗУ, чтобы промпт был виден
             try:
@@ -4009,7 +3967,6 @@ async def generate_image(
                         }
                     )
                     await history_db.commit()
-                    logger.info(f"[PROMPT] Создана начальная запись в ChatHistory для task_{task.id}")
             except Exception as e:
                 logger.warning(f"[PROMPT] Не удалось создать начальную запись в ChatHistory: {e}")
 
@@ -4052,7 +4009,6 @@ async def generate_image(
                 }
                 # Сохраняем на 1 час
                 await cache_set(f"generation:{task.id}", meta, ttl_seconds=3600)
-                logger.info(f"[GENERATE] Метаданные сохранены в Redis для task_id={task.id}")
             except Exception as meta_err:
                 logger.warning(f"[GENERATE] Ошибка сохранения метаданных: {meta_err}")
 
@@ -4068,11 +4024,9 @@ async def generate_image(
             raise HTTPException(status_code=500, detail=f"Ошибка запуска генерации: {str(celery_error)}")
                 
         except Exception as e:
-            logger.error(f"[GENERATE] =========================================")
-            logger.error(f"[GENERATE] ОШИБКА в генерации: {e}")
+            logger.error(f"ОШИБКА в генерации: {e}")
             import traceback
-            logger.error(f"[GENERATE] Трейсбек: {traceback.format_exc()}")
-            logger.error(f"[GENERATE] =========================================")
+            logger.error(f"Трейсбек: {traceback.format_exc()}")
             raise HTTPException(
                 status_code=500,
                 detail=f"Ошибка генерации изображения: {str(e)}"
@@ -4086,11 +4040,9 @@ async def generate_image(
     except HTTPException as exc:
         raise exc
     except Exception as e:
-        logger.error(f"[GENERATE] =========================================")
-        logger.error(f"[GENERATE] КРИТИЧЕСКАЯ ОШИБКА в endpoint: {e}")
+        logger.error(f"КРИТИЧЕСКАЯ ОШИБКА в endpoint: {e}")
         import traceback
-        logger.error(f"[GENERATE] Трейсбек: {traceback.format_exc()}")
-        logger.error(f"[GENERATE] =========================================")
+        logger.error(f"Трейсбек: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Ошибка генерации изображения: {str(e)}")
 
 

@@ -313,7 +313,6 @@ async def get_prompt_by_image(
             return clean_url
         
         file_identifier = extract_file_identifier(normalized_url)
-        logger.info(f"[PROMPT] Поиск промпта для изображения: {normalized_url} (file_id: {file_identifier})")
 
         # 1. СНАЧАЛА ищем в ImageGenerationHistory (там может быть admin_prompt)
         # Приоритет: admin_prompt важнее всего
@@ -389,7 +388,7 @@ async def get_prompt_by_image(
                         "generation_time": image_history_record.generation_time
                     }
         except Exception as img_history_err:
-            logger.warning(f"[PROMPT] Ошибка поиска в ImageGenerationHistory: {img_history_err}")
+            pass
 
         # 2. Если не нашли в ImageGenerationHistory, ищем в ChatHistory (там сообщения чата)
         from sqlalchemy.orm import load_only
@@ -494,35 +493,10 @@ async def get_prompt_by_image(
         )
         debug_result = await db.execute(debug_stmt)
         debug_records = debug_result.scalars().all()
-        logger.warning(
-            "[PROMPT] Промпт не найден для изображения: %s (нормализованный: %s). "
-            "Всего записей для user_id=%s: %d",
-            image_url,
-            normalized_url,
-            user_id,
-            len(debug_records)
-        )
-        if debug_records:
-            example_urls = [(r.image_url, r.created_at, r.message_content[:50] if r.message_content else None) for r in debug_records[:5] if r.image_url]
-            logger.warning(
-                "[PROMPT] Последние 5 записей из базы для user_id=%s: %s",
-                user_id,
-                example_urls,
-            )
-            # Проверяем, есть ли запись с похожим URL
-            for record in debug_records:
-                if record.image_url and normalized_url in record.image_url:
-                    logger.warning(f"[PROMPT] НАЙДЕНА ПОХОЖАЯ ЗАПИСЬ! record.image_url={record.image_url}, normalized_url={normalized_url}, match={normalized_url in record.image_url}")
-                elif record.image_url and record.image_url in normalized_url:
-                    logger.warning(f"[PROMPT] НАЙДЕНА ПОХОЖАЯ ЗАПИСЬ (обратное)! record.image_url={record.image_url}, normalized_url={normalized_url}, match={record.image_url in normalized_url}")
         return {
             "success": False,
             "prompt": None,
             "message": "Промпт не найден для этого изображения"
         }
     except Exception as e:
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.error(f"[PROMPT] Ошибка получения промпта: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Ошибка получения промпта: {str(e)}")

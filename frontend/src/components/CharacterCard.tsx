@@ -7,9 +7,9 @@ import ElectricBorder from './ElectricBorder';
 import { FiHeart, FiX as CloseIcon, FiTrash2, FiThumbsUp, FiThumbsDown, FiEdit } from 'react-icons/fi';
 import { authManager } from '../utils/auth';
 import { API_CONFIG } from '../config/api';
-import { fetchPromptByImage } from '../utils/prompt';
 import { translateToRussian } from '../utils/translate';
 import { extractRolePlayingSituation } from '../utils/characterUtils';
+import { fetchPromptByImage } from '../utils/prompt';
 import { useIsMobile } from '../hooks/useIsMobile';
 import Switcher4 from './Switcher4';
 import { OptimizedImage } from './ui/OptimizedImage';
@@ -328,21 +328,21 @@ const PersonalityModalCloseButton = styled.button`
 
 const PersonalityText = styled.div`
   color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.md};
+  font-size: ${theme.fontSize.base};
   line-height: 1.6;
   white-space: pre-wrap;
 `;
 
 const PersonalityLoading = styled.div`
   color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.md};
+  font-size: ${theme.fontSize.base};
   text-align: center;
   padding: ${theme.spacing.xl};
 `;
 
 const PersonalityError = styled.div`
-  color: ${theme.colors.error};
-  font-size: ${theme.fontSize.md};
+  color: ${theme.colors.status.error};
+  font-size: ${theme.fontSize.base};
   text-align: center;
   padding: ${theme.spacing.xl};
 `;
@@ -473,7 +473,7 @@ const EditPromptSaveButton = styled.button`
   background: rgba(139, 92, 246, 0.8);
   border: 2px solid rgba(139, 92, 246, 0.6);
   color: white;
-  font-size: ${theme.fontSize.md};
+  font-size: ${theme.fontSize.base};
   font-weight: 600;
   cursor: pointer;
   transition: all ${theme.transition.fast};
@@ -501,7 +501,7 @@ const EditPromptCancelButton = styled.button`
   background: transparent;
   border: 2px solid rgba(100, 100, 100, 0.5);
   color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.md};
+  font-size: ${theme.fontSize.base};
   font-weight: 600;
   cursor: pointer;
   transition: all ${theme.transition.fast};
@@ -660,7 +660,7 @@ const CharacterAvatar = styled.div`
   width: 60px;
   height: 60px;
   border-radius: 50%;
-  background: ${theme.colors.gradients.primary};
+  background: ${theme.colors.gradients.main};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -776,46 +776,6 @@ const RatingCount = styled.span`
   line-height: 1;
 `;
 
-const ShowPromptButton = styled.button`
-  padding: ${theme.spacing.xs} ${theme.spacing.sm};
-  border-radius: ${theme.borderRadius.md};
-  background: rgba(255, 255, 255, 0.05);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  color: rgba(255, 255, 255, 0.95);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all ${theme.transition.fast};
-  cursor: pointer;
-  font-size: ${theme.fontSize.xs};
-  font-weight: 600;
-  text-align: center;
-  white-space: nowrap;
-  min-width: 60px;
-  min-height: 28px;
-  z-index: 1001;
-  position: relative;
-  pointer-events: auto !important;
-  
-  @media (max-width: 768px) {
-    padding: 3px 6px;
-    min-width: 50px;
-    min-height: 24px;
-    font-size: 10px;
-  }
-  
-  &:hover {
-    transform: scale(1.05);
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.4);
-    color: rgba(255, 255, 255, 0.9);
-    box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2);
-  }
-  
-  &:active {
-    transform: scale(0.95);
-  }
-`;
 
 const RoleplaySituationButton = styled.button`
   padding: ${theme.spacing.xs} ${theme.spacing.sm};
@@ -861,182 +821,6 @@ const RoleplaySituationButton = styled.button`
   }
 `;
 
-const PreviewBackdrop = styled.div`
-  position: fixed;
-  inset: 0;
-  background: #000;
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
-  z-index: 99999 !important;
-  backdrop-filter: blur(70px);
-  -webkit-backdrop-filter: blur(70px);
-  padding: 0;
-  width: 100vw;
-  height: 100vh;
-  visibility: visible !important;
-  opacity: 1 !important;
-`;
-
-const PreviewContent = styled.div`
-  position: relative;
-  max-width: 100vw;
-  max-height: 100vh;
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
-  gap: ${theme.spacing.xl};
-  width: 100%;
-
-  @media (max-width: 768px) {
-    flex-direction: column;
-    align-items: center;
-    gap: 0;
-  }
-`;
-
-const PreviewImageContainer = styled.div`
-  flex: 1;
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-  max-width: 70%;
-  visibility: visible !important;
-  opacity: 1 !important;
-
-  @media (max-width: 768px) {
-    max-width: 100%;
-    width: 100%;
-    flex: 1;
-    min-height: 0;
-  }
-`;
-
-const PreviewImage = styled.img`
-  max-width: 100%;
-  max-height: 95vh;
-  object-fit: contain;
-  border-radius: ${theme.borderRadius.lg};
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  visibility: visible !important;
-  opacity: 1 !important;
-  display: block !important;
-
-  @media (max-width: 768px) {
-    max-height: 100%;
-    width: auto;
-    height: auto;
-    border-radius: 0;
-  }
-`;
-
-const PreviewClose = styled.button`
-  position: absolute;
-  top: ${theme.spacing.lg};
-  right: ${theme.spacing.lg};
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 2px solid rgba(244, 63, 94, 0.4);
-  background: rgba(244, 63, 94, 0.2);
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.xl};
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  z-index: 10;
-
-  &:hover {
-    background: rgba(244, 63, 94, 0.4);
-    border-color: rgba(244, 63, 94, 0.6);
-    transform: scale(1.1) rotate(90deg);
-    box-shadow: 0 4px 12px rgba(244, 63, 94, 0.4);
-  }
-  
-  &:active {
-    transform: scale(0.95) rotate(90deg);
-  }
-`;
-
-const PromptPanel = styled.div`
-  width: 400px;
-  min-width: 350px;
-  max-width: 30%;
-  background: rgba(30, 30, 30, 0.95);
-  border: 2px solid rgba(150, 150, 150, 0.5);
-  border-radius: ${theme.borderRadius.xl};
-  padding: ${theme.spacing.xl};
-  overflow-y: auto;
-  max-height: 95vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(10px);
-
-  @media (max-width: 768px) {
-    position: relative;
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    max-height: 30vh;
-    background: rgba(20, 20, 20, 0.95);
-    border: none;
-    border-bottom: 1px solid rgba(251, 191, 36, 0.3);
-    border-radius: 0;
-    padding: ${theme.spacing.md};
-    z-index: 10;
-    flex-shrink: 0;
-  }
-`;
-
-const PromptPanelHeader = styled.div`
-  margin-bottom: ${theme.spacing.lg};
-  padding-bottom: ${theme.spacing.md};
-  border-bottom: 1px solid rgba(150, 150, 150, 0.3);
-`;
-
-const PromptPanelTitle = styled.h3`
-  color: #fbbf24;
-  font-size: ${theme.fontSize.xl};
-  font-weight: 800;
-  margin: 0;
-`;
-
-const PromptPanelText = styled.div`
-  color: rgba(200, 200, 200, 1);
-  font-size: ${theme.fontSize.sm};
-  line-height: 1.8;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  padding: ${theme.spacing.md};
-  background: rgba(40, 40, 40, 0.5);
-  border-radius: ${theme.borderRadius.lg};
-  border: 1px solid rgba(150, 150, 150, 0.3);
-  font-family: 'Courier New', monospace;
-  flex: 1;
-`;
-
-const PromptLoading = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: ${theme.spacing.xxl};
-  color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.sm};
-`;
-
-const PromptError = styled.div`
-  color: ${theme.colors.error || '#ff6b6b'};
-  font-size: ${theme.fontSize.sm};
-  text-align: center;
-  padding: ${theme.spacing.xl};
-  visibility: visible !important;
-  opacity: 1 !important;
-  display: block !important;
-`;
 
 const CloseButton = styled.button`
   position: absolute;
@@ -1075,6 +859,248 @@ const Author = styled.div`
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 `;
 
+const PromptModal = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10002;
+  padding: ${theme.spacing.lg};
+`;
+
+const PromptModalContent = styled.div`
+  display: flex;
+  width: 100%;
+  max-width: 1400px;
+  height: 90vh;
+  max-height: 90vh;
+  gap: ${theme.spacing.lg};
+  position: relative;
+  
+  @media (max-width: 768px) {
+    flex-direction: column;
+    height: auto;
+    max-height: 100vh;
+  }
+`;
+
+const PromptImageContainer = styled.div`
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: transparent;
+  border-radius: ${theme.borderRadius.lg};
+  overflow: hidden;
+  
+  img {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    object-position: center;
+  }
+  
+  @media (max-width: 768px) {
+    max-height: none;
+    height: auto;
+    
+    img {
+      max-width: 100vw;
+      max-height: 100vh;
+      width: auto;
+      height: auto;
+    }
+  }
+`;
+
+const PromptSidebar = styled.div<{ $isVisible: boolean }>`
+  width: 400px;
+  background: rgba(10, 10, 15, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: ${theme.borderRadius.lg};
+  padding: ${theme.spacing.xl};
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: ${theme.colors.shadow.glow};
+  transition: all ${theme.transition.fast};
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  transform: ${props => props.$isVisible ? 'translateX(0)' : 'translateX(20px)'};
+  pointer-events: ${props => props.$isVisible ? 'auto' : 'none'};
+  
+  @media (max-width: 768px) {
+    width: 100%;
+    max-height: 45vh;
+    opacity: ${props => props.$isVisible ? 1 : 0};
+    transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(20px)'};
+  }
+`;
+
+const PromptSidebarHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: ${theme.spacing.md};
+`;
+
+const PromptSidebarTitle = styled.h3`
+  color: ${theme.colors.text.primary};
+  font-size: ${theme.fontSize.lg};
+  font-weight: 600;
+  margin: 0;
+  flex: 1;
+`;
+
+const PromptCloseButton = styled.button`
+  background: transparent;
+  border: none;
+  color: ${theme.colors.text.primary};
+  cursor: pointer;
+  padding: ${theme.spacing.sm};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: ${theme.borderRadius.md};
+  transition: all ${theme.transition.fast};
+  
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  
+  svg {
+    width: 20px;
+    height: 20px;
+  }
+`;
+
+const PromptText = styled.div`
+  flex: 1;
+  overflow-y: auto;
+  color: ${theme.colors.text.secondary};
+  font-size: ${theme.fontSize.sm};
+  line-height: 1.6;
+  white-space: pre-wrap;
+  font-family: 'Courier New', monospace;
+  padding: ${theme.spacing.md};
+  background: rgba(20, 20, 20, 0.5);
+  border-radius: ${theme.borderRadius.md};
+  border: 1px solid rgba(100, 100, 100, 0.3);
+  
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: rgba(20, 20, 20, 0.5);
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(139, 92, 246, 0.5);
+    border-radius: 4px;
+    
+    &:hover {
+      background: rgba(139, 92, 246, 0.7);
+    }
+  }
+`;
+
+const PromptLoading = styled.div`
+  color: ${theme.colors.text.secondary};
+  font-size: ${theme.fontSize.base};
+  text-align: center;
+  padding: ${theme.spacing.xl};
+`;
+
+const PromptError = styled.div`
+  color: ${theme.colors.status.error};
+  font-size: ${theme.fontSize.base};
+  text-align: center;
+  padding: ${theme.spacing.xl};
+`;
+
+const PromptButton = styled.button`
+  padding: ${theme.spacing.xs} ${theme.spacing.sm};
+  border-radius: ${theme.borderRadius.md};
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all ${theme.transition.fast};
+  cursor: pointer;
+  font-size: ${theme.fontSize.xs};
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  min-width: 60px;
+  min-height: 28px;
+  z-index: 11;
+  position: relative;
+  
+  @media (max-width: 768px) {
+    padding: 3px 6px;
+    min-width: 50px;
+    min-height: 24px;
+    font-size: 10px;
+  }
+  
+  &:hover {
+    transform: scale(1.05);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.4);
+    color: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2);
+  }
+  
+  &:active {
+    transform: scale(0.95);
+  }
+`;
+
+const ModalCloseButton = styled.button`
+  position: absolute;
+  top: ${theme.spacing.lg};
+  right: ${theme.spacing.lg};
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: ${theme.colors.text.primary};
+  font-size: ${theme.fontSize.xl};
+  transition: ${theme.transition.fast};
+  z-index: 10003;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.7);
+    border-color: ${theme.colors.accent.primary};
+    transform: scale(1.1);
+  }
+  
+  svg {
+    width: 24px;
+    height: 24px;
+  }
+`;
+
 interface Character {
   id: string;
   name: string;
@@ -1098,7 +1124,6 @@ interface CharacterCardProps {
   onAddPhoto?: (character: Character) => void; // New prop for adding photos
   onPhotoGeneration?: (character: Character) => void; // Генерация фото
   onPaidAlbum?: (character: Character) => void; // Платный альбом
-  showPromptButton?: boolean; // Показывать кнопку "Show Prompt" только на главной странице
   isFavorite?: boolean; // Если true, персонаж считается в избранном (для страницы favorites)
   onFavoriteToggle?: () => void; // Callback при изменении статуса избранного
   userInfo?: { is_admin?: boolean } | null; // Информация о пользователе для проверки прав админа
@@ -1185,7 +1210,6 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   onAddPhoto, // New prop
   onPhotoGeneration,
   onPaidAlbum,
-  showPromptButton = false, // По умолчанию не показываем кнопку
   isFavorite: isFavoriteProp = false, // Проп для установки начального состояния избранного
   onFavoriteToggle, // Callback при изменении статуса избранного
   userInfo = null, // Информация о пользователе
@@ -1217,11 +1241,6 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     const newNsfw = character?.is_nsfw === true || (character as any)?.raw?.is_nsfw === true;
     setIsNsfw(newNsfw);
   }, [character?.is_nsfw, (character as any)?.raw?.is_nsfw]);
-  const [isPromptVisible, setIsPromptVisible] = useState(false); // КРИТИЧНО: false по умолчанию, чтобы не рендерить модалку без фото
-  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
-  const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
-  const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
-  const [promptError, setPromptError] = useState<string | null>(null);
   const [currentPhotoUrl, setCurrentPhotoUrl] = useState<string | null>(
     character.photos && character.photos.length > 0 ? character.photos[0] : null
   );
@@ -1264,6 +1283,14 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   const [isLoadingSituation, setIsLoadingSituation] = useState(false);
   const [situationError, setSituationError] = useState<string | null>(null);
   const [cardPosition, setCardPosition] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
+  
+  // Состояние для модального окна промпта
+  const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
+  const [promptText, setPromptText] = useState<string | null>(null);
+  const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
+  const [promptError, setPromptError] = useState<string | null>(null);
+  const [isPromptVisible, setIsPromptVisible] = useState(true);
+  const [modalPhotoUrl, setModalPhotoUrl] = useState<string | null>(null); // Сохраняем фото при открытии модального окна
 
   // Загружаем состояние избранного из API при монтировании
   // КРИТИЧЕСКИ ВАЖНО: проверяем избранное только если isFavoriteProp не передан
@@ -1449,13 +1476,6 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
       const allSuccess = responses.every(r => r.ok);
 
       if (allSuccess) {
-        // Обновляем selectedPrompt, если модальное окно открыто для одного из отредактированных фото
-        const editedPhoto = editingPhotos.find(p => p.url === selectedPhoto);
-        if (editedPhoto && editedPhoto.prompt.trim()) {
-          // Переводим промпт на русский для отображения
-          const translatedPrompt = await translateToRussian(editedPhoto.prompt.trim());
-          setSelectedPrompt(translatedPrompt);
-        }
         setIsEditPromptModalOpen(false);
         setEditingPhotos([]);
       } else {
@@ -1796,210 +1816,10 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     }
   }, [character.id, showRatings]);
 
-  // Функция для загрузки промпта по URL фото
-  // Вынесена отдельно, чтобы можно было вызывать как при клике, так и при восстановлении
-  const loadPromptForPhoto = useCallback(async (photoUrl: string) => {
-    console.log('[loadPromptForPhoto] Начало загрузки промпта для:', photoUrl);
-    
-    if (!photoUrl || photoUrl.trim() === '') {
-      console.error('[loadPromptForPhoto] URL изображения отсутствует');
-      return;
-    }
-
-    // Нормализуем URL
-    let normalizedUrl = photoUrl;
-    if (!photoUrl.startsWith('http')) {
-      if (photoUrl.startsWith('/')) {
-        normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}${photoUrl}`;
-      } else {
-        normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}/${photoUrl}`;
-      }
-    }
-
-    setIsLoadingPrompt(true);
-    setPromptError(null);
-    setSelectedPrompt(null);
-
-    try {
-      console.log('[loadPromptForPhoto] Запрашиваем промпт...');
-      const result = await fetchPromptByImage(normalizedUrl);
-      
-      console.log('[loadPromptForPhoto] Результат:', {
-        hasPrompt: result.hasPrompt,
-        promptLength: result.promptLength,
-        hasError: result.hasErrorMessage
-      });
-
-      const { hasPrompt, prompt, errorMessage } = result;
-
-      if (!prompt || prompt.trim() === '') {
-        console.log('[loadPromptForPhoto] Промпт пустой');
-        const finalErrorMessage = errorMessage || 'Промпт недоступен для этого изображения';
-        setPromptError(finalErrorMessage);
-        setIsLoadingPrompt(false);
-        return;
-      }
-
-      console.log('[loadPromptForPhoto] Промпт получен, длина:', prompt.length);
-
-      // Переводим промпт на русский
-      try {
-        const translatedPrompt = await translateToRussian(prompt);
-        console.log('[loadPromptForPhoto] Промпт переведен, длина:', translatedPrompt.length);
-
-        if (translatedPrompt && translatedPrompt.trim() !== '' && translatedPrompt.length > 1) {
-          setSelectedPrompt(translatedPrompt);
-          sessionStorage.setItem(`character_prompt_${character.id}`, translatedPrompt);
-          sessionStorage.setItem(`character_card_state_${character.id}`, JSON.stringify({
-            photo: normalizedUrl,
-            hasPrompt: true
-          }));
-          console.log('[loadPromptForPhoto] ✅ Промпт установлен');
-        } else {
-          console.error('[loadPromptForPhoto] ❌ Переведенный промпт слишком короткий');
-        }
-      } catch (translateError) {
-        console.warn('[loadPromptForPhoto] Ошибка перевода, используем оригинал:', translateError);
-        
-        if (prompt && prompt.trim() !== '' && prompt.length > 1) {
-          setSelectedPrompt(prompt);
-          sessionStorage.setItem(`character_prompt_${character.id}`, prompt);
-          sessionStorage.setItem(`character_card_state_${character.id}`, JSON.stringify({
-            photo: normalizedUrl,
-            hasPrompt: true
-          }));
-          console.log('[loadPromptForPhoto] ✅ Оригинальный промпт установлен');
-        }
-      }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Неизвестная ошибка загрузки промпта';
-      console.error('[loadPromptForPhoto] ❌ Ошибка:', errorMsg);
-      setPromptError(errorMsg);
-    } finally {
-      setIsLoadingPrompt(false);
-    }
-  }, [character.id]);
-
-  // Восстановление состояния из sessionStorage ТОЛЬКО для последнего активного персонажа
-  // Это позволяет восстановить просмотр промпта после обновления страницы
-  // КРИТИЧНО: Восстанавливаем ТОЛЬКО для одного персонажа - последнего активного
-  // Это предотвращает открытие множества модальных окон одновременно
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    // 1. Получаем ID персонажа, который БЫЛ ОТКРЫТ ПОСЛЕДНИМ
-    const lastActiveId = sessionStorage.getItem('last_active_character_id');
-    
-    // 2. ВОССТАНАВЛИВАЕМ ТОЛЬКО ЕСЛИ ЭТО ТОТ САМЫЙ ПЕРСОНАЖ
-    if (lastActiveId && String(character.id) === String(lastActiveId)) {
-      const savedState = sessionStorage.getItem(`character_card_state_${character.id}`);
-      if (savedState) {
-        try {
-          const parsed = JSON.parse(savedState);
-          
-          // КРИТИЧНО: Проверяем, что фото валидно перед восстановлением
-          if (!parsed.photo || parsed.photo.trim() === '') {
-            console.warn(`[Restore State] Пропущено восстановление - фото невалидно для персонажа: ${character.id}`);
-            return;
-          }
-          
-          console.log(`[Restore State] Восстановлено окно ТОЛЬКО для активного персонажа: ${character.id}`);
-          
-          // КРИТИЧНО: Нормализуем URL так же, как при клике
-          let normalizedUrl = parsed.photo;
-          if (!parsed.photo.startsWith('http')) {
-            if (parsed.photo.startsWith('/')) {
-              normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}${parsed.photo}`;
-            } else {
-              normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}/${parsed.photo}`;
-            }
-          }
-          
-          // Обновляем sessionStorage с нормализованным URL
-          sessionStorage.setItem(`character_photo_${character.id}`, normalizedUrl);
-          sessionStorage.setItem(`character_card_state_${character.id}`, JSON.stringify({
-            photo: normalizedUrl,
-            hasPrompt: false // Будет обновлено после загрузки промпта
-          }));
-          
-          // Устанавливаем состояния в правильном порядке (как при клике)
-          setSelectedPhoto(normalizedUrl);
-          setIsPromptVisible(true);
-          setSelectedPrompt(null);
-          setPromptError(null);
-          
-          // Если промпт сохранен отдельно, восстанавливаем его
-          const savedPrompt = sessionStorage.getItem(`character_prompt_${character.id}`);
-          if (savedPrompt && savedPrompt.trim() !== '' && savedPrompt.length > 1) {
-            setSelectedPrompt(savedPrompt);
-            setIsLoadingPrompt(false);
-            setPromptError(null);
-            // Обновляем состояние карточки с информацией о наличии промпта
-            sessionStorage.setItem(`character_card_state_${character.id}`, JSON.stringify({
-              photo: normalizedUrl,
-              hasPrompt: true
-            }));
-          } else {
-            // Промпта нет - загружаем заново
-            setIsLoadingPrompt(true);
-            setPromptError(null);
-            loadPromptForPhoto(normalizedUrl);
-          }
-        } catch (e) {
-          console.error('Ошибка восстановления:', e);
-        }
-      }
-    }
-  }, [character.id, loadPromptForPhoto]);
-
-  const handleOpenPhoto = async (e: React.MouseEvent, imageUrl: string) => {
-    e.stopPropagation();
-    e.preventDefault();
-    
-    console.log('[handleOpenPhoto] Открываем фото:', imageUrl);
-    
-    if (!imageUrl) {
-      console.error('[handleOpenPhoto] URL изображения отсутствует');
-      return;
-    }
-    
-    // Нормализуем URL
-    let normalizedUrl = imageUrl;
-    if (!imageUrl.startsWith('http')) {
-      if (imageUrl.startsWith('/')) {
-        normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}${imageUrl}`;
-      } else {
-        normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}/${imageUrl}`;
-      }
-    }
-    
-    // Устанавливаем состояния в правильном порядке
-    setSelectedPhoto(normalizedUrl);
-    setIsPromptVisible(true);
-    setSelectedPrompt(null);
-    setPromptError(null);
-    
-    // Сохраняем в sessionStorage
-    sessionStorage.setItem(`character_photo_${character.id}`, normalizedUrl);
-    sessionStorage.setItem('last_active_character_id', String(character.id));
-    sessionStorage.setItem(`character_card_state_${character.id}`, JSON.stringify({
-      photo: normalizedUrl,
-      hasPrompt: false // Будет обновлено после загрузки промпта
-    }));
-
-    // Загружаем промпт через отдельную функцию
-    await loadPromptForPhoto(normalizedUrl);
-  };
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (selectedPhoto) {
-        setSelectedPhoto(null);
-        setSelectedPrompt(null);
-        setPromptError(null);
-        setIsLoadingPrompt(false);
-        }
         if (isPersonalityModalOpen) {
           setIsPersonalityModalOpen(false);
         }
@@ -2008,39 +1828,14 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           setEditingPhotos([]);
           setPromptSaveError(null);
         }
+        if (isPromptModalOpen) {
+          handleClosePromptModal();
+        }
       }
     };
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
-  }, [selectedPhoto, isPersonalityModalOpen, isEditPromptModalOpen]);
-
-  // Очищаем состояние промпта только при выходе пользователя (не при каждом событии авторизации)
-  useEffect(() => {
-    console.log('[CharacterCard] Подписка на изменения авторизации установлена');
-    const unsubscribe = authManager.subscribeAuthChanges((state) => {
-      console.log('[CharacterCard] Изменение состояния авторизации:', {
-        isAuthenticated: state.isAuthenticated
-      });
-      
-      // Очищаем состояние промпта ТОЛЬКО при выходе пользователя
-      // Не очищаем при входе, чтобы не мешать работе с промптами
-      if (!state.isAuthenticated) {
-        console.log('[CharacterCard] Пользователь вышел, очищаем состояние промпта');
-        setSelectedPhoto(null);
-        setSelectedPrompt(null);
-        setPromptError(null);
-        setIsLoadingPrompt(false);
-        // Очищаем sessionStorage при выходе
-        sessionStorage.removeItem(`character_photo_${character.id}`);
-        sessionStorage.removeItem(`character_prompt_${character.id}`);
-        sessionStorage.removeItem(`character_card_state_${character.id}`);
-        sessionStorage.removeItem('last_active_character_id');
-      }
-      // Убираем блок else - не очищаем при входе/смене пользователя
-    });
-
-    return unsubscribe;
-  }, []); // Убираем зависимость от selectedPhoto - эффект должен запускаться только один раз
+  }, [isPersonalityModalOpen, isEditPromptModalOpen, isPromptModalOpen]);
 
   // Функция для загрузки ролевой ситуации
   const loadRoleplaySituation = async () => {
@@ -2079,6 +1874,60 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     } finally {
       setIsLoadingSituation(false);
     }
+  };
+
+  // Функция для загрузки промпта для текущего фото
+  const loadPromptForPhoto = async (photoUrl: string) => {
+    if (!photoUrl) {
+      setPromptError('URL изображения отсутствует');
+      return;
+    }
+
+    setIsLoadingPrompt(true);
+    setPromptError(null);
+    setPromptText(null);
+
+    try {
+      const result = await fetchPromptByImage(photoUrl);
+      if (result.hasPrompt && result.prompt) {
+        setPromptText(result.prompt);
+      } else {
+        setPromptError(result.errorMessage || 'Промпт не найден для этого изображения');
+      }
+    } catch (error) {
+      setPromptError('Ошибка загрузки промпта');
+    } finally {
+      setIsLoadingPrompt(false);
+    }
+  };
+
+  // Обработчик открытия модального окна промпта
+  const handleOpenPromptModal = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!currentPhotoUrl) {
+      return;
+    }
+
+    // Сохраняем текущее фото, чтобы оно не менялось при изменении слайда
+    setModalPhotoUrl(currentPhotoUrl);
+    setIsPromptModalOpen(true);
+    setIsPromptVisible(true);
+    await loadPromptForPhoto(currentPhotoUrl);
+  };
+
+  // Обработчик закрытия модального окна промпта
+  const handleClosePromptModal = () => {
+    setIsPromptModalOpen(false);
+    setIsPromptVisible(true);
+    setPromptText(null);
+    setPromptError(null);
+    setModalPhotoUrl(null);
+  };
+
+  // Обработчик закрытия только промпта (оставляет фото открытым)
+  const handleClosePrompt = () => {
+    setIsPromptVisible(false);
   };
 
   // Обновление позиции карточки для позиционирования overlay
@@ -2289,31 +2138,12 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
               Альбом
             </AlbumButton>
           )}
-          {showPromptButton && character.photos && character.photos.length > 0 && (
-            <ShowPromptButton
-              onClick={async (e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                // Используем текущее фото из слайдера или первое фото персонажа
-                const photoToShow = currentPhotoUrl || (character.photos && character.photos.length > 0 ? character.photos[0] : null);
-                if (!photoToShow) {
-                  return;
-                }
-                // Нормализуем URL перед передачей - убеждаемся, что это абсолютный URL
-                let normalizedUrl = photoToShow;
-                if (!normalizedUrl.startsWith('http')) {
-                  if (normalizedUrl.startsWith('/')) {
-                    normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}${normalizedUrl}`;
-                  } else {
-                    normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}/${normalizedUrl}`;
-                  }
-                }
-                // Вызываем handleOpenPhoto для открытия фото в полный экран
-                await handleOpenPhoto(e, normalizedUrl);
-              }}
+          {currentPhotoUrl && (
+            <PromptButton
+              onClick={handleOpenPromptModal}
             >
               Промпт
-            </ShowPromptButton>
+            </PromptButton>
           )}
           {isMobile && (
             <RoleplaySituationButton
@@ -2377,7 +2207,6 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                 target.closest('[class*="RatingButton"]') ||
                 target.closest('[class*="Switcher"]') ||
                 target.closest('[class*="FavoriteButton"]') ||
-                target.closest('[class*="ShowPromptButton"]') ||
                 target.closest('[class*="ActionButton"]') ||
                 target.closest('[class*="RoleplaySituationButton"]')
               ) {
@@ -2398,7 +2227,6 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                 target.closest('[class*="RatingButton"]') ||
                 target.closest('[class*="Switcher"]') ||
                 target.closest('[class*="FavoriteButton"]') ||
-                target.closest('[class*="ShowPromptButton"]') ||
                 target.closest('[class*="ActionButton"]') ||
                 target.closest('[class*="RoleplaySituationButton"]')
               ) {
@@ -2599,97 +2427,6 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         </RatingButton>
       )}
     </CardWrapper>
-      {selectedPhoto && selectedPhoto.trim() !== '' && createPortal(
-        <PreviewBackdrop onClick={() => {
-          setSelectedPhoto(null);
-          setSelectedPrompt(null);
-          setPromptError(null);
-          setIsLoadingPrompt(false);
-          // Очищаем sessionStorage при закрытии
-          sessionStorage.removeItem(`character_photo_${character.id}`);
-          sessionStorage.removeItem(`character_prompt_${character.id}`);
-          sessionStorage.removeItem(`character_card_state_${character.id}`);
-          // Очищаем ID последнего активного персонажа
-          const activeCharId = sessionStorage.getItem('last_active_character_id');
-          if (activeCharId && String(character.id) === String(activeCharId)) {
-            sessionStorage.removeItem('last_active_character_id');
-          }
-        }}>
-          <PreviewContent onClick={(event) => event.stopPropagation()}>
-            <PreviewClose onClick={() => {
-              setSelectedPhoto(null);
-              setSelectedPrompt(null);
-              setPromptError(null);
-              setIsLoadingPrompt(false);
-              // Очищаем sessionStorage при закрытии
-              sessionStorage.removeItem(`character_photo_${character.id}`);
-              sessionStorage.removeItem(`character_prompt_${character.id}`);
-              sessionStorage.removeItem(`character_card_state_${character.id}`);
-              // Очищаем ID последнего активного персонажа
-              const activeCharId = sessionStorage.getItem('last_active_character_id');
-              if (activeCharId && String(character.id) === String(activeCharId)) {
-                sessionStorage.removeItem('last_active_character_id');
-              }
-            }}>
-              <CloseIcon />
-            </PreviewClose>
-            <PreviewImageContainer>
-              <PreviewImage src={selectedPhoto} alt={character.name} />
-            </PreviewImageContainer>
-            <PromptPanel style={{
-              display: isPromptVisible ? 'flex' : 'none',
-              visibility: isPromptVisible ? 'visible' : 'hidden'
-            }}>
-              <PromptPanelHeader>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
-                  <button 
-                    onClick={() => setIsPromptVisible(false)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#fbbf24',
-                      cursor: 'pointer',
-                      padding: '4px'
-                    }}
-                    title="Скрыть промпт"
-                  >
-                    <CloseIcon size={20} />
-                  </button>
-                </div>
-              </PromptPanelHeader>
-              {isLoadingPrompt ? (
-                <PromptLoading>Загрузка промпта...</PromptLoading>
-              ) : promptError ? (
-                <PromptError>{promptError}</PromptError>
-              ) : selectedPrompt ? (
-                <PromptPanelText>{selectedPrompt}</PromptPanelText>
-              ) : null}
-            </PromptPanel>
-            {!isPromptVisible && (
-              <button
-                onClick={() => setIsPromptVisible(true)}
-                style={{
-                  position: 'absolute',
-                  top: '20px',
-                  left: '20px',
-                  background: 'rgba(0, 0, 0, 0.7)',
-                  border: '1px solid rgba(251, 191, 36, 0.5)',
-                  borderRadius: '8px',
-                  padding: '8px 16px',
-                  color: '#fbbf24',
-                  cursor: 'pointer',
-                  zIndex: 10002,
-                  fontWeight: '600'
-                }}
-              >
-                Показать промпт
-              </button>
-            )}
-          </PreviewContent>
-        </PreviewBackdrop>,
-        document.body
-      )}
       {isPersonalityModalOpen && createPortal(
         <PersonalityModal onClick={(e) => {
           if (e.target === e.currentTarget) {
@@ -2776,6 +2513,42 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             </EditPromptButtonGroup>
           </EditPromptModalContent>
         </EditPromptModal>,
+        document.body
+      )}
+      {isPromptModalOpen && modalPhotoUrl && createPortal(
+        <PromptModal onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            handleClosePromptModal();
+          }
+        }}>
+          <ModalCloseButton onClick={handleClosePromptModal}>
+            <CloseIcon />
+          </ModalCloseButton>
+          <PromptModalContent onClick={(e) => e.stopPropagation()}>
+            <PromptImageContainer>
+              <img src={modalPhotoUrl} alt={character.name} />
+            </PromptImageContainer>
+            {isPromptVisible && (
+              <PromptSidebar $isVisible={isPromptVisible}>
+                <PromptSidebarHeader>
+                  <PromptSidebarTitle>Промпт</PromptSidebarTitle>
+                  <PromptCloseButton onClick={handleClosePrompt}>
+                    <CloseIcon />
+                  </PromptCloseButton>
+                </PromptSidebarHeader>
+                {isLoadingPrompt ? (
+                  <PromptLoading>Загрузка промпта...</PromptLoading>
+                ) : promptError ? (
+                  <PromptError>{promptError}</PromptError>
+                ) : promptText ? (
+                  <PromptText>{promptText}</PromptText>
+                ) : (
+                  <PromptLoading>Промпт не найден</PromptLoading>
+                )}
+              </PromptSidebar>
+            )}
+          </PromptModalContent>
+        </PromptModal>,
         document.body
       )}
     </>

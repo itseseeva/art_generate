@@ -59,9 +59,6 @@ async def get_redis_client() -> Optional[Redis]:
             is_docker = os.getenv("DATABASE_URL", "").find("postgres:") != -1
             if "://redis:" in redis_url and not is_docker:
                 redis_url = redis_url.replace("://redis:", "://localhost:")
-                logger.info(f"[REDIS] Заменён Docker hostname 'redis' на 'localhost' для локальной разработки")
-            
-            logger.info(f"[REDIS] Подключение к Redis: {redis_url.split('@')[-1] if '@' in redis_url else redis_url}")
             
             # Оптимизированная конфигурация с connection pooling
             # Определяем, локальная разработка или Docker
@@ -89,11 +86,9 @@ async def get_redis_client() -> Optional[Redis]:
             try:
                 # Проверка доступности с таймаутом в зависимости от окружения
                 await asyncio.wait_for(_redis_client.ping(), timeout=ping_timeout)
-                logger.info("[OK] Redis подключен успешно с connection pooling")
                 _redis_unavailable = False
             except asyncio.TimeoutError:
                 error_msg = f"Timeout при ping Redis (timeout={ping_timeout}s)"
-                logger.warning(f"[WARNING] Redis недоступен: {error_msg}. Кэширование отключено.")
                 if _redis_client:
                     try:
                         await _redis_client.aclose()
@@ -104,7 +99,6 @@ async def get_redis_client() -> Optional[Redis]:
                 return None
             except Exception as e:
                 error_msg = f"{type(e).__name__}: {str(e)}"
-                logger.warning(f"[WARNING] Redis недоступен: {error_msg}. Кэширование отключено.")
                 if _redis_client:
                     try:
                         await _redis_client.aclose()
@@ -115,7 +109,6 @@ async def get_redis_client() -> Optional[Redis]:
                 return None
         except Exception as e:
             error_msg = f"{type(e).__name__}: {str(e)}"
-            logger.warning(f"[WARNING] Redis недоступен (при создании клиента): {error_msg}. Кэширование отключено.")
             _redis_client = None
             _redis_unavailable = True
             return None
@@ -129,7 +122,6 @@ async def close_redis_client():
     if _redis_client:
         await _redis_client.aclose()
         _redis_client = None
-        logger.info("[OK] Redis соединение закрыто")
 
 
 async def cache_get(key: str, timeout: float = 0.3) -> Optional[Any]:
@@ -155,33 +147,25 @@ async def cache_get(key: str, timeout: float = 0.3) -> Optional[Any]:
         
         # Добавляем таймаут для Redis запроса
         try:
-            logger.debug(f"[REDIS GET] Чтение ключа: {key}")
             value = await asyncio.wait_for(client.get(key), timeout=timeout)
             if value is None:
-                logger.debug(f"[REDIS GET] Ключ не найден: {key}")
                 return None
-            logger.debug(f"[REDIS GET] ✓ Найден ключ: {key}")
         except asyncio.TimeoutError:
             # При таймауте помечаем Redis как недоступный для быстрого fallback в будущем
             _redis_unavailable = True
-            logger.debug(f"[REDIS GET] ⏱ Таймаут чтения ключа: {key} (>{timeout}с)")
             return None
         except Exception as e:
             # При ошибке помечаем Redis как недоступный
             _redis_unavailable = True
-            logger.debug(f"[REDIS GET] ✗ Ошибка чтения ключа {key}: {e}")
             return None
         
         # Пытаемся распарсить JSON
         try:
             parsed = json.loads(value)
-            logger.info(f"[REDIS GET] ✓ JSON распарсен для ключа: {key} (размер: {len(value)} байт)")
             return parsed
         except (json.JSONDecodeError, TypeError) as parse_err:
-            logger.debug(f"[REDIS GET] Возвращаем значение как строку (не JSON): {key}. Ошибка парсинга: {parse_err}")
             return value
     except Exception as e:
-        logger.error(f"[REDIS GET] ✗ Критическая ошибка чтения {key}: {type(e).__name__}: {e}")
         return None
 
 
@@ -209,12 +193,10 @@ async def cache_set(
     try:
         # Быстрая проверка: если Redis помечен как недоступный, сразу возвращаем False
         if _redis_unavailable:
-            logger.debug(f"[REDIS SET] Redis недоступен, пропускаем запись ключа: {key}")
             return False
         
         client = await get_redis_client()
         if not client:
-            logger.debug(f"[REDIS SET] Клиент Redis не получен, пропускаем запись ключа: {key}")
             return False
         
         # Сериализуем значение
@@ -230,33 +212,27 @@ async def cache_set(
         
         # Добавляем таймаут для Redis запроса
         try:
-            logger.info(f"[REDIS SET] Запись ключа: {key} (тип: {value_type}, TTL: {expire_seconds}с, размер: {len(serialized_value)} байт)")
             if expire_seconds:
                 await asyncio.wait_for(
                     client.setex(key, expire_seconds, serialized_value),
                     timeout=timeout
                 )
-                logger.info(f"[REDIS SET] ✓ Сохранен ключ: {key} с TTL {expire_seconds}с")
             else:
                 await asyncio.wait_for(
                     client.set(key, serialized_value),
                     timeout=timeout
                 )
-                logger.info(f"[REDIS SET] ✓ Сохранен ключ: {key} без TTL (бессрочно)")
             return True
         except asyncio.TimeoutError:
             # При таймауте помечаем Redis как недоступный для быстрого fallback в будущем
             _redis_unavailable = True
-            logger.warning(f"[REDIS SET] ⏱ Таймаут записи ключа: {key} (>{timeout}с). Redis может быть перегружен.")
             return False
         except Exception as e:
             # При ошибке помечаем Redis как недоступный
             _redis_unavailable = True
-            logger.error(f"[REDIS SET] ✗ Ошибка записи ключа {key}: {type(e).__name__}: {e}")
             return False
         
     except Exception as e:
-        logger.error(f"[REDIS SET] ✗ Критическая ошибка записи {key}: {e}")
         return False
 
 
@@ -274,26 +250,17 @@ async def cache_delete(key: str, timeout: float = 0.3) -> bool:
     try:
         client = await get_redis_client()
         if not client:
-            logger.debug(f"[REDIS] Клиент недоступен для удаления ключа: {key}")
             return False
         
         try:
-            logger.debug(f"[REDIS DEL] Удаление ключа: {key}")
             deleted_count = await asyncio.wait_for(client.delete(key), timeout=timeout)
-            if deleted_count > 0:
-                logger.debug(f"[REDIS DEL] ✓ Удален ключ: {key}")
-            else:
-                logger.debug(f"[REDIS DEL] Ключ не существовал: {key}")
-            return True
+            return deleted_count > 0
         except asyncio.TimeoutError:
-            logger.warning(f"[REDIS DEL] ⏱ Таймаут удаления ключа: {key} (>{timeout}с)")
             return False
         except Exception as e:
-            logger.warning(f"[REDIS DEL] ✗ Ошибка удаления ключа {key}: {e}")
             return False
         
     except Exception as e:
-        logger.error(f"[REDIS DEL] ✗ Критическая ошибка удаления {key}: {e}")
         return False
 
 
@@ -311,31 +278,24 @@ async def cache_delete_pattern(pattern: str, timeout: float = 0.5) -> int:
     try:
         client = await get_redis_client()
         if not client:
-            logger.debug(f"[REDIS] Клиент недоступен для удаления по паттерну: {pattern}")
             return 0
         
         deleted = 0
         try:
-            logger.info(f"[REDIS DEL PATTERN] Начинаем удаление по паттерну: {pattern}")
             async def delete_keys():
                 nonlocal deleted
                 async for key in client.scan_iter(match=pattern):
                     await client.delete(key)
                     deleted += 1
-                    if deleted % 10 == 0:  # Логируем каждые 10 удалений
-                        logger.debug(f"[REDIS DEL PATTERN] Удалено {deleted} ключей...")
                     if deleted > 1000:  # Защита от бесконечного цикла
-                        logger.warning(f"[REDIS DEL PATTERN] Достигнут лимит 1000 ключей")
                         break
             
             await asyncio.wait_for(delete_keys(), timeout=timeout)
-            logger.info(f"[REDIS DEL PATTERN] ✓ Удалено {deleted} ключей по паттерну: {pattern}")
         except asyncio.TimeoutError:
-            logger.warning(f"[REDIS DEL PATTERN] ⏱ Таймаут удаления по паттерну {pattern} (>{timeout}с), удалено {deleted} ключей")
+            pass
         
         return deleted
     except Exception as e:
-        logger.error(f"[REDIS DEL PATTERN] ✗ Ошибка удаления по паттерну {pattern}: {e}")
         return 0
 
 
@@ -359,10 +319,8 @@ async def cache_exists(key: str, timeout: float = 0.3) -> bool:
             result = await asyncio.wait_for(client.exists(key), timeout=timeout)
             return result > 0
         except asyncio.TimeoutError:
-            logger.warning(f"[WARNING] Таймаут проверки существования ключа {key} (>{timeout}с)")
             return False
     except Exception as e:
-        logger.error(f"[ERROR] Ошибка проверки существования ключа {key}: {e}")
         return False
 
 
@@ -440,7 +398,6 @@ async def cache_set_json(
         serialized_value = json.dumps(value, ensure_ascii=False, default=str)
         return await cache_set(key, serialized_value, ttl_seconds=ttl_seconds, timeout=timeout)
     except Exception as e:
-        logger.error(f"[ERROR] Ошибка сохранения JSON в кэш {key}: {e}")
         return False
 
 
@@ -473,7 +430,6 @@ async def cache_get_json(
         except (json.JSONDecodeError, TypeError):
             return value
     except Exception as e:
-        logger.error(f"[ERROR] Ошибка получения JSON из кэша {key}: {e}")
         return None
 
 

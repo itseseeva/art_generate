@@ -17,18 +17,36 @@ def get_redis_url():
     # Простейшая проверка на нахождение внутри Docker
     is_docker = os.path.exists('/.dockerenv') or os.getenv('IS_DOCKER') == 'true'
     
+    # Сначала проверяем переменную окружения напрямую (для Docker)
+    env_redis = os.getenv('REDIS_LOCAL') or os.getenv('REDIS_URL')
+    if env_redis:
+        # Если в переменной окружения есть redis://redis:6379, используем её
+        if 'redis://redis:' in env_redis or 'redis://art_generation_redis_local:' in env_redis:
+            return env_redis
+        # Если в Docker и переменная содержит localhost, заменяем на имя сервиса
+        if is_docker and ('localhost' in env_redis or '127.0.0.1' in env_redis):
+            return env_redis.replace('localhost', 'redis').replace('127.0.0.1', 'redis')
+    
     r_local = settings.REDIS_LOCAL
     r_url = settings.REDIS_URL
     
     if is_docker:
-        # Если мы в Docker, игнорируем localhost из REDIS_LOCAL
-        if r_local and ("localhost" in r_local or "127.0.0.1" in r_local):
+        # Если мы в Docker, заменяем localhost на имя сервиса redis
+        if r_local:
+            if "localhost" in r_local or "127.0.0.1" in r_local:
+                return r_local.replace('localhost', 'redis').replace('127.0.0.1', 'redis')
+            return r_local
+        if r_url:
+            if "localhost" in r_url or "127.0.0.1" in r_url:
+                return r_url.replace('localhost', 'redis').replace('127.0.0.1', 'redis')
             return r_url
-        return r_local or r_url
+        # Если ничего не установлено, используем дефолт для Docker
+        return "redis://redis:6379/0"
     
-    return r_local or r_url
+    return r_local or r_url or "redis://localhost:6379/0"
 
 redis_url = get_redis_url()
+logger.warning(f"[CELERY] Используется Redis URL: {redis_url}")
 
 
 class SafeRedisBackend(RedisBackend):

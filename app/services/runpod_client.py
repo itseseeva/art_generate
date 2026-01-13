@@ -13,6 +13,11 @@ from dotenv import load_dotenv
 from loguru import logger
 
 
+class GenerationCancelledError(Exception):
+    """Исключение для отмененных генераций. Не должно вызывать retry в Celery."""
+    pass
+
+
 def clean_prompt(prompt: str) -> str:
     """
     Очищает промпт от недопустимых символов, которые могут сломать JSON парсинг.
@@ -158,20 +163,10 @@ async def start_generation(
         runpod_url_base = RUNPOD_URL_BASE_2
         if not RUNPOD_URL_2:
             raise ValueError("RUNPOD_URL_2 не установлен в переменных окружения (требуется для модели 'anime-realism' / 'Аниме реализм')")
-        logger.info(f"[RUNPOD] ✓ Модель 'anime-realism' ('Аниме реализм') -> используем RUNPOD_URL_2: {runpod_url}")
     elif model == "realism":
-        # Детальное логирование для отладки
-        logger.info(f"[RUNPOD] Проверка RUNPOD_URL_3 для модели 'realism':")
-        logger.info(f"[RUNPOD] RUNPOD_URL_3 из os.getenv: {os.getenv('RUNPOD_URL_3')}")
-        logger.info(f"[RUNPOD] RUNPOD_URL_3 переменная: {RUNPOD_URL_3}")
-        logger.info(f"[RUNPOD] RUNPOD_URL_3 тип: {type(RUNPOD_URL_3)}")
-        logger.info(f"[RUNPOD] RUNPOD_URL_3 длина: {len(RUNPOD_URL_3) if RUNPOD_URL_3 else 0}")
-        logger.info(f"[RUNPOD] RUNPOD_URL_BASE_3: {RUNPOD_URL_BASE_3}")
-        
         runpod_url = RUNPOD_URL_3
         runpod_url_base = RUNPOD_URL_BASE_3
         
-        # Проверяем и пустую строку тоже
         if not RUNPOD_URL_3 or RUNPOD_URL_3.strip() == "":
             error_msg = (
                 f"RUNPOD_URL_3 не установлен в переменных окружения (требуется для модели 'realism' / 'Реализм'). "
@@ -180,13 +175,11 @@ async def start_generation(
             )
             logger.error(f"[RUNPOD] {error_msg}")
             raise ValueError(error_msg)
-        logger.info(f"[RUNPOD] ✓ Модель 'realism' ('Реализм') -> используем RUNPOD_URL_3: {runpod_url}")
     else:  # anime или дефолт
         runpod_url = RUNPOD_URL
         runpod_url_base = RUNPOD_URL_BASE
         if not RUNPOD_URL:
             raise ValueError("RUNPOD_URL не установлен в переменных окружения (требуется для модели 'anime' / 'Аниме')")
-        logger.info(f"[RUNPOD] ✓ Модель 'anime' ('Аниме') -> используем RUNPOD_URL: {runpod_url}")
     
     # Обрабатываем промпты
     if use_enhanced_prompts:
@@ -223,9 +216,13 @@ async def start_generation(
         "sampler_name": sampler_name or DEFAULT_GENERATION_PARAMS["sampler_name"],
         "scheduler": scheduler or DEFAULT_GENERATION_PARAMS["scheduler"],
         "seed": final_seed,  # Используем обработанный seed (случайный или указанный)
-        "lora_scale": lora_scale if lora_scale is not None else DEFAULT_GENERATION_PARAMS["lora_scale"],
         "return_type": "url"  # Важно: возвращаем URL, а не Base64
     }
+    
+    # Всегда добавляем lora_scale (используем значение из параметра или дефолтное)
+    # Если lora_scale явно указан, используем его, иначе берем из дефолтов
+    final_lora_scale = lora_scale if lora_scale is not None else DEFAULT_GENERATION_PARAMS.get("lora_scale", 0.5)
+    params["lora_scale"] = final_lora_scale
     
     # Заголовки авторизации
     headers = {
@@ -238,9 +235,13 @@ async def start_generation(
         "input": params
     }
     
-    logger.info(f"[RUNPOD] Промпт для RunPod: {final_prompt}")
+    # Проверяем, что URL заканчивается на /run или /runsync
+    if not runpod_url.endswith('/run') and not runpod_url.endswith('/runsync'):
+        logger.error(f"[RUNPOD] ОШИБКА: URL должен заканчиваться на '/run' или '/runsync', получен: {runpod_url}")
+        raise ValueError(f"Неверный формат URL RunPod: {runpod_url}. URL должен заканчиваться на '/run' или '/runsync'")
     
     try:
+        logger.debug(f"[RUNPOD] Отправка запроса на RunPod: URL={runpod_url}, модель={model}")
         response = await client.post(
             runpod_url,
             json=payload,
@@ -255,7 +256,7 @@ async def start_generation(
         if not job_id:
             raise ValueError(f"RunPod API не вернул Job ID: {result}")
         
-        logger.info(f"[RUNPOD] Задача создана: job_id={job_id}, модель={model}, seed={final_seed}")
+        logger.debug(f"[RUNPOD] Задача создана: job_id={job_id}, модель={model}, seed={final_seed}")
         return job_id, runpod_url_base
         
     except httpx.HTTPStatusError as e:
@@ -624,7 +625,7 @@ async def generate_image_async(
             
             elif status == "CANCELLED":
                 logger.error(f"[RUNPOD] Задача {job_id} была отменена")
-                raise RuntimeError("RunPod генерация была отменена")
+                raise GenerationCancelledError("RunPod генерация была отменена")
             
             elif status in ["IN_QUEUE", "IN_PROGRESS"]:
                 # Задача всё ещё выполняется, продолжаем ожидание

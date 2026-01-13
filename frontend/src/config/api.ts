@@ -22,15 +22,11 @@ const getApiBaseUrl = (): string => {
     if (domain) {
       // Если это полный URL (начинается с http:// или https://)
       if (domain.startsWith('http://') || domain.startsWith('https://')) {
-        // Если это localhost или IP - используем как есть
-        if (domain.includes('localhost') || /^https?:\/\/(\d{1,3}\.){3}\d{1,3}/.test(domain)) {
-          return domain;
-        }
-        // Иначе добавляем /api
-        return `${domain}/api`;
+        // Возвращаем как есть (без /api, так как эндпоинты уже содержат /api/v1/...)
+        return domain;
       }
-      // Если это просто домен (например, cherrylust.art), формируем URL с https и /api
-      return `https://${domain}/api`;
+      // Если это просто домен (например, cherrylust.art), формируем URL с https (без /api)
+      return `https://${domain}`;
     }
     
     // В production по умолчанию используем относительный путь (через nginx proxy)

@@ -228,25 +228,6 @@ const CardOverlay = styled.div`
   }
 `;
 
-const PromptLoading = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: ${theme.spacing.xxl};
-  color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.sm};
-`;
-
-const PromptError = styled.div`
-  padding: ${theme.spacing.lg};
-  background: rgba(244, 63, 94, 0.1);
-  border: 1px solid rgba(244, 63, 94, 0.3);
-  border-radius: ${theme.borderRadius.lg};
-  color: ${theme.colors.status.error};
-  font-size: ${theme.fontSize.sm};
-  text-align: center;
-`;
-
 const OverlayActions = styled.div`
   display: inline-flex;
   align-items: center;
@@ -297,33 +278,33 @@ const EmptyState = styled.div`
 
 const PreviewBackdrop = styled.div`
   position: fixed;
-  inset: 0;
-  background: #000; /* Полностью черный для мобилок */
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
-  backdrop-filter: blur(70px);
-  -webkit-backdrop-filter: blur(70px);
-  padding: 0;
-  width: 100vw;
-  height: 100vh;
+  z-index: 10002;
+  padding: ${theme.spacing.lg};
 `;
 
 const PreviewContent = styled.div`
-  position: relative;
-  max-width: 100vw;
-  max-height: 100vh;
   display: flex;
-  align-items: stretch;
-  justify-content: center;
-  gap: ${theme.spacing.xl};
   width: 100%;
-
+  max-width: 1400px;
+  height: 90vh;
+  max-height: 90vh;
+  gap: ${theme.spacing.lg};
+  position: relative;
+  
   @media (max-width: 768px) {
     flex-direction: column;
-    align-items: center;
-    gap: 0;
+    height: auto;
+    max-height: 100vh;
   }
 `;
 
@@ -332,91 +313,140 @@ const PreviewImageContainer = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 0;
-  max-width: 70%;
-
-  @media (max-width: 768px) {
-    max-width: 100%;
-    width: 100%;
-    flex: 1;
-    min-height: 0;
-  }
-`;
-
-const PreviewImage = styled.img`
-  max-width: 100%;
-  max-height: 95vh;
-  object-fit: contain;
+  position: relative;
+  background: transparent;
   border-radius: ${theme.borderRadius.lg};
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-
-  @media (max-width: 768px) {
+  overflow: hidden;
+  
+  img {
+    max-width: 100%;
     max-height: 100%;
     width: auto;
     height: auto;
-    border-radius: 0;
+    object-fit: contain;
+    object-position: center;
+  }
+  
+  @media (max-width: 768px) {
+    max-height: none;
+    height: auto;
+    
+    img {
+      max-width: 100vw;
+      max-height: 100vh;
+      width: auto;
+      height: auto;
+    }
   }
 `;
 
-const PromptPanel = styled.div`
+const PromptPanel = styled.div<{ $isVisible: boolean }>`
   width: 400px;
-  min-width: 350px;
-  max-width: 30%;
-  background: rgba(30, 30, 30, 0.95);
-  border: 2px solid rgba(150, 150, 150, 0.5);
-  border-radius: ${theme.borderRadius.xl};
+  background: rgba(10, 10, 15, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: ${theme.borderRadius.lg};
   padding: ${theme.spacing.xl};
-  overflow-y: auto;
-  max-height: 95vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(10px);
-
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: ${theme.colors.shadow.glow};
+  transition: all ${theme.transition.fast};
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  transform: ${props => props.$isVisible ? 'translateX(0)' : 'translateX(20px)'};
+  pointer-events: ${props => props.$isVisible ? 'auto' : 'none'};
+  
   @media (max-width: 768px) {
-    position: relative;
     width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    max-height: 30vh;
-    background: rgba(20, 20, 20, 0.95);
-    border: none;
-    border-bottom: 1px solid rgba(251, 191, 36, 0.3);
-    border-radius: 0;
-    padding: ${theme.spacing.md};
-    z-index: 10;
-    flex-shrink: 0;
+    max-height: 45vh;
+    opacity: ${props => props.$isVisible ? 1 : 0};
+    transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(20px)'};
   }
 `;
 
 const PromptPanelHeader = styled.div`
-  margin-bottom: 1rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid rgba(150, 150, 150, 0.3);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: ${theme.spacing.md};
 `;
 
 const PromptPanelTitle = styled.h3`
-  color: #fbbf24;
-  font-size: 1.25rem;
-  font-weight: 800;
+  color: ${theme.colors.text.primary};
+  font-size: ${theme.fontSize.lg};
+  font-weight: 600;
   margin: 0;
-`;
-
-const PromptPanelText = styled.div`
-  color: rgba(200, 200, 200, 1);
-  font-size: ${theme.fontSize.sm};
-  line-height: 1.8;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  padding: ${theme.spacing.md};
-  background: rgba(40, 40, 40, 0.5);
-  border-radius: ${theme.borderRadius.lg};
-  border: 1px solid rgba(150, 150, 150, 0.3);
-  font-family: 'Courier New', monospace;
   flex: 1;
 `;
 
-const PreviewClose = styled.button`
+const PromptCloseButton = styled.button`
+  background: transparent;
+  border: none;
+  color: ${theme.colors.text.primary};
+  cursor: pointer;
+  padding: ${theme.spacing.sm};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: ${theme.borderRadius.md};
+  transition: all ${theme.transition.fast};
+  
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  
+  svg {
+    width: 20px;
+    height: 20px;
+  }
+`;
+
+const PromptPanelText = styled.div`
+  flex: 1;
+  overflow-y: auto;
+  color: ${theme.colors.text.secondary};
+  font-size: ${theme.fontSize.sm};
+  line-height: 1.6;
+  white-space: pre-wrap;
+  font-family: 'Courier New', monospace;
+  padding: ${theme.spacing.md};
+  background: rgba(20, 20, 20, 0.5);
+  border-radius: ${theme.borderRadius.md};
+  border: 1px solid rgba(100, 100, 100, 0.3);
+  
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: rgba(20, 20, 20, 0.5);
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(139, 92, 246, 0.5);
+    border-radius: 4px;
+    
+    &:hover {
+      background: rgba(139, 92, 246, 0.7);
+    }
+  }
+`;
+
+const PromptLoading = styled.div`
+  color: ${theme.colors.text.secondary};
+  font-size: ${theme.fontSize.base};
+  text-align: center;
+  padding: ${theme.spacing.xl};
+`;
+
+const PromptError = styled.div`
+  color: ${theme.colors.status.error};
+  font-size: ${theme.fontSize.base};
+  text-align: center;
+  padding: ${theme.spacing.xl};
+`;
+
+const ModalCloseButton = styled.button`
   position: absolute;
   top: ${theme.spacing.lg};
   right: ${theme.spacing.lg};
@@ -445,6 +475,7 @@ const PreviewClose = styled.button`
     transform: scale(0.95) rotate(90deg);
   }
 `;
+
 
 interface PaidAlbumImage {
   id: string;
@@ -762,67 +793,36 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
           setPromptError(null);
           setIsLoadingPrompt(false);
         }}>
+          <ModalCloseButton onClick={() => {
+            setPreviewImage(null);
+            setSelectedPrompt(null);
+            setPromptError(null);
+            setIsLoadingPrompt(false);
+          }}>
+            <CloseIcon />
+          </ModalCloseButton>
           <PreviewContent onClick={(event) => event.stopPropagation()}>
-            <PreviewClose onClick={() => {
-              setPreviewImage(null);
-              setSelectedPrompt(null);
-              setPromptError(null);
-              setIsLoadingPrompt(false);
-            }}>
-              <CloseIcon />
-            </PreviewClose>
             <PreviewImageContainer>
-              <PreviewImage src={previewImage.url} alt={displayName} />
+              <img src={previewImage.url} alt={displayName} />
             </PreviewImageContainer>
-            <PromptPanel style={{
-              display: isPromptVisible ? 'flex' : 'none',
-              visibility: isPromptVisible ? 'visible' : 'hidden'
-            }}>
-              <PromptPanelHeader>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
-                  <button 
-                    onClick={() => setIsPromptVisible(false)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#fbbf24',
-                      cursor: 'pointer',
-                      padding: '4px'
-                    }}
-                    title="Скрыть промпт"
-                  >
-                    <CloseIcon size={20} />
-                  </button>
-                </div>
-              </PromptPanelHeader>
-              {isLoadingPrompt ? (
-                <PromptLoading>Загрузка промпта...</PromptLoading>
-              ) : promptError ? (
-                <PromptError>{promptError}</PromptError>
-              ) : selectedPrompt ? (
-                <PromptPanelText>{selectedPrompt}</PromptPanelText>
-              ) : null}
-            </PromptPanel>
-            {!isPromptVisible && (
-              <button
-                onClick={() => setIsPromptVisible(true)}
-                style={{
-                  position: 'absolute',
-                  top: '20px',
-                  left: '20px',
-                  background: 'rgba(0, 0, 0, 0.7)',
-                  border: '1px solid rgba(251, 191, 36, 0.5)',
-                  borderRadius: '8px',
-                  padding: '8px 16px',
-                  color: '#fbbf24',
-                  cursor: 'pointer',
-                  zIndex: 10002,
-                  fontWeight: '600'
-                }}
-              >
-                Показать промпт
-              </button>
+            {isPromptVisible && (
+              <PromptPanel $isVisible={isPromptVisible}>
+                <PromptPanelHeader>
+                  <PromptPanelTitle>Промпт</PromptPanelTitle>
+                  <PromptCloseButton onClick={() => setIsPromptVisible(false)}>
+                    <CloseIcon />
+                  </PromptCloseButton>
+                </PromptPanelHeader>
+                {isLoadingPrompt ? (
+                  <PromptLoading>Загрузка промпта...</PromptLoading>
+                ) : promptError ? (
+                  <PromptError>{promptError}</PromptError>
+                ) : selectedPrompt ? (
+                  <PromptPanelText>{selectedPrompt}</PromptPanelText>
+                ) : (
+                  <PromptLoading>Промпт не найден</PromptLoading>
+                )}
+              </PromptPanel>
             )}
           </PreviewContent>
         </PreviewBackdrop>

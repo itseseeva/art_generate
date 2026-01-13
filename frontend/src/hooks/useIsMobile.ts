@@ -17,9 +17,6 @@ export function useIsMobile() {
       setIsMobile(e.matches)
     }
     
-    // Устанавливаем начальное значение из MediaQueryList
-    setIsMobile(mql.matches)
-    
     // Используем addEventListener для современных браузеров
     if (mql.addEventListener) {
       mql.addEventListener('change', onChange)

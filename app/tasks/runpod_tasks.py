@@ -128,6 +128,21 @@ def generate_image_runpod_task(
         error_msg = str(e)
         logger.error(f"[RUNPOD TASK] Ошибка в задаче {task_id}: {error_msg}")
         
+        # Проверяем, является ли это ошибкой отмены генерации
+        from app.services.runpod_client import GenerationCancelledError
+        if isinstance(e, GenerationCancelledError):
+            # Для отмененных задач не делаем retry - просто завершаем с ошибкой
+            logger.warning(f"[RUNPOD TASK] Задача {task_id} была отменена, retry не выполняется")
+            self.update_state(
+                state='FAILURE',
+                meta={
+                    'status': 'cancelled',
+                    'error': error_msg,
+                    'message': 'Генерация была отменена пользователем'
+                }
+            )
+            raise RuntimeError(f"Генерация была отменена: {error_msg}")
+        
         # Если это ошибка CUDA out of memory, мы можем попробовать еще раз через паузу,
         # но если это последняя попытка, нужно отдать детальную ошибку
         is_oom = "CUDA out of memory" in error_msg
