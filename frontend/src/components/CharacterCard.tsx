@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'motion/react';
@@ -973,13 +973,8 @@ const PromptPanel = styled.div`
   max-height: 95vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(10px);
-  position: relative;
-  z-index: 10001;
-  pointer-events: auto;
-  visibility: visible !important;
-  opacity: 1 !important;
 
   @media (max-width: 768px) {
     position: relative;
@@ -992,9 +987,8 @@ const PromptPanel = styled.div`
     border-bottom: 1px solid rgba(251, 191, 36, 0.3);
     border-radius: 0;
     padding: ${theme.spacing.md};
-    z-index: 10001;
+    z-index: 10;
     flex-shrink: 0;
-    overflow-y: auto;
   }
 `;
 
@@ -1023,20 +1017,15 @@ const PromptPanelText = styled.div`
   border: 1px solid rgba(150, 150, 150, 0.3);
   font-family: 'Courier New', monospace;
   flex: 1;
-  visibility: visible !important;
-  opacity: 1 !important;
-  display: block !important;
-  min-height: 50px;
 `;
 
 const PromptLoading = styled.div`
-  color: rgba(200, 200, 200, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: ${theme.spacing.xxl};
+  color: ${theme.colors.text.secondary};
   font-size: ${theme.fontSize.sm};
-  text-align: center;
-  padding: ${theme.spacing.xl};
-  visibility: visible !important;
-  opacity: 1 !important;
-  display: block !important;
 `;
 
 const PromptError = styled.div`
@@ -1228,7 +1217,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     const newNsfw = character?.is_nsfw === true || (character as any)?.raw?.is_nsfw === true;
     setIsNsfw(newNsfw);
   }, [character?.is_nsfw, (character as any)?.raw?.is_nsfw]);
-  const [isPromptVisible, setIsPromptVisible] = useState(true);
+  const [isPromptVisible, setIsPromptVisible] = useState(false); // КРИТИЧНО: false по умолчанию, чтобы не рендерить модалку без фото
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
@@ -1807,77 +1796,167 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     }
   }, [character.id, showRatings]);
 
-  // Используем useRef для отслеживания, было ли уже восстановление
-  const hasRestoredRef = useRef(false);
-  
-  // Восстановление состояния из sessionStorage ТОЛЬКО для последнего открытого персонажа
-  // Это позволяет восстановить просмотр промпта после обновления страницы
-  useEffect(() => {
-    // Восстанавливаем только один раз при первом монтировании
-    if (hasRestoredRef.current) {
+  // Функция для загрузки промпта по URL фото
+  // Вынесена отдельно, чтобы можно было вызывать как при клике, так и при восстановлении
+  const loadPromptForPhoto = useCallback(async (photoUrl: string) => {
+    console.log('[loadPromptForPhoto] Начало загрузки промпта для:', photoUrl);
+    
+    if (!photoUrl || photoUrl.trim() === '') {
+      console.error('[loadPromptForPhoto] URL изображения отсутствует');
       return;
     }
-    
-    if (typeof window === 'undefined') {
-      return;
-    }
-    
-    // Проверяем, какой персонаж был открыт последним
-    const lastOpenedCharacterId = sessionStorage.getItem('last_opened_character_id');
-    console.log('[Restore State] Проверка восстановления:', {
-      lastOpenedCharacterId,
-      currentCharacterId: character.id,
-      match: lastOpenedCharacterId && String(character.id) === String(lastOpenedCharacterId)
-    });
-    
-    // Восстанавливаем состояние ТОЛЬКО для последнего открытого персонажа
-    if (lastOpenedCharacterId && String(character.id) === String(lastOpenedCharacterId)) {
-      const savedPhoto = sessionStorage.getItem(`character_photo_${character.id}`);
-      const savedPrompt = sessionStorage.getItem(`character_prompt_${character.id}`);
-      
-      console.log('[Restore State] Найдены сохраненные данные:', {
-        hasPhoto: !!savedPhoto,
-        hasPrompt: !!savedPrompt,
-        photo: savedPhoto,
-        promptLength: savedPrompt?.length || 0,
-        promptPreview: savedPrompt?.substring(0, 50) || ''
-      });
-      
-      if (savedPhoto && savedPhoto.trim() !== '') {
-        console.log('[Restore State] ✅ Восстанавливаем состояние из sessionStorage для персонажа:', character.id);
-        
-        // Восстанавливаем состояние в правильном порядке
-        setSelectedPhoto(savedPhoto);
-        setIsPromptVisible(true);
-        
-        if (savedPrompt && savedPrompt.trim() !== '' && savedPrompt.length > 1) {
-          console.log('[Restore State] ✅ Восстановлен промпт, длина:', savedPrompt.length);
-          setSelectedPrompt(savedPrompt);
-          setIsLoadingPrompt(false);
-          setPromptError(null);
-        } else {
-          console.log('[Restore State] ⚠️ Промпт не сохранен или слишком короткий, показываем ошибку');
-          // Если промпт не сохранен, показываем индикатор загрузки
-          setIsLoadingPrompt(false);
-          setPromptError('Промпт не найден');
-        }
+
+    // Нормализуем URL
+    let normalizedUrl = photoUrl;
+    if (!photoUrl.startsWith('http')) {
+      if (photoUrl.startsWith('/')) {
+        normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}${photoUrl}`;
       } else {
-        console.log('[Restore State] ❌ Фото не найдено в sessionStorage');
+        normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}/${photoUrl}`;
       }
-    } else {
-      console.log('[Restore State] ⏭️ Пропускаем - это не последний открытый персонаж');
     }
+
+    setIsLoadingPrompt(true);
+    setPromptError(null);
+    setSelectedPrompt(null);
+
+    try {
+      console.log('[loadPromptForPhoto] Запрашиваем промпт...');
+      const result = await fetchPromptByImage(normalizedUrl);
+      
+      console.log('[loadPromptForPhoto] Результат:', {
+        hasPrompt: result.hasPrompt,
+        promptLength: result.promptLength,
+        hasError: result.hasErrorMessage
+      });
+
+      const { hasPrompt, prompt, errorMessage } = result;
+
+      if (!prompt || prompt.trim() === '') {
+        console.log('[loadPromptForPhoto] Промпт пустой');
+        const finalErrorMessage = errorMessage || 'Промпт недоступен для этого изображения';
+        setPromptError(finalErrorMessage);
+        setIsLoadingPrompt(false);
+        return;
+      }
+
+      console.log('[loadPromptForPhoto] Промпт получен, длина:', prompt.length);
+
+      // Переводим промпт на русский
+      try {
+        const translatedPrompt = await translateToRussian(prompt);
+        console.log('[loadPromptForPhoto] Промпт переведен, длина:', translatedPrompt.length);
+
+        if (translatedPrompt && translatedPrompt.trim() !== '' && translatedPrompt.length > 1) {
+          setSelectedPrompt(translatedPrompt);
+          sessionStorage.setItem(`character_prompt_${character.id}`, translatedPrompt);
+          sessionStorage.setItem(`character_card_state_${character.id}`, JSON.stringify({
+            photo: normalizedUrl,
+            hasPrompt: true
+          }));
+          console.log('[loadPromptForPhoto] ✅ Промпт установлен');
+        } else {
+          console.error('[loadPromptForPhoto] ❌ Переведенный промпт слишком короткий');
+        }
+      } catch (translateError) {
+        console.warn('[loadPromptForPhoto] Ошибка перевода, используем оригинал:', translateError);
+        
+        if (prompt && prompt.trim() !== '' && prompt.length > 1) {
+          setSelectedPrompt(prompt);
+          sessionStorage.setItem(`character_prompt_${character.id}`, prompt);
+          sessionStorage.setItem(`character_card_state_${character.id}`, JSON.stringify({
+            photo: normalizedUrl,
+            hasPrompt: true
+          }));
+          console.log('[loadPromptForPhoto] ✅ Оригинальный промпт установлен');
+        }
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Неизвестная ошибка загрузки промпта';
+      console.error('[loadPromptForPhoto] ❌ Ошибка:', errorMsg);
+      setPromptError(errorMsg);
+    } finally {
+      setIsLoadingPrompt(false);
+    }
+  }, [character.id]);
+
+  // Восстановление состояния из sessionStorage ТОЛЬКО для последнего активного персонажа
+  // Это позволяет восстановить просмотр промпта после обновления страницы
+  // КРИТИЧНО: Восстанавливаем ТОЛЬКО для одного персонажа - последнего активного
+  // Это предотвращает открытие множества модальных окон одновременно
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // 1. Получаем ID персонажа, который БЫЛ ОТКРЫТ ПОСЛЕДНИМ
+    const lastActiveId = sessionStorage.getItem('last_active_character_id');
     
-    // Отмечаем, что восстановление выполнено
-    hasRestoredRef.current = true;
-  }, []); // Пустой массив - запускается только один раз при монтировании
+    // 2. ВОССТАНАВЛИВАЕМ ТОЛЬКО ЕСЛИ ЭТО ТОТ САМЫЙ ПЕРСОНАЖ
+    if (lastActiveId && String(character.id) === String(lastActiveId)) {
+      const savedState = sessionStorage.getItem(`character_card_state_${character.id}`);
+      if (savedState) {
+        try {
+          const parsed = JSON.parse(savedState);
+          
+          // КРИТИЧНО: Проверяем, что фото валидно перед восстановлением
+          if (!parsed.photo || parsed.photo.trim() === '') {
+            console.warn(`[Restore State] Пропущено восстановление - фото невалидно для персонажа: ${character.id}`);
+            return;
+          }
+          
+          console.log(`[Restore State] Восстановлено окно ТОЛЬКО для активного персонажа: ${character.id}`);
+          
+          // КРИТИЧНО: Нормализуем URL так же, как при клике
+          let normalizedUrl = parsed.photo;
+          if (!parsed.photo.startsWith('http')) {
+            if (parsed.photo.startsWith('/')) {
+              normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}${parsed.photo}`;
+            } else {
+              normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}/${parsed.photo}`;
+            }
+          }
+          
+          // Обновляем sessionStorage с нормализованным URL
+          sessionStorage.setItem(`character_photo_${character.id}`, normalizedUrl);
+          sessionStorage.setItem(`character_card_state_${character.id}`, JSON.stringify({
+            photo: normalizedUrl,
+            hasPrompt: false // Будет обновлено после загрузки промпта
+          }));
+          
+          // Устанавливаем состояния в правильном порядке (как при клике)
+          setSelectedPhoto(normalizedUrl);
+          setIsPromptVisible(true);
+          setSelectedPrompt(null);
+          setPromptError(null);
+          
+          // Если промпт сохранен отдельно, восстанавливаем его
+          const savedPrompt = sessionStorage.getItem(`character_prompt_${character.id}`);
+          if (savedPrompt && savedPrompt.trim() !== '' && savedPrompt.length > 1) {
+            setSelectedPrompt(savedPrompt);
+            setIsLoadingPrompt(false);
+            setPromptError(null);
+            // Обновляем состояние карточки с информацией о наличии промпта
+            sessionStorage.setItem(`character_card_state_${character.id}`, JSON.stringify({
+              photo: normalizedUrl,
+              hasPrompt: true
+            }));
+          } else {
+            // Промпта нет - загружаем заново
+            setIsLoadingPrompt(true);
+            setPromptError(null);
+            loadPromptForPhoto(normalizedUrl);
+          }
+        } catch (e) {
+          console.error('Ошибка восстановления:', e);
+        }
+      }
+    }
+  }, [character.id, loadPromptForPhoto]);
 
   const handleOpenPhoto = async (e: React.MouseEvent, imageUrl: string) => {
     e.stopPropagation();
     e.preventDefault();
     
-    console.log('=== handleOpenPhoto START ===');
-    console.log('[1] Исходный URL:', imageUrl);
+    console.log('[handleOpenPhoto] Открываем фото:', imageUrl);
     
     if (!imageUrl) {
       console.error('[handleOpenPhoto] URL изображения отсутствует');
@@ -1894,152 +1973,22 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
       }
     }
     
-    console.log('[2] Нормализованный URL:', normalizedUrl);
-    
-    // ============================================
-    // КРИТИЧНО: Устанавливаем состояния в правильном порядке
-    // 1. Сначала открываем фото
-    // 2. Показываем панель промпта
-    // 3. Показываем индикатор загрузки
-    // 4. ОЧИЩАЕМ старый промпт и ошибки
-    // ============================================
-    console.log('[3] Устанавливаем selectedPhoto...');
+    // Устанавливаем состояния в правильном порядке
     setSelectedPhoto(normalizedUrl);
-    
-    console.log('[4] Устанавливаем isPromptVisible=true...');
     setIsPromptVisible(true);
-    
-    console.log('[5] Очищаем старое состояние промпта...');
-    setSelectedPrompt(null); // ← Очищаем СТАРЫЙ промпт
+    setSelectedPrompt(null);
     setPromptError(null);
-    
-    console.log('[6] Показываем индикатор загрузки...');
-    setIsLoadingPrompt(true);
     
     // Сохраняем в sessionStorage
     sessionStorage.setItem(`character_photo_${character.id}`, normalizedUrl);
-    // Сохраняем ID последнего открытого персонажа
-    sessionStorage.setItem('last_opened_character_id', String(character.id));
-    console.log('[7] Сохранено в sessionStorage');
+    sessionStorage.setItem('last_active_character_id', String(character.id));
+    sessionStorage.setItem(`character_card_state_${character.id}`, JSON.stringify({
+      photo: normalizedUrl,
+      hasPrompt: false // Будет обновлено после загрузки промпта
+    }));
 
-    // ============================================
-    // Теперь загружаем промпт
-    // ============================================
-    try {
-      console.log('[8] Запрашиваем промпт...');
-      const result = await fetchPromptByImage(normalizedUrl);
-      
-      console.log('[9] ПОЛНЫЙ результат fetchPromptByImage:', result);
-      console.log('[10] result.hasPrompt:', result.hasPrompt);
-      console.log('[11] result.prompt:', result.prompt);
-      console.log('[12] typeof result.prompt:', typeof result.prompt);
-      console.log('[13] result.promptLength:', result.promptLength);
-      
-      // Деструктурируем результат
-      const { hasPrompt, prompt, errorMessage } = result;
-      
-      console.log('[14] После деструктуризации:');
-      console.log('    - hasPrompt:', hasPrompt);
-      console.log('    - prompt:', prompt);
-      console.log('    - errorMessage:', errorMessage);
-      
-      if (!prompt || prompt.trim() === '') {
-        console.log('[15] Промпт пустой или null');
-        const finalErrorMessage = errorMessage || 'Промпт недоступен для этого изображения';
-        setPromptError(finalErrorMessage);
-        setIsLoadingPrompt(false);
-        return;
-      }
-      
-      console.log('[16] Промпт получен! Длина:', prompt.length);
-      console.log('[17] Первые 100 символов:', prompt.substring(0, 100));
-      
-      // Переводим промпт на русский
-      console.log('[18] Переводим промпт на русский...');
-      try {
-        const translatedPrompt = await translateToRussian(prompt);
-        console.log('[19] Промпт переведен! Длина:', translatedPrompt.length);
-        console.log('[20] Первые 100 символов перевода:', translatedPrompt.substring(0, 100));
-        
-        // ============================================
-        // КРИТИЧНО: Устанавливаем промпт ПЕРЕД выключением загрузки
-        // ============================================
-        console.log('[21] Устанавливаем selectedPrompt...');
-        console.log('[21.1] Проверка промпта перед установкой:', {
-          length: translatedPrompt.length,
-          isEmpty: translatedPrompt.trim() === '',
-          preview: translatedPrompt.substring(0, 100)
-        });
-        
-        if (translatedPrompt && translatedPrompt.trim() !== '' && translatedPrompt.length > 1) {
-          setSelectedPrompt(translatedPrompt);
-          
-          console.log('[22] Сохраняем в sessionStorage...');
-          console.log('[22.1] Промпт перед сохранением:', {
-            length: translatedPrompt.length,
-            firstChars: translatedPrompt.substring(0, 50)
-          });
-          sessionStorage.setItem(`character_prompt_${character.id}`, translatedPrompt);
-          
-          // Проверяем, что промпт сохранился правильно
-          const savedCheck = sessionStorage.getItem(`character_prompt_${character.id}`);
-          console.log('[22.2] Проверка сохраненного промпта:', {
-            savedLength: savedCheck?.length || 0,
-            matches: savedCheck === translatedPrompt
-          });
-          
-          console.log('[23] ✅ Промпт успешно установлен в состояние!');
-        } else {
-          console.error('[21] ❌ ОШИБКА: Промпт слишком короткий или пустой!', {
-            length: translatedPrompt?.length || 0,
-            value: translatedPrompt
-          });
-        }
-        
-      } catch (translateError) {
-        console.warn('[24] Ошибка перевода, используем оригинал:', translateError);
-        
-        // Устанавливаем оригинальный промпт без перевода
-        if (prompt && prompt.trim() !== '' && prompt.length > 1) {
-          console.log('[24.1] Сохраняем оригинальный промпт:', {
-            length: prompt.length,
-            preview: prompt.substring(0, 50)
-          });
-          setSelectedPrompt(prompt);
-          sessionStorage.setItem(`character_prompt_${character.id}`, prompt);
-          
-          // Проверяем сохранение
-          const savedCheck = sessionStorage.getItem(`character_prompt_${character.id}`);
-          console.log('[24.2] Проверка сохраненного оригинального промпта:', {
-            savedLength: savedCheck?.length || 0,
-            matches: savedCheck === prompt
-          });
-          
-          console.log('[25] ✅ Оригинальный промпт установлен в состояние!');
-        } else {
-          console.error('[24] ❌ ОШИБКА: Оригинальный промпт слишком короткий!', {
-            length: prompt?.length || 0,
-            value: prompt
-          });
-        }
-      }
-      
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Неизвестная ошибка загрузки промпта';
-      console.error('[26] ❌ Критическая ошибка:', {
-        error,
-        message: errorMsg,
-        stack: error instanceof Error ? error.stack : undefined
-      });
-      setPromptError(errorMsg);
-    } finally {
-      // ============================================
-      // КРИТИЧНО: Выключаем загрузку ПОСЛЕ установки промпта
-      // ============================================
-      console.log('[27] Выключаем индикатор загрузки...');
-      setIsLoadingPrompt(false);
-      console.log('=== handleOpenPhoto END ===');
-    }
+    // Загружаем промпт через отдельную функцию
+    await loadPromptForPhoto(normalizedUrl);
   };
 
   useEffect(() => {
@@ -2084,7 +2033,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         // Очищаем sessionStorage при выходе
         sessionStorage.removeItem(`character_photo_${character.id}`);
         sessionStorage.removeItem(`character_prompt_${character.id}`);
-        sessionStorage.removeItem('last_opened_character_id');
+        sessionStorage.removeItem(`character_card_state_${character.id}`);
+        sessionStorage.removeItem('last_active_character_id');
       }
       // Убираем блок else - не очищаем при входе/смене пользователя
     });
@@ -2649,29 +2599,23 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         </RatingButton>
       )}
     </CardWrapper>
-      {selectedPhoto && (() => {
-        console.log('[Modal Render] Модальное окно рендерится:', {
-          selectedPhoto,
-          isPromptVisible,
-          hasPrompt: !!selectedPrompt,
-          isLoadingPrompt
-        });
-        return createPortal(
-          <PreviewBackdrop onClick={() => {
-            setSelectedPhoto(null);
-            setSelectedPrompt(null);
-            setPromptError(null);
-            setIsLoadingPrompt(false);
-            // Очищаем sessionStorage при закрытии
-            sessionStorage.removeItem(`character_photo_${character.id}`);
-            sessionStorage.removeItem(`character_prompt_${character.id}`);
-            // Очищаем ID последнего открытого персонажа
-            const lastOpenedId = sessionStorage.getItem('last_opened_character_id');
-            if (lastOpenedId && String(character.id) === String(lastOpenedId)) {
-              sessionStorage.removeItem('last_opened_character_id');
-            }
-          }}>
-            <PreviewContent onClick={(event) => event.stopPropagation()}>
+      {selectedPhoto && selectedPhoto.trim() !== '' && createPortal(
+        <PreviewBackdrop onClick={() => {
+          setSelectedPhoto(null);
+          setSelectedPrompt(null);
+          setPromptError(null);
+          setIsLoadingPrompt(false);
+          // Очищаем sessionStorage при закрытии
+          sessionStorage.removeItem(`character_photo_${character.id}`);
+          sessionStorage.removeItem(`character_prompt_${character.id}`);
+          sessionStorage.removeItem(`character_card_state_${character.id}`);
+          // Очищаем ID последнего активного персонажа
+          const activeCharId = sessionStorage.getItem('last_active_character_id');
+          if (activeCharId && String(character.id) === String(activeCharId)) {
+            sessionStorage.removeItem('last_active_character_id');
+          }
+        }}>
+          <PreviewContent onClick={(event) => event.stopPropagation()}>
             <PreviewClose onClick={() => {
               setSelectedPhoto(null);
               setSelectedPrompt(null);
@@ -2680,71 +2624,48 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
               // Очищаем sessionStorage при закрытии
               sessionStorage.removeItem(`character_photo_${character.id}`);
               sessionStorage.removeItem(`character_prompt_${character.id}`);
-              // Очищаем ID последнего открытого персонажа
-              const lastOpenedId = sessionStorage.getItem('last_opened_character_id');
-              if (lastOpenedId && String(character.id) === String(lastOpenedId)) {
-                sessionStorage.removeItem('last_opened_character_id');
+              sessionStorage.removeItem(`character_card_state_${character.id}`);
+              // Очищаем ID последнего активного персонажа
+              const activeCharId = sessionStorage.getItem('last_active_character_id');
+              if (activeCharId && String(character.id) === String(activeCharId)) {
+                sessionStorage.removeItem('last_active_character_id');
               }
             }}>
               <CloseIcon />
             </PreviewClose>
             <PreviewImageContainer>
-              <PreviewImage 
-                src={selectedPhoto} 
-                alt={character.name}
-                onLoad={() => {
-                  console.log('[PreviewImage] Изображение успешно загружено:', selectedPhoto);
-                }}
-                onError={(e) => {
-                  console.error('[PreviewImage] Ошибка загрузки изображения:', selectedPhoto, e);
-                }}
-                style={{
-                  visibility: 'visible',
-                  opacity: 1,
-                  display: 'block'
-                }}
-              />
+              <PreviewImage src={selectedPhoto} alt={character.name} />
             </PreviewImageContainer>
-            {isPromptVisible && (() => {
-              console.log('[UI Render check]', {
-                isPromptVisible,
-                hasPrompt: !!selectedPrompt,
-                isLoadingPrompt,
-                promptLength: selectedPrompt?.length || 0,
-                hasError: !!promptError
-              });
-              return (
-                <PromptPanel>
-                  <PromptPanelHeader>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
-                      <button 
-                        onClick={() => setIsPromptVisible(false)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: '#fbbf24',
-                          cursor: 'pointer',
-                          padding: '4px'
-                        }}
-                        title="Скрыть промпт"
-                      >
-                        <CloseIcon size={20} />
-                      </button>
-                    </div>
-                  </PromptPanelHeader>
-                  {isLoadingPrompt ? (
-                    <PromptLoading>Загрузка промпта...</PromptLoading>
-                  ) : promptError ? (
-                    <PromptError>{promptError}</PromptError>
-                  ) : selectedPrompt ? (
-                    <PromptPanelText>{selectedPrompt}</PromptPanelText>
-                  ) : (
-                    <PromptLoading>Промпт не найден</PromptLoading>
-                  )}
-                </PromptPanel>
-              );
-            })()}
+            <PromptPanel style={{
+              display: isPromptVisible ? 'flex' : 'none',
+              visibility: isPromptVisible ? 'visible' : 'hidden'
+            }}>
+              <PromptPanelHeader>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
+                  <button 
+                    onClick={() => setIsPromptVisible(false)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#fbbf24',
+                      cursor: 'pointer',
+                      padding: '4px'
+                    }}
+                    title="Скрыть промпт"
+                  >
+                    <CloseIcon size={20} />
+                  </button>
+                </div>
+              </PromptPanelHeader>
+              {isLoadingPrompt ? (
+                <PromptLoading>Загрузка промпта...</PromptLoading>
+              ) : promptError ? (
+                <PromptError>{promptError}</PromptError>
+              ) : selectedPrompt ? (
+                <PromptPanelText>{selectedPrompt}</PromptPanelText>
+              ) : null}
+            </PromptPanel>
             {!isPromptVisible && (
               <button
                 onClick={() => setIsPromptVisible(true)}
@@ -2768,8 +2689,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           </PreviewContent>
         </PreviewBackdrop>,
         document.body
-        );
-      })()}
+      )}
       {isPersonalityModalOpen && createPortal(
         <PersonalityModal onClick={(e) => {
           if (e.target === e.currentTarget) {

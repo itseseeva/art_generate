@@ -39,14 +39,15 @@ class AuthManager {
    */
   public getToken(): string | null {
     const token = localStorage.getItem('authToken');
-    if (token) {
-      console.log('[AuthManager] Токен получен из localStorage:', {
-        tokenLength: token.length,
-        tokenPreview: token.substring(0, 20) + '...'
-      });
-    } else {
-      console.log('[AuthManager] Токен не найден в localStorage');
-    }
+    // Закомментировано для уменьшения спама в консоль и повышения производительности
+    // if (token) {
+    //   console.log('[AuthManager] Токен получен из localStorage:', {
+    //     tokenLength: token.length,
+    //     tokenPreview: token.substring(0, 20) + '...'
+    //   });
+    // } else {
+    //   console.log('[AuthManager] Токен не найден в localStorage');
+    // }
     return token;
   }
 
