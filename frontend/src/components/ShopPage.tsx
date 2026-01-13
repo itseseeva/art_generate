@@ -519,6 +519,12 @@ export const ShopPage: React.FC<any> = ({
   };
 
   const handlePayment = async (plan: string, method: string) => {
+    if (!isAuthenticated) {
+      setAuthMode('login');
+      setIsAuthModalOpen(true);
+      return;
+    }
+
     if (!userInfo?.id) return;
 
     try {
@@ -547,10 +553,13 @@ export const ShopPage: React.FC<any> = ({
         }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        window.location.href = data.confirmation_url;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Ошибка создания платежа' }));
+        throw new Error(errorData.detail || 'Ошибка создания платежа');
       }
+
+      const data = await response.json();
+      window.location.href = data.confirmation_url;
     } catch (e) {
       // Ошибка обработки платежа
     }
@@ -696,22 +705,21 @@ export const ShopPage: React.FC<any> = ({
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ duration: 0.5, ease: "easeInOut" }}
-                  onClick={(e) => e.stopPropagation()}
                 >
                   <PaymentButtonsContainer>
-                    <PaymentButton onClick={(e) => { e.stopPropagation(); handlePayment('premium', 'sberbank'); }}>
+                    <PaymentButton onClick={() => handlePayment('premium', 'sberbank')}>
                       <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
                       SberPay
                     </PaymentButton>
-                    <PaymentButton onClick={(e) => { e.stopPropagation(); handlePayment('premium', 'yoo_money'); }}>
+                    <PaymentButton onClick={() => handlePayment('premium', 'yoo_money')}>
                       <PaymentLogo src="/payment_images/yumoney.png?v=15" alt="ЮMoney" />
                       ЮMoney
                     </PaymentButton>
-                    <PaymentButton onClick={(e) => { e.stopPropagation(); handlePayment('premium', 'bank_card'); }}>
+                    <PaymentButton onClick={() => handlePayment('premium', 'bank_card')}>
                       <PaymentLogo src="/payment_images/%D0%BA%D0%B0%D1%80%D1%82%D1%8B.png?v=15" alt="Банковские карты" />
                       Банковские карты
                     </PaymentButton>
-                    <PaymentButton onClick={(e) => { e.stopPropagation(); handlePayment('premium', 'sbp'); }}>
+                    <PaymentButton onClick={() => handlePayment('premium', 'sbp')}>
                       <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
                       СБП
                     </PaymentButton>
@@ -786,22 +794,21 @@ export const ShopPage: React.FC<any> = ({
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ duration: 0.5, ease: "easeInOut" }}
-                  onClick={(e) => e.stopPropagation()}
                 >
                   <PaymentButtonsContainer>
-                    <PaymentButton onClick={(e) => { e.stopPropagation(); handlePayment('standard', 'sberbank'); }}>
+                    <PaymentButton onClick={() => handlePayment('standard', 'sberbank')}>
                       <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
                       SberPay
                     </PaymentButton>
-                    <PaymentButton onClick={(e) => { e.stopPropagation(); handlePayment('standard', 'yoo_money'); }}>
+                    <PaymentButton onClick={() => handlePayment('standard', 'yoo_money')}>
                       <PaymentLogo src="/payment_images/yumoney.png?v=15" alt="ЮMoney" />
                       ЮMoney
                     </PaymentButton>
-                    <PaymentButton onClick={(e) => { e.stopPropagation(); handlePayment('standard', 'bank_card'); }}>
+                    <PaymentButton onClick={() => handlePayment('standard', 'bank_card')}>
                       <PaymentLogo src="/payment_images/%D0%BA%D0%B0%D1%80%D1%82%D1%8B.png?v=15" alt="Банковские карты" />
                       Банковские карты
                     </PaymentButton>
-                    <PaymentButton onClick={(e) => { e.stopPropagation(); handlePayment('standard', 'sbp'); }}>
+                    <PaymentButton onClick={() => handlePayment('standard', 'sbp')}>
                       <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
                       СБП
                     </PaymentButton>
