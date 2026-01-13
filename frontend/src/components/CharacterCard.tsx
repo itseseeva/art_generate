@@ -1807,91 +1807,162 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     }
   }, [character.id, showRatings]);
 
+  // Восстановление состояния из sessionStorage ТОЛЬКО при первом рендере
+  // Это позволяет восстановить просмотр промпта после обновления страницы
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    
+    // Проверяем, есть ли сохраненное фото для этого персонажа
+    const savedPhoto = sessionStorage.getItem(`character_photo_${character.id}`);
+    const savedPrompt = sessionStorage.getItem(`character_prompt_${character.id}`);
+    
+    if (savedPhoto && savedPhoto.trim() !== '') {
+      console.log('[Restore State] Восстанавливаем состояние из sessionStorage:', {
+        photo: savedPhoto,
+        hasPrompt: !!savedPrompt
+      });
+      
+      // Восстанавливаем состояние в правильном порядке
+      setSelectedPhoto(savedPhoto);
+      setIsPromptVisible(true);
+      
+      if (savedPrompt && savedPrompt.trim() !== '') {
+        setSelectedPrompt(savedPrompt);
+        setIsLoadingPrompt(false);
+        setPromptError(null);
+      } else {
+        // Если промпт не сохранен, показываем индикатор загрузки
+        setIsLoadingPrompt(false);
+        setPromptError('Промпт не найден');
+      }
+    }
+  }, []); // Запускаем ТОЛЬКО один раз при монтировании
+
   const handleOpenPhoto = async (e: React.MouseEvent, imageUrl: string) => {
     e.stopPropagation();
     e.preventDefault();
     
-    console.log('[handleOpenPhoto] Начало открытия фото:', imageUrl);
+    console.log('=== handleOpenPhoto START ===');
+    console.log('[1] Исходный URL:', imageUrl);
     
     if (!imageUrl) {
       console.error('[handleOpenPhoto] URL изображения отсутствует');
       return;
     }
     
-    // Нормализуем URL - добавляем полный путь если нужно
+    // Нормализуем URL
     let normalizedUrl = imageUrl;
-    if (imageUrl && !imageUrl.startsWith('http') && !imageUrl.startsWith('/')) {
-      normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}/${imageUrl}`;
-    } else if (imageUrl && imageUrl.startsWith('/') && !imageUrl.startsWith('http')) {
-      normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}${imageUrl}`;
-    }
-    
-    // КРИТИЧНО: Сначала открываем фото в полный экран, устанавливая selectedPhoto
-    // Это должно открыть модальное окно с фото
-    // Убеждаемся, что URL абсолютный перед установкой
-    if (!normalizedUrl.startsWith('http')) {
-      if (normalizedUrl.startsWith('/')) {
-        normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}${normalizedUrl}`;
+    if (!imageUrl.startsWith('http')) {
+      if (imageUrl.startsWith('/')) {
+        normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}${imageUrl}`;
       } else {
-        normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}/${normalizedUrl}`;
+        normalizedUrl = `${API_CONFIG.BASE_URL || window.location.origin}/${imageUrl}`;
       }
     }
     
-    console.log('[handleOpenPhoto] Нормализованный URL:', normalizedUrl);
-    console.log('[handleOpenPhoto] Устанавливаем состояние - selectedPhoto, isPromptVisible=true');
+    console.log('[2] Нормализованный URL:', normalizedUrl);
     
-    // Устанавливаем состояние синхронно, чтобы модальное окно открылось сразу
+    // ============================================
+    // КРИТИЧНО: Устанавливаем состояния в правильном порядке
+    // 1. Сначала открываем фото
+    // 2. Показываем панель промпта
+    // 3. Показываем индикатор загрузки
+    // 4. ОЧИЩАЕМ старый промпт и ошибки
+    // ============================================
+    console.log('[3] Устанавливаем selectedPhoto...');
     setSelectedPhoto(normalizedUrl);
+    
+    console.log('[4] Устанавливаем isPromptVisible=true...');
     setIsPromptVisible(true);
-    console.log('[handleOpenPhoto] Состояние установлено, selectedPhoto должен быть:', normalizedUrl);
-    setSelectedPrompt(null);
+    
+    console.log('[5] Очищаем старое состояние промпта...');
+    setSelectedPrompt(null); // ← Очищаем СТАРЫЙ промпт
     setPromptError(null);
+    
+    console.log('[6] Показываем индикатор загрузки...');
     setIsLoadingPrompt(true);
+    
+    // Сохраняем в sessionStorage
+    sessionStorage.setItem(`character_photo_${character.id}`, normalizedUrl);
+    console.log('[7] Сохранено в sessionStorage');
 
+    // ============================================
+    // Теперь загружаем промпт
+    // ============================================
     try {
-      console.log('[handleOpenPhoto] Запрашиваем промпт...');
-      const { prompt, errorMessage } = await fetchPromptByImage(normalizedUrl);
-      console.log('[handleOpenPhoto] Результат fetchPromptByImage:', {
-        hasPrompt: !!prompt,
-        promptLength: prompt?.length || 0,
-        hasErrorMessage: !!errorMessage,
-        errorMessage
-      });
+      console.log('[8] Запрашиваем промпт...');
+      const result = await fetchPromptByImage(normalizedUrl);
       
-      if (prompt) {
-        try {
-          console.log('[handleOpenPhoto] Переводим промпт на русский...');
-          // Переводим промпт на русский для отображения
-          const translatedPrompt = await translateToRussian(prompt);
-          console.log('[handleOpenPhoto] Промпт переведен, устанавливаем в состояние');
-          console.log('[handleOpenPhoto] Переведенный промпт:', translatedPrompt);
-          // Обязательно сначала ставим данные, потом выключаем загрузку
-          setSelectedPrompt(translatedPrompt);
-          console.log('[handleOpenPhoto] Промпт установлен в стейт:', translatedPrompt);
-        } catch (translateError) {
-          console.error('[handleOpenPhoto] Ошибка перевода промпта:', translateError);
-          // Если перевод не удался, показываем оригинальный промпт
-          console.log('[handleOpenPhoto] Используем оригинальный промпт без перевода');
-          setSelectedPrompt(prompt);
-          console.log('[handleOpenPhoto] Оригинальный промпт установлен в стейт:', prompt);
-        }
-      } else {
+      console.log('[9] ПОЛНЫЙ результат fetchPromptByImage:', result);
+      console.log('[10] result.hasPrompt:', result.hasPrompt);
+      console.log('[11] result.prompt:', result.prompt);
+      console.log('[12] typeof result.prompt:', typeof result.prompt);
+      console.log('[13] result.promptLength:', result.promptLength);
+      
+      // Деструктурируем результат
+      const { hasPrompt, prompt, errorMessage } = result;
+      
+      console.log('[14] После деструктуризации:');
+      console.log('    - hasPrompt:', hasPrompt);
+      console.log('    - prompt:', prompt);
+      console.log('    - errorMessage:', errorMessage);
+      
+      if (!prompt || prompt.trim() === '') {
+        console.log('[15] Промпт пустой или null');
         const finalErrorMessage = errorMessage || 'Промпт недоступен для этого изображения';
-        console.log('[handleOpenPhoto] Промпт не найден, устанавливаем ошибку:', finalErrorMessage);
         setPromptError(finalErrorMessage);
+        setIsLoadingPrompt(false);
+        return;
       }
+      
+      console.log('[16] Промпт получен! Длина:', prompt.length);
+      console.log('[17] Первые 100 символов:', prompt.substring(0, 100));
+      
+      // Переводим промпт на русский
+      console.log('[18] Переводим промпт на русский...');
+      try {
+        const translatedPrompt = await translateToRussian(prompt);
+        console.log('[19] Промпт переведен! Длина:', translatedPrompt.length);
+        console.log('[20] Первые 100 символов перевода:', translatedPrompt.substring(0, 100));
+        
+        // ============================================
+        // КРИТИЧНО: Устанавливаем промпт ПЕРЕД выключением загрузки
+        // ============================================
+        console.log('[21] Устанавливаем selectedPrompt...');
+        setSelectedPrompt(translatedPrompt);
+        
+        console.log('[22] Сохраняем в sessionStorage...');
+        sessionStorage.setItem(`character_prompt_${character.id}`, translatedPrompt);
+        
+        console.log('[23] ✅ Промпт успешно установлен в состояние!');
+        
+      } catch (translateError) {
+        console.warn('[24] Ошибка перевода, используем оригинал:', translateError);
+        
+        // Устанавливаем оригинальный промпт без перевода
+        setSelectedPrompt(prompt);
+        sessionStorage.setItem(`character_prompt_${character.id}`, prompt);
+        
+        console.log('[25] ✅ Оригинальный промпт установлен в состояние!');
+      }
+      
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Неизвестная ошибка загрузки промпта';
-      console.error('[handleOpenPhoto] Критическая ошибка загрузки промпта:', {
-        error: error,
+      console.error('[26] ❌ Критическая ошибка:', {
+        error,
         message: errorMsg,
         stack: error instanceof Error ? error.stack : undefined
       });
       setPromptError(errorMsg);
     } finally {
-      console.log('[handleOpenPhoto] Завершение загрузки, setIsLoadingPrompt(false)');
-      // Это должно быть последним
+      // ============================================
+      // КРИТИЧНО: Выключаем загрузку ПОСЛЕ установки промпта
+      // ============================================
+      console.log('[27] Выключаем индикатор загрузки...');
       setIsLoadingPrompt(false);
+      console.log('=== handleOpenPhoto END ===');
     }
   };
 
@@ -1934,6 +2005,9 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         setSelectedPrompt(null);
         setPromptError(null);
         setIsLoadingPrompt(false);
+        // Очищаем sessionStorage при выходе
+        sessionStorage.removeItem(`character_photo_${character.id}`);
+        sessionStorage.removeItem(`character_prompt_${character.id}`);
       }
       // Убираем блок else - не очищаем при входе/смене пользователя
     });
@@ -2505,12 +2579,15 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           hasPrompt: !!selectedPrompt,
           isLoadingPrompt
         });
-        return (
+        return createPortal(
           <PreviewBackdrop onClick={() => {
             setSelectedPhoto(null);
             setSelectedPrompt(null);
             setPromptError(null);
             setIsLoadingPrompt(false);
+            // Очищаем sessionStorage при закрытии
+            sessionStorage.removeItem(`character_photo_${character.id}`);
+            sessionStorage.removeItem(`character_prompt_${character.id}`);
           }}>
             <PreviewContent onClick={(event) => event.stopPropagation()}>
             <PreviewClose onClick={() => {
@@ -2518,6 +2595,9 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
               setSelectedPrompt(null);
               setPromptError(null);
               setIsLoadingPrompt(false);
+              // Очищаем sessionStorage при закрытии
+              sessionStorage.removeItem(`character_photo_${character.id}`);
+              sessionStorage.removeItem(`character_prompt_${character.id}`);
             }}>
               <CloseIcon />
             </PreviewClose>
@@ -2599,7 +2679,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
               </button>
             )}
           </PreviewContent>
-        </PreviewBackdrop>
+        </PreviewBackdrop>,
+        document.body
         );
       })()}
       {isPersonalityModalOpen && createPortal(
