@@ -519,12 +519,6 @@ export const ShopPage: React.FC<any> = ({
   };
 
   const handlePayment = async (plan: string, method: string) => {
-    if (!isAuthenticated) {
-      setAuthMode('login');
-      setIsAuthModalOpen(true);
-      return;
-    }
-
     if (!userInfo?.id) return;
 
     try {

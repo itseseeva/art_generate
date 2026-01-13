@@ -98,9 +98,7 @@ async def create_kassa_payment(
 	auth = (cfg["shop_id"], cfg["secret_key"])
 
 	# Настройки httpx клиента
-	# ВАЖНО: Отключаем прокси для запросов к YooKassa
-	# httpx по умолчанию использует HTTP_PROXY/HTTPS_PROXY из окружения,
-	# что может вызывать проблемы на VPS
+	# ВАЖНО: Прокси отключен для запросов к YooKassa (trust_env=False)
 	client_kwargs = {
 		"timeout": httpx.Timeout(
 			connect=10.0,  # Таймаут подключения
@@ -110,7 +108,7 @@ async def create_kassa_payment(
 		),
 		"follow_redirects": True,
 		"verify": True,  # Проверка SSL сертификатов
-		"trust_env": False,  # КРИТИЧНО: Отключаем автоматическое использование прокси из окружения
+		"trust_env": False,  # Отключаем автоматическое использование прокси из окружения
 	}
 	
 	logger.info(
@@ -118,16 +116,6 @@ async def create_kassa_payment(
 		f"method={payload.payment_method}, type={payload.payment_type}"
 	)
 	logger.debug(f"[YOOKASSA] Request body: {req_body}")
-	
-	# Логируем настройки прокси для отладки
-	import os
-	proxy_info = {
-		"HTTP_PROXY": os.getenv("HTTP_PROXY"),
-		"HTTPS_PROXY": os.getenv("HTTPS_PROXY"),
-		"GLOBAL_PROXY": os.getenv("GLOBAL_PROXY"),
-		"trust_env": client_kwargs.get("trust_env"),
-	}
-	logger.info(f"[YOOKASSA] Proxy settings: {proxy_info}")
 	
 	try:
 		logger.info("[YOOKASSA] Sending request to YooKassa API...")
