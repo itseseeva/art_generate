@@ -6,14 +6,37 @@ import { CharacterCard } from './CharacterCard';
 import { API_CONFIG } from '../config/api';
 import { AuthModal } from './AuthModal';
 import { GlobalHeader } from './GlobalHeader';
+import DarkVeil from '../../@/components/DarkVeil';
 
 const MainContainer = styled.div`
   width: 100%;
-  height: 100vh;
-  display: flex;
+  min-height: 100vh;
+  padding: 0;
+  overflow-y: visible;
   position: relative;
-  overflow-y: auto;
-  overflow-x: hidden;
+  font-family: 'Inter', sans-serif;
+  color: white;
+`;
+
+const BackgroundWrapper = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+`;
+
+const ContentWrapper = styled.div`
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 `;
 
 const CharactersGrid = styled.div`
@@ -416,21 +439,30 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
   if (!isAuthenticated) {
     return (
       <MainContainer>
-        <CharactersGrid>
-              <EmptyState>
-                <EmptyTitle>Необходима авторизация</EmptyTitle>
-                <EmptyDescription>
-                  Войдите в систему, чтобы просматривать и редактировать своих персонажей
-                </EmptyDescription>
-              </EmptyState>
-        </CharactersGrid>
+        <BackgroundWrapper>
+          <DarkVeil speed={1.1} />
+        </BackgroundWrapper>
+        <ContentWrapper>
+          <CharactersGrid>
+            <EmptyState>
+              <EmptyTitle>Необходима авторизация</EmptyTitle>
+              <EmptyDescription>
+                Войдите в систему, чтобы просматривать и редактировать своих персонажей
+              </EmptyDescription>
+            </EmptyState>
+          </CharactersGrid>
+        </ContentWrapper>
       </MainContainer>
     );
   }
 
   return (
     <MainContainer>
-      <div className="content-area vertical">
+      <BackgroundWrapper>
+        <DarkVeil speed={1.1} />
+      </BackgroundWrapper>
+      <ContentWrapper>
+        <div className="content-area vertical">
         <GlobalHeader 
           onShop={onShop}
           onProfile={onProfile}
@@ -476,7 +508,8 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
             })
           )}
         </CharactersGrid>
-      </div>
+        </div>
+      </ContentWrapper>
 
         {/* Модальное окно авторизации */}
         {isAuthModalOpen && (

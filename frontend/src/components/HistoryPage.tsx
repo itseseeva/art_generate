@@ -9,14 +9,37 @@ import { CharacterCard } from './CharacterCard';
 import { API_CONFIG } from '../config/api';
 import '../styles/ContentArea.css';
 import { useIsMobile } from '../hooks/useIsMobile';
+import DarkVeil from '../../@/components/DarkVeil';
 
 const MainContainer = styled.div`
   width: 100%;
+  min-height: 100vh;
+  padding: 0;
+  overflow-y: visible;
+  position: relative;
+  font-family: 'Inter', sans-serif;
+  color: white;
+`;
+
+const BackgroundWrapper = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+`;
+
+const ContentWrapper = styled.div`
+  position: relative;
+  z-index: 1;
+  width: 100%;
   height: 100%;
   display: flex;
-  position: relative;
-  overflow: hidden;
-  background: transparent;
+  flex-direction: column;
 `;
 
 const CharactersGrid = styled.div`
@@ -631,9 +654,15 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
     };
   }, []);
 
+  const isAuthenticated = authManager.isAuthenticated();
+
   return (
     <MainContainer>
-      <div className="content-area vertical">
+      <BackgroundWrapper>
+        <DarkVeil speed={1.1} />
+      </BackgroundWrapper>
+      <ContentWrapper>
+        <div className="content-area vertical">
         <GlobalHeader
           onShop={onShop}
           onProfile={onProfile}
@@ -742,7 +771,13 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
           </div>
         )}
 
-        {isLoading ? (
+        {!isAuthenticated ? (
+          <CharactersGrid>
+            <EmptyState>
+              У вас пока нет переписки с персонажами
+            </EmptyState>
+          </CharactersGrid>
+        ) : isLoading ? (
           <LoadingSpinner text="Загружаем историю сообщений..." />
         ) : (
           <CharactersGrid>
@@ -778,7 +813,8 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
             )}
           </CharactersGrid>
         )}
-      </div>
+        </div>
+      </ContentWrapper>
     </MainContainer>
   );
 };

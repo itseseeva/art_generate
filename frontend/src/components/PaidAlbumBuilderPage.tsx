@@ -574,6 +574,40 @@ const GhostButton = styled.button`
   }
 `;
 
+const ChatButton = styled.button`
+  width: 100%;
+  padding: 0.875rem 1.5rem;
+  background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
+  border: 1px solid rgba(139, 92, 246, 0.5);
+  border-radius: 0.75rem;
+  color: #ffffff;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(124, 58, 237, 0.4), 0 0 20px rgba(139, 92, 246, 0.3);
+
+  &:hover {
+    background: linear-gradient(135deg, #8b5cf6 0%, #9d6ff7 100%);
+    border-color: rgba(139, 92, 246, 0.7);
+    box-shadow: 0 6px 20px rgba(124, 58, 237, 0.5), 0 0 30px rgba(139, 92, 246, 0.4);
+    transform: translateY(-2px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+`;
+
 // Selected Photos Grid
 const SelectedPhotosGrid = styled.div`
   display: grid;
@@ -1865,10 +1899,10 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
               </PrimaryButton>
               
               {onBackToChat && (
-                <GhostButton onClick={() => onBackToChat()}>
+                <ChatButton onClick={() => onBackToChat()}>
                   <ArrowLeft size={18} />
-                  Вернуться в чат
-                </GhostButton>
+                  Перейти в чат
+                </ChatButton>
               )}
               
               <GhostButton onClick={onBackToMain}>
