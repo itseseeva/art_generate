@@ -275,22 +275,20 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
     console.log('[MessagesPage] useEffect - проверка токена:', {
       hasToken: !!token,
       hasLoaded: hasLoadedRef.current,
-      messagesCount: messages.length
+      messagesCount: messages.length,
+      isLoading
     });
 
     // Если токен есть, но данные не загружены, принудительно загружаем
-    if (token && !hasLoadedRef.current) {
+    // Убираем зависимость от messages.length и isLoading, чтобы избежать повторных загрузок
+    if (token && !hasLoadedRef.current && !isLoading) {
       console.log('[MessagesPage] Токен найден, но данные не загружены. Запускаем загрузку...');
-      loadTipMessages();
-    } else if (token && messages.length === 0 && !isLoading) {
-      // Если токен есть, но сообщений нет и не идет загрузка, принудительно загружаем
-      console.log('[MessagesPage] Токен найден, но сообщений нет. Принудительная загрузка...');
-      hasLoadedRef.current = false;
       loadTipMessages();
     } else if (!hasLoadedRef.current && !token) {
       console.log('[MessagesPage] Токен отсутствует, пропускаем загрузку');
+      setIsLoading(false);
     }
-  }, [loadTipMessages, messages.length, isLoading]);
+  }, [loadTipMessages]);
 
   // Синхронизация состояния авторизации
   useEffect(() => {
@@ -386,11 +384,11 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
           <LoadingSpinner text="Загружаем сообщения благодарности..." />
         ) : (
           <MessagesList>
-            {messages.length === 0 ? (
+            {messages.length === 0 && hasLoadedRef.current ? (
               <EmptyState>
                 У вас пока нету сообщений
               </EmptyState>
-            ) : (
+            ) : messages.length > 0 ? (
               messages.map((msg) => (
                 <MessageCard key={msg.id}>
                   <UserAvatar 
@@ -421,7 +419,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                   </MessageContent>
                 </MessageCard>
               ))
-            )}
+            ) : null}
           </MessagesList>
         )}
       </div>
