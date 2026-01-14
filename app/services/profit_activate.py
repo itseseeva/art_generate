@@ -307,17 +307,18 @@ class ProfitActivateService:
                 days_to_add = 30 * months
                 new_expires_at = existing_subscription.expires_at + timedelta(days=days_to_add)
                 
-                # Обновляем лимиты: устанавливаем БАЗОВЫЙ месячный лимит (не суммируем!)
-                existing_subscription.monthly_credits = monthly_credits
+                # Обновляем лимиты: кредиты новой подписки (с учетом месяцев и бонусов) + остатки старой подписки
+                existing_subscription.monthly_credits = total_period_credits + old_credits_remaining
+                existing_subscription.used_credits = 0  # Сбрасываем, т.к. все кредиты суммируются в monthly_credits
                 # monthly_photos остается 0 для STANDARD и PREMIUM
-                # Кредиты новой подписки остаются в подписке (used_credits остается прежним или сбрасывается)
-                # При продлении кредиты остаются в подписке, не переводятся на баланс
+                # Кредиты новой подписки остаются в подписке, не переводятся на баланс
                 
                 # Обновляем дату окончания
                 existing_subscription.expires_at = new_expires_at
                 existing_subscription.last_reset_at = datetime.utcnow()
                 
-                logger.info(f"[RENEWAL] Кредиты новой подписки остаются в подписке: {monthly_credits} кредитов")
+                logger.info(f"[RENEWAL] Кредиты новой подписки (с учетом {months} месяцев и бонусов): {total_period_credits} кредитов")
+                logger.info(f"[RENEWAL] Общий лимит подписки (новая + остатки): {total_period_credits} + {old_credits_remaining} = {existing_subscription.monthly_credits} кредитов")
                 logger.info(f"[RENEWAL] Новая дата окончания: {new_expires_at}")
                 logger.info(f"[NEW BALANCE] Баланс пользователя не изменился: {old_user_balance} монет")
                 
@@ -353,8 +354,8 @@ class ProfitActivateService:
                 # Обновляем тип и лимиты подписки
                 existing_subscription.subscription_type = _normalize_subscription_type(subscription_type)
                 existing_subscription.status = SubscriptionStatus.ACTIVE
-                # Кредиты новой подписки + остатки старой подписки = общий лимит
-                existing_subscription.monthly_credits = monthly_credits + old_credits_remaining
+                # Кредиты новой подписки (с учетом месяцев и бонусов) + остатки старой подписки = общий лимит
+                existing_subscription.monthly_credits = total_period_credits + old_credits_remaining
                 existing_subscription.monthly_photos = monthly_photos
                 existing_subscription.max_message_length = max_message_length
                 
@@ -379,9 +380,10 @@ class ProfitActivateService:
                 existing_subscription.expires_at = datetime.utcnow() + timedelta(days=30 * months)
                 existing_subscription.last_reset_at = datetime.utcnow()
                 
-                # Кредиты новой подписки + остатки старой подписки суммируются в подписке
-                logger.info(f"[NEW SUBSCRIPTION] Базовый лимит новой подписки: кредиты={monthly_credits}, фото={monthly_photos}")
-                logger.info(f"[NEW SUBSCRIPTION] Общий лимит подписки (новая + остатки): {monthly_credits} + {old_credits_remaining} = {existing_subscription.monthly_credits} кредитов")
+                # Кредиты новой подписки (с учетом месяцев и бонусов) + остатки старой подписки суммируются в подписке
+                logger.info(f"[NEW SUBSCRIPTION] Базовый месячный лимит: кредиты={monthly_credits}, фото={monthly_photos}")
+                logger.info(f"[NEW SUBSCRIPTION] Кредиты за период ({months} месяцев, с бонусами): {total_period_credits} кредитов")
+                logger.info(f"[NEW SUBSCRIPTION] Общий лимит подписки (новая + остатки): {total_period_credits} + {old_credits_remaining} = {existing_subscription.monthly_credits} кредитов")
                 if is_old_free:
                     total_photos_available = monthly_photos + old_photos_remaining
                     logger.info(f"[PHOTOS TRANSFER] ✅ Суммировано фото: {monthly_photos} (новая) + {old_photos_remaining} (остаток) = {total_photos_available} фото")
@@ -441,13 +443,14 @@ class ProfitActivateService:
         
         # Создаем новую подписку (первая подписка пользователя)
         logger.info(f"[NEW SUBSCRIPTION] Создание первой подписки {subscription_type} для пользователя {user_id}")
-        logger.info(f"[NEW SUBSCRIPTION] Лимиты: кредиты={monthly_credits}, фото={monthly_photos}")
+        logger.info(f"[NEW SUBSCRIPTION] Базовый месячный лимит: кредиты={monthly_credits}, фото={monthly_photos}")
+        logger.info(f"[NEW SUBSCRIPTION] Кредиты за период ({months} месяцев, с бонусами): {total_period_credits} кредитов")
         
         subscription = UserSubscription(
             user_id=user_id,
             subscription_type=_normalize_subscription_type(subscription_type),
             status=SubscriptionStatus.ACTIVE,
-            monthly_credits=monthly_credits,
+            monthly_credits=total_period_credits,
             monthly_photos=monthly_photos,
             max_message_length=max_message_length,
             used_credits=0,
@@ -481,7 +484,7 @@ class ProfitActivateService:
         logger.info(f"[NEW SUBSCRIPTION]   expires_at: {subscription.expires_at}")
         logger.info(f"[NEW SUBSCRIPTION]   user.coins: {user.coins}")
         
-        logger.info(f"[NEW SUBSCRIPTION] Кредиты подписки остаются в подписке: {monthly_credits} кредитов")
+        logger.info(f"[NEW SUBSCRIPTION] Кредиты подписки остаются в подписке: {total_period_credits} кредитов")
         logger.info(f"[NEW BALANCE] Баланс пользователя не изменился: {old_user_balance} монет")
         
         await self.db.commit()
