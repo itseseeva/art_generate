@@ -1129,6 +1129,7 @@ interface CharacterCardProps {
   userInfo?: { is_admin?: boolean } | null; // Информация о пользователе для проверки прав админа
   onNsfwToggle?: () => void; // Callback при изменении статуса NSFW (для обновления списка)
   showRatings?: boolean; // Показывать кнопки лайка/дизлайка (только в чате)
+  onAuthRequired?: () => void; // Callback для открытия модального окна авторизации
 }
 
 // Компонент слайд-шоу
@@ -1214,7 +1215,9 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   onFavoriteToggle, // Callback при изменении статуса избранного
   userInfo = null, // Информация о пользователе
   onNsfwToggle, // Callback при изменении статуса NSFW
-  showRatings = false // По умолчанию не показываем кнопки лайка/дизлайка
+  showRatings = false, // По умолчанию не показываем кнопки лайка/дизлайка
+  isAuthenticated = false, // Статус авторизации
+  onAuthRequired // Callback для открытия модального окна авторизации
 }) => {
   const isMobile = useIsMobile();
   // КРИТИЧЕСКИ ВАЖНО: если isFavoriteProp не передан, начинаем с false

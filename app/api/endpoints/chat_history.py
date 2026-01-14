@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from typing import Optional
 from app.database.db_depends import get_db
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, get_current_user_optional
 from app.models.user import Users
 from app.chat_history.services.chat_history_service import ChatHistoryService
 
@@ -167,42 +167,45 @@ async def get_history_stats(
 async def get_prompt_by_image(
     image_url: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Users = Depends(get_current_user)
+    current_user: Optional[Users] = Depends(get_current_user_optional)
 ):
     """Получает промпт для изображения по его URL.
 
-    Приоритет: сначала ищем в истории текущего пользователя, затем среди всех пользователей.
+    Доступно для всех пользователей, включая неавторизованных.
+    Приоритет: сначала ищем в истории текущего пользователя (если авторизован), затем среди всех пользователей.
     """
     try:
         from app.models.chat_history import ChatHistory
         import logging
 
         logger = logging.getLogger(__name__)
-        user_id = current_user.id
+        user_id = current_user.id if current_user else None
         logger.info(
             "[PROMPT] Поиск промпта для изображения: %s (user_id=%s)",
             image_url,
-            user_id
+            user_id or "неавторизован"
         )
 
         # Нормализуем URL точно так же, как при сохранении
         normalized_url = image_url.split('?')[0].split('#')[0] if image_url else image_url
         
-        logger.info(f"[PROMPT] Ищем промпт по точному совпадению: normalized_url={normalized_url}, user_id={user_id}")
+        logger.info(f"[PROMPT] Ищем промпт по точному совпадению: normalized_url={normalized_url}, user_id={user_id or 'неавторизован'}")
         
-        # Сначала ищем промпт у текущего пользователя (приоритет)
-        stmt = (
-            select(ChatHistory)
-            .where(
-                ChatHistory.image_url == normalized_url,
-                ChatHistory.user_id == user_id
+        # Сначала ищем промпт у текущего пользователя (приоритет), если пользователь авторизован
+        message = None
+        if current_user:
+            stmt = (
+                select(ChatHistory)
+                .where(
+                    ChatHistory.image_url == normalized_url,
+                    ChatHistory.user_id == user_id
+                )
+                .order_by(ChatHistory.created_at.desc())
+                .limit(1)
             )
-            .order_by(ChatHistory.created_at.desc())
-            .limit(1)
-        )
-        message = (await db.execute(stmt)).scalars().first()
+            message = (await db.execute(stmt)).scalars().first()
         
-        # Если не найдено у текущего пользователя, ищем среди всех пользователей (fallback)
+        # Если не найдено у текущего пользователя (или пользователь не авторизован), ищем среди всех пользователей (fallback)
         if not message:
             logger.info(f"[PROMPT] Промпт не найден у текущего пользователя, ищем среди всех пользователей")
             stmt = (

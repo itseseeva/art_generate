@@ -7,7 +7,7 @@ from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 
 from app.database.db_depends import get_db
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, get_current_user_optional
 from app.models.user import Users
 
 
@@ -272,11 +272,12 @@ async def get_history_stats(
 async def get_prompt_by_image(
     image_url: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Users = Depends(get_current_user)
+    current_user: Optional[Users] = Depends(get_current_user_optional)
 ):
     """Получает промпт для изображения по его URL.
 
-    Приоритет: сначала ищем в истории текущего пользователя, затем среди всех пользователей.
+    Доступно для всех пользователей, включая неавторизованных.
+    Приоритет: сначала ищем в истории текущего пользователя (если авторизован), затем среди всех пользователей.
     """
     try:
         from app.models.chat_history import ChatHistory
@@ -284,7 +285,7 @@ async def get_prompt_by_image(
         import logging
 
         logger = logging.getLogger(__name__)
-        user_id = current_user.id
+        user_id = current_user.id if current_user else None
         # Логирование удалено для уменьшения шума в логах
 
         # Максимально простая и надежная нормализация
@@ -334,7 +335,8 @@ async def get_prompt_by_image(
             # Для админов ищем по всем пользователям, для обычных пользователей - только по своему user_id
             
             # Ищем по идентификатору файла (имя файла после /generated/), игнорируя домен
-            if current_user.is_admin:
+            # Для неавторизованных пользователей ищем среди всех записей
+            if current_user and current_user.is_admin:
                 image_history_stmt = (
                     select(ImageGenerationHistory)
                     .where(
@@ -343,13 +345,23 @@ async def get_prompt_by_image(
                     )
                     .order_by(ImageGenerationHistory.created_at.desc())
                 )
-            else:
+            elif current_user:
                 image_history_stmt = (
                     select(ImageGenerationHistory)
                     .where(
                         ImageGenerationHistory.image_url.is_not(None),
                         ImageGenerationHistory.image_url != "",
                         ImageGenerationHistory.user_id == user_id
+                    )
+                    .order_by(ImageGenerationHistory.created_at.desc())
+                )
+            else:
+                # Для неавторизованных пользователей ищем среди всех записей
+                image_history_stmt = (
+                    select(ImageGenerationHistory)
+                    .where(
+                        ImageGenerationHistory.image_url.is_not(None),
+                        ImageGenerationHistory.image_url != ""
                     )
                     .order_by(ImageGenerationHistory.created_at.desc())
                 )
@@ -403,27 +415,50 @@ async def get_prompt_by_image(
         # Список исключаемых паттернов для контента (заглушки)
         exclude_patterns = ["Генерация изображения", "[image:", "Генерация..."]
         
-        # Получаем все записи пользователя с изображениями и ищем по идентификатору файла
-        stmt = (
-            select(ChatHistory)
-            .options(load_only(
-                ChatHistory.id, ChatHistory.user_id, ChatHistory.character_name,
-                ChatHistory.message_content, ChatHistory.image_url, ChatHistory.created_at,
-                ChatHistory.generation_time
-            ))
-            .where(
-                ChatHistory.user_id == user_id,
-                ChatHistory.image_url.is_not(None),
-                ChatHistory.image_url != "",
-                ChatHistory.message_content.is_not(None),
-                ChatHistory.message_content != "",
-                # Исключаем заглушки
-                not_(ChatHistory.message_content.like("Генерация изображения%")),
-                not_(ChatHistory.message_content.like("[image:%"))
+        # Получаем все записи с изображениями и ищем по идентификатору файла
+        # Если пользователь авторизован, сначала ищем в его истории, затем среди всех
+        if current_user:
+            stmt = (
+                select(ChatHistory)
+                .options(load_only(
+                    ChatHistory.id, ChatHistory.user_id, ChatHistory.character_name,
+                    ChatHistory.message_content, ChatHistory.image_url, ChatHistory.created_at,
+                    ChatHistory.generation_time
+                ))
+                .where(
+                    ChatHistory.user_id == user_id,
+                    ChatHistory.image_url.is_not(None),
+                    ChatHistory.image_url != "",
+                    ChatHistory.message_content.is_not(None),
+                    ChatHistory.message_content != "",
+                    # Исключаем заглушки
+                    not_(ChatHistory.message_content.like("Генерация изображения%")),
+                    not_(ChatHistory.message_content.like("[image:%"))
+                )
+                .order_by(ChatHistory.created_at.desc())
             )
-            .order_by(ChatHistory.created_at.desc())
-        )
-        messages = (await db.execute(stmt)).scalars().all()
+            messages = (await db.execute(stmt)).scalars().all()
+        else:
+            # Для неавторизованных пользователей ищем среди всех записей
+            stmt = (
+                select(ChatHistory)
+                .options(load_only(
+                    ChatHistory.id, ChatHistory.user_id, ChatHistory.character_name,
+                    ChatHistory.message_content, ChatHistory.image_url, ChatHistory.created_at,
+                    ChatHistory.generation_time
+                ))
+                .where(
+                    ChatHistory.image_url.is_not(None),
+                    ChatHistory.image_url != "",
+                    ChatHistory.message_content.is_not(None),
+                    ChatHistory.message_content != "",
+                    # Исключаем заглушки
+                    not_(ChatHistory.message_content.like("Генерация изображения%")),
+                    not_(ChatHistory.message_content.like("[image:%"))
+                )
+                .order_by(ChatHistory.created_at.desc())
+            )
+            messages = (await db.execute(stmt)).scalars().all()
         message = None
         for msg in messages:
             msg_file_id = extract_file_identifier(msg.image_url)

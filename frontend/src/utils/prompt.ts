@@ -65,7 +65,19 @@ export const fetchPromptByImage = async (imageUrl: string): Promise<PromptFetchR
   const endpoint = buildPromptEndpoint(imageUrl);
 
   try {
-    const response = await authManager.fetchWithAuth(endpoint);
+    // Промпт доступен для всех, включая неавторизованных пользователей
+    // Используем обычный fetch, если нет токена, иначе используем авторизованный запрос
+    const token = authManager.getToken();
+    let response: Response;
+    
+    if (token) {
+      // Если есть токен, используем авторизованный запрос
+      response = await authManager.fetchWithAuth(endpoint);
+    } else {
+      // Если нет токена, используем обычный fetch
+      response = await fetch(endpoint);
+    }
+    
     const result = await parsePromptResponse(response);
     return result;
   } catch (error) {
