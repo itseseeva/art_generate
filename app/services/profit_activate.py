@@ -307,20 +307,37 @@ class ProfitActivateService:
                 days_to_add = 30 * months
                 new_expires_at = existing_subscription.expires_at + timedelta(days=days_to_add)
                 
-                # Обновляем лимиты: кредиты новой подписки (с учетом месяцев и бонусов) + остатки старой подписки
-                existing_subscription.monthly_credits = total_period_credits + old_credits_remaining
-                existing_subscription.used_credits = 0  # Сбрасываем, т.к. все кредиты суммируются в monthly_credits
+                # Обновляем лимиты: устанавливаем базовый месячный лимит
+                existing_subscription.monthly_credits = monthly_credits
+                existing_subscription.used_credits = 0
                 # monthly_photos остается 0 для STANDARD и PREMIUM
-                # Кредиты новой подписки остаются в подписке, не переводятся на баланс
+                # Кредиты новой подписки + остатки старой подписки переводятся на баланс
+                
+                # Переводим кредиты на баланс
+                credits_to_balance = total_period_credits + old_credits_remaining
+                user.coins += credits_to_balance
                 
                 # Обновляем дату окончания
                 existing_subscription.expires_at = new_expires_at
                 existing_subscription.last_reset_at = datetime.utcnow()
                 
                 logger.info(f"[RENEWAL] Кредиты новой подписки (с учетом {months} месяцев и бонусов): {total_period_credits} кредитов")
-                logger.info(f"[RENEWAL] Общий лимит подписки (новая + остатки): {total_period_credits} + {old_credits_remaining} = {existing_subscription.monthly_credits} кредитов")
+                logger.info(f"[RENEWAL] Переводим на баланс: {total_period_credits} (новая) + {old_credits_remaining} (остатки) = {credits_to_balance} кредитов")
                 logger.info(f"[RENEWAL] Новая дата окончания: {new_expires_at}")
-                logger.info(f"[NEW BALANCE] Баланс пользователя не изменился: {old_user_balance} монет")
+                
+                # Записываем историю баланса
+                try:
+                    from app.utils.balance_history import record_balance_change
+                    await record_balance_change(
+                        db=self.db,
+                        user_id=user_id,
+                        amount=credits_to_balance,
+                        reason=f"Продление подписки {subscription_type.upper()} (кредиты новой подписки + остатки старой подписки)"
+                    )
+                except Exception as e:
+                    logger.warning(f"Не удалось записать историю баланса: {e}")
+                
+                logger.info(f"[NEW BALANCE] Баланс пользователя: {old_user_balance} -> {user.coins} монет (изменение: +{credits_to_balance})")
                 
                 await self.db.commit()
                 await self.db.refresh(existing_subscription)
@@ -354,13 +371,17 @@ class ProfitActivateService:
                 # Обновляем тип и лимиты подписки
                 existing_subscription.subscription_type = _normalize_subscription_type(subscription_type)
                 existing_subscription.status = SubscriptionStatus.ACTIVE
-                # Кредиты новой подписки (с учетом месяцев и бонусов) + остатки старой подписки = общий лимит
-                existing_subscription.monthly_credits = total_period_credits + old_credits_remaining
+                # Устанавливаем базовый месячный лимит новой подписки
+                existing_subscription.monthly_credits = monthly_credits
                 existing_subscription.monthly_photos = monthly_photos
                 existing_subscription.max_message_length = max_message_length
                 
-                # Кредиты: сбрасываем used_credits, т.к. все кредиты (новые + остатки) суммируются в monthly_credits
+                # Кредиты: сбрасываем used_credits
                 existing_subscription.used_credits = 0
+                
+                # Переводим кредиты новой подписки + остатки старой подписки на баланс
+                credits_to_balance = total_period_credits + old_credits_remaining
+                user.coins += credits_to_balance
                 
                 # ФОТО: Для STANDARD и PREMIUM monthly_photos = 0 (без ограничений)
                 # Для FREE (старая подписка) сохраняем старые остатки фото
@@ -380,16 +401,29 @@ class ProfitActivateService:
                 existing_subscription.expires_at = datetime.utcnow() + timedelta(days=30 * months)
                 existing_subscription.last_reset_at = datetime.utcnow()
                 
-                # Кредиты новой подписки (с учетом месяцев и бонусов) + остатки старой подписки суммируются в подписке
+                # Кредиты новой подписки + остатки старой подписки переводятся на баланс
                 logger.info(f"[NEW SUBSCRIPTION] Базовый месячный лимит: кредиты={monthly_credits}, фото={monthly_photos}")
                 logger.info(f"[NEW SUBSCRIPTION] Кредиты за период ({months} месяцев, с бонусами): {total_period_credits} кредитов")
-                logger.info(f"[NEW SUBSCRIPTION] Общий лимит подписки (новая + остатки): {total_period_credits} + {old_credits_remaining} = {existing_subscription.monthly_credits} кредитов")
+                logger.info(f"[NEW SUBSCRIPTION] Переводим на баланс: {total_period_credits} (новая) + {old_credits_remaining} (остатки) = {credits_to_balance} кредитов")
                 if is_old_free:
                     total_photos_available = monthly_photos + old_photos_remaining
                     logger.info(f"[PHOTOS TRANSFER] ✅ Суммировано фото: {monthly_photos} (новая) + {old_photos_remaining} (остаток) = {total_photos_available} фото")
                 else:
                     logger.info(f"[PHOTOS] Для новой подписки {subscription_type.upper()} генерации фото не ограничены")
-                logger.info(f"[NEW BALANCE] Баланс пользователя не изменился: {old_user_balance} монет")
+                
+                # Записываем историю баланса
+                try:
+                    from app.utils.balance_history import record_balance_change
+                    await record_balance_change(
+                        db=self.db,
+                        user_id=user_id,
+                        amount=credits_to_balance,
+                        reason=f"Смена подписки на {subscription_type.upper()} (кредиты новой подписки + остатки старой подписки)"
+                    )
+                except Exception as e:
+                    logger.warning(f"Не удалось записать историю баланса: {e}")
+                
+                logger.info(f"[NEW BALANCE] Баланс пользователя: {old_user_balance} -> {user.coins} монет (изменение: +{credits_to_balance})")
                 logger.info(f"[UPGRADE] Новый тип подписки: {existing_subscription.subscription_type.value.upper()}")
                 
                 logger.info(f"[UPGRADE] Состояние ПЕРЕД commit:")
@@ -450,7 +484,7 @@ class ProfitActivateService:
             user_id=user_id,
             subscription_type=_normalize_subscription_type(subscription_type),
             status=SubscriptionStatus.ACTIVE,
-            monthly_credits=total_period_credits,
+            monthly_credits=monthly_credits,
             monthly_photos=monthly_photos,
             max_message_length=max_message_length,
             used_credits=0,
@@ -462,9 +496,9 @@ class ProfitActivateService:
         
         self.db.add(subscription)
         
-        # Кредиты подписки остаются в подписке (used_credits = 0, значит credits_remaining = monthly_credits)
-        # Не переводим кредиты на баланс
+        # Переводим кредиты новой подписки на баланс
         old_user_balance = user.coins
+        user.coins += total_period_credits
         
         # КРИТИЧНО: Убеждаемся, что статус установлен как ACTIVE
         if subscription.status != SubscriptionStatus.ACTIVE:
@@ -484,8 +518,21 @@ class ProfitActivateService:
         logger.info(f"[NEW SUBSCRIPTION]   expires_at: {subscription.expires_at}")
         logger.info(f"[NEW SUBSCRIPTION]   user.coins: {user.coins}")
         
-        logger.info(f"[NEW SUBSCRIPTION] Кредиты подписки остаются в подписке: {total_period_credits} кредитов")
-        logger.info(f"[NEW BALANCE] Баланс пользователя не изменился: {old_user_balance} монет")
+        logger.info(f"[NEW SUBSCRIPTION] Переводим на баланс: {total_period_credits} кредитов")
+        
+        # Записываем историю баланса
+        try:
+            from app.utils.balance_history import record_balance_change
+            await record_balance_change(
+                db=self.db,
+                user_id=user_id,
+                amount=total_period_credits,
+                reason=f"Первая подписка {subscription_type.upper()} (кредиты за {months} месяцев)"
+            )
+        except Exception as e:
+            logger.warning(f"Не удалось записать историю баланса: {e}")
+        
+        logger.info(f"[NEW BALANCE] Баланс пользователя: {old_user_balance} -> {user.coins} монет (изменение: +{total_period_credits})")
         
         await self.db.commit()
         logger.info(f"[NEW SUBSCRIPTION] ✅ Commit выполнен успешно")
