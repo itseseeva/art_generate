@@ -671,7 +671,8 @@ Instructions:
 Response Style:
 {character.style}"""
 
-        # Добавляем стандартные инструкции
+        # Всегда добавляем стандартные инструкции в конец prompt
+        # Они будут добавлены после instructions пользователя
         full_prompt += f"""
 
 IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never leave sentences unfinished.
@@ -1555,9 +1556,11 @@ async def update_user_character(
         if user_had_default_instructions:
             # Находим начало дефолтных инструкций и обрезаем до этого места
             marker_index = user_instructions.find(DEFAULT_INSTRUCTIONS_MARKER)
-            if marker_index > 0:
+            if marker_index >= 0:
                 # Обрезаем до маркера, убирая пробелы и переносы строк перед ним
-                user_instructions = user_instructions[:marker_index].rstrip()
+                # Если маркер в начале (marker_index == 0), оставляем пустую строку
+                # Если маркер после начала (marker_index > 0), обрезаем до маркера
+                user_instructions = user_instructions[:marker_index].rstrip() if marker_index > 0 else ''
         
         # Формируем новый промпт из данных пользователя
         full_prompt = f"""Character: {character.name}

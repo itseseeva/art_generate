@@ -1832,9 +1832,23 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
             situation = situationMatch[1].trim();
           }
           
-          const instructionsMatch = prompt.match(/Instructions:\s*(.*?)(?=\n\nResponse Style:|$)/s);
+          // Извлекаем instructions до Response Style или IMPORTANT
+          const instructionsMatch = prompt.match(/Instructions:\s*(.*?)(?=\n\nResponse Style:|\n\nIMPORTANT:|$)/s);
           if (instructionsMatch && instructionsMatch[1]) {
             instructions = instructionsMatch[1].trim();
+          }
+          
+          // Извлекаем дефолтные инструкции, если они есть после Response Style или в конце prompt
+          const defaultInstructionsMatch = prompt.match(/(?:Response Style:.*?\n\n)?(IMPORTANT: Always end your answers with the correct punctuation.*?)(?=\n\n|$)/s);
+          if (defaultInstructionsMatch && defaultInstructionsMatch[1]) {
+            const defaultInstructions = defaultInstructionsMatch[1].trim();
+            // Добавляем дефолтные инструкции к instructions пользователя, если их там еще нет
+            if (instructions && !instructions.includes('IMPORTANT: Always end your answers with the correct punctuation')) {
+              instructions = instructions + '\n\n' + defaultInstructions;
+            } else if (!instructions || instructions.trim() === '') {
+              // Если instructions пустые, добавляем только дефолтные
+              instructions = defaultInstructions;
+            }
           }
           
           const styleMatch = prompt.match(/Response Style:\s*(.*?)(?=\n\nIMPORTANT:|$)/s);
