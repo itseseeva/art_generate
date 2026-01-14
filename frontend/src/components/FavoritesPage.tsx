@@ -242,6 +242,9 @@ export const FavoritesPage: React.FC<FavoritesPageProps> = ({
 
   return (
     <MainContainer>
+      <BackgroundWrapper>
+        <DarkVeil speed={1.1} />
+      </BackgroundWrapper>
       <div className="content-area vertical">
         <GlobalHeader 
           onShop={onShop}

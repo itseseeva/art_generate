@@ -8,13 +8,35 @@ import { GlobalHeader } from './GlobalHeader';
 import { AuthModal } from './AuthModal';
 import SplitText from './SplitText';
 import { API_CONFIG } from '../config/api';
+import DarkVeil from '../../@/components/DarkVeil';
 
 const MainContainer = styled.div`
   width: 100%;
-  height: 100%;
+  min-height: 100vh;
   display: flex;
   position: relative;
-  overflow: hidden;
+  font-family: 'Inter', sans-serif;
+  color: white;
+`;
+
+const BackgroundWrapper = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+`;
+
+const ContentWrapper = styled.div`
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
 `;
 
 
@@ -484,91 +506,96 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
 
   return (
     <MainContainer>
-      <div className="content-area vertical">
-        <GlobalHeader 
-          onShop={onShop}
-          onProfile={onProfile}
-          onLogin={() => {
-            setAuthMode('login');
-            setIsAuthModalOpen(true);
-          }}
-          onRegister={() => {
-            setAuthMode('register');
-            setIsAuthModalOpen(true);
-          }}
-          onLogout={handleLogout}
-          onProfile={onProfile}
-          onBalance={() => alert('Баланс пользователя')}
-        />
-        
-        <MainContent>
-          {isLoading ? (
-            <LoadingSpinner>Загрузка персонажей...</LoadingSpinner>
-          ) : characters.length === 0 ? (
-            <EmptyState>
-              <EmptyTitle>У вас пока нет персонажей</EmptyTitle>
-              <EmptyDescription>
-                Создайте своего первого персонажа, чтобы начать редактирование
-              </EmptyDescription>
-              <CreateButton onClick={onCreateCharacter}>
-                Создать персонажа
-              </CreateButton>
-            </EmptyState>
-          ) : (
-            <CharactersGrid>
-              {characters.map((character) => {
-                // Добавляем фото к персонажу
-                const characterWithPhotos = {
-                  ...character,
-                  photos: characterPhotos[character.name.toLowerCase()] || []
-                };
-                
-                // Проверяем, находится ли персонаж в избранном
-                const characterId = typeof character.id === 'number' 
-                  ? character.id 
-                  : parseInt(character.id, 10);
-                const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
-                
-                return (
-                <CharacterCard
-                  key={character.id}
-                    character={characterWithPhotos}
-                  onClick={handleCharacterClick}
-                  showEditButton={false}
-                  isFavorite={isFavorite}
-                  onFavoriteToggle={loadFavorites}
-                />
-                );
-              })}
-            </CharactersGrid>
-          )}
-        </MainContent>
-      </div>
+      <BackgroundWrapper>
+        <DarkVeil speed={1.1} />
+      </BackgroundWrapper>
+      <ContentWrapper>
+        <div className="content-area vertical">
+          <GlobalHeader 
+            onShop={onShop}
+            onProfile={onProfile}
+            onLogin={() => {
+              setAuthMode('login');
+              setIsAuthModalOpen(true);
+            }}
+            onRegister={() => {
+              setAuthMode('register');
+              setIsAuthModalOpen(true);
+            }}
+            onLogout={handleLogout}
+            onProfile={onProfile}
+            onBalance={() => alert('Баланс пользователя')}
+          />
+          
+          <MainContent>
+            {isLoading ? (
+              <LoadingSpinner>Загрузка персонажей...</LoadingSpinner>
+            ) : characters.length === 0 ? (
+              <EmptyState>
+                <EmptyTitle>У вас пока нет персонажей</EmptyTitle>
+                <EmptyDescription>
+                  Создайте своего первого персонажа, чтобы начать редактирование
+                </EmptyDescription>
+                <CreateButton onClick={onCreateCharacter}>
+                  Создать персонажа
+                </CreateButton>
+              </EmptyState>
+            ) : (
+              <CharactersGrid>
+                {characters.map((character) => {
+                  // Добавляем фото к персонажу
+                  const characterWithPhotos = {
+                    ...character,
+                    photos: characterPhotos[character.name.toLowerCase()] || []
+                  };
+                  
+                  // Проверяем, находится ли персонаж в избранном
+                  const characterId = typeof character.id === 'number' 
+                    ? character.id 
+                    : parseInt(character.id, 10);
+                  const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
+                  
+                  return (
+                  <CharacterCard
+                    key={character.id}
+                      character={characterWithPhotos}
+                    onClick={handleCharacterClick}
+                    showEditButton={false}
+                    isFavorite={isFavorite}
+                    onFavoriteToggle={loadFavorites}
+                  />
+                  );
+                })}
+              </CharactersGrid>
+            )}
+          </MainContent>
+        </div>
 
-      {isAuthModalOpen && (
-        <AuthModal
-          isOpen={isAuthModalOpen}
-          mode={authMode}
-          onModeChange={setAuthMode}
-          onClose={() => {
-            setIsAuthModalOpen(false);
-            setAuthMode('login');
-            // Если закрыл без входа - на главную
-            if (!isAuthenticated) {
+        {isAuthModalOpen && (
+          <AuthModal
+            isOpen={isAuthModalOpen}
+            mode={authMode}
+            onModeChange={setAuthMode}
+            onClose={() => {
+              setIsAuthModalOpen(false);
+              setAuthMode('login');
+              // Если закрыл без входа - на главную
+              if (!isAuthenticated) {
+                onBackToMain();
+              }
+            }}
+            onAuthSuccess={({ accessToken, refreshToken }) => {
+              authManager.setTokens(accessToken, refreshToken);
+              setIsAuthModalOpen(false);
+              setAuthMode('login');
+              // Диспатчим событие для обновления App.tsx
+              window.dispatchEvent(new Event('auth-success'));
+              // Перебрасываем на главную после входа
               onBackToMain();
-            }
-          }}
-          onAuthSuccess={({ accessToken, refreshToken }) => {
-            authManager.setTokens(accessToken, refreshToken);
-            setIsAuthModalOpen(false);
-            setAuthMode('login');
-            // Диспатчим событие для обновления App.tsx
-            window.dispatchEvent(new Event('auth-success'));
-            // Перебрасываем на главную после входа
-            onBackToMain();
-          }}
-        />
-      )}
+            }}
+          />
+        )}
+      </ContentWrapper>
     </MainContainer>
   );
 };

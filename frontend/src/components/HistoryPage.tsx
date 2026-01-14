@@ -654,7 +654,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
     };
   }, []);
 
-  const isAuthenticated = authManager.isAuthenticated();
+  const isAuthenticated = !!authManager.getToken();
 
   return (
     <MainContainer>

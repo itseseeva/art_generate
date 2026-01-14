@@ -19,14 +19,37 @@ import DarkVeil from '../../@/components/DarkVeil';
 
 const MainContainer = styled.div`
   width: 100%;
-  min-height: 100%;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   position: relative;
+  font-family: 'Inter', sans-serif;
+  color: white;
   
   @media (max-width: 768px) {
     overflow: visible;
   }
+`;
+
+const BackgroundWrapper = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+`;
+
+const ContentWrapper = styled.div`
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 `;
 
 const FooterWrapper = styled.div`
@@ -976,16 +999,20 @@ export const MainPage: React.FC<MainPageProps> = ({
 
   return (
     <MainContainer>
-      <HeaderWrapper>
-        <GlobalHeader 
-          onShop={onShop || handleShop}
-          onProfile={onProfile}
-          onLogin={onLogin || handleLogin}
-          onRegister={onRegister || handleRegister}
-          onLogout={onLogout}
-          onHome={onHome}
-        />
-      </HeaderWrapper>
+      <BackgroundWrapper>
+        <DarkVeil speed={1.1} />
+      </BackgroundWrapper>
+      <ContentWrapper>
+        <HeaderWrapper>
+          <GlobalHeader 
+            onShop={onShop || handleShop}
+            onProfile={onProfile}
+            onLogin={onLogin || handleLogin}
+            onRegister={onRegister || handleRegister}
+            onLogout={onLogout}
+            onHome={onHome}
+          />
+        </HeaderWrapper>
       {showNSFWWarning && (
         <NSFWWarningModal
           onConfirm={() => {
@@ -1037,10 +1064,10 @@ export const MainPage: React.FC<MainPageProps> = ({
                         <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 via-indigo-500/20 to-purple-500/20 backdrop-blur-xl border border-white/20 rounded-lg transition-all duration-300 group-hover:border-white/30 group-hover:from-purple-500/30 group-hover:via-indigo-500/30 group-hover:to-purple-500/30" />
                         
                         {/* Контент */}
-                        <div className="relative z-10 h-full w-full flex flex-col items-center justify-center gap-4 p-6">
-                          {/* Анимированная иконка плюса */}
+                        <div className="relative z-10 h-full w-full flex flex-col items-center justify-center gap-1 sm:gap-2 md:gap-4 p-2 sm:p-3 md:p-6">
+                          {/* Анимированная иконка сердечка */}
                           <motion.div
-                            className="w-20 h-20 rounded-full bg-gradient-to-br from-white/10 to-white/5 border border-white/30 flex items-center justify-center drop-shadow-[0_0_20px_rgba(139,92,246,0.4)]"
+                            className="w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 lg:w-20 lg:h-20 rounded-full bg-gradient-to-br from-white/10 to-white/5 border border-white/30 flex items-center justify-center drop-shadow-[0_0_20px_rgba(139,92,246,0.4)]"
                             animate={{
                               scale: [1, 1.08, 1],
                             }}
@@ -1061,12 +1088,12 @@ export const MainPage: React.FC<MainPageProps> = ({
                                 ease: "easeInOut"
                               }}
                             >
-                              <FiHeart className="w-10 h-10" />
+                              <FiHeart className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 lg:w-10 lg:h-10" />
                             </motion.div>
                           </motion.div>
                           
                           {/* Текст */}
-                          <h3 className="text-2xl font-semibold text-white text-center leading-tight tracking-wide font-sans max-w-[180px]">
+                          <h3 className="text-xs sm:text-sm md:text-lg lg:text-2xl font-semibold text-white text-center leading-tight tracking-wide font-sans max-w-[140px] sm:max-w-[160px] md:max-w-[180px] px-1 sm:px-2">
                             Создай свою девушку
                           </h3>
                         </div>
@@ -1132,6 +1159,7 @@ export const MainPage: React.FC<MainPageProps> = ({
       <FooterWrapper>
         <Footer />
       </FooterWrapper>
+      </ContentWrapper>
     </MainContainer>
   );
 };
