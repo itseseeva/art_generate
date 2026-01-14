@@ -392,6 +392,28 @@ async def get_prompt_by_image(
                                 clean_prompt = data['prompt']
                     except:
                         pass
+                    
+                    # Переводим промпт на русский если он на английском
+                    try:
+                        import re
+                        has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', clean_prompt))
+                        if not has_cyrillic:
+                            # Если нет кириллицы, значит промпт на английском - переводим на русский
+                            from deep_translator import GoogleTranslator
+                            translator = GoogleTranslator(source='en', target='ru')
+                            # Разбиваем длинный текст на части для более надежного перевода
+                            if len(clean_prompt) > 4000:
+                                parts = clean_prompt.split('\n')
+                                translated_parts = []
+                                for part in parts:
+                                    if part.strip():
+                                        translated_parts.append(translator.translate(part))
+                                clean_prompt = '\n'.join(translated_parts)
+                            else:
+                                clean_prompt = translator.translate(clean_prompt)
+                    except (ImportError, Exception) as translate_error:
+                        # Если перевод не удался, возвращаем оригинальный промпт
+                        logger.warning(f"[TRANSLATE] Ошибка перевода промпта на русский: {translate_error}")
                         
                     return {
                         "success": True,
@@ -467,9 +489,32 @@ async def get_prompt_by_image(
                 break
         
         if message and message.message_content:
+            prompt_text = message.message_content
+            # Переводим промпт на русский если он на английском
+            try:
+                import re
+                has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', prompt_text))
+                if not has_cyrillic:
+                    # Если нет кириллицы, значит промпт на английском - переводим на русский
+                    from deep_translator import GoogleTranslator
+                    translator = GoogleTranslator(source='en', target='ru')
+                    # Разбиваем длинный текст на части для более надежного перевода
+                    if len(prompt_text) > 4000:
+                        parts = prompt_text.split('\n')
+                        translated_parts = []
+                        for part in parts:
+                            if part.strip():
+                                translated_parts.append(translator.translate(part))
+                        prompt_text = '\n'.join(translated_parts)
+                    else:
+                        prompt_text = translator.translate(prompt_text)
+            except (ImportError, Exception) as translate_error:
+                # Если перевод не удался, возвращаем оригинальный промпт
+                logger.warning(f"[TRANSLATE] Ошибка перевода промпта на русский: {translate_error}")
+            
             return {
                 "success": True,
-                "prompt": message.message_content,
+                "prompt": prompt_text,
                 "character_name": message.character_name,
                 "generation_time": message.generation_time
             }
@@ -500,9 +545,32 @@ async def get_prompt_by_image(
                 message = msg
                 break
         if message and message.message_content:
+            prompt_text = message.message_content
+            # Переводим промпт на русский если он на английском
+            try:
+                import re
+                has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', prompt_text))
+                if not has_cyrillic:
+                    # Если нет кириллицы, значит промпт на английском - переводим на русский
+                    from deep_translator import GoogleTranslator
+                    translator = GoogleTranslator(source='en', target='ru')
+                    # Разбиваем длинный текст на части для более надежного перевода
+                    if len(prompt_text) > 4000:
+                        parts = prompt_text.split('\n')
+                        translated_parts = []
+                        for part in parts:
+                            if part.strip():
+                                translated_parts.append(translator.translate(part))
+                        prompt_text = '\n'.join(translated_parts)
+                    else:
+                        prompt_text = translator.translate(prompt_text)
+            except (ImportError, Exception) as translate_error:
+                # Если перевод не удался, возвращаем оригинальный промпт
+                logger.warning(f"[TRANSLATE] Ошибка перевода промпта на русский: {translate_error}")
+            
             return {
                 "success": True,
-                "prompt": message.message_content,
+                "prompt": prompt_text,
                 "character_name": message.character_name,
                 "generation_time": message.generation_time
             }
