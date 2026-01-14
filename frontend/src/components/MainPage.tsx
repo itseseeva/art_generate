@@ -375,23 +375,36 @@ export const MainPage: React.FC<MainPageProps> = ({
         });
         
         if (!response.ok) {
-          
           continue;
         }
         const payload = await response.json();
         
+        console.log(`[MainPage] Response from ${endpoint}:`, {
+          isArray: Array.isArray(payload),
+          length: Array.isArray(payload) ? payload.length : (payload?.characters?.length || 0),
+          firstChar: Array.isArray(payload) && payload.length > 0 ? {
+            id: payload[0].id,
+            name: payload[0].name,
+            is_nsfw: payload[0].is_nsfw
+          } : null
+        });
         
         if (Array.isArray(payload)) {
+          if (payload.length > 0) {
+            console.log(`[MainPage] Loaded ${payload.length} characters from ${endpoint}`);
+          }
           return payload;
         }
         if (payload && Array.isArray(payload.characters)) {
+          if (payload.characters.length > 0) {
+            console.log(`[MainPage] Loaded ${payload.characters.length} characters from ${endpoint}`);
+          }
           return payload.characters;
         }
       } catch (error) {
-        // Ошибка игнорируется, продолжаем цикл или возвращаем пустой список
+        // Ошибка игнорируется, продолжаем цикл
       }
     }
-
     return [];
   };
 
@@ -405,8 +418,10 @@ export const MainPage: React.FC<MainPageProps> = ({
       }
       const charactersData = await fetchCharactersFromApi(forceRefresh);
 
+      console.log(`[MainPage] loadCharacters: received ${charactersData.length} characters from API`);
+
       if (!charactersData.length) {
-        
+        console.warn('[MainPage] No characters received from API');
         setCharacters([]);
         setCachedRawCharacters([]);
         return;
@@ -452,6 +467,7 @@ export const MainPage: React.FC<MainPageProps> = ({
           return shouldShow;
       });
 
+      console.log(`[MainPage] Formatted ${formattedCharacters.length} characters (contentMode: ${contentMode})`);
       setCharacters(formattedCharacters);
       
       // Загружаем рейтинги для всех персонажей

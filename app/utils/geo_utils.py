@@ -49,6 +49,10 @@ async def get_country_by_ip(ip_address: str) -> Optional[str]:
                     f"for IP {ip_address}"
                 )
                 return None
+    except (httpx.ConnectError, httpx.ConnectTimeout, OSError) as e:
+        # Обрабатываем DNS ошибки и сетевые ошибки без прерывания процесса
+        logger.warning(f"[GEO] Network error getting country for IP {ip_address}: {e}")
+        return None
     except Exception as e:
         logger.warning(f"[GEO] Error getting country for IP {ip_address}: {e}")
         return None

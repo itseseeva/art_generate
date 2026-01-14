@@ -96,6 +96,7 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
     - Message: Сообщение об успешной отправке кода.
     """
     # Log registration start
+    logger.info(f"Starting registration for email: {user.email}")
     print(f"Starting registration for email: {user.email}")
     
     # Check if user already exists
@@ -166,10 +167,11 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
     # Celery автоматически перезапустит задачу при ошибках (до 3 попыток)
     try:
         send_email_task.delay(user.email, verification_code)
+        logger.info(f"[REGISTRATION] Email task queued for {user.email}")
         print(f"Verification email task queued for {user.email} (new code generated)")
     except Exception as e:
         # Если Celery недоступен, логируем ошибку, но не блокируем регистрацию
-        logger.warning(f"Failed to queue email task for {user.email}: {e}")
+        logger.warning(f"[REGISTRATION] Failed to queue email task for {user.email}: {e}")
         print(f"Warning: Email task not queued for {user.email}, but code is saved in Redis")
     
     return Message(message="Verification code sent to email")
@@ -191,141 +193,158 @@ async def confirm_registration(
     Returns:
     - TokenResponse: Access и refresh токены.
     """
-    # Получаем данные регистрации из временного хранилища
-    cache_key = key_registration_data(confirm_data.email)
-    registration_data = await cache_get_json(cache_key)
+    logger.info(f"Confirming registration for email: {confirm_data.email}")
     
-    if not registration_data:
-        raise HTTPException(
-            status_code=400,
-            detail="Registration data not found or expired. Please register again."
-        )
+    try:
+        # Получаем данные регистрации из временного хранилища
+        cache_key = key_registration_data(confirm_data.email)
+        registration_data = await cache_get_json(cache_key)
     
-    # Проверяем код верификации
-    if registration_data.get("verification_code") != confirm_data.verification_code:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid verification code"
-        )
-    
-    # Обновляем fingerprint_id из запроса подтверждения (если он был передан)
-    fingerprint_id = confirm_data.fingerprint_id or registration_data.get("fingerprint_id")
-    if fingerprint_id:
-        registration_data["fingerprint_id"] = fingerprint_id
-    
-    # Проверяем fingerprint_id перед созданием пользователя
-    # Если fingerprint_id не предоставлен, продолжаем без него (но логируем)
-    if not fingerprint_id:
-        logger.warning(f"Registration confirmation without fingerprint_id for email: {confirm_data.email}")
-        # Не блокируем регистрацию, но предупреждаем в логах
-    
-    # Проверяем, использовался ли этот fingerprint_id для бесплатного тарифа (только если fingerprint_id есть)
-    if fingerprint_id:
-        fingerprint_result = await db.execute(
-            select(Users)
-            .join(UserSubscription, Users.id == UserSubscription.user_id)
-            .filter(
-                Users.fingerprint_id == fingerprint_id,
-                UserSubscription.subscription_type == SubscriptionType.FREE
-            )
-        )
-        existing_fingerprint_user = fingerprint_result.scalar_one_or_none()
-        if existing_fingerprint_user:
-            await cache_delete(cache_key)
+        if not registration_data:
             raise HTTPException(
-                status_code=403,
-                detail="Нельзя регистрировать новые аккаунты!"
+                status_code=400,
+                detail="Registration data not found or expired. Please register again."
             )
-    
-    # Проверяем, не создан ли уже пользователь (на случай параллельных запросов)
-    result = await db.execute(select(Users).filter(Users.email == confirm_data.email))
-    existing_user = result.scalar_one_or_none()
-    if existing_user:
-        # Пользователь уже создан, удаляем временные данные и выполняем логин
+        
+        # Проверяем код верификации
+        if registration_data.get("verification_code") != confirm_data.verification_code:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid verification code"
+            )
+        
+        # Обновляем fingerprint_id из запроса подтверждения (если он был передан)
+        fingerprint_id = confirm_data.fingerprint_id or registration_data.get("fingerprint_id")
+        if fingerprint_id:
+            registration_data["fingerprint_id"] = fingerprint_id
+        
+        # Проверяем fingerprint_id перед созданием пользователя
+        # Если fingerprint_id не предоставлен, продолжаем без него (но логируем)
+        if not fingerprint_id:
+            logger.warning(f"Registration confirmation without fingerprint_id for email: {confirm_data.email}")
+            # Не блокируем регистрацию, но предупреждаем в логах
+        
+        # Проверяем, использовался ли этот fingerprint_id для бесплатного тарифа (только если fingerprint_id есть)
+        if fingerprint_id:
+            fingerprint_result = await db.execute(
+                select(Users)
+                .join(UserSubscription, Users.id == UserSubscription.user_id)
+                .filter(
+                    Users.fingerprint_id == fingerprint_id,
+                    UserSubscription.subscription_type == SubscriptionType.FREE
+                )
+            )
+            existing_fingerprint_user = fingerprint_result.scalar_one_or_none()
+            if existing_fingerprint_user:
+                await cache_delete(cache_key)
+                raise HTTPException(
+                    status_code=403,
+                    detail="Нельзя регистрировать новые аккаунты!"
+                )
+        
+        # Проверяем, не создан ли уже пользователь (на случай параллельных запросов)
+        result = await db.execute(select(Users).filter(Users.email == confirm_data.email))
+        existing_user = result.scalar_one_or_none()
+        if existing_user:
+            # Пользователь уже создан, удаляем временные данные и выполняем логин
+            await cache_delete(cache_key)
+            # Создаем токены для существующего пользователя
+            access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+            access_token = create_jwt_token(
+                data={"sub": existing_user.email},
+                expires_delta=access_token_expires
+            )
+            refresh_token = create_refresh_token()
+            
+            # Сохраняем refresh token
+            db_refresh_token = RefreshToken(
+                user_id=existing_user.id,
+                token_hash=hash_token(refresh_token),
+                expires_at=get_token_expiry(days=REFRESH_TOKEN_EXPIRE_DAYS)
+            )
+            db.add(db_refresh_token)
+            await db.commit()
+            
+            return TokenResponse(
+                access_token=access_token,
+                refresh_token=refresh_token,
+                token_type="bearer"
+            )
+        
+        # Получаем fingerprint_id из registration_data
+        fingerprint_id = registration_data.get("fingerprint_id")
+        
+        # Получаем IP адрес и определяем страну
+        # Ошибка определения страны не должна прерывать регистрацию
+        from app.utils.geo_utils import get_client_ip, get_country_by_ip
+        client_ip = get_client_ip(request)
+        country = None
+        if client_ip:
+            try:
+                country = await get_country_by_ip(client_ip)
+                logger.info(
+                    f"[REGISTRATION] User {registration_data['email']} "
+                    f"registering from IP: {client_ip}, country: {country or 'Unknown'}"
+                )
+            except Exception as geo_error:
+                # Логируем ошибку, но не прерываем регистрацию
+                logger.warning(
+                    f"[REGISTRATION] Failed to determine country for IP {client_ip}: {geo_error}. "
+                    f"Continuing registration without country."
+                )
+        
+        # Создаем нового пользователя
+        db_user = Users(
+            email=registration_data["email"],
+            username=registration_data["username"],
+            password_hash=registration_data["password_hash"],
+            fingerprint_id=fingerprint_id,
+            registration_ip=client_ip,
+            country=country,
+            is_active=True,
+            is_verified=True  # Пользователь верифицирован после подтверждения кода
+        )
+        
+        db.add(db_user)
+        await db.commit()
+        await db.refresh(db_user)
+        
+        # Активируем бесплатную подписку Free для нового пользователя
+        await activate_free_subscription(db_user.id, db)
+        
+        # Удаляем временные данные из Redis
         await cache_delete(cache_key)
-        # Создаем токены для существующего пользователя
+        
+        # Создаем токены
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_jwt_token(
-            data={"sub": existing_user.email},
+            data={"sub": db_user.email},
             expires_delta=access_token_expires
         )
         refresh_token = create_refresh_token()
         
         # Сохраняем refresh token
         db_refresh_token = RefreshToken(
-            user_id=existing_user.id,
+            user_id=db_user.id,
             token_hash=hash_token(refresh_token),
             expires_at=get_token_expiry(days=REFRESH_TOKEN_EXPIRE_DAYS)
         )
         db.add(db_refresh_token)
         await db.commit()
         
+        logger.info(f"User {db_user.email} registered and verified successfully")
+        print(f"User {db_user.email} registered and verified successfully")
+        
         return TokenResponse(
             access_token=access_token,
             refresh_token=refresh_token,
             token_type="bearer"
         )
-    
-    # Получаем fingerprint_id из registration_data
-    fingerprint_id = registration_data.get("fingerprint_id")
-    
-    # Получаем IP адрес и определяем страну
-    from app.utils.geo_utils import get_client_ip, get_country_by_ip
-    client_ip = get_client_ip(request)
-    country = None
-    if client_ip:
-        country = await get_country_by_ip(client_ip)
-        logger.info(
-            f"[REGISTRATION] User {registration_data['email']} "
-            f"registering from IP: {client_ip}, country: {country or 'Unknown'}"
-        )
-    
-    # Создаем нового пользователя
-    db_user = Users(
-        email=registration_data["email"],
-        username=registration_data["username"],
-        password_hash=registration_data["password_hash"],
-        fingerprint_id=fingerprint_id,
-        registration_ip=client_ip,
-        country=country,
-        is_active=True,
-        is_verified=True  # Пользователь верифицирован после подтверждения кода
-    )
-    
-    db.add(db_user)
-    await db.commit()
-    await db.refresh(db_user)
-    
-    # Активируем бесплатную подписку Free для нового пользователя
-    await activate_free_subscription(db_user.id, db)
-    
-    # Удаляем временные данные из Redis
-    await cache_delete(cache_key)
-    
-    # Создаем токены
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_jwt_token(
-        data={"sub": db_user.email},
-        expires_delta=access_token_expires
-    )
-    refresh_token = create_refresh_token()
-    
-    # Сохраняем refresh token
-    db_refresh_token = RefreshToken(
-        user_id=db_user.id,
-        token_hash=hash_token(refresh_token),
-        expires_at=get_token_expiry(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    )
-    db.add(db_refresh_token)
-    await db.commit()
-    
-    print(f"User {db_user.email} registered and verified successfully")
-    
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        token_type="bearer"
-    )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Registration confirmation error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Registration confirmation failed: {str(e)}")
 
 
 @auth_router.post("/auth/login/", response_model=TokenResponse)
@@ -347,6 +366,7 @@ async def login_user(
     Returns:
     - TokenResponse: Access and refresh tokens.
     """
+    logger.info(f"Login attempt for email: {user_credentials.email}")
     try:
         # Rate limiting
         if not rate_limiter.is_allowed(user_credentials.email):
@@ -413,11 +433,15 @@ async def login_user(
                     
                     # Определяем страну если её нет
                     if not user.country:
-                        country = await get_country_by_ip(client_ip)
-                        if country:
-                            user.country = country
-                            geo_data_updated = True
-                            logger.info(f"[LOGIN] Determined country for user {user.email}: {country}")
+                        try:
+                            country = await get_country_by_ip(client_ip)
+                            if country:
+                                user.country = country
+                                geo_data_updated = True
+                                logger.info(f"[LOGIN] Determined country for user {user.email}: {country}")
+                        except Exception as geo_error:
+                            # Логируем ошибку, но не прерываем вход
+                            logger.warning(f"[LOGIN] Failed to determine country for IP {client_ip}: {geo_error}. Continuing login.")
             except Exception as e:
                 logger.warning(f"[LOGIN] Failed to update geo data for user {user.email}: {e}")
                 # Не прерываем логин из-за ошибки геолокации

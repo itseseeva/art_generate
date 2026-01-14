@@ -510,91 +510,91 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
         <DarkVeil speed={1.1} />
       </BackgroundWrapper>
       <ContentWrapper>
-        <div className="content-area vertical">
-          <GlobalHeader 
-            onShop={onShop}
-            onProfile={onProfile}
-            onLogin={() => {
-              setAuthMode('login');
-              setIsAuthModalOpen(true);
-            }}
-            onRegister={() => {
-              setAuthMode('register');
-              setIsAuthModalOpen(true);
-            }}
-            onLogout={handleLogout}
-            onProfile={onProfile}
-            onBalance={() => alert('Баланс пользователя')}
-          />
-          
-          <MainContent>
-            {isLoading ? (
-              <LoadingSpinner>Загрузка персонажей...</LoadingSpinner>
-            ) : characters.length === 0 ? (
-              <EmptyState>
-                <EmptyTitle>У вас пока нет персонажей</EmptyTitle>
-                <EmptyDescription>
-                  Создайте своего первого персонажа, чтобы начать редактирование
-                </EmptyDescription>
-                <CreateButton onClick={onCreateCharacter}>
-                  Создать персонажа
-                </CreateButton>
-              </EmptyState>
-            ) : (
-              <CharactersGrid>
-                {characters.map((character) => {
-                  // Добавляем фото к персонажу
-                  const characterWithPhotos = {
-                    ...character,
-                    photos: characterPhotos[character.name.toLowerCase()] || []
-                  };
-                  
-                  // Проверяем, находится ли персонаж в избранном
-                  const characterId = typeof character.id === 'number' 
-                    ? character.id 
-                    : parseInt(character.id, 10);
-                  const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
-                  
-                  return (
-                  <CharacterCard
-                    key={character.id}
-                      character={characterWithPhotos}
-                    onClick={handleCharacterClick}
-                    showEditButton={false}
-                    isFavorite={isFavorite}
-                    onFavoriteToggle={loadFavorites}
-                  />
-                  );
-                })}
-              </CharactersGrid>
-            )}
-          </MainContent>
-        </div>
+      <div className="content-area vertical">
+        <GlobalHeader 
+          onShop={onShop}
+          onProfile={onProfile}
+          onLogin={() => {
+            setAuthMode('login');
+            setIsAuthModalOpen(true);
+          }}
+          onRegister={() => {
+            setAuthMode('register');
+            setIsAuthModalOpen(true);
+          }}
+          onLogout={handleLogout}
+          onProfile={onProfile}
+          onBalance={() => alert('Баланс пользователя')}
+        />
+        
+        <MainContent>
+          {isLoading ? (
+            <LoadingSpinner>Загрузка персонажей...</LoadingSpinner>
+          ) : characters.length === 0 ? (
+            <EmptyState>
+              <EmptyTitle>У вас пока нет персонажей</EmptyTitle>
+              <EmptyDescription>
+                Создайте своего первого персонажа, чтобы начать редактирование
+              </EmptyDescription>
+              <CreateButton onClick={onCreateCharacter}>
+                Создать персонажа
+              </CreateButton>
+            </EmptyState>
+          ) : (
+            <CharactersGrid>
+              {characters.map((character) => {
+                // Добавляем фото к персонажу
+                const characterWithPhotos = {
+                  ...character,
+                  photos: characterPhotos[character.name.toLowerCase()] || []
+                };
+                
+                // Проверяем, находится ли персонаж в избранном
+                const characterId = typeof character.id === 'number' 
+                  ? character.id 
+                  : parseInt(character.id, 10);
+                const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
+                
+                return (
+                <CharacterCard
+                  key={character.id}
+                    character={characterWithPhotos}
+                  onClick={handleCharacterClick}
+                  showEditButton={false}
+                  isFavorite={isFavorite}
+                  onFavoriteToggle={loadFavorites}
+                />
+                );
+              })}
+            </CharactersGrid>
+          )}
+        </MainContent>
+      </div>
 
-        {isAuthModalOpen && (
-          <AuthModal
-            isOpen={isAuthModalOpen}
-            mode={authMode}
-            onModeChange={setAuthMode}
-            onClose={() => {
-              setIsAuthModalOpen(false);
-              setAuthMode('login');
-              // Если закрыл без входа - на главную
-              if (!isAuthenticated) {
-                onBackToMain();
-              }
-            }}
-            onAuthSuccess={({ accessToken, refreshToken }) => {
-              authManager.setTokens(accessToken, refreshToken);
-              setIsAuthModalOpen(false);
-              setAuthMode('login');
-              // Диспатчим событие для обновления App.tsx
-              window.dispatchEvent(new Event('auth-success'));
-              // Перебрасываем на главную после входа
+      {isAuthModalOpen && (
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          mode={authMode}
+          onModeChange={setAuthMode}
+          onClose={() => {
+            setIsAuthModalOpen(false);
+            setAuthMode('login');
+            // Если закрыл без входа - на главную
+            if (!isAuthenticated) {
               onBackToMain();
-            }}
-          />
-        )}
+            }
+          }}
+          onAuthSuccess={({ accessToken, refreshToken }) => {
+            authManager.setTokens(accessToken, refreshToken);
+            setIsAuthModalOpen(false);
+            setAuthMode('login');
+            // Диспатчим событие для обновления App.tsx
+            window.dispatchEvent(new Event('auth-success'));
+            // Перебрасываем на главную после входа
+            onBackToMain();
+          }}
+        />
+      )}
       </ContentWrapper>
     </MainContainer>
   );

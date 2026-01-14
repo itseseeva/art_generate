@@ -2,6 +2,7 @@ from typing import List
 from datetime import datetime
 from urllib.parse import urlparse, unquote
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Query, Response
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, text, func
 from app.chat_bot.schemas.chat import CharacterCreate, CharacterUpdate, CharacterInDB, UserCharacterCreate, CharacterWithCreator, CreatorInfo
@@ -437,7 +438,7 @@ async def create_character(character: CharacterCreate, db: AsyncSession = Depend
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/", response_model=List[CharacterInDB])
+@router.get("/")
 async def read_characters(
     response: Response,
     skip: int = 0, 
@@ -467,37 +468,59 @@ async def read_characters(
         
         if cached_characters is not None:
             try:
-                # Восстанавливаем объекты CharacterInDB из словарей
-                from app.chat_bot.schemas.chat import CharacterInDB
-                result = []
-                
-                for char_data in cached_characters:
-                    try:
-                        # Убеждаемся, что обязательные поля присутствуют
-                        if not char_data.get('id') or not char_data.get('name') or not char_data.get('prompt'):
-                            logger.warning(f"Skipping character with missing required fields: {char_data.get('name', 'unknown')}")
-                            continue
-                        # Упрощаем восстановление - убираем created_at если он есть (может быть строкой)
-                        # CharacterInDB имеет created_at как Optional[datetime], поэтому пропускаем если это строка
-                        clean_data = dict(char_data)
-                        if 'created_at' in clean_data and isinstance(clean_data['created_at'], str):
-                            clean_data['created_at'] = None
-                        # Используем данные как есть, CharacterInDB сам обработает опциональные поля
-                        result.append(CharacterInDB(**clean_data))
-                    except Exception as char_error:
-                        logger.warning(f"Error restoring character {char_data.get('name', 'unknown')} from cache: {char_error}")
-                        continue
-                
-                if result:
-                    logger.debug(f"Retrieved {len(result)} characters from cache")
-                    # Устанавливаем заголовки кэширования для HTTP кэша
-                    import hashlib
-                    content_hash = hashlib.md5(str(cached_characters).encode()).hexdigest()
-                    response.headers["Cache-Control"] = "public, max-age=300"  # 5 минут
-                    response.headers["ETag"] = f'"{content_hash}"'
-                    return result
+                # Проверяем, что кэш содержит валидные данные (список словарей)
+                if isinstance(cached_characters, list) and len(cached_characters) > 0:
+                    # Фильтруем персонажей с обязательными полями
+                    valid_characters = []
+                    for char_data in cached_characters:
+                        if isinstance(char_data, dict):
+                            # Проверяем, что есть обязательные поля (id и name)
+                            char_id = char_data.get('id')
+                            char_name = char_data.get('name')
+                            if char_id is not None and char_name is not None:
+                                # Убеждаемся, что все поля присутствуют
+                                valid_char = {
+                                    "id": char_id,
+                                    "name": char_name or "",
+                                    "display_name": char_data.get('display_name') or char_name or "",
+                                    "description": char_data.get('description') or "",
+                                    "prompt": char_data.get('prompt') or "",
+                                    "character_appearance": char_data.get('character_appearance') or "",
+                                    "location": char_data.get('location') or "",
+                                    "user_id": char_data.get('user_id'),
+                                    "main_photos": char_data.get('main_photos'),
+                                    "is_nsfw": char_data.get('is_nsfw') if char_data.get('is_nsfw') is not None else False
+                                }
+                                valid_characters.append(valid_char)
+                        elif hasattr(char_data, 'id') and hasattr(char_data, 'name'):
+                            # Если это объект, преобразуем в словарь
+                            valid_characters.append({
+                                "id": char_data.id,
+                                "name": char_data.name or "",
+                                "display_name": getattr(char_data, 'display_name', None) or char_data.name or "",
+                                "description": getattr(char_data, 'description', None) or "",
+                                "prompt": getattr(char_data, 'prompt', None) or "",
+                                "character_appearance": getattr(char_data, 'character_appearance', None) or "",
+                                "location": getattr(char_data, 'location', None) or "",
+                                "user_id": getattr(char_data, 'user_id', None),
+                                "main_photos": getattr(char_data, 'main_photos', None),
+                                "is_nsfw": getattr(char_data, 'is_nsfw', None) if getattr(char_data, 'is_nsfw', None) is not None else False
+                            })
+                    
+                    if valid_characters:
+                        logger.info(f"Retrieved {len(valid_characters)} characters from cache")
+                        # Устанавливаем заголовки кэширования для HTTP кэша
+                        import hashlib
+                        content_hash = hashlib.md5(str(valid_characters).encode()).hexdigest()
+                        # Создаем JSONResponse с заголовками
+                        json_response = JSONResponse(content=valid_characters)
+                        json_response.headers["Cache-Control"] = "public, max-age=300"  # 5 минут
+                        json_response.headers["ETag"] = f'"{content_hash}"'
+                        return json_response
+                    else:
+                        logger.warning("No valid characters restored from cache, loading from DB")
                 else:
-                    logger.warning("No valid characters restored from cache, loading from DB")
+                    logger.warning("Cache contains invalid data, loading from DB")
             except Exception as cache_error:
                 logger.warning(f"Error restoring characters from cache: {cache_error}, loading from DB")
                 # Если ошибка восстановления из кэша, загружаем из БД
@@ -505,7 +528,7 @@ async def read_characters(
         from app.chat_bot.models.models import CharacterDB, CharacterMainPhoto
         from sqlalchemy import select
         
-        logger.debug(f"Loading characters from DB (skip={skip}, limit={limit})")
+        logger.info(f"Loading characters from DB (skip={skip}, limit={limit}, force_refresh={force_refresh})")
         try:
             # Добавляем таймаут для запроса к БД (увеличиваем до 30 секунд для больших запросов)
             result = await asyncio.wait_for(
@@ -518,7 +541,9 @@ async def read_characters(
                 timeout=30.0
             )
             characters = result.scalars().all()
-            logger.debug(f"Retrieved {len(characters)} characters from database")
+            logger.info(f"Retrieved {len(characters)} characters from database")
+            if len(characters) > 0:
+                logger.info(f"First character example: id={characters[0].id}, name={characters[0].name}, prompt_length={len(characters[0].prompt) if characters[0].prompt else 0}")
         except asyncio.TimeoutError:
             logger.error("Таймаут загрузки персонажей из БД")
             return []  # Возвращаем пустой список вместо зависания
@@ -526,25 +551,40 @@ async def read_characters(
             logger.error(f"Ошибка загрузки персонажей из БД: {db_error}")
             return []  # Возвращаем пустой список вместо зависания
         
+        # Преобразуем объекты CharacterDB в словари для сериализации
+        # Убеждаемся, что обязательные поля присутствуют и не None
+        characters_data = []
+        skipped_count = 0
+        for char in characters:
+            # Проверяем обязательные поля
+            if not char.id or not char.name:
+                skipped_count += 1
+                logger.warning(f"Skipping character with missing required fields: id={char.id}, name={char.name}")
+                continue
+            
+            char_dict = {
+                "id": char.id,
+                "name": char.name or "",
+                "display_name": char.display_name or char.name or "",
+                "description": char.description or "",
+                "prompt": char.prompt or "",  # Обязательное поле, но может быть пустым
+                "character_appearance": char.character_appearance or "",
+                "location": char.location or "",
+                "user_id": char.user_id,
+                "main_photos": char.main_photos,
+                "is_nsfw": char.is_nsfw if char.is_nsfw is not None else False
+            }
+            characters_data.append(char_dict)
+        
+        if skipped_count > 0:
+            logger.warning(f"Skipped {skipped_count} characters due to missing required fields")
+        
+        logger.info(f"Converted {len(characters_data)} characters to dictionaries (from {len(characters)} DB objects)")
+        
         # Сохраняем в кэш только если есть персонажи
         # Если персонажей нет, очищаем кэш чтобы не показывать старые данные
-        if characters:
+        if characters_data:
             try:
-                characters_data = [
-                    {
-                        "id": char.id,
-                        "name": char.name,
-                        "display_name": char.display_name,
-                        "description": char.description,
-                        "prompt": char.prompt,
-                        "character_appearance": char.character_appearance,
-                        "location": char.location,
-                        "user_id": char.user_id,
-                        "main_photos": char.main_photos,
-                        "is_nsfw": char.is_nsfw
-                    }
-                    for char in characters
-                ]
                 await cache_set(
                     cache_key,
                     characters_data,
@@ -563,18 +603,23 @@ async def read_characters(
             except Exception as cache_error:
                 logger.warning(f"Error clearing cache: {cache_error}")
         
+        # Создаем JSONResponse с данными
+        json_response = JSONResponse(content=characters_data)
         # Устанавливаем заголовки кэширования для HTTP кэша
-        response.headers["Cache-Control"] = "public, max-age=300"  # 5 минут
-        if characters:
+        json_response.headers["Cache-Control"] = "public, max-age=300"  # 5 минут
+        if characters_data:
             import hashlib
-            content_hash = hashlib.md5(str(characters).encode()).hexdigest()
-            response.headers["ETag"] = f'"{content_hash}"'
+            content_hash = hashlib.md5(str(characters_data).encode()).hexdigest()
+            json_response.headers["ETag"] = f'"{content_hash}"'
+            logger.info(f"Returning {len(characters_data)} characters to client")
+        else:
+            logger.warning("No characters found in database, returning empty array")
         
-        return characters
+        return json_response
     except Exception as e:
         # If database is unavailable, return empty list
         logger.error(f"Error loading characters from DB: {e}", exc_info=True)
-        return []
+        return JSONResponse(content=[])
 
 # КРИТИЧНО: Статические роуты должны быть определены ПЕРЕД параметризованными
 # чтобы избежать конфликтов маршрутизации (например, /create/ не должен перехватываться /{character_name})

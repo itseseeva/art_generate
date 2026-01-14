@@ -392,7 +392,7 @@ async def get_prompt_by_image(
                                 clean_prompt = data['prompt']
                     except:
                         pass
-                    
+                        
                     # Переводим промпт на русский если он на английском
                     try:
                         import re
