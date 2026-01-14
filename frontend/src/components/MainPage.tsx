@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
+import { motion } from 'motion/react';
+import { FiHeart } from 'react-icons/fi';
 import { theme } from '../theme';
 import { CharacterCard } from './CharacterCard';
 import { ShopModal } from './ShopModal';
@@ -13,6 +15,7 @@ import { API_CONFIG } from '../config/api';
 import { authManager } from '../utils/auth';
 import '../styles/ContentArea.css';
 import { useIsMobile } from '../hooks/useIsMobile';
+import DarkVeil from '../../@/components/DarkVeil';
 
 const MainContainer = styled.div`
   width: 100%;
@@ -146,6 +149,49 @@ const CharactersGrid = styled.div`
     flex: none;
     overflow-y: visible;
   }
+`;
+
+const glowPulse = keyframes`
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.5),
+                0 0 40px rgba(139, 92, 246, 0.3),
+                0 0 60px rgba(139, 92, 246, 0.2),
+                inset 0 0 20px rgba(139, 92, 246, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(139, 92, 246, 0.7),
+                0 0 60px rgba(139, 92, 246, 0.5),
+                0 0 90px rgba(139, 92, 246, 0.3),
+                inset 0 0 30px rgba(139, 92, 246, 0.2);
+  }
+`;
+
+const gradientShift = keyframes`
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+`;
+
+const floatAnimation = keyframes`
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+`;
+
+const CreateCharacterCardWrapper = styled.div`
+  position: relative;
+  height: 300px;
+  width: 100%;
+  min-width: 200px;
 `;
 
 const ContentArea = styled.div`
@@ -972,7 +1018,61 @@ export const MainPage: React.FC<MainPageProps> = ({
                     Loading characters...
                   </div>
                 ) : (
-                  charactersWithPhotos.map((character) => {
+                  <>
+                    <CreateCharacterCardWrapper>
+                      <motion.div
+                        onClick={() => onCreateCharacter && onCreateCharacter()}
+                        className="relative h-full w-full min-w-[200px] cursor-pointer rounded-lg overflow-hidden group"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, ease: "easeOut" }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        {/* Фон DarkVeil как на странице магазина */}
+                        <div className="absolute inset-0 rounded-lg overflow-hidden">
+                          <DarkVeil speed={1.1} />
+                        </div>
+                        
+                        {/* Glassmorphism слой поверх фона */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 via-indigo-500/20 to-purple-500/20 backdrop-blur-xl border border-white/20 rounded-lg transition-all duration-300 group-hover:border-white/30 group-hover:from-purple-500/30 group-hover:via-indigo-500/30 group-hover:to-purple-500/30" />
+                        
+                        {/* Контент */}
+                        <div className="relative z-10 h-full w-full flex flex-col items-center justify-center gap-4 p-6">
+                          {/* Анимированная иконка плюса */}
+                          <motion.div
+                            className="w-20 h-20 rounded-full bg-gradient-to-br from-white/10 to-white/5 border border-white/30 flex items-center justify-center drop-shadow-[0_0_20px_rgba(139,92,246,0.4)]"
+                            animate={{
+                              scale: [1, 1.08, 1],
+                            }}
+                            transition={{
+                              duration: 2,
+                              repeat: Infinity,
+                              ease: "easeInOut"
+                            }}
+                          >
+                            <motion.div
+                              className="text-white group-hover:text-red-500 transition-colors duration-300"
+                              animate={{
+                                opacity: [0.9, 1, 0.9]
+                              }}
+                              transition={{
+                                duration: 2,
+                                repeat: Infinity,
+                                ease: "easeInOut"
+                              }}
+                            >
+                              <FiHeart className="w-10 h-10" />
+                            </motion.div>
+                          </motion.div>
+                          
+                          {/* Текст */}
+                          <h3 className="text-2xl font-semibold text-white text-center leading-tight tracking-wide font-sans max-w-[180px]">
+                            Создай свою девушку
+                          </h3>
+                        </div>
+                      </motion.div>
+                    </CreateCharacterCardWrapper>
+                    {charactersWithPhotos.map((character) => {
                     // Проверяем, находится ли персонаж в избранном
                     const characterId = typeof character.id === 'number' 
                       ? character.id 
@@ -1002,7 +1102,8 @@ export const MainPage: React.FC<MainPageProps> = ({
                         }}
                       />
                     );
-                  })
+                  })}
+                  </>
                 )}
               </CharactersGrid>
           
