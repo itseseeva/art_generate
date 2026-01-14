@@ -66,6 +66,7 @@ class UserResponse(BaseModel):
     coins: int = 5
     created_at: Optional[datetime] = None
     subscription: Optional[dict] = None  # Информация о подписке
+    country: Optional[str] = None  # Страна пользователя
 
     model_config = ConfigDict(from_attributes=True)
 

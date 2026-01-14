@@ -645,7 +645,8 @@ async def get_current_user_info(
             is_admin=current_user.is_admin if current_user.is_admin is not None else False,
             coins=current_user.coins,
             created_at=current_user.created_at,
-            subscription=subscription_info
+            subscription=subscription_info,
+            country=current_user.country
         )
     except Exception as e:
         # Если есть ошибка с подпиской, возвращаем пользователя без подписки
@@ -658,7 +659,8 @@ async def get_current_user_info(
             is_admin=current_user.is_admin if current_user.is_admin is not None else False,
             coins=current_user.coins,
             created_at=current_user.created_at,
-            subscription=None
+            subscription=None,
+            country=current_user.country
         )
 
 

@@ -398,6 +398,20 @@ const PaymentLogo = styled.img`
   }
 `;
 
+const VPNWarning = styled.div`
+  width: 100%;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  color: #ff6b6b;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-align: center;
+  animation: fadeIn 0.3s ease;
+`;
+
 interface SubscriptionStats {
   subscription_type: string;
   monthly_credits: number;
@@ -444,16 +458,43 @@ export const ShopPage: React.FC<any> = ({
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [creditPackages, setCreditPackages] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [userCountry, setUserCountry] = useState<string | null>(null);
 
   useEffect(() => {
     if (propIsAuthenticated !== undefined) setIsAuthenticated(propIsAuthenticated);
-    if (propUserInfo !== undefined) setUserInfo(propUserInfo);
+    if (propUserInfo !== undefined) {
+      setUserInfo(propUserInfo);
+      if (propUserInfo?.country) {
+        setUserCountry(propUserInfo.country);
+      }
+    }
   }, [propIsAuthenticated, propUserInfo]);
 
   useEffect(() => {
-    if (isAuthenticated) loadSubscriptionStats();
+    if (isAuthenticated) {
+      loadSubscriptionStats();
+      loadUserInfo();
+    }
     loadCreditPackages();
   }, [isAuthenticated]);
+
+  const loadUserInfo = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.country) {
+          setUserCountry(data.country);
+        }
+      }
+    } catch (e) {
+      // Ошибка загрузки информации о пользователе
+    }
+  };
 
   const loadSubscriptionStats = async () => {
     try {
@@ -628,6 +669,12 @@ export const ShopPage: React.FC<any> = ({
           </DurationTab>
         </DurationTabs>
 
+        {userCountry && userCountry.toLowerCase() !== 'ru' && userCountry.toLowerCase() !== 'russia' && (
+          <VPNWarning style={{ maxWidth: '800px', marginBottom: '2rem' }}>
+            Платёжные способы не работают с VPN!
+          </VPNWarning>
+        )}
+
         <PlansGrid>
           {/* PREMIUM CARD */}
           <PlanCard 
@@ -703,6 +750,11 @@ export const ShopPage: React.FC<any> = ({
                   onClick={(e) => e.stopPropagation()}
                 >
                   <PaymentButtonsContainer onClick={(e) => e.stopPropagation()}>
+                    {userCountry && userCountry.toLowerCase() !== 'ru' && userCountry.toLowerCase() !== 'russia' && (
+                      <VPNWarning>
+                        Платёжные способы не работают с VPN!
+                      </VPNWarning>
+                    )}
                     <PaymentButton onClick={(e) => { e.stopPropagation(); handlePayment('premium', 'sberbank'); }}>
                       <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
                       SberPay
@@ -793,6 +845,11 @@ export const ShopPage: React.FC<any> = ({
                   onClick={(e) => e.stopPropagation()}
                 >
                   <PaymentButtonsContainer onClick={(e) => e.stopPropagation()}>
+                    {userCountry && userCountry.toLowerCase() !== 'ru' && userCountry.toLowerCase() !== 'russia' && (
+                      <VPNWarning>
+                        Платёжные способы не работают с VPN!
+                      </VPNWarning>
+                    )}
                     <PaymentButton onClick={(e) => { e.stopPropagation(); handlePayment('standard', 'sberbank'); }}>
                       <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
                       SberPay
@@ -871,8 +928,13 @@ export const ShopPage: React.FC<any> = ({
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: -20 }}
         transition={{ duration: 0.4 }}
-        style={{ width: '100%', display: 'flex', justifyContent: 'center' }}
+        style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
       >
+        {userCountry && userCountry.toLowerCase() !== 'ru' && userCountry.toLowerCase() !== 'russia' && (
+          <VPNWarning style={{ maxWidth: '800px', marginBottom: '2rem' }}>
+            Платёжные способы не работают с VPN!
+          </VPNWarning>
+        )}
         <PlansGrid>
           {creditPackages.map((pkg, index) => (
             <PlanCard 
@@ -916,6 +978,9 @@ export const ShopPage: React.FC<any> = ({
                     transition={{ duration: 0.5, ease: "easeInOut" }}
                   >
                     <PaymentButtonsContainer>
+                      <VPNWarning>
+                        Платёжные способы не работают с VPN!
+                      </VPNWarning>
                       <PaymentButton onClick={() => handleCreditPayment(pkg, 'sberbank')}>
                         <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
                         SberPay
