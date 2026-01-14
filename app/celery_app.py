@@ -235,6 +235,11 @@ celery_app.conf.update(
             'schedule': crontab(minute=0),  # Каждый час
             'options': {'queue': 'low_priority'}
         },
+        'transfer-expired-subscription-credits-daily': {
+            'task': 'app.tasks.periodic_tasks.transfer_expired_subscription_credits_task',
+            'schedule': crontab(hour=3, minute=0),  # Каждый день в 03:00 UTC
+            'options': {'queue': 'low_priority'}
+        },
     },
 )
 
