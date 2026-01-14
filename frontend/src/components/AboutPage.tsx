@@ -4,27 +4,39 @@ import { theme } from '../theme';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 import { Footer } from './Footer';
+import DarkVeil from '../../@/components/DarkVeil';
+
+const MainContainer = styled.div`
+  width: 100%;
+  min-height: 100vh;
+  padding: 0;
+  overflow-y: visible;
+  position: relative;
+  font-family: 'Inter', sans-serif;
+  color: white;
+`;
+
+const BackgroundWrapper = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+`;
 
 const Container = styled.div`
   padding: 4rem 2rem;
   max-width: 900px;
   margin: 0 auto;
   color: ${theme.colors.text.primary};
-  background: linear-gradient(145deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   position: relative;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.5), transparent);
-  }
 `;
 
 const ContentWrapper = styled.div`
@@ -163,8 +175,12 @@ export const AboutPage: React.FC = () => {
   const isMobile = useIsMobile();
 
   return (
-    <Container>
-      <ContentWrapper>
+    <MainContainer>
+      <BackgroundWrapper>
+        <DarkVeil speed={1.1} />
+      </BackgroundWrapper>
+      <Container>
+        <ContentWrapper>
         <Title>О сервисе</Title>
         <Content>
           <Paragraph>
@@ -190,7 +206,7 @@ export const AboutPage: React.FC = () => {
         <ContactSection>
           <ContactTitle>Контакты</ContactTitle>
           <ContactItem>
-            <strong>Индивидуальный предприниматель:</strong> Крецу Василе
+            <strong>Крецу Василе</strong>
           </ContactItem>
           <ContactItem>
             <strong>ИНН:</strong> 772426525886
@@ -202,8 +218,10 @@ export const AboutPage: React.FC = () => {
             <strong>Телефон:</strong> +7 995 232-72-19
           </ContactItem>
         </ContactSection>
-      </ContentWrapper>
-    </Container>
+        </ContentWrapper>
+      </Container>
+      <Footer />
+    </MainContainer>
   );
 };
 

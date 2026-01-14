@@ -2282,6 +2282,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       }
 
       const updatedCharacter = await response.json();
+      // КРИТИЧНО: Используем имя из ответа API, а не из requestData, чтобы гарантировать актуальность
       const updatedName = updatedCharacter?.name ?? requestData.name;
       
       setSuccess('Персонаж успешно обновлен!');
@@ -2289,7 +2290,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       // КРИТИЧНО: Обновляем formData из requestData (данные уже сохранены на сервере)
       // Это гарантирует, что форма останется заполненной после сохранения
       setFormData({
-        name: requestData.name,
+        name: updatedName, // Используем имя из ответа API
         personality: requestData.personality,
         situation: requestData.situation,
         instructions: requestData.instructions,
@@ -2298,13 +2299,21 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         location: requestData.location || ''
       });
       
-      // КРИТИЧНО: Обновляем characterIdentifier на новое имя (используем requestData.name, который был сохранен)
+      // КРИТИЧНО: Обновляем characterIdentifier на новое имя из ответа API
       // И сбрасываем lastLoadedIdentifierRef, чтобы разрешить повторную загрузку по новому имени
-      const newName = requestData.name; // Используем имя, которое было отправлено и сохранено
+      const newName = updatedName; // Используем имя из ответа API, которое гарантированно актуально
       if (newName && newName !== characterIdentifier) {
         lastLoadedIdentifierRef.current = null; // Сбрасываем, чтобы разрешить загрузку по новому имени
         isLoadingRef.current = false; // Сбрасываем флаг загрузки
         setCharacterIdentifier(newName);
+        
+        // КРИТИЧНО: Перезагружаем данные персонажа по новому имени после обновления
+        // Это гарантирует, что все последующие запросы будут использовать новое имя
+        setTimeout(() => {
+          loadCharacterData(newName).catch((error) => {
+            console.error('Error reloading character data after update:', error);
+          });
+        }, 200); // Задержка для синхронизации состояния
       }
       
       // КРИТИЧНО: Обновляем баланс из API после сохранения

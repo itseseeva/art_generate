@@ -130,7 +130,7 @@ export const Footer: React.FC = () => {
           <FooterLink href="/legal">Оферта / Реквизиты</FooterLink>
         </FooterColumn>
         <FooterSeparator>|</FooterSeparator>
-        <FooterText>ИП Крецу Василе, ИНН: 772426525886</FooterText>
+        <FooterText>Крецу Василе, ИНН: 772426525886</FooterText>
         <SocialLinks>
           <SocialLink 
             href="https://t.me/CherryLustClub" 

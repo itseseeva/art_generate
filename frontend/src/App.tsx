@@ -919,6 +919,8 @@ function App() {
             character={selectedCharacter}
             onBackToMain={handleBackToMain}
             onShop={handleShop}
+            onProfile={handleProfile}
+            onHome={handleBackToMain}
             onBackToChat={() => setCurrentPage('chat')}
           />
         ) : null;

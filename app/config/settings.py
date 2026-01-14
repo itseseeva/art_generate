@@ -108,6 +108,16 @@ class Settings(BaseSettings):
     # --- LLAMA API ---
     LLAMA_API_URL: str = Field(default="http://localhost:8000", description="URL для LLAMA API")
     
+    # --- Telegram Notifications ---
+    TELEGRAM_BOT_TOKEN: Optional[str] = Field(
+        default_factory=lambda: os.getenv("TELEGRAM_BOT_TOKEN"),
+        description="Токен Telegram бота для уведомлений об ошибках"
+    )
+    TELEGRAM_CHAT_ID: Optional[str] = Field(
+        default_factory=lambda: os.getenv("TELEGRAM_CHAT_ID"),
+        description="ID чата Telegram для уведомлений об ошибках"
+    )
+    
     model_config = ConfigDict(
         env_prefix="APP_",
         case_sensitive=False,

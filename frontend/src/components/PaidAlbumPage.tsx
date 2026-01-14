@@ -4,15 +4,33 @@ import { theme } from '../theme';
 import { authManager } from '../utils/auth';
 import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
+import { GlobalHeader } from './GlobalHeader';
 import { FiImage as ImageIcon, FiX as CloseIcon } from 'react-icons/fi';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToRussian } from '../utils/translate';
 import { API_CONFIG } from '../config/api';
 import { useIsMobile } from '../hooks/useIsMobile';
 
-const PageContainer = styled.div`
+const MainContainer = styled.div`
   width: 100%;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  position: relative;
+`;
+
+const HeaderWrapper = styled.div`
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  width: 100%;
+  background: transparent;
+`;
+
+const PageContainer = styled.div`
+  width: 100%;
+  flex: 1;
   display: flex;
   flex-direction: column;
   background: transparent;
@@ -55,6 +73,11 @@ const Description = styled.p`
   color: ${theme.colors.text.secondary};
   margin-top: ${theme.spacing.sm};
   max-width: 640px;
+
+  @media (max-width: 768px) {
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+  }
 `;
 
 const Actions = styled.div`
@@ -165,9 +188,13 @@ const GalleryGrid = styled.div`
   width: 100%;
 
   @media (max-width: 768px) {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
     padding-right: 0;
-    gap: 0.75rem;
+    gap: 0.5rem;
+  }
+
+  @media (max-width: 480px) {
+    gap: 0.375rem;
   }
 `;
 
@@ -290,6 +317,10 @@ const PreviewBackdrop = styled.div`
   justify-content: center;
   z-index: 10002;
   padding: ${theme.spacing.lg};
+
+  @media (max-width: 768px) {
+    padding: 0.5rem;
+  }
 `;
 
 const PreviewContent = styled.div`
@@ -490,6 +521,8 @@ interface PaidAlbumPageProps {
   } | null;
   onBackToMain: () => void;
   onShop?: () => void;
+  onProfile?: () => void;
+  onHome?: () => void;
   onBackToChat?: () => void;
   onOpenBuilder?: (character: { name: string; display_name?: string }) => void;
   canEditAlbum?: boolean;
@@ -500,10 +533,14 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
   character,
   onBackToChat,
   onBackToMain,
+  onShop,
+  onProfile,
+  onHome,
   onOpenBuilder,
   canEditAlbum = false,
   onUpgradeSubscription
 }) => {
+  const isMobile = useIsMobile();
   const [images, setImages] = useState<PaidAlbumImage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -628,21 +665,45 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
         const loadedImages = Array.isArray(data.images) ? data.images : [];
         // Обрабатываем URL'ы, чтобы они были абсолютными
         const processedImages = loadedImages.map((img: any) => {
+          let imageUrl: string | null = null;
+          
           if (typeof img === 'string') {
-            return {
-              id: img.split('/').pop()?.split('.')[0] || img,
-              url: img.startsWith('http') ? img : `${API_CONFIG.BASE_URL}${img.startsWith('/') ? '' : '/'}${img}`,
-              created_at: new Date().toISOString()
-            };
+            imageUrl = img;
+          } else if (img && typeof img === 'object') {
+            imageUrl = img.url || null;
           }
-          if (img && typeof img === 'object') {
-            return {
-              id: img.id || img.url?.split('/').pop()?.split('.')[0] || `${Date.now()}-${Math.random()}`,
-              url: img.url?.startsWith('http') ? img.url : (img.url?.startsWith('/') ? `${API_CONFIG.BASE_URL}${img.url}` : `${API_CONFIG.BASE_URL}/${img.url}`),
-              created_at: img.created_at || new Date().toISOString()
-            };
+          
+          if (!imageUrl) {
+            return null;
           }
-          return null;
+          
+          // Конвертируем старые Yandex.Cloud URL в новые через прокси
+          if (imageUrl.includes('.storage.yandexcloud.net/')) {
+            // Извлекаем object_key из URL и создаем прокси URL
+            const objectKey = imageUrl.split('.storage.yandexcloud.net/')[1];
+            if (objectKey) {
+              imageUrl = `${API_CONFIG.BASE_URL}/media/${objectKey}`;
+            }
+          } else if (imageUrl.includes('storage.yandexcloud.net/')) {
+            const pathParts = imageUrl.split('storage.yandexcloud.net/')[1].split('/', 1);
+            if (pathParts.length > 0) {
+              const afterBucket = imageUrl.split('storage.yandexcloud.net/')[1].split('/', 1)[1];
+              if (afterBucket) {
+                imageUrl = `${API_CONFIG.BASE_URL}/media/${afterBucket}`;
+              }
+            }
+          } else if (!imageUrl.startsWith('http')) {
+            // Если это относительный путь, добавляем BASE_URL
+            imageUrl = imageUrl.startsWith('/') ? `${API_CONFIG.BASE_URL}${imageUrl}` : `${API_CONFIG.BASE_URL}/${imageUrl}`;
+          }
+          
+          return {
+            id: typeof img === 'string' 
+              ? img.split('/').pop()?.split('.')[0] || img
+              : (img.id || imageUrl?.split('/').pop()?.split('.')[0] || `${Date.now()}-${Math.random()}`),
+            url: imageUrl,
+            created_at: typeof img === 'object' && img.created_at ? img.created_at : new Date().toISOString()
+          };
         }).filter((img: any): img is PaidAlbumImage => img !== null);
         setImages(processedImages);
       } catch (albumError) {
@@ -710,8 +771,16 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
   };
 
   return (
-    <PageContainer>
-      <Header>
+    <MainContainer>
+      <HeaderWrapper>
+        <GlobalHeader 
+          onShop={onShop}
+          onProfile={onProfile}
+          onHome={onHome || onBackToMain}
+        />
+      </HeaderWrapper>
+      <PageContainer>
+        <Header>
         <div>
           <Title>Платный альбом {displayName}</Title>
           <Description>
@@ -828,6 +897,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
         </PreviewBackdrop>
       )}
 
+      </PageContainer>
       {isUpgradeModalOpen && (
         <UpgradeOverlay onClick={() => setIsUpgradeModalOpen(false)}>
           <UpgradeModal onClick={(e) => e.stopPropagation()}>
@@ -849,8 +919,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
           </UpgradeModal>
         </UpgradeOverlay>
       )}
-
-    </PageContainer>
+    </MainContainer>
   );
 };
 

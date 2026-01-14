@@ -210,6 +210,24 @@ except Exception:
 
 logger = logging.getLogger(__name__)
 
+# Инициализируем Telegram logger
+telegram_handler = None
+try:
+    from tg_bot.logger import setup_telegram_logger
+    from app.config.settings import settings
+    telegram_handler = setup_telegram_logger(
+        bot_token=settings.TELEGRAM_BOT_TOKEN,
+        chat_id=settings.TELEGRAM_CHAT_ID
+    )
+    if telegram_handler:
+        # Добавляем handler к root logger
+        root_logger = logging.getLogger()
+        root_logger.addHandler(telegram_handler)
+        logger.info("[TELEGRAM LOGGER] ✅ Telegram logger инициализирован")
+    else:
+        logger.info("[TELEGRAM LOGGER] ⚠️ Telegram logger не настроен (отсутствуют токен или chat_id)")
+except Exception as e:
+    logger.warning(f"[TELEGRAM LOGGER] ⚠️ Ошибка инициализации Telegram logger: {e}")
 
 
 async def sync_characters_to_db():
@@ -1065,24 +1083,57 @@ async def validation_exception_handler(
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    # Безопасно формируем сообщение об ошибке для Windows
+    # Получаем контекст запроса для логирования
+    user_id = None
+    request_data = None
+    
     try:
-        error_msg = f"""
-Error occurred at {datetime.now()}
-Request: {request.url}
-Method: {request.method}
-Error Type: {type(exc).__name__}
-Error Message: {str(exc)}
-Traceback:
-{traceback.format_exc()}
-"""
+        # Пытаемся получить user_id из state (если был установлен middleware)
+        if hasattr(request.state, 'user_id'):
+            user_id = request.state.user_id
+        # Пытаемся получить body запроса
         try:
-            logger.error(error_msg)
-        except (UnicodeEncodeError, UnicodeError):
-            # Если не получается вывести полное сообщение, выводим только тип
-            logger.error(f"Error occurred: {type(exc).__name__}")
+            body = await request.body()
+            if body:
+                try:
+                    request_data = json.loads(body.decode('utf-8'))
+                    # Удаляем пароли из данных запроса
+                    if isinstance(request_data, dict):
+                        request_data = {k: v for k, v in request_data.items() if 'password' not in k.lower() and 'token' not in k.lower()}
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    request_data = {"raw": body[:500].decode('utf-8', errors='replace')}
+        except Exception:
+            pass  # Игнорируем ошибки получения body
     except Exception:
-        pass  # Игнорируем ошибки логирования
+        pass  # Игнорируем ошибки получения контекста
+    
+    # Логируем ошибку с дополнительным контекстом
+    try:
+        error_msg = f"Error occurred: {type(exc).__name__}: {str(exc)}"
+        logger.error(
+            error_msg,
+            exc_info=exc,
+            extra={
+                'url': str(request.url),
+                'method': request.method,
+                'user_id': user_id,
+                'request_data': request_data
+            }
+        )
+    except (UnicodeEncodeError, UnicodeError):
+        # Если не получается вывести полное сообщение, выводим только тип
+        try:
+            logger.error(
+                f"Error occurred: {type(exc).__name__}",
+                exc_info=exc,
+                extra={
+                    'url': str(request.url),
+                    'method': request.method,
+                    'user_id': user_id
+                }
+            )
+        except Exception:
+            pass
     
     status_code = 500
     if isinstance(exc, HTTPException):

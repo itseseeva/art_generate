@@ -522,8 +522,8 @@ export const TariffsPage: React.FC = () => {
 
     try {
       const receiverWallet = '4100119070489003';
-      // Standard теперь 499
-      const amount = subscriptionType === 'premium' ? 1299 : 499;
+      // Standard теперь 599
+      const amount = subscriptionType === 'premium' ? 1299 : 599;
       const label = `plan:${subscriptionType};uid:${currentUserId}`;
       const successURL = `${window.location.origin}/frontend/payment/success/`;
       const quickPayUrl =
@@ -552,8 +552,8 @@ export const TariffsPage: React.FC = () => {
     if (!userInfo?.id) return;
 
     try {
-      // Standard теперь 499
-      const amount = subscriptionType === 'premium' ? 1299 : 499;
+      // Standard теперь 599
+      const amount = subscriptionType === 'premium' ? 1299 : 599;
       const description = subscriptionType === 'premium'
         ? 'Оплата подписки PREMIUM на 30 дней'
         : 'Оплата подписки STANDARD на 30 дней';
@@ -695,7 +695,7 @@ export const TariffsPage: React.FC = () => {
 
           <Card $highlight>
             <PlanName>Стандарт</PlanName>
-            <Price>499₽ <span>/ месяц</span></Price>
+            <Price>599₽ <span>/ месяц</span></Price>
             <FeatureList>
               <Feature>1500 кредитов</Feature>
               <Feature>Доступ ко всем персонажам</Feature>

@@ -3,27 +3,39 @@ import styled from 'styled-components';
 import { theme } from '../theme';
 import { Footer } from './Footer';
 import { useIsMobile } from '../hooks/useIsMobile';
+import DarkVeil from '../../@/components/DarkVeil';
+
+const MainContainer = styled.div`
+  width: 100%;
+  min-height: 100vh;
+  padding: 0;
+  overflow-y: visible;
+  position: relative;
+  font-family: 'Inter', sans-serif;
+  color: white;
+`;
+
+const BackgroundWrapper = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+`;
 
 const Container = styled.div`
   padding: 4rem 2rem 2rem 2rem;
   max-width: 1000px;
   margin: 0 auto;
   color: ${theme.colors.text.primary};
-  background: linear-gradient(145deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   position: relative;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.5), transparent);
-  }
 `;
 
 const Content = styled.div`
@@ -188,8 +200,12 @@ export const HowItWorksPage: React.FC = () => {
   const isMobile = useIsMobile();
 
   return (
-    <Container>
-      <Content>
+    <MainContainer>
+      <BackgroundWrapper>
+        <DarkVeil speed={1.1} />
+      </BackgroundWrapper>
+      <Container>
+        <Content>
         <Title>Как это работает</Title>
         
         <HowItWorksSection>
@@ -239,8 +255,10 @@ export const HowItWorksPage: React.FC = () => {
             нейросети для создания детализированных и реалистичных изображений с идеальными лицами и глазами.
           </DetailedText>
         </DetailedSection>
-      </Content>
-    </Container>
+        </Content>
+      </Container>
+      <Footer />
+    </MainContainer>
   );
 };
 
