@@ -43,7 +43,7 @@ def get_redis_url():
         if is_docker and ('localhost' in env_redis or '127.0.0.1' in env_redis):
             # Пробуем разные варианты имени сервиса в зависимости от docker-compose файла
             # Для Docker_all/docker-compose.local.yml: art_generation_redis_local
-            # Для docker-compose.local.yml: redis
+            # Для docker_local/docker-compose.yml: redis
             # Сначала пробуем art_generation_redis_local (более специфичное имя)
             if 'art_generation_redis_local' not in env_redis:
                 # Если не указано явно, заменяем на стандартное имя сервиса

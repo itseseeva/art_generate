@@ -51,7 +51,7 @@ const getApiBaseUrl = (): string => {
   }
   
   // В development используем localhost по умолчанию
-  return 'http://localhost:8000';
+  return 'http://localhost:8001';
 };
 
 const baseUrl = getApiBaseUrl();

@@ -3950,7 +3950,7 @@ async def generate_image(
                         error_msg = (
                             f"Redis недоступен по адресу {r_url}. "
                             f"Для локальной разработки запустите Redis:\n"
-                            f"1. Через Docker: docker-compose -f docker-compose.local.yml up -d redis\n"
+                            f"1. Через Docker: cd docker_local && docker compose up -d redis\n"
                             f"2. Или установите Redis локально и запустите: redis-server\n"
                             f"Ошибка подключения: {r_err}"
                         )

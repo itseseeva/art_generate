@@ -19,7 +19,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     username: str = Field(..., min_length=3, max_length=30)
     password: str = Field(..., min_length=8, max_length=100)
-    fingerprint_id: str | None = Field(None, max_length=255)  # Уникальный идентификатор устройства
+    fingerprint_id: str = Field(..., min_length=1, max_length=255)  # Обязательный уникальный идентификатор устройства
     
     @field_validator('username')
     @classmethod

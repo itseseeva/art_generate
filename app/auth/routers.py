@@ -123,28 +123,28 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
     # Generate new verification code (всегда новый код при повторной регистрации)
     verification_code = generate_verification_code()
     
-    # Проверяем fingerprint_id - желательная проверка для защиты от злоупотреблений
-    # Если fingerprint_id не предоставлен, продолжаем без него (но логируем)
+    # КРИТИЧНО: fingerprint_id обязателен для защиты от множественных регистраций
     if not user.fingerprint_id:
-        logger.warning(f"Registration without fingerprint_id for email: {user.email}")
-        # Не блокируем регистрацию, но предупреждаем в логах
-    
-    # Проверяем, использовался ли этот fingerprint_id для бесплатного тарифа (только если fingerprint_id есть)
-    if user.fingerprint_id:
-        fingerprint_result = await db.execute(
-            select(Users)
-            .join(UserSubscription, Users.id == UserSubscription.user_id)
-            .filter(
-                Users.fingerprint_id == user.fingerprint_id,
-                UserSubscription.subscription_type == SubscriptionType.FREE
-            )
+        logger.warning(f"Registration without fingerprint_id blocked for email: {user.email}")
+        raise HTTPException(
+            status_code=400,
+            detail="fingerprint_id обязателен для регистрации"
         )
-        existing_fingerprint_user = fingerprint_result.scalar_one_or_none()
-        if existing_fingerprint_user:
-            raise HTTPException(
-                status_code=403,
-                detail="Нельзя регистрировать новые аккаунты!"
-            )
+    
+    # Проверяем, использовался ли этот fingerprint_id для регистрации (ЛЮБОЙ тип подписки)
+    fingerprint_result = await db.execute(
+        select(Users).filter(Users.fingerprint_id == user.fingerprint_id)
+    )
+    existing_fingerprint_user = fingerprint_result.scalar_one_or_none()
+    if existing_fingerprint_user:
+        logger.warning(
+            f"Registration blocked: fingerprint_id {user.fingerprint_id} "
+            f"already used by user {existing_fingerprint_user.email}"
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="С этого устройства уже зарегистрирован аккаунт. Нельзя регистрировать несколько аккаунтов с одного устройства."
+        )
     
     # Сохраняем данные регистрации во временное хранилище (Redis)
     # Если данные уже есть - они будут перезаписаны новым кодом
@@ -218,29 +218,30 @@ async def confirm_registration(
         if fingerprint_id:
             registration_data["fingerprint_id"] = fingerprint_id
         
-        # Проверяем fingerprint_id перед созданием пользователя
-        # Если fingerprint_id не предоставлен, продолжаем без него (но логируем)
+        # КРИТИЧНО: fingerprint_id обязателен перед созданием пользователя
         if not fingerprint_id:
-            logger.warning(f"Registration confirmation without fingerprint_id for email: {confirm_data.email}")
-            # Не блокируем регистрацию, но предупреждаем в логах
-        
-        # Проверяем, использовался ли этот fingerprint_id для бесплатного тарифа (только если fingerprint_id есть)
-        if fingerprint_id:
-            fingerprint_result = await db.execute(
-                select(Users)
-                .join(UserSubscription, Users.id == UserSubscription.user_id)
-                .filter(
-                    Users.fingerprint_id == fingerprint_id,
-                    UserSubscription.subscription_type == SubscriptionType.FREE
-                )
+            logger.warning(f"Registration confirmation without fingerprint_id blocked for email: {confirm_data.email}")
+            await cache_delete(cache_key)
+            raise HTTPException(
+                status_code=400,
+                detail="fingerprint_id обязателен для регистрации"
             )
-            existing_fingerprint_user = fingerprint_result.scalar_one_or_none()
-            if existing_fingerprint_user:
-                await cache_delete(cache_key)
-                raise HTTPException(
-                    status_code=403,
-                    detail="Нельзя регистрировать новые аккаунты!"
-                )
+        
+        # Проверяем, использовался ли этот fingerprint_id для регистрации (ЛЮБОЙ тип подписки)
+        fingerprint_result = await db.execute(
+            select(Users).filter(Users.fingerprint_id == fingerprint_id)
+        )
+        existing_fingerprint_user = fingerprint_result.scalar_one_or_none()
+        if existing_fingerprint_user:
+            await cache_delete(cache_key)
+            logger.warning(
+                f"Registration confirmation blocked: fingerprint_id {fingerprint_id} "
+                f"already used by user {existing_fingerprint_user.email}"
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="С этого устройства уже зарегистрирован аккаунт. Нельзя регистрировать несколько аккаунтов с одного устройства."
+            )
         
         # Проверяем, не создан ли уже пользователь (на случай параллельных запросов)
         result = await db.execute(select(Users).filter(Users.email == confirm_data.email))

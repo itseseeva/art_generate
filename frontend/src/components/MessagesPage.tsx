@@ -142,9 +142,34 @@ const Timestamp = styled.div`
 `;
 
 const EmptyState = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   padding: 4rem 2rem;
+  min-height: 400px;
+  color: rgba(200, 200, 200, 1);
+`;
+
+const EmptyStateIcon = styled.div`
+  font-size: 4rem;
+  margin-bottom: ${theme.spacing.lg};
+  opacity: 0.6;
+`;
+
+const EmptyStateTitle = styled.h2`
+  font-size: ${theme.fontSize.xl};
+  font-weight: 600;
+  color: rgba(240, 240, 240, 1);
+  margin-bottom: ${theme.spacing.sm};
+`;
+
+const EmptyStateText = styled.p`
+  font-size: ${theme.fontSize.md};
   color: rgba(180, 180, 180, 1);
+  max-width: 400px;
+  line-height: 1.6;
 `;
 
 interface TipMessage {
@@ -188,35 +213,25 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
     setIsLoading(true);
     setError(null);
     try {
-      console.log('[MessagesPage] Загрузка tip messages...');
       // Загружаем tip messages и персонажей параллельно
       const [messagesResponse, charactersResponse] = await Promise.all([
         authManager.fetchWithAuth('/api/v1/auth/tip-messages/'),
         authManager.fetchWithAuth('/api/v1/characters/'),
       ]);
 
-      console.log('[MessagesPage] messagesResponse status:', messagesResponse.status, 'ok:', messagesResponse.ok);
-
       if (!messagesResponse.ok) {
-        if (messagesResponse.status === 404) {
-          console.log('[MessagesPage] 404 - сообщений нет');
+        if (messagesResponse.status === 404 || messagesResponse.status === 403) {
           setMessages([]);
+          hasLoadedRef.current = true;
           setIsLoading(false);
           return;
         }
         const errorText = await messagesResponse.text().catch(() => 'Неизвестная ошибка');
-        console.error('[MessagesPage] Ошибка загрузки сообщений:', messagesResponse.status, errorText);
         throw new Error('Не удалось получить сообщения благодарности');
       }
 
-      const tipMessages = await messagesResponse.json().catch((err) => {
-        console.error('[MessagesPage] Ошибка парсинга JSON сообщений:', err);
-        return [];
-      });
-      const charactersData = await charactersResponse.json().catch((err) => {
-        console.error('[MessagesPage] Ошибка парсинга JSON персонажей:', err);
-        return [];
-      });
+      const tipMessages = await messagesResponse.json().catch(() => []);
+      const charactersData = await charactersResponse.json().catch(() => []);
 
 
       // Создаем карту персонажей для быстрого доступа
@@ -230,7 +245,6 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
       }
       setCharactersMap(map);
       const messagesArray = Array.isArray(tipMessages) ? tipMessages : [];
-      console.log('[MessagesPage] Установлено сообщений в состояние:', messagesArray.length);
       setMessages(messagesArray);
       
       // Отмечаем все непрочитанные сообщения как прочитанные
@@ -247,22 +261,16 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
           // Отправляем событие для обновления счетчика
           window.dispatchEvent(new CustomEvent('tip-messages-read'));
         } catch (err) {
-          console.error('Ошибка при отметке сообщений как прочитанных:', err);
+          // Игнорируем ошибки при отметке сообщений как прочитанных
         }
       }
       
       hasLoadedRef.current = true;
-      console.log('[MessagesPage] Загрузка завершена успешно');
+      setIsLoading(false);
     } catch (err) {
-      console.error('[MessagesPage] Критическая ошибка загрузки:', {
-        error: err,
-        message: err instanceof Error ? err.message : String(err),
-        stack: err instanceof Error ? err.stack : undefined,
-        hasToken: !!authManager.getToken()
-      });
       setError(err instanceof Error ? err.message : 'Неизвестная ошибка загрузки');
-      hasLoadedRef.current = false; // Позволяем повторить загрузку при ошибке
-    } finally {
+      setMessages([]);
+      hasLoadedRef.current = true; // Отмечаем как загруженное, чтобы показать пустое состояние
       setIsLoading(false);
     }
   }, []);
@@ -270,43 +278,28 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
   useEffect(() => {
     // Проверяем наличие токена в localStorage перед загрузкой
     const token = authManager.getToken();
-    console.log('[MessagesPage] useEffect - проверка токена:', {
-      hasToken: !!token,
-      hasLoaded: hasLoadedRef.current,
-      messagesCount: messages.length,
-      isLoading
-    });
 
     // Если токен есть, но данные не загружены, принудительно загружаем
-    // Убираем зависимость от messages.length и isLoading, чтобы избежать повторных загрузок
-    if (token && !hasLoadedRef.current && !isLoading) {
-      console.log('[MessagesPage] Токен найден, но данные не загружены. Запускаем загрузку...');
+    if (token && !hasLoadedRef.current) {
       loadTipMessages();
-    } else if (!hasLoadedRef.current && !token) {
-      console.log('[MessagesPage] Токен отсутствует, пропускаем загрузку');
+    } else if (!token) {
+      setMessages([]);
+      hasLoadedRef.current = true;
       setIsLoading(false);
     }
   }, [loadTipMessages]);
 
   // Синхронизация состояния авторизации
   useEffect(() => {
-    console.log('[MessagesPage] Подписка на изменения авторизации установлена');
     const unsubscribe = authManager.subscribeAuthChanges((state) => {
-      console.log('[MessagesPage] Изменение состояния авторизации:', {
-        isAuthenticated: state.isAuthenticated,
-        hasLoaded: hasLoadedRef.current
-      });
-      
       if (!state.isAuthenticated) {
         // Если пользователь вышел, очищаем данные
-        console.log('[MessagesPage] Пользователь вышел, очищаем данные');
         setMessages([]);
         setCharactersMap(new Map());
         hasLoadedRef.current = false;
         setError(null);
       } else {
         // Если пользователь вошел (или сменился), перезагружаем данные
-        console.log('[MessagesPage] Пользователь вошел (или сменился), сбрасываем флаг загрузки и перезагружаем данные');
         hasLoadedRef.current = false;
         setMessages([]);
         setCharactersMap(new Map());
@@ -382,11 +375,15 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
           <LoadingSpinner text="Загружаем сообщения благодарности..." />
         ) : (
           <MessagesList>
-            {messages.length === 0 && hasLoadedRef.current ? (
+            {messages.length === 0 ? (
               <EmptyState>
-                У вас пока нету сообщений
+                <EmptyStateIcon>💬</EmptyStateIcon>
+                <EmptyStateTitle>У вас пока нет сообщений</EmptyStateTitle>
+                <EmptyStateText>
+                  Здесь будут отображаться сообщения благодарности от других пользователей за ваших персонажей
+                </EmptyStateText>
               </EmptyState>
-            ) : messages.length > 0 ? (
+            ) : (
               messages.map((msg) => (
                 <MessageCard key={msg.id}>
                   <UserAvatar 
@@ -417,7 +414,7 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
                   </MessageContent>
                 </MessageCard>
               ))
-            ) : null}
+            )}
           </MessagesList>
         )}
       </div>

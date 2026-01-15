@@ -1,7 +1,7 @@
 # Development commands
 ./webui-forge-sdxl.bat
 cd frontend && npm run dev -- --port 5175
-docker compose -f docker-compose.local.yml up
+cd docker_local && docker compose up --build
 
 # Запуск backend (с автоматической очисткой порта 8000)
 # Очистка порта от старых Python процессов (uvicorn), НЕ трогая Docker:
@@ -11,7 +11,8 @@ powershell -Command "$connections = Get-NetTCPConnection -LocalPort 8000 -ErrorA
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-access-log
 
 # Запуск с автоперезагрузкой (без очистки порта):
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --no-access-log
+uvicorn app.main:app --host 0.0.0.0 --port 8001 --no-access-log
+
 
 # Production запуск:
 gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker

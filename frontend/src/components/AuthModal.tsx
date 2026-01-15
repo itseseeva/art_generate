@@ -334,14 +334,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
     setError(null);
 
     try {
+      // КРИТИЧНО: Для регистрации fingerprint_id обязателен
+      if (currentMode === 'register' && !fingerprintId) {
+        setError('Не удалось определить устройство. Пожалуйста, обновите страницу и попробуйте снова.');
+        setIsLoading(false);
+        return;
+      }
+
       const endpoint = currentMode === 'register' ? '/api/v1/auth/register/' : '/api/v1/auth/login/';
-      // Формируем body с fingerprint_id только если он есть
+      // Формируем body с обязательным fingerprint_id для регистрации
       const body = currentMode === 'register' 
         ? { 
             email, 
             password, 
             username: username || email, 
-            ...(fingerprintId && { fingerprint_id: fingerprintId })
+            fingerprint_id: fingerprintId
           }
         : { email, password };
 
@@ -397,6 +404,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
     setError(null);
 
     try {
+      // КРИТИЧНО: fingerprint_id обязателен для подтверждения регистрации
+      if (!fingerprintId) {
+        setError('Не удалось определить устройство. Пожалуйста, обновите страницу и попробуйте снова.');
+        setIsLoading(false);
+        return;
+      }
+
       // Подтверждаем регистрацию с кодом верификации
       const response = await fetch('/api/v1/auth/confirm-registration/', {
         method: 'POST',
@@ -406,7 +420,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
         body: JSON.stringify({
           email,
           verification_code: verificationCode,
-          ...(fingerprintId && { fingerprint_id: fingerprintId })
+          fingerprint_id: fingerprintId
         }),
       });
 

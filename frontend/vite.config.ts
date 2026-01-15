@@ -24,22 +24,22 @@ export default defineConfig(({ mode }) => {
       port: 5175,       // Порт для React
       proxy: {
         '/api': {
-          target: 'http://localhost:8000',
+          target: 'http://localhost:8001',
           changeOrigin: true,
           secure: false,
         },
         '/chat': {
-          target: 'http://localhost:8000',
+          target: 'http://localhost:8001',
           changeOrigin: true,
           secure: false,
         },
         '/auth': {
-          target: 'http://localhost:8000',
+          target: 'http://localhost:8001',
           changeOrigin: true,
           secure: false,
         },
         '/static': {
-          target: 'http://localhost:8000',
+          target: 'http://localhost:8001',
           changeOrigin: true,
           secure: false,
         },
