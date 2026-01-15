@@ -455,17 +455,41 @@ async def reset_stats(
             f"[ADMIN RESET] Админ {current_user.email} запустил сброс статистики"
         )
         
-        # Удаляем всех пользователей кроме админов
-        # Cascade удалит все связанные данные (подписки, сообщения и т.д.)
+        # Получаем ID всех пользователей кроме админов
         result = await db.execute(
-            select(Users).where(Users.is_admin == False)
+            select(Users.id).where(Users.is_admin == False)
         )
-        users_to_delete = result.scalars().all()
+        user_ids_to_delete = [row[0] for row in result.all()]
         
-        deleted_count = len(users_to_delete)
+        deleted_count = len(user_ids_to_delete)
         
-        for user in users_to_delete:
-            await db.delete(user)
+        if deleted_count == 0:
+            return {
+                "success": True,
+                "deleted_users": 0,
+                "message": "Нет пользователей для удаления (все админы или база пуста)"
+            }
+        
+        # Удаляем связанные данные напрямую через SQL, чтобы избежать проблем с каскадами
+        # Это нужно сделать ДО удаления пользователей
+        
+        # 1. Удаляем balance_history для этих пользователей
+        from app.models.balance_history import BalanceHistory
+        from sqlalchemy import delete as sql_delete
+        
+        try:
+            balance_history_delete = sql_delete(BalanceHistory).where(
+                BalanceHistory.user_id.in_(user_ids_to_delete)
+            )
+            await db.execute(balance_history_delete)
+            logger.info(f"[ADMIN RESET] Удалено записей из balance_history для {deleted_count} пользователей")
+        except Exception as e:
+            logger.warning(f"[ADMIN RESET] Ошибка удаления balance_history: {e}")
+            # Продолжаем, так как могут быть другие проблемы
+        
+        # 2. Удаляем пользователей через bulk delete (без загрузки связанных объектов)
+        users_delete = sql_delete(Users).where(Users.id.in_(user_ids_to_delete))
+        await db.execute(users_delete)
         
         await db.commit()
         

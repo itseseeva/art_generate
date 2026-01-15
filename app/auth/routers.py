@@ -159,7 +159,7 @@ async def create_user(
     # Это защищает от регистрации через разные браузеры/инкогнито с одного компьютера
     if client_ip and client_ip not in ['127.0.0.1', 'localhost', '::1']:
         ip_result = await db.execute(
-            select(Users).filter(Users.registration_ip == client_ip)
+            select(Users).filter(Users.registration_ip == client_ip).limit(1)
         )
         existing_ip_user = ip_result.scalar_one_or_none()
         if existing_ip_user:
@@ -286,7 +286,7 @@ async def confirm_registration(
         ips_to_check = [ip for ip in [saved_ip, current_ip] if ip and ip not in ['127.0.0.1', 'localhost', '::1']]
         for ip_to_check in set(ips_to_check):  # set для уникальности
             ip_result = await db.execute(
-                select(Users).filter(Users.registration_ip == ip_to_check)
+                select(Users).filter(Users.registration_ip == ip_to_check).limit(1)
             )
             existing_ip_user = ip_result.scalar_one_or_none()
             if existing_ip_user:
