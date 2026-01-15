@@ -26,7 +26,6 @@ import { AuthModal } from './components/AuthModal';
 import { LegalPage } from './components/LegalPage';
 import { AboutPage } from './components/AboutPage';
 import { HowItWorksPage } from './components/HowItWorksPage';
-import { UpdatesPage } from './components/UpdatesPage';
 import { PaidAlbumPurchaseModal } from './components/PaidAlbumPurchaseModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Footer } from './components/Footer';
@@ -78,8 +77,7 @@ type PageType =
   | 'about'
   | 'how-it-works'
   | 'bug-report'
-  | 'admin-logs'
-  | 'updates';
+  | 'admin-logs';
 
 function App() {
   const isMobile = useIsMobile();
@@ -122,8 +120,7 @@ function App() {
         'about': 'О проекте',
         'how-it-works': 'Как это работает',
         'bug-report': 'Сообщить об ошибке',
-        'admin-logs': 'Логи администратора',
-        'updates': 'Обновления'
+        'admin-logs': 'Логи администратора'
       };
       document.title = pageTitles[currentPage] || 'cherrylust.art';
     }
@@ -249,9 +246,6 @@ function App() {
     } else if (path.includes('/how-it-works')) {
       setCurrentPage('how-it-works');
       window.history.replaceState({ page: 'how-it-works' }, '', path);
-    } else if (path.includes('/updates')) {
-      setCurrentPage('updates');
-      window.history.replaceState({ page: 'updates' }, '', path);
     } else if (path.includes('/bug-report')) {
       setCurrentPage('bug-report');
       window.history.replaceState({ page: 'bug-report' }, '', path);
@@ -744,10 +738,6 @@ function App() {
     window.history.pushState({ page: 'bug-report' }, '', '/bug-report');
   };
 
-  const handleUpdates = () => {
-    setCurrentPage('updates');
-    window.history.pushState({ page: 'updates' }, '', '/updates');
-  };
 
   const handleLogs = () => {
     setCurrentPage('admin-logs');
@@ -1108,8 +1098,6 @@ function App() {
         return <AboutPage />;
       case 'how-it-works':
         return <HowItWorksPage />;
-      case 'updates':
-        return <UpdatesPage />;
       case 'bug-report':
         return <BugReportPage onBackToMain={handleBackToMain} onProfile={handleProfile} onLogout={handleLogout} />;
       case 'admin-logs':
@@ -1516,7 +1504,6 @@ function App() {
           onMessages={handleMessages}
           onBalanceHistory={handleBalanceHistory}
           onBugReport={handleBugReport}
-          onUpdates={handleUpdates}
           onProfile={handleProfile}
           onShop={handleShop}
           onLogin={handleLogin}

@@ -841,6 +841,9 @@ async def read_character(character_name: str, db: AsyncSession = Depends(get_db)
         await cache_set(cache_key, char_data, ttl_seconds=TTL_CHARACTER)
         
         return db_char
+    except HTTPException:
+        # Пробрасываем HTTPException без изменений (например, 404)
+        raise
     except Exception as e:
         logger.error(f"Error loading character {character_name} (decoded: {decoded_name if 'decoded_name' in locals() else 'error'}): {e}")
         raise HTTPException(status_code=500, detail="Error loading character")

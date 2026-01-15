@@ -307,6 +307,7 @@ class ChatHistoryService:
                 session_result = await self.db.execute(
                     select(
                         CharacterDB.name,
+                        CharacterDB.id,
                         func.max(ChatMessageDB.timestamp).label("last_message_at"),
                         func.count(ChatMessageDB.id).label("message_count"),
                         func.max(ChatSession.started_at).label("session_created_at")
@@ -325,7 +326,7 @@ class ChatHistoryService:
                         # Дополнительная проверка: сообщения должны быть из сессий этого пользователя
                         # (уже отфильтровано в JOIN ChatSession выше через conditions)
                     ))
-                    .group_by(CharacterDB.name)
+                    .group_by(CharacterDB.name, CharacterDB.id)
                     # КРИТИЧЕСКИ ВАЖНО: Показываем только персонажей с реальными сообщениями ИЛИ фото
                     # Используем COALESCE для сортировки: сначала по timestamp сообщений, потом по created_at сессии
                     .order_by(func.coalesce(func.max(ChatMessageDB.timestamp), func.max(ChatSession.started_at)).desc())
@@ -384,11 +385,12 @@ class ChatHistoryService:
                 
                 for row in rows:
                     character_name = row[0]
-                    last_message_at = row[1]
-                    message_count = row[2]
-                    session_created_at = row[3] if len(row) > 3 else None
+                    character_id = row[1]
+                    last_message_at = row[2]
+                    message_count = row[3]
+                    session_created_at = row[4] if len(row) > 4 else None
                     
-                    print(f"[DEBUG] Обрабатываем персонажа {character_name}: message_count={message_count}, last_message_at={last_message_at}")
+                    print(f"[DEBUG] Обрабатываем персонажа {character_name} (id={character_id}): message_count={message_count}, last_message_at={last_message_at}")
                     
                     # Ищем фото для этого персонажа
                     last_image_url = await self._get_last_image_url(user_id, character_name)
@@ -476,11 +478,12 @@ class ChatHistoryService:
                     
                     key = character_name.lower()
                     characters[key] = {
+                        "id": character_id,
                         "name": character_name,
                         "last_message_at": display_time.isoformat() if hasattr(display_time, 'isoformat') else str(display_time),
                         "last_image_url": last_image_url,
                     }
-                    print(f"[DEBUG] ДОБАВЛЕН персонаж {character_name} с историей: message_count={message_count}, last_message_at={display_time.isoformat() if hasattr(display_time, 'isoformat') else str(display_time)}, has_image={bool(last_image_url)}")
+                    print(f"[DEBUG] ДОБАВЛЕН персонаж {character_name} (id={character_id}) с историей: message_count={message_count}, last_message_at={display_time.isoformat() if hasattr(display_time, 'isoformat') else str(display_time)}, has_image={bool(last_image_url)}")
             except Exception as e:
                 print(f"[WARNING] Ошибка получения персонажей из ChatSession: {e}")
                 import traceback
@@ -493,13 +496,14 @@ class ChatHistoryService:
                 history_result = await self.db.execute(
                     select(
                         ChatHistory.character_name,
+                        CharacterDB.id,
                         func.max(ChatHistory.created_at).label("last_message_at"),
                         func.count(func.distinct(ChatHistory.id)).label("message_count"),
                     )
                     .select_from(ChatHistory)
                     .join(CharacterDB, ChatHistory.character_name.ilike(CharacterDB.name))  # JOIN только с существующими персонажами
                     .where(ChatHistory.user_id == user_id)
-                    .group_by(ChatHistory.character_name)
+                    .group_by(ChatHistory.character_name, CharacterDB.id)
                     .having(func.count(func.distinct(ChatHistory.id)) > 0)
                     .order_by(func.max(ChatHistory.created_at).desc())
                 )
@@ -527,10 +531,11 @@ class ChatHistoryService:
 
                 for row in history_rows:
                     character_name = row[0]
+                    character_id = row[1]
                     if not character_name:
                         continue
-                    last_message_at = row[1]
-                    message_count = row[2]
+                    last_message_at = row[2]
+                    message_count = row[3]
                     
                     # JOIN уже фильтрует только существующих персонажей, дополнительная проверка не нужна
                     key = character_name.lower()
@@ -565,11 +570,12 @@ class ChatHistoryService:
                         last_message_at = datetime.now(timezone.utc)
                     
                         characters[key] = {
+                            "id": character_id,
                             "name": character_name,
                             "last_message_at": last_message_at.isoformat() if last_message_at else None,
                             "last_image_url": last_image_url,
                         }
-                    print(f"[DEBUG] Добавлен персонаж из ChatHistory {character_name} с историей: message_count={message_count}, last_message_at={last_message_at}, has_image={bool(last_image_url)}")
+                    print(f"[DEBUG] Добавлен персонаж из ChatHistory {character_name} (id={character_id}) с историей: message_count={message_count}, last_message_at={last_message_at}, has_image={bool(last_image_url)}")
             except Exception as e:
                 print(f"[WARNING] Ошибка получения персонажей из ChatHistory: {e}")
 
@@ -583,6 +589,7 @@ class ChatHistoryService:
                 gallery_result = await self.db.execute(
                     select(
                         UserGallery.character_name,
+                        CharacterDB.id,
                         func.max(UserGallery.created_at).label("last_image_at")
                     )
                     .select_from(UserGallery)
@@ -590,7 +597,7 @@ class ChatHistoryService:
                     .where(UserGallery.user_id == user_id)
                     .where(UserGallery.character_name.isnot(None))
                     .where(UserGallery.character_name != "")
-                    .group_by(UserGallery.character_name)
+                    .group_by(UserGallery.character_name, CharacterDB.id)
                     .order_by(func.max(UserGallery.created_at).desc())
                 )
                 
@@ -599,7 +606,8 @@ class ChatHistoryService:
                 
                 for row in gallery_rows:
                     character_name = row[0]
-                    last_image_at = row[1]
+                    character_id = row[1]
+                    last_image_at = row[2]
                     
                     if not character_name or not last_image_at:
                         continue
@@ -612,11 +620,12 @@ class ChatHistoryService:
                         # Получаем последнее фото для этого персонажа
                         last_image_url = await self._get_last_image_url(user_id, character_name)
                         characters[key] = {
+                            "id": character_id,
                             "name": character_name,
                             "last_message_at": last_image_at.isoformat() if hasattr(last_image_at, 'isoformat') else str(last_image_at),
                             "last_image_url": last_image_url,
                         }
-                        print(f"[DEBUG] Добавлен персонаж из UserGallery {character_name}: last_image_at={last_image_at}")
+                        print(f"[DEBUG] Добавлен персонаж из UserGallery {character_name} (id={character_id}): last_image_at={last_image_at}")
                     else:
                         # Если персонаж уже есть, обновляем last_image_at если фото новее
                         existing_time = characters[key].get("last_message_at")
@@ -662,6 +671,7 @@ class ChatHistoryService:
                     image_result = await self.db.execute(
                         select(
                             CharacterDB.name,
+                            CharacterDB.id,
                             func.max(ChatMessageDB.timestamp).label("last_message_at"),
                         )
                         .select_from(ChatMessageDB)
@@ -676,7 +686,7 @@ class ChatHistoryService:
                                 ChatMessageDB.content.like("%[image]%")   # Новый формат [image]
                             )
                         )  # Проверяем наличие картинки
-                        .group_by(CharacterDB.name)
+                        .group_by(CharacterDB.name, CharacterDB.id)
                         .having(func.count(func.distinct(ChatMessageDB.id)) > 0)
                         .order_by(func.max(ChatMessageDB.timestamp).desc())
                     )
@@ -686,7 +696,8 @@ class ChatHistoryService:
                 if image_result:
                     for row in image_result.fetchall():
                         character_name = row[0]
-                        last_message_at = row[1]
+                        character_id = row[1]
+                        last_message_at = row[2]
                         
                         if not character_name or not last_message_at:
                             continue
@@ -707,11 +718,12 @@ class ChatHistoryService:
                         if key not in characters:
                             last_image_url = await self._get_last_image_url(user_id, character_name)
                             characters[key] = {
+                                "id": character_id,
                                 "name": character_name,
                                 "last_message_at": last_message_at.isoformat() if last_message_at else None,
                                 "last_image_url": last_image_url,
                             }
-                            print(f"[DEBUG] ДОБАВЛЕН персонаж {character_name} с историей только из картинок: last_message_at={last_message_at.isoformat() if last_message_at else None}")
+                            print(f"[DEBUG] ДОБАВЛЕН персонаж {character_name} (id={character_id}) с историей только из картинок: last_message_at={last_message_at.isoformat() if last_message_at else None}")
                         elif last_message_at:
                             # Обновляем время, если оно новее
                             existing_time = characters[key].get("last_message_at")
@@ -734,6 +746,7 @@ class ChatHistoryService:
                 history_image_result = await self.db.execute(
                     select(
                         ChatHistory.character_name,
+                        CharacterDB.id,
                         func.max(ChatHistory.created_at).label("last_message_at"),
                     )
                     .select_from(ChatHistory)
@@ -743,14 +756,15 @@ class ChatHistoryService:
                     .where(ChatHistory.image_url.isnot(None))  # Есть картинка
                     .where(ChatHistory.session_id != "photo_generation")  # Исключаем автоматические записи
                     .where(~ChatHistory.session_id.like("task_%"))  # Исключаем записи с task_*
-                    .group_by(ChatHistory.character_name)
+                    .group_by(ChatHistory.character_name, CharacterDB.id)
                     .having(func.count(func.distinct(ChatHistory.id)) > 0)
                     .order_by(func.max(ChatHistory.created_at).desc())
                 )
                 
                 for row in history_image_result.fetchall():
                     character_name = row[0]
-                    last_message_at = row[1]
+                    character_id = row[1]
+                    last_message_at = row[2]
                     
                     if not character_name or not last_message_at:
                         continue
@@ -769,11 +783,12 @@ class ChatHistoryService:
                     if key not in characters:
                         last_image_url = await self._get_last_image_url(user_id, character_name)
                         characters[key] = {
+                            "id": character_id,
                             "name": character_name,
                             "last_message_at": last_message_at.isoformat() if last_message_at else None,
                             "last_image_url": last_image_url,
                         }
-                        print(f"[DEBUG] ДОБАВЛЕН персонаж {character_name} из ChatHistory с историей только из картинок: last_message_at={last_message_at.isoformat() if last_message_at else None}")
+                        print(f"[DEBUG] ДОБАВЛЕН персонаж {character_name} (id={character_id}) из ChatHistory с историей только из картинок: last_message_at={last_message_at.isoformat() if last_message_at else None}")
                     elif last_message_at:
                         # Обновляем время, если оно новее
                         existing_time = characters[key].get("last_message_at")

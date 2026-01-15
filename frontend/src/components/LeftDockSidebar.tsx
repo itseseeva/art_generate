@@ -20,7 +20,6 @@ interface LeftDockSidebarProps {
   onMessages?: () => void;
   onBalanceHistory?: () => void;
   onBugReport?: () => void;
-  onUpdates?: () => void;
   onProfile?: () => void;
   onShop?: () => void;
   onLogin?: () => void;
@@ -298,7 +297,6 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   onMessages,
   onBalanceHistory,
   onBugReport,
-  onUpdates,
   onProfile,
   onShop,
   onLogin,
@@ -353,12 +351,6 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
       label: 'Жалоба',
       onClick: () => onBugReport?.(),
       className: 'dock-item-bug',
-    },
-    {
-      icon: <FiRefreshCw size={18} />,
-      label: 'Обновления',
-      onClick: () => onUpdates?.(),
-      className: 'dock-item-updates',
     },
   ];
 
