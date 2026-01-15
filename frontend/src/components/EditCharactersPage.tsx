@@ -277,7 +277,7 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
   const [characters, setCharacters] = useState<Character[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userInfo, setUserInfo] = useState<{username: string, coins: number} | null>(null);
+  const [userInfo, setUserInfo] = useState<{username: string, coins: number, is_admin?: boolean} | null>(null);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -286,7 +286,7 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
   const [favoriteCharacterIds, setFavoriteCharacterIds] = useState<Set<number>>(new Set());
 
   // Загрузка фото персонажей
-  const loadCharacterPhotos = async (userId: number) => {
+  const loadCharacterPhotos = async (userId: number, isAdmin: boolean = false) => {
     if (!userId) {
       return {};
     }
@@ -300,8 +300,10 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
         
         const photosMap: {[key: string]: string[]} = {};
         
-        // Фильтруем только персонажей текущего пользователя
-        const myCharacters = charactersData.filter((char: any) => char.user_id === userId);
+        // Для админов загружаем всех персонажей, для обычных пользователей - только своих
+        const myCharacters = isAdmin 
+          ? charactersData 
+          : charactersData.filter((char: any) => char.user_id === userId);
         
         for (const char of myCharacters) {
           
@@ -355,35 +357,40 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
   };
 
   // Загрузка персонажей пользователя
-  const loadMyCharacters = async (userId: number) => {
+  const loadMyCharacters = async (userId: number, isAdmin: boolean = false) => {
     if (!userId) {
       return;
     }
 
     try {
       setIsLoading(true);
-      const photosMap = await loadCharacterPhotos(userId); // Загружаем фото
+      const photosMap = await loadCharacterPhotos(userId, isAdmin); // Загружаем фото
       
       // Используем force_refresh=true чтобы получить актуальный список после редактирования
       const response = await authManager.fetchWithAuth(`/api/v1/characters/?force_refresh=true&_t=${Date.now()}`);
 
       if (response.ok) {
         const charactersData = await response.json();
-        // Фильтруем только персонажей текущего пользователя
-        const myCharacters = charactersData.filter((char: any) => char.user_id === userId);
+        // Для админов загружаем всех персонажей, для обычных пользователей - только своих
+        const myCharacters = isAdmin 
+          ? charactersData 
+          : charactersData.filter((char: any) => char.user_id === userId);
         
-        const formattedCharacters: Character[] = myCharacters.map((char: any) => ({
-          id: char.id ? char.id.toString() : char.name, // Используем id если есть, иначе имя как fallback
-          name: char.name,
-          description: char.character_appearance || 'No description available',
-          avatar: char.name.charAt(0).toUpperCase(),
-          photos: photosMap[char.name.toLowerCase()] || [],
-          tags: ['My Character'],
-          author: 'Me',
-          likes: 0,
-          views: 0,
-          comments: 0
-        }));
+        const formattedCharacters: Character[] = myCharacters.map((char: any) => {
+          const isOwnCharacter = char.user_id === userId;
+          return {
+            id: char.id ? char.id.toString() : char.name, // Используем id если есть, иначе имя как fallback
+            name: char.name,
+            description: char.character_appearance || 'No description available',
+            avatar: char.name.charAt(0).toUpperCase(),
+            photos: photosMap[char.name.toLowerCase()] || [],
+            tags: isOwnCharacter ? ['My Character'] : ['Character'],
+            author: isOwnCharacter ? 'Me' : (char.author || 'Unknown'),
+            likes: 0,
+            views: 0,
+            comments: 0
+          };
+        });
         
         setCharacters(formattedCharacters);
         setIsAuthenticated(true);
@@ -437,9 +444,11 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
       setIsAuthenticated(isAuthenticated);
       if (isAuthenticated && userInfo) {
         setCurrentUserId(userInfo.id);
+        const isAdmin = userInfo.is_admin === true;
         setUserInfo({
           username: userInfo.email,
-          coins: userInfo.coins
+          coins: userInfo.coins,
+          is_admin: isAdmin
         });
         // Загружаем избранные после успешной авторизации
         await loadFavorites();
@@ -476,11 +485,12 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
   }, [authCheckComplete]);
 
   useEffect(() => {
-    if (!currentUserId) {
+    if (!currentUserId || !userInfo) {
       return;
     }
-    loadMyCharacters(currentUserId);
-  }, [currentUserId]);
+    const isAdmin = userInfo.is_admin === true;
+    loadMyCharacters(currentUserId, isAdmin);
+  }, [currentUserId, userInfo]);
 
   const handleLogout = async () => {
     try {
@@ -531,13 +541,18 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
             <LoadingSpinner>Загрузка персонажей...</LoadingSpinner>
           ) : characters.length === 0 ? (
             <EmptyState>
-              <EmptyTitle>У вас пока нет персонажей</EmptyTitle>
+              <EmptyTitle>{userInfo?.is_admin ? 'Персонажей не найдено' : 'У вас пока нет персонажей'}</EmptyTitle>
               <EmptyDescription>
-                Создайте своего первого персонажа, чтобы начать редактирование
+                {userInfo?.is_admin 
+                  ? 'В системе пока нет персонажей для редактирования'
+                  : 'Создайте своего первого персонажа, чтобы начать редактирование'
+                }
               </EmptyDescription>
-              <CreateButton onClick={onCreateCharacter}>
-                Создать персонажа
-              </CreateButton>
+              {!userInfo?.is_admin && (
+                <CreateButton onClick={onCreateCharacter}>
+                  Создать персонажа
+                </CreateButton>
+              )}
             </EmptyState>
           ) : (
             <CharactersGrid>

@@ -2,16 +2,11 @@ import os
 import torch
 import torchaudio
 
-# Пытаемся импортировать напрямую из установленного пакета
-try:
-    from fish_speech.models.text2semantic.inference import Text2SemanticInference
-    from fish_speech.models.vqgan.inference import VQGANInference
-except ImportError:
-    # Запасной вариант для некоторых сборок v1.4
-    from fish_speech.inference.text2semantic import Text2SemanticInference
-    from fish_speech.inference.vqgan import VQGANInference
-
+# Прямой импорт без try/except, так как мы ставим через pip install
+from fish_speech.models.text2semantic.inference import Text2SemanticInference
+from fish_speech.models.vqgan.inference import VQGANInference
 from fish_speech.utils.schema import ServeReferenceAudio, ServeTTSRequest
+# ... остальной код FishPredictor без изменений
 
 class FishPredictor:
     def setup(self):
