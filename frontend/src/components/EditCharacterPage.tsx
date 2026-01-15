@@ -3085,6 +3085,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
               onLogout={handleLogout}
               onProfile={onProfile}
               onBalance={() => alert('Баланс пользователя')}
+              currentCharacterId={character?.id}
             />
             <MainContent style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
               <div style={{ textAlign: 'center' }}>

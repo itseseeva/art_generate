@@ -6,13 +6,14 @@ import { FiX as CloseIcon } from 'react-icons/fi';
 import { theme } from '../theme';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToEnglish, translateToRussian } from '../utils/translate';
+import { GlobalHeader } from './GlobalHeader';
 
 const MainContainer = styled.div`
   width: 100%;
   height: 100%;
   min-height: 100%;
   background: rgba(20, 20, 20, 1);
-  padding: 2rem;
+  padding: 0;
   overflow-y: auto;
   overflow-x: hidden;
   box-sizing: border-box;
@@ -1424,7 +1425,13 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
 
   return (
     <MainContainer>
-      <ContentWrapper>
+      <GlobalHeader 
+        onShop={onShop}
+        onProfile={onProfile}
+        onHome={onBackToMain}
+        currentCharacterId={character?.id}
+      />
+      <ContentWrapper style={{ padding: '2rem' }}>
         <Header>
           <Title>Генератор фото</Title>
           <Subtitle>Введите промпт и создайте три уникальных изображения для персонажа {character.name} они будут на главной странице""</Subtitle>

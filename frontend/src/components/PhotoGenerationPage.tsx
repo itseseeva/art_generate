@@ -722,6 +722,7 @@ useEffect(() => {
           }}
           onProfile={onProfile}
           onBalance={() => alert('Баланс пользователя')}
+          currentCharacterId={character?.id}
         />
         
         <MainContent>

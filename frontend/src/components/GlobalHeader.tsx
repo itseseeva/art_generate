@@ -384,6 +384,7 @@ interface GlobalHeaderProps {
   onHome?: () => void;
   leftContent?: React.ReactNode;
   refreshTrigger?: number;
+  currentCharacterId?: string | number;
 }
 
 export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
@@ -395,7 +396,8 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   onBalance,
   onHome,
   leftContent,
-  refreshTrigger
+  refreshTrigger,
+  currentCharacterId
 }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userInfo, setUserInfo] = useState<{username: string, coins: number, avatar_url?: string} | null>(null);
@@ -491,24 +493,25 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   // Подписка на уведомления о готовности генерации
   useEffect(() => {
     const unsubscribe = generationTracker.addListener((taskId, imageUrl, characterName, characterId) => {
-      // Проверяем, что пользователь не находится на странице чата
+      // Проверяем, что пользователь не находится на странице чата с ЭТИМ ЖЕ персонажем
       const isOnChatPage = window.location.pathname.includes('/chat');
+      const isSameCharacter = currentCharacterId && characterId && String(currentCharacterId) === String(characterId);
       
-      // Показываем уведомление только если пользователь не на странице чата
-      if (!isOnChatPage) {
+      // Показываем уведомление если пользователь не на странице чата ИЛИ если это другой персонаж
+      if (!isOnChatPage || !isSameCharacter) {
         setNotification({ taskId, imageUrl, characterName, characterId });
         
         // Автоматически скрываем уведомление через 10 секунд
         setTimeout(() => {
           setNotification(null);
-        }, 10000);
+        }, 15000); // Увеличиваем до 15 секунд, чтобы пользователь успел заметить
       }
     });
 
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [currentCharacterId]); // Переподписываемся при смене персонажа
 
   const handleNotificationClick = async () => {
     // Переходим в чат с персонажем, если указан
@@ -587,7 +590,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
               </NotificationMessage>
             </NotificationText>
             <NotificationButton onClick={handleNotificationClick}>
-              Открыть
+              Перейти в чат
             </NotificationButton>
             <CloseButton onClick={handleCloseNotification}>
               <X size={18} />

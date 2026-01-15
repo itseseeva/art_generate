@@ -14,7 +14,8 @@ import { PhotoGenerationHelpModal } from './PhotoGenerationHelpModal';
 import { extractRolePlayingSituation } from '../utils/characterUtils';
 import { authManager } from '../utils/auth';
 import { translateToEnglish } from '../utils/translate';
-import { FiUnlock, FiLock, FiImage } from 'react-icons/fi';
+import { FiUnlock, FiLock, FiImage, FiSettings } from 'react-icons/fi';
+import { Plus } from 'lucide-react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { CharacterCard } from './CharacterCard';
 import { API_CONFIG } from '../config/api';
@@ -613,6 +614,155 @@ interface ChatContainerProps {
   onNavigate?: (page: string, character: Character) => void;
   subscriptionType?: 'free' | 'base' | 'standard' | 'premium';
 }
+
+// Styled components для выбора моделей изображения (как на странице создания)
+const ModelSelectionContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  gap: ${theme.spacing.lg};
+  margin-bottom: ${theme.spacing.lg};
+  overflow: visible;
+  padding-bottom: ${theme.spacing.md};
+  padding-top: ${theme.spacing.xs};
+  flex-wrap: wrap;
+`;
+
+const ModelCard = styled.div<{ $isSelected: boolean; $previewImage?: string }>`
+  flex: 0 0 200px;
+  height: 300px;
+  background: ${props => props.$isSelected 
+    ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(99, 102, 241, 0.2) 100%)' 
+    : 'rgba(30, 30, 30, 0.4)'};
+  backdrop-filter: blur(8px);
+  border: 2px solid ${props => props.$isSelected 
+    ? '#8b5cf6' 
+    : 'rgba(255, 255, 255, 0.05)'};
+  border-radius: ${theme.borderRadius.lg};
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: url(${props => props.$previewImage});
+    background-size: cover;
+    background-position: center;
+    opacity: 1;
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 0;
+  }
+
+  &:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6), 0 0 25px rgba(139, 92, 246, 0.25);
+    border-color: #8b5cf6;
+    
+    &::after {
+      transform: scale(1.08);
+    }
+  }
+
+  & > * {
+    position: relative;
+    z-index: 1;
+  }
+`;
+
+const ModelInfoOverlay = styled.div`
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  padding: ${theme.spacing.md};
+  width: 100%;
+`;
+
+const ModelName = styled.h3`
+  font-size: ${theme.fontSize.lg};
+  font-weight: 600;
+  color: white;
+  margin-bottom: 4px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+`;
+
+const ModelDescription = styled.p`
+  font-size: ${theme.fontSize.sm};
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.4;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+`;
+
+// Styled components для дефолтных промптов (тегов)
+const TagsContainer = styled.div<{ $isExpanded: boolean }>`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  max-height: ${props => props.$isExpanded ? '500px' : '36px'};
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+`;
+
+const ExpandButton = styled.div<{ $isExpanded: boolean }>`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin-top: 4px;
+  cursor: pointer;
+  color: ${theme.colors.text.secondary};
+  transition: all 0.3s ease;
+
+  &:hover {
+    color: ${theme.colors.text.primary};
+  }
+
+  svg {
+    transform: rotate(${props => props.$isExpanded ? '180deg' : '0deg'});
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: ${props => props.$isExpanded ? 'none' : 'arrowBounce 2s infinite'};
+  }
+
+  @keyframes arrowBounce {
+    0%, 20%, 50%, 80%, 100% {
+      transform: translateY(0) rotate(0deg);
+    }
+    40% {
+      transform: translateY(5px) rotate(0deg);
+    }
+    60% {
+      transform: translateY(3px) rotate(0deg);
+    }
+  }
+`;
+
+const TagButton = styled.button`
+  background: rgba(40, 40, 40, 0.6);
+  border: 1px solid rgba(80, 80, 80, 0.3);
+  border-radius: 16px;
+  padding: 4px 12px;
+  font-size: 11px;
+  color: ${theme.colors.text.secondary};
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  &:hover {
+    background: rgba(60, 60, 60, 0.8);
+    color: ${theme.colors.text.primary};
+    border-color: rgba(100, 100, 100, 0.5);
+  }
+`;
 
 export const ChatContainer: React.FC<ChatContainerProps> = ({ 
   onBackToMain,
@@ -1461,6 +1611,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const [isPhotoGenerationHelpModalOpen, setIsPhotoGenerationHelpModalOpen] = useState(false);
   const [imagePromptInput, setImagePromptInput] = useState('');
   const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime' | 'realism'>('anime-realism');
+  const [isTagsExpanded, setIsTagsExpanded] = useState(false);
   // Сохраняем отредактированные промпты для каждого персонажа (ключ - имя персонажа)
   // Загружаем из localStorage при инициализации
   const loadPromptsFromStorage = (): Record<string, string> => {
@@ -1763,6 +1914,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       return;
     }
 
+    // Промпт для генерации фото не должен попадать в чат - это только для генерации изображения
+    // Создаем только сообщение ассистента с прогрессом генерации
+    
     const assistantMessageId = `image-${Date.now()}`;
     const assistantMessage: Message = {
       id: assistantMessageId,
@@ -2175,15 +2329,21 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     // Если сообщение пустое, но запрашивается генерация фото, создаем сообщение с промптом
     const originalMessage = message.trim() || (generateImage ? 'Генерация изображения' : '');
 
-    // Сохраняем оригинальное сообщение для отображения пользователю
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      type: 'user',
-      content: originalMessage, // Показываем оригинальный текст пользователю
-      timestamp: new Date()
-    };
-
-    setMessages(prev => deduplicateMessages([...prev, userMessage]));
+    // Промпт для генерации фото не должен попадать в чат как сообщение пользователя
+    // Добавляем сообщение пользователя только если есть текст (для чата с текстовой моделью)
+    // Если только генерация фото без текста - сообщение пользователя не добавляем в чат
+    let userMessage: Message | null = null;
+    if (message.trim()) {
+      // Если есть текст сообщения - это сообщение в чат (с генерацией фото или без)
+      userMessage = {
+        id: Date.now().toString(),
+        type: 'user',
+        content: originalMessage,
+        timestamp: new Date()
+      };
+      setMessages(prev => deduplicateMessages([...prev, userMessage!]));
+    }
+    // Если только generateImage без текста - не добавляем сообщение пользователя в чат
     setIsLoading(true);
     setError(null);
 
@@ -2274,8 +2434,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           setAuthMode('login');
           setIsAuthModalOpen(true);
           setError('Сессия истекла. Пожалуйста, войдите снова.');
-          // Удаляем сообщения пользователя и ассистента
-          setMessages(prev => prev.filter(msg => msg.id !== userMessage.id && msg.id !== assistantMessageId));
+          // Удаляем сообщения пользователя (если было) и ассистента
+          setMessages(prev => prev.filter(msg => 
+            (userMessage ? msg.id !== userMessage.id : true) && msg.id !== assistantMessageId
+          ));
           setIsLoading(false);
           return;
         }
@@ -3548,6 +3710,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           onProfile={onOwnProfile || (() => userInfo?.id && onProfile?.(userInfo.id))}
           onBalance={() => alert('Баланс пользователя')}
           refreshTrigger={balanceRefreshTrigger}
+          currentCharacterId={currentCharacter?.id}
         />
         
         {/* Кнопки альбома для мобильных устройств - под хедером */}
@@ -4055,28 +4218,51 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             <p style={{ color: '#aaa', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
               Стоимость: 30 монет. Опишите желаемое изображение или отредактируйте предзаполненный промпт.
             </p>
-            <div style={{ marginBottom: '1rem' }}>
-              <label style={{ color: '#fff', fontSize: '0.9rem', marginBottom: '0.5rem', display: 'block' }}>
-                Модель генерации:
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ 
+                color: '#fff', 
+                fontSize: '0.9rem', 
+                marginBottom: '0.75rem', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '0.5rem' 
+              }}>
+                <FiSettings size={14} /> Выберите стиль
               </label>
-              <select
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value as 'anime-realism' | 'anime' | 'realism')}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  background: 'rgba(15, 15, 20, 0.7)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  borderRadius: '8px',
-                  color: '#fff',
-                  fontSize: '1rem',
-                  cursor: 'pointer'
-                }}
-              >
-                <option value="anime-realism">Сочетание аниме и реалистичных текстур</option>
-                <option value="anime">Классический аниме стиль</option>
-                <option value="realism">Максимальная фотореалистичность</option>
-              </select>
+              <ModelSelectionContainer>
+                <ModelCard 
+                  $isSelected={selectedModel === 'anime-realism'}
+                  $previewImage="/model_previews/анимереализм1.jpg"
+                  onClick={() => setSelectedModel('anime-realism')}
+                >
+                  <ModelInfoOverlay>
+                    <ModelName>Аниме + Реализм</ModelName>
+                    <ModelDescription>Сбалансированный стиль</ModelDescription>
+                  </ModelInfoOverlay>
+                </ModelCard>
+                
+                <ModelCard 
+                  $isSelected={selectedModel === 'anime'}
+                  $previewImage="/model_previews/аниме.jpeg"
+                  onClick={() => setSelectedModel('anime')}
+                >
+                  <ModelInfoOverlay>
+                    <ModelName>Аниме</ModelName>
+                    <ModelDescription>Классический 2D стиль</ModelDescription>
+                  </ModelInfoOverlay>
+                </ModelCard>
+                
+                <ModelCard 
+                  $isSelected={selectedModel === 'realism'}
+                  $previewImage="/model_previews/реализм.jpg"
+                  onClick={() => setSelectedModel('realism')}
+                >
+                  <ModelInfoOverlay>
+                    <ModelName>Реализм</ModelName>
+                    <ModelDescription>Фотореалистичность</ModelDescription>
+                  </ModelInfoOverlay>
+                </ModelCard>
+              </ModelSelectionContainer>
             </div>
             <textarea
               value={imagePromptInput}
@@ -4093,10 +4279,72 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 color: '#fff',
                 fontSize: '1rem',
                 resize: 'vertical',
-                marginBottom: '1.5rem',
+                marginBottom: '0.5rem',
                 fontFamily: 'inherit'
               }}
             />
+            
+            {/* Теги-помощники */}
+            <div style={{ position: 'relative', marginBottom: '1.5rem' }}>
+              <TagsContainer $isExpanded={isTagsExpanded}>
+                {[
+                  // Нормальные промпты
+                  { label: 'Высокая детализация', value: 'высокая детализация, реализм, 8к разрешение' },
+                  { label: 'Киберпанк', value: 'стиль киберпанк, неоновое освещение, футуристично' },
+                  { label: 'Фэнтези', value: 'фэнтези стиль, магическая атмосфера' },
+                  { label: 'Портрет', value: 'крупный план, детальное лицо, выразительный взгляд' },
+                  { label: 'В полный рост', value: 'в полный рост, изящная поза' },
+                  { label: 'Аниме стиль', value: 'красивый аниме стиль, четкие линии, яркие цвета' },
+                  { label: 'Реализм', value: 'фотореалистично, натуральные текстуры кожи' },
+                  { label: 'Кинематографично', value: 'кинематографичный свет, глубокие тени, драматично' },
+                  { label: 'На пляже', value: 'на берегу океана, золотой песок, закатное солнце' },
+                  { label: 'В городе', value: 'на оживленной улице города, ночные огни, боке' },
+                  { label: 'В лесу', value: 'в сказочном лесу, лучи солнца сквозь листву' },
+                  { label: 'Офисный стиль', value: 'в строгом офисном костюме, деловая обстановка' },
+                  { label: 'Летнее платье', value: 'в легком летнем платье, летящая ткань' },
+                  { label: 'Вечерний свет', value: 'мягкий вечерний свет, теплые тона' },
+                  { label: 'Зима', value: 'зимний пейзаж, падающий снег, меховая одежда' },
+                  
+                  // Пошлые промпты (18+)
+                  { label: 'Соблазнительно', value: 'соблазнительная поза, игривый взгляд, эротично' },
+                  { label: 'Нижнее белье', value: 'в кружевном нижнем белье, прозрачные ткани' },
+                  { label: 'Обнаженная', value: 'обнаженная, полная нагота, детализированное тело' },
+                  { label: 'В постели', value: 'лежит в постели, шелковые простыни, интимная обстановка' },
+                  { label: 'Горячая ванна', value: 'в ванне с пеной, влажная кожа, капли воды' },
+                  { label: 'Чулки', value: 'в черных шелковых чулках с поясом' },
+                  { label: 'Мини-юбка', value: 'в экстремально короткой мини-юбке' },
+                  { label: 'Глубокое декольте', value: 'глубокое декольте, акцент на груди' },
+                  { label: 'Вид сзади', value: 'вид сзади, акцент на ягодицах, изящный изгиб спины' },
+                  { label: 'Мокрая одежда', value: 'в мокрой одежде, прилипающая ткань, прозрачность' },
+                  { label: 'Поза раком', value: 'стоит на четвереньках, прогнутая спина, вызывающая поза' },
+                  { label: 'Расставленные ноги', value: 'сидит с широко расставленными ногами, манящий взгляд' },
+                  { label: 'Прикрывает грудь', value: 'прикрывает обнаженную грудь руками, застенчиво' },
+                  { label: 'Кусает губу', value: 'возбужденное лицо, кусает губу, томный взгляд' },
+                  { label: 'Прозрачное боди', value: 'в прозрачном облегающем боди, все детали видны' }
+                ].map((tag, idx) => (
+                  <TagButton 
+                    key={idx}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      const separator = imagePromptInput.length > 0 && !imagePromptInput.endsWith(', ') && !imagePromptInput.endsWith(',') ? ', ' : '';
+                      const newValue = imagePromptInput + separator + tag.value;
+                      setImagePromptInput(newValue);
+                    }}
+                  >
+                    <Plus size={10} /> {tag.label}
+                  </TagButton>
+                ))}
+              </TagsContainer>
+              <ExpandButton 
+                $isExpanded={isTagsExpanded} 
+                onClick={() => setIsTagsExpanded(!isTagsExpanded)}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </ExpandButton>
+            </div>
             <div style={{ 
               display: 'flex', 
               gap: '1rem', 
@@ -4119,20 +4367,39 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   setSessionPrompt(null); // Сбрасываем сохраненный промпт
                 }}
                 style={{
-                  padding: '0.75rem 1.5rem',
-                  background: 'rgba(80, 80, 80, 0.8)',
-                  border: '2px solid rgba(255, 255, 255, 0.2)',
+                  padding: '0.5rem 1rem',
+                  background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.9), rgba(99, 102, 241, 0.9))',
+                  border: '1px solid rgba(139, 92, 246, 0.6)',
                   borderRadius: '8px',
                   color: '#fff',
-                  fontSize: '1rem',
-                  fontWeight: 'bold',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
                   cursor: 'pointer',
-                  transition: 'all 0.2s',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                   width: isMobile ? '100%' : 'auto',
-                  order: isMobile ? 3 : 1
+                  order: isMobile ? 3 : 1,
+                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3), 0 0 15px rgba(139, 92, 246, 0.2)',
+                  position: 'relative',
+                  overflow: 'hidden'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(100, 100, 100, 0.9)'}
-                onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(80, 80, 80, 0.8)'}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(139, 92, 246, 1), rgba(99, 102, 241, 1))';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 8px 24px rgba(139, 92, 246, 0.4)';
+                  e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.9)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(139, 92, 246, 0.9), rgba(99, 102, 241, 0.9))';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.3), 0 0 15px rgba(139, 92, 246, 0.2)';
+                  e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.6)';
+                }}
+                onMouseDown={(e) => {
+                  e.currentTarget.style.transform = 'scale(0.98)';
+                }}
+                onMouseUp={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                }}
               >
                 Сбросить
               </button>
@@ -4154,34 +4421,59 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 disabled={!imagePromptInput.trim()}
                 style={{
                   flex: 1,
-                  padding: '0.75rem 1.5rem',
+                  padding: '0.5rem 1rem',
                   background: !imagePromptInput.trim()
                     ? 'rgba(60, 60, 60, 0.5)'
-                    : 'rgba(100, 100, 110, 0.9)',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                    : 'linear-gradient(135deg, rgba(234, 179, 8, 0.9), rgba(251, 191, 36, 0.9))',
+                  border: !imagePromptInput.trim()
+                    ? '1px solid rgba(80, 80, 80, 0.5)'
+                    : '1px solid rgba(251, 191, 36, 0.6)',
                   borderRadius: '8px',
-                  color: '#fff',
-                  fontSize: '1rem',
-                  fontWeight: 'bold',
+                  color: !imagePromptInput.trim() ? 'rgba(150, 150, 150, 0.5)' : '#1a1a1a',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
                   cursor: !imagePromptInput.trim()
                     ? 'not-allowed'
                     : 'pointer',
-                  transition: 'all 0.2s',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
                   opacity: !imagePromptInput.trim() ? 0.6 : 1,
                   width: isMobile ? '100%' : 'auto',
-                  order: isMobile ? 1 : 2
+                  order: isMobile ? 1 : 2,
+                  boxShadow: !imagePromptInput.trim()
+                    ? 'none'
+                    : '0 4px 6px rgba(0, 0, 0, 0.3), 0 0 15px rgba(234, 179, 8, 0.2)',
+                  position: 'relative',
+                  overflow: 'hidden'
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(120, 120, 130, 1)';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.4)';
+                  if (imagePromptInput.trim()) {
+                    e.currentTarget.style.background = 'linear-gradient(135deg, rgba(234, 179, 8, 1), rgba(251, 191, 36, 1))';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(234, 179, 8, 0.4)';
+                    e.currentTarget.style.borderColor = 'rgba(251, 191, 36, 0.9)';
+                    e.currentTarget.style.filter = 'brightness(1.1)';
+                  }
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(100, 100, 110, 0.9)';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = 'none';
+                  if (imagePromptInput.trim()) {
+                    e.currentTarget.style.background = 'linear-gradient(135deg, rgba(234, 179, 8, 0.9), rgba(251, 191, 36, 0.9))';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.3), 0 0 15px rgba(234, 179, 8, 0.2)';
+                    e.currentTarget.style.borderColor = 'rgba(251, 191, 36, 0.6)';
+                    e.currentTarget.style.filter = 'brightness(1)';
+                  }
+                }}
+                onMouseDown={(e) => {
+                  if (imagePromptInput.trim()) {
+                    e.currentTarget.style.transform = 'scale(0.98)';
+                  }
+                }}
+                onMouseUp={(e) => {
+                  if (imagePromptInput.trim()) {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }
                 }}
               >
                 Сгенерировать
@@ -4189,20 +4481,39 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               <button
                 onClick={() => setIsImagePromptModalOpen(false)}
                 style={{
-                  padding: '0.75rem 1.5rem',
-                  background: 'rgba(80, 80, 80, 0.8)',
-                  border: '2px solid rgba(255, 255, 255, 0.2)',
+                  padding: '0.5rem 1rem',
+                  background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.9), rgba(99, 102, 241, 0.9))',
+                  border: '1px solid rgba(139, 92, 246, 0.6)',
                   borderRadius: '8px',
                   color: '#fff',
-                  fontSize: '1rem',
-                  fontWeight: 'bold',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
                   cursor: 'pointer',
-                  transition: 'all 0.2s',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                   width: isMobile ? '100%' : 'auto',
-                  order: isMobile ? 2 : 3
+                  order: isMobile ? 2 : 3,
+                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3), 0 0 15px rgba(139, 92, 246, 0.2)',
+                  position: 'relative',
+                  overflow: 'hidden'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(100, 100, 100, 0.9)'}
-                onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(80, 80, 80, 0.8)'}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(139, 92, 246, 1), rgba(99, 102, 241, 1))';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 8px 24px rgba(139, 92, 246, 0.4)';
+                  e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.9)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(139, 92, 246, 0.9), rgba(99, 102, 241, 0.9))';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.3), 0 0 15px rgba(139, 92, 246, 0.2)';
+                  e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.6)';
+                }}
+                onMouseDown={(e) => {
+                  e.currentTarget.style.transform = 'scale(0.98)';
+                }}
+                onMouseUp={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                }}
               >
                 Отмена
               </button>

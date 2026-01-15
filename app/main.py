@@ -142,6 +142,35 @@ class ImageGenerationRequest(BaseModel):
         extra="forbid"
     )
 
+def clean_prompt_for_display(prompt: str) -> str:
+    """Очищает промпт от технических тегов для красивого отображения в чате."""
+    if not prompt:
+        return "Генерация фото"
+    
+    # Список технических тегов, которые часто встречаются
+    tech_tags = [
+        "masterpiece", "best quality", "ultra realistic", "8k", "highly detailed",
+        "detailed face", "soft lighting", "cinematic lighting", "highres",
+        "extremely detailed", "photorealistic", "raw photo"
+    ]
+    
+    clean = prompt
+    for tag in tech_tags:
+        # Убираем теги с весами типа (tag:1.2)
+        import re
+        clean = re.sub(rf'\({tag}:[0-9.]+\)', '', clean, flags=re.IGNORECASE)
+        # Убираем просто теги
+        clean = re.sub(rf'\b{tag}\b', '', clean, flags=re.IGNORECASE)
+    
+    # Убираем множественные запятые и пробелы
+    clean = re.sub(r',\s*,', ',', clean)
+    clean = re.sub(r'\s+', ' ', clean).strip(' ,')
+    
+    if not clean or clean.lower() == "none":
+        return "Генерация фото"
+    
+    return clean
+
 # Настраиваем логирование с правильной кодировкой
 # Создаем папку для логов только при необходимости (не блокируем импорт)
 try:
@@ -4026,7 +4055,7 @@ async def generate_image(
                     await db.commit()
                     
             
-            # ВАЖНО: Создаем запись в ChatHistory СРАЗУ, чтобы промпт был виден
+            # ВАЖНО: Создаем записи в ChatHistory СРАЗУ, чтобы промпт был виден
             # НО только если skip_chat_history = False (генерации из чата)
             if not getattr(request, 'skip_chat_history', False):
                 try:
@@ -4035,7 +4064,27 @@ async def generate_image(
                     import datetime
                     
                     async with async_session_maker() as history_db:
-                        # Используем raw SQL, чтобы избежать проблем с отсутствующей колонкой generation_time
+                        # 1. Сохраняем сообщение пользователя с его промптом
+                        user_prompt_raw = request.custom_prompt or request.prompt or "Генерация фото"
+                        user_prompt_clean = clean_prompt_for_display(user_prompt_raw)
+                        
+                        await history_db.execute(
+                            text("""
+                                INSERT INTO chat_history (user_id, character_name, session_id, message_type, message_content, image_url, image_filename, created_at)
+                                VALUES (:user_id, :character_name, :session_id, :message_type, :message_content, :image_url, :image_filename, NOW())
+                            """),
+                            {
+                                "user_id": user_id,
+                                "character_name": request.character or "неизвестный",
+                                "session_id": f"task_{task.id}",
+                                "message_type": "user",
+                                "message_content": user_prompt_clean,
+                                "image_url": None,
+                                "image_filename": None
+                            }
+                        )
+                        
+                        # 2. Сохраняем сообщение ассистента с плейсхолдером
                         await history_db.execute(
                             text("""
                                 INSERT INTO chat_history (user_id, character_name, session_id, message_type, message_content, image_url, image_filename, created_at)
@@ -4046,7 +4095,7 @@ async def generate_image(
                                 "character_name": request.character or "неизвестный",
                                 "session_id": f"task_{task.id}",
                                 "message_type": "assistant",
-                                "message_content": generation_settings.prompt,
+                                "message_content": "🖼️ Генерирую фото...",
                                 "image_url": None,
                                 "image_filename": None
                             }
@@ -4591,8 +4640,9 @@ async def get_generation_status(
                                 stmt = (
                                     update(ChatHistory)
                                     .where(ChatHistory.session_id == f"task_{task_id}")
+                                    .where(ChatHistory.message_type == "assistant")
                                     .values(
-                                        message_content=real_prompt,
+                                        message_content="",
                                         image_url=normalized_url,
                                         generation_time=generation_time
                                     )
