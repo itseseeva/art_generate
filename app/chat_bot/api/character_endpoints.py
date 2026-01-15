@@ -353,7 +353,7 @@ async def check_character_ownership(
     Проверяет, принадлежит ли персонаж текущему пользователю или является ли пользователь админом.
     
     Args:
-        character_name: Имя персонажа
+        character_name: Имя персонажа (может быть URL-encoded)
         current_user: Текущий пользователь
         db: Сессия базы данных
         
@@ -365,15 +365,26 @@ async def check_character_ownership(
     """
     from app.chat_bot.models.models import CharacterDB
     
+    # Декодируем имя, так как оно может быть URL-encoded
+    decoded_name = unquote(character_name)
+    
+    # Ищем по имени с учетом регистра (ilike)
     result = await db.execute(
-        select(CharacterDB).where(CharacterDB.name == character_name)
+        select(CharacterDB).where(CharacterDB.name.ilike(decoded_name))
     )
     character = result.scalar_one_or_none()
+    
+    # Если не найдено по имени, пробуем по ID, если это число
+    if not character and decoded_name.isdigit():
+        result = await db.execute(
+            select(CharacterDB).where(CharacterDB.id == int(decoded_name))
+        )
+        character = result.scalar_one_or_none()
     
     if not character:
         raise HTTPException(
             status_code=404, 
-            detail=f"Character '{character_name}' not found"
+            detail=f"Character '{decoded_name}' not found"
         )
     
     # Админы могут редактировать любых персонажей
@@ -1699,17 +1710,27 @@ async def delete_character(
     from app.chat_bot.models.models import CharacterDB, ChatSession, ChatMessageDB
     
     try:
-        # Check character ownership
-        await check_character_ownership(character_name, current_user, db)
+        # Декодируем имя, так как оно может быть URL-encoded
+        decoded_name = unquote(character_name)
         
-        # Find character
+        # Check character ownership
+        await check_character_ownership(decoded_name, current_user, db)
+        
+        # Find character (используем ilike для поиска без учета регистра)
         result = await db.execute(
-            select(CharacterDB).where(CharacterDB.name == character_name)
+            select(CharacterDB).where(CharacterDB.name.ilike(decoded_name))
         )
         db_char = result.scalar_one_or_none()
         
+        # Если не найдено по имени, пробуем по ID, если это число
+        if not db_char and decoded_name.isdigit():
+            result = await db.execute(
+                select(CharacterDB).where(CharacterDB.id == int(decoded_name))
+            )
+            db_char = result.scalar_one_or_none()
+        
         if not db_char:
-            raise HTTPException(status_code=404, detail=f"Персонаж '{character_name}' не найден")
+            raise HTTPException(status_code=404, detail=f"Персонаж '{decoded_name}' не найден")
         
         # Явно удаляем связанные записи перед удалением персонажа
         # (хотя каскадное удаление должно работать автоматически)
@@ -1734,11 +1755,11 @@ async def delete_character(
         await db.commit()
         
         # Инвалидируем кэш персонажей
-        await cache_delete(key_character(character_name))
+        await cache_delete(key_character(decoded_name))
         await cache_delete(key_characters_list())
         await cache_delete_pattern("characters:list:*")
         
-        logger.info(f"Персонаж '{character_name}' (ID: {db_char.id}) успешно удален вместе со всеми связанными данными")
+        logger.info(f"Персонаж '{decoded_name}' (ID: {db_char.id}) успешно удален вместе со всеми связанными данными")
         
         return db_char
         
@@ -1746,7 +1767,8 @@ async def delete_character(
         raise
     except Exception as e:
         await db.rollback()
-        logger.error(f"Ошибка при удалении персонажа '{character_name}': {e}", exc_info=True)
+        decoded_name = unquote(character_name) if 'decoded_name' not in locals() else decoded_name
+        logger.error(f"Ошибка при удалении персонажа '{decoded_name}': {e}", exc_info=True)
         raise HTTPException(status_code=400, detail=f"Ошибка при удалении персонажа: {str(e)}")
 
 
