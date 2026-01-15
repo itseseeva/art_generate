@@ -390,15 +390,9 @@ export const MainPage: React.FC<MainPageProps> = ({
         });
         
         if (Array.isArray(payload)) {
-          if (payload.length > 0) {
-            console.log(`[MainPage] Loaded ${payload.length} characters from ${endpoint}`);
-          }
           return payload;
         }
         if (payload && Array.isArray(payload.characters)) {
-          if (payload.characters.length > 0) {
-            console.log(`[MainPage] Loaded ${payload.characters.length} characters from ${endpoint}`);
-          }
           return payload.characters;
         }
       } catch (error) {
@@ -418,10 +412,7 @@ export const MainPage: React.FC<MainPageProps> = ({
       }
       const charactersData = await fetchCharactersFromApi(forceRefresh);
 
-      console.log(`[MainPage] loadCharacters: received ${charactersData.length} characters from API`);
-
       if (!charactersData.length) {
-        console.warn('[MainPage] No characters received from API');
         setCharacters([]);
         setCachedRawCharacters([]);
         return;
@@ -467,7 +458,6 @@ export const MainPage: React.FC<MainPageProps> = ({
           return shouldShow;
       });
 
-      console.log(`[MainPage] Formatted ${formattedCharacters.length} characters (contentMode: ${contentMode})`);
       setCharacters(formattedCharacters);
       
       // Загружаем рейтинги для всех персонажей

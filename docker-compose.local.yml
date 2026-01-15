@@ -53,8 +53,8 @@ services:
     env_file:
       - .env
     environment:
-      - REDIS_URL=redis://art_generation_redis_local:6379/0
-      - REDIS_LOCAL=redis://art_generation_redis_local:6379/0
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_LOCAL=redis://redis:6379/0
       - APP_SD_API_URL=http://host.docker.internal:7860
       - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:///./app.db}
       - APP_DATABASE_URL=${APP_DATABASE_URL:-sqlite+aiosqlite:///./app.db}
@@ -92,8 +92,8 @@ services:
     env_file:
       - .env
     environment:
-      - REDIS_URL=redis://art_generation_redis_local:6379/0
-      - REDIS_LOCAL=redis://art_generation_redis_local:6379/0
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_LOCAL=redis://redis:6379/0
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
     depends_on:
@@ -103,6 +103,53 @@ services:
       - app_network
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+  # Backend API - локальный запуск
+  backend:
+    build:
+      context: .
+      dockerfile: Docker_all/Dockerfile.backend
+    container_name: art_generation_backend_local
+    restart: unless-stopped
+    ports:
+      - "8001:8000"  # На хосте порт 8001, внутри контейнера 8000
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_LOCAL=redis://redis:6379/0
+      - APP_SD_API_URL=http://host.docker.internal:7860
+      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:///./app.db}
+      - APP_DATABASE_URL=${APP_DATABASE_URL:-sqlite+aiosqlite:///./app.db}
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./app:/app/app:ro
+      - ./app.db:/app/app.db
+      - ./logs:/app/logs
+      - ./outputs:/app/outputs
+      - ./alembic:/app/alembic:ro
+      - ./alembic.ini:/app/alembic.ini:ro
+      - ./paid_gallery:/app/paid_gallery
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - app_network
+    command: >
+      sh -c "
+      echo 'Проверка миграций...' &&
+      alembic current || true &&
+      echo 'Применение миграций...' &&
+      alembic upgrade head || true &&
+      echo 'Миграции применены успешно' &&
+      python -m app.scripts.init_admin || true &&
+      python -m app.scripts.init_test_user || true &&
+      echo 'Запуск сервера на порту 8000 (внутри контейнера)...' &&
+      uvicorn app.main:app --host 0.0.0.0 --port 8000
+      "
 
 volumes:
   redis_data_local:

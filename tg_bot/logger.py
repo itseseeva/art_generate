@@ -8,6 +8,7 @@ import traceback
 import json
 import os
 import hashlib
+import re
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 from logging import Handler, LogRecord
@@ -111,6 +112,33 @@ class TelegramHandler(Handler):
             # Отправляем только ERROR и CRITICAL
             if record.levelno < logging.ERROR:
                 return
+            
+            # Фильтруем HTTPException с кодами 4xx (клиентские ошибки)
+            # Это ожидаемые ошибки бизнес-логики, не нужно отправлять в Telegram
+            if record.exc_info:
+                exc_type, exc_value, _ = record.exc_info
+                # Проверяем, является ли это HTTPException с кодом 4xx
+                if exc_type and exc_type.__name__ == 'HTTPException':
+                    try:
+                        # Пытаемся получить status_code из исключения
+                        status_code = getattr(exc_value, 'status_code', None)
+                        if status_code and 400 <= status_code < 500:
+                            # Это клиентская ошибка (4xx), не отправляем в Telegram
+                            return
+                    except Exception:
+                        # Если не удалось проверить, продолжаем обработку
+                        pass
+            
+            # Также проверяем сообщение об ошибке на наличие кодов 4xx
+            error_message = record.getMessage()
+            if error_message:
+                # Проверяем паттерны типа "403:", "400:", "404:" и т.д.
+                status_match = re.search(r'\b(40[0-9]|41[0-9]|42[0-9]|43[0-9]|44[0-9]|45[0-9])\b', error_message)
+                if status_match:
+                    status_code = int(status_match.group(1))
+                    if 400 <= status_code < 500:
+                        # Это клиентская ошибка, не отправляем в Telegram
+                        return
             
             # Проверяем дедупликацию
             error_hash = self._get_error_hash(record)

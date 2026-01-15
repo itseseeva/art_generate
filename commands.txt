@@ -2,6 +2,17 @@
 ./webui-forge-sdxl.bat
 cd frontend && npm run dev -- --port 5175
 docker compose -f docker-compose.local.yml up
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --no-access-log
+
+# Запуск backend (с автоматической очисткой порта 8000)
+# Очистка порта от старых Python процессов (uvicorn), НЕ трогая Docker:
+powershell -Command "$connections = Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue; $connections | ForEach-Object { $proc = Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue; if ($proc) { $procName = $proc.ProcessName.ToLower(); $procPath = $proc.Path -replace '\\', '/' -replace '//', '/'; if (($procName -eq 'python' -or $procName -eq 'pythonw') -and $procPath -notlike '*docker*' -and $procPath -notlike '*wsl*') { try { $cmdLine = (Get-CimInstance Win32_Process -Filter \"ProcessId = $($proc.Id)\" -ErrorAction SilentlyContinue).CommandLine; if ($cmdLine -like '*uvicorn*' -or $cmdLine -like '*app.main*' -or $cmdLine -like '*fastapi*') { Write-Host \"Останавливаем: $procName (PID: $($proc.Id))\"; Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } } catch { } } } }" && sleep 1 && uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-access-log
+
+# Запуск без очистки порта (если порт свободен):
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-access-log
+
+# Запуск с автоперезагрузкой (без очистки порта):
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --no-access-log
+
+# Production запуск:
 gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker
 

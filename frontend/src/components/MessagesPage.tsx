@@ -218,8 +218,6 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
         return [];
       });
 
-      console.log('[MessagesPage] Загружено сообщений:', Array.isArray(tipMessages) ? tipMessages.length : 0);
-      console.log('[MessagesPage] Загружено персонажей:', Array.isArray(charactersData) ? charactersData.length : 0);
 
       // Создаем карту персонажей для быстрого доступа
       const map = new Map<string, any>();

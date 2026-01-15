@@ -523,7 +523,6 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
             setIsAuthModalOpen(true);
           }}
           onLogout={handleLogout}
-          onProfile={onProfile}
           onBalance={() => alert('Баланс пользователя')}
         />
         
