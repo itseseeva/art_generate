@@ -83,7 +83,11 @@ async def activate_free_subscription(user_id: int, db: AsyncSession) -> None:
 
 
 @auth_router.post("/auth/register/", response_model=Message)
-async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
+async def create_user(
+    user: UserCreate, 
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
     """
     Начинает регистрацию нового пользователя. Сохраняет данные во временное хранилище
     и отправляет код верификации на email. Пользователь будет создан только после
@@ -91,13 +95,18 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
 
     Parameters:
     - user: Data for registering a new user.
+    - request: Request object для получения IP адреса.
 
     Returns:
     - Message: Сообщение об успешной отправке кода.
     """
+    # Получаем IP адрес клиента
+    from app.utils.geo_utils import get_client_ip
+    client_ip = get_client_ip(request)
+    
     # Log registration start
-    logger.info(f"Starting registration for email: {user.email}")
-    print(f"Starting registration for email: {user.email}")
+    logger.info(f"Starting registration for email: {user.email}, IP: {client_ip}")
+    print(f"Starting registration for email: {user.email}, IP: {client_ip}")
     
     # Check if user already exists
     result = await db.execute(select(Users).filter(Users.email == user.email))
@@ -139,12 +148,29 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
     if existing_fingerprint_user:
         logger.warning(
             f"Registration blocked: fingerprint_id {user.fingerprint_id} "
-            f"already used by user {existing_fingerprint_user.email}"
+            f"already used by user {existing_fingerprint_user.email}, IP: {client_ip}"
         )
         raise HTTPException(
             status_code=403,
             detail="С этого устройства уже зарегистрирован аккаунт. Нельзя регистрировать несколько аккаунтов с одного устройства."
         )
+    
+    # BEST PRACTICE: Проверяем IP-адрес - не более 1 регистрации с одного IP
+    # Это защищает от регистрации через разные браузеры/инкогнито с одного компьютера
+    if client_ip and client_ip not in ['127.0.0.1', 'localhost', '::1']:
+        ip_result = await db.execute(
+            select(Users).filter(Users.registration_ip == client_ip)
+        )
+        existing_ip_user = ip_result.scalar_one_or_none()
+        if existing_ip_user:
+            logger.warning(
+                f"Registration blocked: IP {client_ip} already used by user {existing_ip_user.email}, "
+                f"attempted registration: {user.email}, fingerprint: {user.fingerprint_id}"
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="С этого IP-адреса уже зарегистрирован аккаунт. Нельзя регистрировать несколько аккаунтов с одного IP-адреса."
+            )
     
     # Сохраняем данные регистрации во временное хранилище (Redis)
     # Если данные уже есть - они будут перезаписаны новым кодом
@@ -153,7 +179,8 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
         "username": user.username,
         "password_hash": hashed_password,
         "verification_code": verification_code,
-        "fingerprint_id": user.fingerprint_id
+        "fingerprint_id": user.fingerprint_id,
+        "registration_ip": client_ip
     }
     
     # Сохраняем в Redis на 1 час (3600 секунд)
@@ -227,6 +254,16 @@ async def confirm_registration(
                 detail="fingerprint_id обязателен для регистрации"
             )
         
+        # Получаем IP адрес - приоритет у сохраненного IP из registration_data
+        # Если не сохранен, получаем из текущего запроса
+        saved_ip = registration_data.get("registration_ip")
+        from app.utils.geo_utils import get_client_ip
+        current_ip = get_client_ip(request)
+        
+        # Используем сохраненный IP (с этапа регистрации), если есть
+        # Иначе используем текущий IP
+        client_ip = saved_ip or current_ip
+        
         # Проверяем, использовался ли этот fingerprint_id для регистрации (ЛЮБОЙ тип подписки)
         fingerprint_result = await db.execute(
             select(Users).filter(Users.fingerprint_id == fingerprint_id)
@@ -236,12 +273,33 @@ async def confirm_registration(
             await cache_delete(cache_key)
             logger.warning(
                 f"Registration confirmation blocked: fingerprint_id {fingerprint_id} "
-                f"already used by user {existing_fingerprint_user.email}"
+                f"already used by user {existing_fingerprint_user.email}, IP: {client_ip}"
             )
             raise HTTPException(
                 status_code=403,
                 detail="С этого устройства уже зарегистрирован аккаунт. Нельзя регистрировать несколько аккаунтов с одного устройства."
             )
+        
+        # BEST PRACTICE: Проверяем IP-адрес перед созданием пользователя
+        # Это защищает от регистрации через разные браузеры/инкогнито с одного компьютера
+        # Проверяем как сохраненный IP, так и текущий IP из запроса
+        ips_to_check = [ip for ip in [saved_ip, current_ip] if ip and ip not in ['127.0.0.1', 'localhost', '::1']]
+        for ip_to_check in set(ips_to_check):  # set для уникальности
+            ip_result = await db.execute(
+                select(Users).filter(Users.registration_ip == ip_to_check)
+            )
+            existing_ip_user = ip_result.scalar_one_or_none()
+            if existing_ip_user:
+                await cache_delete(cache_key)
+                logger.warning(
+                    f"Registration confirmation blocked: IP {ip_to_check} already used by user {existing_ip_user.email}, "
+                    f"attempted registration: {confirm_data.email}, fingerprint: {fingerprint_id}, "
+                    f"saved_ip: {saved_ip}, current_ip: {current_ip}"
+                )
+                raise HTTPException(
+                    status_code=403,
+                    detail="С этого IP-адреса уже зарегистрирован аккаунт. Нельзя регистрировать несколько аккаунтов с одного IP-адреса."
+                )
         
         # Проверяем, не создан ли уже пользователь (на случай параллельных запросов)
         result = await db.execute(select(Users).filter(Users.email == confirm_data.email))
@@ -272,13 +330,11 @@ async def confirm_registration(
                 token_type="bearer"
             )
         
-        # Получаем fingerprint_id из registration_data
-        fingerprint_id = registration_data.get("fingerprint_id")
+        # IP адрес уже получен выше, используем его для сохранения
         
-        # Получаем IP адрес и определяем страну
+        # Определяем страну по IP адресу
         # Ошибка определения страны не должна прерывать регистрацию
-        from app.utils.geo_utils import get_client_ip, get_country_by_ip
-        client_ip = get_client_ip(request)
+        from app.utils.geo_utils import get_country_by_ip
         country = None
         if client_ip:
             try:
