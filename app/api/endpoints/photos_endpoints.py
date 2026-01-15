@@ -16,7 +16,6 @@ async def get_character_photos():
         character_photos = {}
         
         if not photos_dir.exists():
-            logger.warning(f"Директория {photos_dir} не существует")
             return character_photos
         
         # Проходим по всем папкам персонажей
