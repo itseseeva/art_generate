@@ -141,23 +141,27 @@ async def create_user(
         )
     
     # Проверяем, использовался ли этот fingerprint_id для регистрации (ЛЮБОЙ тип подписки)
-    fingerprint_result = await db.execute(
-        select(Users).filter(Users.fingerprint_id == user.fingerprint_id)
-    )
-    existing_fingerprint_user = fingerprint_result.scalar_one_or_none()
-    if existing_fingerprint_user:
-        logger.warning(
-            f"Registration blocked: fingerprint_id {user.fingerprint_id} "
-            f"already used by user {existing_fingerprint_user.email}, IP: {client_ip}"
+    # Для IP адресов в списке исключений пропускаем проверку fingerprint_id
+    allowed_ips = ['127.0.0.1', 'localhost', '::1', '77.73.133.2']
+    if client_ip not in allowed_ips:
+        fingerprint_result = await db.execute(
+            select(Users).filter(Users.fingerprint_id == user.fingerprint_id)
         )
-        raise HTTPException(
-            status_code=403,
-            detail="С этого устройства уже зарегистрирован аккаунт. Нельзя регистрировать несколько аккаунтов с одного устройства."
-        )
+        existing_fingerprint_user = fingerprint_result.scalar_one_or_none()
+        if existing_fingerprint_user:
+            logger.warning(
+                f"Registration blocked: fingerprint_id {user.fingerprint_id} "
+                f"already used by user {existing_fingerprint_user.email}, IP: {client_ip}"
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="С этого устройства уже зарегистрирован аккаунт. Нельзя регистрировать несколько аккаунтов с одного устройства."
+            )
     
     # BEST PRACTICE: Проверяем IP-адрес - не более 1 регистрации с одного IP
     # Это защищает от регистрации через разные браузеры/инкогнито с одного компьютера
-    if client_ip and client_ip not in ['127.0.0.1', 'localhost', '::1']:
+    # IP адреса в списке исключений могут создавать неограниченное количество аккаунтов
+    if client_ip and client_ip not in ['127.0.0.1', 'localhost', '::1', '77.73.133.2']:
         ip_result = await db.execute(
             select(Users).filter(Users.registration_ip == client_ip).limit(1)
         )
@@ -265,25 +269,29 @@ async def confirm_registration(
         client_ip = saved_ip or current_ip
         
         # Проверяем, использовался ли этот fingerprint_id для регистрации (ЛЮБОЙ тип подписки)
-        fingerprint_result = await db.execute(
-            select(Users).filter(Users.fingerprint_id == fingerprint_id)
-        )
-        existing_fingerprint_user = fingerprint_result.scalar_one_or_none()
-        if existing_fingerprint_user:
-            await cache_delete(cache_key)
-            logger.warning(
-                f"Registration confirmation blocked: fingerprint_id {fingerprint_id} "
-                f"already used by user {existing_fingerprint_user.email}, IP: {client_ip}"
+        # Для IP адресов в списке исключений пропускаем проверку fingerprint_id
+        allowed_ips = ['127.0.0.1', 'localhost', '::1', '77.73.133.2']
+        if client_ip not in allowed_ips:
+            fingerprint_result = await db.execute(
+                select(Users).filter(Users.fingerprint_id == fingerprint_id)
             )
-            raise HTTPException(
-                status_code=403,
-                detail="С этого устройства уже зарегистрирован аккаунт. Нельзя регистрировать несколько аккаунтов с одного устройства."
-            )
+            existing_fingerprint_user = fingerprint_result.scalar_one_or_none()
+            if existing_fingerprint_user:
+                await cache_delete(cache_key)
+                logger.warning(
+                    f"Registration confirmation blocked: fingerprint_id {fingerprint_id} "
+                    f"already used by user {existing_fingerprint_user.email}, IP: {client_ip}"
+                )
+                raise HTTPException(
+                    status_code=403,
+                    detail="С этого устройства уже зарегистрирован аккаунт. Нельзя регистрировать несколько аккаунтов с одного устройства."
+                )
         
         # BEST PRACTICE: Проверяем IP-адрес перед созданием пользователя
         # Это защищает от регистрации через разные браузеры/инкогнито с одного компьютера
         # Проверяем как сохраненный IP, так и текущий IP из запроса
-        ips_to_check = [ip for ip in [saved_ip, current_ip] if ip and ip not in ['127.0.0.1', 'localhost', '::1']]
+        # IP адреса в списке исключений могут создавать неограниченное количество аккаунтов
+        ips_to_check = [ip for ip in [saved_ip, current_ip] if ip and ip not in ['127.0.0.1', 'localhost', '::1', '77.73.133.2']]
         for ip_to_check in set(ips_to_check):  # set для уникальности
             ip_result = await db.execute(
                 select(Users).filter(Users.registration_ip == ip_to_check).limit(1)

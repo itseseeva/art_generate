@@ -675,13 +675,15 @@ export const MainPage: React.FC<MainPageProps> = ({
     
     const handleCharacterCreated = async (event: Event) => {
       const customEvent = event as CustomEvent;
+      console.log('[MAIN PAGE] Получено событие character-created', customEvent.detail);
       
-      // Даем время бэкенду сохранить персонажа и очистить кэш
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Даем время бэкенду сохранить персонажа и очистить кэш (увеличена задержка)
+      await new Promise(resolve => setTimeout(resolve, 2500));
       // Принудительно перезагружаем персонажей из API, игнорируя кэш
+      console.log('[MAIN PAGE] Начинаем перезагрузку персонажей после создания');
       await loadCharacters(true); // forceRefresh = true
       await loadCharacterPhotos();
-      
+      console.log('[MAIN PAGE] Персонажи перезагружены после создания');
     };
     
     window.addEventListener('character-photos-updated', handlePhotoUpdate);

@@ -57,26 +57,26 @@ class EmailSender:
             msg = MIMEMultipart()
             msg['From'] = self.username
             msg['To'] = to_email
-            msg['Subject'] = "Email Verification - Art Generation API"
+            msg['Subject'] = "Подтверждение email - cherrylust"
             
             # Create simple text body
-            text_body = f"""Email Verification - Art Generation API
+            text_body = f"""Подтверждение email - cherrylust
 
-Hello!
+Здравствуйте!
 
-To verify your email address, use the following code:
+Для подтверждения вашего email адреса используйте следующий код:
 
 {verification_code}
 
-Important:
-- Code is valid for 24 hours
-- Do not share the code with third parties
-- If you did not register in Art Generation API, ignore this email
+Важно:
+- Код действителен в течение 24 часов
+- Не передавайте код третьим лицам
+- Если вы не регистрировались в cherrylust, проигнорируйте это письмо
 
-Best regards,
-Art Generation API Team
+С уважением,
+Команда cherrylust
 
-This is an automatic email, please do not reply"""
+Это автоматическое письмо, пожалуйста, не отвечайте на него"""
             
             msg.attach(MIMEText(text_body, 'plain', 'utf-8'))
             
@@ -138,10 +138,10 @@ This is an automatic email, please do not reply"""
             msg = MIMEMultipart()
             msg['From'] = self.username
             msg['To'] = to_email
-            msg['Subject'] = "Восстановление пароля - Art Generation API"
+            msg['Subject'] = "Восстановление пароля - cherrylust"
             
             # Создаем текстовое тело письма
-            text_body = f"""Восстановление пароля - Art Generation API
+            text_body = f"""Восстановление пароля - cherrylust
 
 Здравствуйте!
 
@@ -155,7 +155,7 @@ This is an automatic email, please do not reply"""
 - Если вы не запрашивали восстановление пароля, проигнорируйте это письмо
 
 С уважением,
-Команда Art Generation API
+Команда cherrylust
 
 Это автоматическое письмо, пожалуйста, не отвечайте на него"""
             

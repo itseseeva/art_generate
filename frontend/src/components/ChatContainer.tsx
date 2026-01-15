@@ -3875,9 +3875,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                         <FiImage />
                         Расширить альбом
                       </PaidAlbumButton>
-                      <PaidAlbumInfo>
-                        Для создания платного альбома нужна подписка Standard или Premium.
-                      </PaidAlbumInfo>
                       {paidAlbumError && <PaidAlbumError>{paidAlbumError}</PaidAlbumError>}
                     </>
                   );
@@ -3921,9 +3918,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                     </PaidAlbumButton>
                     <PaidAlbumInfo>
                       Доступно кредитов: {userCoins}. Разблокировка за 200 кредитов.
-                    </PaidAlbumInfo>
-                    <PaidAlbumInfo>
-                      Для создания платного альбома нужна подписка Standard или Premium.
                     </PaidAlbumInfo>
                     {paidAlbumError && <PaidAlbumError>{paidAlbumError}</PaidAlbumError>}
                   </>
@@ -3979,11 +3973,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 <PaidAlbumInfo>
                  Доступно кредитов: {userCoins}. Разблокировка за 200 кредитов.
                 </PaidAlbumInfo>
-                  {isOwner && !canCreatePaidAlbum && (
-                  <PaidAlbumInfo>
-                    Для создания платного альбома нужна подписка Standard или Premium.
-                  </PaidAlbumInfo>
-                )}
                 {paidAlbumError && <PaidAlbumError>{paidAlbumError}</PaidAlbumError>}
               </>
               );

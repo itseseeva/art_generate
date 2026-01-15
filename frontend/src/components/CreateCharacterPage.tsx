@@ -2112,49 +2112,58 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
   useEffect(() => {
     const initPage = async () => {
-      
+      // Восстанавливаем данные формы из localStorage
+      const savedFormData = localStorage.getItem('createCharacterFormData');
+      if (savedFormData) {
+        try {
+          const parsed = JSON.parse(savedFormData);
+          setFormData(parsed);
+          
+          // Восстанавливаем видимость полей на основе данных
+          if (parsed.name && parsed.name.trim().length >= 2) {
+            setShowPersonality(true);
+          }
+          if (parsed.personality && parsed.personality.trim().length > 0) {
+            setShowSituation(true);
+          }
+          if (parsed.situation && parsed.situation.trim().length > 0) {
+            setShowInstructions(true);
+          }
+          if (parsed.instructions && parsed.instructions.trim().length > 0) {
+            setShowAppearance(true);
+          }
+          if (parsed.appearance && parsed.appearance.trim().length > 0) {
+            setShowLocation(true);
+          }
+        } catch (error) {
+          console.error('Ошибка при восстановлении данных формы:', error);
+        }
+      }
       
       // Если авторизация уже передана из пропсов, пропускаем проверку
       if (propIsAuthenticated !== undefined) {
-        
         setAuthCheckComplete(true);
       } else {
         // Иначе делаем свою проверку (для обратной совместимости)
         try {
           await checkAuth();
-          
         } catch (error) {
-          
           setAuthCheckComplete(true);
         }
       }
       
       try {
         await loadGenerationSettings();
-        
       } catch (error) {
-        
+        // Игнорируем ошибки загрузки настроек
       }
     };
     
     initPage();
   }, []);
 
-  // Показываем модалку ТОЛЬКО один раз после проверки
-  // Если авторизация передана из пропсов и пользователь не авторизован - показываем модалку сразу
-  useEffect(() => {
-    if (propIsAuthenticated !== undefined) {
-      // Используем авторизацию из пропсов
-      if (!propIsAuthenticated && !isAuthModalOpen) {
-        setIsAuthModalOpen(true);
-        setAuthMode('login');
-      }
-    } else if (authCheckComplete && !isAuthenticated && !isAuthModalOpen) {
-      // Используем локальную проверку авторизации
-      setIsAuthModalOpen(true);
-      setAuthMode('login');
-    }
-  }, [authCheckComplete, propIsAuthenticated, isAuthenticated, isAuthModalOpen]);
+  // Убрана автоматическая модалка авторизации - пользователь может заполнять форму без регистрации
+  // Модалка будет показана только при попытке создать персонажа без авторизации
 
   // Загружаем настройки генерации из API
   const loadGenerationSettings = async () => {
@@ -2177,14 +2186,23 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    const newFormData = { ...formData, [name]: value };
+    setFormData(newFormData);
+    
+    // Сохраняем данные в localStorage при каждом изменении
+    try {
+      localStorage.setItem('createCharacterFormData', JSON.stringify(newFormData));
+    } catch (error) {
+      console.error('Ошибка при сохранении данных формы:', error);
+    }
+    
     setError(null);
     setSuccess(null);
     
     // Валидация имени в реальном времени
     if (name === 'name') {
       const error = validateCharacterName(value);
-      setNameError;
+      setNameError(error);
       // Показываем поле "Личность" когда имя валидно
       if (!error && value.trim().length >= 2) {
         setShowPersonality(true);
@@ -2247,7 +2265,6 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-     // Добавляем отладку
     setIsLoading(true);
     setError(null);
     setSuccess(null);
@@ -2255,7 +2272,11 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     try {
       const token = localStorage.getItem('authToken');
       if (!token) {
-        throw new Error('Необходимо войти в систему для создания персонажей');
+        // Если пользователь не авторизован, показываем модалку регистрации
+        setIsLoading(false);
+        setAuthMode('register');
+        setIsAuthModalOpen(true);
+        return;
       }
 
       // Переводим поля appearance и location на английский перед отправкой
@@ -2308,10 +2329,12 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       }
 
       const result = await response.json();
-       // Добавляем отладку
       setCreatedCharacterData(result);
       setIsCharacterCreated(true); // Устанавливаем состояние создания персонажа
       setSuccess('Персонаж успешно создан!');
+
+      // Очищаем сохраненные данные формы после успешного создания
+      localStorage.removeItem('createCharacterFormData');
 
       // Автоматически заполняем промпт для генерации фото данными о внешности и локации
       // Только если пользователь еще не редактировал промпт вручную
@@ -2321,33 +2344,63 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
           const autoPrompt = parts.join(' | ');
           setCustomPrompt(autoPrompt);
           customPromptRef.current = autoPrompt; // Обновляем ref
-          
         }
       }
 
       // Обновляем информацию о пользователе
       await checkAuth();
       
-      // Даем время бэкенду сохранить персонажа в БД
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Даем время бэкенду сохранить персонажа в БД (увеличена задержка для надежности)
+      await new Promise(resolve => setTimeout(resolve, 3000));
       
       // Отправляем событие для обновления персонажей на главной странице
       // Делаем это после задержки, чтобы убедиться, что персонаж сохранен в БД
-      
       const event = new CustomEvent('character-created', { 
         detail: { character: result } 
       });
       window.dispatchEvent(event);
       
+      // Также отправляем событие auth-success для обновления главной страницы
+      window.dispatchEvent(new Event('auth-success'));
+      
+      // Дополнительно отправляем событие через небольшую задержку для надежности
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('character-created', { 
+          detail: { character: result } 
+        }));
+      }, 1000);
+      
+      // Еще одна отправка через 2 секунды для максимальной надежности
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('character-created', { 
+          detail: { character: result } 
+        }));
+        window.dispatchEvent(new Event('auth-success'));
+      }, 2000);
       
       // Остаемся на странице создания - правая часть (генерация фото) уже активна
       // Не переходим на отдельную страницу генерации фото
       
     } catch (err) {
-       // Добавляем отладку
       setError(err instanceof Error ? err.message : 'Ошибка при создании персонажа');
     } finally {
       setIsLoading(false);
+    }
+  };
+  
+  // Функция для продолжения создания персонажа после регистрации
+  const continueCharacterCreation = async () => {
+    // Проверяем авторизацию
+    await checkAuth();
+    
+    // Если авторизован, продолжаем создание персонажа
+    if (isAuthenticated) {
+      // Создаем синтетическое событие для отправки формы
+      const form = document.querySelector('form');
+      if (form) {
+        const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+        form.dispatchEvent(submitEvent);
+      }
     }
   };
 
@@ -3109,22 +3162,20 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                 </motion.div>
               )}
 
-              <div className="flex gap-4 mt-4">
-                <button 
-                  type="button" 
-                  onClick={onBackToMain} 
-                  disabled={isLoading}
-                  className="flex-1 px-6 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Отмена
-                </button>
-                <button 
+              {/* Кнопка всегда видна, но неактивна пока не заполнены все обязательные поля */}
+              <div className="mt-4">
+                <ContinueButton 
                   type="submit" 
-                  disabled={isLoading}
-                  className="flex-1 px-6 py-3 bg-zinc-700 border border-zinc-600 rounded-lg text-white hover:bg-zinc-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                  disabled={isLoading || 
+                           formData.name.trim().length < 2 || 
+                           formData.personality.trim().length === 0 || 
+                           formData.situation.trim().length === 0 || 
+                           formData.instructions.trim().length === 0}
                 >
-                  {isLoading ? (isCharacterCreated ? 'Обновление...' : 'Создание...') : (isCharacterCreated ? 'Редактировать' : 'Создать персонажа')}
-                </button>
+                  {isLoading 
+                    ? (isCharacterCreated ? 'Обновление...' : 'Создание...') 
+                    : (isCharacterCreated ? 'Редактировать' : 'Перейти к генерации фото')}
+                </ContinueButton>
               </div>
             </div>
           </div>
@@ -3220,6 +3271,11 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                     })()}
                   </span>
                 </GenerateButton>
+                
+                {/* Текст под кнопкой генерации */}
+                <p className="mt-2 text-sm text-yellow-400 text-center font-medium">
+                  Первая генерация может занять больше времени чем следующие!
+                </p>
 
                 {/* Индикатор очереди генерации */}
                 {(() => {
@@ -3509,19 +3565,168 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
           onClose={() => {
             setIsAuthModalOpen(false);
             setAuthMode('login');
-            // Если закрыл без входа - на главную
+            // Если закрыл без входа и есть сохраненные данные формы - остаемся на странице
+            // Если нет сохраненных данных - перебрасываем на главную
             if (!isAuthenticated) {
-              onBackToMain();
+              const savedFormData = localStorage.getItem('createCharacterFormData');
+              if (!savedFormData) {
+                onBackToMain();
+              }
             }
           }}
-          onAuthSuccess={(accessToken, refreshToken) => {
+          onAuthSuccess={async (accessToken, refreshToken) => {
             authManager.setTokens(accessToken, refreshToken);
             setIsAuthModalOpen(false);
             setAuthMode('login');
+            
+            // Обновляем состояние авторизации
+            await checkAuth();
+            
             // Диспатчим событие для обновления App.tsx
             window.dispatchEvent(new Event('auth-success'));
-            // Перебрасываем на главную после входа
-            onBackToMain();
+            
+            // Если есть сохраненные данные формы, продолжаем создание персонажа
+            const savedFormData = localStorage.getItem('createCharacterFormData');
+            if (savedFormData) {
+              // Не перебрасываем на главную, остаемся на странице создания
+              // Обновляем formData для отображения сохраненных данных
+              try {
+                const parsedFormData = JSON.parse(savedFormData);
+                setFormData(parsedFormData);
+                
+                // Восстанавливаем видимость полей
+                if (parsedFormData.name && parsedFormData.name.trim().length >= 2) {
+                  setShowPersonality(true);
+                }
+                if (parsedFormData.personality && parsedFormData.personality.trim().length > 0) {
+                  setShowSituation(true);
+                }
+                if (parsedFormData.situation && parsedFormData.situation.trim().length > 0) {
+                  setShowInstructions(true);
+                }
+                if (parsedFormData.instructions && parsedFormData.instructions.trim().length > 0) {
+                  setShowAppearance(true);
+                }
+                if (parsedFormData.appearance && parsedFormData.appearance.trim().length > 0) {
+                  setShowLocation(true);
+                }
+              } catch (error) {
+                console.error('Ошибка при восстановлении данных формы:', error);
+              }
+              
+              // Автоматически продолжаем создание персонажа
+              setTimeout(async () => {
+                try {
+                  setIsLoading(true);
+                  setError(null);
+                  setSuccess(null);
+
+                  const parsedFormData = JSON.parse(savedFormData);
+                  
+                  // Переводим поля appearance и location на английский перед отправкой
+                  let translatedAppearance = parsedFormData.appearance?.trim() || null;
+                  let translatedLocation = parsedFormData.location?.trim() || null;
+                  
+                  if (translatedAppearance) {
+                    translatedAppearance = await translateToEnglish(translatedAppearance);
+                  }
+                  if (translatedLocation) {
+                    translatedLocation = await translateToEnglish(translatedLocation);
+                  }
+
+                  // Преобразуем данные в формат UserCharacterCreate
+                  const requestData = {
+                    name: parsedFormData.name.trim(),
+                    personality: parsedFormData.personality.trim(),
+                    situation: parsedFormData.situation.trim(),
+                    instructions: parsedFormData.instructions.trim(),
+                    style: parsedFormData.style?.trim() || null,
+                    appearance: translatedAppearance,
+                    location: translatedLocation,
+                    is_nsfw: contentMode === 'nsfw'
+                  };
+
+                  // Проверяем обязательные поля
+                  if (!requestData.name || !requestData.personality || !requestData.situation || !requestData.instructions) {
+                    throw new Error('Все обязательные поля должны быть заполнены');
+                  }
+
+                  const apiUrl = API_CONFIG.CHARACTER_CREATE_FULL;
+                  const token = localStorage.getItem('authToken');
+                  
+                  const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(requestData)
+                  });
+
+                  if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Ошибка при создании персонажа');
+                  }
+
+                  const result = await response.json();
+                  setCreatedCharacterData(result);
+                  setIsCharacterCreated(true);
+                  setSuccess('Персонаж успешно создан!');
+
+                  // Очищаем сохраненные данные формы после успешного создания
+                  localStorage.removeItem('createCharacterFormData');
+
+                  // Автоматически заполняем промпт для генерации фото
+                  if (!customPromptManuallySet) {
+                    const parts = [parsedFormData.appearance, parsedFormData.location].filter(p => p && p.trim());
+                    if (parts.length > 0) {
+                      const autoPrompt = parts.join(' | ');
+                      setCustomPrompt(autoPrompt);
+                      customPromptRef.current = autoPrompt;
+                    }
+                  }
+
+                  // Обновляем информацию о пользователе
+                  await checkAuth();
+                  
+                  // Даем время бэкенду сохранить персонажа в БД (увеличена задержка для надежности)
+                  await new Promise(resolve => setTimeout(resolve, 3000));
+                  
+                  // Отправляем событие для обновления персонажей на главной странице
+                  const event = new CustomEvent('character-created', { 
+                    detail: { character: result } 
+                  });
+                  window.dispatchEvent(event);
+                  
+                  // Также отправляем событие auth-success для обновления главной страницы
+                  // Это особенно важно после регистрации, чтобы главная страница обновилась
+                  window.dispatchEvent(new Event('auth-success'));
+                  
+                  // Дополнительно отправляем событие через небольшую задержку для надежности
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('character-created', { 
+                      detail: { character: result } 
+                    }));
+                  }, 1000);
+                  
+                  // Еще одна отправка через 2 секунды для максимальной надежности
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('character-created', { 
+                      detail: { character: result } 
+                    }));
+                    window.dispatchEvent(new Event('auth-success'));
+                  }, 2000);
+                  
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Ошибка при создании персонажа');
+                } finally {
+                  setIsLoading(false);
+                }
+              }, 500);
+            } else {
+              // Если нет сохраненных данных, перебрасываем на главную
+              onBackToMain();
+            }
           }}
         />
       )}
