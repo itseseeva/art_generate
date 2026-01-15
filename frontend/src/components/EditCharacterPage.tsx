@@ -9,8 +9,9 @@ import { LoadingSpinner } from './LoadingSpinner';
 import { CircularProgress } from './ui/CircularProgress';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToEnglish, translateToRussian } from '../utils/translate';
-import { FiX as CloseIcon } from 'react-icons/fi';
-import { Plus } from 'lucide-react';
+import { FiX as CloseIcon, FiSettings, FiClock, FiCheckCircle } from 'react-icons/fi';
+import { Plus, Sparkles, Zap } from 'lucide-react';
+import { BiCoinStack } from 'react-icons/bi';
 
 import { useIsMobile } from '../hooks/useIsMobile';
 import DarkVeil from '../../@/components/DarkVeil';
@@ -213,6 +214,7 @@ const AuthButton = styled.button`
 const MainContent = styled.div`
   flex: 1;
   display: flex;
+  flex-direction: row;
   height: calc(100vh - 80px);
   max-height: calc(100vh - 80px);
   overflow: hidden;
@@ -229,7 +231,7 @@ const MainContent = styled.div`
     flex-direction: column;
     height: auto;
     max-height: none;
-    overflow-y: visible; /* Отключаем внутренний скролл, пусть скроллится весь контейнер */
+    overflow-y: visible;
     padding: ${theme.spacing.md};
   }
 `;
@@ -256,32 +258,42 @@ const LeftColumn = styled.div`
     height: auto;
     max-height: none;
     overflow: visible;
-    padding: ${theme.spacing.md};
   }
 `;
 
-const RightColumn = styled.div`
+const PhotoGenerationContainer = styled.div<{ $isMobile?: boolean; $isFullscreen?: boolean }>`
   flex: 1;
-  min-width: 0;
-  background: transparent;
-  border-radius: ${theme.borderRadius.lg};
-  padding: ${theme.spacing.md};
-  border: 1px solid rgba(130, 130, 130, 0.3);
-  box-shadow: none;
   display: flex;
   flex-direction: column;
-  visibility: visible;
-  opacity: 1;
+  min-width: ${props => props.$isMobile ? '0' : '400px'};
+  background: rgba(39, 39, 42, 0.5);
+  border: 1px solid rgba(63, 63, 70, 1);
+  border-radius: ${theme.borderRadius.xl};
+  padding: ${theme.spacing.xl};
+  overflow-y: auto;
+  overflow-x: hidden;
 
   @media (max-width: 768px) {
-    width: 100%;
-    overflow: visible;
-    padding: ${theme.spacing.md};
+    position: ${props => props.$isFullscreen ? 'fixed' : 'relative'};
+    top: ${props => props.$isFullscreen ? '0' : 'auto'};
+    left: ${props => props.$isFullscreen ? '0' : 'auto'};
+    right: ${props => props.$isFullscreen ? '0' : 'auto'};
+    bottom: ${props => props.$isFullscreen ? '0' : 'auto'};
+    width: ${props => props.$isFullscreen ? '100vw' : '100%'};
+    height: ${props => props.$isFullscreen ? '100vh' : 'auto'};
+    min-height: ${props => props.$isFullscreen ? '100vh' : 'auto'};
+    max-height: ${props => props.$isFullscreen ? '100vh' : 'none'};
+    z-index: ${props => props.$isFullscreen ? '9999' : 'auto'};
+    border-radius: ${props => props.$isFullscreen ? '0' : theme.borderRadius.xl};
+    padding: ${props => props.$isFullscreen ? theme.spacing.lg : theme.spacing.xl};
+    overflow-y: ${props => props.$isFullscreen ? 'auto' : 'visible'};
+    min-width: 0;
   }
 `;
 
 const Form = styled.form`
   display: flex;
+  flex-direction: row;
   flex: 1;
   width: 100%;
   gap: ${theme.spacing.lg};
@@ -693,24 +705,49 @@ const ActionButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   font-size: ${theme.fontSize.base};
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.2s ease;
-  border: 1px solid rgba(170, 170, 170, 0.4);
-  background: ${({ $variant }) => ($variant === 'primary' ? 'rgba(200, 200, 200, 0.15)' : 'transparent')};
-  color: ${theme.colors.text.primary};
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(251, 191, 36, 0.6);
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.9), rgba(251, 191, 36, 0.9));
+  color: #1a1a1a;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3), 0 0 15px rgba(234, 179, 8, 0.2);
+  position: relative;
+  overflow: hidden;
   
-  &:hover {
-    transform: scale(1.02);
-    border-color: rgba(255, 255, 255, 0.6);
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+    transition: left 0.6s ease;
   }
   
-  &:active {
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(234, 179, 8, 0.4);
+    border-color: rgba(251, 191, 36, 0.9);
+    filter: brightness(1.1);
+    
+    &::before {
+      left: 100%;
+    }
+  }
+  
+  &:active:not(:disabled) {
     transform: scale(0.98);
+    box-shadow: 0 2px 8px rgba(234, 179, 8, 0.3);
   }
   
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
     transform: none;
+    background: rgba(60, 60, 60, 0.5);
+    color: rgba(150, 150, 150, 0.5);
+    border-color: rgba(80, 80, 80, 0.5);
+    box-shadow: none;
   }
 `;
 
@@ -819,26 +856,26 @@ const PhotoModalImage = styled.img`
 `;
 
 const PhotoModalClose = styled.button`
-  position: absolute;
-  top: ${theme.spacing.xl};
-  right: ${theme.spacing.xl};
-  background: rgba(0, 0, 0, 0.7);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
+  position: fixed;
+  top: ${theme.spacing.lg};
+  right: ${theme.spacing.lg};
   width: 48px;
   height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  color: white;
+  transition: all ${theme.transition.fast};
   cursor: pointer;
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.xl};
-  transition: ${theme.transition.fast};
-  z-index: 10001;
+  z-index: 10003;
+  backdrop-filter: blur(4px);
 
   &:hover {
-    background: rgba(0, 0, 0, 0.9);
-    border-color: ${theme.colors.accent.primary};
+    background: rgba(0, 0, 0, 0.8);
+    border-color: rgba(255, 255, 255, 0.4);
     transform: scale(1.1);
   }
 `;
@@ -877,8 +914,6 @@ const ModalImageContainer = styled.div`
 
 const PromptPanel = styled.div`
   width: 400px;
-  min-width: 350px;
-  max-width: 30%;
   background: rgba(10, 10, 15, 0.7);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -1062,11 +1097,303 @@ const QueueBar = styled.div<{ $isFilled: boolean }>`
 `;
 
 const QueueLabel = styled.div`
+  font-size: 0.7rem;
+  color: #888;
+  text-align: right;
+`;
+
+const PhotoGenerationBox = styled.div`
+  padding: ${theme.spacing.lg};
+  background: rgba(20, 20, 20, 0.4);
+  border: 1px solid rgba(150, 150, 150, 0.2);
+  border-radius: ${theme.borderRadius.lg};
+`;
+
+const PhotoGenerationBoxTitle = styled.h3`
+  color: ${theme.colors.text.primary};
+  font-size: ${theme.fontSize.base};
+  font-weight: 600;
+  margin: 0 0 ${theme.spacing.sm} 0;
+`;
+
+const PhotoGenerationDescription = styled.p`
+  color: ${theme.colors.text.secondary};
+  font-size: ${theme.fontSize.sm};
+  margin: 0 0 ${theme.spacing.md} 0;
+  line-height: 1.4;
+`;
+
+const GenerateSection = styled.div`
+  margin-top: ${theme.spacing.lg};
+`;
+
+const GenerationArea = styled.div`
+  background: rgba(20, 20, 20, 0.4);
+  border: 1px solid rgba(150, 150, 150, 0.2);
+  border-radius: ${theme.borderRadius.lg};
+  padding: ${theme.spacing.lg};
+  margin-bottom: ${theme.spacing.lg};
+`;
+
+const GenerateButton = styled.button`
+  width: 100%;
+  height: 56px;
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
+  border: none;
+  border-radius: ${theme.borderRadius.md};
+  font-size: ${theme.fontSize.base};
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: ${theme.spacing.sm};
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+  
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+    filter: brightness(1.1);
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+  
+  &:disabled {
+    background: rgba(60, 60, 60, 0.5);
+    color: rgba(150, 150, 150, 0.8);
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+`;
+
+const ModelSelectionContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  gap: ${theme.spacing.lg};
+  margin-bottom: ${theme.spacing.lg};
+  overflow: visible;
+  padding-bottom: ${theme.spacing.md};
+  padding-top: ${theme.spacing.xs};
+  flex-wrap: wrap;
+`;
+
+const ModelCard = styled.div<{ $isSelected: boolean; $previewImage: string }>`
+  flex: 0 0 200px;
+  height: 300px;
+  background: ${props => props.$isSelected 
+    ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(99, 102, 241, 0.2) 100%)' 
+    : 'rgba(30, 30, 30, 0.4)'};
+  backdrop-filter: blur(8px);
+  border: 2px solid ${props => props.$isSelected 
+    ? '#8b5cf6' 
+    : 'rgba(255, 255, 255, 0.05)'};
+  border-radius: ${theme.borderRadius.lg};
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: url(${props => props.$previewImage});
+    background-size: cover;
+    background-position: center;
+    opacity: 1;
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 0;
+  }
+
+  &:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6), 0 0 25px rgba(139, 92, 246, 0.25);
+    border-color: #8b5cf6;
+    
+    &::after {
+      transform: scale(1.08);
+    }
+  }
+
+  & > * {
+    position: relative;
+    z-index: 1;
+  }
+`;
+
+const ModelInfoOverlay = styled.div`
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  padding: ${theme.spacing.md};
+  width: 100%;
+`;
+
+const ModelName = styled.h3`
+  font-size: ${theme.fontSize.lg};
+  font-weight: 600;
+  color: white;
+  margin-bottom: 4px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+`;
+
+const ModelDescription = styled.p`
+  font-size: ${theme.fontSize.sm};
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.4;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  margin: 0;
+`;
+
+const TagsContainer = styled.div<{ $isExpanded: boolean }>`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  max-height: ${props => props.$isExpanded ? '500px' : '36px'};
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+`;
+
+const TagButton = styled.button`
+  background: rgba(40, 40, 40, 0.6);
+  border: 1px solid rgba(80, 80, 80, 0.3);
+  border-radius: 16px;
+  padding: 4px 12px;
+  font-size: 11px;
+  color: ${theme.colors.text.secondary};
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  &:hover {
+    background: rgba(60, 60, 60, 0.8);
+    color: ${theme.colors.text.primary};
+    border-color: rgba(100, 100, 100, 0.5);
+  }
+`;
+
+const ExpandButton = styled.div<{ $isExpanded: boolean }>`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin-top: 4px;
+  cursor: pointer;
+  color: ${theme.colors.text.secondary};
+  transition: all 0.3s ease;
+
+  &:hover {
+    color: ${theme.colors.text.primary};
+  }
+
+  svg {
+    transform: rotate(${props => props.$isExpanded ? '180deg' : '0deg'});
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: ${props => props.$isExpanded ? 'none' : 'arrowBounce 2s infinite'};
+  }
+
+  @keyframes arrowBounce {
+    0%, 20%, 50%, 80%, 100% {
+      transform: translateY(0) rotate(0deg);
+    }
+    40% {
+      transform: translateY(5px) rotate(0deg);
+    }
+    60% {
+      transform: translateY(3px) rotate(0deg);
+    }
+  }
+`;
+
+const ProgressBarContainer = styled.div`
+  margin-top: 1.25rem;
+  padding: 1rem;
+  background: rgba(20, 20, 20, 0.6);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: ${theme.borderRadius.md};
+  animation: slideIn 0.3s ease-out;
+  
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+`;
+
+const StepItem = styled.div<{ $isActive: boolean; $isCompleted: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+  opacity: ${props => (props.$isActive || props.$isCompleted ? 1 : 0.4)};
+  transition: opacity 0.3s ease;
+`;
+
+const StepIcon = styled.div<{ $isActive: boolean; $isCompleted: boolean }>`
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: ${props => props.$isCompleted ? '#10b981' : (props.$isActive ? '#8b5cf6' : 'rgba(150, 150, 150, 0.2)')};
+  color: white;
+  border: 1px solid ${props => props.$isCompleted ? '#10b981' : (props.$isActive ? '#8b5cf6' : 'rgba(150, 150, 150, 0.3)')};
+  box-shadow: ${props => props.$isActive ? '0 0 10px rgba(139, 92, 246, 0.4)' : 'none'};
+`;
+
+const StepText = styled.span<{ $isActive: boolean; $isCompleted: boolean }>`
+  font-size: 0.75rem;
+  color: ${props => props.$isCompleted ? '#10b981' : (props.$isActive ? '#ffffff' : '#888888')};
+  font-weight: ${props => (props.$isActive || props.$isCompleted ? 600 : 400)};
+`;
+
+const WarningText = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #888;
+  font-size: 0.75rem;
+  margin-top: 10px;
+  padding: 0 4px;
+`;
+
+const CoinsBalance = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  padding: 0.25rem 0.75rem;
+  border-radius: 2rem;
+  color: #fbbf24;
+  font-size: 0.875rem;
+  font-weight: 600;
+  
+  svg {
+    color: #fbbf24;
+  }
+`;
+
+const LegalStyleText = styled.p`
+  color: ${theme.colors.text.secondary};
   font-size: ${theme.fontSize.xs};
-  color: rgba(160, 160, 160, 1);
-  text-align: center;
-  margin-top: 8px;
-  font-weight: 500;
+  line-height: 1.4;
+  opacity: 0.8;
 `;
 
 const PhotosCounter = styled.div<{ $limitReached: boolean }>`
@@ -1244,97 +1571,6 @@ const DescriptionText = styled.p`
   line-height: 1.5;
 `;
 
-const GenerateSection = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: ${theme.spacing.md};
-  margin-bottom: ${theme.spacing.lg};
-`;
-
-const PhotoGenerationBox = styled.div`
-  background: rgba(30, 30, 30, 0.7);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(120, 120, 120, 0.3);
-  border-radius: ${theme.borderRadius.xl};
-  padding: ${theme.spacing.xl};
-  margin: ${theme.spacing.lg} 0;
-  text-align: center;
-  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.5);
-`;
-
-const PhotoGenerationBoxTitle = styled.h3`
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.base};
-  font-weight: 600;
-  margin: 0 0 ${theme.spacing.sm} 0;
-`;
-
-const PhotoGenerationDescription = styled.p`
-  color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.sm};
-  margin: 0 0 ${theme.spacing.md} 0;
-  line-height: 1.4;
-`;
-
-const GenerateButton = styled.button`
-  position: relative;
-  background: rgba(255, 255, 255, 0.05);
-  border: 2px solid transparent;
-  color: ${theme.colors.text.primary};
-  padding: ${theme.spacing.md} ${theme.spacing.xl};
-  border-radius: ${theme.borderRadius.xl};
-  font-size: ${theme.fontSize.base};
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  backdrop-filter: blur(20px);
-  width: 100%;
-  overflow: hidden;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    padding: 2px;
-    background: linear-gradient(135deg, rgba(236, 72, 153, 0.6), rgba(139, 92, 246, 0.6), rgba(59, 130, 246, 0.6));
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    opacity: 0.6;
-    transition: opacity 0.4s ease;
-  }
-  
-  & > span {
-    display: block;
-    transition: opacity 0.3s ease;
-  }
-  
-  &:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.08);
-    box-shadow: 0 8px 32px rgba(236, 72, 153, 0.3);
-    transform: translateY(-2px);
-    
-    &::before {
-      opacity: 1;
-    }
-  }
-  
-  &:active:not(:disabled) {
-    transform: translateY(0);
-  }
-
-  &:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-    background: rgba(255, 255, 255, 0.03);
-    
-    &::before {
-      opacity: 0.4;
-    }
-  }
-`;
 
 const LargeTextInput = styled.textarea`
   background: rgba(40, 40, 40, 0.6);
@@ -1439,7 +1675,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   });
   
   const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingData, setIsLoadingData] = useState(true);
+  // Начинаем с true только если есть character prop
+  const [isLoadingData, setIsLoadingData] = useState(!!character?.name || !!character?.id);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -1475,6 +1712,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const initialPhotosCountRef = useRef<number>(0); // Количество фото при загрузке страницы
   const customPromptRef = useRef<string>(''); // Ref для актуального промпта
   const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime' | 'realism'>('anime-realism');
+  const [isTagsExpanded, setIsTagsExpanded] = useState(false);
 
   // Функции для авторизации
   const handleLogin = () => {
@@ -1754,8 +1992,9 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const isLimitReached = selectedPhotos.length >= MAX_MAIN_PHOTOS;
 
   // Загружаем данные персонажа
-  const loadCharacterData = useCallback(async (targetIdentifier?: string) => {
+  const loadCharacterData = useCallback(async (targetIdentifier?: string, showLoading: boolean = true) => {
     let identifier = targetIdentifier || characterIdentifier;
+    console.log('[loadCharacterData] START:', { targetIdentifier, characterIdentifier, showLoading });
     
     
     
@@ -1781,17 +2020,17 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         identifier = character.id.toString();
         
       } else {
-      
-      setIsLoadingData(false);
-      return;
+        if (showLoading) setIsLoadingData(false);
+        return;
       }
     }
     
     
     
     try {
-      
-      setIsLoadingData(true);
+      if (showLoading) {
+        setIsLoadingData(true);
+      }
       setError(null);
       setSuccess(null);
       
@@ -1882,15 +2121,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           location: location
         };
         
-        
-        
-        
-        
-        
-        
-        
-        
-        
+        console.log('[loadCharacterData] Setting formData:', newFormData);
         
         // КРИТИЧНО: Устанавливаем formData СРАЗУ перед установкой isLoadingData в false
         // Это гарантирует, что поля формы будут заполнены до рендеринга
@@ -1944,10 +2175,10 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         location: character?.location || ''
       });
     } finally {
-      
-      
-      setIsLoadingData(false);
-      
+      console.log('[loadCharacterData] FINALLY: Setting isLoadingData to false (showLoading:', showLoading, ')');
+      if (showLoading) {
+        setIsLoadingData(false);
+      }
     }
   }, [characterIdentifier, character?.name]);
 
@@ -2106,10 +2337,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           });
           if (response.ok) {
             const userData = await response.json();
-            setUserInfo(prev => prev ? { ...prev, coins: userData.coins } : {
+            setUserInfo(prev => prev ? { ...prev, coins: userData.coins, subscription: userData.subscription || prev.subscription } : {
               username: userData.username || userData.email || 'Пользователь',
               coins: userData.coins || 0,
-              id: userData.id
+              id: userData.id,
+              subscription: userData.subscription || { subscription_type: userData.subscription_type || 'free' }
             });
           }
         } catch (error) {
@@ -2164,23 +2396,22 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     
     // КРИТИЧНО: Загружаем данные персонажа сразу при монтировании или изменении character
     if (effectiveIdentifier && effectiveIdentifier.trim() !== '') {
-      
+      console.log('[useEffect mount] Loading character data for:', effectiveIdentifier);
       // Обновляем characterIdentifier только если он был пустой
       // КРИТИЧНО: Сохраняем name, а не ID, так как API работает по имени
       if (!characterIdentifier) {
         const nameToStore = character?.name || effectiveIdentifier;
         setCharacterIdentifier(nameToStore);
       }
-      // Устанавливаем isLoadingData в true перед загрузкой
-      setIsLoadingData(true);
       // Используем effectiveIdentifier (может быть characterIdentifier или character?.name)
-      loadCharacterData(effectiveIdentifier).catch((error) => {
-        
+      // ВАЖНО: loadCharacterData сам управляет isLoadingData через параметр showLoading
+      loadCharacterData(effectiveIdentifier, true).catch((error) => {
+        console.error('[useEffect mount] Error loading character:', error);
         setIsLoadingData(false);
         setError('Ошибка при загрузке данных персонажа');
       });
     } else {
-      
+      console.log('[useEffect mount] No identifier, setting isLoadingData to false');
       setIsLoadingData(false);
     }
     
@@ -2212,24 +2443,32 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const isLoadingRef = useRef<boolean>(false);
   
   useEffect(() => {
-    
-    
     // КРИТИЧНО: Используем characterIdentifier (который обновляется после сохранения), а не character?.name
     // Это гарантирует, что мы используем актуальное имя после редактирования
     const effectiveIdentifier = characterIdentifier || character?.name;
     
+    console.log('[useEffect characterIdentifier]:', {
+      effectiveIdentifier,
+      lastLoaded: lastLoadedIdentifierRef.current,
+      isLoading: isLoadingRef.current,
+      characterName: character?.name,
+      characterIdentifier
+    });
+    
     if (effectiveIdentifier && effectiveIdentifier.trim() !== '' && lastLoadedIdentifierRef.current !== effectiveIdentifier && !isLoadingRef.current) {
-      
+      console.log('[useEffect characterIdentifier] Loading data for:', effectiveIdentifier);
       lastLoadedIdentifierRef.current = effectiveIdentifier;
       isLoadingRef.current = true;
-      loadCharacterData(effectiveIdentifier).finally(() => {
+      loadCharacterData(effectiveIdentifier, true).finally(() => {
         isLoadingRef.current = false;
       });
     } else if (!effectiveIdentifier || effectiveIdentifier.trim() === '') {
-      
+      console.log('[useEffect characterIdentifier] No identifier, stopping loading');
       setIsLoadingData(false);
       lastLoadedIdentifierRef.current = null;
       isLoadingRef.current = false;
+    } else {
+      console.log('[useEffect characterIdentifier] Skipping load (already loaded or loading)');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [character?.name, characterIdentifier]); // Реагируем на изменения name из prop и characterIdentifier
@@ -2299,7 +2538,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       // КРИТИЧНО: Используем имя из ответа API, а не из requestData, чтобы гарантировать актуальность
       const updatedName = updatedCharacter?.name ?? requestData.name;
       
-      setSuccess('Персонаж успешно обновлен!');
+      // setSuccess('Персонаж успешно обновлен!');
       
       // КРИТИЧНО: Обновляем formData из requestData (данные уже сохранены на сервере)
       // Это гарантирует, что форма останется заполненной после сохранения
@@ -2324,7 +2563,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         // КРИТИЧНО: Перезагружаем данные персонажа по новому имени после обновления
         // Это гарантирует, что все последующие запросы будут использовать новое имя
         setTimeout(() => {
-          loadCharacterData(newName).catch((error) => {
+          loadCharacterData(newName, false).catch((error) => {
             console.error('Error reloading character data after update:', error);
           });
         }, 200); // Задержка для синхронизации состояния
@@ -2824,8 +3063,41 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   }, [selectedPhotoForView]);
 
   // Проверка на undefined character с более детальной информацией
+  // ВАЖНО: Показываем ошибку только если character точно отсутствует И мы не в процессе загрузки
   if (!character || (!character.name && !character.id)) {
+    console.log('[EditCharacterPage] No character prop:', { character, isLoadingData });
     
+    // Если мы еще загружаем данные, показываем спиннер
+    if (isLoadingData) {
+      return (
+        <MainContainer>
+          <div className="content-area vertical">
+            <GlobalHeader 
+              onShop={onShop}
+              onLogin={() => {
+                setAuthMode('login');
+                setIsAuthModalOpen(true);
+              }}
+              onRegister={() => {
+                setAuthMode('register');
+                setIsAuthModalOpen(true);
+              }}
+              onLogout={handleLogout}
+              onProfile={onProfile}
+              onBalance={() => alert('Баланс пользователя')}
+            />
+            <MainContent style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
+              <div style={{ textAlign: 'center' }}>
+                <LoadingSpinner size="lg" />
+                <p style={{ marginTop: '1rem' }}>Загрузка данных персонажа...</p>
+              </div>
+            </MainContent>
+          </div>
+        </MainContainer>
+      );
+    }
+    
+    // Если загрузка завершена, но character все еще нет - показываем ошибку
     return (
       <MainContainer>
         <MainContent style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff' }}>
@@ -2912,26 +3184,13 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   }
 
   // Финальная проверка перед рендерингом формы
-  
-  
-  
-  
-  
-  
-  
-  
-  // Дополнительная проверка безопасности
-  if (!formData) {
-    
-    return <div>Загрузка...</div>;
-  }
-  
-  // УБРАНО: проверка !formData.name - она выкидывает пользователя со страницы при удалении строки
-  // if (!formData.name) {
-  //   return <div>Загрузка...</div>;
-  // }
-  
-  
+  console.log('[EditCharacterPage] Rendering form:', {
+    isLoadingData,
+    hasFormData: !!formData,
+    formDataName: formData?.name,
+    characterName: character?.name,
+    characterIdentifier
+  });
   
   return (
     <MainContainer $isMobile={isMobile}>
@@ -2951,307 +3210,420 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       />
       
       <MainContent>
-          <Form onSubmit={handleSubmit}>
-            <LeftColumn>
-              <ColumnContent>
-                <FormGroup>
-                  <Label htmlFor="name" data-icon="👤">Имя персонажа:</Label>
-                  <Input
-                    type="text"
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    placeholder="Введите имя персонажа..."
-                    required
-                  />
-                </FormGroup>
-                
-                <FormGroup>
-                  <Label htmlFor="personality" data-icon="🧠">Личность и характер:</Label>
-                  <Textarea
-                    id="personality"
-                    name="personality"
-                    value={formData.personality}
-                    onChange={handleInputChange}
-                    placeholder="Опишите характер и личность персонажа..."
-                    rows={4}
-                    required
-                  />
-                </FormGroup>
-                
-                <FormGroup>
-                  <Label htmlFor="situation" data-icon="💬">Ролевая ситуация:</Label>
-                  <Textarea
-                    id="situation"
-                    name="situation"
-                    value={formData.situation}
-                    onChange={handleInputChange}
-                    placeholder="Опишите ситуацию, в которой находится персонаж..."
-                    rows={3}
-                    required
-                  />
-                </FormGroup>
-                
-                <FormGroup>
-                  <Label htmlFor="instructions" data-icon="📋">Инструкции для персонажа:</Label>
-                  <Textarea
-                    id="instructions"
-                    name="instructions"
-                    value={formData.instructions}
-                    onChange={handleInputChange}
-                    placeholder="Как должен вести себя персонаж, что говорить..."
-                    rows={4}
-                    required
-                  />
-                </FormGroup>
+        <form onSubmit={handleSubmit} className={`flex-1 flex gap-6 ${isMobile ? 'h-auto' : 'h-full'} flex-col md:flex-row w-full`}>
+          {/* Левая колонка - Форма */}
+          <div className={`flex-1 flex flex-col min-w-0 md:min-w-[400px] bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 ${isMobile ? 'overflow-visible' : 'overflow-y-auto'}`}>
+            <div className="flex flex-col gap-6">
+              {/* Имя персонажа */}
+              <div>
+                <label htmlFor="name" className="block text-sm font-medium text-zinc-200 mb-2">
+                  Имя персонажа
+                </label>
+                <input
+                  type="text"
+                  id="name"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  placeholder="Введите имя персонажа..."
+                  required
+                  className="w-full px-4 py-3 bg-black border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition-colors"
+                />
+              </div>
+              
+              {/* Личность и характер */}
+              <div>
+                <label htmlFor="personality" className="block text-sm font-medium text-zinc-200 mb-2">
+                  Личность и характер
+                </label>
+                <textarea
+                  id="personality"
+                  name="personality"
+                  value={formData.personality}
+                  onChange={handleInputChange}
+                  placeholder="Опишите характер и личность персонажа..."
+                  rows={4}
+                  required
+                  className="w-full px-4 py-3 bg-black border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition-colors resize-none"
+                />
+              </div>
+              
+              {/* Ролевая ситуация */}
+              <div>
+                <label htmlFor="situation" className="block text-sm font-medium text-zinc-200 mb-2">
+                  Ролевая ситуация
+                </label>
+                <textarea
+                  id="situation"
+                  name="situation"
+                  value={formData.situation}
+                  onChange={handleInputChange}
+                  placeholder="Опишите ситуацию, в которой находится персонаж..."
+                  rows={3}
+                  required
+                  className="w-full px-4 py-3 bg-black border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition-colors resize-none"
+                />
+              </div>
+              
+              {/* Инструкции для персонажа */}
+              <div>
+                <label htmlFor="instructions" className="block text-sm font-medium text-zinc-200 mb-2">
+                  Инструкции для персонажа
+                </label>
+                <textarea
+                  id="instructions"
+                  name="instructions"
+                  value={formData.instructions}
+                  onChange={handleInputChange}
+                  placeholder="Как должен вести себя персонаж, что говорить..."
+                  rows={4}
+                  required
+                  className="w-full px-4 py-3 bg-black border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition-colors resize-none"
+                />
+              </div>
 
-                <FormGroup>
-                  <Label htmlFor="appearance" data-icon="🎨">Внешность (для фото):</Label>
-                  <Textarea
-                    id="appearance"
-                    name="appearance"
-                    value={formData.appearance}
-                    onChange={handleInputChange}
-                    placeholder="Опишите внешность персонажа для генерации фото..."
-                    rows={3}
-                  />
-                </FormGroup>
+              {/* Внешность (для фото) */}
+              <div>
+                <label htmlFor="appearance" className="block text-sm font-medium text-zinc-200 mb-2">
+                  Внешность (для фото)
+                </label>
+                <textarea
+                  id="appearance"
+                  name="appearance"
+                  value={formData.appearance}
+                  onChange={handleInputChange}
+                  placeholder="Опишите внешность персонажа для генерации фото..."
+                  rows={3}
+                  className="w-full px-4 py-3 bg-black border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition-colors resize-none"
+                />
+              </div>
+              
+              {/* Локация (для фото) */}
+              <div>
+                <label htmlFor="location" className="block text-sm font-medium text-zinc-200 mb-2">
+                  Локация (для фото)
+                </label>
+                <textarea
+                  id="location"
+                  name="location"
+                  value={formData.location}
+                  onChange={handleInputChange}
+                  placeholder="Опишите локацию персонажа для генерации фото..."
+                  rows={3}
+                  className="w-full px-4 py-3 bg-black border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition-colors resize-none"
+                />
+              </div>
+
+              {error && (
+                <div className="mt-2 text-sm text-red-400 bg-red-400/10 p-3 rounded-lg">
+                  {error}
+                </div>
+              )}
+              {success && (
+                <div className="mt-2 text-sm text-green-400 bg-green-400/10 p-3 rounded-lg">
+                  {success}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isLoading || !userInfo || (userInfo && userInfo.coins < CHARACTER_EDIT_COST)}
+                className="w-full py-4 px-6 bg-gradient-to-r from-yellow-500 to-yellow-600 text-black font-semibold rounded-lg hover:from-yellow-600 hover:to-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg hover:shadow-yellow-500/50"
+              >
+                {isLoading ? 'Обновление...' : 'Сохранить изменения'}
+              </button>
+            </div>
+          </div>
+
+            <PhotoGenerationContainer ref={generationSectionRef} $isMobile={isMobile}>
+              <div className="flex flex-col">
+                <div className="mb-6">
+                  <h3 className="text-lg font-medium text-zinc-200 mb-2">Генерация фото персонажа</h3>
+                  <LegalStyleText>
+                    Создайте 3 фото для персонажа которые будут на главной странице
+                  </LegalStyleText>
+                </div>
                 
-                <FormGroup>
-                  <Label htmlFor="location" data-icon="📍">Локация (для фото):</Label>
-                  <Textarea
-                    id="location"
-                    name="location"
-                    value={formData.location}
-                    onChange={handleInputChange}
-                    placeholder="Опишите локацию персонажа для генерации фото..."
-                    rows={3}
-                  />
-                </FormGroup>
-
-                {error && <ErrorMessage>{error}</ErrorMessage>}
-                {success && <SuccessMessage>{success}</SuccessMessage>}
-
-                <ButtonGroup>
-                  <ActionButton 
-                    type="submit" 
-                    disabled={isLoading || !userInfo || (userInfo && userInfo.coins < CHARACTER_EDIT_COST)}
-                  >
-                    {isLoading ? 'Обновление...' : 'Сохранить изменения'}
-                  </ActionButton>
-                </ButtonGroup>
-              </ColumnContent>
-            </LeftColumn>
-
-            <RightColumn ref={generationSectionRef}>
-              <ColumnContent>
-                <div style={{ flex: '0 0 auto' }}>
-                  <PhotoGenerationBox>
-                    <PhotoGenerationBoxTitle>Генерация фото персонажа</PhotoGenerationBoxTitle>
-                    <PhotoGenerationDescription>
-                      {(() => {
-                        const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type;
-                        let subscriptionType = 'free';
-                        if (rawSubscriptionType) {
-                          subscriptionType = typeof rawSubscriptionType === 'string' 
-                            ? rawSubscriptionType.toLowerCase().trim() 
-                            : String(rawSubscriptionType).toLowerCase().trim();
-                        }
-                        const maxPhotos = subscriptionType === 'premium' ? 5 : 3;
-                        const currentPhotosCount = generatedPhotos.length;
-                        const remainingSlots = maxPhotos - currentPhotosCount;
-                        return `Сгенерируйте фото для вашего персонажа (10 монет за фото). ${subscriptionType === 'premium' ? 'PREMIUM подписка: до 5 фото.' : subscriptionType === 'standard' ? 'STANDARD подписка: до 3 фото.' : 'Без подписки: до 3 фото.'} После генерации выберите до 3 фотографий для главной карточки.${remainingSlots > 0 ? ` Осталось слотов: ${remainingSlots}.` : ' Лимит достигнут.'}`;
-                      })()}
-                    </PhotoGenerationDescription>
+                {/* 1. Настройки: Модель */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
+                    <FiSettings size={14} /> Выберите стиль
+                  </label>
+                  <ModelSelectionContainer>
+                    <ModelCard 
+                      $isSelected={selectedModel === 'anime-realism'}
+                      $previewImage="/model_previews/анимереализм1.jpg"
+                      onClick={() => setSelectedModel('anime-realism')}
+                    >
+                      <ModelInfoOverlay>
+                        <ModelName>Аниме + Реализм</ModelName>
+                        <ModelDescription>Сбалансированный стиль</ModelDescription>
+                      </ModelInfoOverlay>
+                    </ModelCard>
                     
-                    <GenerateSection>
-                      <GenerateButton 
-                        onClick={() => {
-                          
-                          generatePhoto();
-                        }}
-                        disabled={(() => {
-                          if (!userInfo) {
-                            
-                            return true;
-                          }
-                          const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type;
-                          let subscriptionType = 'free';
-                          if (rawSubscriptionType) {
-                            subscriptionType = typeof rawSubscriptionType === 'string' 
-                              ? rawSubscriptionType.toLowerCase().trim() 
-                              : String(rawSubscriptionType).toLowerCase().trim();
-                          }
-                          let queueLimit;
-                          if (subscriptionType === 'premium') {
-                            queueLimit = 5; // PREMIUM: 5 фото одновременно
-                          } else if (subscriptionType === 'standard') {
-                            queueLimit = 3; // STANDARD: 3 фото одновременно
-                          } else {
-                            queueLimit = 1; // FREE/BASE: только 1 фото одновременно
-                          }
-                          // Проверяем только размер очереди и монеты
-                          const queueCount = generationQueueRef.current || 0;
-                          const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
-                          const hasEnoughCoins = (userInfo?.coins || 0) >= 10;
-                          const isQueueFull = activeGenerations >= queueLimit;
-                          const isDisabled = isQueueFull || !hasEnoughCoins;
-                          
-                          return isDisabled;
-                        })()}
-                      >
-                        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          {(() => {
-                            const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type;
-                            let subscriptionType = 'free';
-                            if (rawSubscriptionType) {
-                              subscriptionType = typeof rawSubscriptionType === 'string' 
-                                ? rawSubscriptionType.toLowerCase().trim() 
-                                : String(rawSubscriptionType).toLowerCase().trim();
-                            }
-                            let queueLimit;
-                            if (subscriptionType === 'premium') {
-                              queueLimit = 5; // PREMIUM: 5 фото одновременно
-                            } else if (subscriptionType === 'standard') {
-                              queueLimit = 3; // STANDARD: 3 фото одновременно
-                            } else {
-                              queueLimit = 1; // FREE/BASE: только 1 фото одновременно
-                            }
-                            const queueCount = generationQueueRef.current || 0;
-                            const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
-                            const isQueueFull = activeGenerations >= queueLimit;
-                            const progress = isGeneratingPhoto 
-                              ? (generationProgress !== undefined && generationProgress > 0 ? generationProgress : 0)
-                              : 0;
-                            const baseText = isQueueFull 
-                              ? `Сгенерировать фото (10 монет) • Очередь заполнена`
-                              : `Сгенерировать фото (10 монет)`;
-                            return isGeneratingPhoto 
-                              ? `${baseText} • Генерация: ${Math.round(progress)}%`
-                              : baseText;
-                          })()}
-                        </span>
-                      </GenerateButton>
-
-                      {/* Индикатор очереди генерации */}
-                      {(() => {
-                        const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type;
-                        let subscriptionType = 'free';
-                        if (rawSubscriptionType) {
-                          subscriptionType = typeof rawSubscriptionType === 'string' 
-                            ? rawSubscriptionType.toLowerCase().trim() 
-                            : String(rawSubscriptionType).toLowerCase().trim();
-                        }
-                        let queueLimit;
-                        if (subscriptionType === 'premium') {
-                          queueLimit = 5; // PREMIUM: 5 фото одновременно
-                        } else if (subscriptionType === 'standard') {
-                          queueLimit = 3; // STANDARD: 3 фото одновременно
-                        } else {
-                          queueLimit = 1; // FREE/BASE: только 1 фото одновременно
-                        }
-                        // Активные генерации = текущая генерация (если есть) + очередь
-                        const queueCount = generationQueueRef.current || 0;
-                        const activeGenerations = Math.min((isGeneratingPhoto ? 1 : 0) + queueCount, queueLimit);
-                        if (activeGenerations > 0 && queueLimit > 0) {
-                          return (
-                            <div style={{ marginTop: '12px' }}>
-                              <GenerationQueueIndicator>
-                                {Array.from({ length: queueLimit }).map((_, index) => (
-                                  <QueueBar 
-                                    key={index} 
-                                    $isFilled={index < activeGenerations}
-                                  />
-                                ))}
-                              </GenerationQueueIndicator>
-                              <QueueLabel>
-                                Очередь генерации ({activeGenerations}/{queueLimit})
-                              </QueueLabel>
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
-                    </GenerateSection>
-
-                    <div style={{ marginBottom: '1rem' }}>
-                      <label style={{ 
-                        display: 'block', 
-                        marginBottom: '0.5rem', 
-                        color: 'rgba(240, 240, 240, 1)', 
-                        fontSize: '0.875rem',
-                        fontWeight: 600
-                      }}>
-                        Модель генерации:
-                      </label>
-                      <select
-                        value={selectedModel}
-                        onChange={(e) => setSelectedModel(e.target.value as 'anime-realism' | 'anime' | 'realism')}
-                        style={{
-                          width: '100%',
-                          padding: '0.75rem',
-                          background: 'rgba(30, 30, 30, 0.8)',
-                          border: '1px solid rgba(150, 150, 150, 0.3)',
-                          borderRadius: '0.5rem',
-                          color: '#fff',
-                          fontSize: '0.875rem',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <option value="anime-realism">Сочетание аниме и реалистичных текстур</option>
-                        <option value="anime">Классический аниме стиль</option>
-                        <option value="realism">Максимальная фотореалистичность</option>
-                      </select>
-                    </div>
-
-                    <LargeTextLabel htmlFor="photo-prompt-unified">
-                      Промпт для генерации фото:
-                    </LargeTextLabel>
-                    <LargeTextInput
-                      id="photo-prompt-unified"
-                      value={customPrompt}
-                      onChange={(e) => {
-                        const newValue = e.target.value;
-                        setCustomPrompt(newValue);
-                        customPromptRef.current = newValue; // Обновляем ref для актуального значения
-                        // Помечаем, что пользователь вручную изменил промпт
-                        setCustomPromptManuallySet(true);
-                      }}
-                      placeholder={(() => {
-                        const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
-                        return parts.length > 0 ? parts.join(' | ') : '';
-                      })()}
-                    />
-                  </PhotoGenerationBox>
+                    <ModelCard 
+                      $isSelected={selectedModel === 'anime'}
+                      $previewImage="/model_previews/аниме.jpeg"
+                      onClick={() => setSelectedModel('anime')}
+                    >
+                      <ModelInfoOverlay>
+                        <ModelName>Аниме</ModelName>
+                        <ModelDescription>Классический 2D стиль</ModelDescription>
+                      </ModelInfoOverlay>
+                    </ModelCard>
+                    
+                    <ModelCard 
+                      $isSelected={selectedModel === 'realism'}
+                      $previewImage="/model_previews/реализм.jpg"
+                      onClick={() => setSelectedModel('realism')}
+                    >
+                      <ModelInfoOverlay>
+                        <ModelName>Реализм</ModelName>
+                        <ModelDescription>Фотореалистичность</ModelDescription>
+                      </ModelInfoOverlay>
+                    </ModelCard>
+                  </ModelSelectionContainer>
                 </div>
 
-                {/* Область для отображения сгенерированных фото - внизу контейнера */}
-                <div style={{ flex: '1 1 auto', marginTop: 'auto', paddingTop: theme.spacing.md }}>
-                  {}
+                {/* 2. Настройки: Промпт */}
+                <div className="mb-2">
+                  <label htmlFor="photo-prompt-unified" className="block text-sm font-medium text-zinc-300 mb-2 flex items-center gap-2">
+                    <Sparkles size={14} /> Описание (Промпт)
+                  </label>
+                  <textarea
+                    id="photo-prompt-unified"
+                    value={customPrompt}
+                    onChange={(e) => {
+                      const newValue = e.target.value;
+                      setCustomPrompt(newValue);
+                      customPromptRef.current = newValue;
+                      setCustomPromptManuallySet(true);
+                    }}
+                    placeholder="Например: девушка-самурай в неоновом городе, киберпанк стиль, дождь, высокая детализация..."
+                    className="w-full px-4 py-3 bg-black border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 transition-colors resize-none"
+                    rows={4}
+                  />
                   
+                  {/* Теги-помощники */}
+                  <div className="relative">
+                    <TagsContainer $isExpanded={isTagsExpanded}>
+                      {[
+                        // Нормальные промпты
+                        { label: 'Высокая детализация', value: 'высокая детализация, реализм, 8к разрешение' },
+                        { label: 'Киберпанк', value: 'стиль киберпанк, неоновое освещение, футуристично' },
+                        { label: 'Фэнтези', value: 'фэнтези стиль, магическая атмосфера' },
+                        { label: 'Портрет', value: 'крупный план, детальное лицо, выразительный взгляд' },
+                        { label: 'В полный рост', value: 'в полный рост, изящная поза' },
+                        { label: 'Аниме стиль', value: 'красивый аниме стиль, четкие линии, яркие цвета' },
+                        { label: 'Реализм', value: 'фотореалистично, натуральные текстуры кожи' },
+                        { label: 'Кинематографично', value: 'кинематографичный свет, глубокие тени, драматично' },
+                        { label: 'На пляже', value: 'на берегу океана, золотой песок, закатное солнце' },
+                        { label: 'В городе', value: 'на оживленной улице города, ночные огни, боке' },
+                        { label: 'В лесу', value: 'в сказочном лесу, лучи солнца сквозь листву' },
+                        { label: 'Офисный стиль', value: 'в строгом офисном костюме, деловая обстановка' },
+                        { label: 'Летнее платье', value: 'в легком летнем платье, летящая ткань' },
+                        { label: 'Вечерний свет', value: 'мягкий вечерний свет, теплые тона' },
+                        { label: 'Зима', value: 'зимний пейзаж, падающий снег, меховая одежда' },
+                        
+                        // Пошлые промпты (18+)
+                        { label: 'Соблазнительно', value: 'соблазнительная поза, игривый взгляд, эротично' },
+                        { label: 'Нижнее белье', value: 'в кружевном нижнем белье, прозрачные ткани' },
+                        { label: 'Обнаженная', value: 'обнаженная, полная нагота, детализированное тело' },
+                        { label: 'В постели', value: 'лежит в постели, шелковые простыни, интимная обстановка' },
+                        { label: 'Горячая ванна', value: 'в ванне с пеной, влажная кожа, капли воды' },
+                        { label: 'Чулки', value: 'в черных шелковых чулках с поясом' },
+                        { label: 'Мини-юбка', value: 'в экстремально короткой мини-юбке' },
+                        { label: 'Глубокое декольте', value: 'глубокое декольте, акцент на груди' },
+                        { label: 'Вид сзади', value: 'вид сзади, акцент на ягодицах, изящный изгиб спины' },
+                        { label: 'Мокрая одежда', value: 'в мокрой одежде, прилипающая ткань, прозрачность' },
+                        { label: 'Поза раком', value: 'стоит на четвереньках, прогнутая спина, вызывающая поза' },
+                        { label: 'Расставленные ноги', value: 'сидит с широко расставленными ногами, манящий взгляд' },
+                        { label: 'Прикрывает грудь', value: 'прикрывает обнаженную грудь руками, застенчиво' },
+                        { label: 'Кусает губу', value: 'возбужденное лицо, кусает губу, томный взгляд' },
+                        { label: 'Прозрачное боди', value: 'в прозрачном облегающем боди, все детали видны' }
+                      ].map((tag, idx) => (
+                        <TagButton 
+                          key={idx}
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            const separator = customPrompt.length > 0 && !customPrompt.endsWith(', ') && !customPrompt.endsWith(',') ? ', ' : '';
+                            const newValue = customPrompt + separator + tag.value;
+                            setCustomPrompt(newValue);
+                            customPromptRef.current = newValue;
+                            setCustomPromptManuallySet(true);
+                          }}
+                        >
+                          <Plus size={10} /> {tag.label}
+                        </TagButton>
+                      ))}
+                    </TagsContainer>
+                    <ExpandButton 
+                      type="button"
+                      $isExpanded={isTagsExpanded} 
+                      onClick={() => setIsTagsExpanded(!isTagsExpanded)}
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                      </svg>
+                    </ExpandButton>
+                  </div>
+                </div>
+                
+                {/* 3. Действие: Кнопка "Сгенерировать" */}
+                <GenerationArea>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs text-zinc-400">
+                      Стоимость: <span className="text-zinc-200 font-medium">10 монет</span>
+                    </span>
+                    
+                    {userInfo && (
+                      <CoinsBalance>
+                        <BiCoinStack /> {userInfo.coins}
+                      </CoinsBalance>
+                    )}
+                  </div>
+                  
+                  <GenerateButton
+                    type="button"
+                    onClick={generatePhoto}
+                    disabled={(() => {
+                      if (!userInfo) return true;
+                      const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
+                      let subscriptionType = 'free';
+                      if (rawSubscriptionType) {
+                        subscriptionType = typeof rawSubscriptionType === 'string' 
+                          ? rawSubscriptionType.toLowerCase().trim() 
+                          : String(rawSubscriptionType).toLowerCase().trim();
+                      }
+                      let queueLimit = 1;
+                      if (subscriptionType === 'premium') {
+                        queueLimit = 5;
+                      } else if (subscriptionType === 'standard') {
+                        queueLimit = 3;
+                      }
+                      const queueCount = generationQueueRef.current || 0;
+                      const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
+                      const isQueueFull = activeGenerations >= queueLimit;
+                      return isQueueFull || userInfo.coins < 10;
+                    })()}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Zap size={18} />
+                      {(() => {
+                         if (isGeneratingPhoto) return 'Сгенерировать фото';
+                         return 'Сгенерировать фото';
+                      })()}
+                    </span>
+                  </GenerateButton>
+                  
+                  {/* Предупреждение о времени (серое) */}
+                  <WarningText>
+                    <FiClock size={12} />
+                    Первая генерация может занять до 2-3 минут
+                  </WarningText>
+
+                  {/* Детальный прогресс-бар */}
+                  {isGeneratingPhoto && (
+                    <ProgressBarContainer>
+                      <div className="flex justify-between items-center mb-2">
+                         <span className="text-xs text-zinc-400">Процесс создания...</span>
+                         <span className="text-xs text-[#8b5cf6] font-medium">{Math.round(generationProgress || 0)}%</span>
+                      </div>
+                      <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden mb-3">
+                        <div 
+                           className="bg-[#8b5cf6] h-full transition-all duration-300 ease-out"
+                           style={{ width: `${generationProgress || 0}%` }}
+                        />
+                      </div>
+                      
+                      <div className="flex flex-col gap-1">
+                        <StepItem $isActive={(generationProgress || 0) < 30} $isCompleted={(generationProgress || 0) >= 30}>
+                          <StepIcon $isActive={(generationProgress || 0) < 30} $isCompleted={(generationProgress || 0) >= 30}>
+                            {(generationProgress || 0) >= 30 ? <FiCheckCircle size={10} /> : '1'}
+                          </StepIcon>
+                          <StepText $isActive={(generationProgress || 0) < 30} $isCompleted={(generationProgress || 0) >= 30}>
+                            Подготовка модели и параметров
+                          </StepText>
+                        </StepItem>
+                        
+                        <StepItem $isActive={(generationProgress || 0) >= 30 && (generationProgress || 0) < 80} $isCompleted={(generationProgress || 0) >= 80}>
+                           <StepIcon $isActive={(generationProgress || 0) >= 30 && (generationProgress || 0) < 80} $isCompleted={(generationProgress || 0) >= 80}>
+                            {(generationProgress || 0) >= 80 ? <FiCheckCircle size={10} /> : '2'}
+                          </StepIcon>
+                          <StepText $isActive={(generationProgress || 0) >= 30 && (generationProgress || 0) < 80} $isCompleted={(generationProgress || 0) >= 80}>
+                            Генерация изображения нейросетью
+                          </StepText>
+                        </StepItem>
+                        
+                        <StepItem $isActive={(generationProgress || 0) >= 80} $isCompleted={(generationProgress || 0) >= 100}>
+                           <StepIcon $isActive={(generationProgress || 0) >= 80} $isCompleted={(generationProgress || 0) >= 100}>
+                            {(generationProgress || 0) >= 100 ? <FiCheckCircle size={10} /> : '3'}
+                          </StepIcon>
+                          <StepText $isActive={(generationProgress || 0) >= 80} $isCompleted={(generationProgress || 0) >= 100}>
+                            Финализация и сохранение
+                          </StepText>
+                        </StepItem>
+                      </div>
+                    </ProgressBarContainer>
+                  )}
+                  
+                  {/* Индикатор очереди генерации */}
+                  {(() => {
+                    const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
+                    let subscriptionType = 'free';
+                    if (rawSubscriptionType) {
+                      subscriptionType = typeof rawSubscriptionType === 'string' 
+                        ? rawSubscriptionType.toLowerCase().trim() 
+                        : String(rawSubscriptionType).toLowerCase().trim();
+                    }
+                    let queueLimit = 1;
+                    if (subscriptionType === 'premium') {
+                      queueLimit = 5;
+                    } else if (subscriptionType === 'standard') {
+                      queueLimit = 3;
+                    }
+                    const queueCount = generationQueueRef.current || 0;
+                    const activeGenerations = Math.min((isGeneratingPhoto ? 1 : 0) + queueCount, queueLimit);
+                    if (activeGenerations > 0 && queueLimit > 0) {
+                      return (
+                        <div style={{ marginTop: '12px' }}>
+                          <GenerationQueueIndicator>
+                            {Array.from({ length: queueLimit }).map((_, index) => (
+                              <QueueBar 
+                                key={index} 
+                                $isFilled={index < activeGenerations}
+                              />
+                            ))}
+                          </GenerationQueueIndicator>
+                          <QueueLabel>
+                            Очередь генерации ({activeGenerations}/{queueLimit})
+                          </QueueLabel>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </GenerationArea>
+
+                {/* Область для отображения сгенерированных фото */}
+                <div style={{ flex: '1 1 auto', marginTop: 'auto', paddingTop: theme.spacing.md }}>
                   {isLoadingPhotos ? (
                     <div style={{ padding: '2rem', textAlign: 'center', color: '#fff', background: 'rgba(255,255,255,0.1)', borderRadius: '8px', margin: '1rem 0' }}>
                       Загрузка фотографий...
                     </div>
                   ) : (generatedPhotos && Array.isArray(generatedPhotos) && generatedPhotos.length > 0) ? (
-                    <FullSizePhotoSlider style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', margin: '1rem 0' }}>
-                      <GeneratedPhotosHeader>
-                        <GeneratedPhotosTitle>Сгенерированные фото ({generatedPhotos.length})</GeneratedPhotosTitle>
-                        <PhotosCounter $limitReached={isLimitReached}>
+                    <div className="mt-6">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-medium text-zinc-200">Сгенерированные фото ({generatedPhotos.length})</h3>
+                        <div className="px-3 py-1 bg-zinc-800 border border-zinc-700 rounded-md text-xs text-zinc-400">
                           {selectedPhotos?.length || 0} из {MAX_MAIN_PHOTOS}
-                        </PhotosCounter>
-                      </GeneratedPhotosHeader>
+                        </div>
+                      </div>
 
                       <PhotoList>
-                        {}
                         {generatedPhotos.map((photo, index) => {
-                          if (!photo || !photo.url) {
-                            
-                            return null;
-                          }
-                          
-                          
+                          if (!photo || !photo.url) return null;
                           const isSelected = Boolean(photo?.isSelected);
 
                           return (
@@ -3261,38 +3633,20 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                 alt={`Photo ${index + 1}`}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (photo) {
-                                    openPhotoModal(photo);
-                                  }
-                                }}
-                                onError={(e) => {
-                                  
-                                }}
-                                onLoad={() => {
-                                  
+                                  if (photo) openPhotoModal(photo);
                                 }}
                               />
-                              <PhotoOverlay
-                                onClick={(e) => e.stopPropagation()}
-                              >
+                              <PhotoOverlay onClick={(e) => e.stopPropagation()}>
                                 <OverlayButtons>
                                   <OverlayButton
                                     $variant={isSelected ? 'secondary' : 'primary'}
                                     disabled={!isSelected && isLimitReached}
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      if (photo?.id) {
-                                        togglePhotoSelection(photo.id);
-                                      }
+                                      if (photo?.id) togglePhotoSelection(photo.id);
                                     }}
                                   >
-                                    {isSelected ? (
-                                      <>Убрать</>
-                                    ) : (
-                                      <>
-                                        <Plus size={14} /> Добавить
-                                      </>
-                                    )}
+                                    {isSelected ? 'Убрать' : <><Plus size={14} /> Добавить</>}
                                   </OverlayButton>
                                 </OverlayButtons>
                               </PhotoOverlay>
@@ -3302,47 +3656,46 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                       </PhotoList>
 
                       <SliderDescription>
-                        <DescriptionTitle>Выбор главных фото</DescriptionTitle>
-                        <DescriptionText>
+                        <h4 className="text-sm font-medium text-zinc-200 mb-2">Выбор главных фото</h4>
+                        <p className="text-xs text-zinc-400">
                           Можно добавить максимум {MAX_MAIN_PHOTOS} фотографий. Используйте кнопки «Добавить»
-                          и «Удалить», чтобы управлять карточкой персонажа.
-                        </DescriptionText>
+                          и «Убрать», чтобы управлять карточкой персонажа.
+                        </p>
                       </SliderDescription>
-                    </FullSizePhotoSlider>
+                    </div>
                   ) : (
                     <PhotoGenerationPlaceholder>
-                      {isLoadingPhotos && 'Загрузка фотографий...'}
+                      {isLoadingPhotos ? 'Загрузка фотографий...' : 'Нет сгенерированных фотографий'}
                     </PhotoGenerationPlaceholder>
                   )}
                 </div>
-              </ColumnContent>
-            </RightColumn>
-          </Form>
-        </MainContent>
+              </div>
+            </PhotoGenerationContainer>
+        </form>
+      </MainContent>
       
       {/* Модальное окно для просмотра фото в полный размер */}
       {selectedPhotoForView && (
         <PhotoModal 
           onClick={(e) => {
-            
-            closePhotoModal();
+            if (e.target === e.currentTarget) {
+              closePhotoModal();
+            }
           }}
         >
+          <PhotoModalClose 
+            onClick={(e) => {
+              e.stopPropagation();
+              closePhotoModal();
+            }}
+          >
+            <CloseIcon />
+          </PhotoModalClose>
           <PhotoModalContent 
             onClick={(e) => {
-              
               e.stopPropagation();
             }}
           >
-            <PhotoModalClose 
-              onClick={(e) => {
-                
-                e.stopPropagation();
-                closePhotoModal();
-              }}
-            >
-              <CloseIcon />
-            </PhotoModalClose>
             <ModalImageContainer>
               <PhotoModalImage 
                 src={selectedPhotoForView.url} 

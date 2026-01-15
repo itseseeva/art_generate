@@ -310,7 +310,7 @@ export const EditCharacterModal: React.FC<EditCharacterModalProps> = ({
         throw new Error(errorData.detail || 'Ошибка обновления персонажа');
       }
 
-      setSuccess('Персонаж успешно обновлен!');
+      // setSuccess('Персонаж успешно обновлен!');
 
       // Обновляем данные в родительском компоненте
       onCharacterUpdated();

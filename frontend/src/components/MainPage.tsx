@@ -339,7 +339,7 @@ export const MainPage: React.FC<MainPageProps> = ({
   const [createdCharacter, setCreatedCharacter] = useState<any>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userCoins, setUserCoins] = useState(0);
-  const [userInfo, setUserInfo] = useState<{username: string, coins: number, is_admin?: boolean, id?: number} | null>(null);
+  const [userInfo, setUserInfo] = useState<{username: string, coins: number, is_admin?: boolean, id?: number, subscription?: {subscription_type?: string}} | null>(null);
   const [characterPhotos, setCharacterPhotos] = useState<{[key: string]: string[]}>({});
   const [characters, setCharacters] = useState<Character[]>([]);
   const [isLoadingCharacters, setIsLoadingCharacters] = useState(true);
@@ -781,7 +781,8 @@ export const MainPage: React.FC<MainPageProps> = ({
             username: userData.username || userData.email || 'Пользователь',
             coins: userData.coins || 0,
             is_admin: userData.is_admin || false,
-            id: userData.id
+            id: userData.id,
+            subscription: userData.subscription || { subscription_type: userData.subscription_type || 'free' }
           });
           // Загружаем избранные после успешной авторизации
           await loadFavorites();

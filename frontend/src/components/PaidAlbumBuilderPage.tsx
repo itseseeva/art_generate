@@ -8,7 +8,8 @@ import { SuccessToast } from './SuccessToast';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToEnglish, translateToRussian } from '../utils/translate';
 import { useIsMobile } from '../hooks/useIsMobile';
-import { Sparkles, Plus, X, ArrowLeft, Save, Wand2 } from 'lucide-react';
+import { Sparkles, Plus, X, ArrowLeft, Save, Wand2, Settings } from 'lucide-react';
+import { FiSettings } from 'react-icons/fi';
 import DarkVeil from '../../@/components/DarkVeil';
 
 // Animations
@@ -158,7 +159,172 @@ const SectionTitle = styled.h2`
 
 // Model Selection
 const ModelSelectWrapper = styled.div`
-  margin-bottom: 1.5rem;
+  margin-bottom: 2rem;
+`;
+
+const ModelSelectionContainer = styled.div`
+  display: flex;
+  justify-content: flex-start;
+  gap: ${theme.spacing.md};
+  margin-bottom: ${theme.spacing.lg};
+  overflow: visible;
+  padding-bottom: ${theme.spacing.md};
+  padding-top: ${theme.spacing.xs};
+  flex-wrap: wrap;
+
+  @media (max-width: 768px) {
+    justify-content: center;
+    gap: ${theme.spacing.sm};
+  }
+`;
+
+const ModelCard = styled.div<{ $isSelected: boolean; $previewImage?: string }>`
+  flex: 0 0 180px;
+  height: 260px;
+  background: ${props => props.$isSelected 
+    ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(99, 102, 241, 0.2) 100%)' 
+    : 'rgba(30, 30, 30, 0.4)'};
+  backdrop-filter: blur(8px);
+  border: 2px solid ${props => props.$isSelected 
+    ? '#8b5cf6' 
+    : 'rgba(255, 255, 255, 0.05)'};
+  border-radius: ${theme.borderRadius.lg};
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: url(${props => props.$previewImage});
+    background-size: cover;
+    background-position: center;
+    opacity: 1;
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 0;
+  }
+
+  &:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6), 0 0 25px rgba(139, 92, 246, 0.25);
+    border-color: #8b5cf6;
+    
+    &::after {
+      transform: scale(1.08);
+    }
+  }
+
+  & > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  @media (max-width: 768px) {
+    flex: 0 0 140px;
+    height: 200px;
+  }
+`;
+
+const ModelInfoOverlay = styled.div`
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  padding: ${theme.spacing.md};
+  width: 100%;
+
+  @media (max-width: 768px) {
+    padding: ${theme.spacing.sm};
+  }
+`;
+
+const ModelName = styled.h3`
+  font-size: ${theme.fontSize.base};
+  font-weight: 600;
+  color: white;
+  margin-bottom: 4px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+
+  @media (max-width: 768px) {
+    font-size: ${theme.fontSize.sm};
+  }
+`;
+
+const ModelDescription = styled.p`
+  font-size: ${theme.fontSize.xs};
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.4;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+`;
+
+const TagsContainer = styled.div<{ $isExpanded: boolean }>`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  max-height: ${props => props.$isExpanded ? '500px' : '36px'};
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+`;
+
+const ExpandButton = styled.div<{ $isExpanded: boolean }>`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin-top: 4px;
+  cursor: pointer;
+  color: ${theme.colors.text.secondary};
+  transition: all 0.3s ease;
+
+  &:hover {
+    color: ${theme.colors.text.primary};
+  }
+
+  svg {
+    transform: rotate(${props => props.$isExpanded ? '180deg' : '0deg'});
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: ${props => props.$isExpanded ? 'none' : 'arrowBounce 2s infinite'};
+  }
+
+  @keyframes arrowBounce {
+    0%, 20%, 50%, 80%, 100% {
+      transform: translateY(0) rotate(0deg);
+    }
+    40% {
+      transform: translateY(5px) rotate(0deg);
+    }
+    60% {
+      transform: translateY(3px) rotate(0deg);
+    }
+  }
+`;
+
+const TagButton = styled.button`
+  background: rgba(40, 40, 40, 0.6);
+  border: 1px solid rgba(80, 80, 80, 0.3);
+  border-radius: 16px;
+  padding: 4px 12px;
+  font-size: 11px;
+  color: ${theme.colors.text.secondary};
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  &:hover {
+    background: rgba(60, 60, 60, 0.8);
+    color: ${theme.colors.text.primary};
+    border-color: rgba(100, 100, 100, 0.5);
+  }
 `;
 
 const Label = styled.label`
@@ -942,7 +1108,7 @@ const PromptLoading = styled.div`
 `;
 
 const PromptError = styled.div`
-  color: ${theme.colors.error || '#ff6b6b'};
+  color: ${theme.colors.status.error || '#ff6b6b'};
   font-size: ${theme.fontSize.sm};
   text-align: center;
   padding: ${theme.spacing.xl};
@@ -1048,6 +1214,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
   const [userSubscription, setUserSubscription] = useState<string | null>(null);
   const [userInfo, setUserInfo] = useState<{coins: number, subscription?: {subscription_type?: string}, subscription_type?: string} | null>(null);
   const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime' | 'realism'>('anime-realism');
+  const [isTagsExpanded, setIsTagsExpanded] = useState(false);
   const [promptLoadedFromDB, setPromptLoadedFromDB] = useState(false);
   const [addedPhotoId, setAddedPhotoId] = useState<string | null>(null);
   const fakeProgressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -1714,15 +1881,43 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
               <SectionTitle>Генерация изображений</SectionTitle>
               
               <ModelSelectWrapper>
-                <Label>Модель генерации</Label>
-                <Select
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value as 'anime-realism' | 'anime' | 'realism')}
-                >
-                  <option value="anime-realism">Сочетание аниме и реалистичных текстур</option>
-                  <option value="anime">Классический аниме стиль</option>
-                  <option value="realism">Максимальная фотореалистичность</option>
-                </Select>
+                <Label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                  <FiSettings size={16} /> Выберите стиль
+                </Label>
+                <ModelSelectionContainer>
+                  <ModelCard 
+                    $isSelected={selectedModel === 'anime-realism'}
+                    $previewImage="/model_previews/анимереализм1.jpg"
+                    onClick={() => setSelectedModel('anime-realism')}
+                  >
+                    <ModelInfoOverlay>
+                      <ModelName>Аниме + Реализм</ModelName>
+                      <ModelDescription>Сбалансированный стиль</ModelDescription>
+                    </ModelInfoOverlay>
+                  </ModelCard>
+                  
+                  <ModelCard 
+                    $isSelected={selectedModel === 'anime'}
+                    $previewImage="/model_previews/аниме.jpeg"
+                    onClick={() => setSelectedModel('anime')}
+                  >
+                    <ModelInfoOverlay>
+                      <ModelName>Аниме</ModelName>
+                      <ModelDescription>Классический 2D стиль</ModelDescription>
+                    </ModelInfoOverlay>
+                  </ModelCard>
+                  
+                  <ModelCard 
+                    $isSelected={selectedModel === 'realism'}
+                    $previewImage="/model_previews/реализм.jpg"
+                    onClick={() => setSelectedModel('realism')}
+                  >
+                    <ModelInfoOverlay>
+                      <ModelName>Реализм</ModelName>
+                      <ModelDescription>Фотореалистичность</ModelDescription>
+                    </ModelInfoOverlay>
+                  </ModelCard>
+                </ModelSelectionContainer>
               </ModelSelectWrapper>
 
               <PromptWrapper>
@@ -1734,6 +1929,68 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                 <MagicIcon>
                   <Wand2 size={20} />
                 </MagicIcon>
+                
+                {/* Теги-помощники */}
+                <div className="relative">
+                  <TagsContainer $isExpanded={isTagsExpanded}>
+                    {[
+                      // Нормальные промпты
+                      { label: 'Высокая детализация', value: 'высокая детализация, реализм, 8к разрешение' },
+                      { label: 'Киберпанк', value: 'стиль киберпанк, неоновое освещение, футуристично' },
+                      { label: 'Фэнтези', value: 'фэнтези стиль, магическая атмосфера' },
+                      { label: 'Портрет', value: 'крупный план, детальное лицо, выразительный взгляд' },
+                      { label: 'В полный рост', value: 'в полный рост, изящная поза' },
+                      { label: 'Аниме стиль', value: 'красивый аниме стиль, четкие линии, яркие цвета' },
+                      { label: 'Реализм', value: 'фотореалистично, натуральные текстуры кожи' },
+                      { label: 'Кинематографично', value: 'кинематографичный свет, глубокие тени, драматично' },
+                      { label: 'На пляже', value: 'на берегу океана, золотой песок, закатное солнце' },
+                      { label: 'В городе', value: 'на оживленной улице города, ночные огни, боке' },
+                      { label: 'В лесу', value: 'в сказочном лесу, лучи солнца сквозь листву' },
+                      { label: 'Офисный стиль', value: 'в строгом офисном костюме, деловая обстановка' },
+                      { label: 'Летнее платье', value: 'в легком летнем платье, летящая ткань' },
+                      { label: 'Вечерний свет', value: 'мягкий вечерний свет, теплые тона' },
+                      { label: 'Зима', value: 'зимний пейзаж, падающий снег, меховая одежда' },
+                      
+                      // Пошлые промпты (18+)
+                      { label: 'Соблазнительно', value: 'соблазнительная поза, игривый взгляд, эротично' },
+                      { label: 'Нижнее белье', value: 'в кружевном нижнем белье, прозрачные ткани' },
+                      { label: 'Обнаженная', value: 'обнаженная, полная нагота, детализированное тело' },
+                      { label: 'В постели', value: 'лежит в постели, шелковые простыни, интимная обстановка' },
+                      { label: 'Горячая ванна', value: 'в ванне с пеной, влажная кожа, капли воды' },
+                      { label: 'Чулки', value: 'в черных шелковых чулках с поясом' },
+                      { label: 'Мини-юбка', value: 'в экстремально короткой мини-юбке' },
+                      { label: 'Глубокое декольте', value: 'глубокое декольте, акцент на груди' },
+                      { label: 'Вид сзади', value: 'вид сзади, акцент на ягодицах, изящный изгиб спины' },
+                      { label: 'Мокрая одежда', value: 'в мокрой одежде, прилипающая ткань, прозрачность' },
+                      { label: 'Поза раком', value: 'стоит на четвереньках, прогнутая спина, вызывающая поза' },
+                      { label: 'Расставленные ноги', value: 'сидит с широко расставленными ногами, манящий взгляд' },
+                      { label: 'Прикрывает грудь', value: 'прикрывает обнаженную грудь руками, застенчиво' },
+                      { label: 'Кусает губу', value: 'возбужденное лицо, кусает губу, томный взгляд' },
+                      { label: 'Прозрачное боди', value: 'в прозрачном облегающем боди, все детали видны' }
+                    ].map((tag, idx) => (
+                      <TagButton 
+                        key={idx}
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          const separator = prompt.length > 0 && !prompt.endsWith(', ') && !prompt.endsWith(',') ? ', ' : '';
+                          const newValue = prompt + separator + tag.value;
+                          setPrompt(newValue);
+                        }}
+                      >
+                        <Plus size={10} /> {tag.label}
+                      </TagButton>
+                    ))}
+                  </TagsContainer>
+                  <ExpandButton 
+                    $isExpanded={isTagsExpanded} 
+                    onClick={() => setIsTagsExpanded(!isTagsExpanded)}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </ExpandButton>
+                </div>
               </PromptWrapper>
 
               <InfoText>

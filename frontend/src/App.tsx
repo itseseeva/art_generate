@@ -1197,7 +1197,7 @@ function App() {
                 coins: userData.coins || 0,
                 id: userData.id,
                 is_admin: userData.is_admin || false,
-                subscription: userData.subscription
+                subscription: userData.subscription || { subscription_type: userData.subscription_type || 'free' }
               });
               setIsAuthenticated(true);
               
@@ -1266,7 +1266,8 @@ function App() {
             setUserInfo({
               username: userData.username || userData.email || 'Пользователь',
               coins: userData.coins || 0,
-              id: userData.id
+              id: userData.id,
+              subscription: userData.subscription || { subscription_type: userData.subscription_type || 'free' }
             });
           }
         }
@@ -1288,7 +1289,7 @@ function App() {
               username: userData.username || userData.email || 'Пользователь',
               coins: userData.coins || 0,
               id: userData.id,
-              subscription: userData.subscription
+              subscription: userData.subscription || { subscription_type: userData.subscription_type || 'free' }
             });
           }
         }
@@ -1317,7 +1318,8 @@ function App() {
             setUserInfo({
               username: userData.username || userData.email || 'Пользователь',
               coins: userData.coins || 0,
-              id: userData.id
+              id: userData.id,
+              subscription: userData.subscription || { subscription_type: userData.subscription_type || 'free' }
             });
             
           }

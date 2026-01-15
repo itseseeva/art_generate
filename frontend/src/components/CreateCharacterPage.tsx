@@ -8,8 +8,9 @@ import { translateToEnglish } from '../utils/translate';
 import { API_CONFIG } from '../config/api';
 import { motion, AnimatePresence } from 'motion/react';
 import { CircularProgress } from './ui/CircularProgress';
-import { FiX as CloseIcon } from 'react-icons/fi';
-import { Plus } from 'lucide-react';
+import { FiX as CloseIcon, FiClock, FiImage, FiSettings, FiCheckCircle, FiCpu } from 'react-icons/fi';
+import { Plus, Sparkles, Zap } from 'lucide-react';
+import { BiCoinStack } from 'react-icons/bi';
 import { fetchPromptByImage } from '../utils/prompt';
 
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -758,45 +759,43 @@ const GenerateButton4 = styled.button`
 // ВАРИАНТ 5: Glassmorphism с градиентной рамкой (активен)
 const GenerateButton = styled.button`
   position: relative;
-  background: rgba(255, 255, 255, 0.05);
-  border: 2px solid transparent;
-  color: ${theme.colors.text.primary};
-  padding: ${theme.spacing.md} ${theme.spacing.xl};
-  border-radius: ${theme.borderRadius.xl};
-  font-size: ${theme.fontSize.base};
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.9), rgba(251, 191, 36, 0.9));
+  border: 1px solid rgba(251, 191, 36, 0.6);
+  color: #1a1a1a;
+  padding: ${theme.spacing.sm} ${theme.spacing.lg};
+  border-radius: ${theme.borderRadius.lg};
+  font-size: ${theme.fontSize.sm};
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  backdrop-filter: blur(20px);
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 15px rgba(234, 179, 8, 0.3), 0 4px 8px rgba(0, 0, 0, 0.3);
   width: 100%;
   overflow: hidden;
-  
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: ${theme.spacing.sm};
+
   &::before {
     content: '';
     position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    padding: 2px;
-    background: linear-gradient(135deg, rgba(236, 72, 153, 0.6), rgba(139, 92, 246, 0.6), rgba(59, 130, 246, 0.6));
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    opacity: 0.6;
-    transition: opacity 0.4s ease;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    transition: left 0.6s ease;
   }
-  
-  & > span {
-    display: block;
-    transition: opacity 0.3s ease;
-  }
-  
+
   &:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.08);
-    box-shadow: 0 8px 32px rgba(236, 72, 153, 0.3);
+    border-color: rgba(251, 191, 36, 0.8);
+    background: linear-gradient(135deg, rgba(234, 179, 8, 1), rgba(251, 191, 36, 1));
+    box-shadow: 0 0 25px rgba(234, 179, 8, 0.5), 0 6px 16px rgba(0, 0, 0, 0.4);
     transform: translateY(-2px);
     
     &::before {
-      opacity: 1;
+      left: 100%;
     }
   }
   
@@ -805,13 +804,12 @@ const GenerateButton = styled.button`
   }
 
   &:disabled {
-    opacity: 0.7;
+    opacity: 0.5;
     cursor: not-allowed;
-    background: rgba(255, 255, 255, 0.03);
-    
-    &::before {
-      opacity: 0.4;
-    }
+    background: rgba(100, 100, 100, 0.2);
+    border-color: rgba(150, 150, 150, 0.2);
+    color: rgba(255, 255, 255, 0.5);
+    box-shadow: none;
   }
 `;
 
@@ -820,9 +818,9 @@ const ContinueButton = styled(motion.button)`
   background: linear-gradient(135deg, rgba(234, 179, 8, 0.9), rgba(251, 191, 36, 0.9));
   border: 1px solid rgba(251, 191, 36, 0.6);
   color: #1a1a1a;
-  padding: ${theme.spacing.md} ${theme.spacing.xl};
+  padding: ${theme.spacing.sm} ${theme.spacing.lg};
   border-radius: ${theme.borderRadius.lg};
-  font-size: ${theme.fontSize.base};
+  font-size: ${theme.fontSize.sm};
   font-weight: 700;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -1232,14 +1230,12 @@ const ModalImageContainer = styled.div`
 `;
 
 const PromptPanel = styled.div`
-  width: 400px;
-  min-width: 350px;
-  max-width: 30%;
+  width: 300px;
   background: rgba(10, 10, 15, 0.7);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border-radius: ${theme.borderRadius.lg};
-  padding: ${theme.spacing.xl};
+  padding: ${theme.spacing.md};
   display: flex;
   flex-direction: column;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -1448,26 +1444,26 @@ const PhotoModalImage = styled.img`
 `;
 
 const PhotoModalClose = styled.button`
-  position: absolute;
-  top: ${theme.spacing.xl};
-  right: ${theme.spacing.xl};
+  position: fixed;
+  top: 80px;
+  right: ${theme.spacing.lg};
   width: 48px;
   height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.7);
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 50%;
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.xl};
-  transition: ${theme.transition.fast};
+  color: white;
+  transition: all ${theme.transition.fast};
   cursor: pointer;
-  z-index: 10001;
+  z-index: 10003;
+  backdrop-filter: blur(4px);
 
   &:hover {
-    background: rgba(0, 0, 0, 0.9);
-    border-color: ${theme.colors.accent?.primary || 'rgba(255, 255, 255, 0.5)'};
+    background: rgba(0, 0, 0, 0.8);
+    border-color: rgba(255, 255, 255, 0.4);
     transform: scale(1.1);
   }
 `;
@@ -1905,6 +1901,269 @@ const QueueLabel = styled.div`
   font-weight: 500;
 `;
 
+const ModelSelectionContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  gap: ${theme.spacing.lg};
+  margin-bottom: ${theme.spacing.lg};
+  overflow: visible;
+  padding-bottom: ${theme.spacing.md};
+  padding-top: ${theme.spacing.xs};
+  flex-wrap: wrap;
+`;
+
+const ModelCard = styled.div<{ $isSelected: boolean; $previewImage?: string }>`
+  flex: 0 0 200px;
+  height: 300px;
+  background: ${props => props.$isSelected 
+    ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(99, 102, 241, 0.2) 100%)' 
+    : 'rgba(30, 30, 30, 0.4)'};
+  backdrop-filter: blur(8px);
+  border: 2px solid ${props => props.$isSelected 
+    ? '#8b5cf6' 
+    : 'rgba(255, 255, 255, 0.05)'};
+  border-radius: ${theme.borderRadius.lg};
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: url(${props => props.$previewImage});
+    background-size: cover;
+    background-position: center;
+    opacity: 1;
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 0;
+  }
+
+  &:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6), 0 0 25px rgba(139, 92, 246, 0.25);
+    border-color: #8b5cf6;
+    
+    &::after {
+      transform: scale(1.08);
+    }
+  }
+
+  & > * {
+    position: relative;
+    z-index: 1;
+  }
+`;
+
+const ModelIcon = styled.div`
+  display: none;
+`;
+
+const ModelInfoOverlay = styled.div`
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  padding: ${theme.spacing.md};
+  width: 100%;
+`;
+
+const ModelName = styled.h3`
+  font-size: ${theme.fontSize.lg};
+  font-weight: 600;
+  color: white;
+  margin-bottom: 4px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+`;
+
+const ModelDescription = styled.p`
+  font-size: ${theme.fontSize.sm};
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.4;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+`;
+
+const TagsContainer = styled.div<{ $isExpanded: boolean }>`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  max-height: ${props => props.$isExpanded ? '500px' : '36px'};
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+`;
+
+const ExpandButton = styled.div<{ $isExpanded: boolean }>`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin-top: 4px;
+  cursor: pointer;
+  color: ${theme.colors.text.secondary};
+  transition: all 0.3s ease;
+
+  &:hover {
+    color: ${theme.colors.text.primary};
+  }
+
+  svg {
+    transform: rotate(${props => props.$isExpanded ? '180deg' : '0deg'});
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: ${props => props.$isExpanded ? 'none' : 'arrowBounce 2s infinite'};
+  }
+
+  @keyframes arrowBounce {
+    0%, 20%, 50%, 80%, 100% {
+      transform: translateY(0) rotate(0deg);
+    }
+    40% {
+      transform: translateY(5px) rotate(0deg);
+    }
+    60% {
+      transform: translateY(3px) rotate(0deg);
+    }
+  }
+`;
+
+const TagButton = styled.button`
+  background: rgba(40, 40, 40, 0.6);
+  border: 1px solid rgba(80, 80, 80, 0.3);
+  border-radius: 16px;
+  padding: 4px 12px;
+  font-size: 11px;
+  color: ${theme.colors.text.secondary};
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  &:hover {
+    background: rgba(60, 60, 60, 0.8);
+    color: ${theme.colors.text.primary};
+    border-color: rgba(100, 100, 100, 0.5);
+  }
+`;
+
+const GenerationArea = styled.div`
+  margin-top: ${theme.spacing.xl};
+  padding-top: ${theme.spacing.lg};
+  border-top: 1px solid rgba(80, 80, 80, 0.3);
+  display: flex;
+  flex-direction: column;
+  gap: ${theme.spacing.md};
+`;
+
+const CoinsBalance = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: ${theme.fontSize.sm};
+  color: #ffd700;
+  font-weight: 500;
+  background: rgba(255, 215, 0, 0.1);
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 215, 0, 0.2);
+`;
+
+const WarningText = styled.div`
+  font-size: 11px;
+  color: rgba(150, 150, 150, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+`;
+
+const ResultsPlaceholder = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: ${theme.spacing.xl};
+  background: rgba(30, 30, 30, 0.3);
+  border: 2px dashed rgba(80, 80, 80, 0.3);
+  border-radius: ${theme.borderRadius.xl};
+  margin-top: ${theme.spacing.lg};
+  text-align: center;
+  min-height: 200px;
+`;
+
+const PlaceholderIcon = styled.div`
+  font-size: 3rem;
+  color: rgba(80, 80, 80, 0.5);
+  margin-bottom: ${theme.spacing.md};
+`;
+
+const PlaceholderText = styled.p`
+  font-size: ${theme.fontSize.sm};
+  color: rgba(150, 150, 150, 0.6);
+  max-width: 250px;
+`;
+
+const ProgressBarContainer = styled.div`
+  margin-top: ${theme.spacing.md};
+  background: rgba(20, 20, 20, 0.6);
+  border-radius: ${theme.borderRadius.lg};
+  padding: ${theme.spacing.md};
+  border: 1px solid rgba(60, 60, 60, 0.4);
+`;
+
+const StepItem = styled.div<{ $isActive: boolean; $isCompleted: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: ${theme.spacing.sm};
+  margin-bottom: 8px;
+  opacity: ${props => props.$isActive || props.$isCompleted ? 1 : 0.4};
+  transition: opacity 0.3s ease;
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
+`;
+
+const StepIcon = styled.div<{ $isActive: boolean; $isCompleted: boolean }>`
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: ${props => props.$isCompleted ? '#10b981' : props.$isActive ? '#8b5cf6' : 'rgba(60, 60, 60, 0.8)'};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: white;
+  
+  ${props => props.$isActive && `
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.3);
+  `}
+`;
+
+const StepText = styled.span<{ $isActive: boolean; $isCompleted: boolean }>`
+  font-size: 12px;
+  color: ${props => props.$isCompleted ? '#10b981' : props.$isActive ? '#e5e5e5' : 'rgba(150, 150, 150, 0.8)'};
+  font-weight: ${props => props.$isActive ? 600 : 400};
+`;
+
+const LegalStyleText = styled.h3`
+  font-size: 1.25rem;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, #ffffff 0%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 600;
+  position: relative;
+`;
+
 interface CreateCharacterPageProps {
   onBackToMain: () => void;
   onShop?: () => void;
@@ -1934,6 +2193,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 }) => {
   const isMobile = useIsMobile();
   const generationSectionRef = useRef<HTMLDivElement>(null);
+  const generatedPhotosRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
     name: '',
     personality: '',
@@ -1978,6 +2238,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authCheckComplete, setAuthCheckComplete] = useState(false);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+  const [isTagsExpanded, setIsTagsExpanded] = useState(false);
   const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime' | 'realism'>('anime-realism');
   const [generationProgress, setGenerationProgress] = useState<number | undefined>(undefined);
   const generationQueueRef = React.useRef<number>(0); // Счетчик задач в очереди
@@ -2061,7 +2322,10 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         
         
         setIsAuthenticated(true);
-        setUserInfo(userData);
+        setUserInfo({
+          ...userData,
+          subscription: userData.subscription || { subscription_type: userData.subscription_type || 'free' }
+        });
         
       } else if (response.status === 401) {
         // Только при 401 пытаемся обновить токен
@@ -2492,7 +2756,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
       const result = await response.json();
       
       setCreatedCharacterData(result);
-      setSuccess('Персонаж успешно обновлен!');
+      // setSuccess('Персонаж успешно обновлен!');
 
       // Обновляем информацию о пользователе
       await checkAuth();
@@ -2813,24 +3077,26 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
   const generatePhoto = async () => {
     // Определяем тип подписки и максимальное количество фото
-    const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type;
+    // Определяем тип подписки для лимитов
+    const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
     let subscriptionType = 'free';
-    
     if (rawSubscriptionType) {
-      if (typeof rawSubscriptionType === 'string') {
-        subscriptionType = rawSubscriptionType.toLowerCase().trim();
-      } else {
-        subscriptionType = String(rawSubscriptionType).toLowerCase().trim();
-      }
+      subscriptionType = typeof rawSubscriptionType === 'string' 
+        ? rawSubscriptionType.toLowerCase().trim() 
+        : String(rawSubscriptionType).toLowerCase().trim();
     }
     
-    let queueLimit;
+    console.log('[DEBUG] Subscription detection:', {
+      raw: rawSubscriptionType,
+      processed: subscriptionType,
+      userId: userInfo?.id
+    });
+    
+    let queueLimit = 1;
     if (subscriptionType === 'premium') {
-      queueLimit = 5; // PREMIUM: 5 фото одновременно
+      queueLimit = 5;
     } else if (subscriptionType === 'standard') {
-      queueLimit = 3; // STANDARD: 3 фото одновременно
-    } else {
-      queueLimit = 1; // FREE/BASE: только 1 фото одновременно
+      queueLimit = 3;
     }
     
     // Проверяем кредиты (10 монет за одно фото)
@@ -2844,7 +3110,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
     const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
     
     if (activeGenerations >= queueLimit) {
-      setError(`Очередь генерации заполнена! Максимум ${queueLimit} задач одновременно (${subscriptionType === 'premium' ? 'PREMIUM' : 'STANDARD'}). Дождитесь завершения текущих генераций.`);
+      setError(`Очередь генерации заполнена! Максимум ${queueLimit} задач одновременно для вашего тарифа (${subscriptionType.toUpperCase()}). Дождитесь завершения текущих генераций.`);
       return;
     }
 
@@ -2859,6 +3125,17 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
     setIsGeneratingPhoto(true);
     setError(null);
     setGenerationProgress(undefined);
+    
+    // Прокручиваем контейнер вниз, чтобы видеть прогресс-бар
+    setTimeout(() => {
+      if (generationSectionRef.current) {
+        // Прокручиваем контейнер к самому низу
+        generationSectionRef.current.scrollTo({
+          top: generationSectionRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+      }
+    }, 100);
 
     const processGeneration = async () => {
       try {
@@ -2881,6 +3158,17 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         if (photo) {
           setGeneratedPhotos(prev => [...prev, { ...photo, isSelected: false }]);
               setSuccess('Фото успешно сгенерировано!');
+          
+          // Прокручиваем контейнер к новому фото после добавления
+          setTimeout(() => {
+            if (generationSectionRef.current) {
+              // Прокручиваем контейнер к самому низу, чтобы видеть новое фото
+              generationSectionRef.current.scrollTo({
+                top: generationSectionRef.current.scrollHeight,
+                behavior: 'smooth'
+              });
+            }
+          }, 300);
         }
       setGenerationProgress(100);
       
@@ -3188,134 +3476,304 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
           >
             {createdCharacterData && (
               <div className="flex flex-col">
-                <div className="mb-4">
+                <div className="mb-6">
                   <h3 className="text-lg font-medium text-zinc-200 mb-2">Генерация фото персонажа</h3>
-                  <p className="text-sm text-zinc-500">
-                    {(() => {
-                      const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type;
+                  <LegalStyleText>
+                    Создайте 3 фото для персонажа которые будут на главной странице
+                  </LegalStyleText>
+                </div>
+                
+                {/* 1. Настройки: Модель */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
+                    <FiSettings size={14} /> Выберите стиль
+                  </label>
+                  <ModelSelectionContainer>
+                    <ModelCard 
+                      $isSelected={selectedModel === 'anime-realism'}
+                      $previewImage="/model_previews/анимереализм1.jpg"
+                      onClick={() => setSelectedModel('anime-realism')}
+                    >
+                      <ModelInfoOverlay>
+                        <ModelName>Аниме + Реализм</ModelName>
+                        <ModelDescription>Сбалансированный стиль</ModelDescription>
+                      </ModelInfoOverlay>
+                    </ModelCard>
+                    
+                    <ModelCard 
+                      $isSelected={selectedModel === 'anime'}
+                      $previewImage="/model_previews/аниме.jpeg"
+                      onClick={() => setSelectedModel('anime')}
+                    >
+                      <ModelInfoOverlay>
+                        <ModelName>Аниме</ModelName>
+                        <ModelDescription>Классический 2D стиль</ModelDescription>
+                      </ModelInfoOverlay>
+                    </ModelCard>
+                    
+                    <ModelCard 
+                      $isSelected={selectedModel === 'realism'}
+                      $previewImage="/model_previews/реализм.jpg"
+                      onClick={() => setSelectedModel('realism')}
+                    >
+                      <ModelInfoOverlay>
+                        <ModelName>Реализм</ModelName>
+                        <ModelDescription>Фотореалистичность</ModelDescription>
+                      </ModelInfoOverlay>
+                    </ModelCard>
+                  </ModelSelectionContainer>
+                </div>
+
+                {/* 2. Настройки: Промпт */}
+                <div className="mb-2">
+                  <label htmlFor="photo-prompt-unified" className="block text-sm font-medium text-zinc-300 mb-2 flex items-center gap-2">
+                    <Sparkles size={14} /> Описание (Промпт)
+                  </label>
+                  <textarea
+                    id="photo-prompt-unified"
+                    value={customPrompt}
+                    onChange={(e) => {
+                      const newValue = e.target.value;
+                      setCustomPrompt(newValue);
+                      customPromptRef.current = newValue;
+                      setCustomPromptManuallySet(true);
+                    }}
+                    placeholder="Например: девушка-самурай в неоновом городе, киберпанк стиль, дождь, высокая детализация..."
+                    className="w-full px-4 py-3 bg-black border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 transition-colors resize-none"
+                    rows={4}
+                  />
+                  
+                  {/* Теги-помощники */}
+                  <div className="relative">
+                    <TagsContainer $isExpanded={isTagsExpanded}>
+                      {[
+                        // Нормальные промпты
+                        { label: 'Высокая детализация', value: 'высокая детализация, реализм, 8к разрешение' },
+                        { label: 'Киберпанк', value: 'стиль киберпанк, неоновое освещение, футуристично' },
+                        { label: 'Фэнтези', value: 'фэнтези стиль, магическая атмосфера' },
+                        { label: 'Портрет', value: 'крупный план, детальное лицо, выразительный взгляд' },
+                        { label: 'В полный рост', value: 'в полный рост, изящная поза' },
+                        { label: 'Аниме стиль', value: 'красивый аниме стиль, четкие линии, яркие цвета' },
+                        { label: 'Реализм', value: 'фотореалистично, натуральные текстуры кожи' },
+                        { label: 'Кинематографично', value: 'кинематографичный свет, глубокие тени, драматично' },
+                        { label: 'На пляже', value: 'на берегу океана, золотой песок, закатное солнце' },
+                        { label: 'В городе', value: 'на оживленной улице города, ночные огни, боке' },
+                        { label: 'В лесу', value: 'в сказочном лесу, лучи солнца сквозь листву' },
+                        { label: 'Офисный стиль', value: 'в строгом офисном костюме, деловая обстановка' },
+                        { label: 'Летнее платье', value: 'в легком летнем платье, летящая ткань' },
+                        { label: 'Вечерний свет', value: 'мягкий вечерний свет, теплые тона' },
+                        { label: 'Зима', value: 'зимний пейзаж, падающий снег, меховая одежда' },
+                        
+                        // Пошлые промпты (18+)
+                        { label: 'Соблазнительно', value: 'соблазнительная поза, игривый взгляд, эротично' },
+                        { label: 'Нижнее белье', value: 'в кружевном нижнем белье, прозрачные ткани' },
+                        { label: 'Обнаженная', value: 'обнаженная, полная нагота, детализированное тело' },
+                        { label: 'В постели', value: 'лежит в постели, шелковые простыни, интимная обстановка' },
+                        { label: 'Горячая ванна', value: 'в ванне с пеной, влажная кожа, капли воды' },
+                        { label: 'Чулки', value: 'в черных шелковых чулках с поясом' },
+                        { label: 'Мини-юбка', value: 'в экстремально короткой мини-юбке' },
+                        { label: 'Глубокое декольте', value: 'глубокое декольте, акцент на груди' },
+                        { label: 'Вид сзади', value: 'вид сзади, акцент на ягодицах, изящный изгиб спины' },
+                        { label: 'Мокрая одежда', value: 'в мокрой одежде, прилипающая ткань, прозрачность' },
+                        { label: 'Поза раком', value: 'стоит на четвереньках, прогнутая спина, вызывающая поза' },
+                        { label: 'Расставленные ноги', value: 'сидит с широко расставленными ногами, манящий взгляд' },
+                        { label: 'Прикрывает грудь', value: 'прикрывает обнаженную грудь руками, застенчиво' },
+                        { label: 'Кусает губу', value: 'возбужденное лицо, кусает губу, томный взгляд' },
+                        { label: 'Прозрачное боди', value: 'в прозрачном облегающем боди, все детали видны' }
+                      ].map((tag, idx) => (
+                        <TagButton 
+                          key={idx}
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            const separator = customPrompt.length > 0 && !customPrompt.endsWith(', ') && !customPrompt.endsWith(',') ? ', ' : '';
+                            const newValue = customPrompt + separator + tag.value;
+                            setCustomPrompt(newValue);
+                            customPromptRef.current = newValue;
+                            setCustomPromptManuallySet(true);
+                          }}
+                        >
+                          <Plus size={10} /> {tag.label}
+                        </TagButton>
+                      ))}
+                    </TagsContainer>
+                    <ExpandButton 
+                      $isExpanded={isTagsExpanded} 
+                      onClick={() => setIsTagsExpanded(!isTagsExpanded)}
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                      </svg>
+                    </ExpandButton>
+                  </div>
+                </div>
+                
+                {/* 3. Действие: Кнопка "Сгенерировать" */}
+                <GenerationArea>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs text-zinc-400">
+                      Стоимость: <span className="text-zinc-200 font-medium">10 монет</span>
+                    </span>
+                    
+                    {userInfo && (
+                      <CoinsBalance>
+                        <BiCoinStack /> {userInfo.coins}
+                      </CoinsBalance>
+                    )}
+                  </div>
+                  
+                  <GenerateButton
+                    type="button"
+                    onClick={generatePhoto}
+                    disabled={(() => {
+                      if (!userInfo || !createdCharacterData) return true;
+                      const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
                       let subscriptionType = 'free';
                       if (rawSubscriptionType) {
                         subscriptionType = typeof rawSubscriptionType === 'string' 
                           ? rawSubscriptionType.toLowerCase().trim() 
                           : String(rawSubscriptionType).toLowerCase().trim();
                       }
-                      const photosCount = subscriptionType === 'premium' ? 5 : 3;
-                      const totalCost = photosCount * 10;
-                      return `Сгенерируйте ${photosCount} фотографий для вашего персонажа (${totalCost} монет, ${photosCount} × 10 монет). ${subscriptionType === 'premium' ? 'PREMIUM подписка: 5 фото.' : subscriptionType === 'standard' ? 'STANDARD подписка: 3 фото.' : 'Без подписки: 3 фото.'}`;
+                      let queueLimit = 1;
+                      if (subscriptionType === 'premium') {
+                        queueLimit = 5;
+                      } else if (subscriptionType === 'standard') {
+                        queueLimit = 3;
+                      }
+                      const queueCount = generationQueueRef.current || 0;
+                      const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
+                      const isQueueFull = activeGenerations >= queueLimit;
+                      return isQueueFull || userInfo.coins < 10;
                     })()}
-                  </p>
-                </div>
-                
-                <GenerateButton
-                  onClick={generatePhoto}
-                  disabled={(() => {
-                    if (!userInfo || !createdCharacterData) return true;
-                    const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type;
+                  >
+                    <span className="flex items-center gap-2">
+                      <Zap size={18} />
+                      {(() => {
+                        const hasGeneratedPhotos = generatedPhotos && generatedPhotos.length > 0;
+                        let buttonText = 'Сгенерировать фото';
+                        
+                        if (hasGeneratedPhotos) {
+                          buttonText = 'Сгенерировать ещё';
+                        }
+                        
+                        // Получаем информацию об очереди для отображения на кнопке
+                        if (!userInfo || !createdCharacterData) {
+                          return buttonText;
+                        }
+                        
+                        const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
+                        let subscriptionType = 'free';
+                        if (rawSubscriptionType) {
+                          subscriptionType = typeof rawSubscriptionType === 'string' 
+                            ? rawSubscriptionType.toLowerCase().trim() 
+                            : String(rawSubscriptionType).toLowerCase().trim();
+                        }
+                        let queueLimit = 1;
+                        if (subscriptionType === 'premium') {
+                          queueLimit = 5;
+                        } else if (subscriptionType === 'standard') {
+                          queueLimit = 3;
+                        }
+                        const queueCount = generationQueueRef.current || 0;
+                        const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
+                        
+                        if (activeGenerations > 0) {
+                          return `${buttonText} ${activeGenerations}/${queueLimit}`;
+                        }
+                        
+                        return buttonText;
+                      })()}
+                    </span>
+                  </GenerateButton>
+                  
+                  {/* Предупреждение о времени (серое) */}
+                  <WarningText>
+                    <FiClock size={12} />
+                    Первая генерация может занять до 2-3 минут
+                  </WarningText>
+
+                  {/* Детальный прогресс-бар */}
+                  {isGeneratingPhoto && (
+                    <ProgressBarContainer>
+                      <div className="flex justify-between items-center mb-2">
+                         <span className="text-xs text-zinc-400">Процесс создания...</span>
+                         <span className="text-xs text-[#8b5cf6] font-medium">{Math.round(generationProgress || 0)}%</span>
+                      </div>
+                      <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden mb-3">
+                        <div 
+                           className="bg-[#8b5cf6] h-full transition-all duration-300 ease-out"
+                           style={{ width: `${generationProgress || 0}%` }}
+                        />
+                      </div>
+                      
+                      <div className="flex flex-col gap-1">
+                        <StepItem $isActive={(generationProgress || 0) < 30} $isCompleted={(generationProgress || 0) >= 30}>
+                          <StepIcon $isActive={(generationProgress || 0) < 30} $isCompleted={(generationProgress || 0) >= 30}>
+                            {(generationProgress || 0) >= 30 ? <FiCheckCircle size={10} /> : '1'}
+                          </StepIcon>
+                          <StepText $isActive={(generationProgress || 0) < 30} $isCompleted={(generationProgress || 0) >= 30}>
+                            Подготовка модели и параметров
+                          </StepText>
+                        </StepItem>
+                        
+                        <StepItem $isActive={(generationProgress || 0) >= 30 && (generationProgress || 0) < 80} $isCompleted={(generationProgress || 0) >= 80}>
+                           <StepIcon $isActive={(generationProgress || 0) >= 30 && (generationProgress || 0) < 80} $isCompleted={(generationProgress || 0) >= 80}>
+                            {(generationProgress || 0) >= 80 ? <FiCheckCircle size={10} /> : '2'}
+                          </StepIcon>
+                          <StepText $isActive={(generationProgress || 0) >= 30 && (generationProgress || 0) < 80} $isCompleted={(generationProgress || 0) >= 80}>
+                            Генерация изображения нейросетью
+                          </StepText>
+                        </StepItem>
+                        
+                        <StepItem $isActive={(generationProgress || 0) >= 80} $isCompleted={(generationProgress || 0) >= 100}>
+                           <StepIcon $isActive={(generationProgress || 0) >= 80} $isCompleted={(generationProgress || 0) >= 100}>
+                            {(generationProgress || 0) >= 100 ? <FiCheckCircle size={10} /> : '3'}
+                          </StepIcon>
+                          <StepText $isActive={(generationProgress || 0) >= 80} $isCompleted={(generationProgress || 0) >= 100}>
+                            Финализация и сохранение
+                          </StepText>
+                        </StepItem>
+                      </div>
+                    </ProgressBarContainer>
+                  )}
+                  
+                  {/* Индикатор очереди генерации (старый код) */}
+                  {(() => {
+                    const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
                     let subscriptionType = 'free';
                     if (rawSubscriptionType) {
                       subscriptionType = typeof rawSubscriptionType === 'string' 
                         ? rawSubscriptionType.toLowerCase().trim() 
                         : String(rawSubscriptionType).toLowerCase().trim();
                     }
-                    let queueLimit;
+                    let queueLimit = 1;
                     if (subscriptionType === 'premium') {
-                      queueLimit = 5; // PREMIUM: 5 фото одновременно
+                      queueLimit = 5;
                     } else if (subscriptionType === 'standard') {
-                      queueLimit = 3; // STANDARD: 3 фото одновременно
-                    } else {
-                      queueLimit = 1; // FREE/BASE: только 1 фото одновременно
+                      queueLimit = 3;
                     }
-                    // Проверяем только размер очереди и монеты
                     const queueCount = generationQueueRef.current || 0;
-                    const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
-                    const isQueueFull = activeGenerations >= queueLimit;
-                    return isQueueFull || userInfo.coins < 10;
+                    const activeGenerations = Math.min((isGeneratingPhoto ? 1 : 0) + queueCount, queueLimit);
+                    if (activeGenerations > 0 && queueLimit > 0) {
+                      return (
+                        <div style={{ marginTop: '12px' }}>
+                          <GenerationQueueIndicator>
+                            {Array.from({ length: queueLimit }).map((_, index) => (
+                              <QueueBar 
+                                key={index} 
+                                $isFilled={index < activeGenerations}
+                              />
+                            ))}
+                          </GenerationQueueIndicator>
+                          <QueueLabel>
+                            Очередь генерации ({activeGenerations}/{queueLimit})
+                          </QueueLabel>
+                        </div>
+                      );
+                    }
+                    return null;
                   })()}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    position: 'relative',
-                    minHeight: '48px'
-                  }}
-                >
-                  <span>
-                    {(() => {
-                      const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type;
-                      let subscriptionType = 'free';
-                      if (rawSubscriptionType) {
-                        subscriptionType = typeof rawSubscriptionType === 'string' 
-                          ? rawSubscriptionType.toLowerCase().trim() 
-                          : String(rawSubscriptionType).toLowerCase().trim();
-                      }
-                      let queueLimit;
-                      if (subscriptionType === 'premium') {
-                        queueLimit = 5; // PREMIUM: 5 фото одновременно
-                      } else if (subscriptionType === 'standard') {
-                        queueLimit = 3; // STANDARD: 3 фото одновременно
-                      } else {
-                        queueLimit = 1; // FREE/BASE: только 1 фото одновременно
-                      }
-                      const queueCount = generationQueueRef.current || 0;
-                      const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
-                      const isQueueFull = activeGenerations >= queueLimit;
-                      const progress = isGeneratingPhoto 
-                        ? (generationProgress !== undefined && generationProgress > 0 ? generationProgress : 0)
-                        : 0;
-                      const baseText = isQueueFull 
-                        ? `Сгенерировать фото (10 монет) • Очередь заполнена`
-                        : `Сгенерировать фото (10 монет)`;
-                      return isGeneratingPhoto 
-                        ? `${baseText} • Генерация: ${Math.round(progress)}%`
-                        : baseText;
-                    })()}
-                  </span>
-                </GenerateButton>
-                
-                {/* Текст под кнопкой генерации */}
-                <p className="mt-2 text-sm text-yellow-400 text-center font-medium">
-                  Первая генерация может занять больше времени чем следующие!
-                </p>
-
-                {/* Индикатор очереди генерации */}
-                {(() => {
-                  const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type;
-                  let subscriptionType = 'free';
-                  if (rawSubscriptionType) {
-                    subscriptionType = typeof rawSubscriptionType === 'string' 
-                      ? rawSubscriptionType.toLowerCase().trim() 
-                      : String(rawSubscriptionType).toLowerCase().trim();
-                  }
-                  let queueLimit;
-                  if (subscriptionType === 'premium') {
-                    queueLimit = 5; // PREMIUM: 5 фото одновременно
-                  } else if (subscriptionType === 'standard') {
-                    queueLimit = 3; // STANDARD: 3 фото одновременно
-                  } else {
-                    queueLimit = 1; // FREE/BASE: только 1 фото одновременно
-                  }
-                  // Активные генерации = текущая генерация (если есть) + очередь
-                  const queueCount = generationQueueRef.current || 0;
-                  const activeGenerations = Math.min((isGeneratingPhoto ? 1 : 0) + queueCount, queueLimit);
-                  if (activeGenerations > 0 && queueLimit > 0) {
-                    return (
-                      <div style={{ marginTop: '12px' }}>
-                        <GenerationQueueIndicator>
-                          {Array.from({ length: queueLimit }).map((_, index) => (
-                            <QueueBar 
-                              key={index} 
-                              $isFilled={index < activeGenerations}
-                            />
-                          ))}
-                        </GenerationQueueIndicator>
-                        <QueueLabel>
-                          Очередь генерации ({activeGenerations}/{queueLimit})
-                        </QueueLabel>
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
+                </GenerationArea>
 
                 {/* Кнопка "Продолжить" появляется после добавления хотя бы 1 фото */}
                 {(() => {
@@ -3366,7 +3824,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                             }
                           }}
                         >
-                          Продолжить
+                          Продолжить создание
                         </ContinueButton>
                       </motion.div>
                     );
@@ -3374,51 +3832,12 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                   return null;
                 })()}
 
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-zinc-200 mb-2">
-                    Модель генерации:
-                  </label>
-                  <select
-                    value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value as 'anime-realism' | 'anime' | 'realism')}
-                    className="w-full px-4 py-2 bg-black border border-zinc-700 rounded-lg text-zinc-200 text-sm focus:outline-none focus:border-zinc-500"
-                  >
-                    <option value="anime-realism">Сочетание аниме и реалистичных текстур</option>
-                    <option value="anime">Классический аниме стиль</option>
-                    <option value="realism">Максимальная фотореалистичность</option>
-                  </select>
-                </div>
 
-                <div className="mt-4">
-                  <label htmlFor="photo-prompt-unified" className="block text-sm font-medium text-zinc-200 mb-2">
-                    Промпт для генерации фото:
-                  </label>
-                  <textarea
-                    id="photo-prompt-unified"
-                    value={customPrompt}
-                    onChange={(e) => {
-                      const newValue = e.target.value;
-                      setCustomPrompt(newValue);
-                      customPromptRef.current = newValue; // Обновляем ref для актуального значения
-                      setCustomPromptManuallySet(true); // Пользователь вручную редактирует промпт
-                    }}
-                    placeholder={(() => {
-                      const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
-                      return parts.length > 0 ? parts.join(' | ') : 'Опишите внешность персонажа и локацию для генерации фото...';
-                    })()}
-                    className="w-full px-4 py-3 bg-black border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition-colors resize-none"
-                    rows={4}
-                  />
-                </div>
 
                 {/* Сгенерированные фото показываем внизу под промптом */}
                 {generatedPhotos && Array.isArray(generatedPhotos) && generatedPhotos.length > 0 && (
-                  <div className="mt-6">
+                  <div className="mt-6" ref={generatedPhotosRef}>
                     <div className="mb-4">
-                      <h4 className="text-base font-medium text-zinc-200 mb-1">Сгенерированные фото ({generatedPhotos.length})</h4>
-                      <p style={{ color: '#a78bfa', fontSize: '0.875rem', marginTop: '0.25rem' }}>
-                        Нажми добавить на фото, чтобы оно появилось на главной странице
-                      </p>
                     </div>
                     
                     <PhotoList>
@@ -3470,11 +3889,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                     </PhotoList>
 
                     <SliderDescription>
-                      <DescriptionTitle>Выбор главных фото</DescriptionTitle>
-                      <DescriptionText>
-                        Можно добавить максимум {MAX_MAIN_PHOTOS} фотографий. Используйте кнопки «Добавить»
-                        и «Удалить», чтобы управлять карточкой персонажа.
-                      </DescriptionText>
                     </SliderDescription>
                   </div>
                 )}
@@ -3487,25 +3901,24 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
       {selectedPhotoForView && (
         <PhotoModal 
           onClick={(e) => {
-            
-            closePhotoModal();
+            if (e.target === e.currentTarget) {
+              closePhotoModal();
+            }
           }}
         >
+          <PhotoModalClose 
+            onClick={(e) => {
+              e.stopPropagation();
+              closePhotoModal();
+            }}
+          >
+            <CloseIcon />
+          </PhotoModalClose>
           <PhotoModalContent 
             onClick={(e) => {
-              
               e.stopPropagation();
             }}
           >
-            <PhotoModalClose 
-              onClick={(e) => {
-                
-                e.stopPropagation();
-                closePhotoModal();
-              }}
-            >
-              <CloseIcon />
-            </PhotoModalClose>
             <ModalImageContainer>
               <PhotoModalImage 
                 src={selectedPhotoForView.url} 
