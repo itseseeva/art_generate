@@ -27,7 +27,7 @@ services:
   art_generation_celery_local:
     build:
       context: ..
-      dockerfile: Dockerfile.celery
+      dockerfile: Docker_all/Dockerfile.celery
     container_name: art_generation_celery_local
     restart: always
     environment:
@@ -47,7 +47,7 @@ services:
   art_generation_celery_beat_local:
     build:
       context: ..
-      dockerfile: Dockerfile.celery
+      dockerfile: Docker_all/Dockerfile.celery
     container_name: art_generation_celery_beat_local
     restart: always
     environment:

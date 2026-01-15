@@ -106,7 +106,7 @@ services:
   art_generation_celery:
     build:
       context: ..
-      dockerfile: Dockerfile.celery
+      dockerfile: Docker_all/Dockerfile.celery
     container_name: art_generation_celery
     restart: always
     networks:
