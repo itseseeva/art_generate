@@ -1478,6 +1478,63 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
     processGeneration();
   };
 
+  const handleRemovePhoto = async (photo: PaidAlbumImage) => {
+    setError(null);
+    setSuccess(null);
+
+    const subscriptionType = (userSubscription || '').toLowerCase();
+    const hasValidSubscription = subscriptionType === 'standard' || 
+                                subscriptionType === 'premium' || 
+                                subscriptionType === 'pro' ||
+                                subscriptionType === 'standart';
+    
+    const canEdit = canEditAlbum || hasValidSubscription;
+
+    if (!canEdit) {
+      setIsUpgradeModalOpen(true);
+      return;
+    }
+
+    // Удаляем фото из состояния
+    const updatedPhotos = selectedPhotos.filter(item => item.id !== photo.id && item.url !== photo.url);
+    setSelectedPhotos(updatedPhotos);
+
+    // Автоматически сохраняем изменения в БД
+    if (!character?.name) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const response = await authManager.fetchWithAuth(`/api/v1/paid-gallery/${encodeURIComponent(character.name)}/photos`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          photos: updatedPhotos
+        })
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        // Если ошибка сохранения, возвращаем фото обратно в состояние
+        setSelectedPhotos(selectedPhotos);
+        const message = (data && (data.detail || data.message)) || 'Не удалось удалить фото из альбома';
+        throw new Error(message);
+      }
+
+      // Обновляем selectedPhotos из ответа сервера
+      const savedPhotos = Array.isArray(data.photos) ? data.photos : (Array.isArray(data.images) ? data.images : updatedPhotos);
+      setSelectedPhotos(savedPhotos);
+      setSuccess('Фото удалено из альбома');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Не удалось удалить фото из альбома');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const togglePhotoSelection = (photo: PaidAlbumImage) => {
     setError(null);
     setSuccess(null);
@@ -1497,7 +1554,8 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
 
     const exists = selectedPhotos.some(item => item.id === photo.id || item.url === photo.url);
     if (exists) {
-      setSelectedPhotos(prev => prev.filter(item => item.id !== photo.id && item.url !== photo.url));
+      // Если фото уже в альбоме, удаляем его (с сохранением в БД)
+      handleRemovePhoto(photo);
       return;
     }
 
@@ -1882,7 +1940,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                     <RemoveButton
                       onClick={(e) => {
                         e.stopPropagation();
-                        togglePhotoSelection(photo);
+                        handleRemovePhoto(photo);
                       }}
                     >
                       <X size={14} />

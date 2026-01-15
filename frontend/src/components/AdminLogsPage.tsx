@@ -499,23 +499,27 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({ onBackToMain }) =>
   };
 
   const handleResetStats = async () => {
-    if (!confirm('ВНИМАНИЕ! Это удалит всех пользователей кроме админов. Вы уверены?')) {
-      return;
-    }
-
-    if (!confirm('Это необратимая операция! Подтвердите еще раз.')) {
+    if (!confirm('ВНИМАНИЕ! Это сбросит статистику (обнулит счетчики). Данные не будут удалены. Продолжить?')) {
       return;
     }
 
     try {
       setIsResetting(true);
+      setLoading(true); // Устанавливаем loading для перезагрузки статистики
+      
       const response = await authManager.fetchWithAuth('/api/v1/admin/reset-stats/', {
         method: 'POST'
       });
 
       if (response.ok) {
-        alert('Статистика успешно сброшена');
-        await fetchStats();
+        const data = await response.json();
+        alert(`Статистика успешно сброшена. ${data.message || ''}`);
+        
+        // Обновляем статистику и список пользователей
+        await Promise.all([
+          fetchStats(),
+          fetchUsers()
+        ]);
       } else {
         const data = await response.json();
         alert(`Ошибка: ${data.detail || 'Неизвестная ошибка'}`);
@@ -525,6 +529,7 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({ onBackToMain }) =>
       alert('Ошибка сброса статистики');
     } finally {
       setIsResetting(false);
+      setLoading(false);
     }
   };
 

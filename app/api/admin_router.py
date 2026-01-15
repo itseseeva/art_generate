@@ -447,60 +447,119 @@ async def reset_stats(
     db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
     """
-    ОПАСНАЯ ОПЕРАЦИЯ: Удаляет всех пользователей и связанные данные.
-    Используйте только для очистки тестовых данных перед продакшеном.
+    Сбрасывает статистику (обнуляет счетчики) без удаления данных.
+    Обновляет даты создания записей и статусы подписок, чтобы все счетчики стали 0.
     """
     try:
         logger.warning(
             f"[ADMIN RESET] Админ {current_user.email} запустил сброс статистики"
         )
         
-        # Получаем ID всех пользователей кроме админов
-        result = await db.execute(
-            select(Users.id).where(Users.is_admin == False)
+        from sqlalchemy import text, update
+        from datetime import datetime, timedelta
+        
+        # Используем datetime без timezone, так как в БД TIMESTAMP WITHOUT TIME ZONE
+        # Устанавливаем дату в прошлом (100 дней назад), чтобы все записи не попадали
+        # в фильтры "за последние 24 часа/7 дней", что сбросит счетчики в 0
+        past_date = datetime.utcnow() - timedelta(days=100)
+        
+        results = {}
+        
+        # 1. Обновляем created_at у всех пользователей (кроме админов) на прошлую дату
+        # Это сбросит счетчики "новые пользователи за 24ч/7д" в 0
+        users_updated = await db.execute(
+            update(Users)
+            .where(Users.is_admin == False)
+            .values(created_at=past_date)
         )
-        user_ids_to_delete = [row[0] for row in result.all()]
+        results['users'] = users_updated.rowcount
         
-        deleted_count = len(user_ids_to_delete)
-        
-        if deleted_count == 0:
-            return {
-                "success": True,
-                "deleted_users": 0,
-                "message": "Нет пользователей для удаления (все админы или база пуста)"
-            }
-        
-        # Удаляем связанные данные напрямую через SQL, чтобы избежать проблем с каскадами
-        # Это нужно сделать ДО удаления пользователей
-        
-        # 1. Удаляем balance_history для этих пользователей
-        from app.models.balance_history import BalanceHistory
-        from sqlalchemy import delete as sql_delete
-        
+        # 2. Обновляем created_at у всех сообщений чата на прошлую дату
+        # Это сбросит счетчик "активные пользователи за 24ч" в 0
         try:
-            balance_history_delete = sql_delete(BalanceHistory).where(
-                BalanceHistory.user_id.in_(user_ids_to_delete)
+            from app.models.chat_history import ChatHistory
+            messages_updated = await db.execute(
+                update(ChatHistory)
+                .values(created_at=past_date)
             )
-            await db.execute(balance_history_delete)
-            logger.info(f"[ADMIN RESET] Удалено записей из balance_history для {deleted_count} пользователей")
+            results['messages'] = messages_updated.rowcount
         except Exception as e:
-            logger.warning(f"[ADMIN RESET] Ошибка удаления balance_history: {e}")
-            # Продолжаем, так как могут быть другие проблемы
+            logger.warning(f"[ADMIN RESET] Ошибка обновления дат сообщений: {e}")
+            results['messages'] = 0
         
-        # 2. Удаляем пользователей через bulk delete (без загрузки связанных объектов)
-        users_delete = sql_delete(Users).where(Users.id.in_(user_ids_to_delete))
-        await db.execute(users_delete)
+        # 3. Обновляем created_at у всех изображений на прошлую дату
+        try:
+            from app.models.image_generation_history import ImageGenerationHistory
+            images_updated = await db.execute(
+                update(ImageGenerationHistory)
+                .values(created_at=past_date)
+            )
+            results['images'] = images_updated.rowcount
+        except Exception as e:
+            logger.warning(f"[ADMIN RESET] Ошибка обновления дат изображений: {e}")
+            results['images'] = 0
+        
+        # 4. Устанавливаем статус всех подписок (кроме админов) в INACTIVE
+        # Это обнулит счетчики FREE/STANDARD/PREMIUM подписок
+        try:
+            from app.models.subscription import UserSubscription, SubscriptionStatus
+            
+            # Получаем ID всех пользователей кроме админов
+            admin_ids_result = await db.execute(
+                select(Users.id).where(Users.is_admin == True)
+            )
+            admin_ids = [row[0] for row in admin_ids_result.all()]
+            
+            if admin_ids:
+                # Обновляем подписки всех пользователей, кроме админов
+                subscriptions_updated = await db.execute(
+                    update(UserSubscription)
+                    .where(~UserSubscription.user_id.in_(admin_ids))
+                    .values(status=SubscriptionStatus.INACTIVE)
+                )
+                results['subscriptions'] = subscriptions_updated.rowcount
+            else:
+                # Если нет админов, обновляем все подписки
+                subscriptions_updated = await db.execute(
+                    update(UserSubscription)
+                    .values(status=SubscriptionStatus.INACTIVE)
+                )
+                results['subscriptions'] = subscriptions_updated.rowcount
+        except Exception as e:
+            logger.warning(f"[ADMIN RESET] Ошибка обновления статусов подписок: {e}")
+            results['subscriptions'] = 0
+        
+        # 5. Обнуляем монеты у всех пользователей (кроме админов)
+        # Это обнулит счетчик "Монет в системе"
+        try:
+            coins_updated = await db.execute(
+                update(Users)
+                .where(Users.is_admin == False)
+                .values(coins=0)
+            )
+            results['coins'] = coins_updated.rowcount
+        except Exception as e:
+            logger.warning(f"[ADMIN RESET] Ошибка обнуления монет: {e}")
+            results['coins'] = 0
         
         await db.commit()
         
         logger.info(
-            f"[ADMIN RESET] Удалено {deleted_count} пользователей (админы сохранены)"
+            f"[ADMIN RESET] Статистика сброшена: обновлено {results['users']} пользователей, "
+            f"{results['messages']} сообщений, {results['images']} изображений, "
+            f"{results['subscriptions']} подписок, {results['coins']} пользователей с монетами"
         )
         
         return {
             "success": True,
-            "deleted_users": deleted_count,
-            "message": f"Удалено {deleted_count} пользователей (админы сохранены)"
+            "message": f"Статистика сброшена. Обновлено: {results['users']} пользователей, "
+                      f"{results['messages']} сообщений, {results['images']} изображений, "
+                      f"{results['subscriptions']} подписок, {results['coins']} пользователей с монетами",
+            "updated_users": results['users'],
+            "updated_messages": results['messages'],
+            "updated_images": results['images'],
+            "updated_subscriptions": results['subscriptions'],
+            "updated_coins": results['coins']
         }
     except Exception as e:
         await db.rollback()
