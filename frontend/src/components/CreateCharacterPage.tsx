@@ -814,6 +814,52 @@ const GenerateButton = styled.button`
   }
 `;
 
+const GenerateButtonContainer = styled.div`
+  position: relative;
+  width: 100%;
+`;
+
+const GenerateTooltip = styled.div<{ $isVisible: boolean }>`
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(30, 30, 40, 0.95);
+  border: 1px solid rgba(234, 179, 8, 0.4);
+  border-radius: ${theme.borderRadius.md};
+  padding: ${theme.spacing.sm} ${theme.spacing.md};
+  font-size: ${theme.fontSize.sm};
+  color: rgba(200, 200, 220, 0.9);
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  visibility: ${props => props.$isVisible ? 'visible' : 'hidden'};
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-bottom: 6px solid rgba(234, 179, 8, 0.4);
+  }
+  
+  &::after {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 5px solid rgba(30, 30, 40, 0.95);
+  }
+`;
+
 const ContinueButton = styled(motion.button)`
   position: relative;
   background: linear-gradient(135deg, rgba(234, 179, 8, 0.9), rgba(251, 191, 36, 0.9));
@@ -2529,6 +2575,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [isTagsExpanded, setIsTagsExpanded] = useState(false);
   const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime' | 'realism'>('anime-realism');
+  const [showGenerateTooltip, setShowGenerateTooltip] = useState(false);
   const [generationProgress, setGenerationProgress] = useState<number | undefined>(undefined);
   const generationQueueRef = React.useRef<number>(0); // Счетчик задач в очереди
   const customPromptRef = React.useRef<string>(''); // Ref для актуального промпта
@@ -3964,45 +4011,16 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                     )}
                   </div>
                   
-                  <GenerateButton
-                    type="button"
-                    onClick={generatePhoto}
-                    disabled={(() => {
-                      if (!userInfo || !createdCharacterData) return true;
-                      const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
-                      let subscriptionType = 'free';
-                      if (rawSubscriptionType) {
-                        subscriptionType = typeof rawSubscriptionType === 'string' 
-                          ? rawSubscriptionType.toLowerCase().trim() 
-                          : String(rawSubscriptionType).toLowerCase().trim();
-                      }
-                      let queueLimit = 1;
-                      if (subscriptionType === 'premium') {
-                        queueLimit = 5;
-                      } else if (subscriptionType === 'standard') {
-                        queueLimit = 3;
-                      }
-                      const queueCount = generationQueueRef.current || 0;
-                      const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
-                      const isQueueFull = activeGenerations >= queueLimit;
-                      return isQueueFull || userInfo.coins < 10;
-                    })()}
-                  >
-                    <span className="flex items-center gap-2">
-                      <Zap size={18} />
-                      {(() => {
-                        const hasGeneratedPhotos = generatedPhotos && generatedPhotos.length > 0;
-                        let buttonText = 'Сгенерировать фото';
-                        
-                        if (hasGeneratedPhotos) {
-                          buttonText = 'Сгенерировать ещё';
-                        }
-                        
-                        // Получаем информацию об очереди для отображения на кнопке
-                        if (!userInfo || !createdCharacterData) {
-                          return buttonText;
-                        }
-                        
+                  <GenerateButtonContainer>
+                    <GenerateButton
+                      type="button"
+                      onClick={() => {
+                        generatePhoto();
+                        setShowGenerateTooltip(true);
+                        setTimeout(() => setShowGenerateTooltip(false), 4000);
+                      }}
+                      disabled={(() => {
+                        if (!userInfo || !createdCharacterData) return true;
                         const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
                         let subscriptionType = 'free';
                         if (rawSubscriptionType) {
@@ -4018,15 +4036,53 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         }
                         const queueCount = generationQueueRef.current || 0;
                         const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
-                        
-                        if (activeGenerations > 0) {
-                          return `${buttonText} ${activeGenerations}/${queueLimit}`;
-                        }
-                        
-                        return buttonText;
+                        const isQueueFull = activeGenerations >= queueLimit;
+                        return isQueueFull || userInfo.coins < 10;
                       })()}
-                    </span>
-                  </GenerateButton>
+                    >
+                      <span className="flex items-center gap-2">
+                        <Zap size={18} />
+                        {(() => {
+                          const hasGeneratedPhotos = generatedPhotos && generatedPhotos.length > 0;
+                          let buttonText = 'Сгенерировать фото';
+                          
+                          if (hasGeneratedPhotos) {
+                            buttonText = 'Сгенерировать ещё';
+                          }
+                          
+                          // Получаем информацию об очереди для отображения на кнопке
+                          if (!userInfo || !createdCharacterData) {
+                            return buttonText;
+                          }
+                          
+                          const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
+                          let subscriptionType = 'free';
+                          if (rawSubscriptionType) {
+                            subscriptionType = typeof rawSubscriptionType === 'string' 
+                              ? rawSubscriptionType.toLowerCase().trim() 
+                              : String(rawSubscriptionType).toLowerCase().trim();
+                          }
+                          let queueLimit = 1;
+                          if (subscriptionType === 'premium') {
+                            queueLimit = 5;
+                          } else if (subscriptionType === 'standard') {
+                            queueLimit = 3;
+                          }
+                          const queueCount = generationQueueRef.current || 0;
+                          const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
+                          
+                          if (activeGenerations > 0) {
+                            return `${buttonText} ${activeGenerations}/${queueLimit}`;
+                          }
+                          
+                          return buttonText;
+                        })()}
+                      </span>
+                    </GenerateButton>
+                    <GenerateTooltip $isVisible={showGenerateTooltip}>
+                      Наведитесь на готовое фото и нажмите "Добавить"
+                    </GenerateTooltip>
+                  </GenerateButtonContainer>
                   
                   {/* Предупреждение о времени (серое) */}
                   <WarningText>

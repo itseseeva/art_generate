@@ -1199,6 +1199,52 @@ const GenerateButton = styled.button`
   }
 `;
 
+const GenerateButtonContainer = styled.div`
+  position: relative;
+  width: 100%;
+`;
+
+const GenerateTooltip = styled.div<{ $isVisible: boolean }>`
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(30, 30, 40, 0.95);
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  border-radius: ${theme.borderRadius.md};
+  padding: ${theme.spacing.sm} ${theme.spacing.md};
+  font-size: ${theme.fontSize.sm};
+  color: rgba(200, 200, 220, 0.9);
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  visibility: ${props => props.$isVisible ? 'visible' : 'hidden'};
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-bottom: 6px solid rgba(139, 92, 246, 0.4);
+  }
+  
+  &::after {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 5px solid rgba(30, 30, 40, 0.95);
+  }
+`;
+
 const ModelSelectionContainer = styled.div`
   display: flex;
   justify-content: center;
@@ -1745,6 +1791,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const customPromptRef = useRef<string>(''); // Ref для актуального промпта
   const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime' | 'realism'>('anime-realism');
   const [isTagsExpanded, setIsTagsExpanded] = useState(false);
+  const [showGenerateTooltip, setShowGenerateTooltip] = useState(false);
 
   // Функции для авторизации
   const handleLogin = () => {
@@ -3578,38 +3625,47 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                     )}
                   </div>
                   
-                  <GenerateButton
-                    type="button"
-                    onClick={generatePhoto}
-                    disabled={(() => {
-                      if (!userInfo) return true;
-                      const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
-                      let subscriptionType = 'free';
-                      if (rawSubscriptionType) {
-                        subscriptionType = typeof rawSubscriptionType === 'string' 
-                          ? rawSubscriptionType.toLowerCase().trim() 
-                          : String(rawSubscriptionType).toLowerCase().trim();
-                      }
-                      let queueLimit = 1;
-                      if (subscriptionType === 'premium') {
-                        queueLimit = 5;
-                      } else if (subscriptionType === 'standard') {
-                        queueLimit = 3;
-                      }
-                      const queueCount = generationQueueRef.current || 0;
-                      const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
-                      const isQueueFull = activeGenerations >= queueLimit;
-                      return isQueueFull || userInfo.coins < 10;
-                    })()}
-                  >
-                    <span className="flex items-center gap-2">
-                      <Zap size={18} />
-                      {(() => {
-                         if (isGeneratingPhoto) return 'Сгенерировать фото';
-                         return 'Сгенерировать фото';
+                  <GenerateButtonContainer>
+                    <GenerateButton
+                      type="button"
+                      onClick={() => {
+                        generatePhoto();
+                        setShowGenerateTooltip(true);
+                        setTimeout(() => setShowGenerateTooltip(false), 4000);
+                      }}
+                      disabled={(() => {
+                        if (!userInfo) return true;
+                        const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
+                        let subscriptionType = 'free';
+                        if (rawSubscriptionType) {
+                          subscriptionType = typeof rawSubscriptionType === 'string' 
+                            ? rawSubscriptionType.toLowerCase().trim() 
+                            : String(rawSubscriptionType).toLowerCase().trim();
+                        }
+                        let queueLimit = 1;
+                        if (subscriptionType === 'premium') {
+                          queueLimit = 5;
+                        } else if (subscriptionType === 'standard') {
+                          queueLimit = 3;
+                        }
+                        const queueCount = generationQueueRef.current || 0;
+                        const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
+                        const isQueueFull = activeGenerations >= queueLimit;
+                        return isQueueFull || userInfo.coins < 10;
                       })()}
-                    </span>
-                  </GenerateButton>
+                    >
+                      <span className="flex items-center gap-2">
+                        <Zap size={18} />
+                        {(() => {
+                           if (isGeneratingPhoto) return 'Сгенерировать фото';
+                           return 'Сгенерировать фото';
+                        })()}
+                      </span>
+                    </GenerateButton>
+                    <GenerateTooltip $isVisible={showGenerateTooltip}>
+                      Наведитесь на готовое фото и нажмите "Добавить"
+                    </GenerateTooltip>
+                  </GenerateButtonContainer>
                   
                   {/* Предупреждение о времени (серое) */}
                   <WarningText>
