@@ -1523,8 +1523,18 @@ async def update_user_character(
     from app.chat_bot.models.models import CharacterDB
     
     try:
+        # Декодируем имя, так как оно может быть URL-encoded
+        decoded_name = unquote(character_name)
+        
+        # ДИАГНОСТИКА: Логируем входные данные
+        logger.info(f"[UPDATE CHARACTER] Получен запрос на обновление персонажа:")
+        logger.info(f"  URL character_name: '{character_name}'")
+        logger.info(f"  Decoded name: '{decoded_name}'")
+        logger.info(f"  New name from request: '{character.name}' (repr: {repr(character.name)})")
+        logger.info(f"  Name length: URL={len(character_name)}, decoded={len(decoded_name)}, new={len(character.name)}")
+        
         # Check character ownership
-        await check_character_ownership(character_name, current_user, db)
+        await check_character_ownership(decoded_name, current_user, db)
         
         # Проверяем и списываем кредиты за редактирование
         # КРИТИЧНО: Используем баланс пользователя (user.coins), а не кредиты подписки
@@ -1562,42 +1572,85 @@ async def update_user_character(
                 db=db,
                 user_id=user_id,
                 amount=-CHARACTER_EDIT_COST,
-                reason=f"Редактирование персонажа '{character_name}'"
+                reason=f"Редактирование персонажа '{decoded_name}'"
             )
         except Exception as e:
             logger.warning(f"Не удалось записать историю баланса: {e}")
         
         logger.info(
             f"Списано {CHARACTER_EDIT_COST} кредитов у пользователя {user_id} "
-            f"за редактирование персонажа '{character_name}'. Баланс: {old_balance} -> {db_user.coins}"
+            f"за редактирование персонажа '{decoded_name}'. Баланс: {old_balance} -> {db_user.coins}"
         )
         
-        # Find character
+        # Find character (используем ilike для поиска без учета регистра)
         result = await db.execute(
-            select(CharacterDB).where(CharacterDB.name == character_name)
+            select(CharacterDB).where(CharacterDB.name.ilike(decoded_name))
         )
         db_char = result.scalar_one_or_none()
+        
+        # Если не найдено по имени, пробуем по ID, если это число
+        if not db_char and decoded_name.isdigit():
+            result = await db.execute(
+                select(CharacterDB).where(CharacterDB.id == int(decoded_name))
+            )
+            db_char = result.scalar_one_or_none()
         
         if not db_char:
             await db.rollback()
             raise HTTPException(
                 status_code=404, 
-                detail=f"Character '{character_name}' not found"
+                detail=f"Character '{decoded_name}' not found"
             )
         
+        # Сохраняем старое имя для инвалидации кэша ДО любых изменений
+        old_character_name = db_char.name
+        
         # Update name if changed
-        if character.name != character_name:
+        if character.name != db_char.name:
             # Check that new name is not taken by another character
             existing_char_result = await db.execute(
-                select(CharacterDB).where(CharacterDB.name == character.name)
+                select(CharacterDB).where(CharacterDB.name.ilike(character.name))
             )
             existing_char = existing_char_result.scalars().first()
-            if existing_char:
+            if existing_char and existing_char.id != db_char.id:
                 raise HTTPException(
                     status_code=400, 
                     detail=f"Персонаж с именем '{character.name}' уже существует"
                 )
+            
+            # КРИТИЧНО: При переименовании обновляем character_name во всех связанных таблицах
+            from app.models.chat_history import ChatHistory
+            from app.models.user_gallery import UserGallery
+            from app.models.image_generation_history import ImageGenerationHistory
+            from sqlalchemy import update
+            
+            logger.info(f"[UPDATE CHARACTER] Переименование персонажа: '{old_character_name}' -> '{character.name}'")
+            
+            # Обновляем ChatHistory
+            await db.execute(
+                update(ChatHistory)
+                .where(ChatHistory.character_name.ilike(old_character_name))
+                .values(character_name=character.name)
+            )
+            
+            # Обновляем UserGallery
+            await db.execute(
+                update(UserGallery)
+                .where(UserGallery.character_name.ilike(old_character_name))
+                .values(character_name=character.name)
+            )
+            
+            # Обновляем ImageGenerationHistory
+            await db.execute(
+                update(ImageGenerationHistory)
+                .where(ImageGenerationHistory.character_name.ilike(old_character_name))
+                .values(character_name=character.name)
+            )
+            
+            logger.info(f"[UPDATE CHARACTER] Обновлены связанные таблицы для персонажа '{character.name}'")
+            
             db_char.name = character.name
+            db_char.display_name = character.name
         
         # Удаляем дефолтные инструкции из instructions пользователя, если они там есть
         DEFAULT_INSTRUCTIONS_MARKER = "IMPORTANT: Always end your answers with the correct punctuation"
@@ -1654,8 +1707,7 @@ Response Style:
         db_char.character_appearance = character.appearance
         db_char.location = character.location
         
-        # Сохраняем старое имя для инвалидации кэша
-        old_character_name = character_name
+        # Новое имя персонажа (для логирования и кэша)
         new_character_name = character.name
         
         await db.commit()
@@ -1665,13 +1717,16 @@ Response Style:
         # Обновляем профиль пользователя (для обновления баланса на фронтенде)
         await emit_profile_update(user_id, db)
         
-        # Инвалидируем кэш персонажей
-        # КРИТИЧНО: Если имя изменилось, инвалидируем кэш для старого и нового имени
+        # Инвалидируем кэш персонажей (агрессивная очистка)
+        # КРИТИЧНО: Очищаем кэш для старого и нового имени
         await cache_delete(key_character(old_character_name))
-        if new_character_name != old_character_name:
-            await cache_delete(key_character(new_character_name))
+        await cache_delete(key_character(new_character_name))
+        await cache_delete(key_character(decoded_name))  # Также очищаем кэш для URL-имени
         await cache_delete(key_characters_list())
         await cache_delete_pattern("characters:list:*")
+        await cache_delete_pattern(f"character:*")  # Очищаем все кэши персонажей
+        
+        logger.info(f"[UPDATE CHARACTER] Кэш очищен для имён: old='{old_character_name}', new='{new_character_name}', decoded='{decoded_name}'")
         
         # Инвалидируем кэш фотографий
         # КРИТИЧНО: Инвалидируем кэш для обоих имен, если имя изменилось
