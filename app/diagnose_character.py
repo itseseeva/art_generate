@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Скрипт для проверки персонажа "Холодная госпожа офиса" в БД.
-Запустить на VPS из корня проекта: python3 app/diagnose_character.py
+Запустить на VPS из корня проекта через Docker:
+  docker exec -it art_generation_backend python3 /app/app/diagnose_character.py
 Диагностика проблем с загрузкой персонажа из БД.
 """
 import asyncio
@@ -17,6 +18,8 @@ if str(project_root) not in sys.path:
 async def check_character():
     """Проверяет персонажа в БД."""
     try:
+        # Импортируем модели в правильном порядке для SQLAlchemy
+        from app.models.user import Users  # Импортируем сначала Users
         from app.database.db import async_session_maker
         from app.chat_bot.models.models import CharacterDB
         from sqlalchemy import select
