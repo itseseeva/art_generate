@@ -83,6 +83,7 @@ function App() {
   const isMobile = useIsMobile();
   const [currentPage, setCurrentPage] = useState<PageType>('main');
   const [selectedCharacter, setSelectedCharacter] = useState<any>(null);
+  const [isLoadingCharacter, setIsLoadingCharacter] = useState(false); // Флаг загрузки персонажа
   const [contentMode, setContentMode] = useState<'safe' | 'nsfw'>('safe');
   const [selectedSubscriptionType, setSelectedSubscriptionType] = useState<string>('');
 
@@ -133,11 +134,11 @@ function App() {
 
   // Функция загрузки персонажа по ID или имени
   const loadCharacterById = async (characterId: string | number): Promise<any | null> => {
+    console.log('[loadCharacterById] START:', characterId);
     try {
-      
-      
       // Сначала проверяем localStorage (по ID и по имени)
       const savedById = localStorage.getItem(`character_${characterId}`);
+      console.log('[loadCharacterById] localStorage check:', { key: `character_${characterId}`, found: !!savedById });
       if (savedById) {
         
         return JSON.parse(savedById);
@@ -145,11 +146,13 @@ function App() {
 
       // Пытаемся загрузить из API по ID
       try {
+        console.log('[loadCharacterById] Fetching from API:', `/api/v1/characters/${encodeURIComponent(characterId)}`);
         const response = await fetch(`/api/v1/characters/${encodeURIComponent(characterId)}`);
+        console.log('[loadCharacterById] API response status:', response.status);
         if (response.ok) {
           const character = await response.json();
+          console.log('[loadCharacterById] API response data:', character);
           if (character && (character.id || character.name)) {
-            
             // Сохраняем в localStorage
             const storageKey = character.id ? `character_${character.id}` : `character_${character.name}`;
             localStorage.setItem(storageKey, JSON.stringify(character));
@@ -212,12 +215,15 @@ function App() {
     if (path.includes('/chat')) {
       const characterId = urlParams.get('character');
       if (characterId) {
+        // КРИТИЧНО: Показываем спиннер пока персонаж загружается
+        setIsLoadingCharacter(true);
+        setCurrentPage('chat');
+        
         // Восстанавливаем персонажа из localStorage или API
         loadCharacterById(characterId).then(char => {
           if (char) {
             
             setSelectedCharacter(char);
-            setCurrentPage('chat');
             window.history.replaceState({ page: 'chat', character: characterId }, '', path);
           } else {
             
@@ -225,6 +231,8 @@ function App() {
             setCurrentPage('main');
             window.history.replaceState({ page: 'main' }, '', '/');
           }
+        }).finally(() => {
+          setIsLoadingCharacter(false);
         });
       } else {
         // Если нет characterId, остаемся на главной
@@ -258,19 +266,27 @@ function App() {
     } else if (path.includes('/edit-character')) {
       // КРИТИЧНО: Восстанавливаем персонажа для страницы редактирования
       const characterId = urlParams.get('character');
+      console.log('[App.tsx] /edit-character route detected:', { characterId, path });
       if (characterId) {
+        // КРИТИЧНО: Устанавливаем флаг загрузки и страницу СРАЗУ для показа спиннера
+        console.log('[App.tsx] Setting isLoadingCharacter=true and currentPage=edit-character');
+        setIsLoadingCharacter(true);
+        setCurrentPage('edit-character');
         
         loadCharacterById(characterId).then(char => {
+          console.log('[App.tsx] loadCharacterById result:', { char, hasName: char?.name, hasId: char?.id });
           if (char) {
-            
+            console.log('[App.tsx] Setting selectedCharacter:', char);
             setSelectedCharacter(char);
-            setCurrentPage('edit-character');
             window.history.replaceState({ page: 'edit-character', character: characterId }, '', path);
           } else {
-            
+            console.log('[App.tsx] Character not found, redirecting to edit-characters');
             setCurrentPage('edit-characters');
             window.history.replaceState({ page: 'edit-characters' }, '', '/edit-characters');
           }
+        }).finally(() => {
+          console.log('[App.tsx] Setting isLoadingCharacter=false');
+          setIsLoadingCharacter(false);
         });
         return; // Выходим, чтобы не устанавливать main
       } else {
@@ -773,6 +789,32 @@ function App() {
           />
         );
       case 'chat':
+        // Показываем спиннер если персонаж загружается
+        if (isLoadingCharacter) {
+          return (
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              height: '100vh',
+              color: '#ffffff',
+              flexDirection: 'column',
+              gap: '1rem',
+              backgroundColor: '#1a1a1a'
+            }}>
+              <div style={{ 
+                width: '40px', 
+                height: '40px', 
+                border: '3px solid rgba(255,255,255,0.3)', 
+                borderTop: '3px solid #ffffff', 
+                borderRadius: '50%', 
+                animation: 'spin 1s linear infinite' 
+              }} />
+              <p>Загрузка чата...</p>
+              <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+            </div>
+          );
+        }
         return (
           <ErrorBoundary>
           <ChatContainer
@@ -1018,6 +1060,33 @@ function App() {
         
         
         
+        
+        // Показываем спиннер если персонаж загружается
+        if (isLoadingCharacter) {
+          return (
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              height: '100vh',
+              color: '#ffffff',
+              flexDirection: 'column',
+              gap: '1rem',
+              backgroundColor: '#1a1a1a'
+            }}>
+              <div style={{ 
+                width: '40px', 
+                height: '40px', 
+                border: '3px solid rgba(255,255,255,0.3)', 
+                borderTop: '3px solid #ffffff', 
+                borderRadius: '50%', 
+                animation: 'spin 1s linear infinite' 
+              }} />
+              <p>Загрузка персонажа...</p>
+              <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+            </div>
+          );
+        }
         
         // Более строгая проверка на валидность character
         if (!selectedCharacter || (!selectedCharacter.name && !selectedCharacter.id)) {

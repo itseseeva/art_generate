@@ -87,19 +87,19 @@ async def _publish_profile_update(user_id: int, payload: ProfileUpdatePayload) -
 
 async def collect_profile_snapshot(user_id: int, db: AsyncSession) -> ProfileUpdatePayload:
     """Формирует актуальные данные профиля пользователя."""
-    stmt = (
-        select(Users)
-        .options(selectinload(Users.subscription))
-        .where(Users.id == user_id)
-    )
+    # Загружаем пользователя без eager loading подписки, чтобы избежать проблем с множественными подписками
+    stmt = select(Users).where(Users.id == user_id)
     result = await db.execute(stmt)
     user = result.scalars().first()
     if user is None:
         raise ValueError(f"Пользователь {user_id} не найден")
 
+    # Получаем подписку через сервис, который правильно обрабатывает множественные подписки
     subscription_info: Optional[Dict[str, Any]] = None
-    if user.subscription:
-        subscription = user.subscription
+    service = ProfitActivateService(db)
+    subscription = await service.get_user_subscription(user_id)
+    
+    if subscription:
         subscription_info = {
             "subscription_type": subscription.subscription_type.value,
             "status": subscription.status.value,
@@ -112,7 +112,6 @@ async def collect_profile_snapshot(user_id: int, db: AsyncSession) -> ProfileUpd
             "expires_at": _serialize_datetime(subscription.expires_at),
         }
 
-    service = ProfitActivateService(db)
     subscription_stats = await service.get_subscription_stats(user_id)
 
     stats_payload = {

@@ -17,6 +17,36 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import DarkVeil from '../../@/components/DarkVeil';
 import { PromptGlassModal } from './PromptGlassModal';
 
+/**
+ * Нормализует URL изображения для локальной разработки.
+ * Заменяет продакшен домен (cherrylust.art) на локальный API.
+ */
+const normalizeImageUrl = (url: string | undefined | null): string => {
+  if (!url) return '';
+  
+  // Если это локальный URL или не начинается с http - нормализуем
+  if (!url.startsWith('http')) {
+    const baseUrl = API_CONFIG.BASE_URL || '';
+    if (url.startsWith('/')) {
+      return `${baseUrl}${url}`;
+    }
+    return `${baseUrl}/${url}`;
+  }
+  
+  // В development режиме заменяем продакшен домен на локальный
+  if (import.meta.env.DEV) {
+    // Заменяем cherrylust.art на локальный бэкенд
+    if (url.includes('cherrylust.art')) {
+      const baseUrl = API_CONFIG.BASE_URL || 'http://localhost:8001';
+      // Извлекаем путь после домена
+      const urlPath = url.replace(/https?:\/\/[^\/]+/, '');
+      return `${baseUrl}${urlPath}`;
+    }
+  }
+  
+  return url;
+};
+
 const BackgroundWrapper = styled.div`
   position: fixed;
   top: 0;
@@ -31,11 +61,12 @@ const BackgroundWrapper = styled.div`
 
 const MainContainer = styled.div<{ $isMobile?: boolean }>`
   width: 100%;
-  height: ${props => props.$isMobile ? 'auto' : '100vh'};
+  min-height: 100vh; /* Используем min-height вместо фиксированной height */
   display: flex;
   flex-direction: column;
   background: linear-gradient(to bottom right, rgba(8, 8, 18, 1), rgba(8, 8, 18, 0.95), rgba(40, 40, 40, 0.1));
-  overflow: visible;
+  overflow-x: hidden;
+  overflow-y: auto; /* Разрешаем скролл */
   box-sizing: border-box;
   position: relative;
   
@@ -214,25 +245,22 @@ const AuthButton = styled.button`
 
 const MainContent = styled.div`
   flex: 1;
-  display: flex;
+  display: flex !important;
   flex-direction: row;
-  height: calc(100vh - 80px);
-  max-height: calc(100vh - 80px);
-  overflow: hidden;
+  /* Убираем min-height: 0 - это было причиной проблемы */
+  min-height: 500px !important; 
   padding: ${theme.spacing.lg};
   gap: ${theme.spacing.lg};
-  visibility: visible;
-  opacity: 1;
+  visibility: visible !important;
+  opacity: 1 !important;
   width: 100%;
   box-sizing: border-box;
   position: relative;
-  z-index: 1;
+  z-index: 10;
 
   @media (max-width: 768px) {
     flex-direction: column;
     height: auto;
-    max-height: none;
-    overflow-y: visible;
     padding: ${theme.spacing.md};
   }
 `;
@@ -1687,6 +1715,9 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const [customPromptManuallySet, setCustomPromptManuallySet] = useState(false); // Флаг, что пользователь вручную установил промпт
   const CHARACTER_EDIT_COST = 30; // Кредиты за редактирование персонажа
   const balanceUpdateInProgressRef = useRef(false); // Флаг для предотвращения перезаписи баланса
+  // Refs для предотвращения race condition при загрузке данных персонажа
+  const lastLoadedIdentifierRef = useRef<string | null>(null);
+  const isLoadingRef = useRef<boolean>(false);
   // Безопасная инициализация characterIdentifier с fallback
   // КРИТИЧНО: Используем name из character prop (это реальное имя из БД)
   const [characterIdentifier, setCharacterIdentifier] = useState<string>(() => {
@@ -1739,16 +1770,22 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   // Безопасное обновление characterIdentifier при изменении character
   useEffect(() => {
     const newName = character?.name || character?.id?.toString() || '';
+    console.log('[EditCharacterPage useEffect character change]:', { 
+      newName, 
+      characterIdentifier, 
+      characterProp: character,
+      willUpdate: newName && newName !== characterIdentifier
+    });
     
     if (newName && newName !== characterIdentifier) {
-      
+      console.log('[EditCharacterPage] Updating characterIdentifier from', characterIdentifier, 'to', newName);
       setCharacterIdentifier(newName);
       // Данные загрузятся автоматически через useEffect для characterIdentifier
     } else if (!newName && !characterIdentifier) {
-      
+      console.log('[EditCharacterPage] No name and no identifier, setting isLoadingData=false');
       setIsLoadingData(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks-exhaustive-deps
   }, [character?.name, character?.id]); // Убираем characterIdentifier из зависимостей, чтобы избежать циклов
 
   const fetchCharacterPhotos = useCallback(async (targetName?: string) => {
@@ -1818,10 +1855,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
       const formattedPhotos = photos.map((photo: any, index: number) => {
         const photoId = photo.id?.toString() ?? (photo.url ? `photo_${index}_${Date.now()}` : String(Date.now()));
-        const photoUrl = photo.url;
+        // Нормализуем URL для локальной разработки
+        const photoUrl = normalizeImageUrl(photo.url);
         
         if (!photoUrl) {
-          
+          console.warn('[EditCharacterPage] Photo without URL:', photo);
         }
         
         return {
@@ -2149,7 +2187,15 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         }
       } else {
         
-        if (response.status === 403) {
+        if (response.status === 401) {
+          setError('Необходима авторизация для редактирования персонажа');
+          // Возвращаемся на список персонажей через 2 секунды
+          setTimeout(() => {
+            if (onBackToEditList) {
+              onBackToEditList();
+            }
+          }, 2000);
+        } else if (response.status === 403) {
           setError('У вас нет прав для редактирования этого персонажа');
           // Возвращаемся на список персонажей через 2 секунды
           setTimeout(() => {
@@ -2159,8 +2205,15 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           }, 2000);
         } else if (response.status === 404) {
           setError('Персонаж не найден. Возможно, он был удален.');
+          // Возвращаемся на список персонажей через 2 секунды
+          setTimeout(() => {
+            if (onBackToEditList) {
+              onBackToEditList();
+            }
+          }, 2000);
         } else {
-          setError('Не удалось загрузить данные персонажа');
+          const errorText = await response.text().catch(() => 'Неизвестная ошибка');
+          setError(`Не удалось загрузить данные персонажа: ${errorText}`);
         }
       }
     } catch (error) {
@@ -2398,6 +2451,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     // КРИТИЧНО: Загружаем данные персонажа сразу при монтировании или изменении character
     if (effectiveIdentifier && effectiveIdentifier.trim() !== '') {
       console.log('[useEffect mount] Loading character data for:', effectiveIdentifier);
+      
+      // КРИТИЧНО: Обновляем refs ПЕРЕД вызовом loadCharacterData для предотвращения race condition
+      lastLoadedIdentifierRef.current = effectiveIdentifier;
+      isLoadingRef.current = true;
+      
       // Обновляем characterIdentifier только если он был пустой
       // КРИТИЧНО: Сохраняем name, а не ID, так как API работает по имени
       if (!characterIdentifier) {
@@ -2410,6 +2468,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         console.error('[useEffect mount] Error loading character:', error);
         setIsLoadingData(false);
         setError('Ошибка при загрузке данных персонажа');
+      }).finally(() => {
+        isLoadingRef.current = false;
       });
     } else {
       console.log('[useEffect mount] No identifier, setting isLoadingData to false');
@@ -2439,9 +2499,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
   // Загрузка данных персонажа при изменении characterIdentifier
   // КРИТИЧНО: Этот useEffect не должен дублировать загрузку из основного useEffect
-  // Используем useRef для отслеживания последней загруженной версии
-  const lastLoadedIdentifierRef = useRef<string | null>(null);
-  const isLoadingRef = useRef<boolean>(false);
+  // Refs lastLoadedIdentifierRef и isLoadingRef объявлены выше для предотвращения race condition
   
   useEffect(() => {
     // КРИТИЧНО: Используем characterIdentifier (который обновляется после сохранения), а не character?.name
@@ -2726,13 +2784,14 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           
           
           // Проверяем разные варианты структуры ответа
-          const imageUrl = resultData.image_url || resultData.cloud_url || resultData.url || 
+          const rawImageUrl = resultData.image_url || resultData.cloud_url || resultData.url || 
                           (Array.isArray(resultData.cloud_urls) && resultData.cloud_urls[0]) ||
                           (Array.isArray(resultData.saved_paths) && resultData.saved_paths[0]);
           const imageId = resultData.image_id || resultData.id || resultData.task_id || resultData.filename || `${Date.now()}-${taskId}`;
           
-          if (imageUrl) {
-            
+          if (rawImageUrl) {
+            // Нормализуем URL для локальной разработки
+            const imageUrl = normalizeImageUrl(rawImageUrl);
             setGenerationProgress(100); // Устанавливаем 100% при завершении
             return {
               id: imageId,
@@ -2834,10 +2893,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       if (!generatedPhoto) {
         throw new Error('Не удалось получить сгенерированное изображение');
       }
-      imageUrl = generatedPhoto.url;
+      imageUrl = generatedPhoto.url; // Уже нормализован в waitForGeneration
       imageId = generatedPhoto.id;
     } else {
-      imageUrl = result.cloud_url || result.image_url;
+      // Нормализуем URL для локальной разработки
+      imageUrl = normalizeImageUrl(result.cloud_url || result.image_url);
       if (!imageUrl) {
         throw new Error('URL изображения не получен от сервера');
       }
@@ -3077,8 +3137,17 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
   // Проверка на undefined character с более детальной информацией
   // ВАЖНО: Показываем ошибку только если character точно отсутствует И мы не в процессе загрузки
+  console.log('[EditCharacterPage] RENDER CHECK:', { 
+    hasCharacter: !!character, 
+    characterName: character?.name, 
+    characterId: character?.id,
+    isLoadingData,
+    characterIdentifier,
+    formDataName: formData?.name
+  });
+  
   if (!character || (!character.name && !character.id)) {
-    console.log('[EditCharacterPage] No character prop:', { character, isLoadingData });
+    console.log('[EditCharacterPage] No character prop - showing error/loading:', { character, isLoadingData });
     
     // Если мы еще загружаем данные, показываем спиннер
     if (isLoadingData) {
@@ -3202,32 +3271,43 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     isLoadingData,
     hasFormData: !!formData,
     formDataName: formData?.name,
+    formDataPersonality: formData?.personality?.substring(0, 30),
     characterName: character?.name,
-    characterIdentifier
+    characterIdentifier,
+    formDataKeys: formData ? Object.keys(formData) : []
   });
   
-  return (
-    <MainContainer $isMobile={isMobile}>
-      <GlobalHeader 
-        onShop={onShop}
-        onLogin={() => {
-          setAuthMode('login');
-          setIsAuthModalOpen(true);
-        }}
-        onRegister={() => {
-          setAuthMode('register');
-          setIsAuthModalOpen(true);
-        }}
-        onLogout={handleLogout}
-        onProfile={onProfile}
-        onBalance={() => alert('Баланс пользователя')}
-      />
-      
-      <MainContent>
-        <form onSubmit={handleSubmit} className={`flex-1 flex gap-6 ${isMobile ? 'h-auto' : 'h-full'} flex-col md:flex-row w-full`}>
-          {/* Левая колонка - Форма */}
-          <div className={`flex-1 flex flex-col min-w-0 md:min-w-[400px] bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 ${isMobile ? 'overflow-visible' : 'overflow-y-auto'}`}>
-            <div className="flex flex-col gap-6">
+  // ДИАГНОСТИКА: Проверяем, что рендерится
+  console.log('[EditCharacterPage] About to render MainContainer', { isMobile, formData });
+  
+  try {
+    return (
+      <>
+      <MainContainer $isMobile={isMobile}>
+        <GlobalHeader 
+          onShop={onShop}
+          onLogin={() => {
+            setAuthMode('login');
+            setIsAuthModalOpen(true);
+          }}
+          onRegister={() => {
+            setAuthMode('register');
+            setIsAuthModalOpen(true);
+          }}
+          onLogout={handleLogout}
+          onProfile={onProfile}
+          onBalance={() => alert('Баланс пользователя')}
+        />
+        
+        <MainContent>
+          <form 
+            onSubmit={handleSubmit} 
+            className={`flex-1 flex gap-6 ${isMobile ? 'h-auto' : 'h-full'} flex-col md:flex-row w-full`}
+          >
+            {/* Левая колонка - Форма */}
+            <div className={`flex-1 flex flex-col min-w-0 md:min-w-[400px] bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 ${isMobile ? 'overflow-visible' : 'overflow-y-auto'}`}>
+              <div className="flex flex-col gap-6">
+              
               {/* Имя персонажа */}
               <div>
                 <label htmlFor="name" className="block text-sm font-medium text-zinc-200 mb-2">
@@ -3649,6 +3729,10 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                   e.stopPropagation();
                                   if (photo) openPhotoModal(photo);
                                 }}
+                                onError={(e) => {
+                                  console.error('[EditCharacterPage] Ошибка загрузки изображения:', photo.url);
+                                  e.currentTarget.style.display = 'none';
+                                }}
                               />
                               <PhotoOverlay onClick={(e) => e.stopPropagation()}>
                                 <OverlayButtons>
@@ -3723,9 +3807,23 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       {/* Отладочная информация */}
       {}
       {}
-      <BackgroundWrapper>
+      {/* ВРЕМЕННО ОТКЛЮЧЕНО для отладки */}
+      {/* <BackgroundWrapper>
         <DarkVeil speed={1.1} />
-      </BackgroundWrapper>
+      </BackgroundWrapper> */}
     </MainContainer>
+    </>
   );
+  } catch (err) {
+    console.error('[EditCharacterPage] Render error:', err);
+    return (
+      <div style={{ color: 'white', padding: '20px', background: '#333', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <h2>Ошибка рендеринга страницы</h2>
+        <pre>{String(err)}</pre>
+        <button onClick={() => window.location.reload()} style={{ marginTop: '20px', padding: '10px 20px', background: 'blue', color: 'white', border: 'none', borderRadius: '5px' }}>
+          Обновить страницу
+        </button>
+      </div>
+    );
+  }
 };

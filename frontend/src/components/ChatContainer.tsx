@@ -132,6 +132,7 @@ const MainContent = styled.div`
   z-index: 1;
   visibility: visible !important;
   opacity: 1 !important;
+  min-height: 400px !important; /* Добавлено для предотвращения сжатия */
 `;
 
 const ChatHeader = styled.div`
@@ -267,7 +268,7 @@ const ChatMessagesArea = styled.div`
   display: flex !important;
   flex-direction: column;
   overflow: hidden;
-  min-height: 0;
+  min-height: 300px !important; /* Было min-height: 0 - сжимало контейнер */
   max-height: 100%;
   background: transparent;
   border: none;
@@ -2360,6 +2361,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       timestamp: new Date()
     };
 
+    console.log('[ChatContainer] Создано сообщение ассистента:', assistantMessageId, 'generateImage:', generateImage);
     setMessages(prev => [...prev, assistantMessage]);
     
     // Если генерация изображения, добавляем в очередь активных генераций и запускаем прогресс
@@ -2472,6 +2474,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       }
       if (contentType && contentType.includes('text/event-stream')) {
         // Обрабатываем SSE поток
+        console.log('[SSE] Начинаем обработку SSE потока, generateImage:', generateImage);
         const reader = response.body?.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
@@ -2499,8 +2502,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             if (line.startsWith('data: ')) {
               try {
                 const data = JSON.parse(line.slice(6));
+                console.log('[SSE] Получены данные:', data);
                 
                 if (data.error) {
+                  console.error('[SSE] Ошибка:', data.error);
                   setIsLoading(false);
                   throw new Error(data.error);
                 }
@@ -2577,13 +2582,13 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   // Накопляем контент только если это не генерация изображения
                   if (!generateImage) {
                   accumulatedContent += data.content;
-                  // 
+                  console.log('[SSE] Получен контент:', data.content, 'Накоплено:', accumulatedContent.length, 'символов');
                   
                   // Обновляем сообщение ассистента с накопленным контентом
                   setMessages(prev => {
                     const messageIndex = prev.findIndex(msg => msg.id === assistantMessageId);
                     if (messageIndex === -1) {
-                      // 
+                      console.warn('[SSE] Сообщение ассистента не найдено:', assistantMessageId);
                       return prev;
                     }
                     
@@ -2593,9 +2598,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                       content: accumulatedContent
                     };
                     
-                    // 
+                    console.log('[SSE] Обновлено сообщение:', messageIndex, 'контент:', accumulatedContent.substring(0, 50));
                     return updated;
                   });
+                  } else {
+                    console.log('[SSE] Пропущен контент (generateImage=true):', data.content);
                   }
                 }
                 

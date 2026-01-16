@@ -10,7 +10,7 @@ const MessagesContainer = styled.div`
   overflow-x: hidden;
   background: transparent;
   position: relative;
-  min-height: 0;
+  min-height: 200px !important; /* Было min-height: 0 - это сжимало контейнер */
   height: 100%;
   max-height: 100%;
   z-index: 1;
@@ -236,6 +236,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
   // Проверяем позицию перед изменением сообщений
   useEffect(() => {
+    console.log('[ChatArea] Messages changed, count:', messages.length);
     const container = messagesContainerRef.current;
     if (!container) return;
 
@@ -290,7 +291,14 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           </EmptyState>
         )}
         
-        {messages && messages.length > 0 && messages.map((message) => {
+        {messages && messages.length > 0 && messages.map((message, index) => {
+          console.log(`[ChatArea] Рендеринг сообщения ${index}:`, {
+            id: message.id,
+            type: message.type,
+            contentLength: message.content?.length || 0,
+            hasImage: !!message.imageUrl,
+            content: message.content?.substring(0, 50)
+          });
           return (
             <Message 
               key={message.id} 

@@ -2679,6 +2679,17 @@ async def chat_endpoint(
         final_tokens = count_messages_tokens(openai_messages)
         logger.info(f"[CHAT_MAIN] ОТПРАВКА ЗАПРОСА: Модель={model_used}, Контекст={final_tokens}/{max_context_tokens} токенов, Стриминг={use_streaming}")
         
+        # ДИАГНОСТИКА: Логируем системный промпт для отладки
+        if openai_messages and openai_messages[0]["role"] == "system":
+            system_content = openai_messages[0]["content"]
+            logger.info(f"[CHAT_MAIN] Системный промпт (первые 500 символов): {system_content[:500]}...")
+            logger.info(f"[CHAT_MAIN] Системный промпт (последние 200 символов): ...{system_content[-200:]}")
+        
+        # ДИАГНОСТИКА: Логируем последнее сообщение пользователя
+        if openai_messages and len(openai_messages) > 1:
+            last_msg = openai_messages[-1]
+            logger.info(f"[CHAT_MAIN] Последнее сообщение: role={last_msg['role']}, content={last_msg['content'][:200]}...")
+        
         # Инициализируем переменные для генерации изображения (если нужно)
         task_id = None
         status_url = None

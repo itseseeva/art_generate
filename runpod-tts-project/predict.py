@@ -1,17 +1,22 @@
 import os
+import sys
 import torch
 import torchaudio
 
-# В версии 1.5.0 импорты изменились!
+# Принудительно добавляем путь, чтобы Python видел папку inference
+sys.path.append("/opt/fish-speech")
+
 try:
-    from fish_speech.inference.text2semantic import TransformerModel
-    from fish_speech.inference.vqgan import VQGANModel
+    # Прямой импорт из структуры v1.5.0
+    from tools.llama.generate import TransformerModel
+    from tools.vits.generate import VQGANModel
     from fish_speech.utils.schema import ServeReferenceAudio, ServeTTSRequest
-    print("--- Fish Speech v1.5.0 modules imported successfully ---")
-except ImportError as e:
-    print(f"--- Critical Import Error: {e} ---")
-    print("Check if the version in Dockerfile is actually 1.5.0")
-    raise
+    print("--- Fish Speech v1.5.0 modules imported ---")
+except ImportError:
+    # Запасной вариант, если структура иная
+    from fish_speech.models.text2semantic.inference import Text2SemanticInference as TransformerModel
+    from fish_speech.models.vqgan.inference import VQGANInference as VQGANModel
+    from fish_speech.utils.schema import ServeReferenceAudio, ServeTTSRequest
 
 class FishPredictor:
     def setup(self):
@@ -22,19 +27,16 @@ class FishPredictor:
         if not os.path.exists(checkpoint_dir):
             raise FileNotFoundError(f"Weights not found at: {checkpoint_dir}")
 
-        # Загрузка Text2Semantic (Llama)
+        # Инициализация моделей (пути к весам остаются прежними)
         self.text2semantic = TransformerModel(
             model_path=os.path.join(checkpoint_dir, "model.pth"),
-            device=self.device,
-            precision="bf16" if torch.cuda.is_bf16_supported() else "fp16"
+            device=self.device
         )
-        
-        # Загрузка VQGAN (Firefly)
         self.vqgan = VQGANModel(
             model_path=os.path.join(checkpoint_dir, "firefly-gan-vq-fsq-8x1024-21hz-generator.pth"),
             device=self.device
         )
-        print("--- All Systems Go! (v1.5.0) ---")
+        print("--- All Systems Go! ---")
 
     def predict(self, text, ref_audio_path, output_path="/tmp/output.wav"):
         with open(ref_audio_path, "rb") as f:
@@ -46,7 +48,6 @@ class FishPredictor:
         )
 
         with torch.no_grad():
-            # Генерируем коды и декодируем в аудио
             codes = self.text2semantic.generate(request)
             audio = self.vqgan.decode(codes)
             

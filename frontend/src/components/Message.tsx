@@ -13,14 +13,18 @@ import { authManager } from '../utils/auth';
 import { PromptGlassModal } from './PromptGlassModal';
 
 const MessageContainer = styled.div<{ $isUser: boolean }>`
-  display: flex;
+  display: flex !important;
   align-items: flex-start;
   justify-content: ${props => props.$isUser ? 'flex-end' : 'flex-start'};
   gap: ${theme.spacing.md};
   margin-bottom: ${theme.spacing.md};
   position: relative;
-  z-index: 1;
+  z-index: 10;
   width: 100%;
+  /* DEBUG: Принудительные стили видимости */
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-height: 50px !important;
 `;
 
 const MessageWithButtons = styled.div`
@@ -52,7 +56,7 @@ const MessageContent = styled.div<{ $isUser: boolean; $imageOnly?: boolean }>`
   };
   backdrop-filter: ${props => props.$imageOnly ? 'none' : 'blur(15px)'};
   -webkit-backdrop-filter: ${props => props.$imageOnly ? 'none' : 'blur(15px)'};
-  color: rgba(240, 240, 240, 1);
+  color: rgba(240, 240, 240, 1) !important;
   border: ${props => props.$imageOnly 
     ? 'none !important' 
     : `1px solid ${props.$isUser 
@@ -69,6 +73,12 @@ const MessageContent = styled.div<{ $isUser: boolean; $imageOnly?: boolean }>`
   white-space: pre-wrap;
   line-height: 1.7;
   transition: all 0.3s ease;
+  /* DEBUG: Принудительные стили видимости */
+  visibility: visible !important;
+  opacity: 1 !important;
+  display: block !important;
+  z-index: 10;
+  min-height: 40px !important;
 
   @media (max-width: 768px) {
     padding: ${props => props.$imageOnly ? '0 !important' : '10px 14px'};
@@ -94,6 +104,12 @@ const MessageText = styled.div`
   margin-bottom: ${theme.spacing.md};
   position: relative;
   flex: 1;
+  /* DEBUG: Принудительные стили видимости */
+  visibility: visible !important;
+  opacity: 1 !important;
+  display: block !important;
+  color: rgba(240, 240, 240, 1) !important;
+  min-height: 20px !important;
 `;
 
 const ImageContainer = styled.div`
@@ -567,6 +583,15 @@ const MessageComponent: React.FC<MessageProps> = ({
   const isUser = message.type === 'user';
   const isMobile = useIsMobile();
   const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // ДИАГНОСТИКА: Логируем рендеринг сообщения
+  console.log('[Message] Рендеринг:', {
+    id: message.id,
+    type: message.type,
+    contentLength: message.content?.length || 0,
+    content: message.content?.substring(0, 100),
+    hasImage: !!message.imageUrl
+  });
   const [isPromptVisible, setIsPromptVisible] = useState(true);
   const [isAddingToPaidAlbum, setIsAddingToPaidAlbum] = useState(false);
   const [isAddingToGallery, setIsAddingToGallery] = useState(false);

@@ -555,6 +555,9 @@ class OpenRouterService:
                             # Проверяем на [DONE] маркер
                             if data_str.strip() == '[DONE]':
                                 logger.info("[OPENROUTER STREAM] Stream finished")
+                                # Сбрасываем счетчик чанков
+                                if hasattr(self, '_stream_chunk_count'):
+                                    delattr(self, '_stream_chunk_count')
                                 return
                             
                             try:
@@ -567,6 +570,12 @@ class OpenRouterService:
                                     content = delta.get("content", "")
                                     
                                     if content:
+                                        # ДИАГНОСТИКА: Логируем первые несколько чанков
+                                        if not hasattr(self, '_stream_chunk_count'):
+                                            self._stream_chunk_count = 0
+                                        self._stream_chunk_count += 1
+                                        if self._stream_chunk_count <= 5:
+                                            logger.info(f"[OPENROUTER STREAM] Chunk {self._stream_chunk_count}: {repr(content)}")
                                         yield content
                                         
                             except json.JSONDecodeError as e:

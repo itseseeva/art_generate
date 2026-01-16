@@ -861,12 +861,22 @@ async def read_character(character_name: str, db: AsyncSession = Depends(get_db)
 
 
 @router.get("/{character_name}/with-creator", response_model=CharacterWithCreator)
-async def read_character_with_creator(character_name: str, db: AsyncSession = Depends(get_db)):
-    """Получает данные персонажа с информацией о создателе."""
+async def read_character_with_creator(
+    character_name: str, 
+    db: AsyncSession = Depends(get_db),
+    current_user: Users = Depends(get_current_user_optional)
+):
+    """
+    Получает данные персонажа с информацией о создателе.
+    Не требует специальных прав доступа - любой авторизованный пользователь может просматривать персонажей.
+    """
     try:
         from app.chat_bot.models.models import CharacterDB
         from app.chat_bot.schemas.chat import CharacterWithCreator, CreatorInfo
         from sqlalchemy import select
+        
+        # НЕ проверяем права на редактирование - это эндпоинт для просмотра, а не редактирования
+        # await check_character_ownership(character_name, current_user, db)
         
         # Декодируем имя
         decoded_name = unquote(character_name)
