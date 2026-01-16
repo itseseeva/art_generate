@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
 """
 Скрипт для проверки персонажа "Холодная госпожа офиса" в БД.
-Запустить на VPS: python app/diagnose_character.py
+Запустить на VPS из корня проекта: python3 app/diagnose_character.py
 Диагностика проблем с загрузкой персонажа из БД.
 """
 import asyncio
 import sys
+from pathlib import Path
+
+# Добавляем корень проекта в sys.path для импортов
+script_dir = Path(__file__).parent
+project_root = script_dir.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 async def check_character():
     """Проверяет персонажа в БД."""
