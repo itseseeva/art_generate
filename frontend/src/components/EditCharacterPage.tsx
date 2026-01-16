@@ -15,6 +15,7 @@ import { BiCoinStack } from 'react-icons/bi';
 
 import { useIsMobile } from '../hooks/useIsMobile';
 import DarkVeil from '../../@/components/DarkVeil';
+import { PromptGlassModal } from './PromptGlassModal';
 
 const BackgroundWrapper = styled.div`
   position: fixed;
@@ -2509,7 +2510,10 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         throw new Error('Текущий персонаж не найден');
       }
 
-      const response = await authManager.fetchWithAuth(`/api/v1/characters/${characterIdentifier}/user-edit`, {
+      // КРИТИЧНО: Используем ID для редактирования, если он доступен
+      const editIdentifier = character?.id?.toString() || characterIdentifier;
+
+      const response = await authManager.fetchWithAuth(`/api/v1/characters/${editIdentifier}/user-edit`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -2568,6 +2572,15 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           });
         }, 200); // Задержка для синхронизации состояния
       }
+      
+      // Отправляем событие для обновления главной страницы
+      window.dispatchEvent(new CustomEvent('character-updated', {
+        detail: { 
+          characterId: updatedCharacter?.id,
+          characterName: updatedName,
+          oldName: characterIdentifier
+        }
+      }));
       
       // КРИТИЧНО: Обновляем баланс из API после сохранения
       balanceUpdateInProgressRef.current = true; // Устанавливаем флаг, чтобы предотвратить перезапись
@@ -3676,74 +3689,15 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       </MainContent>
       
       {/* Модальное окно для просмотра фото в полный размер */}
-      {selectedPhotoForView && (
-        <PhotoModal 
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              closePhotoModal();
-            }
-          }}
-        >
-          <PhotoModalClose 
-            onClick={(e) => {
-              e.stopPropagation();
-              closePhotoModal();
-            }}
-          >
-            <CloseIcon />
-          </PhotoModalClose>
-          <PhotoModalContent 
-            onClick={(e) => {
-              e.stopPropagation();
-            }}
-          >
-            <ModalImageContainer>
-              <PhotoModalImage 
-                src={selectedPhotoForView.url} 
-                alt="Generated photo full size"
-              />
-            </ModalImageContainer>
-            <PromptPanel style={{
-              display: isPromptVisible ? 'flex' : 'none',
-              visibility: isPromptVisible ? 'visible' : 'hidden'
-            }}>
-              <PromptPanelHeader>
-                <PromptPanelTitle>Промпт</PromptPanelTitle>
-                <PromptCloseButton onClick={handleClosePrompt}>
-                  <CloseIcon />
-                </PromptCloseButton>
-              </PromptPanelHeader>
-              {isLoadingPrompt ? (
-                <PromptLoading>Загрузка промпта...</PromptLoading>
-              ) : promptError ? (
-                <PromptError>{promptError}</PromptError>
-              ) : selectedPrompt ? (
-                <PromptPanelText>{selectedPrompt}</PromptPanelText>
-              ) : null}
-            </PromptPanel>
-            {!isPromptVisible && (
-              <button
-                onClick={() => setIsPromptVisible(true)}
-                style={{
-                  position: 'absolute',
-                  top: '20px',
-                  left: '20px',
-                  background: 'rgba(0, 0, 0, 0.7)',
-                  border: '1px solid rgba(251, 191, 36, 0.5)',
-                  borderRadius: '8px',
-                  padding: '8px 16px',
-                  color: '#fbbf24',
-                  cursor: 'pointer',
-                  zIndex: 10002,
-                  fontWeight: '600'
-                }}
-              >
-                Показать промпт
-              </button>
-            )}
-          </PhotoModalContent>
-        </PhotoModal>
-      )}
+      <PromptGlassModal
+        isOpen={!!selectedPhotoForView}
+        onClose={closePhotoModal}
+        imageUrl={selectedPhotoForView?.url || ''}
+        imageAlt="Generated photo"
+        promptText={selectedPrompt}
+        isLoading={isLoadingPrompt}
+        error={promptError}
+      />
       
       {/* Модальное окно авторизации */}
       {isAuthModalOpen && (

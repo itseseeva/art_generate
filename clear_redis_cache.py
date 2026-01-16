@@ -1,33 +1,40 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-Скрипт для очистки кэша Redis персонажей.
-Запустить на VPS сервере: python clear_redis_cache.py
+Clear Redis cache for characters.
+Run: python clear_redis_cache.py
 """
 import asyncio
 import sys
+import io
+
+# Fix encoding for Windows
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 async def clear_cache():
-    """Очищает весь кэш персонажей в Redis."""
+    """Clear all character cache in Redis."""
     try:
         from app.utils.redis_cache import cache_delete_pattern, cache_delete, key_characters_list
         
-        print("Очистка кэша персонажей...")
+        print("Clearing character cache...")
         
-        # Очищаем весь кэш персонажей
+        # Clear all character caches
         await cache_delete(key_characters_list())
-        print("- Очищен основной список персонажей")
+        print("- Main character list cleared")
         
         await cache_delete_pattern('characters:list:*')
-        print("- Очищены все варианты списка персонажей")
+        print("- All character list variants cleared")
         
         await cache_delete_pattern('character:*')
-        print("- Очищены все кэши отдельных персонажей")
+        print("- All individual character caches cleared")
         
-        print("\nКэш персонажей успешно очищен!")
-        print("Перезагрузите страницу в браузере для обновления.")
+        print("\nCharacter cache successfully cleared!")
+        print("Reload the page in browser to update.")
         
     except Exception as e:
-        print(f"Ошибка при очистке кэша: {e}", file=sys.stderr)
+        print(f"Error clearing cache: {e}", file=sys.stderr)
         import traceback
         traceback.print_exc()
         sys.exit(1)

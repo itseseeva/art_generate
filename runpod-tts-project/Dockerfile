@@ -3,9 +3,10 @@ FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
 ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Установка системных утилит
+# Установка системных утилит и зависимостей для сборки аудио-пакетов
 RUN apt-get update && apt-get install -y \
     python3-pip python3-dev ffmpeg git curl \
+    portaudio19-dev libasound2-dev libsndfile1 \
     && ln -s /usr/bin/python3 /usr/bin/python \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -18,8 +19,8 @@ RUN pip install --no-cache-dir \
     torch==2.1.0 torchaudio==2.1.0 \
     --extra-index-url https://download.pytorch.org/whl/cu121
 
-# 2. Установка Fish Speech напрямую (это исправит ModuleNotFoundError)
-RUN pip install --no-cache-dir git+https://github.com/fishaudio/fish-speech.git@v1.4.0
+# 2. Установка Fish Speech напрямую (версия 1.5.0 для соответствия весам)
+RUN pip install --no-cache-dir git+https://github.com/fishaudio/fish-speech.git@v1.5.0
 
 # 3. Установка остальных зависимостей
 COPY requirements.txt .

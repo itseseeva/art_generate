@@ -8,6 +8,7 @@ import { translateToRussian } from '../utils/translate';
 import { OptimizedImage } from './ui/OptimizedImage';
 import { API_CONFIG } from '../config/api';
 import { authManager } from '../utils/auth';
+import { PromptGlassModal } from './PromptGlassModal';
 
 const MainContainer = styled.div`
   display: flex;
@@ -237,166 +238,6 @@ const LoadMoreButton = styled.button`
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-  }
-`;
-
-const ModalOverlay = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(70px);
-  -webkit-backdrop-filter: blur(70px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
-  padding: ${theme.spacing.xl};
-`;
-
-const ModalContent = styled.div`
-  position: relative;
-  max-width: 95vw;
-  max-height: 95vh;
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
-  gap: ${theme.spacing.xl};
-  width: 100%;
-
-  @media (max-width: 768px) {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: 100vw;
-    height: 100vh;
-    max-width: 100vw;
-    max-height: 100vh;
-    background: #000;
-    display: flex !important;
-    flex-direction: column !important;
-    margin: 0;
-    padding: 0;
-    border-radius: 0;
-    overflow: hidden;
-  }
-`;
-
-const ModalImageContainer = styled.div`
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-  max-width: 70%;
-
-  @media (max-width: 768px) {
-    width: 100%;
-    max-width: 100%;
-    flex: 1;
-    min-height: 0;
-  }
-`;
-
-const ModalImage = styled.img`
-  max-width: 100%;
-  max-height: 95vh;
-  object-fit: contain;
-  border-radius: ${theme.borderRadius.lg};
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-
-  @media (max-width: 768px) {
-    max-height: 100%;
-    width: 100%;
-    height: 100%;
-    border-radius: 0;
-  }
-`;
-
-const PromptPanel = styled.div`
-  width: 400px;
-  min-width: 350px;
-  max-width: 30%;
-  background: rgba(30, 30, 30, 0.95);
-  border: 2px solid rgba(150, 150, 150, 0.5);
-  border-radius: ${theme.borderRadius.xl};
-  padding: ${theme.spacing.xl};
-  overflow-y: auto;
-  max-height: 95vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(10px);
-
-  @media (max-width: 768px) {
-    position: relative;
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    max-height: 30vh;
-    background: rgba(20, 20, 20, 0.95);
-    border: none;
-    border-bottom: 1px solid rgba(251, 191, 36, 0.3);
-    border-radius: 0;
-    padding: ${theme.spacing.md};
-    z-index: 10;
-    flex-shrink: 0;
-  }
-`;
-
-const PromptPanelHeader = styled.div`
-  margin-bottom: ${theme.spacing.lg};
-  padding-bottom: ${theme.spacing.md};
-  border-bottom: 1px solid rgba(150, 150, 150, 0.3);
-`;
-
-const PromptPanelTitle = styled.h3`
-  color: #fbbf24;
-  font-size: ${theme.fontSize.xl};
-  font-weight: 800;
-  margin: 0;
-`;
-
-const PromptPanelText = styled.div`
-  color: rgba(200, 200, 200, 1);
-  font-size: ${theme.fontSize.sm};
-  line-height: 1.8;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  padding: ${theme.spacing.md};
-  background: rgba(40, 40, 40, 0.5);
-  border-radius: ${theme.borderRadius.lg};
-  border: 1px solid rgba(150, 150, 150, 0.3);
-  font-family: 'Courier New', monospace;
-  flex: 1;
-`;
-
-const CloseButton = styled.button`
-  position: absolute;
-  top: ${theme.spacing.lg};
-  right: ${theme.spacing.lg};
-  background: rgba(0, 0, 0, 0.7);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.xl};
-  transition: ${theme.transition.fast};
-  z-index: 10001;
-
-  &:hover {
-    background: rgba(0, 0, 0, 0.9);
-    border-color: ${theme.colors.accent.primary};
-    transform: scale(1.1);
   }
 `;
 
@@ -915,78 +756,15 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
         </MainContent>
       </div>
 
-      {selectedPhoto && (
-        <ModalOverlay onClick={() => {
-          setSelectedPhoto(null);
-          setSelectedPrompt(null);
-          setPromptError(null);
-          setIsLoadingPrompt(false);
-        }}>
-          <ModalContent onClick={(e) => e.stopPropagation()}>
-            <CloseButton onClick={() => {
-              setSelectedPhoto(null);
-              setSelectedPrompt(null);
-              setPromptError(null);
-              setIsLoadingPrompt(false);
-            }}>
-              <CloseIcon />
-            </CloseButton>
-            <ModalImageContainer>
-              <ModalImage src={selectedPhoto} alt="Full size" />
-            </ModalImageContainer>
-            <PromptPanel style={{ 
-              display: isPromptVisible ? 'flex' : 'none',
-              visibility: isPromptVisible ? 'visible' : 'hidden' 
-            }}>
-              <PromptPanelHeader>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
-                  <button 
-                    onClick={() => setIsPromptVisible(false)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#fbbf24',
-                      cursor: 'pointer',
-                      padding: '4px'
-                    }}
-                    title="Скрыть промпт"
-                  >
-                    <CloseIcon size={20} />
-                  </button>
-                </div>
-              </PromptPanelHeader>
-              {isLoadingPrompt ? (
-                <PromptLoading>Загрузка промпта...</PromptLoading>
-              ) : promptError ? (
-                <PromptError>{promptError}</PromptError>
-              ) : selectedPrompt ? (
-                <PromptPanelText>{selectedPrompt}</PromptPanelText>
-              ) : null}
-            </PromptPanel>
-            {!isPromptVisible && (
-              <button
-                onClick={() => setIsPromptVisible(true)}
-                style={{
-                  position: 'absolute',
-                  top: '20px',
-                  left: '20px',
-                  background: 'rgba(0, 0, 0, 0.7)',
-                  border: '1px solid rgba(251, 191, 36, 0.5)',
-                  borderRadius: '8px',
-                  padding: '8px 16px',
-                  color: '#fbbf24',
-                  cursor: 'pointer',
-                  zIndex: 10002,
-                  fontWeight: '600'
-                }}
-              >
-                Показать промпт
-              </button>
-            )}
-          </ModalContent>
-        </ModalOverlay>
-      )}
+      <PromptGlassModal
+        isOpen={!!selectedPhoto}
+        onClose={() => setSelectedPhoto(null)}
+        imageUrl={selectedPhoto || ''}
+        imageAlt="Full size"
+        promptText={selectedPrompt}
+        isLoading={isLoadingPrompt}
+        error={promptError}
+      />
     </MainContainer>
   );
 };

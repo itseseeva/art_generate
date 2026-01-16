@@ -7,6 +7,7 @@ import { theme } from '../theme';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToEnglish, translateToRussian } from '../utils/translate';
 import { GlobalHeader } from './GlobalHeader';
+import { PromptGlassModal } from './PromptGlassModal';
 
 const MainContainer = styled.div`
   width: 100%;
@@ -1633,83 +1634,15 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
         document.body
       )}
       
-      {selectedPhoto && createPortal(
-        <PromptModalOverlay onClick={() => {
-          setSelectedPhoto(null);
-          setSelectedPrompt(null);
-          setPromptError(null);
-          setIsLoadingPrompt(false);
-        }}>
-          <PromptModalContent onClick={(e) => e.stopPropagation()}>
-            <PromptCloseButton 
-              onClick={(e) => {
-                e.stopPropagation();
-              setSelectedPhoto(null);
-              setSelectedPrompt(null);
-              setPromptError(null);
-              setIsLoadingPrompt(false);
-              }}
-              title="Закрыть (Esc)"
-            >
-              ×
-            </PromptCloseButton>
-            <PromptModalImageContainer>
-              <PromptModalImage src={selectedPhoto} alt="Full size" />
-            </PromptModalImageContainer>
-            <PromptPanel style={{
-              display: isPromptVisible ? 'flex' : 'none',
-              visibility: isPromptVisible ? 'visible' : 'hidden'
-            }}>
-              <PromptPanelHeader>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <PromptPanelTitle>Промпт для изображения</PromptPanelTitle>
-                  <button 
-                    onClick={() => setIsPromptVisible(false)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#fbbf24',
-                      cursor: 'pointer',
-                      padding: '4px'
-                    }}
-                    title="Скрыть промпт"
-                  >
-                    ×
-                  </button>
-                </div>
-              </PromptPanelHeader>
-              {isLoadingPrompt ? (
-                <PromptLoading>Загрузка промпта...</PromptLoading>
-              ) : promptError ? (
-                <PromptError>{promptError}</PromptError>
-              ) : selectedPrompt ? (
-                <PromptPanelText>{selectedPrompt}</PromptPanelText>
-              ) : null}
-            </PromptPanel>
-            {!isPromptVisible && (
-              <button
-                onClick={() => setIsPromptVisible(true)}
-                style={{
-                  position: 'absolute',
-                  top: '20px',
-                  left: '20px',
-                  background: 'rgba(0, 0, 0, 0.7)',
-                  border: '1px solid rgba(251, 191, 36, 0.5)',
-                  borderRadius: '8px',
-                  padding: '8px 16px',
-                  color: '#fbbf24',
-                  cursor: 'pointer',
-                  zIndex: 100002,
-                  fontWeight: '600'
-                }}
-              >
-                Показать промпт
-              </button>
-            )}
-          </PromptModalContent>
-        </PromptModalOverlay>,
-        document.body
-      )}
+      <PromptGlassModal
+        isOpen={!!selectedPhoto}
+        onClose={() => setSelectedPhoto(null)}
+        imageUrl={selectedPhoto || ''}
+        imageAlt="Full size"
+        promptText={selectedPrompt}
+        isLoading={isLoadingPrompt}
+        error={promptError}
+      />
     </MainContainer>
   );
 };

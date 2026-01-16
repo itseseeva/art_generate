@@ -10,6 +10,7 @@ import { CircularProgress } from './ui/CircularProgress';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { API_CONFIG } from '../config/api';
 import { authManager } from '../utils/auth';
+import { PromptGlassModal } from './PromptGlassModal';
 
 const MessageContainer = styled.div<{ $isUser: boolean }>`
   display: flex;
@@ -930,63 +931,15 @@ const MessageComponent: React.FC<MessageProps> = ({
         </ImageContainer>
         </div>
       </div>
-      {isFullscreen && message.imageUrl && createPortal(
-        <ModalOverlay onClick={handleCloseFullscreen}>
-          <ModalContent onClick={(e) => e.stopPropagation()}>
-          <CloseButton onClick={handleCloseFullscreen}>
-            <FiX />
-          </CloseButton>
-            <ModalImageContainer>
-              <ModalImage 
-            src={message.imageUrl} 
-            alt="Fullscreen image"
-            onClick={(e) => e.stopPropagation()}
-          />
-            </ModalImageContainer>
-            <PromptPanel style={{
-              display: isPromptVisible ? 'flex' : 'none',
-              visibility: isPromptVisible ? 'visible' : 'hidden'
-            }}>
-              <PromptPanelHeader>
-                <PromptPanelTitle>Промпт</PromptPanelTitle>
-                <PromptCloseButton onClick={handleClosePrompt}>
-                  <FiX />
-                </PromptCloseButton>
-              </PromptPanelHeader>
-              {isLoadingPrompt ? (
-                <PromptLoading>Загрузка промпта...</PromptLoading>
-              ) : promptError ? (
-                <PromptError>{promptError}</PromptError>
-              ) : selectedPrompt ? (
-                <PromptPanelText>{selectedPrompt}</PromptPanelText>
-              ) : (
-                <PromptLoading>Промпт не найден</PromptLoading>
-              )}
-            </PromptPanel>
-            {!isPromptVisible && (
-              <button
-                onClick={() => setIsPromptVisible(true)}
-                style={{
-                  position: 'absolute',
-                  top: '20px',
-                  left: '20px',
-                  background: 'rgba(0, 0, 0, 0.7)',
-                  border: '1px solid rgba(251, 191, 36, 0.5)',
-                  borderRadius: '8px',
-                  padding: '8px 16px',
-                  color: '#fbbf24',
-                  cursor: 'pointer',
-                  zIndex: 100002,
-                  fontWeight: '600'
-                }}
-              >
-                Показать промпт
-              </button>
-            )}
-          </ModalContent>
-        </ModalOverlay>,
-        document.body
-      )}
+      <PromptGlassModal
+        isOpen={isFullscreen && !!message.imageUrl}
+        onClose={handleCloseFullscreen}
+        imageUrl={message.imageUrl || ''}
+        imageAlt="Fullscreen image"
+        promptText={selectedPrompt}
+        isLoading={isLoadingPrompt}
+        error={promptError}
+      />
 
       {errorModalMessage && createPortal(
         <ErrorModalOverlay onClick={() => setErrorModalMessage(null)}>
@@ -1082,63 +1035,15 @@ const MessageComponent: React.FC<MessageProps> = ({
         )}
       </MessageContainer>
 
-      {isFullscreen && hasValidImageUrl && createPortal(
-        <ModalOverlay onClick={handleCloseFullscreen}>
-          <ModalContent onClick={(e) => e.stopPropagation()}>
-          <CloseButton onClick={handleCloseFullscreen}>
-            <FiX />
-          </CloseButton>
-            <ModalImageContainer>
-              <ModalImage 
-            src={message.imageUrl!} 
-            alt="Fullscreen image"
-            onClick={(e) => e.stopPropagation()}
-          />
-            </ModalImageContainer>
-            <PromptPanel style={{
-              display: isPromptVisible ? 'flex' : 'none',
-              visibility: isPromptVisible ? 'visible' : 'hidden'
-            }}>
-              <PromptPanelHeader>
-                <PromptPanelTitle>Промпт</PromptPanelTitle>
-                <PromptCloseButton onClick={handleClosePrompt}>
-                  <FiX />
-                </PromptCloseButton>
-              </PromptPanelHeader>
-              {isLoadingPrompt ? (
-                <PromptLoading>Загрузка промпта...</PromptLoading>
-              ) : promptError ? (
-                <PromptError>{promptError}</PromptError>
-              ) : selectedPrompt ? (
-                <PromptPanelText>{selectedPrompt}</PromptPanelText>
-              ) : (
-                <PromptLoading>Промпт не найден</PromptLoading>
-              )}
-            </PromptPanel>
-            {!isPromptVisible && (
-              <button
-                onClick={() => setIsPromptVisible(true)}
-                style={{
-                  position: 'absolute',
-                  top: '20px',
-                  left: '20px',
-                  background: 'rgba(0, 0, 0, 0.7)',
-                  border: '1px solid rgba(251, 191, 36, 0.5)',
-                  borderRadius: '8px',
-                  padding: '8px 16px',
-                  color: '#fbbf24',
-                  cursor: 'pointer',
-                  zIndex: 100002,
-                  fontWeight: '600'
-                }}
-              >
-                Показать промпт
-              </button>
-            )}
-          </ModalContent>
-        </ModalOverlay>,
-        document.body
-      )}
+      <PromptGlassModal
+        isOpen={isFullscreen && hasValidImageUrl}
+        onClose={handleCloseFullscreen}
+        imageUrl={message.imageUrl || ''}
+        imageAlt="Fullscreen image"
+        promptText={selectedPrompt}
+        isLoading={isLoadingPrompt}
+        error={promptError}
+      />
 
       {errorModalMessage && createPortal(
         <ErrorModalOverlay onClick={() => setErrorModalMessage(null)}>

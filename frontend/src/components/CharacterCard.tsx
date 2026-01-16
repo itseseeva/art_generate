@@ -13,6 +13,7 @@ import { fetchPromptByImage } from '../utils/prompt';
 import { useIsMobile } from '../hooks/useIsMobile';
 import Switcher4 from './Switcher4';
 import { OptimizedImage } from './ui/OptimizedImage';
+import { PromptGlassModal } from './PromptGlassModal';
 
 const CardContainer = styled.div<{ $isHovered?: boolean }>`
   background: rgba(22, 33, 62, 0.3); /* Очень прозрачный */
@@ -159,7 +160,7 @@ const FavoriteButton = styled.button<{ $isFavorite: boolean }>`
   }
 `;
 
-const ActionButton = styled.button<{ variant?: 'edit' | 'delete' }>`
+const ActionButton = styled.button<{ $variant?: 'edit' | 'delete' }>`
   padding: ${theme.spacing.xs} ${theme.spacing.sm};
   border-radius: ${theme.borderRadius.md};
   background: rgba(255, 255, 255, 0.05);
@@ -769,11 +770,12 @@ const RatingButton = styled.button<{ $isActive?: boolean; $isLike?: boolean }>`
 `;
 
 const RatingCount = styled.span`
-  font-size: 10px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 1);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
   line-height: 1;
+  margin-top: 1px;
 `;
 
 
@@ -1110,8 +1112,10 @@ interface Character {
   tags: string[];
   author: string;
   likes: number;
+  dislikes?: number;
   views: number;
   comments: number;
+  is_nsfw?: boolean;
 }
 
 interface CharacterCardProps {
@@ -1273,8 +1277,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   const [editingPhotos, setEditingPhotos] = useState<Array<{url: string, prompt: string}>>([]);
   const [isSavingPrompt, setIsSavingPrompt] = useState(false);
   const [promptSaveError, setPromptSaveError] = useState<string | null>(null);
-  const [likesCount, setLikesCount] = useState<number>(0);
-  const [dislikesCount, setDislikesCount] = useState<number>(0);
+  const [likesCount, setLikesCount] = useState<number>(character.likes || 0);
+  const [dislikesCount, setDislikesCount] = useState<number>(character.dislikes || 0);
   const [userRating, setUserRating] = useState<'like' | 'dislike' | null>(null);
   
   // Состояние для Smart Hover overlay
@@ -1396,8 +1400,10 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     setPersonalityError(null);
 
     try {
-      const encodedName = encodeURIComponent(character.name);
-      const response = await authManager.fetchWithAuth(`/api/v1/characters/${encodedName}`);
+      // КРИТИЧНО: Используем ID для запроса, если он доступен
+      const identifier = character.id?.toString() || character.name;
+      const encodedIdentifier = encodeURIComponent(identifier);
+      const response = await authManager.fetchWithAuth(`/api/v1/characters/${encodedIdentifier}`);
       
       if (response.ok) {
         const characterData = await response.json();
@@ -1850,9 +1856,11 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     setSituationError(null);
 
     try {
-      const encodedName = encodeURIComponent(character.name);
+      // КРИТИЧНО: Используем ID для запроса, если он доступен
+      const identifier = character.id?.toString() || character.name;
+      const encodedIdentifier = encodeURIComponent(identifier);
       // Используем обычный fetch, так как эндпоинт доступен без авторизации
-      const url = `${API_CONFIG.BASE_URL || ''}/api/v1/characters/${encodedName}`;
+      const url = `${API_CONFIG.BASE_URL || ''}/api/v1/characters/${encodedIdentifier}`;
       const response = await fetch(url);
       
       if (response.ok) {
@@ -2039,8 +2047,6 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
       )}
       <ElectricBorder
         color="#555555"
-        speed={1}
-        chaos={0.3}
         thickness={2}
         style={{ borderRadius: 16, flex: '0 0 auto' }}
       >
@@ -2125,7 +2131,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                     } as React.MouseEvent;
                     await toggleNsfw(syntheticEvent);
                   }}
-                  $variant="pink"
+                  variant="pink"
                 />
               </div>
               <span style={{ fontSize: '11px', color: '#fff', whiteSpace: 'nowrap' }}>
@@ -2520,42 +2526,15 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         </EditPromptModal>,
         document.body
       )}
-      {isPromptModalOpen && modalPhotoUrl && createPortal(
-        <PromptModal onClick={(e) => {
-          if (e.target === e.currentTarget) {
-            handleClosePromptModal();
-          }
-        }}>
-          <ModalCloseButton onClick={handleClosePromptModal}>
-            <CloseIcon />
-          </ModalCloseButton>
-          <PromptModalContent onClick={(e) => e.stopPropagation()}>
-            <PromptImageContainer>
-              <img src={modalPhotoUrl} alt={character.name} />
-            </PromptImageContainer>
-            {isPromptVisible && (
-              <PromptSidebar $isVisible={isPromptVisible}>
-                <PromptSidebarHeader>
-                  <PromptSidebarTitle>Промпт</PromptSidebarTitle>
-                  <PromptCloseButton onClick={handleClosePrompt}>
-                    <CloseIcon />
-                  </PromptCloseButton>
-                </PromptSidebarHeader>
-                {isLoadingPrompt ? (
-                  <PromptLoading>Загрузка промпта...</PromptLoading>
-                ) : promptError ? (
-                  <PromptError>{promptError}</PromptError>
-                ) : promptText ? (
-                  <PromptText>{promptText}</PromptText>
-                ) : (
-                  <PromptLoading>Промпт не найден</PromptLoading>
-                )}
-              </PromptSidebar>
-            )}
-          </PromptModalContent>
-        </PromptModal>,
-        document.body
-      )}
+      <PromptGlassModal
+        isOpen={isPromptModalOpen && !!modalPhotoUrl}
+        onClose={handleClosePromptModal}
+        imageUrl={modalPhotoUrl || ''}
+        imageAlt={character.name}
+        promptText={promptText}
+        isLoading={isLoadingPrompt}
+        error={promptError}
+      />
     </>
   );
 };

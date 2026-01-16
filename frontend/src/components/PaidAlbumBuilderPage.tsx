@@ -11,6 +11,7 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import { Sparkles, Plus, X, ArrowLeft, Save, Wand2, Settings } from 'lucide-react';
 import { FiSettings } from 'react-icons/fi';
 import DarkVeil from '../../@/components/DarkVeil';
+import { PromptGlassModal } from './PromptGlassModal';
 
 // Animations
 const shimmer = keyframes`
@@ -416,10 +417,10 @@ const InfoText = styled.p`
 const GenerateButton = styled.button`
   width: 100%;
   padding: 1.125rem 1.5rem;
-  background: linear-gradient(135deg, #4a4a4a 0%, #6a6a6a 100%);
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
   border: none;
   border-radius: 0.75rem;
-  color: #ffffff;
+  color: #000000;
   font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
@@ -430,12 +431,12 @@ const GenerateButton = styled.button`
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
 
   &:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
-    background: linear-gradient(135deg, #5a5a5a 0%, #7a7a7a 100%);
+    box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
+    background: linear-gradient(135deg, #fcd34d 0%, #fbbf24 100%);
   }
 
   &:active:not(:disabled) {
@@ -443,8 +444,9 @@ const GenerateButton = styled.button`
   }
 
   &:disabled {
-    opacity: 0.7;
+    opacity: 0.5;
     cursor: not-allowed;
+    filter: grayscale(0.5);
     transform: none;
   }
 
@@ -1196,6 +1198,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
   canEditAlbum = false,
   onUpgradeSubscription
 }) => {
+  const displayName = character?.display_name || character?.name || '';
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -1437,7 +1440,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
   }, []);
 
   const waitForGeneration = async (taskId: string, token: string): Promise<PaidAlbumImage | null> => {
-    const maxAttempts = 120;
+    const maxAttempts = 180;
     const delay = 2000;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -1502,6 +1505,10 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         prompt: effectivePrompt,
         use_default_prompts: false,
         model: selectedModel,
+        width: 832,
+        height: 1216,
+        steps: 20,
+        cfg_scale: 4,
         skip_chat_history: true  // Не сохраняем в ChatHistory для генераций со страницы альбома
       })
     });
@@ -1702,7 +1709,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
     }
   };
 
-  const togglePhotoSelection = (photo: PaidAlbumImage) => {
+  const togglePhotoSelection = async (photo: PaidAlbumImage) => {
     setError(null);
     setSuccess(null);
 
@@ -1731,62 +1738,42 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
       return;
     }
 
-    setSelectedPhotos(prev => [...prev, photo]);
+    const newPhotos = [...selectedPhotos, photo];
+    setSelectedPhotos(newPhotos);
     setAddedPhotoId(photo.id);
+    
+    // Автоматическое сохранение при добавлении
+    if (character?.name) {
+      setIsSaving(true);
+      try {
+        const response = await authManager.fetchWithAuth(`/api/v1/paid-gallery/${encodeURIComponent(character.name)}/photos`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            photos: newPhotos
+          })
+        });
+
+        if (response.ok) {
+          setSuccess('Фото добавлено в альбом');
+        } else {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.detail || data.message || 'Не удалось сохранить альбом');
+        }
+      } catch (saveError) {
+        setError(saveError instanceof Error ? saveError.message : 'Ошибка при добавлении в альбом');
+        // Откатываем состояние при ошибке
+        setSelectedPhotos(selectedPhotos);
+      } finally {
+        setIsSaving(false);
+      }
+    }
+    
     setTimeout(() => setAddedPhotoId(null), 400);
   };
 
-  const handleSaveAlbum = async () => {
-    if (!character?.name) {
-      return;
-    }
-
-    setIsSaving(true);
-    setError(null);
-
-    try {
-      const response = await authManager.fetchWithAuth(`/api/v1/paid-gallery/${encodeURIComponent(character.name)}/photos`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          photos: selectedPhotos
-        })
-      });
-
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const message = (data && (data.detail || data.message)) || 'Не удалось сохранить платный альбом';
-        throw new Error(message);
-      }
-
-      // Обновляем selectedPhotos из ответа сервера
-      const savedPhotos = Array.isArray(data.photos) ? data.photos : (Array.isArray(data.images) ? data.images : selectedPhotos);
-      setSelectedPhotos(savedPhotos);
-      setSuccess('Платный альбом сохранён');
-      
-      // Перезагружаем альбом с сервера для гарантии актуальности данных
-      try {
-        const encodedName = encodeURIComponent(character.name);
-        const reloadResponse = await authManager.fetchWithAuth(`/api/v1/paid-gallery/${encodedName}`);
-        if (reloadResponse.ok) {
-          const reloadData = await reloadResponse.json();
-          if (Array.isArray(reloadData.images)) {
-            setSelectedPhotos(reloadData.images);
-          }
-        }
-      } catch (reloadError) {
-        // Игнорируем ошибку перезагрузки, так как сохранение уже выполнено
-      }
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Не удалось сохранить платный альбом');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const displayName = character?.display_name || character?.name || '';
   const progressPercentage = (selectedPhotos.length / MAX_PAID_ALBUM_PHOTOS) * 100;
   const isFull = selectedPhotos.length >= MAX_PAID_ALBUM_PHOTOS;
 
@@ -2208,11 +2195,6 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
             )}
 
             <ActionButtonGroup>
-              <PrimaryButton onClick={handleSaveAlbum} disabled={isSaving || selectedPhotos.length === 0}>
-                <Save size={18} />
-                {isSaving ? 'Сохраняем...' : 'Сохранить альбом'}
-              </PrimaryButton>
-              
               {onBackToChat && (
                 <ChatButton onClick={() => onBackToChat()}>
                   <ArrowLeft size={18} />

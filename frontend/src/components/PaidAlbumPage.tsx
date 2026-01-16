@@ -5,11 +5,12 @@ import { authManager } from '../utils/auth';
 import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
 import { GlobalHeader } from './GlobalHeader';
-import { FiImage as ImageIcon, FiX as CloseIcon } from 'react-icons/fi';
+import { FiImage as ImageIcon } from 'react-icons/fi';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToRussian } from '../utils/translate';
 import { API_CONFIG } from '../config/api';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { PromptGlassModal } from './PromptGlassModal';
 
 const MainContainer = styled.div`
   width: 100%;
@@ -303,211 +304,6 @@ const EmptyState = styled.div`
   padding: ${theme.spacing.xl};
 `;
 
-const PreviewBackdrop = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10002;
-  padding: ${theme.spacing.lg};
-
-  @media (max-width: 768px) {
-    padding: 0.5rem;
-  }
-`;
-
-const PreviewContent = styled.div`
-  display: flex;
-  width: 100%;
-  max-width: 1400px;
-  height: 90vh;
-  max-height: 90vh;
-  gap: ${theme.spacing.lg};
-  position: relative;
-  
-  @media (max-width: 768px) {
-    flex-direction: column;
-    height: auto;
-    max-height: 100vh;
-  }
-`;
-
-const PreviewImageContainer = styled.div`
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  background: transparent;
-  border-radius: ${theme.borderRadius.lg};
-  overflow: hidden;
-  
-  img {
-    max-width: 100%;
-    max-height: 100%;
-    width: auto;
-    height: auto;
-    object-fit: contain;
-    object-position: center;
-  }
-  
-  @media (max-width: 768px) {
-    max-height: none;
-    height: auto;
-    
-    img {
-      max-width: 100vw;
-      max-height: 100vh;
-      width: auto;
-      height: auto;
-    }
-  }
-`;
-
-const PromptPanel = styled.div<{ $isVisible: boolean }>`
-  width: 400px;
-  background: rgba(10, 10, 15, 0.7);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: ${theme.borderRadius.lg};
-  padding: ${theme.spacing.xl};
-  display: flex;
-  flex-direction: column;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: ${theme.colors.shadow.glow};
-  transition: all ${theme.transition.fast};
-  opacity: ${props => props.$isVisible ? 1 : 0};
-  transform: ${props => props.$isVisible ? 'translateX(0)' : 'translateX(20px)'};
-  pointer-events: ${props => props.$isVisible ? 'auto' : 'none'};
-  
-  @media (max-width: 768px) {
-    width: 100%;
-    max-height: 45vh;
-    opacity: ${props => props.$isVisible ? 1 : 0};
-    transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(20px)'};
-  }
-`;
-
-const PromptPanelHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: ${theme.spacing.md};
-`;
-
-const PromptPanelTitle = styled.h3`
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.lg};
-  font-weight: 600;
-  margin: 0;
-  flex: 1;
-`;
-
-const PromptCloseButton = styled.button`
-  background: transparent;
-  border: none;
-  color: ${theme.colors.text.primary};
-  cursor: pointer;
-  padding: ${theme.spacing.sm};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: ${theme.borderRadius.md};
-  transition: all ${theme.transition.fast};
-  
-  &:hover {
-    background: rgba(255, 255, 255, 0.1);
-  }
-  
-  svg {
-    width: 20px;
-    height: 20px;
-  }
-`;
-
-const PromptPanelText = styled.div`
-  flex: 1;
-  overflow-y: auto;
-  color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.sm};
-  line-height: 1.6;
-  white-space: pre-wrap;
-  font-family: 'Courier New', monospace;
-  padding: ${theme.spacing.md};
-  background: rgba(20, 20, 20, 0.5);
-  border-radius: ${theme.borderRadius.md};
-  border: 1px solid rgba(100, 100, 100, 0.3);
-  
-  &::-webkit-scrollbar {
-    width: 8px;
-  }
-  
-  &::-webkit-scrollbar-track {
-    background: rgba(20, 20, 20, 0.5);
-  }
-  
-  &::-webkit-scrollbar-thumb {
-    background: rgba(139, 92, 246, 0.5);
-    border-radius: 4px;
-    
-    &:hover {
-      background: rgba(139, 92, 246, 0.7);
-    }
-  }
-`;
-
-const PromptLoading = styled.div`
-  color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.base};
-  text-align: center;
-  padding: ${theme.spacing.xl};
-`;
-
-const PromptError = styled.div`
-  color: ${theme.colors.status.error};
-  font-size: ${theme.fontSize.base};
-  text-align: center;
-  padding: ${theme.spacing.xl};
-`;
-
-const ModalCloseButton = styled.button`
-  position: absolute;
-  top: ${theme.spacing.lg};
-  right: ${theme.spacing.lg};
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 2px solid rgba(244, 63, 94, 0.4);
-  background: rgba(244, 63, 94, 0.2);
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.xl};
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  z-index: 10;
-
-  &:hover {
-    background: rgba(244, 63, 94, 0.4);
-    border-color: rgba(244, 63, 94, 0.6);
-    transform: scale(1.1) rotate(90deg);
-    box-shadow: 0 4px 12px rgba(244, 63, 94, 0.4);
-  }
-  
-  &:active {
-    transform: scale(0.95) rotate(90deg);
-  }
-`;
-
-
 interface PaidAlbumImage {
   id: string;
   url: string;
@@ -550,13 +346,11 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
   const [addingToGallery, setAddingToGallery] = useState<string | null>(null);
   const [galleryImageUrls, setGalleryImageUrls] = useState<Set<string>>(new Set());
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
-  const [isPromptVisible, setIsPromptVisible] = useState(true);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
 
   const handleOpenImage = async (image: PaidAlbumImage) => {
     setPreviewImage(image);
-    setIsPromptVisible(true);
     setSelectedPrompt(null);
     setPromptError(null);
     setIsLoadingPrompt(true);
@@ -855,47 +649,15 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
         </GalleryGrid>
       )}
 
-      {previewImage && (
-        <PreviewBackdrop onClick={() => {
-          setPreviewImage(null);
-          setSelectedPrompt(null);
-          setPromptError(null);
-          setIsLoadingPrompt(false);
-        }}>
-          <ModalCloseButton onClick={() => {
-            setPreviewImage(null);
-            setSelectedPrompt(null);
-            setPromptError(null);
-            setIsLoadingPrompt(false);
-          }}>
-            <CloseIcon />
-          </ModalCloseButton>
-          <PreviewContent onClick={(event) => event.stopPropagation()}>
-            <PreviewImageContainer>
-              <img src={previewImage.url} alt={displayName} />
-            </PreviewImageContainer>
-            {isPromptVisible && (
-              <PromptPanel $isVisible={isPromptVisible}>
-                <PromptPanelHeader>
-                  <PromptPanelTitle>Промпт</PromptPanelTitle>
-                  <PromptCloseButton onClick={() => setIsPromptVisible(false)}>
-                    <CloseIcon />
-                  </PromptCloseButton>
-                </PromptPanelHeader>
-                {isLoadingPrompt ? (
-                  <PromptLoading>Загрузка промпта...</PromptLoading>
-                ) : promptError ? (
-                  <PromptError>{promptError}</PromptError>
-                ) : selectedPrompt ? (
-                  <PromptPanelText>{selectedPrompt}</PromptPanelText>
-                ) : (
-                  <PromptLoading>Промпт не найден</PromptLoading>
-                )}
-              </PromptPanel>
-            )}
-          </PreviewContent>
-        </PreviewBackdrop>
-      )}
+      <PromptGlassModal
+        isOpen={!!previewImage}
+        onClose={() => setPreviewImage(null)}
+        imageUrl={previewImage?.url || ''}
+        imageAlt={displayName}
+        promptText={selectedPrompt}
+        isLoading={isLoadingPrompt}
+        error={promptError}
+      />
 
       </PageContainer>
       {isUpgradeModalOpen && (
@@ -922,5 +684,3 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
     </MainContainer>
   );
 };
-
-

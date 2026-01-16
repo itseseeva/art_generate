@@ -314,10 +314,10 @@ const CharacterCardWrapper = styled.div`
   flex-wrap: wrap;
   padding-left: 0;
   
-  /* Ограничиваем ширину карточки как на главной странице (minmax(200px, 1fr)) */
+  /* Ограничиваем ширину карточки, но даем место для кнопок рейтинга (35px + 35px) */
   > *:first-child {
-    width: 200px;
-    max-width: 200px;
+    width: 270px;
+    max-width: 270px;
     min-width: 200px;
   }
 `;
@@ -584,6 +584,10 @@ interface Character {
   location?: string;
   user_id?: number;
   raw?: any; // Исходные данные персонажа из API
+  likes?: number;
+  dislikes?: number;
+  views?: number;
+  comments?: number;
 }
 
 interface UserInfo {
@@ -3888,9 +3892,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                     photos: characterPhotos,
                     tags: [],
                     author: creatorInfo?.username || 'Unknown',
-                    likes: 0,
-                    views: 0,
-                    comments: 0
+                    likes: currentCharacter.likes || 0,
+                    dislikes: (currentCharacter as any).dislikes || 0,
+                    views: currentCharacter.views || 0,
+                    comments: currentCharacter.comments || 0
                   }}
                   onClick={() => {}}
                   isAuthenticated={isAuthenticated}

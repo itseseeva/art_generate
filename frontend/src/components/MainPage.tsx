@@ -348,6 +348,7 @@ export const MainPage: React.FC<MainPageProps> = ({
   const [favoriteCharacterIds, setFavoriteCharacterIds] = useState<Set<number>>(new Set());
   const [sortFilter, setSortFilter] = useState<'all' | 'popular'>('popular');
   const [characterRatings, setCharacterRatings] = useState<{[key: number]: {likes: number, dislikes: number}}>({});
+  const lastCharactersUpdateRef = useRef<number>(0); // Для отслеживания последнего обновления
 
   const [showNSFWWarning, setShowNSFWWarning] = useState(false);
   const [pendingMode, setPendingMode] = useState<'safe' | 'nsfw' | null>(null);
@@ -686,15 +687,45 @@ export const MainPage: React.FC<MainPageProps> = ({
       console.log('[MAIN PAGE] Персонажи перезагружены после создания');
     };
     
+    // Обработчик обновления персонажа
+    const handleCharacterUpdated = async () => {
+      const now = Date.now();
+      // Предотвращаем частые обновления (не чаще раза в 2 секунды)
+      if (now - lastCharactersUpdateRef.current < 2000) {
+        console.log('[MAIN PAGE] Пропуск обновления (слишком частое)');
+        return;
+      }
+      lastCharactersUpdateRef.current = now;
+      
+      console.log('[MAIN PAGE] Персонаж обновлён, перезагружаем список');
+      // Даем время бэкенду очистить кэш
+      await new Promise(resolve => setTimeout(resolve, 500));
+      // Принудительно перезагружаем персонажей из API
+      try {
+        const response = await fetch(`/api/v1/characters/?skip=0&limit=1000&force_refresh=true&_t=${Date.now()}`);
+        if (response.ok) {
+          const data = await response.json();
+          const charactersArray = Array.isArray(data) ? data : [];
+          setCharacters(charactersArray);
+          setCachedRawCharacters(charactersArray);
+          console.log('[MAIN PAGE] Персонажи перезагружены после обновления:', charactersArray.length);
+        }
+      } catch (error) {
+        console.error('[MAIN PAGE] Ошибка перезагрузки персонажей:', error);
+      }
+    };
+    
     window.addEventListener('character-photos-updated', handlePhotoUpdate);
     window.addEventListener('character-created', handleCharacterCreated);
+    window.addEventListener('character-updated', handleCharacterUpdated);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener('character-photos-updated', handlePhotoUpdate);
       window.removeEventListener('character-created', handleCharacterCreated);
+      window.removeEventListener('character-updated', handleCharacterUpdated);
     };
-  }, [contentMode]); // Перезагружаем при изменении режима
+  }, [contentMode]); // Убираем зависимости от функций
 
   // Проверка авторизации при загрузке
   React.useEffect(() => {
@@ -867,7 +898,9 @@ export const MainPage: React.FC<MainPageProps> = ({
         return;
       }
 
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${encodeURIComponent(characterName)}`, {
+      // КРИТИЧНО: Используем ID для удаления, если он доступен
+      const identifier = character.id?.toString() || characterName;
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${encodeURIComponent(identifier)}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
