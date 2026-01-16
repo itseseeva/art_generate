@@ -1754,12 +1754,14 @@ async def delete_character(
         await db.delete(db_char)
         await db.commit()
         
-        # Инвалидируем кэш персонажей
+        # Инвалидируем кэш персонажей (агрессивная очистка)
         await cache_delete(key_character(decoded_name))
+        await cache_delete(key_character(db_char.name))  # На случай если имя отличается
         await cache_delete(key_characters_list())
         await cache_delete_pattern("characters:list:*")
+        await cache_delete_pattern(f"character:*")  # Очищаем все кэши персонажей
         
-        logger.info(f"Персонаж '{decoded_name}' (ID: {db_char.id}) успешно удален вместе со всеми связанными данными")
+        logger.info(f"Персонаж '{decoded_name}' (ID: {db_char.id}) успешно удален вместе со всеми связанными данными и кэшем")
         
         return db_char
         
