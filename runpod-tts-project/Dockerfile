@@ -1,35 +1,28 @@
-FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
+# Используем готовый образ с PyTorch
+FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
 
 ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Установка системных утилит и зависимостей для сборки аудио-пакетов
+# Системные зависимости
 RUN apt-get update && apt-get install -y \
-    python3-pip python3-dev ffmpeg git curl \
-    portaudio19-dev libasound2-dev libsndfile1 \
-    && ln -s /usr/bin/python3 /usr/bin/python \
+    ffmpeg git curl libsndfile1 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
 
-# 1. Установка PyTorch через официальный индекс (с увеличенным таймаутом)
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel
-RUN pip install --no-cache-dir \
-    --default-timeout=1000 \
-    torch==2.1.0 torchaudio==2.1.0 \
-    --extra-index-url https://download.pytorch.org/whl/cu121
-
-# 2. Установка Fish Speech напрямую (версия 1.5.0 для соответствия весам)
+# 1. Установка Fish Speech v1.5.0
 RUN pip install --no-cache-dir git+https://github.com/fishaudio/fish-speech.git@v1.5.0
 
-# 3. Установка остальных зависимостей
+# 2. Установка остальных зависимостей
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 4. Копируем код и веса
+# 3. Копируем веса и код
 COPY weights/ /src/weights/
 COPY . .
 
+# Создаем папку для тестов
 RUN mkdir -p /src/test_voices
 
 CMD ["python", "-u", "handler.py"]
