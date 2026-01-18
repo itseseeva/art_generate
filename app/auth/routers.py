@@ -145,9 +145,9 @@ async def create_user(
     allowed_ips = ['127.0.0.1', 'localhost', '::1', '77.73.133.2']
     if client_ip not in allowed_ips:
         fingerprint_result = await db.execute(
-            select(Users).filter(Users.fingerprint_id == user.fingerprint_id)
+            select(Users).filter(Users.fingerprint_id == user.fingerprint_id).limit(1)
         )
-        existing_fingerprint_user = fingerprint_result.scalar_one_or_none()
+        existing_fingerprint_user = fingerprint_result.scalars().first()
         if existing_fingerprint_user:
             logger.warning(
                 f"Registration blocked: fingerprint_id {user.fingerprint_id} "
@@ -165,7 +165,7 @@ async def create_user(
         ip_result = await db.execute(
             select(Users).filter(Users.registration_ip == client_ip).limit(1)
         )
-        existing_ip_user = ip_result.scalar_one_or_none()
+        existing_ip_user = ip_result.scalars().first()
         if existing_ip_user:
             logger.warning(
                 f"Registration blocked: IP {client_ip} already used by user {existing_ip_user.email}, "
@@ -273,9 +273,9 @@ async def confirm_registration(
         allowed_ips = ['127.0.0.1', 'localhost', '::1', '77.73.133.2']
         if client_ip not in allowed_ips:
             fingerprint_result = await db.execute(
-                select(Users).filter(Users.fingerprint_id == fingerprint_id)
+                select(Users).filter(Users.fingerprint_id == fingerprint_id).limit(1)
             )
-            existing_fingerprint_user = fingerprint_result.scalar_one_or_none()
+            existing_fingerprint_user = fingerprint_result.scalars().first()
             if existing_fingerprint_user:
                 await cache_delete(cache_key)
                 logger.warning(
@@ -296,7 +296,7 @@ async def confirm_registration(
             ip_result = await db.execute(
                 select(Users).filter(Users.registration_ip == ip_to_check).limit(1)
             )
-            existing_ip_user = ip_result.scalar_one_or_none()
+            existing_ip_user = ip_result.scalars().first()
             if existing_ip_user:
                 await cache_delete(cache_key)
                 logger.warning(
@@ -310,8 +310,8 @@ async def confirm_registration(
                 )
         
         # Проверяем, не создан ли уже пользователь (на случай параллельных запросов)
-        result = await db.execute(select(Users).filter(Users.email == confirm_data.email))
-        existing_user = result.scalar_one_or_none()
+        result = await db.execute(select(Users).filter(Users.email == confirm_data.email).limit(1))
+        existing_user = result.scalars().first()
         if existing_user:
             # Пользователь уже создан, удаляем временные данные и выполняем логин
             await cache_delete(cache_key)
