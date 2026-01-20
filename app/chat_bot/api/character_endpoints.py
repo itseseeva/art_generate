@@ -2241,7 +2241,7 @@ async def get_character_photos(
             
             # Загружаем фото где character_name точно совпадает и user_id = создатель персонажа
             query = text("""
-                SELECT id, user_id, character_name, image_url, message_content, created_at
+                SELECT id, user_id, character_name, image_url, message_content, created_at, generation_time
                     FROM chat_history
                     WHERE character_name = :character_name 
                       AND user_id = :user_id 
@@ -2259,7 +2259,7 @@ async def get_character_photos(
             # Также загружаем фото где character_name может быть NULL или пустым
             try:
                 query_all = text("""
-                SELECT id, user_id, character_name, image_url, message_content, created_at
+                SELECT id, user_id, character_name, image_url, message_content, created_at, generation_time
                     FROM chat_history
                     WHERE user_id = :user_id 
                       AND image_url IS NOT NULL 
@@ -2279,6 +2279,9 @@ async def get_character_photos(
                 image_url = row.image_url if hasattr(row, 'image_url') else row[3]
                 message_content = row.message_content if hasattr(row, 'message_content') else (row[4] if len(row) > 4 else None)
                 created_at = row.created_at if hasattr(row, 'created_at') else (row[5] if len(row) > 5 else row[4])
+                generation_time = getattr(row, 'generation_time', None)
+                if generation_time is None and not hasattr(row, 'generation_time') and len(row) > 6:
+                    generation_time = row[6]
                 
                 if image_url:
                     # Конвертируем старые URL Яндекс.Бакета в новые через прокси
@@ -2290,49 +2293,10 @@ async def get_character_photos(
                             "id": photo_id,
                             "url": image_url,
                             "prompt": message_content if message_content and message_content != "Генерация изображения" else None,
+                            "generation_time": generation_time,
                             "created_at": created_at.isoformat() + "Z" if created_at else None
                         })
             logger.info(f"Total unique photos from ChatHistory: {len(chat_history_photos)}")
-            
-            # Загружаем промпты из ImageGenerationHistory для фотографий без промпта
-            if chat_history_photos:
-                try:
-                    from app.models.image_generation_history import ImageGenerationHistory
-                    
-                    # Собираем все URL фотографий без промпта
-                    urls_without_prompt = [
-                        photo["url"] for photo in chat_history_photos 
-                        if not photo.get("prompt")
-                    ]
-                    
-                    if urls_without_prompt:
-                        # Нормализуем URL (убираем query параметры)
-                        normalized_urls = [url.split('?')[0].split('#')[0] for url in urls_without_prompt]
-                        
-                        # Загружаем промпты из ImageGenerationHistory для создателя персонажа
-                        prompts_query = select(ImageGenerationHistory).where(
-                            ImageGenerationHistory.user_id == owner_user_id
-                        )
-                        prompts_result = await db.execute(prompts_query)
-                        prompts_rows = prompts_result.scalars().all()
-                        
-                        # Создаем словарь для быстрого поиска промптов по нормализованному URL
-                        prompts_map = {}
-                        for row in prompts_rows:
-                            if row.image_url and row.prompt:
-                                normalized_url = row.image_url.split('?')[0].split('#')[0]
-                                prompts_map[normalized_url] = row.prompt
-                        
-                        # Обновляем промпты в chat_history_photos
-                        for photo in chat_history_photos:
-                            if not photo.get("prompt"):
-                                normalized_url = photo["url"].split('?')[0].split('#')[0]
-                                if normalized_url in prompts_map:
-                                    photo["prompt"] = prompts_map[normalized_url]
-                                    
-                    logger.info(f"Loaded prompts from ImageGenerationHistory for {len(urls_without_prompt)} photos")
-                except Exception as e:
-                    logger.warning(f"Error loading prompts from ImageGenerationHistory: {e}")
         except Exception as e:
             logger.warning(f"Error loading photos from ChatHistory for character {character_name}: {e}")
             import traceback
@@ -2409,6 +2373,7 @@ async def get_character_photos(
                             "id": photo_id,
                             "url": normalized_url,
                             "prompt": row.prompt if row.prompt and row.prompt != "Генерация изображения" else None,
+                            "generation_time": row.generation_time,
                             "created_at": row.created_at.isoformat() + "Z" if row.created_at else None
                         })
             
@@ -2417,6 +2382,41 @@ async def get_character_photos(
             logger.warning(f"Error loading photos from ImageGenerationHistory for character {character_name}: {e}")
             import traceback
             logger.warning(f"Traceback: {traceback.format_exc()}")
+
+        # Загружаем промпты и время генерации из ImageGenerationHistory для ВСЕХ собранных фотографий
+        prompts_map = {}
+        try:
+            from app.models.image_generation_history import ImageGenerationHistory
+            
+            # Загружаем ВСЕ записи ImageGenerationHistory для создателя персонажа
+            prompts_query = select(ImageGenerationHistory).where(
+                ImageGenerationHistory.user_id == owner_user_id
+            )
+            prompts_result = await db.execute(prompts_query)
+            prompts_rows = prompts_result.scalars().all()
+            
+            # Создаем словарь для быстрого поиска промптов и времени генерации по нормализованному URL
+            for row in prompts_rows:
+                if row.image_url:
+                    normalized_url = row.image_url.split('?')[0].split('#')[0]
+                    prompts_map[normalized_url] = {
+                        "prompt": row.prompt,
+                        "generation_time": row.generation_time
+                    }
+            
+            if chat_history_photos:
+                # Обновляем промпты и время генерации в chat_history_photos
+                for photo in chat_history_photos:
+                    normalized_url = photo["url"].split('?')[0].split('#')[0]
+                    if normalized_url in prompts_map:
+                        if not photo.get("prompt"):
+                            photo["prompt"] = prompts_map[normalized_url]["prompt"]
+                        if photo.get("generation_time") is None:
+                            photo["generation_time"] = prompts_map[normalized_url]["generation_time"]
+                            
+                logger.info(f"Enriched {len(chat_history_photos)} photos with data from ImageGenerationHistory")
+        except Exception as e:
+            logger.warning(f"Error enriching photos from ImageGenerationHistory: {e}")
 
         main_ids = {entry["id"] for entry in main_entries}
         main_urls = {entry["url"] for entry in main_entries}
@@ -2433,12 +2433,21 @@ async def get_character_photos(
             # Конвертируем старые URL Яндекс.Бакета в новые через прокси
             photo_url = YandexCloudStorageService.convert_yandex_url_to_proxy(photo_url)
             seen_urls.add(photo_url)
+            
+            # Пытаемся найти время генерации в prompts_map
+            gen_time = entry.get("generation_time")
+            if gen_time is None:
+                normalized_url = photo_url.split('?')[0].split('#')[0]
+                if normalized_url in prompts_map:
+                    gen_time = prompts_map[normalized_url]["generation_time"]
+            
             photos.append(
                 {
                     "id": photo_id,
                     "url": photo_url,
                     "is_main": (photo_id in main_ids) or (photo_url in main_urls),
                     "created_at": entry.get("created_at"),
+                    "generation_time": gen_time,
                 }
             )
 
@@ -2451,6 +2460,14 @@ async def get_character_photos(
             # Конвертируем старые URL Яндекс.Бакета в новые через прокси
             photo_url = YandexCloudStorageService.convert_yandex_url_to_proxy(photo_url)
             seen_urls.add(photo_url)
+            
+            # Пытаемся найти время генерации в prompts_map если еще нет
+            gen_time = entry.get("generation_time")
+            if gen_time is None:
+                normalized_url = photo_url.split('?')[0].split('#')[0]
+                if normalized_url in prompts_map:
+                    gen_time = prompts_map[normalized_url]["generation_time"]
+            
             photos.append(
                 {
                     "id": photo_id,
@@ -2458,6 +2475,7 @@ async def get_character_photos(
                     "prompt": entry.get("prompt"),
                     "is_main": (photo_id in main_ids) or (photo_url in main_urls),
                     "created_at": entry.get("created_at"),
+                    "generation_time": gen_time,
                 }
             )
 
@@ -2469,12 +2487,21 @@ async def get_character_photos(
             # Конвертируем старые URL Яндекс.Бакета в новые через прокси
             entry_url = YandexCloudStorageService.convert_yandex_url_to_proxy(entry_url)
             seen_urls.add(entry_url)
+            
+            # Пытаемся найти время генерации в prompts_map
+            gen_time = entry.get("generation_time")
+            if gen_time is None:
+                normalized_url = entry_url.split('?')[0].split('#')[0]
+                if normalized_url in prompts_map:
+                    gen_time = prompts_map[normalized_url]["generation_time"]
+            
             photos.append(
                 {
                     "id": entry["id"],
                     "url": entry_url,
                     "is_main": True,
                     "created_at": entry.get("created_at"),
+                    "generation_time": gen_time,
                 }
             )
 

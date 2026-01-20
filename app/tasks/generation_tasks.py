@@ -118,27 +118,19 @@ def generate_image_task(
         # Создаем сервис для генерации
         face_refinement_service = FaceRefinementService(settings.SD_API_URL)
         
-        # Запускаем асинхронную генерацию в новом event loop
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        try:
+        async def run_generation_flow():
             # Генерируем изображение
             logger.info(f"[CELERY TASK] ========================================")
             logger.info(f"[CELERY TASK] Запуск генерации через Stable Diffusion WebUI")
             logger.info(f"[CELERY TASK] ========================================")
             
             generation_start = time.time()
-            result = loop.run_until_complete(
-                face_refinement_service.generate_image(generation_settings, full_settings_for_logging)
-            )
+            result = await face_refinement_service.generate_image(generation_settings, full_settings_for_logging)
             generation_time = time.time() - generation_start
             
             logger.info(f"[CELERY TASK] ========================================")
             logger.info(f"[CELERY TASK] ✓ Генерация завершена за {generation_time:.2f}с")
             logger.info(f"[CELERY TASK] ========================================")
-            
-            logger.debug(f"[CELERY TASK] Проверяем результат генерации...")
             
             if not result or not getattr(result, "image_data", None):
                 raise Exception("Сервис генерации не вернул изображение")
@@ -154,76 +146,46 @@ def generate_image_task(
                 meta={"status": "Загрузка изображения в облако", "progress": 70}
             )
             
-            # Берем первое изображение
-            # GenerationResponse.from_api_response уже конвертирует base64 в bytes
-            if not result.image_data or len(result.image_data) == 0:
-                raise Exception("Сервис генерации не вернул данные изображения")
-            
             image_data = result.image_data[0]
             
             # Проверяем тип данных и конвертируем в bytes если нужно
-            import base64
             if isinstance(image_data, bytes):
                 image_bytes = image_data
-                logger.debug(f"[CELERY] Изображение уже в формате bytes, размер: {len(image_bytes)} байт")
             elif isinstance(image_data, str):
-                # Если это base64 строка (на всякий случай), декодируем её
-                try:
-                    image_bytes = base64.b64decode(image_data)
-                    logger.debug(f"[CELERY] Декодировано base64 изображение, размер: {len(image_bytes)} байт")
-                except Exception as decode_error:
-                    logger.error(f"[CELERY] Ошибка декодирования base64: {decode_error}")
-                    raise ValueError(f"Не удалось декодировать base64 изображение: {decode_error}")
+                import base64
+                image_bytes = base64.b64decode(image_data)
             else:
-                # Если это PIL Image или другой формат, конвертируем в bytes
                 from io import BytesIO
                 from PIL import Image
                 if isinstance(image_data, Image.Image):
                     buffer = BytesIO()
                     image_data.save(buffer, format="PNG")
                     image_bytes = buffer.getvalue()
-                    logger.debug(f"[CELERY] Конвертировано PIL Image в bytes, размер: {len(image_bytes)} байт")
                 else:
                     raise ValueError(f"Неподдерживаемый тип данных изображения: {type(image_data)}")
             
-            # Проверяем, что bytes не пустые
             if not image_bytes or len(image_bytes) == 0:
                 raise ValueError("Получены пустые данные изображения")
             
             # Определяем имя персонажа и транслитерируем его для URL
             character_name_ascii = transliterate_cyrillic_to_ascii(character_name or "character")
-            
-            # Формируем имя файла с расширением .webp
-            import time
             filename = f"generated_{int(time.time())}.webp"
             
-            # Загружаем в облако (передаем bytes, а не base64 строку)
             service = get_yandex_storage_service()
             object_key = f"generated_images/{character_name_ascii}/{filename}"
             
-            # Убираем детальное логирование загрузки
-            
-            # Загружаем изображение в облако с метаданными (автоматически конвертируется в WebP)
-            logger.info(f"[CELERY TASK] ========================================")
-            logger.info(f"[CELERY TASK] Загрузка в Yandex Cloud Storage (WebP)")
-            logger.info(f"[CELERY TASK] Object key: {object_key}")
-            logger.info(f"[CELERY TASK] Размер: {len(image_bytes)} байт")
-            logger.info(f"[CELERY TASK] ========================================")
-            
             upload_start = time.time()
-            cloud_url = loop.run_until_complete(
-                service.upload_file(
-                    file_data=image_bytes,
-                    object_key=object_key,
-                    content_type='image/webp',
-                    metadata={
-                        "character_name": character_name_ascii,
-                        "generated_at": datetime.now().isoformat(),
-                        "source": "api_generation",
-                        "task_id": task_id
-                    },
-                    convert_to_webp=True
-                )
+            cloud_url = await service.upload_file(
+                file_data=image_bytes,
+                object_key=object_key,
+                content_type='image/webp',
+                metadata={
+                    "character_name": character_name_ascii,
+                    "generated_at": datetime.now().isoformat(),
+                    "source": "api_generation",
+                    "task_id": task_id
+                },
+                convert_to_webp=True
             )
             upload_time = time.time() - upload_start
             
@@ -241,71 +203,22 @@ def generate_image_task(
             # Тратим монеты и лимиты подписки за генерацию фото (если пользователь авторизован)
             if user_id is not None:
                 try:
-                    logger.warning(f"[CELERY] Тратим ресурсы для пользователя {user_id} (task_id={task_id})")
-                    loop.run_until_complete(_spend_photo_resources(user_id))
-                    logger.warning(f"[CELERY] Ресурсы списаны для пользователя {user_id} (task_id={task_id})")
+                    await _spend_photo_resources(user_id)
                 except Exception as e:
                     logger.error(f"[CELERY] Ошибка при трате ресурсов для пользователя {user_id}: {e}")
-                    # Не прерываем выполнение задачи из-за ошибки траты ресурсов
-                    # Изображение уже загружено, пользователь должен получить результат
             
-            # ИСТОРИЯ ГЕНЕРАЦИИ: Сохранение истории перенесено в основной код (main.py)
-            # Это предотвращает дублирование записей, так как основной код уже сохраняет
-            # историю через _write_chat_history или ImageGenerationHistoryService.
-            # Если вам нужно сохранять историю здесь, раскомментируйте блок ниже:
-            #
-            # if user_id is not None and character_name and cloud_url:
-            #     try:
-            #         from app.database.db import async_sessionmaker, engine
-            #         from app.services.image_generation_history_service import ImageGenerationHistoryService
-            #         from sqlalchemy.ext.asyncio import AsyncSession
-            #         
-            #         async_session_factory = async_sessionmaker(
-            #             engine, expire_on_commit=False, class_=AsyncSession
-            #         )
-            #         
-            #         async def save_history():
-            #             async with async_session_factory() as history_db:
-            #                 history_service = ImageGenerationHistoryService(history_db)
-            #                 generation_time_seconds = int(generation_time) if generation_time else None
-            #                 saved = await history_service.save_generation(
-            #                     user_id=user_id,
-            #                     character_name=character_name,
-            #                     image_url=cloud_url,
-            #                     prompt=settings_dict.get("original_user_prompt") or settings_dict.get("prompt", "Генерация изображения"),
-            #                     generation_time=generation_time_seconds,
-            #                     task_id=task_id
-            #                 )
-            #                 if saved:
-            #                     logger.info(f"[CELERY] ✓ История генерации сохранена для task_id={task_id}")
-            #                 else:
-            #                     logger.warning(f"[CELERY] Не удалось сохранить историю для task_id={task_id}")
-            #         
-            #         loop.run_until_complete(save_history())
-            #     except Exception as history_error:
-            #         logger.error(f"[CELERY] Ошибка сохранения истории генерации: {history_error}")
-            #         import traceback
-            #         logger.error(f"[CELERY] Трейсбек: {traceback.format_exc()}")
-            #         # Не прерываем выполнение, история - дополнительная функция
-            
-            result_dict = {
+            return {
                 "success": True,
                 "image_url": cloud_url,
                 "cloud_url": cloud_url,
                 "filename": filename,
                 "character": character_name,
                 "task_id": task_id,
-                "generation_time": round(generation_time, 2) if generation_time else None  # Время генерации в секундах
+                "generation_time": round(generation_time, 2) if generation_time else None
             }
-            
-            logger.warning(f"[CELERY] Задача завершена успешно (task_id={task_id}), возвращаем результат: {result_dict}")
-            
-            # НЕ обновляем статус через update_state, так как это перезапишет результат
-            # Просто возвращаем результат - Celery автоматически установит состояние SUCCESS
-            return result_dict
-            
-        finally:
-            loop.close()
+
+        result_dict = asyncio.run(run_generation_flow())
+        return result_dict
             
     except Exception as exc:
         error_message = str(exc)
@@ -495,24 +408,20 @@ def save_chat_history_task(
     """
     try:
         # Ленивый импорт - импортируем только при выполнении
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        from app.main import _write_chat_history
         
-        try:
-            from app.main import _write_chat_history
-            loop.run_until_complete(
-                _write_chat_history(
-                    user_id=user_id,
-                    character_data=character_data,
-                    message=message,
-                    response=response,
-                    image_url=image_url,
-                    image_filename=image_filename
-                )
+        async def run_save():
+            return await _write_chat_history(
+                user_id=user_id,
+                character_data=character_data,
+                message=message,
+                response=response,
+                image_url=image_url,
+                image_filename=image_filename
             )
-            return {"success": True, "message": "История чата сохранена"}
-        finally:
-            loop.close()
+
+        asyncio.run(run_save())
+        return {"success": True, "message": "История чата сохранена"}
     except Exception as exc:
         logger.error(f"[CELERY] Ошибка сохранения истории чата: {exc}")
         return {"success": False, "error": str(exc)}
@@ -558,13 +467,8 @@ def save_images_to_cloud_task(
             character_name_ascii = transliterate_cyrillic_to_ascii(character_name)
             folder = f"generated_images/{character_name_ascii}"
         
-        # Создаем event loop для асинхронных операций
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        try:
+        async def run_cloud_saves():
             cloud_urls = []
-            
             for i, image_base64 in enumerate(images_base64):
                 try:
                     # Декодируем base64
@@ -576,21 +480,19 @@ def save_images_to_cloud_task(
                     object_key = f"{folder}/{filename}"
                     
                     # Загружаем в облако асинхронно (автоматически конвертируется в WebP)
-                    cloud_url = loop.run_until_complete(
-                        service.upload_file(
-                            file_data=image_bytes,
-                            object_key=object_key,
-                            content_type='image/webp',
-                            metadata={
-                                "character_name": character_name_ascii if character_name else "unknown",
-                                "character_original": character_name or "unknown",
-                                "seed": str(seed),
-                                "index": str(i),
-                                "generated_at": datetime.now().isoformat(),
-                                "source": "background_save"
-                            },
-                            convert_to_webp=True
-                        )
+                    cloud_url = await service.upload_file(
+                        file_data=image_bytes,
+                        object_key=object_key,
+                        content_type='image/webp',
+                        metadata={
+                            "character_name": character_name_ascii if character_name else "unknown",
+                            "character_original": character_name or "unknown",
+                            "seed": str(seed),
+                            "index": str(i),
+                            "generated_at": datetime.now().isoformat(),
+                            "source": "background_save"
+                        },
+                        convert_to_webp=True
                     )
                     
                     cloud_urls.append(cloud_url)
@@ -599,18 +501,18 @@ def save_images_to_cloud_task(
                 except Exception as img_error:
                     logger.error(f"[CLOUD SAVE] Ошибка сохранения изображения {i}: {img_error}")
                     cloud_urls.append(None)
-            
-            logger.info(f"[CLOUD SAVE] Завершено. Успешно сохранено: {len([u for u in cloud_urls if u])}/{len(images_base64)}")
-            
-            return {
-                "success": True,
-                "cloud_urls": cloud_urls,
-                "total": len(images_base64),
-                "saved": len([u for u in cloud_urls if u])
-            }
-            
-        finally:
-            loop.close()
+            return cloud_urls
+
+        cloud_urls = asyncio.run(run_cloud_saves())
+        
+        logger.info(f"[CLOUD SAVE] Завершено. Успешно сохранено: {len([u for u in cloud_urls if u])}/{len(images_base64)}")
+        
+        return {
+            "success": True,
+            "cloud_urls": cloud_urls,
+            "total": len(images_base64),
+            "saved": len([u for u in cloud_urls if u])
+        }
             
     except Exception as exc:
         logger.error(f"[CLOUD SAVE] Критическая ошибка: {exc}")

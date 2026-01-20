@@ -45,7 +45,7 @@ services:
     command: >
       celery -A app.celery_app worker
       --loglevel=info
-      --concurrency=2
+      --concurrency=8
       --queues=high_priority,normal_priority,low_priority
       --max-tasks-per-child=50
       --time-limit=600

@@ -80,6 +80,8 @@ class GenerationStats:
         :param result: результат генерации (info/result)
         :param detailed: расширенный объект (если есть)
         """
+        import asyncio
+        
         # Логируем только метаданные без base64 изображений
         logger.info(
             f"[add_generation] Входные параметры: params={params}, "
@@ -248,21 +250,34 @@ class GenerationStats:
         
         # Сохраняем статистику
         logger.info(f"[add_generation] Пытаюсь сохранить статистику в файл: {self.stats_file}")
-        self._save_stats()
+        
+        def save_and_verify():
+            self._save_stats()
+            # Проверяем размер и часть содержимого файла
+            try:
+                if os.path.exists(self.stats_file):
+                    with open(self.stats_file, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        logger.info(f"[add_generation] Файл {self.stats_file} успешно записан. Размер: {len(content)} байт. Первые 500 символов: {content[:500]}")
+                else:
+                    logger.error(f"[add_generation] Файл {self.stats_file} не найден после записи!")
+            except Exception as e:
+                logger.error(f"[add_generation] Ошибка при проверке файла после записи: {e}")
+
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                loop.run_in_executor(None, save_and_verify)
+            else:
+                save_and_verify()
+        except RuntimeError:
+            # Если loop не найден (например, в синхронном скрипте)
+            save_and_verify()
+
         logger.info(
             f"Статистика обновлена. "
             f"Всего генераций: {self.stats['total_generations']}"
         )
-        # Проверяем размер и часть содержимого файла
-        try:
-            if os.path.exists(self.stats_file):
-                with open(self.stats_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    logger.info(f"[add_generation] Файл {self.stats_file} успешно записан. Размер: {len(content)} байт. Первые 500 символов: {content[:500]}")
-            else:
-                logger.error(f"[add_generation] Файл {self.stats_file} не найден после записи!")
-        except Exception as e:
-            logger.error(f"[add_generation] Ошибка при проверке файла после записи: {e}")
     
     def get_stats_summary(self) -> Dict:
         """Возвращает краткую сводку статистики"""

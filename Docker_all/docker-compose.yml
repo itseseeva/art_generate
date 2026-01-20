@@ -77,7 +77,7 @@ services:
       python -m app.scripts.init_admin || true &&
       python -m app.scripts.init_test_user || true &&
       echo 'Запуск сервера...' &&
-      uvicorn app.main:app --host 0.0.0.0 --port 8000
+      gunicorn app.main:app --workers 8 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --worker-connections 1000 --timeout 180 --graceful-timeout 30 --keep-alive 5
       "
 
   art_generation_frontend:
@@ -130,11 +130,14 @@ services:
     command: >
       celery -A app.celery_app worker
       --loglevel=info
-      --concurrency=2
+      --concurrency=20
       --queues=high_priority,normal_priority,low_priority
       --max-tasks-per-child=50
       --time-limit=600
       --soft-time-limit=540
+      --pool=prefork
+      --without-gossip
+      --without-mingle
 
 volumes:
   pgdata:

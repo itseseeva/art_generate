@@ -83,30 +83,25 @@ def generate_image_runpod_task(
         import time
         start_time = time.time()
         
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        try:
-            image_url = loop.run_until_complete(
-                generate_image_async(
-                    user_prompt=user_prompt,
-                    width=width,
-                    height=height,
-                    steps=steps,
-                    cfg_scale=cfg_scale,
-                    seed=seed,
-                    sampler_name=sampler_name,
-                    scheduler=scheduler,
-                    negative_prompt=negative_prompt,
-                    use_enhanced_prompts=use_enhanced_prompts,
-                    timeout=timeout,
-                    model=model,
-                    lora_scale=lora_scale,
-                    progress_callback=update_celery_progress
-                )
+        async def run_generation():
+            return await generate_image_async(
+                user_prompt=user_prompt,
+                width=width,
+                height=height,
+                steps=steps,
+                cfg_scale=cfg_scale,
+                seed=seed,
+                sampler_name=sampler_name,
+                scheduler=scheduler,
+                negative_prompt=negative_prompt,
+                use_enhanced_prompts=use_enhanced_prompts,
+                timeout=timeout,
+                model=model,
+                lora_scale=lora_scale,
+                progress_callback=update_celery_progress
             )
-        finally:
-            loop.close()
+
+        image_url = asyncio.run(run_generation())
         
         execution_time = int(time.time() - start_time)
         

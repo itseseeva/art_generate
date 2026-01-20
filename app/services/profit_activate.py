@@ -634,7 +634,6 @@ class ProfitActivateService:
             # ВАЖНО: Если в кэше PREMIUM для пользователя без подписки - принудительно инвалидируем кэш
             # КРИТИЧНО: Инвалидируем ОБА кэша (subscription_stats и subscription)
             if cached_type == "premium" and cached_active:
-                logger.warning(f"[STATS] ВНИМАНИЕ: В кэше PREMIUM для user_id={user_id}, проверяем БД...")
                 await cache_delete(cache_key)
                 await cache_delete(key_subscription(user_id))
                 # Продолжаем загрузку из БД ниже

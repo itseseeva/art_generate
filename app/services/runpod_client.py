@@ -587,23 +587,16 @@ async def generate_image_async(
                         storage_service = get_yandex_storage_service()
                         
                         # Загружаем через upload_file для автоматической конвертации
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                        try:
-                            public_url = loop.run_until_complete(
-                                storage_service.upload_file(
-                                    file_data=image_bytes,
-                                    object_key=filename,
-                                    content_type='image/webp',
-                                    metadata={
-                                        "source": "runpod_direct_upload",
-                                        "format": "webp"
-                                    },
-                                    convert_to_webp=True
-                                )
-                            )
-                        finally:
-                            loop.close()
+                        public_url = await storage_service.upload_file(
+                            file_data=image_bytes,
+                            object_key=filename,
+                            content_type='image/webp',
+                            metadata={
+                                "source": "runpod_direct_upload",
+                                "format": "webp"
+                            },
+                            convert_to_webp=True
+                        )
                         
                         logger.success(f"[RUNPOD] Base64 загружен в S3: {public_url}")
                         return public_url

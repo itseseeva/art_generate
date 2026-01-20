@@ -63,27 +63,22 @@ def upload_to_cloud_task(
         if not object_key.endswith('.webp'):
             object_key = object_key.rsplit('.', 1)[0] + '.webp' if '.' in object_key else object_key + '.webp'
         
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        try:
-            cloud_url = loop.run_until_complete(
-                service.upload_file(
-                    file_data=image_bytes,
-                    object_key=object_key,
-                    content_type='image/webp',
-                    metadata=metadata or {},
-                    convert_to_webp=True
-                )
+        async def run_upload():
+            return await service.upload_file(
+                file_data=image_bytes,
+                object_key=object_key,
+                content_type='image/webp',
+                metadata=metadata or {},
+                convert_to_webp=True
             )
-            
-            return {
-                "success": True,
-                "cloud_url": cloud_url,
-                "object_key": object_key
-            }
-        finally:
-            loop.close()
+
+        cloud_url = asyncio.run(run_upload())
+        
+        return {
+            "success": True,
+            "cloud_url": cloud_url,
+            "object_key": object_key
+        }
             
     except Exception as exc:
         logger.error(f"[CELERY] Ошибка загрузки в облако: {exc}")

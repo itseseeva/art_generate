@@ -141,17 +141,10 @@ async def get_characters_with_history(
         
         # Проверяем подписку пользователя
         can_save = await history_service.can_save_history(current_user.id)
-        logger.info(f"[HISTORY API] Пользователь {current_user.id}: can_save_history={can_save}, force_refresh={force_refresh}")
         
         # Если нет прав на сохранение истории, все равно пытаемся получить персонажей
         # (может быть, история была сохранена до изменения подписки)
         # characters уже загружены выше с учетом force_refresh
-        
-        logger.info(f"[HISTORY API] Возвращаем {len(characters)} персонажей с историей для пользователя {current_user.id}")
-        if len(characters) == 0:
-            logger.warning(f"[HISTORY API] Пустой список персонажей для user_id={current_user.id}, can_save_history={can_save}")
-        for char in characters:
-            logger.info(f"[HISTORY API]   - {char.get('name')}: last_message_at={char.get('last_message_at')}")
         
         return {
             "success": True,

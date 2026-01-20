@@ -54,12 +54,12 @@ if is_postgres:
 engine = create_async_engine(
     DATABASE_URL, 
     echo=False,  # Отключаем echo для производительности
-    # Настройки пула соединений для высокой нагрузки (до 100+ одновременных пользователей)
-    pool_size=20 if not is_sqlite else 1,  # SQLite не поддерживает пул
-    max_overflow=40 if not is_sqlite else 0,  # SQLite не поддерживает overflow (итого до 60 соединений)
-    pool_timeout=5,  # Таймаут ожидания соединения из пула (уменьшен для быстрого отказа)
+    # Оптимизированные настройки пула соединений для 100+ одновременных пользователей
+    pool_size=30 if not is_sqlite else 1,  # Увеличен базовый пул (SQLite не поддерживает пул)
+    max_overflow=70 if not is_sqlite else 0,  # Увеличен overflow (итого до 100 соединений)
+    pool_timeout=10,  # Увеличен таймаут ожидания соединения из пула
     pool_pre_ping=True,  # Проверяем соединения перед использованием
-    pool_recycle=300,  # Переиспользуем соединения каждые 5 минут
+    pool_recycle=1800,  # Переиспользуем соединения каждые 30 минут (было 5 минут)
     # Настройки для правильной работы с Unicode
     # Всегда передаем словарь (пустой для SQLite, с настройками для PostgreSQL)
     connect_args=connect_args

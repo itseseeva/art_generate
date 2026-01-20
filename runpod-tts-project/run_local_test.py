@@ -4,7 +4,7 @@ import base64
 import os
 
 # Название твоего образа
-IMAGE_NAME = "runpod-tts-fish:v1"
+IMAGE_NAME = "runpod-tts-fish:v2"
 
 def test_local():
     # Эмулируем запрос: используем файл из папки test_voices

@@ -812,28 +812,22 @@ class ChatHistoryService:
 
             # ФИНАЛЬНАЯ ПРОВЕРКА: убеждаемся, что у всех персонажей есть валидное last_message_at или last_image_url
             final_result = []
-            print(f"[DEBUG] ФИНАЛЬНАЯ ФИЛЬТРАЦИЯ: Всего персонажей в словаре: {len(characters)}")
             for char in characters.values():
                 # Если есть картинка, но нет времени - все равно добавляем (время будет установлено из картинки)
                 has_image = char.get('last_image_url')
                 has_message_time = char.get('last_message_at')
-                
-                print(f"[DEBUG] ФИНАЛЬНАЯ ФИЛЬТРАЦИЯ: Персонаж {char.get('name')}: has_image={bool(has_image)}, has_message_time={bool(has_message_time)}")
                 
                 # УПРОЩЕННАЯ ЛОГИКА: добавляем персонажа если есть ЛЮБОЕ из:
                 # - last_message_at (есть сообщения)
                 # - last_image_url (есть фото)
                 # Это гарантирует, что персонажи с незаконченными диалогами будут показаны
                 if not has_message_time and not has_image:
-                    print(f"[DEBUG] ФИНАЛЬНАЯ ФИЛЬТРАЦИЯ: Пропускаем персонажа {char['name']} - нет ни last_message_at, ни last_image_url")
                     continue
                 
                 # Если есть картинка, но нет времени - пытаемся получить время из картинки
                 if has_image and not has_message_time:
                     # Пытаемся найти время последней картинки
                     try:
-                        from app.models.chat_history import ChatHistory
-                        from app.chat_bot.models.models import ChatMessageDB, ChatSession
                         # Ищем в ChatHistory
                         img_time_query = await self.db.execute(
                             select(func.max(ChatHistory.created_at))
@@ -844,9 +838,7 @@ class ChatHistoryService:
                         img_time = img_time_query.scalar()
                         if img_time:
                             char['last_message_at'] = img_time.isoformat() if hasattr(img_time, 'isoformat') else str(img_time)
-                            print(f"[DEBUG] ФИНАЛЬНАЯ ФИЛЬТРАЦИЯ: Добавлено время из картинки для {char['name']}: {char['last_message_at']}")
                     except Exception as e:
-                        print(f"[DEBUG] ФИНАЛЬНАЯ ФИЛЬТРАЦИЯ: Не удалось получить время из картинки для {char['name']}: {e}")
                         # Все равно добавляем, если есть картинка
                         if has_image:
                             char['last_message_at'] = None  # Устанавливаем None, но все равно добавляем
@@ -859,21 +851,15 @@ class ChatHistoryService:
                         if isinstance(last_msg, str):
                             datetime.fromisoformat(last_msg.replace('Z', '+00:00'))
                     except:
-                        print(f"[DEBUG] ФИНАЛЬНАЯ ФИЛЬТРАЦИЯ: Невалидное last_message_at для {char['name']}, но есть картинка - добавляем")
                         # Если есть картинка, все равно добавляем
                         if not has_image:
                             continue
                 
                 final_result.append(char)
-                print(f"[DEBUG] ФИНАЛЬНАЯ ФИЛЬТРАЦИЯ: Добавлен персонаж {char['name']} с last_message_at={char.get('last_message_at')}, last_image_url={char.get('last_image_url')}")
             
             # Финальная сортировка по времени
             final_result = list(characters.values())
             final_result.sort(key=lambda x: x.get('last_message_at') or "", reverse=True)
-            
-            print(f"[DEBUG] Итоговый список персонажей с историей для user_id={user_id}: {len(final_result)} персонажей")
-            for char in final_result:
-                print(f"[DEBUG]   - {char['name']}: last_message_at={char.get('last_message_at')}, has_image={bool(char.get('last_image_url'))}")
             
             # Сохраняем в кэш
             await cache_set(cache_key, final_result, ttl_seconds=TTL_USER_CHARACTERS)

@@ -863,7 +863,7 @@ const GenerateTooltip = styled.div<{ $isVisible: boolean }>`
 const ContinueButton = styled(motion.button)`
   position: relative;
   background: linear-gradient(135deg, rgba(234, 179, 8, 0.9), rgba(251, 191, 36, 0.9));
-  border: 1px solid rgba(251, 191, 36, 0.6);
+  border: 2px solid #8b5cf6;
   color: #1a1a1a;
   padding: ${theme.spacing.sm} ${theme.spacing.lg};
   border-radius: ${theme.borderRadius.lg};
@@ -872,7 +872,7 @@ const ContinueButton = styled(motion.button)`
   cursor: pointer;
   transition: all 0.3s ease;
   backdrop-filter: blur(10px);
-  box-shadow: 0 0 20px rgba(234, 179, 8, 0.4), 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.4), 0 4px 12px rgba(0, 0, 0, 0.4);
   width: 100%;
   overflow: hidden;
   display: flex;
@@ -1035,6 +1035,21 @@ const PhotoTile = styled.div`
   }
 `;
 
+const GenerationTimer = styled.div`
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  pointer-events: none;
+  z-index: 10;
+  backdrop-filter: blur(4px);
+`;
+
 const PhotoImage = styled.img`
   width: 100% !important;
   height: 100% !important;
@@ -1059,16 +1074,11 @@ const PhotoOverlay = styled.div`
   justify-content: center;
   gap: ${theme.spacing.xs};
   background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.9) 100%);
-  opacity: 0;
+  opacity: 1;
   transition: opacity 0.3s ease;
-  pointer-events: none;
+  pointer-events: auto;
   height: 60px;
   
-  ${PhotoTile}:hover & {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
   @media (max-width: 768px) {
     opacity: 1;
     pointer-events: auto;
@@ -3273,7 +3283,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
   // Функция для генерации одного фото
   // КРИТИЧНО: Промпт передается как параметр, чтобы использовать актуальное значение
   // на момент генерации, а не на момент постановки в очередь
-  const generateSinglePhoto = async (promptToUse?: string): Promise<{ id: string; url: string } | null> => {
+  const generateSinglePhoto = async (promptToUse?: string): Promise<{ id: string; url: string, generationTime?: number } | null> => {
       const token = localStorage.getItem('authToken');
       if (!token) throw new Error('Необходимо войти в систему');
 
@@ -3343,6 +3353,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
       
       let imageUrl: string | undefined;
       let imageId: string | undefined;
+      let generationTime: number | undefined;
       
       if (result.task_id) {
         // Асинхронная генерация - ждем завершения
@@ -3378,8 +3389,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
               }
               
               if (statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED') {
-                imageUrl = statusData.result?.image_url || statusData.result?.cloud_url || statusData.image_url || statusData.cloud_url;
-                const filename = statusData.result?.filename || statusData.filename || Date.now().toString();
+                const resultObj = statusData.result || {};
+                imageUrl = resultObj.image_url || resultObj.cloud_url || statusData.image_url || statusData.cloud_url;
+                generationTime = resultObj.generation_time || statusData.generation_time;
+                const filename = resultObj.filename || statusData.filename || Date.now().toString();
                 imageId = filename.replace('.png', '').replace('.jpg', '');
                 break;
               }
@@ -3398,6 +3411,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         }
       } else {
         imageUrl = result.cloud_url || result.image_url;
+        generationTime = result.generation_time;
         if (!imageUrl) {
           throw new Error('URL изображения не получен от сервера');
         }
@@ -3407,7 +3421,8 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
       
     return {
       id: imageId || Date.now().toString(),
-      url: imageUrl
+      url: imageUrl,
+      generationTime
     };
   };
 
@@ -4244,7 +4259,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                           return null;
                         }
                         
-                        const isSelected = Boolean(photo?.isSelected);
+                        const isSelected = selectedPhotos.some(p => p.id === photo.id || p.url === photo.url);
 
                         return (
                           <PhotoTile key={photo?.id || `photo-${index}`}>
@@ -4259,6 +4274,13 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                 }
                               }}
                             />
+                            {photo.generationTime !== undefined && photo.generationTime !== null && photo.generationTime > 0 && (
+                              <GenerationTimer>
+                                ⏱ {photo.generationTime < 60 
+                                  ? `${Math.round(photo.generationTime)}с` 
+                                  : `${Math.round(photo.generationTime / 60)}м ${Math.round(photo.generationTime % 60)}с`}
+                              </GenerationTimer>
+                            )}
                             <PhotoOverlay>
                               <OverlayButtons>
                                 <OverlayButton

@@ -102,7 +102,8 @@ from app.schemas.generation import GenerationSettings, GenerationResponse
 from app.config.settings import settings
 # import replicate  # Устарело: переехали на RunPod API
 from replicate.exceptions import ReplicateError, ModelError
-import requests
+# import requests  # Заменено на асинхронный httpx
+import httpx
 from PIL import Image
 from io import BytesIO
 import base64
@@ -373,8 +374,17 @@ async def lifespan(app: FastAPI):
     
     logger.info("🎉 Приложение готово к работе!")
     logger.info("[INFO] Сервер должен быть готов принимать соединения")
+    
+    from app.utils.http_client import http_client
+    # Инициализируем глобальный HTTP клиент
+    _ = http_client.get_client()
+    
     yield
+    
     logger.info("[INFO] Lifespan завершается...")
+    
+    # Закрываем HTTP клиент при завершении
+    await http_client.close_client()
     
     # Завершение работы приложения
     logger.info("🛑 Останавливаем приложение...")
@@ -3374,7 +3384,9 @@ async def generate_image_replicate(settings: GenerationSettings) -> GenerationRe
                 logger.info(
                     f"[REPLICATE] Загружаем изображение с URL: {first_image_url}"
                 )
-                response = requests.get(first_image_url, timeout=60)
+                from app.utils.http_client import http_client
+                async_client = http_client.get_client()
+                response = await async_client.get(first_image_url, timeout=60)
                 response.raise_for_status()
                 image_data = response.content
         

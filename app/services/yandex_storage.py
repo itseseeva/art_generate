@@ -292,9 +292,14 @@ class YandexCloudStorageService:
             if convert_to_webp and content_type and content_type.startswith('image/'):
                 # Читаем данные файла в bytes если нужно
                 if isinstance(file_data, str):
-                    with open(file_data, 'rb') as f:
-                        image_bytes = f.read()
+                    loop = asyncio.get_event_loop()
+                    def read_file_sync(path):
+                        with open(path, 'rb') as f:
+                            return f.read()
+                    image_bytes = await loop.run_in_executor(None, read_file_sync, file_data)
                 elif hasattr(file_data, 'read'):
+                    # Это может быть блокирующим если file_data это обычный файл
+                    # Но обычно это BytesIO или SpooledTemporaryFile
                     image_bytes = file_data.read()
                     if hasattr(file_data, 'seek'):
                         file_data.seek(0)
@@ -302,7 +307,9 @@ class YandexCloudStorageService:
                     image_bytes = file_data
                 
                 # Конвертируем в WebP
-                webp_bytes = self._convert_to_webp(image_bytes)
+                # Конвертация тоже может быть тяжелой, стоит вынести
+                loop = asyncio.get_event_loop()
+                webp_bytes = await loop.run_in_executor(None, self._convert_to_webp, image_bytes)
                 file_data = webp_bytes
                 
                 # Обновляем content_type и object_key
@@ -500,8 +507,12 @@ class YandexCloudStorageService:
             }
             
             # Читаем файл и загружаем (автоматически конвертируется в WebP)
-            with open(file_path, 'rb') as f:
-                file_data_bytes = f.read()
+            loop = asyncio.get_event_loop()
+            def read_file_sync(path):
+                with open(path, 'rb') as f:
+                    return f.read()
+            
+            file_data_bytes = await loop.run_in_executor(None, read_file_sync, file_path)
             
             return await self.upload_file(
                 file_data=file_data_bytes,

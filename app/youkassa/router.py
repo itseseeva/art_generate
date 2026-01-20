@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from .config import get_kassa_config
 from app.database.db_depends import get_db
+from app.utils.http_client import http_client
 from app.models.user import Users
 from app.models.payment_transaction import PaymentTransaction
 from app.auth.dependencies import get_current_user
@@ -97,20 +98,6 @@ async def create_kassa_payment(
 
 	auth = (cfg["shop_id"], cfg["secret_key"])
 
-	# Настройки httpx клиента
-	# ВАЖНО: Прокси отключен для запросов к YooKassa (trust_env=False)
-	client_kwargs = {
-		"timeout": httpx.Timeout(
-			connect=10.0,  # Таймаут подключения
-			read=30.0,     # Таймаут чтения
-			write=10.0,    # Таймаут записи
-			pool=5.0       # Таймаут получения соединения из пула
-		),
-		"follow_redirects": True,
-		"verify": True,  # Проверка SSL сертификатов
-		"trust_env": False,  # Отключаем автоматическое использование прокси из окружения
-	}
-	
 	logger.info(
 		f"[YOOKASSA] Creating payment: amount={payload.amount}, "
 		f"method={payload.payment_method}, type={payload.payment_type}"
@@ -119,13 +106,13 @@ async def create_kassa_payment(
 	
 	try:
 		logger.info("[YOOKASSA] Sending request to YooKassa API...")
-		with httpx.Client(**client_kwargs) as client:
-			resp = client.post(
-				"https://api.yookassa.ru/v3/payments",
-				json=req_body,
-				headers=headers,
-				auth=auth,
-			)
+		async_client = http_client.get_client()
+		resp = await async_client.post(
+			"https://api.yookassa.ru/v3/payments",
+			json=req_body,
+			headers=headers,
+			auth=auth,
+		)
 		logger.info(f"[YOOKASSA] Response received: status={resp.status_code}")
 	except httpx.ConnectTimeout as ex:
 		logger.error(f"[YOOKASSA] Connection timeout: {ex}")

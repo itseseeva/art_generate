@@ -34,16 +34,11 @@ def ensure_images_dir() -> Path:
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise
 
-def save_image(image_data: Union[str, bytes, Image.Image], prefix: str = "image") -> str:
+import asyncio
+
+def _save_image_sync(image_data: Union[str, bytes, Image.Image], prefix: str = "image") -> str:
     """
-    Сохраняет изображение в директорию images.
-    
-    Args:
-        image_data: Изображение в формате base64 строки, bytes или PIL.Image
-        prefix: Префикс для имени файла
-        
-    Returns:
-        str: Путь к сохраненному файлу
+    Синхронная версия сохранения изображения.
     """
     try:
         # Создаем директорию если её нет
@@ -97,6 +92,27 @@ def save_image(image_data: Union[str, bytes, Image.Image], prefix: str = "image"
         logger.error(f"Ошибка при сохранении изображения: {str(e)}")
         logger.error(f"Traceback: {traceback.format_exc()}")
         raise
+
+async def save_image(image_data: Union[str, bytes, Image.Image], prefix: str = "image") -> str:
+    """
+    Сохраняет изображение в директорию images асинхронно.
+    
+    Args:
+        image_data: Изображение в формате base64 строки, bytes или PIL.Image
+        prefix: Префикс для имени файла
+        
+    Returns:
+        str: Путь к сохраненному файлу
+    """
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _save_image_sync, image_data, prefix)
+
+def save_image_sync_deprecated(image_data: Union[str, bytes, Image.Image], prefix: str = "image") -> str:
+    """
+    Deprecated: Используйте save_image (async) или _save_image_sync (internal sync).
+    Сохраняет совместимость для старого кода.
+    """
+    return _save_image_sync(image_data, prefix)
 
 async def save_image_cloud_only(
     image_data: Union[str, bytes, Image.Image], 
@@ -173,7 +189,7 @@ async def save_image_cloud_only(
             "error": str(e)
         }
 
-def save_base64_image(base64_string: str, prefix: str = "generated") -> str:
+async def save_base64_image(base64_string: str, prefix: str = "generated") -> str:
     """
     Сохраняет изображение из base64 строки.
     
@@ -184,4 +200,4 @@ def save_base64_image(base64_string: str, prefix: str = "generated") -> str:
     Returns:
         str: Путь к сохраненному файлу
     """
-    return save_image(base64_string, prefix=prefix) 
+    return await save_image(base64_string, prefix=prefix) 

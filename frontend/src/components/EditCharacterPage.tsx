@@ -1534,6 +1534,21 @@ const PhotoTile = styled.div`
   }
 `;
 
+const GenerationTimer = styled.div`
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  pointer-events: none;
+  z-index: 10;
+  backdrop-filter: blur(4px);
+`;
+
 const PhotoImage = styled.img`
   width: 100% !important;
   height: 100% !important;
@@ -1558,16 +1573,11 @@ const PhotoOverlay = styled.div`
   justify-content: center;
   gap: ${theme.spacing.xs};
   background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.9) 100%);
-  opacity: 0;
+  opacity: 1;
   transition: opacity 0.3s ease;
-  pointer-events: none;
+  pointer-events: auto;
   height: 60px;
   
-  ${PhotoTile}:hover & {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
   @media (max-width: 768px) {
     opacity: 1;
     pointer-events: auto;
@@ -1913,7 +1923,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           id: photoId,
           url: photoUrl,
           isSelected: Boolean(photo.is_main),
-          created_at: photo.created_at ?? null
+          created_at: photo.created_at ?? null,
+          generationTime: photo.generation_time ?? null
         };
       }).filter(photo => photo.url) // Фильтруем фотографии без URL
         .filter((photo, index, self) => 
@@ -2774,7 +2785,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   };
 
   // Ожидание завершения генерации через task_id
-  const waitForGeneration = async (taskId: string, token: string): Promise<{ id: string; url: string } | null> => {
+  const waitForGeneration = async (taskId: string, token: string): Promise<{ id: string; url: string, generationTime?: number } | null> => {
     const maxAttempts = 60; // Максимум 2 минуты (60 * 2 секунды) - как в ChatContainer
     const pollInterval = 2000; // Опрашиваем каждые 2 секунды - как в ChatContainer
     let attempts = 0;
@@ -2835,6 +2846,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                           (Array.isArray(resultData.cloud_urls) && resultData.cloud_urls[0]) ||
                           (Array.isArray(resultData.saved_paths) && resultData.saved_paths[0]);
           const imageId = resultData.image_id || resultData.id || resultData.task_id || resultData.filename || `${Date.now()}-${taskId}`;
+          const generationTime = resultData.generation_time || status.generation_time;
           
           if (rawImageUrl) {
             // Нормализуем URL для локальной разработки
@@ -2842,7 +2854,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
             setGenerationProgress(100); // Устанавливаем 100% при завершении
             return {
               id: imageId,
-              url: imageUrl
+              url: imageUrl,
+              generationTime
             };
           }
         } else if (status.status === 'FAILURE') {
@@ -2863,7 +2876,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   // Функция для генерации одного фото (вынесена из generatePhoto)
   // КРИТИЧНО: Промпт передается как параметр, чтобы использовать актуальное значение
   // на момент генерации, а не на момент постановки в очередь
-  const generateSinglePhoto = async (promptToUse?: string): Promise<{ id: string; url: string } | null> => {
+  const generateSinglePhoto = async (promptToUse?: string): Promise<{ id: string; url: string, generationTime?: number } | null> => {
     const token = authManager.getToken();
     if (!token) throw new Error('Необходимо войти в систему');
 
@@ -2934,6 +2947,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     
     let imageUrl: string | undefined;
     let imageId: string | undefined;
+    let generationTime: number | undefined;
     
     if (result.task_id) {
       const generatedPhoto = await waitForGeneration(result.task_id, token);
@@ -2942,9 +2956,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       }
       imageUrl = generatedPhoto.url; // Уже нормализован в waitForGeneration
       imageId = generatedPhoto.id;
+      generationTime = generatedPhoto.generationTime;
     } else {
       // Нормализуем URL для локальной разработки
       imageUrl = normalizeImageUrl(result.cloud_url || result.image_url);
+      generationTime = result.generation_time;
       if (!imageUrl) {
         throw new Error('URL изображения не получен от сервера');
       }
@@ -2978,7 +2994,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     
     return {
       id: imageId || Date.now().toString(),
-      url: imageUrl
+      url: imageUrl,
+      generationTime
     };
   };
 
@@ -3469,7 +3486,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
               <button
                 type="submit"
                 disabled={isLoading || !userInfo || (userInfo && userInfo.coins < CHARACTER_EDIT_COST)}
-                className="w-full py-4 px-6 bg-gradient-to-r from-yellow-500 to-yellow-600 text-black font-semibold rounded-lg hover:from-yellow-600 hover:to-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg hover:shadow-yellow-500/50"
+                className="w-full py-4 px-6 bg-gradient-to-r from-yellow-500 to-yellow-600 text-black font-semibold rounded-lg hover:from-yellow-600 hover:to-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg hover:shadow-yellow-500/50 border-2 border-[#8b5cf6]"
               >
                 {isLoading ? 'Обновление...' : 'Сохранить изменения'}
               </button>
@@ -3774,7 +3791,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                       <PhotoList>
                         {generatedPhotos.map((photo, index) => {
                           if (!photo || !photo.url) return null;
-                          const isSelected = Boolean(photo?.isSelected);
+                          const isSelected = selectedPhotos.some(p => p.id === photo.id || p.url === photo.url);
 
                           return (
                             <PhotoTile key={`${photo?.id || `photo-${index}`}-${index}`}>
@@ -3790,6 +3807,13 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                   e.currentTarget.style.display = 'none';
                                 }}
                               />
+                              {photo.generationTime !== undefined && photo.generationTime !== null && photo.generationTime > 0 && (
+                                <GenerationTimer>
+                                  ⏱ {photo.generationTime < 60 
+                                    ? `${Math.round(photo.generationTime)}с` 
+                                    : `${Math.round(photo.generationTime / 60)}м ${Math.round(photo.generationTime % 60)}с`}
+                                </GenerationTimer>
+                              )}
                               <PhotoOverlay onClick={(e) => e.stopPropagation()}>
                                 <OverlayButtons>
                                   <OverlayButton
