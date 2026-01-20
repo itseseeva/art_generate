@@ -10,7 +10,8 @@ psycopg2-binary
 aiosqlite>=0.19.0
 
 # HTTP клиенты
-httpx>=0.25.0
+httpx[http2]>=0.25.0
+h2>=4.1.0
 aiohttp>=3.9.0
 requests>=2.31.0
 

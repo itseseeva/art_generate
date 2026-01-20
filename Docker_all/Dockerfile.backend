@@ -1,50 +1,51 @@
 # --- Stage 1: Build dependencies ---
-    FROM python:3.11-slim as builder
+FROM python:3.11-slim as builder
 
-    WORKDIR /app
-    
-    ENV PYTHONDONTWRITEBYTECODE 1
-    ENV PYTHONUNBUFFERED 1
-    
-    # Устанавливаем инструменты для сборки (gcc, python3-dev обязательны для тяжелых либ)
-    RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential \
-        libpq-dev \
-        gcc \
-        python3-dev \
-        && rm -rf /var/lib/apt/lists/*
-    
-    COPY requirements.txt .
-    
-    # ОПТИМИЗАЦИЯ:
-    # 1. Обновляем pip и ставим wheel (критично для скорости)
-    # 2. Увеличиваем таймаут, чтобы не падало на плохом интернете
-    RUN pip install --upgrade pip setuptools wheel && \
-        pip install --default-timeout=1000 --no-cache-dir --user -r requirements.txt
-    
-    # --- Stage 2: Final image ---
-    FROM python:3.11-slim
-    
-    WORKDIR /app
-    
-    # Устанавливаем только runtime библиотеки (легкие)
-    RUN apt-get update && apt-get install -y --no-install-recommends \
-        libpq-dev \
-        postgresql-client \
-        netcat-openbsd \
-        curl \
-        && rm -rf /var/lib/apt/lists/*
-    
-    # Копируем установленные пакеты из builder
-    COPY --from=builder /root/.local /root/.local
-    
-    # ! ВАЖНО: Добавляем путь к bin в PATH
-    ENV PATH=/root/.local/bin:$PATH
-    
-    # Копируем код приложения
-    COPY . .
-    
-    EXPOSE 8000
-    
-    # Команда по умолчанию (переопределяется в docker-compose.yml)
-    CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+ENV PYTHONUSERBASE=/root/.local
+
+# Устанавливаем инструменты для сборки
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    gcc \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+
+# ОПТИМИЗАЦИЯ: Явно устанавливаем h2 и httpx[http2] перед остальными
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir --user h2 httpx[http2] && \
+    pip install --default-timeout=1000 --no-cache-dir --user -r requirements.txt
+
+# --- Stage 2: Final image ---
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Устанавливаем только runtime библиотеки (легкие)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq-dev \
+    postgresql-client \
+    netcat-openbsd \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Копируем установленные пакеты из builder
+COPY --from=builder /root/.local /root/.local
+
+# Настраиваем пути для пользовательских пакетов
+ENV PYTHONUSERBASE=/root/.local
+ENV PATH=/root/.local/bin:$PATH
+
+# Копируем код приложения
+COPY . .
+
+EXPOSE 8000
+
+# Команда по умолчанию (переопределяется в docker-compose.yml)
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

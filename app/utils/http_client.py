@@ -3,6 +3,7 @@
 """
 import httpx
 from typing import Optional
+from loguru import logger
 
 
 class AsyncHttpClient:
@@ -23,25 +24,33 @@ class AsyncHttpClient:
         Получить singleton экземпляр HTTP клиента с connection pooling.
         """
         if cls._client is None:
+            # Проверяем наличие поддержки HTTP/2
+            try:
+                import h2
+                http2_support = True
+            except ImportError:
+                http2_support = False
+                logger.warning("Package 'h2' not found. HTTP/2 support disabled, falling back to HTTP/1.1. To enable HTTP/2, install 'httpx[http2]'.")
+
             # Создаем limits для connection pooling
             limits = httpx.Limits(
-                max_keepalive_connections=50,  # Максимум keep-alive соединений
-                max_connections=100,  # Максимум всего соединений
-                keepalive_expiry=30.0,  # Время жизни keep-alive соединения
+                max_keepalive_connections=50,
+                max_connections=100,
+                keepalive_expiry=30.0,
             )
             
             cls._client = httpx.AsyncClient(
                 timeout=httpx.Timeout(
-                    timeout=60.0,  # Общий таймаут
-                    connect=10.0,  # Таймаут подключения
-                    read=60.0,  # Таймаут чтения
-                    write=60.0,  # Таймаут записи
-                    pool=5.0,  # Таймаут получения соединения из пула
+                    timeout=60.0,
+                    connect=10.0,
+                    read=60.0,
+                    write=60.0,
+                    pool=5.0,
                 ),
                 limits=limits,
                 follow_redirects=True,
                 trust_env=False,
-                http2=True,  # Включаем HTTP/2 для лучшей производительности
+                http2=http2_support,  # Используем HTTP/2 только если пакет h2 доступен
             )
         return cls._client
 
