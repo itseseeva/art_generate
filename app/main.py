@@ -2933,7 +2933,20 @@ async def chat_endpoint(
                         
                         # Отправляем чанк как SSE событие
                         full_response += chunk
-                        yield f"data: {json.dumps({'content': chunk})}\n\n"
+                        
+                        # Для более плавной анимации на фронтенде разбиваем большие чанки
+                        # и добавляем небольшую задержку
+                        if len(chunk) > 10:
+                            # Разбиваем на мелкие части по 5 символов
+                            chunk_size = 5
+                            for i in range(0, len(chunk), chunk_size):
+                                sub_chunk = chunk[i:i+chunk_size]
+                                yield f"data: {json.dumps({'content': sub_chunk})}\n\n"
+                                await asyncio.sleep(0.02)
+                        else:
+                            yield f"data: {json.dumps({'content': chunk})}\n\n"
+                            # Небольшая задержка даже для маленьких чанков
+                            await asyncio.sleep(0.025)
                     
                     # Отправляем маркер завершения
                     yield f"data: {json.dumps({'done': True})}\n\n"

@@ -370,6 +370,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 isCharacterOwner={isCharacterOwner}
                 onAddToGallery={onAddToGallery}
                 onAddToPaidAlbum={onAddToPaidAlbum}
+                isTyping={isLoading && index === messages.length - 1 && (message.type === 'assistant' || (message as any).role === 'assistant')}
               />
             );
           })}

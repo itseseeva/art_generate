@@ -4,6 +4,7 @@
 """
 
 import json
+import asyncio
 import logging
 from typing import List, Dict, Optional, AsyncGenerator
 from fastapi import APIRouter, Depends, HTTPException
@@ -586,7 +587,20 @@ async def chat_with_character_stream(
                         
                         # Отправляем чанк как SSE событие
                         full_response += chunk
-                        yield f"data: {json.dumps({'content': chunk})}\n\n"
+                        
+                        # Для более плавной анимации на фронтенде разбиваем большие чанки
+                        # и добавляем небольшую задержку
+                        if len(chunk) > 10:
+                            # Разбиваем на мелкие части по 4-6 символов
+                            chunk_size = 5
+                            for i in range(0, len(chunk), chunk_size):
+                                sub_chunk = chunk[i:i+chunk_size]
+                                yield f"data: {json.dumps({'content': sub_chunk})}\n\n"
+                                await asyncio.sleep(0.02)
+                        else:
+                            yield f"data: {json.dumps({'content': chunk})}\n\n"
+                            # Небольшая задержка даже для маленьких чанков
+                            await asyncio.sleep(0.025)
                     except (ConnectionResetError, BrokenPipeError, OSError) as conn_error:
                         # Обрабатываем ошибки разрыва соединения (нормально для Windows)
                         logger.debug(f"[CHAT STREAM] Соединение разорвано клиентом: {conn_error}")

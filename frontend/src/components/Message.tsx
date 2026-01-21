@@ -648,9 +648,27 @@ interface MessageProps {
   userEmail?: string;
   isAuthenticated?: boolean;
   isCharacterOwner?: boolean;
+  isTyping?: boolean;
   onAddToGallery?: (imageUrl: string, characterName: string) => Promise<void>;
   onAddToPaidAlbum?: (imageUrl: string, characterName: string) => Promise<void>;
 }
+
+const TypingCursor = styled.span`
+  display: inline-block;
+  width: 8px;
+  height: 18px;
+  background-color: ${theme.colors.primary || '#8b5cf6'};
+  margin-left: 4px;
+  vertical-align: middle;
+  border-radius: 2px;
+  box-shadow: 0 0 8px ${theme.colors.primary || '#8b5cf6'};
+  animation: blink 1s infinite;
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+`;
 
 const MessageComponent: React.FC<MessageProps> = ({
   message,
@@ -662,6 +680,7 @@ const MessageComponent: React.FC<MessageProps> = ({
   userEmail,
   isAuthenticated,
   isCharacterOwner,
+  isTyping,
   onAddToGallery,
   onAddToPaidAlbum
 }) => {
@@ -1220,6 +1239,7 @@ const MessageComponent: React.FC<MessageProps> = ({
             <>
               <MessageText>
                 {message.content}
+                {isTyping && <TypingCursor />}
               </MessageText>
               {console.log('[Message] ПРОВЕРКА РЕНДЕРИНГА КНОПКИ ГОЛОСА:', {
                 messageId: message.id,
