@@ -138,6 +138,9 @@ async def generate_tts_audio(text: str, voice_url: str) -> Optional[str]:
             logger.info(f"[TTS GENERATION] Вызов Fish Audio API...")
             # Используем instant voice cloning
             # Передаем образец голоса и текст, который в нем произносится
+            # latency="normal" - максимальное качество (лучшие ударения и паузы для русского)
+            # model="fishaudio-s1" - указываем модель явно для максимального качества
+            # format="wav" - несжатый формат для максимального качества звука
             result = client.tts.convert(
                 text=text,
                 references=[
@@ -146,7 +149,9 @@ async def generate_tts_audio(text: str, voice_url: str) -> Optional[str]:
                         text=DEFAULT_PREVIEW_TEXT  # Примерный текст из образца
                     )
                 ],
-                format="mp3"
+                format="wav",
+                latency="normal",
+                model="fishaudio-s1"
             )
             logger.info(f"[TTS GENERATION] Fish Audio API вернул результат типа: {type(result)}")
             return result
@@ -262,6 +267,9 @@ async def generate_voice_preview(voice_id: str, text: Optional[str] = None) -> O
         
         # Генерация аудио в отдельном потоке
         def generate_audio():
+            # latency="normal" - максимальное качество (лучшие ударения и паузы для русского)
+            # model="fishaudio-s1" - указываем модель явно для максимального качества
+            # format="wav" - несжатый формат для максимального качества звука
             return client.tts.convert(
                 text=preview_text,
                 references=[
@@ -270,7 +278,9 @@ async def generate_voice_preview(voice_id: str, text: Optional[str] = None) -> O
                         text=DEFAULT_PREVIEW_TEXT  # Текст из образца
                     )
                 ],
-                format="mp3"
+                format="wav",
+                latency="normal",
+                model="fishaudio-s1"
             )
         
         loop = asyncio.get_event_loop()
@@ -349,6 +359,9 @@ async def generate_preview_from_uploaded_voice(voice_audio: bytes, voice_filenam
         # Генерация аудио в отдельном потоке
         def generate_audio():
             logger.info(f"[TTS PREVIEW] Вызов Fish Audio API...")
+            # latency="normal" - максимальное качество (лучшие ударения и паузы для русского)
+            # model="fishaudio-s1" - указываем модель явно для максимального качества
+            # format="wav" - несжатый формат для максимального качества звука
             result = client.tts.convert(
                 text=preview_text,
                 references=[
@@ -357,7 +370,9 @@ async def generate_preview_from_uploaded_voice(voice_audio: bytes, voice_filenam
                         text=DEFAULT_PREVIEW_TEXT  # Текст из образца
                     )
                 ],
-                format="mp3"
+                format="wav",
+                latency="normal",
+                model="fishaudio-s1"
             )
             logger.info(f"[TTS PREVIEW] Fish Audio API вернул результат типа: {type(result)}")
             return result
