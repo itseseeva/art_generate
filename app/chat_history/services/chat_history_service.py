@@ -1067,6 +1067,35 @@ class ChatHistoryService:
                 
                 # Удаляем все сообщения из этих сессий и сами сессии
                 for session in sessions:
+                    # Сначала находим и удаляем аудио файлы, связанные с сообщениями
+                    try:
+                        audio_msgs_result = await self.db.execute(
+                            select(ChatMessageDB.audio_url)
+                            .where(ChatMessageDB.session_id == session.id)
+                            .where(ChatMessageDB.audio_url.isnot(None))
+                        )
+                        audio_urls = audio_msgs_result.scalars().all()
+                        
+                        import os
+                        from app.config.paths import VOICES_DIR
+                        
+                        for audio_url in audio_urls:
+                            if not audio_url:
+                                continue
+                                
+                            # audio_url обычно имеет вид /voices/filename.mp3
+                            filename = os.path.basename(audio_url)
+                            file_path = VOICES_DIR / filename
+                            
+                            if file_path.exists():
+                                try:
+                                    os.remove(file_path)
+                                    logger.info(f"[HISTORY CLEAR] Удален аудио файл: {file_path}")
+                                except Exception as file_err:
+                                    logger.error(f"[HISTORY CLEAR] Не удалось удалить аудио файл {file_path}: {file_err}")
+                    except Exception as audio_err:
+                        logger.error(f"[HISTORY CLEAR] Ошибка при поиске/удалении аудио файлов: {audio_err}")
+
                     # Удаляем все сообщения из сессии
                     await self.db.execute(
                         delete(ChatMessageDB).where(ChatMessageDB.session_id == session.id)
