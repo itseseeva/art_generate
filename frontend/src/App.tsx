@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { GlobalStyles } from './styles/GlobalStyles';
 import { MainPage } from './components/MainPage';
 import { ChatContainer } from './components/ChatContainer';
+import DarkVeil from '../@/components/DarkVeil';
 import { MyCharactersPage } from './components/MyCharactersPage';
 import { CreateCharacterPage } from './components/CreateCharacterPage';
 import { ShopPage } from './components/ShopPage';
@@ -42,6 +43,18 @@ const AppContainer = styled.div<{ $isMobile?: boolean }>`
   position: relative;
 `;
 
+const BackgroundWrapper = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+`;
+
 const PageContainer = styled.div<{ $isMobile?: boolean }>`
   flex: 1;
   display: flex;
@@ -53,20 +66,22 @@ const PageContainer = styled.div<{ $isMobile?: boolean }>`
   scroll-behavior: smooth;
   width: 100%;
   max-width: 100%;
+  background: transparent;
+  z-index: 1;
 `;
 
-type PageType = 
-  | 'main' 
-  | 'chat' 
-  | 'my-characters' 
-  | 'create-character' 
-  | 'shop' 
-  | 'profile' 
-  | 'messages' 
-  | 'user-gallery' 
-  | 'paid-album' 
+type PageType =
+  | 'main'
+  | 'chat'
+  | 'my-characters'
+  | 'create-character'
+  | 'shop'
+  | 'profile'
+  | 'messages'
+  | 'user-gallery'
+  | 'paid-album'
   | 'paid-album-builder'
-  | 'photo-generation' 
+  | 'photo-generation'
   | 'edit-characters'
   | 'edit-character'
   | 'favorites'
@@ -98,8 +113,8 @@ function App() {
     } else {
       // Для других страниц используем динамические заголовки
       const pageTitles: Record<PageType, string> = {
-        'main': contentMode === 'safe' 
-          ? 'cherrylust.art AI CHAT с персонажами' 
+        'main': contentMode === 'safe'
+          ? 'cherrylust.art AI CHAT с персонажами'
           : 'cherrylust.art AI 18 + CHAT с персонажами',
         'chat': 'Чат',
         'my-characters': 'Мои персонажи',
@@ -140,7 +155,7 @@ function App() {
       const savedById = localStorage.getItem(`character_${characterId}`);
       console.log('[loadCharacterById] localStorage check:', { key: `character_${characterId}`, found: !!savedById });
       if (savedById) {
-        
+
         return JSON.parse(savedById);
       }
 
@@ -160,7 +175,7 @@ function App() {
           }
         }
       } catch (apiError) {
-        
+
       }
 
       // Если не удалось загрузить по ID, пытаемся найти в списке всех персонажей
@@ -169,26 +184,26 @@ function App() {
         const characters = await response.json();
         if (Array.isArray(characters)) {
           // Ищем по ID
-          let character = characters.find((char: any) => 
-            char.id === Number(characterId) || 
+          let character = characters.find((char: any) =>
+            char.id === Number(characterId) ||
             char.id === String(characterId) ||
             String(char.id) === String(characterId)
           );
-          
+
           // Если не нашли по ID, ищем по имени (без учета регистра)
           if (!character) {
             const searchName = String(characterId).toLowerCase().trim();
             character = characters.find((char: any) => {
               if (!char.name) return false;
               const charName = String(char.name).toLowerCase().trim();
-              return charName === searchName || 
-                     char.name === characterId || 
-                     char.name === String(characterId);
+              return charName === searchName ||
+                char.name === characterId ||
+                char.name === String(characterId);
             });
           }
-          
+
           if (character) {
-            
+
             // Сохраняем в localStorage
             const storageKey = character.id ? `character_${character.id}` : `character_${character.name}`;
             localStorage.setItem(storageKey, JSON.stringify(character));
@@ -196,11 +211,11 @@ function App() {
           }
         }
       }
-      
-      
+
+
       return null;
     } catch (error) {
-      
+
       return null;
     }
   };
@@ -210,7 +225,7 @@ function App() {
     // Восстанавливаем состояние из URL при загрузке
     const path = window.location.pathname;
     const urlParams = new URLSearchParams(window.location.search);
-    
+
     // Парсим состояние из hash или query параметров
     if (path.includes('/chat')) {
       const characterId = urlParams.get('character');
@@ -218,15 +233,15 @@ function App() {
         // КРИТИЧНО: Показываем спиннер пока персонаж загружается
         setIsLoadingCharacter(true);
         setCurrentPage('chat');
-        
+
         // Восстанавливаем персонажа из localStorage или API
         loadCharacterById(characterId).then(char => {
           if (char) {
-            
+
             setSelectedCharacter(char);
             window.history.replaceState({ page: 'chat', character: characterId }, '', path);
           } else {
-            
+
             // Если не удалось загрузить, остаемся на главной
             setCurrentPage('main');
             window.history.replaceState({ page: 'main' }, '', '/');
@@ -272,7 +287,7 @@ function App() {
         console.log('[App.tsx] Setting isLoadingCharacter=true and currentPage=edit-character');
         setIsLoadingCharacter(true);
         setCurrentPage('edit-character');
-        
+
         loadCharacterById(characterId).then(char => {
           console.log('[App.tsx] loadCharacterById result:', { char, hasName: char?.name, hasId: char?.id });
           if (char) {
@@ -292,12 +307,12 @@ function App() {
       } else {
         // Если нет characterId, проверяем, может быть это просто /edit-characters
         if (path === '/edit-characters') {
-            setCurrentPage('edit-characters');
-            window.history.replaceState({ page: 'edit-characters' }, '', path);
+          setCurrentPage('edit-characters');
+          window.history.replaceState({ page: 'edit-characters' }, '', path);
         } else {
-            // Иначе, считаем что это попытка редактировать без ID
-            setCurrentPage('edit-characters');
-            window.history.replaceState({ page: 'edit-characters' }, '', '/edit-characters');
+          // Иначе, считаем что это попытка редактировать без ID
+          setCurrentPage('edit-characters');
+          window.history.replaceState({ page: 'edit-characters' }, '', '/edit-characters');
         }
       }
     } else if (path.includes('/edit-characters')) {
@@ -310,7 +325,7 @@ function App() {
       if (!currentState || currentState.page !== 'shop') {
         window.history.replaceState({ page: 'shop' }, '', path);
       }
-      
+
       // Проверяем, вернулись ли мы с оплаты
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('payment') === 'success') {
@@ -453,13 +468,13 @@ function App() {
   useEffect(() => {
     const handleNavigateToChat = async (event: CustomEvent) => {
       const { characterId, characterName, characterIdentifier } = event.detail || {};
-      
+
       if (characterId || characterName || characterIdentifier) {
         const identifier = characterId || characterName || characterIdentifier;
-        
+
         // Пытаемся загрузить персонажа
         const character = await loadCharacterById(identifier);
-        
+
         if (character) {
           setSelectedCharacter(character);
           setCurrentPage('chat');
@@ -469,8 +484,8 @@ function App() {
           // Обновляем URL
           const urlIdentifier = character.id || character.name || identifier;
           window.history.pushState(
-            { page: 'chat', character: urlIdentifier }, 
-            '', 
+            { page: 'chat', character: urlIdentifier },
+            '',
             `/chat?character=${encodeURIComponent(String(urlIdentifier))}`
           );
         }
@@ -514,7 +529,7 @@ function App() {
       // Если нужен username, можно показать модальное окно
       if (needsUsername) {
         // TODO: Показать модальное окно для установки username
-        
+
       }
 
       // Переходим на главную страницу после OAuth авторизации
@@ -575,14 +590,14 @@ function App() {
       // Если userId не указан, открываем свой профиль
       // Проверяем, есть ли параметр user в URL
       const hasUserIdParam = window.location.search.includes('user=');
-      
+
       if (hasUserIdParam) {
         // Если мы на чужом профиле, принудительно переходим на свой
         // Используем window.location.replace для перехода без создания записи в истории
         window.location.replace('/profile');
         return;
       }
-      
+
       // Если мы уже на своем профиле, просто обновляем состояние
       setCurrentPage('profile');
       window.history.pushState({ page: 'profile' }, '', '/profile');
@@ -615,7 +630,7 @@ function App() {
 
     // Загружаем актуальную информацию о подписке
     let currentSubscriptionType = subscriptionStats?.subscription_type || userInfo?.subscription?.subscription_type || 'free';
-    
+
     // Если статистика не загружена, загружаем её
     if (!subscriptionStats) {
       try {
@@ -626,25 +641,25 @@ function App() {
           currentSubscriptionType = statsData.subscription_type || 'free';
         }
       } catch (error) {
-        
+
       }
     }
 
     const normalizedSubscriptionType = currentSubscriptionType.toLowerCase();
-    
+
     // Проверяем статус альбома перед показом модального окна
     try {
       const statusResponse = await authManager.fetchWithAuth(
         `/api/v1/paid-gallery/${character.name}/status/`
       );
-      
+
       if (statusResponse.ok) {
         const statusData = await statusResponse.json();
-        
-        
+
+
         // Если альбом уже разблокирован (куплен, Premium, или владелец) - сразу открываем
         if (statusData.unlocked) {
-          
+
           setSelectedCharacter(character);
           setCurrentPage('paid-album');
           if (character?.id) {
@@ -657,9 +672,9 @@ function App() {
         }
       }
     } catch (error) {
-      
+
     }
-    
+
     // Для PREMIUM - сразу открываем альбом (все альбомы бесплатны)
     if (normalizedSubscriptionType === 'premium') {
       setSelectedCharacter(character);
@@ -715,7 +730,7 @@ function App() {
         window.history.pushState({ page: 'paid-album' }, '', '/paid-album');
       }
     } catch (error) {
-      
+
       throw error;
     }
   };
@@ -768,8 +783,8 @@ function App() {
     switch (currentPage) {
       case 'main':
         return (
-          <MainPage 
-            onCharacterSelect={handleCharacterSelect} 
+          <MainPage
+            onCharacterSelect={handleCharacterSelect}
             onMyCharacters={handleMyCharacters}
             onCreateCharacter={handleCreateCharacter}
             onShop={handleShop}
@@ -792,23 +807,23 @@ function App() {
         // Показываем спиннер если персонаж загружается
         if (isLoadingCharacter) {
           return (
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               height: '100vh',
               color: '#ffffff',
               flexDirection: 'column',
               gap: '1rem',
               backgroundColor: '#1a1a1a'
             }}>
-              <div style={{ 
-                width: '40px', 
-                height: '40px', 
-                border: '3px solid rgba(255,255,255,0.3)', 
-                borderTop: '3px solid #ffffff', 
-                borderRadius: '50%', 
-                animation: 'spin 1s linear infinite' 
+              <div style={{
+                width: '40px',
+                height: '40px',
+                border: '3px solid rgba(255,255,255,0.3)',
+                borderTop: '3px solid #ffffff',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
               }} />
               <p>Загрузка чата...</p>
               <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
@@ -817,33 +832,33 @@ function App() {
         }
         return (
           <ErrorBoundary>
-          <ChatContainer
-            onBackToMain={handleBackToMain}
-            initialCharacter={memoizedInitialCharacter}
-            onShop={handleShop}
-            onProfile={handleProfile}
-            onOpenPaidAlbum={handlePaidAlbum}
-            onOpenPaidAlbumBuilder={(character) => {
-              setSelectedCharacter(character);
-              setCurrentPage('paid-album-builder');
-              if (character?.id) {
-                localStorage.setItem(`character_${character.id}`, JSON.stringify(character));
-                window.history.pushState({ page: 'paid-album-builder', character: character.id }, '', `/paid-album-builder?character=${character.id}`);
-              } else {
-                window.history.pushState({ page: 'paid-album-builder' }, '', '/paid-album-builder');
-              }
-            }}
-            onNavigate={(page, character) => {
-              setSelectedCharacter(character);
-              setCurrentPage(page as PageType);
-              if (character?.id) {
-                localStorage.setItem(`character_${character.id}`, JSON.stringify(character));
-                window.history.pushState({ page, character: character.id }, '', `/${page}?character=${character.id}`);
-              } else {
-                window.history.pushState({ page }, '', `/${page}`);
-              }
-            }}
-          />
+            <ChatContainer
+              onBackToMain={handleBackToMain}
+              initialCharacter={memoizedInitialCharacter}
+              onShop={handleShop}
+              onProfile={handleProfile}
+              onOpenPaidAlbum={handlePaidAlbum}
+              onOpenPaidAlbumBuilder={(character) => {
+                setSelectedCharacter(character);
+                setCurrentPage('paid-album-builder');
+                if (character?.id) {
+                  localStorage.setItem(`character_${character.id}`, JSON.stringify(character));
+                  window.history.pushState({ page: 'paid-album-builder', character: character.id }, '', `/paid-album-builder?character=${character.id}`);
+                } else {
+                  window.history.pushState({ page: 'paid-album-builder' }, '', '/paid-album-builder');
+                }
+              }}
+              onNavigate={(page, character) => {
+                setSelectedCharacter(character);
+                setCurrentPage(page as PageType);
+                if (character?.id) {
+                  localStorage.setItem(`character_${character.id}`, JSON.stringify(character));
+                  window.history.pushState({ page, character: character.id }, '', `/${page}?character=${character.id}`);
+                } else {
+                  window.history.pushState({ page }, '', `/${page}`);
+                }
+              }}
+            />
           </ErrorBoundary>
         );
       case 'my-characters':
@@ -862,30 +877,30 @@ function App() {
       case 'create-character':
         return (
           <ErrorBoundary>
-          <CreateCharacterPage
-            onBackToMain={handleBackToMain}
-            onShop={handleShop}
-            onMyCharacters={handleMyCharacters}
-            onProfile={handleProfile}
-            onOpenPaidAlbumBuilder={(character) => {
-              setSelectedCharacter(character);
-              setCurrentPage('paid-album-builder');
-              if (character?.id) {
-                localStorage.setItem(`character_${character.id}`, JSON.stringify(character));
-                window.history.pushState({ page: 'paid-album-builder', character: character.id }, '', `/paid-album-builder?character=${character.id}`);
-              } else if (character?.name) {
-                localStorage.setItem(`character_${character.name}`, JSON.stringify(character));
-                window.history.pushState({ page: 'paid-album-builder', character: character.name }, '', `/paid-album-builder?character=${encodeURIComponent(character.name)}`);
-              } else {
-                window.history.pushState({ page: 'paid-album-builder' }, '', '/paid-album-builder');
-              }
-            }}
-            onOpenChat={handleCharacterSelect}
-            onPhotoGeneration={handlePhotoGeneration}
-            contentMode={contentMode}
-            isAuthenticated={isAuthenticated}
-            userInfo={userInfo}
-          />
+            <CreateCharacterPage
+              onBackToMain={handleBackToMain}
+              onShop={handleShop}
+              onMyCharacters={handleMyCharacters}
+              onProfile={handleProfile}
+              onOpenPaidAlbumBuilder={(character) => {
+                setSelectedCharacter(character);
+                setCurrentPage('paid-album-builder');
+                if (character?.id) {
+                  localStorage.setItem(`character_${character.id}`, JSON.stringify(character));
+                  window.history.pushState({ page: 'paid-album-builder', character: character.id }, '', `/paid-album-builder?character=${character.id}`);
+                } else if (character?.name) {
+                  localStorage.setItem(`character_${character.name}`, JSON.stringify(character));
+                  window.history.pushState({ page: 'paid-album-builder', character: character.name }, '', `/paid-album-builder?character=${encodeURIComponent(character.name)}`);
+                } else {
+                  window.history.pushState({ page: 'paid-album-builder' }, '', '/paid-album-builder');
+                }
+              }}
+              onOpenChat={handleCharacterSelect}
+              onPhotoGeneration={handlePhotoGeneration}
+              contentMode={contentMode}
+              isAuthenticated={isAuthenticated}
+              userInfo={userInfo}
+            />
           </ErrorBoundary>
         );
       case 'shop':
@@ -996,25 +1011,25 @@ function App() {
             onShop={handleShop}
             onProfile={handleProfile}
             onEditCharacter={(character) => {
-              
-              
-              
-              
-              
+
+
+
+
+
               // Строгая проверка на валидность character
               if (!character) {
-                
+
                 alert('Ошибка: данные персонажа не найдены.');
                 return;
               }
-              
+
               // Проверяем наличие хотя бы одного идентификатора
               if (!character.name && !character.id) {
-                
+
                 alert('Ошибка: персонаж не имеет имени или ID.');
                 return;
               }
-              
+
               // Создаем безопасную копию character
               const safeCharacter = {
                 ...character,
@@ -1029,13 +1044,13 @@ function App() {
                 views: character.views || 0,
                 comments: character.comments || 0
               };
-              
-              
-              
-              
+
+
+
+
               // КРИТИЧНО: Сначала устанавливаем selectedCharacter
               setSelectedCharacter(safeCharacter);
-              
+
               // КРИТИЧНО: Сохраняем персонажа в localStorage и URL для восстановления при обновлении
               if (safeCharacter.id) {
                 localStorage.setItem(`character_${safeCharacter.id}`, JSON.stringify(safeCharacter));
@@ -1047,55 +1062,55 @@ function App() {
               } else {
                 window.history.pushState({ page: 'edit-character' }, '', '/edit-character');
               }
-              
+
               // КРИТИЧНО: Переключаем страницу ПОСЛЕ установки selectedCharacter
-              
+
               setCurrentPage('edit-character');
-              
+
             }}
           />
         );
       case 'edit-character':
-        
-        
-        
-        
-        
+
+
+
+
+
         // Показываем спиннер если персонаж загружается
         if (isLoadingCharacter) {
           return (
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               height: '100vh',
               color: '#ffffff',
               flexDirection: 'column',
               gap: '1rem',
               backgroundColor: '#1a1a1a'
             }}>
-              <div style={{ 
-                width: '40px', 
-                height: '40px', 
-                border: '3px solid rgba(255,255,255,0.3)', 
-                borderTop: '3px solid #ffffff', 
-                borderRadius: '50%', 
-                animation: 'spin 1s linear infinite' 
+              <div style={{
+                width: '40px',
+                height: '40px',
+                border: '3px solid rgba(255,255,255,0.3)',
+                borderTop: '3px solid #ffffff',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
               }} />
               <p>Загрузка персонажа...</p>
               <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
             </div>
           );
         }
-        
+
         // Более строгая проверка на валидность character
         if (!selectedCharacter || (!selectedCharacter.name && !selectedCharacter.id)) {
-          
+
           return (
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               height: '100vh',
               color: '#ffffff',
               flexDirection: 'column',
@@ -1104,14 +1119,14 @@ function App() {
             }}>
               <h2>Ошибка загрузки</h2>
               <p>Персонаж не найден или данные повреждены. Пожалуйста, вернитесь к списку персонажей.</p>
-              <button 
+              <button
                 onClick={() => {
                   setSelectedCharacter(null);
                   setCurrentPage('edit-characters');
-                }} 
-                style={{ 
-                  marginTop: '1rem', 
-                  padding: '0.5rem 1rem', 
+                }}
+                style={{
+                  marginTop: '1rem',
+                  padding: '0.5rem 1rem',
                   cursor: 'pointer',
                   background: 'rgba(100, 100, 100, 0.3)',
                   border: '1px solid rgba(150, 150, 150, 0.5)',
@@ -1125,13 +1140,13 @@ function App() {
             </div>
           );
         }
-        
-        
+
+
         return (
           <EditCharacterPage
             character={selectedCharacter}
             onBackToEditList={() => {
-              
+
               setSelectedCharacter(null);
               setCurrentPage('edit-characters');
             }}
@@ -1140,6 +1155,7 @@ function App() {
             onProfile={handleProfile}
             onCreateCharacter={handleCreateCharacter}
             onEditCharacters={handleEditCharacters}
+            initialUserInfo={userInfo}
           />
         );
       case 'balance-history':
@@ -1194,8 +1210,8 @@ function App() {
         }
       default:
         return (
-          <MainPage 
-            onCharacterSelect={handleCharacterSelect} 
+          <MainPage
+            onCharacterSelect={handleCharacterSelect}
             onMyCharacters={handleMyCharacters}
             onCreateCharacter={handleCreateCharacter}
             onShop={handleShop}
@@ -1211,31 +1227,31 @@ function App() {
   };
 
   const [isAuthenticated, setIsAuthenticated] = React.useState(false);
-  const [userInfo, setUserInfo] = React.useState<{username: string, coins: number, id?: number, is_admin?: boolean, subscription?: {subscription_type: string}} | null>(null);
+  const [userInfo, setUserInfo] = React.useState<{ username: string, coins: number, id?: number, is_admin?: boolean, subscription?: { subscription_type: string } } | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [isPaidAlbumModalOpen, setIsPaidAlbumModalOpen] = useState(false);
   const [selectedAlbumCharacter, setSelectedAlbumCharacter] = useState<any>(null);
-  const [subscriptionStats, setSubscriptionStats] = useState<{subscription_type?: string} | null>(null);
+  const [subscriptionStats, setSubscriptionStats] = useState<{ subscription_type?: string } | null>(null);
 
   React.useEffect(() => {
     const checkAuth = async () => {
       // Даем время для загрузки токена после перезагрузки страницы
       await new Promise(resolve => setTimeout(resolve, 300));
-      
+
       try {
         const token = authManager.getToken();
-        
+
         if (!token) {
           // Пытаемся обновить токен через refresh token
           const refreshToken = authManager.getRefreshToken();
           if (refreshToken) {
             try {
-              
+
               await authManager.refreshAccessToken();
-              
+
             } catch (error) {
-              
+
               authManager.clearTokens();
               setIsAuthenticated(false);
               setUserInfo(null);
@@ -1249,19 +1265,19 @@ function App() {
         }
 
         const response = await authManager.fetchWithAuth('/api/v1/auth/me/');
-        
-        
+
+
         if (response.ok) {
           const text = await response.text();
-          
+
           if (!text) {
-             
+
           }
-          
+
           try {
             const userData = text ? JSON.parse(text) : null;
             if (userData) {
-              
+
               setUserInfo({
                 username: userData.username || userData.email || 'Пользователь',
                 coins: userData.coins || 0,
@@ -1270,7 +1286,7 @@ function App() {
                 subscription: userData.subscription || { subscription_type: userData.subscription_type || 'free' }
               });
               setIsAuthenticated(true);
-              
+
               // Загружаем статистику подписки
               if (userData.id) {
                 try {
@@ -1280,7 +1296,7 @@ function App() {
                     setSubscriptionStats(statsData);
                   }
                 } catch (error) {
-                  
+
                 }
               }
             } else {
@@ -1288,18 +1304,18 @@ function App() {
               setUserInfo(null);
             }
           } catch (e) {
-            
+
             setIsAuthenticated(false);
             setUserInfo(null);
           }
         } else {
-          
+
           authManager.clearTokens();
           setIsAuthenticated(false);
           setUserInfo(null);
         }
       } catch (error) {
-        
+
         setIsAuthenticated(false);
         setUserInfo(null);
       }
@@ -1312,11 +1328,11 @@ function App() {
   React.useEffect(() => {
     const handleBalanceUpdate = async (event: Event) => {
       const customEvent = event as CustomEvent;
-      
+
       // Если в событии есть данные о балансе - обновляем сразу
       if (customEvent.detail && customEvent.detail.coins !== undefined) {
         const newCoins = customEvent.detail.coins;
-        
+
         if (userInfo) {
           setUserInfo({
             ...userInfo,
@@ -1332,7 +1348,7 @@ function App() {
         if (response.ok) {
           const userData = await response.json();
           if (userData && userData.coins !== undefined) {
-            
+
             setUserInfo({
               username: userData.username || userData.email || 'Пользователь',
               coins: userData.coins || 0,
@@ -1342,12 +1358,12 @@ function App() {
           }
         }
       } catch (error) {
-        
+
       }
     };
 
     const handleSubscriptionUpdate = async () => {
-      
+
       // Загружаем баланс и статистику подписки из API при обновлении подписки
       try {
         const response = await authManager.fetchWithAuth('/api/v1/auth/me/');
@@ -1363,7 +1379,7 @@ function App() {
             });
           }
         }
-        
+
         // Загружаем статистику подписки
         const statsResponse = await authManager.fetchWithAuth('/api/v1/profit/stats/');
         if (statsResponse.ok) {
@@ -1371,12 +1387,12 @@ function App() {
           setSubscriptionStats(statsData);
         }
       } catch (error) {
-        
+
       }
     };
 
     const handleAuthSuccess = async () => {
-      
+
       // Обновляем состояние авторизации
       const token = authManager.getToken();
       if (token) {
@@ -1391,10 +1407,10 @@ function App() {
               id: userData.id,
               subscription: userData.subscription || { subscription_type: userData.subscription_type || 'free' }
             });
-            
+
           }
         } catch (error) {
-          
+
         }
       }
     };
@@ -1426,7 +1442,7 @@ function App() {
     const height = 600;
     const left = (window.screen.width - width) / 2;
     const top = (window.screen.height - height) / 2;
-    
+
     const popup = window.open(
       '/auth/google/?mode=popup',
       'Google Login',
@@ -1446,20 +1462,20 @@ function App() {
         'http://localhost:8000',
         'http://127.0.0.1:8000'
       ];
-      
+
       if (!allowedOrigins.includes(event.origin)) {
-        
+
         return;
       }
 
-      
+
 
       if (event.data && event.data.type === 'oauth-success') {
-        
+
         // Сохраняем токены через authManager
         if (event.data.accessToken) {
           authManager.setTokens(event.data.accessToken, event.data.refreshToken || null);
-          
+
         }
 
         // Закрываем popup (безопасно, без проверки closed)
@@ -1481,11 +1497,11 @@ function App() {
 
         // Небольшая задержка перед проверкой авторизации, чтобы токены точно сохранились
         setTimeout(async () => {
-          
+
           // Проверяем авторизацию без перезагрузки страницы
           try {
             const authResult = await authManager.checkAuth();
-            
+
             if (authResult.isAuthenticated && authResult.userInfo) {
               setIsAuthenticated(true);
               setUserInfo({
@@ -1499,13 +1515,13 @@ function App() {
               window.history.pushState({ page: 'main' }, '', '/');
             }
           } catch (error) {
-            
+
             // В случае ошибки все равно перезагружаем страницу
             window.location.reload();
           }
         }, 300);
       } else if (event.data && event.data.type === 'oauth-error') {
-        
+
         try {
           if (popup) {
             popup.close();
@@ -1553,7 +1569,7 @@ function App() {
       // Принудительная перезагрузка страницы для очистки всех состояний
       window.location.href = '/';
     } catch (error) {
-      
+
     }
   };
 
@@ -1562,6 +1578,9 @@ function App() {
     <>
       <GlobalStyles />
       <AppContainer $isMobile={isMobile}>
+        <BackgroundWrapper>
+          <DarkVeil speed={1.1} />
+        </BackgroundWrapper>
         <LeftDockSidebar
           isMobile={isMobile}
           onCreateCharacter={handleCreateCharacter}

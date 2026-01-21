@@ -87,6 +87,9 @@ class Settings(BaseSettings):
     
     # --- Hugging Face ---
     HUGGINGFACE_TOKEN: str = Field(default="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", description="Токен Hugging Face")
+
+    # --- Fish Audio (TTS) ---
+    FISH_AUDIO_API_KEY: str = Field(default_factory=lambda: os.getenv("FISH_AUDIO_API_KEY", ""), description="API ключ для Fish Audio")
     
     # --- Performance ---
     MAX_WORKERS: int = Field(default=4, description="Максимальное количество воркеров")

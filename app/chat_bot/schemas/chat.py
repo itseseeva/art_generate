@@ -146,6 +146,16 @@ class CharacterConfig(BaseModel):
         description="Описание локации персонажа для автоматического добавления в промпт генерации"
     )
     
+    voice_url: Optional[str] = Field(
+        None,
+        description="Ссылка на образец голоса для TTS"
+    )
+
+    voice_id: Optional[str] = Field(
+        None,
+        description="ID голоса из папки default_character_voices"
+    )
+    
     # face_image удален (IP-Adapter удален)
 
     model_config = ConfigDict(from_attributes=True)
@@ -169,6 +179,8 @@ class UserCharacterCreate(BaseModel):
         True,
         description="Флаг контента 18+ (True = NSFW, False = SAVE)"
     )
+    voice_id: Optional[str] = Field(None, description="ID выбранного голоса")
+    voice_url: Optional[str] = Field(None, description="URL образца голоса для TTS")
     
     model_config = ConfigDict(from_attributes=True)
     
@@ -194,6 +206,8 @@ class CharacterUpdate(BaseModel):
     character_appearance: Optional[str] = Field(None, description="Описание внешности персонажа")
     location: Optional[str] = Field(None, description="Описание локации персонажа")
     is_nsfw: Optional[bool] = Field(None, description="Флаг контента 18+ (True = NSFW, False = SAFE)")
+    voice_id: Optional[str] = Field(None, description="ID выбранного голоса")
+    voice_url: Optional[str] = Field(None, description="URL образца голоса для TTS")
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -296,5 +310,20 @@ class ChatError(BaseModel):
     details: Optional[Dict[str, Any]] = Field(
         None, 
         description="Детали ошибки"
+    )
+
+
+class TTSRequest(BaseModel):
+    """Запрос на генерацию речи."""
+    text: str = Field(..., description="Текст для озвучки")
+    voice_url: str = Field(..., description="Ссылка на образец голоса")
+
+
+class VoicePreviewRequest(BaseModel):
+    """Запрос на генерацию превью голоса."""
+    voice_id: str = Field(..., description="ID голоса из папки default_character_voices")
+    text: Optional[str] = Field(
+        None,
+        description="Текст для озвучки (если не указан, используется стандартная фраза приветствия)"
     )
 

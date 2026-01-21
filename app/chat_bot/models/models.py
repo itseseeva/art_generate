@@ -72,6 +72,8 @@ class CharacterDB(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())  # Creation time
     main_photos = Column(UTF8Text, nullable=True, default=None)  # JSON string with main photo IDs
     is_nsfw = Column(Boolean, nullable=False, server_default='1')
+    voice_url = Column(String(500), nullable=True, default=None)  # URL для образца голоса (TTS)
+    voice_id = Column(String(100), nullable=True, default=None)  # ID голоса из папки default_character_voices
     # face_image removed (IP-Adapter removed)
 
 

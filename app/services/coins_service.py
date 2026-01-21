@@ -72,6 +72,21 @@ class CoinsService:
         """Проверяет, может ли пользователь сгенерировать фото (стоимость: 10 монет)."""
         return await self.can_user_afford(user_id, 10)
     
+    @staticmethod
+    def calculate_tts_cost(text: str) -> int:
+        """
+        Рассчитывает стоимость TTS на основе длины текста.
+        1 кредит за 30 символов, минимум 1 кредит.
+        """
+        if not text:
+            return 1
+        return max(1, (len(text) + 29) // 30)
+
+    async def can_user_afford_tts(self, user_id: int, text: str) -> bool:
+        """Проверяет, может ли пользователь позволить себе TTS для данного текста."""
+        cost = self.calculate_tts_cost(text)
+        return await self.can_user_afford(user_id, cost)
+    
     async def spend_coins(self, user_id: int, amount: int, commit: bool = True) -> bool:
         """Списывает указанное количество монет."""
         try:
@@ -102,6 +117,11 @@ class CoinsService:
     async def spend_coins_for_photo(self, user_id: int) -> bool:
         """Тратит 10 монет за генерацию фото."""
         return await self.spend_coins(user_id, 10)
+    
+    async def spend_coins_for_tts(self, user_id: int, text: str, commit: bool = True) -> bool:
+        """Тратит монеты за генерацию TTS (1 кредит за 30 символов, минимум 1)."""
+        cost = self.calculate_tts_cost(text)
+        return await self.spend_coins(user_id, cost, commit=commit)
     
     async def add_coins(self, user_id: int, amount: int, commit: bool = True) -> bool:
         """Добавляет монеты пользователю."""

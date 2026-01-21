@@ -270,3 +270,49 @@ def transfer_expired_subscription_credits_task(self) -> Dict[str, Any]:
             "success": False,
             "error": str(exc)
         }
+
+
+@celery_app.task(
+    bind=True,
+    base=CallbackTask,
+    name="app.tasks.periodic_tasks.cleanup_old_voices_task"
+)
+def cleanup_old_voices_task(self) -> Dict[str, Any]:
+    """
+    Очистка старых аудиофайлов из app/voices/.
+    Удаляет файлы старше 3-х дней.
+    """
+    try:
+        from app.config.paths import VOICES_DIR
+        import os
+        import time
+        
+        stats = {"deleted": 0, "errors": []}
+        
+        if not VOICES_DIR.exists():
+            return {"success": True, "deleted": 0}
+            
+        now = time.time()
+        retention_period = 3 * 24 * 60 * 60  # 3 дня в секундах
+        
+        for file_path in VOICES_DIR.glob("*.mp3"):
+            try:
+                if file_path.is_file():
+                    file_age = now - file_path.stat().st_mtime
+                    if file_age > retention_period:
+                        file_path.unlink()
+                        stats["deleted"] += 1
+            except Exception as e:
+                stats["errors"].append(f"Ошибка при удалении {file_path}: {e}")
+                
+        logger.info(f"[CLEANUP] Удалено {stats['deleted']} старых голосовых файлов")
+        return {
+            "success": True, 
+            "stats": stats
+        }
+    except Exception as e:
+        logger.error(f"[CLEANUP] Ошибка в задаче очистки голосов: {e}")
+        return {
+            "success": False, 
+            "error": str(e)
+        }

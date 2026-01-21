@@ -3,14 +3,16 @@ import styled from 'styled-components';
 import { theme } from '../theme';
 import { Message } from './Message';
 
+// --- Обновленный стиль контейнера ---
 const MessagesContainer = styled.div`
   flex: 1;
   padding: ${theme.spacing.xl} ${theme.spacing.lg};
   overflow-y: auto;
   overflow-x: hidden;
+  /* Фон теперь задается через DarkVeil в BackgroundWrapper */
   background: transparent;
   position: relative;
-  min-height: 200px !important; /* Было min-height: 0 - это сжимало контейнер */
+  min-height: 0;
   height: 100%;
   max-height: 100%;
   z-index: 1;
@@ -105,6 +107,7 @@ const LoadingDots = styled.div`
   }
 `;
 
+// --- Обновленный Empty State с Ice breakers ---
 const EmptyState = styled.div`
   display: flex;
   flex-direction: column;
@@ -119,20 +122,53 @@ const EmptyState = styled.div`
   box-shadow: none;
   
   h3 {
-    font-size: ${theme.fontSize.xl};
+    font-size: ${theme.fontSize.xxl};
     margin-bottom: ${theme.spacing.md};
-    color: rgba(240, 240, 240, 1);
-    font-weight: 600;
+    color: rgba(255, 255, 255, 0.95);
+    font-weight: 700;
+    text-shadow: 0 0 20px rgba(236, 72, 153, 0.3);
   }
   
   p {
-    font-size: ${theme.fontSize.base};
+    font-size: ${theme.fontSize.lg};
     line-height: 1.7;
     max-width: 500px;
-    color: rgba(180, 180, 180, 0.9);
+    color: rgba(200, 200, 200, 0.8);
+    margin-bottom: ${theme.spacing.xl};
   }
 `;
 
+const IceBreakersGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: ${theme.spacing.md};
+  width: 100%;
+  max-width: 600px;
+  margin-top: ${theme.spacing.lg};
+`;
+
+const IceBreakerChip = styled.button`
+  padding: ${theme.spacing.md} ${theme.spacing.lg};
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: ${theme.borderRadius.xl};
+  color: rgba(220, 220, 220, 1);
+  font-size: ${theme.fontSize.sm};
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  
+  &:hover {
+    background: rgba(236, 72, 153, 0.1);
+    border-color: rgba(236, 72, 153, 0.4);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+`;
+
+// --- Обновленная карточка ситуации ---
 const RoleSituationCard = styled.div`
   display: flex;
   flex-direction: column;
@@ -140,12 +176,12 @@ const RoleSituationCard = styled.div`
   justify-content: center;
   padding: ${theme.spacing.xl};
   margin: ${theme.spacing.xl} auto;
-  background: linear-gradient(135deg, rgba(50, 50, 50, 0.4) 0%, rgba(40, 40, 40, 0.3) 100%);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: linear-gradient(135deg, rgba(30, 30, 30, 0.8) 0%, rgba(20, 20, 20, 0.9) 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-radius: ${theme.borderRadius.xl};
-  border: 2px solid rgba(192, 192, 192, 0.6);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(192, 192, 192, 0.4);
+  border: 1px solid rgba(236, 72, 153, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(236, 72, 153, 0.1), 0 0 15px rgba(236, 72, 153, 0.05);
   color: rgba(200, 200, 200, 1);
   position: relative;
   z-index: 1;
@@ -156,15 +192,17 @@ const RoleSituationCard = styled.div`
   h3 {
     font-size: ${theme.fontSize.xl};
     margin: 0 0 ${theme.spacing.md} 0;
-    color: rgba(240, 240, 240, 1);
-    font-weight: 600;
+    color: #ec4899;
+    font-weight: 700;
     text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 1px;
   }
   
   p {
     font-size: ${theme.fontSize.base};
     line-height: 1.7;
-    color: rgba(180, 180, 180, 0.9);
+    color: rgba(220, 220, 220, 0.9);
     white-space: pre-wrap;
     margin: 0;
     text-align: center;
@@ -185,6 +223,7 @@ interface ChatAreaProps {
   characterSituation?: string;
   characterName?: string;
   characterAvatar?: string;
+  voiceUrl?: string;
   userAvatar?: string;
   userUsername?: string;
   userEmail?: string;
@@ -192,7 +231,8 @@ interface ChatAreaProps {
   isCharacterOwner?: boolean;
   onAddToGallery?: (imageUrl: string, characterName: string) => Promise<void>;
   onAddToPaidAlbum?: (imageUrl: string, characterName: string) => Promise<void>;
-  [key: string]: any; // Для других пропсов, которые могут передаваться
+  onSendMessage?: (message: string) => void;
+  [key: string]: any; 
 }
 
 export const ChatArea: React.FC<ChatAreaProps> = ({ 
@@ -201,6 +241,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   characterSituation,
   characterName,
   characterAvatar,
+  voiceUrl,
   userAvatar,
   userUsername,
   userEmail,
@@ -208,25 +249,24 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   isCharacterOwner,
   onAddToGallery,
   onAddToPaidAlbum,
+  onSendMessage,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const wasScrolledToBottomRef = useRef(true);
 
-  // Отслеживаем позицию скролла и предотвращаем автоматическую прокрутку, если пользователь скроллит вверх
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
 
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = container;
-      const threshold = 100; // Порог в пикселях от низа
+      const threshold = 100;
       const isAtBottom = scrollHeight - scrollTop - clientHeight < threshold;
       wasScrolledToBottomRef.current = isAtBottom;
     };
 
     container.addEventListener('scroll', handleScroll);
-    // Проверяем начальную позицию
     handleScroll();
 
     return () => {
@@ -234,90 +274,109 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     };
   }, []);
 
-  // Проверяем позицию перед изменением сообщений
   useEffect(() => {
-    console.log('[ChatArea] Messages changed, count:', messages.length);
     const container = messagesContainerRef.current;
     if (!container) return;
 
     const { scrollTop, scrollHeight, clientHeight } = container;
-    const threshold = 100; // Порог в пикселях от низа
+    const threshold = 100; 
     wasScrolledToBottomRef.current = scrollHeight - scrollTop - clientHeight < threshold;
   }, [messages]);
 
-  // Автоматическая прокрутка к последнему сообщению только если пользователь был внизу
   useEffect(() => {
-    // Небольшая задержка, чтобы дать время на обновление DOM
     const timeoutId = setTimeout(() => {
       const container = messagesContainerRef.current;
       if (container && messagesEndRef.current) {
         const { scrollTop, scrollHeight, clientHeight } = container;
-        const threshold = 150; // Увеличиваем порог для более надежной проверки
+        const threshold = 150;
         const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
         const isAtBottom = distanceFromBottom < threshold;
         
-        // Прокручиваем только если пользователь был внизу И сейчас тоже внизу (или очень близко)
-        // И только если это не начальная загрузка (когда сообщений еще нет)
         if (wasScrolledToBottomRef.current && isAtBottom && messages.length > 0) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
       }
-    }, 100); // Небольшая задержка для обновления DOM
+    }, 100);
 
     return () => clearTimeout(timeoutId);
   }, [messages, isLoading]);
 
-  // КРИТИЧНО: Всегда рендерим контейнер, даже если сообщений нет
+  const iceBreakers = [
+    "Расскажи мне о себе...",
+    "Что ты здесь делаешь?",
+    "У меня есть предложение...",
+    "Какая твоя самая большая тайна?"
+  ];
+
+  const handleIceBreakerClick = (text: string) => {
+    if (onSendMessage) {
+      onSendMessage(text);
+    }
+  };
 
   return (
-    <MessagesContainer ref={messagesContainerRef} style={{ position: 'relative', zIndex: 10 }}>
-      <MessagesList style={{ position: 'relative', zIndex: 11 }}>
-        {/* Ролевая ситуация всегда видна, если она есть */}
-        {characterSituation && (
-          <RoleSituationCard>
-            <h3>Ролевая ситуация</h3>
-            <p>{characterSituation}</p>
-          </RoleSituationCard>
-        )}
-        
-        {/* Пустое состояние только если нет сообщений и нет ролевой ситуации */}
-        {messages.length === 0 && !isLoading && !characterSituation && (
-          <EmptyState>
-            <h3>Добро пожаловать в чат!</h3>
-            <p>
-              Выберите персонажа в боковой панели и начните общение. 
-              Каждый персонаж имеет свой уникальный характер и стиль общения.
-            </p>
-          </EmptyState>
-        )}
-        
-        {messages && messages.length > 0 && messages.map((message, index) => {
-          console.log(`[ChatArea] Рендеринг сообщения ${index}:`, {
-            id: message.id,
-            type: message.type,
-            contentLength: message.content?.length || 0,
-            hasImage: !!message.imageUrl,
-            content: message.content?.substring(0, 50)
-          });
-          return (
-            <Message 
-              key={message.id} 
-              message={message}
-              characterName={characterName}
-              characterAvatar={characterAvatar}
-              userAvatar={userAvatar}
-              userUsername={userUsername}
-              userEmail={userEmail}
-              isAuthenticated={isAuthenticated}
-              isCharacterOwner={isCharacterOwner}
-              onAddToGallery={onAddToGallery}
-              onAddToPaidAlbum={onAddToPaidAlbum}
-            />
-          );
-        })}
-        
-        <div ref={messagesEndRef} />
-      </MessagesList>
-    </MessagesContainer>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', minHeight: 0 }}>
+      <MessagesContainer ref={messagesContainerRef} style={{ position: 'relative', zIndex: 10 }}>
+        <MessagesList style={{ position: 'relative', zIndex: 11 }}>
+          {characterSituation && (
+            <RoleSituationCard>
+              <h3>Ролевая ситуация</h3>
+              <p>{characterSituation}</p>
+            </RoleSituationCard>
+          )}
+          
+          {messages.length === 0 && !isLoading && !characterSituation && (
+            <EmptyState>
+              <h3>Начни свою историю</h3>
+              <p>
+                {characterName ? `${characterName} ждет твоего сообщения.` : 'Выберите персонажа и начните общение.'}
+              </p>
+              {onSendMessage && (
+                 <IceBreakersGrid>
+                   {iceBreakers.map((text, idx) => (
+                     <IceBreakerChip key={idx} onClick={() => handleIceBreakerClick(text)}>
+                       {text}
+                     </IceBreakerChip>
+                   ))}
+                 </IceBreakersGrid>
+              )}
+            </EmptyState>
+          )}
+          
+          {messages && messages.length > 0 && messages.map((message, index) => {
+            console.log('[ChatArea] Рендеринг сообщения:', {
+              index,
+              messageId: message.id,
+              messageType: message.type,
+              messageRole: (message as any).role,
+              hasContent: !!message.content,
+              contentLength: message.content?.length || 0,
+              hasImage: !!message.imageUrl,
+              voiceUrl_passed: voiceUrl,
+              characterName,
+              isAuthenticated
+            });
+            return (
+              <Message 
+                key={message.id} 
+                message={message}
+                characterName={characterName}
+                characterAvatar={characterAvatar}
+                voiceUrl={voiceUrl}
+                userAvatar={userAvatar}
+                userUsername={userUsername}
+                userEmail={userEmail}
+                isAuthenticated={isAuthenticated}
+                isCharacterOwner={isCharacterOwner}
+                onAddToGallery={onAddToGallery}
+                onAddToPaidAlbum={onAddToPaidAlbum}
+              />
+            );
+          })}
+          
+          <div ref={messagesEndRef} />
+        </MessagesList>
+      </MessagesContainer>
+    </div>
   );
 };

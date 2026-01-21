@@ -7,8 +7,8 @@ import { generationTracker } from '../utils/generationTracker';
 
 const HeaderContainer = styled.div`
   background: rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
   padding: 0.2rem 2rem;
   display: flex;
   align-items: center;

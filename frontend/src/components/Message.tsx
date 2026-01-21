@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { theme } from '../theme';
-import { FiX, FiImage, FiFolder } from 'react-icons/fi';
-import { Plus } from 'lucide-react';
+import { FiX, FiImage, FiFolder, FiVolume2, FiPlay } from 'react-icons/fi';
+import { Plus, Loader2 } from 'lucide-react';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToRussian } from '../utils/translate';
 import { CircularProgress } from './ui/CircularProgress';
@@ -42,30 +42,30 @@ const MessageWithButtons = styled.div`
 const MessageContent = styled.div<{ $isUser: boolean; $imageOnly?: boolean }>`
   max-width: ${props => props.$imageOnly ? 'none' : '100%'};
   padding: ${props => props.$imageOnly ? '0 !important' : theme.spacing.lg};
-  border-radius: ${props => props.$imageOnly 
-    ? '0' 
-    : props.$isUser 
-    ? `${theme.borderRadius.xl} ${theme.borderRadius.xl} ${theme.borderRadius.sm} ${theme.borderRadius.xl}`
-    : `${theme.borderRadius.xl} ${theme.borderRadius.xl} ${theme.borderRadius.xl} ${theme.borderRadius.sm}`
+  border-radius: ${props => props.$imageOnly
+    ? '0'
+    : props.$isUser
+      ? `${theme.borderRadius.xl} ${theme.borderRadius.xl} ${theme.borderRadius.sm} ${theme.borderRadius.xl}`
+      : `${theme.borderRadius.xl} ${theme.borderRadius.xl} ${theme.borderRadius.xl} ${theme.borderRadius.sm}`
   };
-  background: ${props => props.$imageOnly 
-    ? 'transparent !important' 
-    : props.$isUser 
-    ? 'rgba(50, 50, 50, 0.6)' 
-    : 'rgba(30, 30, 30, 0.6)'
+  background: ${props => props.$imageOnly
+    ? 'transparent !important'
+    : props.$isUser
+      ? 'rgba(50, 50, 50, 0.6)'
+      : 'rgba(30, 30, 30, 0.6)'
   };
   backdrop-filter: ${props => props.$imageOnly ? 'none' : 'blur(15px)'};
   -webkit-backdrop-filter: ${props => props.$imageOnly ? 'none' : 'blur(15px)'};
   color: rgba(240, 240, 240, 1) !important;
-  border: ${props => props.$imageOnly 
-    ? 'none !important' 
-    : `1px solid ${props.$isUser 
-    ? 'rgba(60, 60, 60, 0.5)' 
-    : 'rgba(40, 40, 40, 0.5)'
+  border: ${props => props.$imageOnly
+    ? 'none !important'
+    : `1px solid ${props.$isUser
+      ? 'rgba(60, 60, 60, 0.5)'
+      : 'rgba(40, 40, 40, 0.5)'
     }`
   };
-  box-shadow: ${props => props.$imageOnly 
-    ? 'none !important' 
+  box-shadow: ${props => props.$imageOnly
+    ? 'none !important'
     : '0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
   };
   position: relative;
@@ -90,10 +90,10 @@ const MessageContent = styled.div<{ $isUser: boolean; $imageOnly?: boolean }>`
     ${props => !props.$imageOnly && `
       transform: translateY(-2px);
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-      border-color: ${props.$isUser 
-        ? 'rgba(70, 70, 70, 0.7)' 
-        : 'rgba(50, 50, 50, 0.7)'
-      };
+      border-color: ${props.$isUser
+      ? 'rgba(70, 70, 70, 0.7)'
+      : 'rgba(50, 50, 50, 0.7)'
+    };
     `}
   }
 `;
@@ -227,8 +227,8 @@ const Avatar = styled.div<{ $isUser: boolean; $avatarUrl?: string }>`
     if (props.$avatarUrl) {
       return 'transparent';
     }
-    return props.$isUser 
-    ? 'rgba(60, 60, 60, 0.8)' 
+    return props.$isUser
+      ? 'rgba(60, 60, 60, 0.8)'
       : 'rgba(40, 40, 40, 0.8)';
   }};
   display: flex;
@@ -237,8 +237,8 @@ const Avatar = styled.div<{ $isUser: boolean; $avatarUrl?: string }>`
   font-weight: 600;
   font-size: ${theme.fontSize.lg};
   color: rgba(240, 240, 240, 1);
-  border: 1px solid ${props => props.$isUser 
-    ? 'rgba(70, 70, 70, 0.6)' 
+  border: 1px solid ${props => props.$isUser
+    ? 'rgba(70, 70, 70, 0.6)'
     : 'rgba(50, 50, 50, 0.6)'
   };
   flex-shrink: 0;
@@ -256,6 +256,101 @@ const AvatarImage = styled.img`
   height: 100%;
   object-fit: cover;
   border-radius: ${theme.borderRadius.full};
+`;
+
+const CreditCost = styled.span`
+  font-size: 10px;
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  font-weight: 500;
+  color: #ec4899;
+  transition: all 0.2s ease-in-out;
+`;
+
+const VoiceButton = styled.button`
+  background: rgba(236, 72, 153, 0.15);
+  border: 1px solid rgba(236, 72, 153, 0.3);
+  color: #ec4899;
+  cursor: pointer;
+  padding: 8px 12px;
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  border-radius: 12px;
+  transition: all 0.2s;
+  font-size: 13px;
+  font-weight: 600;
+  backdrop-filter: blur(5px);
+  min-width: 150px;
+  /* DEBUG: Принудительные стили видимости */
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: relative !important;
+  z-index: 10 !important;
+  
+  &:hover:not(:disabled) {
+    background: rgba(236, 72, 153, 0.25);
+    border-color: rgba(236, 72, 153, 0.5);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(236, 72, 153, 0.2);
+
+    ${CreditCost} {
+      opacity: 0.8;
+      max-height: 20px;
+      margin-top: 4px;
+    }
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+`;
+
+const VoiceButtonContent = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const UploadVoiceButton = styled(VoiceButton)`
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  color: #fbbf24;
+  /* DEBUG: Принудительные стили видимости */
+  visibility: visible !important;
+  opacity: 1 !important;
+
+  &:hover:not(:disabled) {
+    background: rgba(251, 191, 36, 0.25);
+    border-color: rgba(251, 191, 36, 0.5);
+    box-shadow: 0 4px 12px rgba(251, 191, 36, 0.2);
+  }
+`;
+
+const MessageButtonsRow = styled.div`
+  display: flex !important;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+  /* DEBUG: Принудительные стили видимости для кнопок голоса */
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: relative !important;
+  z-index: 100 !important;
+  min-height: 40px !important;
 `;
 
 // Удалены FullscreenOverlay и FullscreenImage, теперь используем ModalOverlay и ModalImage
@@ -549,6 +644,7 @@ interface MessageProps {
   };
   characterName?: string;
   characterAvatar?: string;
+  voiceUrl?: string;
   userAvatar?: string;
   userUsername?: string;
   userEmail?: string;
@@ -558,10 +654,11 @@ interface MessageProps {
   onAddToPaidAlbum?: (imageUrl: string, characterName: string) => Promise<void>;
 }
 
-const MessageComponent: React.FC<MessageProps> = ({ 
-  message, 
+const MessageComponent: React.FC<MessageProps> = ({
+  message,
   characterName,
   characterAvatar,
+  voiceUrl,
   userAvatar,
   userUsername,
   userEmail,
@@ -580,37 +677,126 @@ const MessageComponent: React.FC<MessageProps> = ({
     }
     return 'U';
   };
-  const isUser = message.type === 'user';
+  // Определяем тип сообщения: учитываем и type, и role
+  // По умолчанию считаем assistant, если явно не указано user
+  const messageType = message.type || (message as any).role;
+  const isUser = messageType === 'user';
   const isMobile = useIsMobile();
   const [isFullscreen, setIsFullscreen] = useState(false);
-  
-  // ДИАГНОСТИКА: Логируем рендеринг сообщения
-  console.log('[Message] Рендеринг:', {
-    id: message.id,
-    type: message.type,
-    contentLength: message.content?.length || 0,
-    content: message.content?.substring(0, 100),
-    hasImage: !!message.imageUrl
+
+  // Безопасная проверка imageUrl - должна быть выполнена до использования
+  const hasValidImageUrl = message.imageUrl && message.imageUrl.trim() !== '' && message.imageUrl !== 'null' && message.imageUrl !== 'undefined';
+
+  // Проверяем, является ли сообщение прогрессом генерации
+  const isGenerationProgress = message.content && /^\d+%$/.test(message.content.trim()) && !hasValidImageUrl;
+
+  // Проверяем условия для отображения кнопки голоса
+  const hasContent = message.content && message.content.trim().length > 0;
+  const shouldShowVoiceButton = !isUser && hasContent && !isGenerationProgress;
+
+  // ДИАГНОСТИКА: Детальное логирование для отладки кнопки голоса
+  console.log('═══════════════════════════════════════════════════════');
+  console.log('[Message] ДЕТАЛЬНЫЙ АНАЛИЗ РЕНДЕРИНГА СООБЩЕНИЯ:', {
+    messageId: message.id,
+    timestamp: message.timestamp,
+    // Типы и роли
+    'message.type': message.type,
+    'message.role': (message as any).role,
+    'computed_messageType': messageType,
+    'isUser': isUser,
+    '!isUser': !isUser,
+    // Контент
+    'message.content': message.content,
+    'content_length': message.content?.length || 0,
+    'content_trimmed': message.content?.trim() || '',
+    'hasContent': hasContent,
+    // Изображение
+    'message.imageUrl': message.imageUrl,
+    'hasValidImageUrl': hasValidImageUrl,
+    // Прогресс генерации
+    'isGenerationProgress': isGenerationProgress,
+    'progressRegex_test': message.content ? /^\d+%$/.test(message.content.trim()) : false,
+    // Итоговые условия
+    'shouldShowVoiceButton': shouldShowVoiceButton,
+    'условие_1_!isUser': !isUser,
+    'условие_2_hasContent': hasContent,
+    'условие_3_!isGenerationProgress': !isGenerationProgress,
+    // Голос
+    'voiceUrl_prop': voiceUrl
   });
+  console.log('═══════════════════════════════════════════════════════');
   const [isPromptVisible, setIsPromptVisible] = useState(true);
   const [isAddingToPaidAlbum, setIsAddingToPaidAlbum] = useState(false);
   const [isAddingToGallery, setIsAddingToGallery] = useState(false);
   const [isAddedToGallery, setIsAddedToGallery] = useState(false);
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
+  const [isVoiceLoading, setIsVoiceLoading] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [promptError, setPromptError] = useState<string | null>(null);
   const [errorModalMessage, setErrorModalMessage] = useState<string | null>(null);
-  
+
+  const handleGenerateVoice = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!message.content || isVoiceLoading) return;
+
+    // Если аудио уже сгенерировано, просто проигрываем его
+    if (audioUrl) {
+      const audio = new Audio(audioUrl);
+      audio.play();
+      return;
+    }
+
+    setIsVoiceLoading(true);
+    try {
+      const token = authManager.getToken();
+      // Очищаем текст от лишних символов для TTS (например, Markdown)
+      const cleanText = message.content.replace(/[\*\_\~]/g, '');
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/chat/generate_voice`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          text: cleanText,
+          voice_url: voiceUrl || "/default_character_voices/[Mita Miside (Russian voice)]Ммм........упим_.mp3" // Fallback to default voice
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Ошибка генерации голоса');
+      }
+
+      const data = await response.json();
+      if (data.status === 'success' && data.audio_url) {
+        const fullAudioUrl = `${API_CONFIG.BASE_URL}${data.audio_url}`;
+        setAudioUrl(fullAudioUrl);
+
+        // Обновляем баланс пользователя если он вернулся в ответе
+        if (data.remaining_coins !== undefined) {
+          window.dispatchEvent(new CustomEvent('balance-update', { detail: { coins: data.remaining_coins } }));
+        }
+
+        // Проигрываем аудио
+        const audio = new Audio(fullAudioUrl);
+        audio.play();
+      }
+    } catch (error) {
+      console.error('TTS Error:', error);
+      setErrorModalMessage(error instanceof Error ? error.message : 'Не удалось сгенерировать голос');
+    } finally {
+      setIsVoiceLoading(false);
+    }
+  };
+
   const timeString = message.timestamp.toLocaleTimeString('ru-RU', {
     hour: '2-digit',
     minute: '2-digit'
   });
 
-  // Безопасная проверка imageUrl - должна быть выполнена до использования
-  const hasValidImageUrl = message.imageUrl && message.imageUrl.trim() !== '' && message.imageUrl !== 'null' && message.imageUrl !== 'undefined';
-  
-  // Проверяем, является ли сообщение прогрессом генерации
-  const isGenerationProgress = message.content && /^\d+%$/.test(message.content.trim()) && !hasValidImageUrl;
   const progressMatch = isGenerationProgress ? message.content.match(/(\d+)%/) : null;
   const progressValue = progressMatch ? parseInt(progressMatch[1], 10) : 0;
 
@@ -628,7 +814,7 @@ const MessageComponent: React.FC<MessageProps> = ({
 
       try {
         const { prompt, errorMessage } = await fetchPromptByImage(message.imageUrl);
-        
+
         if (prompt) {
           // Переводим промпт на русский для отображения
           const translatedPrompt = await translateToRussian(prompt);
@@ -730,35 +916,35 @@ const MessageComponent: React.FC<MessageProps> = ({
           const data = await response.json();
           const photos = data.images || [];
           const normalizedMessageUrl = normalizeUrl(message.imageUrl);
-          
+
           // Проверяем как точное совпадение, так и нормализованное
           const photoExists = photos.some((photo: any) => {
             if (!photo) return false;
-            
+
             // Поддерживаем разные форматы: photo.url, photo.image_url, photo.photo_url
             const photoUrl = photo.url || photo.image_url || photo.photo_url;
             if (!photoUrl) return false;
-            
+
             // Точное совпадение
             if (photoUrl === message.imageUrl) return true;
-            
+
             // Нормализованное сравнение
             const normalizedPhotoUrl = normalizeUrl(photoUrl);
             if (normalizedPhotoUrl === normalizedMessageUrl) return true;
-            
+
             // Сравнение без учета протокола и домена (только путь)
             const messagePath = message.imageUrl.split('?')[0].split('#')[0];
             const photoPath = photoUrl.split('?')[0].split('#')[0];
             if (messagePath === photoPath) return true;
-            
+
             // Сравнение последней части пути (имя файла)
             const messageFileName = messagePath.split('/').pop();
             const photoFileName = photoPath.split('/').pop();
             if (messageFileName && photoFileName && messageFileName === photoFileName) return true;
-            
+
             return false;
           });
-          
+
           if (photoExists) {
             setIsAddedToPaidAlbum(true);
           }
@@ -783,13 +969,13 @@ const MessageComponent: React.FC<MessageProps> = ({
       await onAddToPaidAlbum(message.imageUrl!, characterName);
       // Устанавливаем состояние сразу после успешного добавления
       setIsAddedToPaidAlbum(true);
-      
+
       // Дополнительно проверяем через небольшую задержку, чтобы убедиться
       setTimeout(async () => {
         try {
           const token = authManager.getToken();
           if (!token) return;
-          
+
           const encodedName = encodeURIComponent(characterName);
           const response = await fetch(
             `${API_CONFIG.BASE_URL}/api/v1/paid-gallery/${encodedName}`,
@@ -799,39 +985,39 @@ const MessageComponent: React.FC<MessageProps> = ({
               }
             }
           );
-          
+
           if (response.ok) {
             const data = await response.json();
             const photos = data.images || [];
             const normalizedMessageUrl = normalizeUrl(message.imageUrl!);
-            
+
             const photoExists = photos.some((photo: any) => {
               if (!photo) return false;
-              
+
               // Поддерживаем разные форматы: photo.url, photo.image_url, photo.photo_url
               const photoUrl = photo.url || photo.image_url || photo.photo_url;
               if (!photoUrl) return false;
-              
+
               // Точное совпадение
               if (photoUrl === message.imageUrl) return true;
-              
+
               // Нормализованное сравнение
               const normalizedPhotoUrl = normalizeUrl(photoUrl);
               if (normalizedPhotoUrl === normalizedMessageUrl) return true;
-              
+
               // Сравнение без учета протокола и домена (только путь)
               const messagePath = message.imageUrl!.split('?')[0].split('#')[0];
               const photoPath = photoUrl.split('?')[0].split('#')[0];
               if (messagePath === photoPath) return true;
-              
+
               // Сравнение последней части пути (имя файла)
               const messageFileName = messagePath.split('/').pop();
               const photoFileName = photoPath.split('/').pop();
               if (messageFileName && photoFileName && messageFileName === photoFileName) return true;
-              
+
               return false;
             });
-            
+
             if (photoExists) {
               setIsAddedToPaidAlbum(true);
             }
@@ -872,16 +1058,16 @@ const MessageComponent: React.FC<MessageProps> = ({
   if (isGenerationProgress && !hasValidImageUrl) {
     return (
       <>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'flex-start',
-        alignItems: 'flex-start',
-        marginBottom: '0.5rem',
-        width: '100%',
-        gap: '1rem'
-      }}>
-        <CircularProgress progress={progressValue} size={60} showLabel={false} />
-      </div>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'flex-start',
+          alignItems: 'flex-start',
+          marginBottom: '0.5rem',
+          width: '100%',
+          gap: '1rem'
+        }}>
+          <CircularProgress progress={progressValue} size={60} showLabel={false} />
+        </div>
       </>
     );
   }
@@ -890,99 +1076,115 @@ const MessageComponent: React.FC<MessageProps> = ({
   // Проверяем, что content пустой или содержит только пробелы
   // Убираем аватар при генерации фото
   const hasOnlyImage = hasValidImageUrl && (!message.content || message.content.trim() === '');
-  
+
+  console.log('[Message] ПРОВЕРКА hasOnlyImage:', {
+    messageId: message.id,
+    hasOnlyImage,
+    hasValidImageUrl,
+    'message.content': message.content,
+    'content_is_empty': !message.content,
+    'content_trim_empty': message.content?.trim() === '',
+    'early_return': hasOnlyImage ? 'ДА - кнопка НЕ будет показана' : 'НЕТ - продолжаем'
+  });
+
   if (hasOnlyImage) {
+    console.log('[Message] ⚠️ РАННИЙ ВОЗВРАТ - только изображение, кнопка голоса НЕ будет показана');
+    console.log('═══════════════════════════════════════════════════════');
     return (
       <>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'flex-start',
-        alignItems: 'flex-start',
-        marginBottom: '0.5rem',
-        width: '100%',
-        gap: '1rem'
-      }}>
         <div style={{
-          position: 'relative',
-          background: 'transparent',
-          padding: 0,
-          border: 'none',
-          boxShadow: 'none'
+          display: 'flex',
+          justifyContent: 'flex-start',
+          alignItems: 'flex-start',
+          marginBottom: '0.5rem',
+          width: '100%',
+          gap: '1rem'
         }}>
-        <ImageContainer 
-          onClick={hasValidImageUrl ? handleImageClick : undefined}
-          style={{ cursor: hasValidImageUrl ? 'pointer' : 'default' }}
-        >
-          <MessageImage
-            src={hasValidImageUrl ? message.imageUrl : undefined}
-            alt="Generated image"
-            onClick={hasValidImageUrl ? handleImageClick : undefined}
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-            }}
-          />
-          {message.generationTime !== undefined && message.generationTime !== null && message.generationTime > 0 && (
-            <div style={{
-              position: 'absolute',
-              bottom: '8px',
-              left: '8px',
-              background: 'rgba(0, 0, 0, 0.75)',
-              color: '#fff',
-              padding: '4px 10px',
-              borderRadius: '6px',
-              fontSize: '12px',
-              fontWeight: 500,
-              pointerEvents: 'none',
-              zIndex: 10,
-              backdropFilter: 'blur(4px)'
-            }}>
-              ⏱ {message.generationTime < 60 
-                ? `${Math.round(message.generationTime)}с` 
-                : `${Math.round(message.generationTime / 60)}м ${Math.round(message.generationTime % 60)}с`}
-            </div>
-          )}
-          {isAuthenticated && characterName && onAddToPaidAlbum && !isAddedToPaidAlbum && isCharacterOwner && (
-            <ImageButtons onClick={(e) => e.stopPropagation()}>
-              <ImageButton
-                onClick={handleAddToPaidAlbumClick}
-                disabled={isAddingToPaidAlbum}
-                title="Добавить в альбом"
-              >
-                <Plus size={14} />
-                {isAddingToPaidAlbum ? 'Добавление...' : 'В альбом'}
-              </ImageButton>
-            </ImageButtons>
-          )}
-        </ImageContainer>
+          <div style={{
+            position: 'relative',
+            background: 'transparent',
+            padding: 0,
+            border: 'none',
+            boxShadow: 'none'
+          }}>
+            <ImageContainer
+              onClick={hasValidImageUrl ? handleImageClick : undefined}
+              style={{ cursor: hasValidImageUrl ? 'pointer' : 'default' }}
+            >
+              <MessageImage
+                src={hasValidImageUrl ? message.imageUrl : undefined}
+                alt="Generated image"
+                onClick={hasValidImageUrl ? handleImageClick : undefined}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+              {message.generationTime !== undefined && message.generationTime !== null && message.generationTime > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  bottom: '8px',
+                  left: '8px',
+                  background: 'rgba(0, 0, 0, 0.75)',
+                  color: '#fff',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  pointerEvents: 'none',
+                  zIndex: 10,
+                  backdropFilter: 'blur(4px)'
+                }}>
+                  ⏱ {message.generationTime < 60
+                    ? `${Math.round(message.generationTime)}с`
+                    : `${Math.round(message.generationTime / 60)}м ${Math.round(message.generationTime % 60)}с`}
+                </div>
+              )}
+              {isAuthenticated && characterName && onAddToPaidAlbum && !isAddedToPaidAlbum && isCharacterOwner && (
+                <ImageButtons onClick={(e) => e.stopPropagation()}>
+                  <ImageButton
+                    onClick={handleAddToPaidAlbumClick}
+                    disabled={isAddingToPaidAlbum}
+                    title="Добавить в альбом"
+                  >
+                    <Plus size={14} />
+                    {isAddingToPaidAlbum ? 'Добавление...' : 'В альбом'}
+                  </ImageButton>
+                </ImageButtons>
+              )}
+            </ImageContainer>
+          </div>
         </div>
-      </div>
-      <PromptGlassModal
-        isOpen={isFullscreen && !!message.imageUrl}
-        onClose={handleCloseFullscreen}
-        imageUrl={message.imageUrl || ''}
-        imageAlt="Fullscreen image"
-        promptText={selectedPrompt}
-        isLoading={isLoadingPrompt}
-        error={promptError}
-      />
+        <PromptGlassModal
+          isOpen={isFullscreen && !!message.imageUrl}
+          onClose={handleCloseFullscreen}
+          imageUrl={message.imageUrl || ''}
+          imageAlt="Fullscreen image"
+          promptText={selectedPrompt}
+          isLoading={isLoadingPrompt}
+          error={promptError}
+        />
 
-      {errorModalMessage && createPortal(
-        <ErrorModalOverlay onClick={() => setErrorModalMessage(null)}>
-          <ErrorModalContent onClick={(e) => e.stopPropagation()}>
-            <ErrorModalTitle>Ошибка</ErrorModalTitle>
-            <ErrorModalMessage>{errorModalMessage}</ErrorModalMessage>
-            <ErrorModalCloseButton onClick={() => setErrorModalMessage(null)}>
-              Закрыть
-            </ErrorModalCloseButton>
-          </ErrorModalContent>
-        </ErrorModalOverlay>,
-        document.body
-      )}
-    </>
+        {errorModalMessage && createPortal(
+          <ErrorModalOverlay onClick={() => setErrorModalMessage(null)}>
+            <ErrorModalContent onClick={(e) => e.stopPropagation()}>
+              <ErrorModalTitle>Ошибка</ErrorModalTitle>
+              <ErrorModalMessage>{errorModalMessage}</ErrorModalMessage>
+              <ErrorModalCloseButton onClick={() => setErrorModalMessage(null)}>
+                Закрыть
+              </ErrorModalCloseButton>
+            </ErrorModalContent>
+          </ErrorModalOverlay>,
+          document.body
+        )}
+      </>
     );
   }
-  
+
   // Обычное сообщение с текстом
+  console.log('[Message] ✅ ОБЫЧНЫЙ РЕНДЕРИНГ - сообщение с текстом');
+  console.log('[Message] Будет проверка shouldShowVoiceButton:', shouldShowVoiceButton);
+  console.log('═══════════════════════════════════════════════════════');
+
   return (
     <>
       <MessageContainer $isUser={isUser}>
@@ -996,19 +1198,67 @@ const MessageComponent: React.FC<MessageProps> = ({
             )}
           </Avatar>
         )}
-        
-        <MessageContent 
-          $isUser={isUser} 
+
+        <MessageContent
+          $isUser={isUser}
           $imageOnly={false}
         >
           {message.content && !isGenerationProgress && (
-            <MessageText>
-              {message.content}
-            </MessageText>
+            <>
+              <MessageText>
+                {message.content}
+              </MessageText>
+              {console.log('[Message] ПРОВЕРКА РЕНДЕРИНГА КНОПКИ ГОЛОСА:', {
+                messageId: message.id,
+                shouldShowVoiceButton,
+                'будет_ли_рендериться_кнопка': shouldShowVoiceButton ? 'ДА ✅' : 'НЕТ ❌',
+                isUser,
+                hasContent,
+                isGenerationProgress,
+                voiceUrl
+              })}
+              {shouldShowVoiceButton && (
+                <MessageButtonsRow>
+                  <VoiceButton onClick={handleGenerateVoice} disabled={isVoiceLoading}>
+                    {isVoiceLoading ? (
+                      <VoiceButtonContent>
+                        <Loader2 className="animate-spin" />
+                        <span>Генерация...</span>
+                      </VoiceButtonContent>
+                    ) : audioUrl ? (
+                      <>
+                        <VoiceButtonContent>
+                          <FiPlay />
+                          <span>Прослушать голос</span>
+                        </VoiceButtonContent>
+                        <CreditCost>
+                          {Math.max(1, Math.ceil((message.content.replace(/[\*\_\~]/g, '').length) / 30))} кредитов
+                        </CreditCost>
+                      </>
+                    ) : (
+                      <>
+                        <VoiceButtonContent>
+                          <FiVolume2 />
+                          <span>Сгенерировать голос</span>
+                        </VoiceButtonContent>
+                        <CreditCost>
+                          {Math.max(1, Math.ceil((message.content.replace(/[\*\_\~]/g, '').length) / 30))} кредитов
+                        </CreditCost>
+                      </>
+                    )}
+                  </VoiceButton>
+
+                  <UploadVoiceButton onClick={() => alert('Функционал загрузки голоса в разработке')}>
+                    <FiFolder />
+                    <span>Загрузить свой голос</span>
+                  </UploadVoiceButton>
+                </MessageButtonsRow>
+              )}
+            </>
           )}
-          
+
           {hasValidImageUrl && (
-            <ImageContainer 
+            <ImageContainer
               onClick={handleImageClick}
               style={{
                 margin: '0',
@@ -1017,8 +1267,8 @@ const MessageComponent: React.FC<MessageProps> = ({
                 border: 'none'
               }}
             >
-              <MessageImage 
-                src={message.imageUrl!} 
+              <MessageImage
+                src={message.imageUrl!}
                 alt="Generated image"
                 onClick={handleImageClick}
                 style={{
@@ -1039,15 +1289,15 @@ const MessageComponent: React.FC<MessageProps> = ({
               />
             </ImageContainer>
           )}
-          
+
           {/* Время не показываем если только фото без текста */}
           {(message.content || !hasValidImageUrl) && (
-          <MessageTime $isUser={isUser}>
-            {timeString}
-          </MessageTime>
+            <MessageTime $isUser={isUser}>
+              {timeString}
+            </MessageTime>
           )}
         </MessageContent>
-        
+
         {/* Аватар пользователя справа */}
         {isUser && (message.content || !hasValidImageUrl) && (
           <Avatar $isUser={true} $avatarUrl={userAvatar}>

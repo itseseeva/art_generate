@@ -270,6 +270,30 @@ async def lifespan(app: FastAPI):
     """Управление жизненным циклом приложения"""
     logger.info("[START] Запуск приложения...")
     
+    # Настраиваем обработку ошибок asyncio для Windows (ConnectionResetError)
+    def exception_handler(loop, context):
+        """Обработчик исключений для asyncio event loop"""
+        exception = context.get('exception')
+        if exception:
+            # Подавляем ConnectionResetError на Windows - это нормальное поведение при разрыве соединения
+            if isinstance(exception, ConnectionResetError):
+                # Логируем только на уровне debug, чтобы не засорять логи
+                logger.debug(f"[ASYNCIO] ConnectionResetError при закрытии соединения (нормально для Windows): {exception}")
+                return
+            # Для других исключений логируем как обычно
+            logger.error(f"[ASYNCIO] Исключение в event loop: {exception}", exc_info=exception)
+        else:
+            # Логируем другие события контекста
+            message = context.get('message', 'Unknown event')
+            logger.warning(f"[ASYNCIO] Событие в event loop: {message}")
+    
+    # Устанавливаем обработчик исключений для текущего event loop
+    try:
+        loop = asyncio.get_event_loop()
+        loop.set_exception_handler(exception_handler)
+    except Exception as e:
+        logger.warning(f"[WARNING] Не удалось установить обработчик исключений asyncio: {e}")
+    
     # Логируем информацию о модели при запуске (не блокируем запуск)
     # Переносим в фоновую задачу в отдельном потоке, чтобы не блокировать event loop
     def check_model_sync():
@@ -737,6 +761,38 @@ try:
         # Убрано логирование монтирования
     except Exception as e:
         logger.warning(f"[WARNING] Не удалось смонтировать папку аватаров: {e}")
+    
+    # Монтируем папку для голосовых файлов
+    try:
+        from app.config.paths import VOICES_DIR
+        VOICES_DIR.mkdir(parents=True, exist_ok=True)
+        app.mount("/voices", StaticFiles(directory=str(VOICES_DIR), html=False), name="voices")
+    except Exception as e:
+        logger.warning(f"[WARNING] Не удалось смонтировать папку голосов: {e}")
+    
+    # Монтируем папку для дефолтных голосов персонажей
+    try:
+        from app.config.paths import DEFAULT_CHARACTER_VOICES_DIR
+        logger.info(f"[DEBUG] Попытка монтирования дефолтных голосов: {DEFAULT_CHARACTER_VOICES_DIR}")
+        if DEFAULT_CHARACTER_VOICES_DIR.exists():
+            files = list(DEFAULT_CHARACTER_VOICES_DIR.glob("*.mp3"))
+            logger.info(f"[DEBUG] Найдено {len(files)} mp3 файлов в {DEFAULT_CHARACTER_VOICES_DIR}")
+            app.mount("/default_character_voices", StaticFiles(directory=str(DEFAULT_CHARACTER_VOICES_DIR), html=False), name="default_character_voices")
+            logger.info("[DEBUG] Папка /default_character_voices успешно смонтирована")
+        else:
+            logger.warning(f"[DEBUG] Папка {DEFAULT_CHARACTER_VOICES_DIR} не существует!")
+    except Exception as e:
+        logger.warning(f"[WARNING] Не удалось смонтировать папку дефолтных голосов: {e}")
+    
+    # Монтируем папку для пользовательских голосов
+    try:
+        from app.config.paths import USER_VOICES_DIR
+        logger.info(f"[DEBUG] Попытка монтирования пользовательских голосов: {USER_VOICES_DIR}")
+        USER_VOICES_DIR.mkdir(parents=True, exist_ok=True)
+        app.mount("/user_voices", StaticFiles(directory=str(USER_VOICES_DIR), html=False), name="user_voices")
+        logger.info("[DEBUG] Папка /user_voices успешно смонтирована")
+    except Exception as e:
+        logger.warning(f"[WARNING] Не удалось смонтировать папку пользовательских голосов: {e}")
 except Exception as e:
     logger.error(f"Ошибка монтирования платной галереи: {e}")
 
@@ -2914,7 +2970,7 @@ async def chat_endpoint(
         
         # Обычный режим без стриминга
         # Генерируем ответ напрямую от модели (ОПТИМИЗИРОВАНО ДЛЯ СКОРОСТИ)
-        # max_tokens определяется на основе подписки: STANDARD=200, PREMIUM=450
+        # max_tokens определяется на основе подписки: STANDARD=150, PREMIUM=150
         # Модель выбирается на основе подписки или из запроса (для PREMIUM)
         # Проверяем, что выбор модели доступен только для PREMIUM
         selected_model = None
@@ -4281,7 +4337,11 @@ async def stream_generation_status(
                                             "message": "Генерация завершена успешно",
                                             "data": result
                                         }
-                                        yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                        try:
+                                            yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                        except (ConnectionResetError, BrokenPipeError, OSError):
+                                            logger.debug(f"[SSE RUNPOD] Соединение разорвано клиентом")
+                                            return
                                         logger.info(f"[SSE RUNPOD] Генерация завершена: {image_url}")
                                         break
                                     else:
@@ -4289,7 +4349,11 @@ async def stream_generation_status(
                                             "status": "PROGRESS",
                                             "message": "Генерация завершена, обработка результата..."
                                         }
-                                        yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                        try:
+                                            yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                        except (ConnectionResetError, BrokenPipeError, OSError):
+                                            logger.debug(f"[SSE RUNPOD] Соединение разорвано клиентом")
+                                            return
                                 
                                 elif status == "FAILED":
                                     error = status_response.get("error", "Unknown error")
@@ -4298,7 +4362,11 @@ async def stream_generation_status(
                                         "message": "Ошибка при генерации изображения",
                                         "error": error
                                     }
-                                    yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                    try:
+                                        yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                    except (ConnectionResetError, BrokenPipeError, OSError):
+                                        logger.debug(f"[SSE RUNPOD] Соединение разорвано клиентом")
+                                        return
                                     logger.error(f"[SSE RUNPOD] Генерация завершилась с ошибкой: {error}")
                                     break
                                 
@@ -4308,7 +4376,11 @@ async def stream_generation_status(
                                         "message": "Генерация была отменена",
                                         "error": "Задача была отменена на RunPod"
                                     }
-                                    yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                    try:
+                                        yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                    except (ConnectionResetError, BrokenPipeError, OSError):
+                                        logger.debug(f"[SSE RUNPOD] Соединение разорвано клиентом")
+                                        return
                                     logger.warning(f"[SSE RUNPOD] Генерация была отменена")
                                     break
                                 
@@ -4324,14 +4396,22 @@ async def stream_generation_status(
                                         "message": status_message,
                                         "progress": progress
                                     }
-                                    yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                    try:
+                                        yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                    except (ConnectionResetError, BrokenPipeError, OSError):
+                                        logger.debug(f"[SSE RUNPOD] Соединение разорвано клиентом")
+                                        return
                                 
                                 else:
                                     event_data = {
                                         "status": "PROGRESS",
                                         "message": f"Статус: {status}"
                                     }
-                                    yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                    try:
+                                        yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                    except (ConnectionResetError, BrokenPipeError, OSError):
+                                        logger.debug(f"[SSE RUNPOD] Соединение разорвано клиентом")
+                                        return
                             
                             # Если статус не изменился, но это IN_PROGRESS, отправляем heartbeat с прогрессом
                             elif status in ["IN_QUEUE", "IN_PROGRESS"]:
@@ -4346,7 +4426,11 @@ async def stream_generation_status(
                                         "message": status_message,
                                         "progress": progress
                                     }
-                                    yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                    try:
+                                        yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                    except (ConnectionResetError, BrokenPipeError, OSError):
+                                        logger.debug(f"[SSE RUNPOD] Соединение разорвано клиентом")
+                                        return
                             
                         except Exception as check_error:
                             consecutive_errors += 1
@@ -4358,7 +4442,11 @@ async def stream_generation_status(
                                     "message": "Не удалось получить статус генерации",
                                     "error": f"Превышено количество ошибок при проверке статуса: {str(check_error)}"
                                 }
-                                yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                try:
+                                    yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                except (ConnectionResetError, BrokenPipeError, OSError):
+                                    logger.debug(f"[SSE RUNPOD] Соединение разорвано клиентом")
+                                    return
                                 break
                             
                             # При ошибке отправляем событие прогресса, чтобы клиент знал, что мы еще работаем
@@ -4367,7 +4455,11 @@ async def stream_generation_status(
                                     "status": "PROGRESS",
                                     "message": "Проверка статуса генерации..."
                                 }
-                                yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                try:
+                                    yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                                except (ConnectionResetError, BrokenPipeError, OSError):
+                                    logger.debug(f"[SSE RUNPOD] Соединение разорвано клиентом")
+                                    return
                         
                         # Задержка перед следующей проверкой
                         await asyncio.sleep(check_interval)
@@ -4375,7 +4467,11 @@ async def stream_generation_status(
                         
                         # Отправляем heartbeat каждые 10 секунд
                         if int(elapsed_time) % 10 == 0:
-                            yield f": heartbeat\n\n"
+                            try:
+                                yield f": heartbeat\n\n"
+                            except (ConnectionResetError, BrokenPipeError, OSError):
+                                logger.debug(f"[SSE RUNPOD] Соединение разорвано клиентом")
+                                return
                     
                     # Если время истекло, отправляем событие таймаута
                     if elapsed_time >= max_wait_time:
@@ -4384,7 +4480,11 @@ async def stream_generation_status(
                             "message": "Превышено время ожидания генерации",
                             "error": f"Генерация превысила максимальное время ожидания {max_wait_time} секунд"
                         }
-                        yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                        try:
+                            yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                        except (ConnectionResetError, BrokenPipeError, OSError):
+                            logger.debug(f"[SSE RUNPOD] Соединение разорвано клиентом")
+                            return
                         logger.warning(f"[SSE RUNPOD] Таймаут для задачи {task_id}")
             
             else:
@@ -4419,7 +4519,11 @@ async def stream_generation_status(
                                 "data": result
                             }
                             # Отправляем финальное событие и завершаем
-                            yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                            try:
+                                yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                            except (ConnectionResetError, BrokenPipeError, OSError):
+                                logger.debug(f"[SSE CELERY] Соединение разорвано клиентом")
+                                return
                             break
                         elif current_state == "FAILURE":
                             error_info = task.info
@@ -4441,7 +4545,11 @@ async def stream_generation_status(
                                 "error": error_message
                             }
                             # Отправляем финальное событие и завершаем
-                            yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                            try:
+                                yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                            except (ConnectionResetError, BrokenPipeError, OSError):
+                                logger.debug(f"[SSE CELERY] Соединение разорвано клиентом")
+                                return
                             break
                         else:
                             event_data = {
@@ -4449,7 +4557,11 @@ async def stream_generation_status(
                                 "message": f"Статус: {current_state}"
                             }
                         
-                        yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                        try:
+                            yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                        except (ConnectionResetError, BrokenPipeError, OSError):
+                            logger.debug(f"[SSE CELERY] Соединение разорвано клиентом")
+                            return
                     
                     # Небольшая задержка перед следующей проверкой
                     await asyncio.sleep(check_interval)
@@ -4457,7 +4569,11 @@ async def stream_generation_status(
                     
                     # Отправляем heartbeat каждые 10 секунд, чтобы соединение не закрывалось
                     if int(elapsed_time) % 10 == 0:
-                        yield f": heartbeat\n\n"
+                        try:
+                            yield f": heartbeat\n\n"
+                        except (ConnectionResetError, BrokenPipeError, OSError):
+                            logger.debug(f"[SSE CELERY] Соединение разорвано клиентом")
+                            return
                 
                 # Если время истекло, отправляем событие таймаута
                 if elapsed_time >= max_wait_time:
@@ -4466,8 +4582,15 @@ async def stream_generation_status(
                         "message": "Превышено время ожидания генерации",
                         "error": "Превышено время ожидания генерации изображения"
                     }
-                    yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                    try:
+                        yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                    except (ConnectionResetError, BrokenPipeError, OSError):
+                        logger.debug(f"[SSE CELERY] Соединение разорвано клиентом")
+                        return
                 
+        except (ConnectionResetError, BrokenPipeError, OSError) as conn_error:
+            logger.debug(f"[SSE] Соединение разорвано клиентом: {conn_error}")
+            return
         except Exception as e:
             logger.error(f"[SSE] Ошибка в event_generator для задачи {task_id}: {e}")
             import traceback
@@ -4477,7 +4600,11 @@ async def stream_generation_status(
                 "message": "Ошибка получения статуса",
                 "error": str(e)
             }
-            yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+            try:
+                yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+            except (ConnectionResetError, BrokenPipeError, OSError):
+                logger.debug(f"[SSE] Соединение разорвано клиентом при отправке ошибки")
+                return
     
     return StreamingResponse(
         event_generator(),

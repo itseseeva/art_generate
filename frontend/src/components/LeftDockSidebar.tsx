@@ -56,6 +56,7 @@ const SidebarContainer = styled.aside<{ $isCollapsed?: boolean; $isMobile?: bool
   overflow: visible;
   transition: width 0.3s ease, min-width 0.3s ease, padding 0.3s ease, border 0.3s ease;
   z-index: 1000;
+  will-change: width, min-width, padding;
 `;
 
 const HomeButton = styled.button`
@@ -112,14 +113,16 @@ const HomeButton = styled.button`
 const DockWrapper = styled.div<{ $isMobile?: boolean }>`
   flex: 1;
   width: 100%;
-  display: flex;
+  display: flex !important;
   flex-direction: ${props => props.$isMobile ? 'row' : 'column'};
   align-items: center;
   justify-content: ${props => props.$isMobile ? 'center' : 'flex-start'};
   position: relative;
   gap: 0.8rem;
-  overflow: ${props => props.$isMobile ? 'visible' : 'visible'};
+  overflow: visible;
   margin-top: ${props => props.$isMobile ? '0' : '15%'};
+  visibility: visible !important;
+  opacity: 1 !important;
   
   &::-webkit-scrollbar {
     width: 0;
@@ -272,18 +275,21 @@ const SwitcherContainer = styled.div`
 
 const SidebarContent = styled.div<{ $isCollapsed?: boolean; $isMobile?: boolean }>`
   width: 100%;
-  display: flex;
+  display: flex !important;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
   gap: 1rem;
   flex: 1;
-  overflow: visible;
   overflow-y: auto;
+  overflow-x: visible;
   min-height: 0;
   opacity: ${props => props.$isCollapsed ? 0 : 1};
   visibility: ${props => props.$isCollapsed ? 'hidden' : 'visible'};
-  transition: opacity 0.3s ease, visibility 0.3s ease;
+  transition: opacity 0.3s ease 0.1s, visibility 0.3s ease 0.1s;
+  pointer-events: ${props => props.$isCollapsed ? 'none' : 'auto'};
+  position: relative;
+  z-index: 1;
 `;
 
 export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
@@ -310,7 +316,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
 }) => {
   const [showNSFWWarning, setShowNSFWWarning] = useState(false);
   const [pendingMode, setPendingMode] = useState<'safe' | 'nsfw' | null>(null);
-  const [isCollapsed, setIsCollapsed] = useState(isMobile);
+  const [isCollapsed, setIsCollapsed] = useState(false); // Панель развернута по умолчанию
   const [arrowTop, setArrowTop] = useState<string>('50%');
   const dockWrapperRef = useRef<HTMLDivElement>(null);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState<number>(0);
@@ -506,6 +512,8 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
     }
   }, [isCollapsed, isAuthenticated, onBalanceHistory, onMessages]);
 
+  const allDockItems = [...topDockItems, ...mainBottomDockItems, ...additionalDockItems];
+
   return (
     <SidebarWrapper style={{ height: '100%' }}>
       <ToggleArrowButton 
@@ -557,7 +565,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
           )}
           <DockWrapper ref={dockWrapperRef} $isMobile={false}>
             <Dock
-              items={[...topDockItems, ...mainBottomDockItems, ...additionalDockItems]}
+              items={allDockItems}
               vertical={true}
               dockHeight={420}
               panelHeight={58}

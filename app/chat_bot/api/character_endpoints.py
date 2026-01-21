@@ -407,6 +407,583 @@ async def check_character_ownership(
     
     return True
 
+async def get_available_voice_files():
+    """Возвращает список доступных файлов голосов из папки default_character_voices."""
+    try:
+        from app.config.paths import DEFAULT_CHARACTER_VOICES_DIR, VOICES_DIR
+        import hashlib
+        
+        # Создаем директорию, если её нет
+        DEFAULT_CHARACTER_VOICES_DIR.mkdir(parents=True, exist_ok=True)
+        
+        if not DEFAULT_CHARACTER_VOICES_DIR.exists():
+            logger.warning(f"Директория голосов не существует: {DEFAULT_CHARACTER_VOICES_DIR}")
+            return []
+        
+        # Получаем список всех mp3 файлов (используем asyncio для I/O операций)
+        import asyncio
+        loop = asyncio.get_event_loop()
+        files = await loop.run_in_executor(
+            None,
+            lambda: sorted([f.name for f in DEFAULT_CHARACTER_VOICES_DIR.glob("*.mp3")])
+        )
+        
+        # Стандартная фраза для превью (та же, что в tts_service)
+        from app.services.tts_service import DEFAULT_PREVIEW_TEXT
+        
+        # Формируем список с названиями из имен файлов (без расширения) и URL для воспроизведения
+        voices = []
+        for file_name in files:
+            # Пропускаем голос Полины (проверяем имя файла и название)
+            file_name_lower = file_name.lower()
+            if 'полина' in file_name_lower or 'polina' in file_name_lower:
+                logger.info(f"Пропущен голос Полины (файл: {file_name})")
+                continue
+            
+            # Извлекаем название из имени файла (убираем расширение .mp3)
+            voice_name = file_name.replace('.mp3', '').replace('_', ' ').strip()
+            # Если название пустое, используем имя файла
+            if not voice_name:
+                voice_name = file_name
+            
+            # Дополнительная проверка названия голоса
+            voice_name_lower = voice_name.lower()
+            if 'полина' in voice_name_lower or 'polina' in voice_name_lower:
+                logger.info(f"Пропущен голос Полины (название: {voice_name}, файл: {file_name})")
+                continue
+                
+            voice_url = f"/default_character_voices/{file_name}"
+            
+            # Проверяем наличие кэшированного превью
+            cache_key = hashlib.md5(f"{file_name}_{DEFAULT_PREVIEW_TEXT}".encode('utf-8')).hexdigest()
+            cache_filename = f"preview_{cache_key}.mp3"
+            cache_path = VOICES_DIR / cache_filename
+            
+            preview_url = None
+            if cache_path.exists():
+                preview_url = f"/voices/{cache_filename}"
+                logger.debug(f"Найдено кэшированное превью для {file_name}")
+            
+            logger.info(f"Добавлен голос: {file_name}, Название: {voice_name}, URL: {voice_url}, Preview: {preview_url}")
+            voices.append({
+                "id": file_name,
+                "name": voice_name,
+                "url": voice_url,
+                "preview_url": preview_url  # None если превью еще не сгенерировано
+            })
+        logger.info(f"Всего голосов найдено: {len(voices)}")
+        return voices
+    except Exception as e:
+        logger.error(f"Error getting available voices: {e}", exc_info=True)
+        return []
+
+@router.get("/available-voices")
+async def get_available_voices(
+    current_user: Users = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db)
+):
+    """Эндпоинт для получения списка доступных голосов (дефолтные + пользовательские)."""
+    try:
+        voices = await get_available_voice_files()
+        
+        # Добавляем пользовательские голоса
+        from app.models.user_voice import UserVoice
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+        
+        # Получаем приватные голоса текущего пользователя (если авторизован)
+        user_private_voices = []
+        if current_user:
+            user_voices_query = select(UserVoice).where(
+                UserVoice.user_id == current_user.id,
+                UserVoice.is_public == 0
+            ).order_by(UserVoice.created_at)
+            user_voices_result = await db.execute(user_voices_query)
+            user_private_voices = user_voices_result.scalars().all()
+        
+        # Получаем все публичные голоса всех пользователей с информацией о создателе
+        public_voices_query = select(UserVoice).options(
+            selectinload(UserVoice.user)
+        ).where(
+            UserVoice.is_public == 1
+        ).order_by(UserVoice.created_at)
+        public_voices_result = await db.execute(public_voices_query)
+        public_voices = public_voices_result.scalars().all()
+        
+        # Добавляем приватные голоса текущего пользователя
+        for user_voice in user_private_voices:
+            voices.append({
+                "id": f"user_voice_{user_voice.id}",
+                "name": user_voice.voice_name,
+                "url": user_voice.voice_url,
+                "preview_url": user_voice.preview_url,
+                "photo_url": user_voice.photo_url,
+                "is_user_voice": True,
+                "is_public": False,
+                "user_voice_id": user_voice.id,
+                "is_owner": True,  # Владелец голоса
+                "creator_username": current_user.username if current_user else None
+            })
+        
+        # Добавляем публичные голоса всех пользователей
+        for user_voice in public_voices:
+            is_owner = current_user and user_voice.user_id == current_user.id
+            voices.append({
+                "id": f"user_voice_{user_voice.id}",
+                "name": user_voice.voice_name,
+                "url": user_voice.voice_url,
+                "preview_url": user_voice.preview_url,
+                "photo_url": user_voice.photo_url,
+                "is_user_voice": True,
+                "is_public": True,
+                "user_voice_id": user_voice.id,
+                "is_owner": is_owner,
+                "creator_username": user_voice.user.username if user_voice.user else None,
+                "creator_id": user_voice.user_id
+            })
+        
+        return voices
+    except Exception as e:
+        logger.error(f"Ошибка в эндпоинте /available-voices: {e}", exc_info=True)
+        return []
+
+
+@router.patch("/user-voice/{voice_id}/name")
+async def update_user_voice_name(
+    voice_id: int,
+    voice_name: str = Form(..., description="Новое имя голоса"),
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Обновление имени пользовательского голоса."""
+    try:
+        from app.models.user_voice import UserVoice
+        
+        # Проверяем, что голос принадлежит текущему пользователю
+        voice_query = select(UserVoice).where(
+            UserVoice.id == voice_id,
+            UserVoice.user_id == current_user.id
+        )
+        voice_result = await db.execute(voice_query)
+        user_voice = voice_result.scalar_one_or_none()
+        
+        if not user_voice:
+            raise HTTPException(status_code=404, detail="Голос не найден или доступ запрещен")
+        
+        # Обновляем имя
+        user_voice.voice_name = voice_name.strip()
+        await db.commit()
+        await db.refresh(user_voice)
+        
+        return {
+            "status": "success",
+            "message": "Имя голоса успешно обновлено",
+            "voice_id": user_voice.id,
+            "voice_name": user_voice.voice_name
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении имени голоса: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Ошибка при обновлении имени голоса: {str(e)}")
+
+
+@router.patch("/user-voice/{voice_id}/public")
+async def update_user_voice_public_status(
+    voice_id: int,
+    is_public: bool = Form(..., description="Статус публичности голоса (True - общедоступный, False - приватный)"),
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Изменение статуса публичности пользовательского голоса."""
+    try:
+        from app.models.user_voice import UserVoice
+        
+        # Проверяем, что голос принадлежит текущему пользователю
+        voice_query = select(UserVoice).where(
+            UserVoice.id == voice_id,
+            UserVoice.user_id == current_user.id
+        )
+        voice_result = await db.execute(voice_query)
+        user_voice = voice_result.scalar_one_or_none()
+        
+        if not user_voice:
+            raise HTTPException(status_code=404, detail="Голос не найден или доступ запрещен")
+        
+        # Обновляем статус публичности
+        user_voice.is_public = 1 if is_public else 0
+        await db.commit()
+        await db.refresh(user_voice)
+        
+        logger.info(f"Статус публичности голоса {voice_id} изменен на {'публичный' if is_public else 'приватный'} пользователем {current_user.id}")
+        
+        return {
+            "status": "success",
+            "message": f"Голос {'сделан общедоступным' if is_public else 'сделан приватным'}",
+            "voice_id": user_voice.id,
+            "is_public": bool(user_voice.is_public)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка при изменении статуса публичности голоса: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Ошибка при изменении статуса публичности: {str(e)}")
+
+
+@router.patch("/user-voice/{voice_id}/photo")
+async def update_user_voice_photo(
+    voice_id: int,
+    photo_file: UploadFile = File(..., description="Фото голоса (PNG, JPG, JPEG, WEBP)"),
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Обновление фото пользовательского голоса. Сохраняет фото на Яндекс Облако."""
+    try:
+        from app.models.user_voice import UserVoice
+        from app.services.yandex_storage import get_yandex_storage_service
+        import uuid
+        from pathlib import Path
+        
+        logger.info(f"[VOICE PHOTO] Попытка обновления фото для голоса {voice_id}, пользователь {current_user.id}")
+        
+        # Проверяем, что голос принадлежит текущему пользователю
+        voice_query = select(UserVoice).where(
+            UserVoice.id == voice_id,
+            UserVoice.user_id == current_user.id
+        )
+        voice_result = await db.execute(voice_query)
+        user_voice = voice_result.scalar_one_or_none()
+        
+        if not user_voice:
+            logger.warning(f"[VOICE PHOTO] Голос {voice_id} не найден или не принадлежит пользователю {current_user.id}")
+            raise HTTPException(status_code=404, detail="Голос не найден или доступ запрещен")
+        
+        # Проверка типа файла
+        allowed_types = ["image/png", "image/jpeg", "image/jpg", "image/webp"]
+        if photo_file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Неподдерживаемый тип файла. Разрешены: PNG, JPG, JPEG, WEBP. Получен: {photo_file.content_type}"
+            )
+        
+        # Проверка размера файла (макс 5 MB)
+        max_size = 5 * 1024 * 1024  # 5 MB
+        photo_data = await photo_file.read()
+        
+        if len(photo_data) > max_size:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Файл слишком большой. Максимальный размер: 5 MB. Размер файла: {len(photo_data) / 1024 / 1024:.2f} MB"
+            )
+        
+        if len(photo_data) == 0:
+            raise HTTPException(status_code=400, detail="Файл пустой")
+        
+        # Генерируем уникальное имя для фото
+        unique_id = uuid.uuid4().hex[:12]
+        photo_ext = Path(photo_file.filename).suffix or ".png"
+        # Используем префикс для организации файлов в бакете
+        object_key = f"user_voices/photos/voice_photo_{voice_id}_{unique_id}{photo_ext}"
+        
+        # Загружаем фото на Яндекс Облако
+        try:
+            storage_service = get_yandex_storage_service()
+            logger.info(f"[VOICE PHOTO] Загрузка фото на Яндекс Облако: {object_key}")
+            
+            # Определяем content_type
+            content_type = photo_file.content_type or "image/png"
+            if photo_ext.lower() == ".webp":
+                content_type = "image/webp"
+            elif photo_ext.lower() in [".jpg", ".jpeg"]:
+                content_type = "image/jpeg"
+            elif photo_ext.lower() == ".png":
+                content_type = "image/png"
+            
+            # Загружаем файл на Яндекс Облако
+            cloud_url = await storage_service.upload_file(
+                file_data=photo_data,
+                object_key=object_key,
+                content_type=content_type,
+                convert_to_webp=False  # Сохраняем оригинальный формат
+            )
+            
+            logger.info(f"[VOICE PHOTO] Фото успешно загружено на Яндекс Облако: {cloud_url}")
+            
+        except Exception as upload_error:
+            logger.error(f"[VOICE PHOTO] Ошибка загрузки на Яндекс Облако: {upload_error}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Не удалось загрузить фото на облачное хранилище: {str(upload_error)}"
+            )
+        
+        # Обновляем photo_url в БД (сохраняем полный URL из Яндекс Облака)
+        user_voice.photo_url = cloud_url
+        await db.commit()
+        await db.refresh(user_voice)
+        
+        logger.info(f"[VOICE PHOTO] Фото голоса обновлено для пользователя {current_user.id}, голос {voice_id}, URL: {cloud_url}")
+        
+        return {
+            "status": "success",
+            "message": "Фото голоса успешно обновлено",
+            "voice_id": user_voice.id,
+            "photo_url": user_voice.photo_url
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[VOICE PHOTO] Ошибка при обновлении фото голоса: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Ошибка при обновлении фото голоса: {str(e)}")
+
+
+@router.delete("/user-voice/{voice_id}")
+async def delete_user_voice(
+    voice_id: int,
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Удаление пользовательского голоса. Доступно владельцу голоса или админу."""
+    try:
+        from app.models.user_voice import UserVoice
+        
+        logger.info(f"[DELETE VOICE] Попытка удаления голоса {voice_id}, пользователь {current_user.id}, админ: {current_user.is_admin}")
+        
+        # Получаем голос
+        voice_query = select(UserVoice).where(UserVoice.id == voice_id)
+        voice_result = await db.execute(voice_query)
+        user_voice = voice_result.scalar_one_or_none()
+        
+        if not user_voice:
+            raise HTTPException(status_code=404, detail="Голос не найден")
+        
+        # Проверяем права: владелец или админ
+        if not current_user.is_admin and user_voice.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Нет прав для удаления этого голоса")
+        
+        # Удаляем голос из базы данных
+        from sqlalchemy import delete as sql_delete
+        await db.execute(sql_delete(UserVoice).where(UserVoice.id == voice_id))
+        await db.commit()
+        
+        logger.info(f"[DELETE VOICE] Голос {voice_id} успешно удален пользователем {current_user.id}")
+        
+        return {
+            "status": "success",
+            "message": "Голос успешно удален",
+            "voice_id": voice_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[DELETE VOICE] Ошибка при удалении голоса: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Ошибка при удалении голоса: {str(e)}")
+
+
+@router.delete("/default-voice/{voice_id}")
+async def delete_default_voice(
+    voice_id: str,
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Удаление дефолтного голоса. Доступно только админам."""
+    try:
+        if not current_user.is_admin:
+            raise HTTPException(status_code=403, detail="Только администраторы могут удалять дефолтные голоса")
+        
+        from app.config.paths import DEFAULT_CHARACTER_VOICES_DIR, VOICES_DIR
+        import hashlib
+        from app.services.tts_service import DEFAULT_PREVIEW_TEXT
+        
+        # voice_id - это имя файла (например, "Катя.mp3")
+        voice_file_name = voice_id
+        if not voice_file_name.endswith('.mp3'):
+            voice_file_name = f"{voice_id}.mp3"
+        
+        voice_file_path = DEFAULT_CHARACTER_VOICES_DIR / voice_file_name
+        
+        if not voice_file_path.exists():
+            raise HTTPException(status_code=404, detail="Голос не найден")
+        
+        # Удаляем файл голоса
+        voice_file_path.unlink()
+        logger.info(f"[DELETE DEFAULT VOICE] Файл голоса удален: {voice_file_path}")
+        
+        # Удаляем кэшированное превью, если оно есть
+        cache_key = hashlib.md5(f"{voice_file_name}_{DEFAULT_PREVIEW_TEXT}".encode('utf-8')).hexdigest()
+        cache_filename = f"preview_{cache_key}.mp3"
+        cache_path = VOICES_DIR / cache_filename
+        if cache_path.exists():
+            cache_path.unlink()
+            logger.info(f"[DELETE DEFAULT VOICE] Кэш превью удален: {cache_path}")
+        
+        logger.info(f"[DELETE DEFAULT VOICE] Дефолтный голос {voice_file_name} успешно удален админом {current_user.id}")
+        
+        return {
+            "status": "success",
+            "message": "Дефолтный голос успешно удален",
+            "voice_id": voice_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[DELETE DEFAULT VOICE] Ошибка при удалении дефолтного голоса: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Ошибка при удалении дефолтного голоса: {str(e)}")
+
+
+@router.patch("/default-voice/{voice_id}/name")
+async def rename_default_voice(
+    voice_id: str,
+    new_name: str = Form(..., description="Новое имя голоса"),
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Переименование дефолтного голоса. Доступно только админам."""
+    try:
+        if not current_user.is_admin:
+            raise HTTPException(status_code=403, detail="Только администраторы могут переименовывать дефолтные голоса")
+        
+        from app.config.paths import DEFAULT_CHARACTER_VOICES_DIR
+        
+        # voice_id - это имя файла (например, "Катя.mp3")
+        voice_file_name = voice_id
+        if not voice_file_name.endswith('.mp3'):
+            voice_file_name = f"{voice_id}.mp3"
+        
+        voice_file_path = DEFAULT_CHARACTER_VOICES_DIR / voice_file_name
+        
+        if not voice_file_path.exists():
+            raise HTTPException(status_code=404, detail="Голос не найден")
+        
+        # Формируем новое имя файла (заменяем пробелы на подчеркивания)
+        new_file_name = new_name.replace(' ', '_').strip() + '.mp3'
+        new_file_path = DEFAULT_CHARACTER_VOICES_DIR / new_file_name
+        
+        # Проверяем, не существует ли уже файл с таким именем
+        if new_file_path.exists() and new_file_path != voice_file_path:
+            raise HTTPException(status_code=400, detail="Голос с таким именем уже существует")
+        
+        # Переименовываем файл
+        voice_file_path.rename(new_file_path)
+        logger.info(f"[RENAME DEFAULT VOICE] Голос переименован: {voice_file_name} -> {new_file_name} админом {current_user.id}")
+        
+        return {
+            "status": "success",
+            "message": "Дефолтный голос успешно переименован",
+            "old_voice_id": voice_id,
+            "new_voice_id": new_file_name.replace('.mp3', ''),
+            "new_name": new_name
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[RENAME DEFAULT VOICE] Ошибка при переименовании дефолтного голоса: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Ошибка при переименовании дефолтного голоса: {str(e)}")
+
+
+@router.post("/upload-voice")
+async def upload_voice(
+    voice_file: UploadFile = File(..., description="Аудио файл голоса (MP3, WAV)"),
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Загрузка пользовательского голоса с автоматической генерацией превью.
+    
+    Загружает аудио файл, сохраняет его и генерирует превью с дефолтной фразой приветствия
+    через Fish Audio API.
+    
+    Returns:
+        JSON с путями к оригинальному голосу и превью
+    """
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Требуется авторизация")
+    
+    try:
+        # Проверка типа файла
+        allowed_types = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav"]
+        if voice_file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Неподдерживаемый тип файла. Разрешены: MP3, WAV. Получен: {voice_file.content_type}"
+            )
+        
+        # Проверка размера файла (макс 10 MB)
+        max_size = 10 * 1024 * 1024  # 10 MB
+        voice_audio = await voice_file.read()
+        
+        if len(voice_audio) > max_size:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Файл слишком большой. Максимальный размер: 10 MB. Размер файла: {len(voice_audio) / 1024 / 1024:.2f} MB"
+            )
+        
+        if len(voice_audio) == 0:
+            raise HTTPException(status_code=400, detail="Файл пустой")
+        
+        logger.info(f"Пользователь {current_user.id} загружает голос: {voice_file.filename}, размер: {len(voice_audio)} байт")
+        
+        # Генерируем превью через Fish Audio
+        from app.services.tts_service import generate_preview_from_uploaded_voice
+        
+        result = await generate_preview_from_uploaded_voice(
+            voice_audio=voice_audio,
+            voice_filename=voice_file.filename
+        )
+        
+        if not result:
+            raise HTTPException(
+                status_code=500,
+                detail="Не удалось сгенерировать превью голоса. Проверьте формат файла и попробуйте снова."
+            )
+        
+        logger.info(f"Успешно создано превью для голоса пользователя {current_user.id}")
+        
+        # Сохраняем голос в базу данных с автоматическим именем
+        from app.models.user_voice import UserVoice
+        from sqlalchemy import select, func
+        
+        # Получаем количество голосов пользователя для автоматической нумерации
+        count_query = select(func.count(UserVoice.id)).where(UserVoice.user_id == current_user.id)
+        count_result = await db.execute(count_query)
+        voice_count = count_result.scalar() or 0
+        
+        # Создаем имя голоса
+        voice_name = f"Мой Голос {voice_count + 1}"
+        
+        # Создаем запись в БД
+        user_voice = UserVoice(
+            user_id=current_user.id,
+            voice_name=voice_name,
+            voice_url=result["voice_url"],
+            preview_url=result["preview_url"]
+        )
+        db.add(user_voice)
+        await db.commit()
+        await db.refresh(user_voice)
+        
+        logger.info(f"Голос сохранен в БД с ID {user_voice.id} и именем '{voice_name}'")
+        
+        return {
+            "status": "success",
+            "message": "Голос успешно загружен и превью сгенерировано",
+            "voice_id": user_voice.id,
+            "voice_name": voice_name,
+            "voice_url": result["voice_url"],
+            "preview_url": result["preview_url"],
+            "voice_path": result["voice_path"],
+            "preview_path": result["preview_path"]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка при загрузке голоса: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка при обработке файла: {str(e)}"
+        )
+
+
 @router.post("/", response_model=CharacterInDB)
 async def create_character(character: CharacterCreate, db: AsyncSession = Depends(get_db)):
     """Создает нового персонажа в базе данных."""
@@ -431,7 +1008,8 @@ async def create_character(character: CharacterCreate, db: AsyncSession = Depend
             name=character.name,
             prompt=character.prompt,
             character_appearance=character.character_appearance,
-            location=character.location
+            location=character.location,
+            voice_id=character.voice_id
         )
         
         db.add(db_char)
@@ -489,6 +1067,12 @@ async def read_characters(
                             char_id = char_data.get('id')
                             char_name = char_data.get('name')
                             if char_id is not None and char_name is not None:
+                                # КРИТИЧНО: Формируем voice_url из voice_id если его нет в кэше
+                                voice_url_cached = char_data.get('voice_url')
+                                voice_id_cached = char_data.get('voice_id')
+                                if not voice_url_cached and voice_id_cached:
+                                    voice_url_cached = f"/default_character_voices/{voice_id_cached}"
+                                
                                 # Убеждаемся, что все поля присутствуют
                                 valid_char = {
                                     "id": char_id,
@@ -500,10 +1084,18 @@ async def read_characters(
                                     "location": char_data.get('location') or "",
                                     "user_id": char_data.get('user_id'),
                                     "main_photos": char_data.get('main_photos'),
-                                    "is_nsfw": char_data.get('is_nsfw') if char_data.get('is_nsfw') is not None else False
+                                    "is_nsfw": char_data.get('is_nsfw') if char_data.get('is_nsfw') is not None else False,
+                                    "voice_id": voice_id_cached,
+                                    "voice_url": voice_url_cached
                                 }
                                 valid_characters.append(valid_char)
                         elif hasattr(char_data, 'id') and hasattr(char_data, 'name'):
+                            # КРИТИЧНО: Формируем voice_url из voice_id если его нет
+                            voice_url_obj = getattr(char_data, 'voice_url', None)
+                            voice_id_obj = getattr(char_data, 'voice_id', None)
+                            if not voice_url_obj and voice_id_obj:
+                                voice_url_obj = f"/default_character_voices/{voice_id_obj}"
+                            
                             # Если это объект, преобразуем в словарь
                             valid_characters.append({
                                 "id": char_data.id,
@@ -515,7 +1107,9 @@ async def read_characters(
                                 "location": getattr(char_data, 'location', None) or "",
                                 "user_id": getattr(char_data, 'user_id', None),
                                 "main_photos": getattr(char_data, 'main_photos', None),
-                                "is_nsfw": getattr(char_data, 'is_nsfw', None) if getattr(char_data, 'is_nsfw', None) is not None else False
+                                "is_nsfw": getattr(char_data, 'is_nsfw', None) if getattr(char_data, 'is_nsfw', None) is not None else False,
+                                "voice_id": voice_id_obj,
+                                "voice_url": voice_url_obj
                             })
                     
                     if valid_characters:
@@ -573,6 +1167,13 @@ async def read_characters(
                 logger.warning(f"Skipping character with missing required fields: id={char.id}, name={char.name}")
                 continue
             
+            # КРИТИЧНО: Формируем voice_url из voice_id для корректной работы TTS
+            voice_url_value = None
+            if char.voice_id:
+                voice_url_value = f"/default_character_voices/{char.voice_id}"
+            elif char.voice_url:
+                voice_url_value = char.voice_url
+            
             char_dict = {
                 "id": char.id,
                 "name": char.name or "",
@@ -583,7 +1184,9 @@ async def read_characters(
                 "location": char.location or "",
                 "user_id": char.user_id,
                 "main_photos": char.main_photos,
-                "is_nsfw": char.is_nsfw if char.is_nsfw is not None else False
+                "is_nsfw": char.is_nsfw if char.is_nsfw is not None else False,
+                "voice_id": char.voice_id,
+                "voice_url": voice_url_value
             }
             characters_data.append(char_dict)
         
@@ -763,6 +1366,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         # Используем is_nsfw из запроса, если он передан, иначе по умолчанию False
         is_nsfw_value = character.is_nsfw if character.is_nsfw is not None else False
         logger.info(f"[CREATE_CHAR] Создание персонажа {character.name} с is_nsfw={is_nsfw_value}")
+        logger.info(f"[CREATE_CHAR] voice_id из запроса: {character.voice_id}")
         new_character = CharacterDB(
             name=ensure_unicode(character.name),
             display_name=ensure_unicode(character.name),
@@ -771,12 +1375,19 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
             character_appearance=appearance_text,
             location=location_text,
             user_id=current_user.id,
-            is_nsfw=is_nsfw_value
+            is_nsfw=is_nsfw_value,
+            voice_id=character.voice_id
         )
         
         db.add(new_character)
         await db.commit()
         await db.refresh(new_character)
+        
+        logger.info(f"[CREATE_CHAR] Персонаж сохранен в БД с voice_id: {new_character.voice_id}")
+        
+        # КРИТИЧНО: Формируем voice_url из voice_id для корректной работы TTS
+        if new_character.voice_id and not new_character.voice_url:
+            new_character.voice_url = f"/default_character_voices/{new_character.voice_id}"
         
         # Инвалидируем кэш списка персонажей
         await cache_delete(key_characters_list())
@@ -835,6 +1446,13 @@ async def read_character(character_name: str, db: AsyncSession = Depends(get_db)
             raise HTTPException(status_code=404, detail=f"Character '{decoded_name}' not found")
         
         # Сохраняем в кэш
+        # КРИТИЧНО: Формируем voice_url из voice_id для корректной работы TTS
+        voice_url_value = None
+        if db_char.voice_id:
+            voice_url_value = f"/default_character_voices/{db_char.voice_id}"
+        elif db_char.voice_url:
+            voice_url_value = db_char.voice_url
+        
         char_data = {
             "id": db_char.id,
             "name": db_char.name,
@@ -846,10 +1464,17 @@ async def read_character(character_name: str, db: AsyncSession = Depends(get_db)
             "user_id": db_char.user_id,
             "main_photos": db_char.main_photos,
             "is_nsfw": db_char.is_nsfw,
+            "voice_id": db_char.voice_id,
+            "voice_url": voice_url_value,
             # Добавляем все поля, необходимые для CharacterInDB
              "created_at": db_char.created_at.isoformat() if db_char.created_at else None
         }
         await cache_set(cache_key, char_data, ttl_seconds=TTL_CHARACTER)
+        
+        # КРИТИЧНО: Устанавливаем voice_url в объект перед возвратом
+        # Это нужно, чтобы Pydantic модель получила правильный voice_url
+        if voice_url_value:
+            db_char.voice_url = voice_url_value
         
         return db_char
     except HTTPException:
@@ -892,6 +1517,10 @@ async def read_character_with_creator(
              
         if not db_char:
             raise HTTPException(status_code=404, detail=f"Character '{decoded_name}' not found")
+        
+        # КРИТИЧНО: Формируем voice_url из voice_id для корректной работы TTS
+        if db_char.voice_id and not db_char.voice_url:
+            db_char.voice_url = f"/default_character_voices/{db_char.voice_id}"
         
         # Получаем информацию о создателе, если есть user_id
         creator_info = None
@@ -1451,9 +2080,21 @@ async def update_character(
             db_char.location = character.location
         if character.is_nsfw is not None:
             db_char.is_nsfw = character.is_nsfw
+        if character.voice_id is not None:
+            db_char.voice_id = character.voice_id
+            # КРИТИЧНО: Если установлен voice_id, очищаем старый voice_url
+            db_char.voice_url = None
+            logger.info(f"Установлен voice_id={character.voice_id} для персонажа '{character_name}', voice_url очищен")
+        elif character.voice_url is not None:
+            db_char.voice_url = character.voice_url
+            logger.info(f"Обновлен voice_url для персонажа '{character_name}': {character.voice_url}")
         
         await db.commit()
         await db.refresh(db_char)
+        
+        # КРИТИЧНО: Формируем voice_url из voice_id для корректной работы TTS
+        if db_char.voice_id and not db_char.voice_url:
+            db_char.voice_url = f"/default_character_voices/{db_char.voice_id}"
         
         # Инвалидируем кэш персонажей
         await cache_delete(key_character(character_name))
@@ -1716,6 +2357,20 @@ Response Style:
         db_char.prompt = full_prompt
         db_char.character_appearance = character.appearance
         db_char.location = character.location
+        logger.info(f"[UPDATE_CHAR] voice_id из запроса: {character.voice_id}, текущий voice_id в БД: {db_char.voice_id}")
+        
+        # Обновляем voice_id
+        db_char.voice_id = character.voice_id
+        
+        # КРИТИЧНО: Если установлен voice_id, очищаем старый voice_url
+        # Это нужно для того, чтобы использовался новый voice_id, а не старый внешний URL
+        if character.voice_id:
+            db_char.voice_url = None
+            logger.info(f"Очищен voice_url для персонажа '{character.name}', используется voice_id: {character.voice_id}")
+        elif character.voice_url is not None:
+            # Если voice_id не установлен, но есть voice_url - используем его
+            db_char.voice_url = character.voice_url
+            logger.info(f"Обновлен voice_url для персонажа '{character.name}': {character.voice_url}")
         
         # Новое имя персонажа (для логирования и кэша)
         new_character_name = character.name
@@ -1723,6 +2378,8 @@ Response Style:
         await db.commit()
         await db.refresh(db_char)
         await db.refresh(db_user)  # Обновляем данные пользователя после коммита
+        
+        logger.info(f"[UPDATE_CHAR] Персонаж обновлен в БД с voice_id: {db_char.voice_id}")
         
         # Обновляем профиль пользователя (для обновления баланса на фронтенде)
         await emit_profile_update(user_id, db)
@@ -1753,6 +2410,10 @@ Response Style:
                 # Но на самом деле это тот же персонаж, так что кэш уже инвалидирован выше
             except Exception:
                 pass  # Игнорируем ошибки при поиске старого персонажа
+        
+        # КРИТИЧНО: Формируем voice_url из voice_id для корректной работы TTS
+        if db_char.voice_id and not db_char.voice_url:
+            db_char.voice_url = f"/default_character_voices/{db_char.voice_id}"
         
         logger.info(f"User character '{new_character_name}' (was '{old_character_name}') updated successfully by user {current_user.id}. New balance: {db_user.coins}")
         return db_char

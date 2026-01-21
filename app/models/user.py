@@ -44,6 +44,12 @@ class Users(Base):
         cascade="all, delete-orphan"
     )
     
+    user_voices = relationship(
+        "UserVoice",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+    
     subscription = relationship(
         "UserSubscription",
         back_populates="user",

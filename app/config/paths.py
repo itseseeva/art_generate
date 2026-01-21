@@ -14,6 +14,9 @@ LORA_DIR = BASE_DIR / "loras"
 DATA_DIR = BASE_DIR / "app" / "data"
 LOGS_DIR = BASE_DIR / "app" / "logs"
 IMAGES_DIR = BASE_DIR / "app" / "images"
+VOICES_DIR = BASE_DIR / "app" / "voices"
+DEFAULT_CHARACTER_VOICES_DIR = BASE_DIR / "app" / "default_character_voices"
+USER_VOICES_DIR = BASE_DIR / "app" / "user_voices"
 TEMP_DIR = BASE_DIR / "temp"
 CACHE_DIR = BASE_DIR / "cache"
 MODELS_DIR = BASE_DIR / "models"
@@ -83,6 +86,9 @@ def get_paths() -> Dict[str, Path]:
         "DATA_DIR": DATA_DIR,
         "LOGS_DIR": LOGS_DIR,
         "IMAGES_DIR": IMAGES_DIR,
+        "VOICES_DIR": VOICES_DIR,
+        "DEFAULT_CHARACTER_VOICES_DIR": DEFAULT_CHARACTER_VOICES_DIR,
+        "USER_VOICES_DIR": USER_VOICES_DIR,
         "TEMP_DIR": TEMP_DIR,
         "CACHE_DIR": CACHE_DIR,
         "MODELS_DIR": MODELS_DIR,

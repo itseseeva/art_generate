@@ -240,6 +240,11 @@ celery_app.conf.update(
             'schedule': crontab(hour=3, minute=0),  # Каждый день в 03:00 UTC
             'options': {'queue': 'low_priority'}
         },
+        'cleanup-old-voices-daily': {
+            'task': 'app.tasks.periodic_tasks.cleanup_old_voices_task',
+            'schedule': crontab(hour=4, minute=0),  # Каждый день в 04:00 UTC
+            'options': {'queue': 'low_priority'}
+        },
     },
 )
 

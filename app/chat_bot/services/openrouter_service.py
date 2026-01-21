@@ -10,6 +10,7 @@ import json
 from typing import Optional, Dict, List, AsyncGenerator
 from app.chat_bot.config.chat_config import chat_config
 from app.chat_bot.config.cydonia_config import get_cydonia_overrides
+from app.chat_bot.config.deepseek_config import get_deepseek_overrides
 from app.models.subscription import SubscriptionType
 from app.utils.logger import logger
 
@@ -167,7 +168,8 @@ class OpenRouterService:
             # Проверяем, что модель разрешена для использования
             allowed_models = [
                 "sao10k/l3-euryale-70b",
-                "thedrummer/cydonia-24b-v4.1"
+                "thedrummer/cydonia-24b-v4.1",
+                "deepseek/deepseek-chat-v3-0324"
             ]
             if model in allowed_models:
                 model_to_use = model
@@ -199,7 +201,30 @@ class OpenRouterService:
             if "stop" not in kwargs or kwargs["stop"] is None:
                 kwargs["stop"] = cydonia_overrides["stop"]
             
-            logger.info(f"[OPENROUTER] Applied Cydonia specific overrides for {model_to_use}")
+            # Cydonia specific overrides applied
+        
+        # ПРИМЕНЯЕМ СПЕЦИФИЧНЫЕ НАСТРОЙКИ ДЛЯ МОДЕЛИ DEEPSEEK
+        elif model_to_use == "deepseek/deepseek-chat-v3-0324":
+            deepseek_overrides = get_deepseek_overrides()
+            # Переопределяем только те параметры, которые не были переданы явно
+            if "temperature" not in kwargs or kwargs["temperature"] is None:
+                temperature = deepseek_overrides["temperature"]
+            if "top_p" not in kwargs or kwargs["top_p"] is None:
+                top_p = deepseek_overrides["top_p"]
+            if "top_k" not in kwargs or kwargs["top_k"] is None:
+                top_k = deepseek_overrides["top_k"]
+            if "repetition_penalty" not in kwargs or kwargs["repetition_penalty"] is None:
+                repetition_penalty = deepseek_overrides["repetition_penalty"]
+            if "presence_penalty" not in kwargs or kwargs["presence_penalty"] is None:
+                presence_penalty = deepseek_overrides["presence_penalty"]
+            if "frequency_penalty" not in kwargs or kwargs["frequency_penalty"] is None:
+                frequency_penalty = deepseek_overrides["frequency_penalty"]
+            if "min_p" not in kwargs or kwargs["min_p"] is None:
+                min_p = deepseek_overrides["min_p"]
+            if "stop" not in kwargs or kwargs["stop"] is None:
+                kwargs["stop"] = deepseek_overrides["stop"]
+            
+            # DeepSeek specific overrides applied
         
         try:
             session = await self._get_session()
@@ -229,9 +254,6 @@ class OpenRouterService:
                 logger.error("[OPENROUTER] No prompt or messages provided")
                 return None
             
-            # Короткое логирование: только количество сообщений
-            logger.info(f"[OPENROUTER] Sending {len(formatted_messages)} messages to API")
-            
             payload = {
                 "model": model_to_use,
                 "messages": formatted_messages,
@@ -253,21 +275,15 @@ class OpenRouterService:
             if "stop" in kwargs:
                 payload["stop"] = kwargs["stop"]
             
-            # РАСШИРЕННОЕ ЛОГИРОВАНИЕ: выводим все параметры генерации
-            logger.info("=" * 80)
-            logger.info("[OPENROUTER] Final payload before sending:")
-            logger.info(f"  Model: {payload.get('model')}")
-            logger.info(f"  Max tokens: {max_tokens}")
-            logger.info(f"  Temperature: {temperature}")
-            logger.info(f"  Top-p: {top_p}")
-            logger.info(f"  Top-k: {top_k}")
-            logger.info(f"  Min-p: {min_p}")
-            logger.info(f"  Presence penalty: {presence_penalty}")
-            logger.info(f"  Frequency penalty: {frequency_penalty}")
-            logger.info(f"  Repetition penalty: {repetition_penalty}")
-            logger.info(f"  Subscription: {subscription_type.value if subscription_type else 'FREE'}")
-            logger.info(f"  Messages count: {len(formatted_messages)}")
-            logger.info("=" * 80)
+            logger.info(
+                f"\n{'='*80}\n"
+                f"[API ЗАПРОС] 🚀 Отправка в OpenRouter:\n"
+                f"  ├─ Модель: {model_to_use}\n"
+                f"  ├─ Сообщений: {len(formatted_messages)} шт.\n"
+                f"  ├─ Max tokens (ответ): {max_tokens}\n"
+                f"  └─ Подписка: {subscription_type.value if subscription_type else 'FREE'}\n"
+                f"{'='*80}"
+            )
             
             async with session.post(
                 f"{self.base_url}/chat/completions",
@@ -278,9 +294,12 @@ class OpenRouterService:
                 if response.status == 200:
                     result = await response.json()
                     
-                    # Логируем модель из ответа API (может отличаться от запрошенной)
+                    # Извлекаем данные из ответа
                     model_used = result.get("model", "unknown")
-                    logger.info(f"[OPENROUTER] Response received from model: {model_used}")
+                    usage = result.get("usage", {})
+                    input_tokens = usage.get("prompt_tokens", 0)
+                    output_tokens = usage.get("completion_tokens", 0)
+                    total_tokens = usage.get("total_tokens", 0)
                     
                     # OpenAI API возвращает результат в choices[0].message.content
                     choices = result.get("choices", [])
@@ -288,7 +307,15 @@ class OpenRouterService:
                         generated_text = choices[0].get("message", {}).get("content", "")
                         
                         if generated_text:
-                            logger.info(f"[OPENROUTER] Generation completed ({len(generated_text)} chars) using model: {model_used}")
+                            logger.info(
+                                f"\n{'='*80}\n"
+                                f"[API ОТВЕТ] ✅ Получен ответ от {model_used}:\n"
+                                f"  ├─ Длина ответа: {len(generated_text)} символов\n"
+                                f"  ├─ Input tokens: {input_tokens}\n"
+                                f"  ├─ Output tokens: {output_tokens}\n"
+                                f"  └─ ИТОГО: {total_tokens} токенов\n"
+                                f"{'='*80}"
+                            )
                             return generated_text.strip()
                         else:
                             logger.warning("[OPENROUTER] Empty response from API")
@@ -418,14 +445,15 @@ class OpenRouterService:
             # Проверяем, что модель разрешена для использования
             allowed_models = [
                 "sao10k/l3-euryale-70b",
-                "thedrummer/cydonia-24b-v4.1"
+                "thedrummer/cydonia-24b-v4.1",
+                "deepseek/deepseek-chat-v3-0324"
             ]
             if model not in allowed_models:
                 logger.warning(f"[OPENROUTER STREAM] Disallowed model: {model}, using default")
                 model_to_use = get_model_for_subscription(subscription_type)
             else:
                 model_to_use = model
-                logger.info(f"[OPENROUTER STREAM] Using selected model: {model_to_use}")
+                # Using selected model
         else:
             # Выбираем модель на основе подписки
             model_to_use = get_model_for_subscription(subscription_type)
@@ -451,7 +479,30 @@ class OpenRouterService:
             if "stop" not in kwargs or kwargs["stop"] is None:
                 kwargs["stop"] = cydonia_overrides["stop"]
             
-            logger.info(f"[OPENROUTER STREAM] Applied Cydonia specific overrides for {model_to_use}")
+            # Cydonia specific overrides applied
+        
+        # ПРИМЕНЯЕМ СПЕЦИФИЧНЫЕ НАСТРОЙКИ ДЛЯ МОДЕЛИ DEEPSEEK
+        elif model_to_use == "deepseek/deepseek-chat-v3-0324":
+            deepseek_overrides = get_deepseek_overrides()
+            # Переопределяем только те параметры, которые не были переданы явно
+            if "temperature" not in kwargs or kwargs["temperature"] is None:
+                temperature = deepseek_overrides["temperature"]
+            if "top_p" not in kwargs or kwargs["top_p"] is None:
+                top_p = deepseek_overrides["top_p"]
+            if "top_k" not in kwargs or kwargs["top_k"] is None:
+                top_k = deepseek_overrides["top_k"]
+            if "repetition_penalty" not in kwargs or kwargs["repetition_penalty"] is None:
+                repetition_penalty = deepseek_overrides["repetition_penalty"]
+            if "presence_penalty" not in kwargs or kwargs["presence_penalty"] is None:
+                presence_penalty = deepseek_overrides["presence_penalty"]
+            if "frequency_penalty" not in kwargs or kwargs["frequency_penalty"] is None:
+                frequency_penalty = deepseek_overrides["frequency_penalty"]
+            if "min_p" not in kwargs or kwargs["min_p"] is None:
+                min_p = deepseek_overrides["min_p"]
+            if "stop" not in kwargs or kwargs["stop"] is None:
+                kwargs["stop"] = deepseek_overrides["stop"]
+            
+            # DeepSeek specific overrides applied
         
         try:
             session = await self._get_session()
@@ -500,21 +551,15 @@ class OpenRouterService:
             if "stop" in kwargs:
                 payload["stop"] = kwargs["stop"]
             
-            # РАСШИРЕННОЕ ЛОГИРОВАНИЕ: выводим все параметры генерации
-            logger.info("=" * 80)
-            logger.info("[OPENROUTER STREAM] Final payload before sending:")
-            logger.info(f"  Model: {payload.get('model')}")
-            logger.info(f"  Max tokens: {max_tokens}")
-            logger.info(f"  Temperature: {temperature}")
-            logger.info(f"  Top-p: {top_p}")
-            logger.info(f"  Top-k: {top_k}")
-            logger.info(f"  Min-p: {min_p}")
-            logger.info(f"  Presence penalty: {presence_penalty}")
-            logger.info(f"  Frequency penalty: {frequency_penalty}")
-            logger.info(f"  Repetition penalty: {repetition_penalty}")
-            logger.info(f"  Subscription: {subscription_type.value if subscription_type else 'FREE'}")
-            logger.info(f"  Messages count: {len(formatted_messages)}")
-            logger.info("=" * 80)
+            logger.info(
+                f"\n{'='*80}\n"
+                f"[API STREAM] 🚀 Начало стриминга:\n"
+                f"  ├─ Модель: {model_to_use}\n"
+                f"  ├─ Сообщений: {len(formatted_messages)} шт.\n"
+                f"  ├─ Max tokens (ответ): {max_tokens}\n"
+                f"  └─ Подписка: {subscription_type.value if subscription_type else 'FREE'}\n"
+                f"{'='*80}"
+            )
             
             async with session.post(
                 f"{self.base_url}/chat/completions",
@@ -554,10 +599,21 @@ class OpenRouterService:
                             
                             # Проверяем на [DONE] маркер
                             if data_str.strip() == '[DONE]':
-                                logger.info("[OPENROUTER STREAM] Stream finished")
+                                # Логируем завершение стриминга с деталями
+                                chunk_count = getattr(self, '_stream_chunk_count', 0)
+                                total_chars = getattr(self, '_stream_total_chars', 0)
+                                logger.info(
+                                    f"\n{'='*80}\n"
+                                    f"[API STREAM] ✅ Стриминг завершен:\n"
+                                    f"  ├─ Чанков получено: {chunk_count}\n"
+                                    f"  └─ Символов в ответе: {total_chars}\n"
+                                    f"{'='*80}"
+                                )
                                 # Сбрасываем счетчик чанков
                                 if hasattr(self, '_stream_chunk_count'):
                                     delattr(self, '_stream_chunk_count')
+                                if hasattr(self, '_stream_total_chars'):
+                                    delattr(self, '_stream_total_chars')
                                 return
                             
                             try:
@@ -570,12 +626,12 @@ class OpenRouterService:
                                     content = delta.get("content", "")
                                     
                                     if content:
-                                        # ДИАГНОСТИКА: Логируем первые несколько чанков
+                                        # Подсчитываем чанки и символы
                                         if not hasattr(self, '_stream_chunk_count'):
                                             self._stream_chunk_count = 0
+                                            self._stream_total_chars = 0
                                         self._stream_chunk_count += 1
-                                        if self._stream_chunk_count <= 5:
-                                            logger.info(f"[OPENROUTER STREAM] Chunk {self._stream_chunk_count}: {repr(content)}")
+                                        self._stream_total_chars += len(content)
                                         yield content
                                         
                             except json.JSONDecodeError as e:

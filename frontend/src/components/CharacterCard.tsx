@@ -734,19 +734,23 @@ const RatingButton = styled.button<{ $isActive?: boolean; $isLike?: boolean }>`
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  background: rgba(0, 0, 0, 0.6);
-  border: 1.5px solid ${props => props.$isActive ? (props.$isLike ? 'rgba(255, 193, 7, 0.8)' : 'rgba(244, 67, 54, 0.8)') : 'rgba(255, 255, 255, 0.2)'};
+  gap: 3px;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border: 2px solid ${props => props.$isActive ? (props.$isLike ? 'rgba(255, 193, 7, 0.8)' : 'rgba(244, 67, 54, 0.8)') : 'rgba(255, 255, 255, 0.4)'};
   border-radius: ${theme.borderRadius.sm};
-  padding: 4px 8px;
-  color: rgba(255, 255, 255, 0.9);
+  padding: 6px 10px;
+  color: rgba(255, 255, 255, 1);
   cursor: pointer;
   transition: all ${theme.transition.fast};
   z-index: 1000;
   pointer-events: auto;
-  min-width: 35px;
+  min-width: 40px;
   flex-shrink: 0;
   position: relative;
+  visibility: visible;
+  opacity: 1;
   
   &:hover {
     background: rgba(0, 0, 0, 0.8);
@@ -770,12 +774,15 @@ const RatingButton = styled.button<{ $isActive?: boolean; $isLike?: boolean }>`
 `;
 
 const RatingCount = styled.span`
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 800;
   color: rgba(255, 255, 255, 1);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
-  line-height: 1;
-  margin-top: 1px;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 1), 0 0 10px rgba(0, 0, 0, 0.8);
+  line-height: 1.2;
+  margin-top: 2px;
+  display: block;
+  min-height: 16px;
+  letter-spacing: 0.3px;
 `;
 
 

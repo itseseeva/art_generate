@@ -30,8 +30,8 @@ const MobileAlbumButtonsContainer = styled.div`
     display: flex;
     gap: ${theme.spacing.sm};
     padding: ${theme.spacing.sm} ${theme.spacing.md};
-    background: rgba(10, 10, 10, 0.6);
-    backdrop-filter: blur(15px);
+    background: rgba(10, 10, 10, 0.4);
+    backdrop-filter: blur(30px);
     position: sticky;
     top: 0;
     left: 0;
@@ -114,8 +114,8 @@ const Container = styled.div`
   display: flex;
   flex-direction: column;
   position: relative;
-  overflow: hidden;
-  background: #0a0a0a;
+  overflow: visible;
+  background: transparent;
 `;
 
 const MainContent = styled.div`
@@ -127,18 +127,18 @@ const MainContent = styled.div`
   border-radius: 0;
   margin-left: 0;
   box-shadow: none;
-  overflow: hidden;
+  overflow: visible;
   position: relative;
   z-index: 1;
   visibility: visible !important;
   opacity: 1 !important;
-  min-height: 400px !important; /* Добавлено для предотвращения сжатия */
+  min-height: 0;
 `;
 
 const ChatHeader = styled.div`
-  background: linear-gradient(180deg, rgba(30, 30, 30, 0.95) 0%, rgba(25, 25, 25, 0.9) 100%);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
   color: rgba(240, 240, 240, 1);
   padding: ${theme.spacing.lg} ${theme.spacing.xl};
   text-align: center;
@@ -267,8 +267,8 @@ const ChatMessagesArea = styled.div`
   flex: 1;
   display: flex !important;
   flex-direction: column;
-  overflow: hidden;
-  min-height: 300px !important; /* Было min-height: 0 - сжимало контейнер */
+  overflow: visible;
+  min-height: 0;
   max-height: 100%;
   background: transparent;
   border: none;
@@ -295,12 +295,11 @@ const ChatContentWrapper = styled.div`
   padding: 0;
   visibility: visible !important;
   opacity: 1 !important;
-  overflow: hidden;
+  overflow: visible;
   width: 100%;
 
   @media (max-width: 1280px) {
     flex-direction: column;
-    overflow-y: auto;
   }
 `;
 
@@ -328,9 +327,9 @@ const GenerationQueueIndicator = styled.div`
   flex-direction: row;
   gap: 4px;
   padding: 8px 12px;
-  background: rgba(30, 30, 30, 0.8);
+  background: rgba(40, 40, 40, 0.4);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(100, 100, 100, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: ${theme.borderRadius.md};
   align-items: center;
   justify-content: center;
@@ -385,10 +384,10 @@ const PaidAlbumPanel = styled.div`
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  background: rgba(18, 18, 18, 0.9);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(50, 50, 50, 0.6);
+  background: rgba(18, 18, 18, 0.6);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   padding: ${theme.spacing.xl} ${theme.spacing.lg};
   box-shadow: 
@@ -583,6 +582,8 @@ interface Character {
   avatar?: string;
   character_appearance?: string;
   location?: string;
+  voice_url?: string;
+  voice_id?: string;  // ID голоса из папки default_character_voices
   user_id?: number;
   raw?: any; // Исходные данные персонажа из API
   likes?: number;
@@ -1430,16 +1431,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     try {
       // Проверяем, что identifier не пустой
       if (!characterIdentifier || characterIdentifier.trim() === '') {
-        
+        console.log('[loadCharacterData] Пустой identifier, выход');
         return;
       }
       
       // Проверяем, не загружаем ли мы уже этого персонажа
       if (isLoadingCharacterDataRef.current === characterIdentifier) {
-        
+        console.log('[loadCharacterData] Уже загружаем этого персонажа, выход');
         return;
       }
       
+      console.log('[loadCharacterData] Начинаем загрузку персонажа:', characterIdentifier);
       isLoadingCharacterDataRef.current = characterIdentifier;
       
       const safeIdentifier = encodeURIComponent(characterIdentifier);
@@ -1455,6 +1457,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       
       if (response.ok) {
         const characterData = await response.json();
+        console.log('[loadCharacterData] Получены данные персонажа:', {
+          name: characterData.name,
+          voice_id: characterData.voice_id,
+          voice_url: characterData.voice_url
+        });
+        
         const situation = extractRolePlayingSituation(characterData.prompt || '');
         setCharacterSituation(situation);
         
@@ -1477,6 +1485,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             user_id: characterData.user_id || (currentCharacter as any).user_id,
             character_appearance: characterData.character_appearance || '',
             location: characterData.location || '',
+            voice_url: characterData.voice_url,
+            voice_id: characterData.voice_id,
             raw: characterData // Сохраняем raw данные для правильной работы с именем
         } : {
           id: characterId || characterData.id?.toString() || '',
@@ -1487,6 +1497,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           user_id: characterData.user_id,
             character_appearance: characterData.character_appearance || '',
             location: characterData.location || '',
+            voice_url: characterData.voice_url,
+            voice_id: characterData.voice_id,
             raw: characterData // Сохраняем raw данные для правильной работы с именем
           };
         
@@ -1499,17 +1511,34 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         const newRawName = updatedCharacter.raw?.name;
         
         // Обновляем только если данные действительно изменились
+        // КРИТИЧНО: Также проверяем изменение voice_id и voice_url
+        const currentVoiceId = currentCharacter?.voice_id;
+        const newVoiceId = updatedCharacter.voice_id;
+        const currentVoiceUrl = currentCharacter?.voice_url;
+        const newVoiceUrl = updatedCharacter.voice_url;
+        
         const hasChanged = 
           currentId !== newId || 
           currentName !== newName || 
           currentRawName !== newRawName ||
+          currentVoiceId !== newVoiceId ||
+          currentVoiceUrl !== newVoiceUrl ||
           !currentCharacter; // Или если персонаж еще не загружен
         
         if (hasChanged) {
-          
+          console.log('[loadCharacterData] Обновляем currentCharacter:', {
+            voice_id: updatedCharacter.voice_id,
+            voice_url: updatedCharacter.voice_url,
+            changed_fields: {
+              id: currentId !== newId,
+              name: currentName !== newName,
+              voice_id: currentVoiceId !== newVoiceId,
+              voice_url: currentVoiceUrl !== newVoiceUrl
+            }
+          });
           setCurrentCharacter(updatedCharacter);
         } else {
-          
+          console.log('[loadCharacterData] Данные не изменились, пропускаем обновление');
         }
         
         // Сбрасываем флаг загрузки после успешной загрузки
@@ -1611,6 +1640,48 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]); // currentCharacter не в зависимостях, чтобы избежать циклов
+
+  // Обработчик события обновления персонажа
+  useEffect(() => {
+    const handleCharacterUpdated = (event: CustomEvent) => {
+      const { characterName, characterId } = event.detail || {};
+      
+      console.log('[ChatContainer] Получено событие character-updated:', { characterName, characterId });
+      console.log('[ChatContainer] Текущий персонаж:', {
+        currentName: currentCharacter?.raw?.name || currentCharacter?.name,
+        currentId: currentCharacter?.raw?.id || currentCharacter?.id,
+        voice_id: currentCharacter?.voice_id,
+        voice_url: currentCharacter?.voice_url
+      });
+      
+      // Проверяем, что это обновление текущего персонажа
+      const currentName = currentCharacter?.raw?.name || currentCharacter?.name;
+      const currentId = currentCharacter?.raw?.id || currentCharacter?.id;
+      
+      if ((characterName && currentName && characterName === currentName) || 
+          (characterId && currentId && String(characterId) === String(currentId))) {
+        console.log('[ChatContainer] Обновляем данные персонажа после редактирования');
+        
+        // Сбрасываем флаг загрузки, чтобы разрешить повторную загрузку
+        isLoadingCharacterDataRef.current = null;
+        
+        // Принудительно перезагружаем данные персонажа
+        const identifier = characterName || characterId?.toString() || currentName;
+        if (identifier) {
+          console.log('[ChatContainer] Вызываем loadCharacterData для:', identifier);
+          loadCharacterData(identifier);
+        }
+      } else {
+        console.log('[ChatContainer] Событие не для текущего персонажа, игнорируем');
+      }
+    };
+
+    window.addEventListener('character-updated', handleCharacterUpdated as EventListener);
+    
+    return () => {
+      window.removeEventListener('character-updated', handleCharacterUpdated as EventListener);
+    };
+  }, [currentCharacter, loadCharacterData]);
 
   const [isImagePromptModalOpen, setIsImagePromptModalOpen] = useState(false);
   const [isPhotoGenerationHelpModalOpen, setIsPhotoGenerationHelpModalOpen] = useState(false);
@@ -3771,12 +3842,35 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         <ChatContentWrapper>
           <ChatMessagesArea style={{ zIndex: 10, position: 'relative' }}>
             <ChatArea 
+              onSendMessage={handleSendMessage}
               messages={uniqueMessages}
               isLoading={isLoading}
               isGeneratingImage={activeGenerations.size > 0}
               characterSituation={characterSituation ?? undefined}
               characterName={characterForRender?.name || ''}
               characterAvatar={characterPhotos && characterPhotos.length > 0 ? characterPhotos[0] : undefined}
+              voiceUrl={(() => {
+                const voiceUrl = currentCharacter?.voice_id 
+                  ? `/default_character_voices/${currentCharacter.voice_id}` 
+                  : currentCharacter?.voice_url;
+                console.log('🔊 [ChatContainer] ПЕРЕДАЧА ДАННЫХ В ChatArea:', {
+                  totalMessages: uniqueMessages.length,
+                  messagesDetails: uniqueMessages.map(m => ({
+                    id: m.id,
+                    type: m.type,
+                    role: (m as any).role,
+                    hasContent: !!m.content,
+                    contentPreview: m.content?.substring(0, 50),
+                    hasImage: !!m.imageUrl
+                  })),
+                  voice_id: currentCharacter?.voice_id,
+                  voice_url: currentCharacter?.voice_url,
+                  computed_voiceUrl: voiceUrl,
+                  characterName: characterForRender?.name,
+                  isAuthenticated
+                });
+                return voiceUrl;
+              })()}
               userAvatar={userInfo?.avatar_url || undefined}
               userUsername={userInfo?.username || undefined}
               userEmail={userInfo?.email || undefined}

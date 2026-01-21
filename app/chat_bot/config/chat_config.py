@@ -141,13 +141,13 @@ class ChatConfig(BaseSettings):
     # --- базовые параметры генерации (оптимизированы для Cydonia-24B) ---
     DEFAULT_MAX_TOKENS: int = Field(
         default=600, 
-        description="Лимит токенов по умолчанию (для FREE подписки)"
+        description="Лимит токенов по умолчанию - длина одного ответа (600 токенов максимум для всех)"
     )
     
     # Дополнительные лимиты для контроля
     HARD_MAX_TOKENS: int = Field(
-        default=800,
-        description="Жесткий лимит для PREMIUM подписки"
+        default=600,
+        description="Жесткий лимит - длина одного ответа (600 токенов максимум для всех)"
     )
     
     WARNING_THRESHOLD: int = Field(
@@ -295,10 +295,14 @@ class ChatConfig(BaseSettings):
         description="Только EOS-токен для естественного завершения без прерывания"
     )
 
-    # --- контекст / длина (оптимизировано для больших моделей) ---
+    # --- контекст / длина (зависит от подписки) ---
     MAX_HISTORY_LENGTH: int = Field(
         default=16000, 
-        description="Максимальная длина истории в токенах (согласно тарифу Premium)"
+        description="Максимальная длина истории в токенах для PREMIUM подписки"
+    )
+    STANDARD_HISTORY_LENGTH: int = Field(
+        default=8000,
+        description="Длина истории в токенах для STANDARD подписки"
     )
     MAX_MESSAGE_LENGTH: int = Field(
         default=10000, 

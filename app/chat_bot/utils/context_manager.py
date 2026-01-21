@@ -67,15 +67,13 @@ def get_max_tokens(subscription_type: Optional[SubscriptionType]) -> int:
         subscription_type: Тип подписки пользователя
 
     Returns:
-        Максимальное количество токенов для генерации
+        Максимальное количество токенов для генерации (максимум 600)
     """
-    if subscription_type == SubscriptionType.PREMIUM:
-        return 1024
-    elif subscription_type == SubscriptionType.STANDARD:
-        return 600
-    else:
-        # FREE или отсутствие подписки - 350 токенов для ответа
-        return 350
+    # ОГРАНИЧЕНИЕ: 600 токенов максимум для всех подписок
+    from app.chat_bot.config.chat_config import chat_config
+    max_tokens = chat_config.DEFAULT_MAX_TOKENS
+    # Гарантируем, что значение не превышает 600
+    return min(max_tokens, 600)
 
 
 def get_max_image_prompt_tokens(subscription_type: Optional[SubscriptionType]) -> int:
@@ -187,11 +185,22 @@ async def trim_messages_to_token_limit(
     system_tokens = count_message_tokens(system_message)
     available_tokens = max_tokens - system_tokens
 
+    logger.info(
+        f"\n{'='*80}\n"
+        f"[КОНТЕКСТ] 📊 Анализ памяти диалога:\n"
+        f"  ├─ Лимит контекста: {max_tokens} токенов\n"
+        f"  ├─ System prompt: {system_tokens} токенов\n"
+        f"  ├─ Доступно для истории: {available_tokens} токенов\n"
+        f"  └─ Сообщений в БД: {len(history_messages)} шт."
+    )
+
     if available_tokens <= 0:
+        logger.warning("[КОНТЕКСТ] ⚠️ Нет места для истории - отправляем только system prompt")
         return [system_message]
 
     # Если история пуста, возвращаем только system message
     if not history_messages:
+        logger.info("[КОНТЕКСТ] ℹ️ История пуста - первое сообщение в диалоге")
         return [system_message]
 
     # Подсчитываем токены для всей истории
@@ -199,15 +208,23 @@ async def trim_messages_to_token_limit(
 
     # Если история укладывается в лимит, возвращаем все
     if total_history_tokens <= available_tokens:
+        total_tokens = system_tokens + total_history_tokens
         logger.info(
-            f"[CONTEXT] История укладывается в лимит: "
-            f"{total_history_tokens}/{available_tokens} токенов, "
-            f"{len(history_messages)} сообщений"
+            f"[КОНТЕКСТ] ✅ Вся история влезла в лимит:\n"
+            f"  ├─ Токенов истории: {total_history_tokens}/{available_tokens}\n"
+            f"  ├─ Сообщений отправлено: {len(history_messages)} шт.\n"
+            f"  └─ ИТОГО в API: {total_tokens}/{max_tokens} токенов ({int(total_tokens/max_tokens*100)}%)\n"
+            f"{'='*80}"
         )
         return [system_message] + history_messages
 
     # Нужно обрезать историю: удаляем самые старые сообщения
-    # (первые после system message)
+    logger.warning(
+        f"[КОНТЕКСТ] ⚠️ История НЕ влезла! Нужна обрезка:\n"
+        f"  ├─ Токенов в БД: {total_history_tokens}\n"
+        f"  └─ Лимит: {available_tokens} (превышение на {total_history_tokens - available_tokens} токенов)"
+    )
+    
     trimmed_history = []
     current_tokens = 0
     removed_count = 0
@@ -229,16 +246,17 @@ async def trim_messages_to_token_limit(
         current_tokens -= removed_tokens
         removed_count += 1
 
-    if removed_count > 0:
-        logger.warning(
-            f"[CONTEXT] История ОБРЕЗАНА! Удалено {removed_count} из {original_history_count} сообщений. "
-            f"Текущий контекст: {current_tokens + system_tokens}/{max_tokens} токенов."
-        )
-    else:
-        logger.info(
-            f"[CONTEXT] Контекст в норме: {current_tokens + system_tokens}/{max_tokens} токенов. "
-            f"Сообщений в истории: {len(trimmed_history)}"
-        )
+    kept_count = len(trimmed_history)
+    total_tokens = system_tokens + current_tokens
+    
+    logger.warning(
+        f"[КОНТЕКСТ] 🔪 Обрезка завершена:\n"
+        f"  ├─ Удалено старых сообщений: {removed_count} шт.\n"
+        f"  ├─ Оставлено новых сообщений: {kept_count} шт.\n"
+        f"  ├─ Токенов истории: {current_tokens}/{available_tokens}\n"
+        f"  └─ ИТОГО в API: {total_tokens}/{max_tokens} токенов ({int(total_tokens/max_tokens*100)}%)\n"
+        f"{'='*80}"
+    )
 
     # Возвращаем системное сообщение + обрезанную историю
     result = [system_message] + trimmed_history

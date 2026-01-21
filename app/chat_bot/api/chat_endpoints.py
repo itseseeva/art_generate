@@ -20,6 +20,9 @@ from app.auth.dependencies import get_current_user_optional
 from app.models.user import Users
 from app.database.db_depends import get_db
 from app.chat_bot.models.models import CharacterDB, ChatSession, ChatMessageDB
+from app.chat_bot.schemas.chat import TTSRequest, VoicePreviewRequest
+from app.services.tts_service import generate_tts_audio, generate_voice_preview
+from app.services.coins_service import CoinsService
 
 logger = logging.getLogger(__name__)
 
@@ -568,24 +571,36 @@ async def chat_with_character_stream(
                     subscription_type=subscription_type_enum,
                     model=model_used
                 ):
-                    # Проверяем на ошибку
-                    if chunk.startswith('{"error"'):
-                        error_data = json.loads(chunk)
-                        error_msg = error_data.get("error", "Unknown error")
+                    try:
+                        # Проверяем на ошибку
+                        if chunk.startswith('{"error"'):
+                            error_data = json.loads(chunk)
+                            error_msg = error_data.get("error", "Unknown error")
+                            
+                            if error_msg == "__CONNECTION_ERROR__":
+                                yield f"data: {json.dumps({'error': 'Сервис генерации текста недоступен'})}\n\n"
+                                return
+                            else:
+                                yield f"data: {json.dumps({'error': error_msg})}\n\n"
+                                return
                         
-                        if error_msg == "__CONNECTION_ERROR__":
-                            yield f"data: {json.dumps({'error': 'Сервис генерации текста недоступен'})}\n\n"
-                            return
-                        else:
-                            yield f"data: {json.dumps({'error': error_msg})}\n\n"
-                            return
-                    
-                    # Отправляем чанк как SSE событие
-                    full_response += chunk
-                    yield f"data: {json.dumps({'content': chunk})}\n\n"
+                        # Отправляем чанк как SSE событие
+                        full_response += chunk
+                        yield f"data: {json.dumps({'content': chunk})}\n\n"
+                    except (ConnectionResetError, BrokenPipeError, OSError) as conn_error:
+                        # Обрабатываем ошибки разрыва соединения (нормально для Windows)
+                        logger.debug(f"[CHAT STREAM] Соединение разорвано клиентом: {conn_error}")
+                        return
+                    except Exception as yield_error:
+                        logger.error(f"[CHAT STREAM] Ошибка при отправке чанка: {yield_error}")
+                        # Продолжаем обработку, не прерывая поток
                 
                 # Отправляем маркер завершения
-                yield f"data: {json.dumps({'done': True})}\n\n"
+                try:
+                    yield f"data: {json.dumps({'done': True})}\n\n"
+                except (ConnectionResetError, BrokenPipeError, OSError) as conn_error:
+                    logger.debug(f"[CHAT STREAM] Соединение разорвано клиентом при отправке маркера завершения: {conn_error}")
+                    return
                 
                 # Сохраняем диалог в базу данных после завершения стриминга
                 try:
@@ -635,9 +650,16 @@ async def chat_with_character_stream(
                     logger.error(f"[CHAT STREAM] Ошибка сохранения диалога: {e}")
                     # Не прерываем стриминг из-за ошибки сохранения
                 
+            except (ConnectionResetError, BrokenPipeError, OSError) as conn_error:
+                logger.debug(f"[CHAT STREAM] Соединение разорвано клиентом: {conn_error}")
+                return
             except Exception as e:
                 logger.error(f"[CHAT STREAM] Ошибка в генераторе SSE: {e}")
-                yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                try:
+                    yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                except (ConnectionResetError, BrokenPipeError, OSError):
+                    logger.debug(f"[CHAT STREAM] Соединение разорвано клиентом при отправке ошибки")
+                    return
         
         # Возвращаем StreamingResponse с SSE
         return StreamingResponse(
@@ -655,3 +677,88 @@ async def chat_with_character_stream(
     except Exception as e:
         logger.error(f"[CHAT STREAM] Критическая ошибка: {e}")
         raise HTTPException(status_code=500, detail=f"Ошибка стриминга: {str(e)}")
+
+
+@router.post("/generate_voice")
+async def generate_voice(
+    request: TTSRequest,
+    current_user: Users = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Генерация речи для сообщения.
+    """
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Требуется авторизация")
+        
+    try:
+        coins_service = CoinsService(db)
+        
+        # Проверяем баланс перед генерацией
+        cost = coins_service.calculate_tts_cost(request.text)
+        if not await coins_service.can_user_afford(current_user.id, cost):
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Недостаточно монет. Требуется: {cost}, у вас: {current_user.coins}"
+            )
+        
+        audio_path = await generate_tts_audio(request.text, request.voice_url)
+        
+        if not audio_path:
+            raise HTTPException(status_code=500, detail="Не удалось сгенерировать аудио")
+            
+        # Списываем монеты после успешной генерации
+        await coins_service.spend_coins(current_user.id, cost, commit=True)
+        
+        # Формируем URL для фронтенда
+        import os
+        file_name = os.path.basename(audio_path)
+        audio_url = f"/voices/{file_name}"
+        
+        return {
+            "status": "success",
+            "audio_url": audio_url,
+            "cost": cost,
+            "remaining_coins": current_user.coins
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка в generate_voice: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/preview-voice")
+async def preview_voice(request: VoicePreviewRequest):
+    """
+    Генерация превью голоса из папки default_character_voices.
+    
+    Озвучивает стандартную фразу приветствия выбранным голосом:
+    "Ммм... Наконец-то ты здесь. Я так долго ждала возможности поговорить с тобой наедине.
+    Я здесь, чтобы исполнить любой твой приказ. Ну что, приступим?"
+    
+    Результат кэшируется для избежания повторной генерации.
+    """
+    try:
+        logger.info(f"Запрос на превью голоса: {request.voice_id}")
+        
+        audio_path = await generate_voice_preview(request.voice_id, request.text)
+        
+        if not audio_path:
+            raise HTTPException(status_code=500, detail="Не удалось сгенерировать превью голоса")
+            
+        # Формируем URL для фронтенда
+        # Путь возвращается относительно BASE_DIR (app/voices/preview_xxx.mp3)
+        # Нам нужно сделать его доступным через HTTP (/voices/preview_xxx.mp3)
+        import os
+        file_name = os.path.basename(audio_path)
+        audio_url = f"/voices/{file_name}"
+        
+        return {
+            "status": "success",
+            "audio_url": audio_url,
+            "voice_id": request.voice_id
+        }
+    except Exception as e:
+        logger.error(f"Ошибка в preview_voice: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

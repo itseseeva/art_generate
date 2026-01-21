@@ -2038,9 +2038,19 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                       </>
                     );
                   } else {
+                    const hasGeneratedPhotos = generatedPhotos && generatedPhotos.length > 0;
+                    const modelDisplayNames = {
+                      'anime-realism': 'Аниме + Реализм',
+                      'anime': 'Аниме',
+                      'realism': 'Реализм'
+                    };
+                    const currentModelName = modelDisplayNames[selectedModel] || selectedModel;
+                    
+                    const actionText = hasGeneratedPhotos ? 'Сгенерировать ещё' : 'Сгенерировать фото';
                     const baseText = isQueueFull 
-                      ? `Сгенерировать фото (10 монет) • Очередь заполнена`
-                      : `Сгенерировать фото (10 монет)`;
+                      ? `${actionText} (${currentModelName}) (10 монет) • Очередь заполнена`
+                      : `${actionText} (${currentModelName}) (10 монет)`;
+                    
                     return (
                       <>
                         <Sparkles size={20} /> {baseText}

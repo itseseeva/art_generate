@@ -724,10 +724,11 @@ export const ShopPage: React.FC<any> = ({
               <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> Глубокая память (16 000 токенов)</FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> Сохранение истории сообщений</FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> Создание платных альбомов</FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> Доступ ко всем платным альбомам</FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> <span style={{color: '#ef4444'}}>Доступ ко всем платным альбомам</span></FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> Доступ ко всем галереям пользователей</FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> Выбор модели (PREMIUM могут выбрать модель сами)</FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> Выбор модели (PREMIUM могут выбрать текстовые модели сами)</FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> <span style={{color: '#ef4444'}}>Приоритет в очереди генерации</span></FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> <span style={{color: '#ef4444'}}>Возможность загружать свои голоса для озвучки</span></FeatureItem>
             </FeaturesList>
 
             <CheckoutButton 

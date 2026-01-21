@@ -6,6 +6,7 @@ from .image_generation_history import ImageGenerationHistory
 from .balance_history import BalanceHistory
 from .character_comment import CharacterComment
 from .bug_report import BugReport, BugComment
+from .user_voice import UserVoice
 
 __all__ = [
     "Users", "RefreshToken", "EmailVerificationCode",
@@ -13,5 +14,6 @@ __all__ = [
     "UserGalleryUnlock", "PaymentTransaction",
     "ImageGenerationHistory", "BalanceHistory",
     "CharacterComment",
-    "BugReport", "BugComment"
+    "BugReport", "BugComment",
+    "UserVoice"
 ]

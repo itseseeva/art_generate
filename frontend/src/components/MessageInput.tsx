@@ -3,13 +3,16 @@ import styled from 'styled-components';
 import { theme } from '../theme';
 import Dock from './Dock';
 import type { DockItemData } from './Dock';
-import { FiSend, FiImage, FiTrash2 } from 'react-icons/fi';
+import { FiSend, FiImage, FiTrash2, FiSettings, FiHelpCircle, FiMessageSquare, FiHeart } from 'react-icons/fi';
+import { Bot } from 'lucide-react';
 
 import { useIsMobile } from '../hooks/useIsMobile';
 
 const InputContainer = styled.div<{ $isMobile?: boolean }>`
   padding: ${props => props.$isMobile ? '0.5rem' : theme.spacing.lg};
-  background: ${props => props.$isMobile ? 'rgba(10, 10, 10, 0.95)' : 'transparent'};
+  background: ${props => props.$isMobile ? 'rgba(10, 10, 10, 0.7)' : 'rgba(0, 0, 0, 0.2)'};
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
   border-top: ${props => props.$isMobile ? '1px solid rgba(255, 255, 255, 0.1)' : 'none'};
   display: flex;
   flex-direction: column;
@@ -25,25 +28,37 @@ const InputWrapper = styled.div<{ $isMobile?: boolean }>`
   flex-direction: ${props => props.$isMobile ? 'column' : 'row'};
   gap: ${theme.spacing.md};
   align-items: ${props => props.$isMobile ? 'stretch' : 'flex-end'};
-  max-width: 100%;
+  max-width: ${props => props.$isMobile ? '100%' : '1000px'}; /* Ограничим ширину на десктопе для эстетики */
+  margin: 0 auto;
+  width: 100%;
   background: transparent;
   border: none;
   box-shadow: none;
-  margin: 0;
   padding: 0;
 `;
 
 const LanguageToggle = styled.div`
   display: flex;
   gap: 4px;
-  background: rgba(25, 25, 25, 0.8);
-  border: 1px solid rgba(50, 50, 50, 0.6);
+  background: rgba(25, 25, 25, 0.6);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border: 1px solid rgba(50, 50, 50, 0.5);
   border-radius: ${theme.borderRadius.md};
   padding: 4px;
-  backdrop-filter: blur(15px);
+  height: fit-content;
+  position: absolute;
+  left: ${theme.spacing.lg};
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 11;
 
   @media (max-width: 768px) {
     padding: 2px;
+    position: static;
+    transform: none;
+    left: auto;
+    top: auto;
   }
 `;
 
@@ -89,15 +104,28 @@ const TextAreaWrapper = styled.div<{ $isMobile?: boolean }>`
   width: 100%;
   position: relative;
   z-index: ${props => props.$isMobile ? 2 : 1};
+  background: ${props => props.$isMobile ? 'transparent' : 'rgba(30, 30, 30, 0.4)'};
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border-radius: 24px;
+  padding: ${props => props.$isMobile ? '0' : '4px'};
+  border: ${props => props.$isMobile ? 'none' : '1px solid rgba(255, 255, 255, 0.1)'};
+  transition: all 0.3s ease;
+
+  &:focus-within {
+     border-color: rgba(236, 72, 153, 0.5);
+     box-shadow: 0 0 15px rgba(236, 72, 153, 0.1);
+     background: ${props => props.$isMobile ? 'transparent' : 'rgba(40, 40, 40, 0.6)'};
+  }
 `;
 
 const TextArea = styled.textarea<{ $isDisabled: boolean; $isMobile?: boolean }>`
   flex: 1;
-  min-height: ${props => props.$isMobile ? '34px' : '80px'};
+  min-height: ${props => props.$isMobile ? '34px' : '50px'}; /* Чуть выше дефолт */
   max-height: ${props => props.$isMobile ? '120px' : '200px'};
-  padding: ${props => props.$isMobile ? '6px 12px' : theme.spacing.lg};
-  background: rgba(25, 25, 25, 0.8);
-  border: 1px solid rgba(50, 50, 50, 0.6);
+  padding: ${props => props.$isMobile ? '6px 12px' : '14px 20px'};
+  background: transparent; /* Фон теперь на Wrapper */
+  border: none;
   border-radius: ${theme.borderRadius.xl};
   color: rgba(240, 240, 240, 1);
   font-size: ${props => props.$isMobile ? '0.9rem' : theme.fontSize.base};
@@ -105,29 +133,17 @@ const TextArea = styled.textarea<{ $isDisabled: boolean; $isMobile?: boolean }>`
   resize: none;
   transition: all 0.3s ease;
   opacity: ${props => props.$isDisabled ? 0.6 : 1};
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  box-shadow: 
-    0 4px 16px rgba(0, 0, 0, 0.4), 
-    inset 0 1px 2px rgba(255, 255, 255, 0.05);
   width: 100%;
   box-sizing: border-box;
   position: relative;
   z-index: ${props => props.$isMobile ? 2 : 1};
 
   &:focus {
-    border-color: rgba(80, 80, 80, 0.8);
-    box-shadow: 
-      0 0 0 2px rgba(60, 60, 60, 0.3), 
-      0 8px 24px rgba(0, 0, 0, 0.5), 
-      inset 0 1px 2px rgba(255, 255, 255, 0.1);
     outline: none;
-    background: rgba(30, 30, 30, 0.9);
   }
   
   &::placeholder {
     color: rgba(140, 140, 140, 0.6);
-    font-style: italic;
   }
   
   &:disabled {
@@ -137,21 +153,44 @@ const TextArea = styled.textarea<{ $isDisabled: boolean; $isMobile?: boolean }>`
   
   /* Прокрутка */
   &::-webkit-scrollbar {
-    width: 8px;
+    width: 6px;
   }
   
   &::-webkit-scrollbar-track {
-    background: rgba(20, 20, 20, 0.3);
-    border-radius: ${theme.borderRadius.md};
+    background: transparent;
   }
   
   &::-webkit-scrollbar-thumb {
-    background: rgba(80, 80, 80, 0.6);
-    border-radius: ${theme.borderRadius.md};
-    
-    &:hover {
-      background: rgba(100, 100, 100, 0.8);
-    }
+    background: rgba(80, 80, 80, 0.4);
+    border-radius: 10px;
+  }
+`;
+
+// Кнопка отправки для Desktop
+const SendButtonDesktop = styled.button<{ $disabled?: boolean }>`
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: ${props => props.$disabled ? '#333' : '#db2777'}; /* Pink-600 */
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: ${props => props.$disabled ? 'not-allowed' : 'pointer'};
+  transition: all 0.2s ease;
+  margin: 2px;
+  flex-shrink: 0;
+  box-shadow: ${props => props.$disabled ? 'none' : '0 4px 12px rgba(219, 39, 119, 0.3)'};
+
+  &:hover:not(:disabled) {
+    background: #ec4899; /* Pink-500 */
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(236, 72, 153, 0.6);
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.95);
   }
 `;
 
@@ -248,6 +287,46 @@ const DockWrapper = styled.div`
   opacity: 1;
 `;
 
+const AnimatedBotIcon = styled(Bot)`
+  animation: pulse-glow 2s ease-in-out infinite;
+  filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.6));
+  
+  @keyframes pulse-glow {
+    0%, 100% {
+      opacity: 1;
+      filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.6));
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.9;
+      filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.9));
+      transform: scale(1.05);
+    }
+  }
+  
+  &:hover {
+    animation: none;
+    filter: drop-shadow(0 0 12px rgba(59, 130, 246, 1));
+    transform: scale(1.1);
+    transition: all 0.3s ease;
+  }
+`;
+
+const AnimatedIconWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  svg {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  &:hover svg {
+    transform: scale(1.15) rotate(5deg);
+    filter: drop-shadow(0 2px 8px rgba(255, 255, 255, 0.3));
+  }
+`;
+
 interface MessageInputProps {
   onSendMessage: (message: string) => void;
   onGenerateImage?: (message?: string) => void;
@@ -304,7 +383,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit;
+      handleSubmit(e);
     }
   };
 
@@ -317,7 +396,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   const handleImageGeneration = () => {
     if (!disableImageGeneration && onGenerateImage) {
-      // Вызываем без параметра - откроется модалка с предзаполненным промптом
       onGenerateImage();
       setMessage('');
     }
@@ -336,44 +414,39 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   const dockItems: DockItemData[] = [
+    // Убрали кнопку Send отсюда для десктопа, она теперь в Input
     {
-      icon: <FiSend size={20} />,
-      label: 'Отправить',
-      onClick: handleSend,
-      className: disabled || !message.trim() ? 'disabled' : ''
-    },
-    {
-      icon: <FiImage size={20} />,
+      icon: <AnimatedIconWrapper><FiImage size={20} /></AnimatedIconWrapper>,
       label: 'Сгенерировать изображение',
       onClick: handleImageGeneration,
       className: disableImageGeneration || !onGenerateImage ? 'disabled' : ''
     },
     ...(onShowHelp ? [{
-      icon: <span style={{ fontSize: '24px', fontWeight: 600, color: 'white' }}>?</span>,
-      label: 'Помощь по генерации фото',
+      icon: <AnimatedIconWrapper><FiHelpCircle size={22} /></AnimatedIconWrapper>,
+      label: 'Помощь',
       onClick: handleShowHelp,
       className: disabled ? 'disabled' : ''
     }] : []),
     ...(onClearChat && hasMessages ? [{
-      icon: <FiTrash2 size={20} />,
+      icon: <AnimatedIconWrapper><FiTrash2 size={20} /></AnimatedIconWrapper>,
       label: 'Очистить историю',
       onClick: handleClear,
       className: ''
     }] : []),
     ...(onTipCreator ? [{
-      icon: <span style={{ fontSize: '20px' }}>💝</span>,
+      icon: <AnimatedIconWrapper><FiHeart size={20} color="#ec4899" /></AnimatedIconWrapper>,
       label: 'Поблагодарить',
       onClick: onTipCreator,
       className: '' 
     }] : []),
     ...(onShowComments ? [{
-      icon: <span style={{ fontSize: '20px' }}>💬</span>,
+      icon: <AnimatedIconWrapper><FiMessageSquare size={20} /></AnimatedIconWrapper>,
       label: 'Комментарии',
       onClick: onShowComments,
       className: '' 
     }] : []),
     ...(onSelectModel ? [{
-      icon: <span style={{ fontSize: '18px', fontWeight: 600 }}>🤖</span>,
+      icon: <AnimatedBotIcon size={20} color="rgba(59, 130, 246, 0.9)" />,
       label: 'Выбрать модель',
       onClick: onSelectModel,
       className: '' 
@@ -382,39 +455,38 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   return (
     <InputContainer $isMobile={isMobile}>
-      <form onSubmit={handleSubmit} style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
+      <form onSubmit={handleSubmit} style={{ width: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+        {!isMobile && (
+          <LanguageToggle>
+            <LanguageButton
+              type="button"
+              $isActive={targetLanguage === 'ru'}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onLanguageChange && onLanguageChange('ru');
+              }}
+              disabled={disabled}
+              title="Русский язык"
+            >
+              RU
+            </LanguageButton>
+            <LanguageButton
+              type="button"
+              $isActive={targetLanguage === 'en'}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onLanguageChange && onLanguageChange('en');
+              }}
+              disabled={disabled}
+              title="English language"
+            >
+              EN
+            </LanguageButton>
+          </LanguageToggle>
+        )}
         <InputWrapper $isMobile={isMobile}>
-          {!isMobile && (
-            <LanguageToggle>
-              <LanguageButton
-                type="button"
-                $isActive={targetLanguage === 'ru'}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onLanguageChange && onLanguageChange('ru');
-                }}
-                disabled={disabled}
-                title="Русский язык"
-              >
-                RU
-              </LanguageButton>
-              <LanguageButton
-                type="button"
-                $isActive={targetLanguage === 'en'}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onLanguageChange && onLanguageChange('en');
-                }}
-                disabled={disabled}
-                title="English language"
-              >
-                EN
-              </LanguageButton>
-            </LanguageToggle>
-          )}
-          
           <TextAreaWrapper $isMobile={isMobile}>
             <TextArea
               ref={textareaRef}
@@ -427,7 +499,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               $isMobile={isMobile}
               rows={1}
             />
-            {isMobile && (
+            {isMobile ? (
               <IconButton 
                 type="button" 
                 onClick={handleSend} 
@@ -439,6 +511,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               >
                 <FiSend size={22} />
               </IconButton>
+            ) : (
+              <SendButtonDesktop 
+                type="submit" 
+                onClick={(e) => { e.preventDefault(); handleSend(); }} 
+                $disabled={disabled || !message.trim()}
+              >
+                <FiSend size={20} style={{ marginLeft: '2px' }} />
+              </SendButtonDesktop>
             )}
           </TextAreaWrapper>
           
@@ -475,7 +555,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 {onSelectModel && (
                   <MobileIconButton type="button" onClick={onSelectModel} title="Выбрать модель">
                     <MobileButtonLabel>Модель</MobileButtonLabel>
-                    <span style={{ fontSize: '20px' }}>🤖</span>
+                    <AnimatedBotIcon size={20} color="rgba(59, 130, 246, 0.9)" />
                   </MobileIconButton>
                 )}
                 {onGenerateImage && (
@@ -492,19 +572,19 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 {onShowHelp && (
                   <MobileIconButton type="button" onClick={handleShowHelp} title="Помощь">
                     <MobileButtonLabel>Помощь</MobileButtonLabel>
-                    <span style={{ fontSize: '24px', fontWeight: 600, color: 'white' }}>?</span>
+                    <FiHelpCircle size={24} />
                   </MobileIconButton>
                 )}
                 {onTipCreator && (
                   <MobileIconButton type="button" onClick={onTipCreator} title="Поблагодарить">
                     <MobileButtonLabel>Донат</MobileButtonLabel>
-                    <span style={{ fontSize: '20px' }}>💝</span>
+                    <FiHeart size={20} color="#ec4899" />
                   </MobileIconButton>
                 )}
                 {onShowComments && (
                   <MobileIconButton type="button" onClick={onShowComments} title="Комментарии">
                     <MobileButtonLabel>Чат</MobileButtonLabel>
-                    <span style={{ fontSize: '20px' }}>💬</span>
+                    <FiMessageSquare size={20} />
                   </MobileIconButton>
                 )}
                 {onClearChat && hasMessages && (
@@ -519,11 +599,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             <DockWrapper>
               <Dock 
                 items={dockItems}
-                baseItemSize={48}
-                magnification={56}
-                distance={150}
-                panelHeight={60}
-                dockHeight={80}
+                baseItemSize={40} /* Чуть меньше размер, так как основная кнопка ушла */
+                magnification={50}
+                distance={100}
+                panelHeight={50}
+                dockHeight={60}
               />
             </DockWrapper>
           )}

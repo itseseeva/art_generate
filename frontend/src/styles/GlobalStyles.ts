@@ -17,11 +17,7 @@ export const GlobalStyles = createGlobalStyle`
 
   body {
     font-family: 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-    background-image: url('/background.png');
-    background-size: cover;
-    background-position: center;
-    background-attachment: fixed;
-    background-repeat: no-repeat;
+    background: transparent;
     color: ${theme.colors.text.primary};
     line-height: 1.6;
     height: 100vh; /* Используем viewport height */
@@ -37,6 +33,7 @@ export const GlobalStyles = createGlobalStyle`
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    background: transparent;
   }
 
   /* Стилизация скроллбара - черно-серый стиль */
