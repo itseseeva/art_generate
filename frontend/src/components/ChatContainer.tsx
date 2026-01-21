@@ -2545,7 +2545,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       }
       if (contentType && contentType.includes('text/event-stream')) {
         // Обрабатываем SSE поток
-        console.log('[SSE] Начинаем обработку SSE потока, generateImage:', generateImage);
+        // ВАЖНО: Сохраняем generateImage в локальную константу для замыкания
+        const isImageGeneration = generateImage;
+        console.log('[SSE] Начинаем обработку SSE потока, generateImage:', generateImage, 'isImageGeneration:', isImageGeneration);
         const reader = response.body?.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
@@ -2582,7 +2584,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 }
                 
                 // Обработка генерации изображений: если пришел task_id, запускаем опрос статуса
-                if (generateImage && data.task_id && !data.image_url && !data.cloud_url) {
+                if (isImageGeneration && data.task_id && !data.image_url && !data.cloud_url) {
                   // Добавляем генерацию в трекер для отслеживания даже после выхода из чата
                   const characterName = currentCharacter?.raw?.name || currentCharacter?.name;
                   const characterId = currentCharacter?.raw?.id || currentCharacter?.id;
@@ -2601,7 +2603,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 }
                 
                 // Обработка готового изображения из потока
-                if (generateImage && (data.image_url || data.cloud_url)) {
+                if (isImageGeneration && (data.image_url || data.cloud_url)) {
                   const imageUrl = data.image_url || data.cloud_url;
                   // 
                   setMessages(prev => prev.map(msg => 
@@ -2651,7 +2653,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 
                 if (data.content) {
                   // Накопляем контент только если это не генерация изображения
-                  if (!generateImage) {
+                  console.log('[SSE] data.content получен, isImageGeneration:', isImageGeneration, 'data.content:', data.content.substring(0, 50));
+                  if (!isImageGeneration) {
                   accumulatedContent += data.content;
                   console.log('[SSE] Получен контент:', data.content, 'Накоплено:', accumulatedContent.length, 'символов');
                   
@@ -2673,14 +2676,14 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                     return updated;
                   });
                   } else {
-                    console.log('[SSE] Пропущен контент (generateImage=true):', data.content);
+                    console.log('[SSE] Пропущен контент (isImageGeneration=true):', data.content);
                   }
                 }
                 
                 if (data.done) {
                   // Стриминг завершен
-                  // 
-                  if (!generateImage) {
+                  console.log('[SSE] Стриминг завершен, isImageGeneration:', isImageGeneration);
+                  if (!isImageGeneration) {
                   setIsLoading(false);
                   }
                   break;

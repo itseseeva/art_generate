@@ -471,10 +471,13 @@ async def log_requests_middleware(request: Request, call_next):
         raise
 
 # Настройка сессий для OAuth (должен быть ПЕРВЫМ, до CORS)
+# Используем Lax для SameSite, чтобы куки передавались при редиректах от Google
 app.add_middleware(
     SessionMiddleware, 
     secret_key=settings.SECRET_KEY,
-    max_age=3600 * 24  # 24 часа
+    max_age=3600 * 24,  # 24 часа
+    same_site="lax",
+    https_only=settings.FRONTEND_URL.startswith("https")
 )
 
 # Настройка CORS

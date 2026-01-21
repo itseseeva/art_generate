@@ -4124,6 +4124,23 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     setError(null);
     setSuccess(null);
 
+    // Проверка Premium-голоса перед сохранением
+    const selectedVoice = availableVoices.find(v => v.id === formData.voice_id);
+    if (selectedVoice && isPremiumVoice(selectedVoice.name)) {
+      // Проверяем подписку
+      const subscriptionType = userInfo?.subscription?.subscription_type ||
+        (userInfo as any)?.subscription_type ||
+        'free';
+
+      const isPremiumUser = ['pro', 'premium'].includes(subscriptionType.toLowerCase());
+
+      if (!isPremiumUser) {
+        setShowPremiumModal(true);
+        setIsLoading(false);
+        return;
+      }
+    }
+
     try {
       // Проверяем кредиты перед отправкой (используем userInfo.coins, а не subscriptionStats.credits_remaining)
       if (!userInfo || userInfo.coins < CHARACTER_EDIT_COST) {
@@ -7298,11 +7315,52 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           {showPremiumModal && (
             <PremiumModalOverlay onClick={() => setShowPremiumModal(false)}>
               <PremiumModalContent onClick={(e) => e.stopPropagation()}>
-                <PremiumModalIcon>👑</PremiumModalIcon>
-                <PremiumModalTitle>Премиальный голос "Мита"</PremiumModalTitle>
+                {/* Фото голоса вместо короны */}
+                {(() => {
+                  const selectedVoice = availableVoices.find(v => v.id === formData.voice_id);
+                  const defaultPlaceholder = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9InJnYmEoNjAsIDYwLCA2MCwgMC4zKSIvPgo8cGF0aCBkPSJNMzAgNDBDMzAgMzUuMDI5IDM0LjAyOSAzMSAzOSAzMUg0MUM0NS45NzEgMzEgNTAgMzUuMDI5IDUwIDQwQzUwIDQ0Ljk3MSA0NS45NzEgNDkgNDEgNDlIMzlDMzQuMDI5IDQ5IDMwIDQ0Ljk3MSAzMCA0MFoiIGZpbGw9InJnYmEoMTUwLCAxNTAsIDE1MCwgMC41KSIvPgo8L3N2Zz4K';
+
+                  let photoPath = defaultPlaceholder;
+                  if (selectedVoice) {
+                    photoPath = selectedVoice.is_user_voice
+                      ? (selectedVoice.photo_url
+                        ? (selectedVoice.photo_url.startsWith('http') ? selectedVoice.photo_url : `${API_CONFIG.BASE_URL}${selectedVoice.photo_url}`)
+                        : defaultPlaceholder)
+                      : `/default_voice_photo/${selectedVoice.name.replace(/\.(mp3|wav|ogg)$/i, '')}.png`; // Используем прямой путь, так как helper может быть недоступен в scope
+                  }
+
+                  return (
+                    <div style={{
+                      width: '120px',
+                      height: '120px',
+                      borderRadius: '50%',
+                      overflow: 'hidden',
+                      border: '4px solid #ecc94b', // Gold border for premium
+                      boxShadow: '0 0 20px rgba(236, 201, 75, 0.4)',
+                      margin: '0 auto 20px auto',
+                      position: 'relative'
+                    }}>
+                      <img
+                        src={photoPath}
+                        alt="Premium Voice"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={(e) => {
+                          e.currentTarget.src = defaultPlaceholder;
+                        }}
+                      />
+                      <div style={{
+                        position: 'absolute',
+                        bottom: '5px',
+                        right: '5px',
+                        fontSize: '24px'
+                      }}>👑</div>
+                    </div>
+                  );
+                })()}
+
+                <PremiumModalTitle>Премиальный голос</PremiumModalTitle>
                 <PremiumModalText>
-                  Этот голос доступен только пользователям с Premium-подпиской.
-                  Оформите подписку, чтобы использовать уникальные голоса и другие преимущества.
+                  Оформите Premium-подписку, чтобы получить доступ к эксклюзивным голосам или выберите другой голос.
                 </PremiumModalText>
                 <PremiumModalButtons>
                   <PremiumModalButton

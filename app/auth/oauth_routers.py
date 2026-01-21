@@ -45,24 +45,22 @@ async def google_login(
     # Генерируем состояние для защиты от CSRF
     state = generate_state()
     
-    # КРИТИЧЕСКИ ВАЖНО: для popup режима сохраняем state в Redis,
-    # так как сессия не сохраняется между окнами popup
-    if mode == "popup":
-        # Сохраняем state в Redis с TTL 10 минут
-        state_data = {
-            "state": state,
-            "ip": client_ip,
-            "timestamp": datetime.now().isoformat(),
-            "mode": mode
-        }
-        await cache_set(f"oauth_state:{state}", json.dumps(state_data), ttl_seconds=600)
-        logger.info(f"[OAUTH POPUP] State saved to Redis: {state[:10]}...")
-    else:
-        # Для redirect режима используем сессию
-        request.session["oauth_state"] = state
-        request.session["oauth_ip"] = client_ip
-        request.session["oauth_timestamp"] = datetime.now().isoformat()
-        request.session["oauth_mode"] = mode
+    # Сохраняем state в Redis (основной механизм)
+    # Это надежнее сессий, так как работает в popup и при потере кук
+    state_data = {
+        "state": state,
+        "ip": client_ip,
+        "timestamp": datetime.now().isoformat(),
+        "mode": mode
+    }
+    await cache_set(f"oauth_state:{state}", json.dumps(state_data), ttl_seconds=600)
+    logger.info(f"[OAUTH] State saved to Redis: {state[:10]}... mode={mode}")
+    
+    # Также сохраняем в сессию (как резервный механизм)
+    request.session["oauth_state"] = state
+    request.session["oauth_ip"] = client_ip
+    request.session["oauth_timestamp"] = datetime.now().isoformat()
+    request.session["oauth_mode"] = mode
     
     # Генерируем URL для редиректа на Google
     auth_url = generate_oauth_url("google", state)
@@ -93,12 +91,12 @@ async def google_callback(
             detail="Missing authorization code or state"
         )
     
-    # КРИТИЧЕСКИ ВАЖНО: проверяем state из Redis (для popup) или сессии (для redirect)
+    # КРИТИЧЕСКИ ВАЖНО: проверяем state из Redis (основной) или сессии (резервный)
     session_state = None
     oauth_mode = "redirect"
     
-    # Сначала проверяем Redis (для popup режима)
-    redis_state_data = await cache_get(f"oauth_state:{state}", timeout=1.0)
+    # 1. Сначала всегда проверяем Redis (самый надежный способ)
+    redis_state_data = await cache_get(f"oauth_state:{state}", timeout=2.0)
     if redis_state_data:
         try:
             # cache_get уже возвращает распарсенный JSON, но может вернуть строку
@@ -108,19 +106,20 @@ async def google_callback(
                 state_data = redis_state_data
             session_state = state_data.get("state")
             oauth_mode = state_data.get("mode", "redirect")
-            logger.info(f"[OAUTH POPUP] State found in Redis: {state[:10]}..., mode={oauth_mode}")
+            logger.info(f"[OAUTH] State found in Redis: {state[:10]}..., mode={oauth_mode}")
             # Удаляем использованное состояние из Redis
             await cache_delete(f"oauth_state:{state}")
         except (json.JSONDecodeError, KeyError, TypeError) as e:
-            logger.warning(f"[OAUTH] Error parsing Redis state data: {e}, type={type(redis_state_data)}")
+            logger.warning(f"[OAUTH] Error parsing Redis state data: {e}")
             redis_state_data = None
     
-    # Если не нашли в Redis, проверяем сессию (для redirect режима)
+    # 2. Если не нашли в Redis, проверяем сессию
     if not session_state:
         session_state = request.session.get("oauth_state")
         if session_state:
             oauth_mode = request.session.get("oauth_mode", "redirect")
-            # Удаляем использованное состояние из сессии
+            logger.info(f"[OAUTH] State found in session: {session_state[:10]}..., mode={oauth_mode}")
+            # Очищаем сессию
             request.session.pop("oauth_state", None)
             request.session.pop("oauth_ip", None)
             request.session.pop("oauth_timestamp", None)
@@ -129,9 +128,11 @@ async def google_callback(
     # Проверяем валидность state
     if not session_state or session_state != state:
         logger.error(f"[ERROR] Invalid state: session={session_state}, received={state}")
+        # Если это повторный запрос (state уже удален), но сессия пользователя уже могла быть создана
+        # В данном случае просто выдаем 400
         raise HTTPException(
             status_code=400,
-            detail="Invalid state parameter"
+            detail="Invalid state parameter (it may have expired or already been used)"
         )
     
     try:
@@ -149,20 +150,18 @@ async def google_callback(
         # Получаем информацию о пользователе
         logger.info(f"Getting user info with access token: {access_token[:20]}...")
         user_info = await get_user_info("google", access_token)
-        logger.info(f"User info received: {user_info}")
+        logger.info(f"User info received for email: {user_info.get('email')}")
         
         # Создаем или получаем пользователя
         user = await get_or_create_oauth_user("google", user_info, db)
-        logger.info(f"[OAUTH] User created/retrieved: id={user.id}, email={user.email}, username={user.username}")
+        logger.info(f"[OAUTH] User obtained: id={user.id}, email={user.email}")
         
         # Убеждаемся, что пользователь сохранен в БД
         await db.commit()
         await db.refresh(user)
-        logger.info(f"[OAUTH] User committed to DB: id={user.id}, email={user.email}")
         
         # Создаем токены для нашего API
         tokens = create_oauth_tokens(user)
-        logger.info(f"[OAUTH] Tokens created for user: {user.email}")
         
         # Сохраняем refresh token в базе
         from app.models.user import RefreshToken
@@ -178,9 +177,7 @@ async def google_callback(
         )
         db.add(db_refresh_token)
         await db.commit()
-        logger.info(f"[OAUTH] Refresh token saved for user: {user.email}")
-        
-        logger.info(f"Google OAuth login successful for user: {user.email}")
+        logger.info(f"[OAUTH] Google login successful: {user.email}")
         
         # Проверяем, есть ли username
         needs_username = not user.username
@@ -190,14 +187,12 @@ async def google_callback(
         if oauth_mode == "popup":
             parsed = urlparse(frontend_base)
             target_origin = f"{parsed.scheme}://{parsed.netloc}"
-            logger.info(f"[OAUTH POPUP] Target origin: {target_origin}")
             payload = {
                 "type": "oauth-success",
                 "accessToken": tokens["access_token"],
                 "refreshToken": tokens.get("refresh_token"),
                 "needsUsername": needs_username
             }
-            logger.info(f"[OAUTH POPUP] Sending payload to popup opener")
             html_content = f"""
 <!DOCTYPE html>
 <html>
@@ -210,22 +205,16 @@ async def google_callback(
       (function() {{
         const payload = {json.dumps(payload)};
         const targetOrigin = "{target_origin}";
-        console.log('[OAUTH POPUP] Sending message to:', targetOrigin);
-        console.log('[OAUTH POPUP] Payload:', payload);
         if (window.opener) {{
           try {{
             window.opener.postMessage(payload, targetOrigin);
-            console.log('[OAUTH POPUP] Message sent successfully');
-            setTimeout(() => {{
-              window.close();
-            }}, 100);
+            setTimeout(() => {{ window.close(); }}, 100);
           }} catch (error) {{
-            console.error('[OAUTH POPUP] Error sending message:', error);
-            document.body.innerHTML = '<p>Ошибка отправки сообщения. Можно закрыть это окно.</p>';
+            console.error('[OAUTH POPUP] Error:', error);
+            window.close();
           }}
         }} else {{
-          console.log('[OAUTH POPUP] No window.opener found');
-          document.body.innerHTML = '<p>Авторизация завершена. Можно закрыть это окно.</p>';
+          window.close();
         }}
       }})();
     </script>
@@ -243,13 +232,13 @@ async def google_callback(
         return RedirectResponse(url=redirect_url)
         
     except Exception as e:
-        logger.error(f"Google OAuth callback error: {e}")
+        logger.exception(f"Google OAuth callback error: {e}")
         if oauth_mode == "popup":
             parsed = urlparse(settings.FRONTEND_URL.rstrip("/"))
             target_origin = f"{parsed.scheme}://{parsed.netloc}"
             payload = {
                 "type": "oauth-error",
-                "message": "OAuth authentication failed"
+                "message": str(e) if isinstance(e, HTTPException) else "OAuth authentication failed"
             }
             html_content = f"""
 <!DOCTYPE html>
@@ -267,7 +256,7 @@ async def google_callback(
           window.opener.postMessage(payload, targetOrigin);
           window.close();
         }} else {{
-          document.body.innerHTML = '<p>Произошла ошибка авторизации. Вы можете закрыть это окно.</p>';
+          document.body.innerHTML = '<p>Произошла ошибка авторизации. Можно закрыть это окно.</p>';
         }}
       }})();
     </script>
@@ -278,7 +267,7 @@ async def google_callback(
         
         raise HTTPException(
             status_code=500,
-            detail="OAuth authentication failed"
+            detail=f"OAuth authentication failed: {str(e)}"
         )
 
 
