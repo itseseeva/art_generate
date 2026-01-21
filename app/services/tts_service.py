@@ -40,18 +40,22 @@ def _get_fish_client() -> Optional[FishAudio]:
         return None
 
 
-def _load_voice_audio(voice_id: str) -> Optional[bytes]:
+def _load_voice_audio(voice_id: str, is_user_voice: bool = False) -> Optional[bytes]:
     """
     Загружает аудио файл голоса как bytes.
     
     Args:
-        voice_id: ID голоса (имя файла из default_character_voices)
+        voice_id: ID голоса (имя файла)
+        is_user_voice: Искать в пользовательских голосах
         
     Returns:
         Аудио данные в формате bytes или None в случае ошибки
     """
     try:
-        voice_path = DEFAULT_CHARACTER_VOICES_DIR / voice_id
+        if is_user_voice:
+            voice_path = USER_VOICES_DIR / voice_id
+        else:
+            voice_path = DEFAULT_CHARACTER_VOICES_DIR / voice_id
         
         if not voice_path.exists():
             logger.error(f"Файл голоса не найден: {voice_path}")
@@ -100,17 +104,24 @@ async def generate_tts_audio(text: str, voice_url: str) -> Optional[str]:
             voice_url = "/default_character_voices/[Mita Miside (Russian voice)]Ммм........упим_.mp3"
         
         # Извлекаем voice_id из URL
+        is_user_voice = False
         if voice_url.startswith('/default_character_voices/'):
             voice_id = voice_url.replace('/default_character_voices/', '')
         elif 'default_character_voices' in voice_url:
             voice_id = voice_url.split('default_character_voices/')[-1]
+        elif voice_url.startswith('/user_voices/'):
+            voice_id = voice_url.replace('/user_voices/', '')
+            is_user_voice = True
+        elif 'user_voices' in voice_url:
+            voice_id = voice_url.split('user_voices/')[-1]
+            is_user_voice = True
         else:
             logger.error(f"Неподдерживаемый формат voice_url: {voice_url}")
-            logger.error("Ожидается формат: /default_character_voices/filename.mp3")
+            logger.error("Ожидается формат: /default_character_voices/filename.mp3 или /user_voices/filename.mp3")
             return None
         
         # Загружаем аудио образец голоса
-        voice_audio = _load_voice_audio(voice_id)
+        voice_audio = _load_voice_audio(voice_id, is_user_voice=is_user_voice)
         if not voice_audio:
             logger.error(f"Не удалось загрузить аудио для голоса {voice_id}")
             return None
