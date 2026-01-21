@@ -1066,35 +1066,76 @@ class ChatHistoryService:
                 sessions = session_result.scalars().all()
                 
                 # Удаляем все сообщения из этих сессий и сами сессии
+                import os
+                import time
+                from app.config.paths import VOICES_DIR
+                
                 for session in sessions:
                     # Сначала находим и удаляем аудио файлы, связанные с сообщениями
+                    deleted_files = set()  # Множество для отслеживания уже удаленных файлов
+                    
+                    # Получаем временные границы сессии ДО удаления сообщений
+                    session_start = session.started_at.timestamp() if session.started_at else None
+                    last_msg_result = await self.db.execute(
+                        select(func.max(ChatMessageDB.timestamp))
+                        .where(ChatMessageDB.session_id == session.id)
+                    )
+                    last_msg_time = last_msg_result.scalar_one_or_none()
+                    session_end = last_msg_time.timestamp() if last_msg_time else time.time()
+                    
+                    # Если не нашли время сессии, используем текущее время
+                    if session_start is None:
+                        session_start = time.time() - 86400  # Последние 24 часа
+                    
+                    # Способ 1: Удаляем файлы по audio_url из БД (если поле существует)
                     try:
-                        audio_msgs_result = await self.db.execute(
-                            select(ChatMessageDB.audio_url)
-                            .where(ChatMessageDB.session_id == session.id)
-                            .where(ChatMessageDB.audio_url.isnot(None))
-                        )
-                        audio_urls = audio_msgs_result.scalars().all()
-                        
-                        import os
-                        from app.config.paths import VOICES_DIR
-                        
-                        for audio_url in audio_urls:
-                            if not audio_url:
-                                continue
-                                
-                            # audio_url обычно имеет вид /voices/filename.mp3
-                            filename = os.path.basename(audio_url)
-                            file_path = VOICES_DIR / filename
+                        # Проверяем, есть ли поле audio_url в модели
+                        if hasattr(ChatMessageDB, 'audio_url'):
+                            audio_msgs_result = await self.db.execute(
+                                select(ChatMessageDB.audio_url)
+                                .where(ChatMessageDB.session_id == session.id)
+                                .where(ChatMessageDB.audio_url.isnot(None))
+                            )
+                            audio_urls = audio_msgs_result.scalars().all()
                             
-                            if file_path.exists():
-                                try:
-                                    os.remove(file_path)
-                                    logger.info(f"[HISTORY CLEAR] Удален аудио файл: {file_path}")
-                                except Exception as file_err:
-                                    logger.error(f"[HISTORY CLEAR] Не удалось удалить аудио файл {file_path}: {file_err}")
+                            for audio_url in audio_urls:
+                                if not audio_url:
+                                    continue
+                                    
+                                # audio_url обычно имеет вид /voices/filename.mp3
+                                filename = os.path.basename(audio_url)
+                                file_path = VOICES_DIR / filename
+                                
+                                if file_path.exists() and str(file_path) not in deleted_files:
+                                    try:
+                                        os.remove(file_path)
+                                        deleted_files.add(str(file_path))
+                                        logger.info(f"[HISTORY CLEAR] Удален аудио файл по audio_url: {file_path}")
+                                    except Exception as file_err:
+                                        logger.error(f"[HISTORY CLEAR] Не удалось удалить аудио файл {file_path}: {file_err}")
                     except Exception as audio_err:
-                        logger.error(f"[HISTORY CLEAR] Ошибка при поиске/удалении аудио файлов: {audio_err}")
+                        logger.warning(f"[HISTORY CLEAR] Ошибка при поиске/удалении аудио файлов по audio_url (возможно поле еще не добавлено): {audio_err}")
+                    
+                    # Способ 2: Удаляем файлы по времени создания (если они были созданы в период существования сессии)
+                    # Это запасной вариант, если audio_url не сохранен в БД
+                    try:
+                        if VOICES_DIR.exists():
+                            # Удаляем все файлы, созданные в период существования сессии
+                            for file_path in VOICES_DIR.glob("*.mp3"):
+                                if str(file_path) in deleted_files:
+                                    continue
+                                    
+                                try:
+                                    file_mtime = file_path.stat().st_mtime
+                                    # Если файл был создан в период существования сессии (с запасом в 1 час до и после)
+                                    if session_start - 3600 <= file_mtime <= session_end + 3600:
+                                        os.remove(file_path)
+                                        deleted_files.add(str(file_path))
+                                        logger.info(f"[HISTORY CLEAR] Удален аудио файл по времени создания: {file_path}")
+                                except Exception as file_err:
+                                    logger.warning(f"[HISTORY CLEAR] Не удалось проверить/удалить файл {file_path}: {file_err}")
+                    except Exception as time_err:
+                        logger.warning(f"[HISTORY CLEAR] Ошибка при удалении файлов по времени: {time_err}")
 
                     # Удаляем все сообщения из сессии
                     await self.db.execute(

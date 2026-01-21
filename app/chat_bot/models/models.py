@@ -143,6 +143,7 @@ class ChatMessageDB(Base):
     session_id = Column(Integer, ForeignKey("chat_sessions.id"), nullable=False, index=True)
     role = Column(String(32), nullable=False)  # 'user' | 'assistant'
     content = Column(UTF8Text, nullable=False)
+    audio_url = Column(String(500), nullable=True)  # URL аудио файла TTS, если есть
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
 
     session = relationship("ChatSession", back_populates="messages")
