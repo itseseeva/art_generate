@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { theme } from '../theme';
-import { FiX, FiImage, FiFolder, FiVolume2, FiPlay } from 'react-icons/fi';
+import { FiX, FiImage, FiFolder, FiVolume2, FiPlay, FiPause } from 'react-icons/fi';
 import { Plus, Loader2 } from 'lucide-react';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToRussian } from '../utils/translate';
@@ -325,18 +325,16 @@ const VoiceButtonContent = styled.div`
   gap: 8px;
 `;
 
-const UploadVoiceButton = styled(VoiceButton)`
-  background: rgba(251, 191, 36, 0.15);
-  border: 1px solid rgba(251, 191, 36, 0.3);
-  color: #fbbf24;
-  /* DEBUG: Принудительные стили видимости */
-  visibility: visible !important;
-  opacity: 1 !important;
-
+const RepeatButton = styled(VoiceButton)`
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #10b981;
+  min-width: 120px;
+  
   &:hover:not(:disabled) {
-    background: rgba(251, 191, 36, 0.25);
-    border-color: rgba(251, 191, 36, 0.5);
-    box-shadow: 0 4px 12px rgba(251, 191, 36, 0.2);
+    background: rgba(16, 185, 129, 0.25);
+    border-color: rgba(16, 185, 129, 0.5);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
   }
 `;
 
@@ -627,7 +625,7 @@ const PromptLoading = styled.div`
 `;
 
 const PromptError = styled.div`
-  color: ${theme.colors.error || '#ff6b6b'};
+  color: ${theme.colors.status.error || '#ff6b6b'};
   font-size: ${theme.fontSize.sm};
   text-align: center;
   padding: ${theme.spacing.xl};
@@ -733,18 +731,30 @@ const MessageComponent: React.FC<MessageProps> = ({
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
   const [isVoiceLoading, setIsVoiceLoading] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [promptError, setPromptError] = useState<string | null>(null);
   const [errorModalMessage, setErrorModalMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+    };
+  }, []);
 
   const handleGenerateVoice = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!message.content || isVoiceLoading) return;
 
-    // Если аудио уже сгенерировано, просто проигрываем его
-    if (audioUrl) {
-      const audio = new Audio(audioUrl);
-      audio.play();
-      return;
+    // Logic moved to Repeat button
+    // if (audioUrl) { ... } - removed to allow regeneration
+
+    // Если уже играет - останавливаем перед новой генерацией
+    if (audioRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
     }
 
     setIsVoiceLoading(true);
@@ -782,7 +792,10 @@ const MessageComponent: React.FC<MessageProps> = ({
 
         // Проигрываем аудио
         const audio = new Audio(fullAudioUrl);
-        audio.play();
+        audioRef.current = audio;
+        audio.onended = () => setIsPlaying(false);
+        audio.onpause = () => setIsPlaying(false);
+        audio.play().then(() => setIsPlaying(true)).catch(e => console.error(e));
       }
     } catch (error) {
       console.error('TTS Error:', error);
@@ -1225,21 +1238,11 @@ const MessageComponent: React.FC<MessageProps> = ({
                         <Loader2 className="animate-spin" />
                         <span>Генерация...</span>
                       </VoiceButtonContent>
-                    ) : audioUrl ? (
-                      <>
-                        <VoiceButtonContent>
-                          <FiPlay />
-                          <span>Прослушать голос</span>
-                        </VoiceButtonContent>
-                        <CreditCost>
-                          {Math.max(1, Math.ceil((message.content.replace(/[\*\_\~]/g, '').length) / 30))} кредитов
-                        </CreditCost>
-                      </>
                     ) : (
                       <>
                         <VoiceButtonContent>
                           <FiVolume2 />
-                          <span>Сгенерировать голос</span>
+                          <span>{audioUrl ? 'Перегенерировать' : 'Сгенерировать голос'}</span>
                         </VoiceButtonContent>
                         <CreditCost>
                           {Math.max(1, Math.ceil((message.content.replace(/[\*\_\~]/g, '').length) / 30))} кредитов
@@ -1248,10 +1251,28 @@ const MessageComponent: React.FC<MessageProps> = ({
                     )}
                   </VoiceButton>
 
-                  <UploadVoiceButton onClick={() => alert('Функционал загрузки голоса в разработке')}>
-                    <FiFolder />
-                    <span>Загрузить свой голос</span>
-                  </UploadVoiceButton>
+                  <RepeatButton
+                    onClick={() => {
+                      if (isPlaying && audioRef.current) {
+                        audioRef.current.pause();
+                        setIsPlaying(false);
+                      } else if (audioUrl) {
+                        const audio = audioRef.current || new Audio(audioUrl);
+                        if (!audioRef.current) {
+                          audioRef.current = audio;
+                          audio.onended = () => setIsPlaying(false);
+                          audio.onpause = () => setIsPlaying(false);
+                        }
+                        audio.play().then(() => setIsPlaying(true)).catch(e => console.error(e));
+                      }
+                    }}
+                    disabled={!audioUrl}
+                  >
+                    <VoiceButtonContent>
+                      {isPlaying ? <FiPause /> : <FiPlay />}
+                      <span>{isPlaying ? 'Остановить' : 'Повторить'}</span>
+                    </VoiceButtonContent>
+                  </RepeatButton>
                 </MessageButtonsRow>
               )}
             </>

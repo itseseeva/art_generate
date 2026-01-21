@@ -1,18 +1,62 @@
 """
 Сервис для взаимодействия с OpenRouter API.
 
-Все пользователи получают модель: sao10k/l3-euryale-70b
+Все пользователи получают модель: CYDONIA 24B V4.1 (anthracite-org/magnum-v4-72b)
+При rate limit отправляется уведомление администратору в Telegram.
 """
 
 import os
 import aiohttp
 import json
-from typing import Optional, Dict, List, AsyncGenerator
+from typing import Optional, Dict, List, AsyncGenerator, Tuple
 from app.chat_bot.config.chat_config import chat_config
 from app.chat_bot.config.cydonia_config import get_cydonia_overrides
 from app.chat_bot.config.deepseek_config import get_deepseek_overrides
 from app.models.subscription import SubscriptionType
 from app.utils.logger import logger
+from datetime import datetime
+
+
+async def send_telegram_alert(message: str) -> None:
+    """
+    Отправляет уведомление администратору в Telegram.
+    
+    Args:
+        message: Текст уведомления
+    """
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    
+    if not bot_token or not chat_id:
+        logger.warning("[TELEGRAM] Не настроены TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID")
+        return
+    
+    try:
+        api_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        
+        # Форматируем сообщение
+        formatted_message = (
+            f"🚨 <b>RATE LIMIT ALERT</b>\n\n"
+            f"<b>Время:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            f"<b>Сообщение:</b> {message}\n"
+        )
+        
+        payload = {
+            "chat_id": chat_id,
+            "text": formatted_message,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True,
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(api_url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                if response.status != 200:
+                    response_text = await response.text()
+                    logger.error(f"[TELEGRAM] Ошибка отправки: {response.status}, ответ: {response_text}")
+                else:
+                    logger.info("[TELEGRAM] Уведомление отправлено в Telegram")
+    except Exception as e:
+        logger.error(f"[TELEGRAM] Ошибка при отправке уведомления: {e}")
 
 
 def get_model_for_subscription(subscription_type: Optional[SubscriptionType]) -> str:
@@ -25,8 +69,8 @@ def get_model_for_subscription(subscription_type: Optional[SubscriptionType]) ->
     Returns:
         Название модели для использования
     """
-    # Все пользователи, включая FREE, STANDARD и PREMIUM, получают лучшую модель
-    return "sao10k/l3-euryale-70b"
+    # Все пользователи получают CYDONIA 24B V4.1
+    return "anthracite-org/magnum-v4-72b"
 
 
 class OpenRouterService:
@@ -575,7 +619,9 @@ class OpenRouterService:
                 
                 # Читаем поток SSE (Server-Sent Events)
                 buffer = ""
+                content_received = False
                 async for chunk in response.content.iter_any():
+                    content_received = True
                     if not chunk:
                         continue
                     
@@ -619,6 +665,50 @@ class OpenRouterService:
                             try:
                                 data = json.loads(data_str)
                                 
+                                # КРИТИЧЕСКИ ВАЖНО: Проверяем на ошибку от OpenRouter
+                                if "error" in data:
+                                    error_data = data.get("error", {})
+                                    if isinstance(error_data, dict):
+                                        error_text = error_data.get("message", str(error_data))
+                                        error_code = error_data.get("code")
+                                        error_metadata = error_data.get("metadata", {})
+                                        raw_error = error_metadata.get("raw", "")
+                                    else:
+                                        error_text = str(error_data)
+                                        error_code = None
+                                        raw_error = ""
+                                    
+                                    # Проверяем, является ли это rate limit ошибкой
+                                    is_rate_limit = (
+                                        error_code == 429 or 
+                                        "rate" in error_text.lower() or 
+                                        "rate" in raw_error.lower()
+                                    )
+                                    
+                                    if is_rate_limit:
+                                        # Логируем кратко и отправляем уведомление в Telegram
+                                        logger.warning(f"[OPENROUTER STREAM] ⚠️ Rate limit для модели {model_to_use}")
+                                        
+                                        # Отправляем уведомление в Telegram (ждем выполнения)
+                                        alert_message = (
+                                            f"Модель <code>{model_to_use}</code> достигла rate limit!\n"
+                                            f"Ошибка: {error_text}\n"
+                                            f"Детали: {raw_error[:200]}"
+                                        )
+                                        try:
+                                            await send_telegram_alert(alert_message)
+                                        except Exception as telegram_error:
+                                            logger.error(f"[OPENROUTER STREAM] Не удалось отправить уведомление в Telegram: {telegram_error}")
+                                        
+                                        # Возвращаем ошибку пользователю
+                                        user_message = (
+                                            f"⚠️ Сервис временно перегружен. Попробуйте повторить запрос через несколько минут, или смените модель"
+                                        )
+                                        yield json.dumps({"error": user_message})
+                                    else:
+                                        yield json.dumps({"error": error_text})
+                                    return
+                                
                                 # Извлекаем текст из choices[0].delta.content
                                 choices = data.get("choices", [])
                                 if choices:
@@ -657,7 +747,9 @@ class OpenRouterService:
                             except json.JSONDecodeError:
                                 pass
                 
-                logger.info("[OPENROUTER STREAM] Stream finished successfully")
+                if not content_received:
+                    logger.error("[OPENROUTER STREAM] ⚠️ Не получено данных от OpenRouter")
+                    yield json.dumps({"error": "OpenRouter не вернул данные. Попробуйте повторить запрос."})
                 
         except aiohttp.ClientProxyConnectionError as e:
             logger.error(f"[OPENROUTER STREAM] Proxy connection error: {e}")

@@ -2560,22 +2560,32 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         while (true) {
           const { done, value } = await reader.read();
           
+          console.log('[SSE DEBUG] reader.read() вызван, done:', done, 'value length:', value?.length || 0);
+          
           if (done) {
+            console.log('[SSE DEBUG] Поток завершен (done=true)');
             break;
           }
 
           // Декодируем чанк
-          buffer += decoder.decode(value, { stream: true });
+          const decodedChunk = decoder.decode(value, { stream: true });
+          console.log('[SSE DEBUG] Декодированный чанк:', decodedChunk);
+          buffer += decodedChunk;
           
           // Обрабатываем все полные строки
           const lines = buffer.split('\n');
           buffer = lines.pop() || ''; // Сохраняем неполную строку обратно в буфер
+          
+          console.log('[SSE DEBUG] Обработка строк, количество:', lines.length, 'lines:', lines);
 
           for (const line of lines) {
+            console.log('[SSE DEBUG] Обрабатываем строку:', line);
             if (line.startsWith('data: ')) {
               try {
-                const data = JSON.parse(line.slice(6));
-                console.log('[SSE] Получены данные:', data);
+                const dataString = line.slice(6);
+                console.log('[SSE DEBUG] data string:', dataString);
+                const data = JSON.parse(dataString);
+                console.log('[SSE] Получены данные:', data, 'Ключи:', Object.keys(data));
                 
                 if (data.error) {
                   console.error('[SSE] Ошибка:', data.error);
@@ -2651,18 +2661,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   continue;
                 }
                 
+                console.log('[SSE DEBUG] Проверка data.content, значение:', data.content, 'typeof:', typeof data.content, 'truthy:', !!data.content);
+                
                 if (data.content) {
                   // Накопляем контент только если это не генерация изображения
-                  console.log('[SSE] data.content получен, isImageGeneration:', isImageGeneration, 'data.content:', data.content.substring(0, 50));
                   if (!isImageGeneration) {
                   accumulatedContent += data.content;
-                  console.log('[SSE] Получен контент:', data.content, 'Накоплено:', accumulatedContent.length, 'символов');
                   
                   // Обновляем сообщение ассистента с накопленным контентом
                   setMessages(prev => {
                     const messageIndex = prev.findIndex(msg => msg.id === assistantMessageId);
                     if (messageIndex === -1) {
-                      console.warn('[SSE] Сообщение ассистента не найдено:', assistantMessageId);
                       return prev;
                     }
                     
@@ -2672,11 +2681,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                       content: accumulatedContent
                     };
                     
-                    console.log('[SSE] Обновлено сообщение:', messageIndex, 'контент:', accumulatedContent.substring(0, 50));
                     return updated;
                   });
-                  } else {
-                    console.log('[SSE] Пропущен контент (isImageGeneration=true):', data.content);
                   }
                 }
                 

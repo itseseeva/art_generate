@@ -2895,8 +2895,12 @@ async def chat_endpoint(
                 Генерирует SSE события из потока OpenRouter.
                 """
                 full_response = ""  # Собираем полный ответ для сохранения в БД
+                chunk_count = 0  # Счетчик чанков для отладки
                 
                 try:
+                    # Отправляем начальный комментарий для проверки соединения
+                    yield ": SSE connection established\n\n"
+                    
                     # Если была запрошена генерация изображения и есть task_id, отправляем его в начале потока
                     if generate_image and sse_task_id:
                         yield f"data: {json.dumps({'task_id': sse_task_id, 'status_url': sse_status_url or f'/api/v1/generation-status/{sse_task_id}', 'is_generating': True})}\n\n"
@@ -2911,10 +2915,14 @@ async def chat_endpoint(
                         subscription_type=subscription_type_enum,
                         model=model_used
                     ):
+                        chunk_count += 1
+                        
                         # Проверяем на ошибку
                         if chunk.startswith('{"error"'):
                             error_data = json.loads(chunk)
                             error_msg = error_data.get("error", "Unknown error")
+                            
+                            logger.error(f"[SSE GENERATOR] Ошибка в чанке: {error_msg}")
                             
                             if error_msg == "__CONNECTION_ERROR__":
                                 yield f"data: {json.dumps({'error': 'Сервис генерации текста недоступен'})}\n\n"
@@ -2957,7 +2965,7 @@ async def chat_endpoint(
                         ))
                     
                 except Exception as e:
-                    logger.error(f"[STREAM] Ошибка в генераторе SSE: {e}")
+                    logger.error(f"[SSE GENERATOR] Ошибка: {e}", exc_info=True)
                     yield f"data: {json.dumps({'error': str(e)})}\n\n"
             
             # Возвращаем StreamingResponse с SSE

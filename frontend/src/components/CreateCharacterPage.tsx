@@ -2459,6 +2459,18 @@ const PremiumVoiceName = styled.div`
   }
 `;
 
+const PremiumVoiceLabel = styled.div`
+  position: absolute;
+  bottom: -25px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  color: rgba(255, 68, 68, 0.8);
+  font-weight: 500;
+  white-space: nowrap;
+  z-index: 4;
+`;
+
 const VoiceName = styled.div<{ $isUserVoice?: boolean }>`
   position: absolute;
   top: -30px;
@@ -4162,6 +4174,23 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     setError(null);
     setSuccess(null);
 
+    // Проверка Premium-голоса перед редактированием
+    const selectedVoice = availableVoices.find(v => v.id === selectedVoiceId);
+    if (selectedVoice && isPremiumVoice(selectedVoice.name)) {
+      // Проверяем подписку
+      const subscriptionType = userInfo?.subscription?.subscription_type ||
+        (userInfo as any)?.subscription_type ||
+        'free';
+
+      const isPremiumUser = ['pro', 'premium'].includes(subscriptionType.toLowerCase());
+
+      if (!isPremiumUser) {
+        setShowPremiumModal(true);
+        setIsLoading(false);
+        return;
+      }
+    }
+
     try {
       const token = localStorage.getItem('authToken');
       if (!token) {
@@ -5054,18 +5083,8 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
                                     console.log('[VOICE SELECT] Выбран голос:', voice.id, 'Название:', voice.name, 'isUserVoice:', isUserVoice);
 
-                                    // Проверка Premium для премиальных голосов
-                                    const isPremium = isPremiumVoice(voice.name);
-                                    const userSubscriptionType = userInfo?.subscription?.subscription_type?.toLowerCase();
-                                    const hasPremium = userSubscriptionType === 'premium';
-
-                                    if (isPremium && !hasPremium) {
-                                      // Показываем модальное окно Premium вместо выбора голоса
-                                      console.log('[VOICE SELECT] Попытка выбрать премиальный голос без Premium-подписки');
-                                      setShowPremiumModal(true);
-                                      return; // Не устанавливаем выбранный голос
-                                    }
-
+                                    // Премиум голоса можно прослушивать всем, проверка только при сохранении персонажа
+                                    
                                     if (isUserVoice) {
                                       setSelectedVoiceUrl(voice.url);
                                       setSelectedVoiceId(''); // Очищаем voice_id для пользовательских голосов
@@ -5499,15 +5518,20 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                   />
                                 ) : null}
                                 {!((isUserVoice && isEditingName) || (!isUserVoice && isAdmin && isEditingName)) && (
-                                  isPremiumVoice(voice.name) ? (
-                                    <PremiumVoiceName>
-                                      <span>{voice.name}</span>
-                                    </PremiumVoiceName>
-                                  ) : (
-                                    <VoiceName>
-                                      {voice.name}
-                                    </VoiceName>
-                                  )
+                                  <>
+                                    {isPremiumVoice(voice.name) ? (
+                                      <PremiumVoiceName>
+                                        <span>{voice.name}</span>
+                                      </PremiumVoiceName>
+                                    ) : (
+                                      <VoiceName>
+                                        {voice.name}
+                                      </VoiceName>
+                                    )}
+                                    {isPremiumVoice(voice.name) && (
+                                      <PremiumVoiceLabel>Только для Premium</PremiumVoiceLabel>
+                                    )}
+                                  </>
                                 )}
 
                                 {/* Модальное окно редактирования голоса */}
@@ -6440,16 +6464,23 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                         zIndex: 10003
                                       }}
                                     />
-                                  ) : isPremiumVoice(voice.name) ? (
-                                    <PremiumVoiceName>
-                                      {voice.name}
-                                    </PremiumVoiceName>
                                   ) : (
-                                    <VoiceName
-                                      $isUserVoice={isUserVoice}
-                                    >
-                                      {voice.name}
-                                    </VoiceName>
+                                    <>
+                                      {isPremiumVoice(voice.name) ? (
+                                        <PremiumVoiceName>
+                                          <span>{voice.name}</span>
+                                        </PremiumVoiceName>
+                                      ) : (
+                                        <VoiceName
+                                          $isUserVoice={isUserVoice}
+                                        >
+                                          {voice.name}
+                                        </VoiceName>
+                                      )}
+                                      {isPremiumVoice(voice.name) && (
+                                        <PremiumVoiceLabel>Только для Premium</PremiumVoiceLabel>
+                                      )}
+                                    </>
                                   )}
                                   {isUserVoice && isOwner && (
                                     <div style={{ marginTop: '4px', display: 'flex', gap: '4px', justifyContent: 'center', position: 'relative', zIndex: 100 }}>
