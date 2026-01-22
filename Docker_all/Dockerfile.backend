@@ -22,7 +22,7 @@ COPY requirements-docker.txt ./requirements.txt
 
 # Install dependencies into the virtual environment
 RUN pip install --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir packaging h2 httpx[http2] && \
+    pip install --no-cache-dir packaging h2 httpx[http2] fish-audio-sdk && \
     pip install --default-timeout=1000 --no-cache-dir -r requirements.txt
 
 # --- Stage 2: Final image ---
