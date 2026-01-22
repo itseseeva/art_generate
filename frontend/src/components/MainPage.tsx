@@ -1027,7 +1027,8 @@ export const MainPage: React.FC<MainPageProps> = ({
       return {
         ...character,
         photos: characterPhotos[character.name.toLowerCase()] || [],
-        likes: rating ? rating.likes : character.likes || 0
+        likes: rating ? rating.likes : character.likes || 0,
+        dislikes: rating ? rating.dislikes : character.dislikes || 0
       };
     })
     .sort((a, b) => {
@@ -1136,7 +1137,7 @@ export const MainPage: React.FC<MainPageProps> = ({
                           
                           {/* Текст */}
                           <h3 className="text-xs sm:text-sm md:text-lg lg:text-2xl font-semibold text-white text-center leading-tight tracking-wide font-sans max-w-[140px] sm:max-w-[160px] md:max-w-[180px] px-1 sm:px-2">
-                            Создай свою девушку
+                            Создай персонажа
                           </h3>
                         </div>
                       </motion.div>
@@ -1160,7 +1161,6 @@ export const MainPage: React.FC<MainPageProps> = ({
                         isAuthenticated={isAuthenticated}
                         onPhotoGeneration={onPhotoGeneration}
                         onPaidAlbum={onPaidAlbum}
-                        showPromptButton={true}
                         isFavorite={isFavorite}
                         onFavoriteToggle={loadFavorites}
                         onDelete={deleteHandler}

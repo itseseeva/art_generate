@@ -584,11 +584,19 @@ async def like_character_direct(
             if existing.is_like:
                 await db.delete(existing)
                 await db.commit()
+                # Инвалидируем кэш рейтингов
+                from app.utils.redis_cache import cache_delete, key_character_ratings
+                await cache_delete(key_character_ratings(character_id))
+                await cache_delete(key_character_ratings(character_id, current_user.id))
                 return {"success": True, "message": "Like removed", "user_rating": None}
             else:
                 existing.is_like = True
                 existing.updated_at = datetime.utcnow()
                 await db.commit()
+                # Инвалидируем кэш рейтингов
+                from app.utils.redis_cache import cache_delete, key_character_ratings
+                await cache_delete(key_character_ratings(character_id))
+                await cache_delete(key_character_ratings(character_id, current_user.id))
                 return {"success": True, "message": "Changed from dislike to like", "user_rating": "like"}
         else:
             rating = CharacterRating(
@@ -598,6 +606,10 @@ async def like_character_direct(
             )
             db.add(rating)
             await db.commit()
+            # Инвалидируем кэш рейтингов
+            from app.utils.redis_cache import cache_delete, key_character_ratings
+            await cache_delete(key_character_ratings(character_id))
+            await cache_delete(key_character_ratings(character_id, current_user.id))
             return {"success": True, "message": "Character liked", "user_rating": "like"}
     except HTTPException:
         raise
@@ -637,11 +649,19 @@ async def dislike_character_direct(
             if not existing.is_like:
                 await db.delete(existing)
                 await db.commit()
+                # Инвалидируем кэш рейтингов
+                from app.utils.redis_cache import cache_delete, key_character_ratings
+                await cache_delete(key_character_ratings(character_id))
+                await cache_delete(key_character_ratings(character_id, current_user.id))
                 return {"success": True, "message": "Dislike removed", "user_rating": None}
             else:
                 existing.is_like = False
                 existing.updated_at = datetime.utcnow()
                 await db.commit()
+                # Инвалидируем кэш рейтингов
+                from app.utils.redis_cache import cache_delete, key_character_ratings
+                await cache_delete(key_character_ratings(character_id))
+                await cache_delete(key_character_ratings(character_id, current_user.id))
                 return {"success": True, "message": "Changed from like to dislike", "user_rating": "dislike"}
         else:
             rating = CharacterRating(
@@ -651,6 +671,10 @@ async def dislike_character_direct(
             )
             db.add(rating)
             await db.commit()
+            # Инвалидируем кэш рейтингов
+            from app.utils.redis_cache import cache_delete, key_character_ratings
+            await cache_delete(key_character_ratings(character_id))
+            await cache_delete(key_character_ratings(character_id, current_user.id))
             return {"success": True, "message": "Character disliked", "user_rating": "dislike"}
     except HTTPException:
         raise
@@ -666,55 +690,16 @@ async def get_character_ratings_direct(
     current_user = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db)
 ):
-    """Получает рейтинг персонажа."""
-    from app.chat_bot.models.models import CharacterDB, CharacterRating
-    from sqlalchemy import select, func
-    
-    
+    """Получает рейтинг персонажа (перенаправляет в ratings_router)."""
+    # Этот эндпоинт дублируется в character_ratings_endpoints.py
+    # Перенаправляем запрос туда для использования кэширования
     try:
-        result = await db.execute(select(CharacterDB).where(CharacterDB.id == character_id))
-        character = result.scalar_one_or_none()
-        if not character:
-            raise HTTPException(status_code=404, detail="Character not found")
-        
-        likes_result = await db.execute(
-            select(func.count(CharacterRating.id)).where(
-                CharacterRating.character_id == character_id,
-                CharacterRating.is_like == True
-            )
-        )
-        likes_count = likes_result.scalar() or 0
-        
-        dislikes_result = await db.execute(
-            select(func.count(CharacterRating.id)).where(
-                CharacterRating.character_id == character_id,
-                CharacterRating.is_like == False
-            )
-        )
-        dislikes_count = dislikes_result.scalar() or 0
-        
-        user_rating = None
-        if current_user:
-            user_rating_result = await db.execute(
-                select(CharacterRating).where(
-                    CharacterRating.user_id == current_user.id,
-                    CharacterRating.character_id == character_id
-                )
-            )
-            user_rating_obj = user_rating_result.scalar_one_or_none()
-            if user_rating_obj:
-                user_rating = "like" if user_rating_obj.is_like else "dislike"
-        
-        return {
-            "character_id": character_id,
-            "likes": likes_count,
-            "dislikes": dislikes_count,
-            "user_rating": user_rating
-        }
+        from app.chat_bot.api.character_ratings_endpoints import get_character_ratings
+        return await get_character_ratings(character_id, current_user, db)
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting character ratings: {e}")
+        logger.error(f"Error in get_character_ratings_direct: {e}")
         raise HTTPException(status_code=500, detail=f"Error getting character ratings: {str(e)}")
 
 # Простой тестовый эндпоинт БЕЗ зависимостей для проверки работы сервера
@@ -1143,41 +1128,58 @@ except ImportError:
 except Exception as e:
     logger.warning(f"[WARNING] Ошибка подключения тестового роутера: {e}")
 
+def _to_json_safe(val):
+    """Рекурсивно приводит значение к JSON-сериализуемому виду."""
+    if val is None or isinstance(val, (bool, int, float, str)):
+        return val
+    # Обрабатываем исключения и другие несериализуемые объекты
+    if isinstance(val, Exception):
+        return str(val)
+    if isinstance(val, (tuple, list)):
+        return [_to_json_safe(x) for x in val]
+    if isinstance(val, dict):
+        return {str(k): _to_json_safe(v) for k, v in val.items()}
+    # Для всех остальных типов пытаемся преобразовать в строку
+    try:
+        # Пробуем сериализовать через json для проверки
+        json.dumps(val)
+        return val
+    except (TypeError, ValueError):
+        return str(val)
+
+
+def _validation_errors_to_serializable(errors: list) -> list:
+    """Приводит exc.errors() к JSON-сериализуемому виду."""
+    out = []
+    for e in errors:
+        if not isinstance(e, dict):
+            # Если элемент не словарь, преобразуем в строку
+            out.append({"msg": str(e)})
+            continue
+        try:
+            # Рекурсивно обрабатываем все значения в словаре
+            safe_dict = {}
+            for k, v in e.items():
+                try:
+                    safe_dict[str(k)] = _to_json_safe(v)
+                except Exception as ex:
+                    # Если не удалось обработать значение, преобразуем в строку
+                    safe_dict[str(k)] = str(v) if v is not None else None
+            out.append(safe_dict)
+        except Exception:
+            # Если вообще не удалось обработать элемент, сохраняем только сообщение
+            out.append({"msg": str(e)})
+    return out
+
+
 # Обработчики ошибок
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(
     request: Request, exc: RequestValidationError
 ):
-    error_msg = f"Validation error: {exc.errors()}"
-    try:
-        logger.error(error_msg)
-    except (UnicodeEncodeError, UnicodeError):
-        # Если не получается вывести с русскими символами, выводим без них
-        logger.error("Validation error occurred")
-    
-    # Логируем полную информацию об ошибке для отладки
-    import json
-    try:
-        errors_json = json.dumps(exc.errors(), indent=2, ensure_ascii=False)
-        logger.error(f"Validation errors details: {errors_json}")
-    except (UnicodeEncodeError, UnicodeError):
-        # Если не получается вывести с русскими символами, выводим без них
-        try:
-            errors_json = json.dumps(exc.errors(), indent=2, ensure_ascii=True)
-            logger.error(f"Validation errors details: {errors_json}")
-        except Exception:
-            logger.error("Validation errors occurred (encoding issue)")
-    
-    try:
-        body = await request.body() if hasattr(request, 'body') else 'N/A'
-        logger.error(f"Request body: {body}")
-    except (UnicodeEncodeError, UnicodeError):
-        logger.error("Request body: [encoding issue]")
-    
-    return JSONResponse(
-        status_code=422,
-        content={"detail": exc.errors()}
-    )
+    """Обработка ошибок валидации (422). Без логирования в Telegram."""
+    detail = _validation_errors_to_serializable(exc.errors())
+    return JSONResponse(status_code=422, content={"detail": detail})
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -1478,14 +1480,25 @@ async def get_available_models():
 
 @app.get("/api/v1/generation-settings/")
 async def get_generation_settings():
-    """Получить настройки генерации по умолчанию."""
+    """Получить настройки генерации по умолчанию с кэшированием."""
     try:
+        from app.utils.redis_cache import (
+            cache_get, cache_set, key_generation_settings, TTL_GENERATION_SETTINGS
+        )
+        
+        # Пытаемся получить из кэша
+        cache_key = key_generation_settings()
+        cached_settings = await cache_get(cache_key, timeout=0.5)
+        if cached_settings is not None:
+            logger.debug("[GENERATION SETTINGS] Использован кэш")
+            return cached_settings
+        
         from app.config.generation_defaults import get_generation_params, get_fallback_values
         settings = get_generation_params("default")
         fallback_values = get_fallback_values()
         
         # Возвращаем только основные настройки для фронтенда
-        return {
+        result = {
             "steps": settings.get("steps", fallback_values["steps"]),
             "width": settings.get("width", fallback_values["width"]),
             "height": settings.get("height", fallback_values["height"]),
@@ -1493,6 +1506,11 @@ async def get_generation_settings():
             "sampler_name": settings.get("sampler_name", fallback_values["sampler_name"]),
             "negative_prompt": fallback_values["negative_prompt"]
         }
+        
+        # Сохраняем в кэш
+        await cache_set(cache_key, result, ttl_seconds=TTL_GENERATION_SETTINGS, timeout=0.5)
+        
+        return result
     except Exception as e:
         logger.error(f"Ошибка получения настроек генерации: {e}")
         # Возвращаем значения по умолчанию в случае ошибки
@@ -1527,10 +1545,26 @@ async def get_generation_settings():
 
 @app.get("/api/v1/fallback-settings/")
 async def get_fallback_settings():
-    """Получить fallback настройки из generation_defaults.py."""
+    """Получить fallback настройки из generation_defaults.py с кэшированием."""
     try:
+        from app.utils.redis_cache import (
+            cache_get, cache_set, key_generation_fallback, TTL_GENERATION_FALLBACK
+        )
+        
+        # Пытаемся получить из кэша
+        cache_key = key_generation_fallback()
+        cached_settings = await cache_get(cache_key, timeout=0.5)
+        if cached_settings is not None:
+            logger.debug("[FALLBACK SETTINGS] Использован кэш")
+            return cached_settings
+        
         from app.config.generation_defaults import get_fallback_values
-        return get_fallback_values()
+        result = get_fallback_values()
+        
+        # Сохраняем в кэш
+        await cache_set(cache_key, result, ttl_seconds=TTL_GENERATION_FALLBACK, timeout=0.5)
+        
+        return result
     except Exception as e:
         logger.error(f"Ошибка получения fallback настроек: {e}", exc_info=True)
         # Последний резерв - используем default_prompts.py

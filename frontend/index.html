@@ -17,13 +17,13 @@
     <meta name="googlebot" content="index, follow" />
     
     <!-- Favicon и иконки -->
-    <link rel="icon" type="image/png" href="/site-avatar.png" />
-    <link rel="apple-touch-icon" href="/site-avatar.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/site-avatar.png" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/site-avatar.png" />
-    <link rel="icon" type="image/png" sizes="96x96" href="/site-avatar.png" />
-    <link rel="icon" type="image/png" sizes="192x192" href="/site-avatar.png" />
-    <link rel="icon" type="image/png" sizes="512x512" href="/site-avatar.png" />
+    <link rel="icon" type="image/png" href="/logo-cherry.png" />
+    <link rel="apple-touch-icon" href="/logo-cherry.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/logo-cherry.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/logo-cherry.png" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/logo-cherry.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/logo-cherry.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/logo-cherry.png" />
     <link rel="manifest" href="/manifest.json" />
     
     <!-- Open Graph / Facebook -->
@@ -31,11 +31,11 @@
     <meta property="og:url" content="https://cherrylust.art/" />
     <meta property="og:title" content="Cherry Lust - AI Чат с виртуальными персонажами 18+" />
     <meta property="og:description" content="Эксклюзивный AI чат с виртуальными персонажами 18+. Создавайте своих персонажей, общайтесь с ИИ, генерируйте изображения. Премиум сервис для взрослых." />
-    <meta property="og:image" content="https://cherrylust.art/site-avatar-og.jpg" />
-    <meta property="og:image:secure_url" content="https://cherrylust.art/site-avatar-og.jpg" />
-    <meta property="og:image:type" content="image/jpeg" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="1200" />
+    <meta property="og:image" content="https://cherrylust.art/logo-cherry.png" />
+    <meta property="og:image:secure_url" content="https://cherrylust.art/logo-cherry.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
     <meta property="og:site_name" content="Cherry Lust" />
     <meta property="og:locale" content="ru_RU" />
     
@@ -48,7 +48,7 @@
     <meta name="twitter:url" content="https://cherrylust.art/" />
     <meta name="twitter:title" content="Cherry Lust - AI Чат с виртуальными персонажами 18+" />
     <meta name="twitter:description" content="Эксклюзивный AI чат с виртуальными персонажами 18+. Создавайте своих персонажей, общайтесь с ИИ, генерируйте изображения." />
-    <meta name="twitter:image" content="https://cherrylust.art/site-avatar-og.jpg" />
+    <meta name="twitter:image" content="https://cherrylust.art/logo-cherry.png" />
     
     <!-- Дополнительные мета-теги -->
     <meta name="theme-color" content="#8b5cf6" />
@@ -72,21 +72,33 @@
       "alternateName": "Cherry Lust AI Chat",
       "description": "Эксклюзивный AI чат с виртуальными персонажами 18+. Создавайте своих персонажей, общайтесь с ИИ, генерируйте изображения. Премиум сервис для взрослых.",
       "url": "https://cherrylust.art",
-      "logo": "https://cherrylust.art/site-avatar-og.jpg",
+      "logo": "https://cherrylust.art/logo-cherry.png",
       "image": {
         "@type": "ImageObject",
-        "url": "https://cherrylust.art/site-avatar-og.jpg",
-        "width": 1200,
-        "height": 1200
+        "url": "https://cherrylust.art/logo-cherry.png",
+        "width": 512,
+        "height": 512
       },
       "sameAs": [
         "https://cherrylust.art"
       ],
-      "potentialAction": {
-        "@type": "SearchAction",
-        "target": "https://cherrylust.art/search?q={search_term_string}",
-        "query-input": "required name=search_term_string"
-      },
+      "potentialAction": [
+        {
+          "@type": "SearchAction",
+          "target": "https://cherrylust.art/search?q={search_term_string}",
+          "query-input": "required name=search_term_string"
+        },
+        {
+          "@type": "ReadAction",
+          "target": "https://cherrylust.art/create-character",
+          "name": "Создай персонажа"
+        },
+        {
+          "@type": "ReadAction",
+          "target": "https://cherrylust.art/",
+          "name": "В чат"
+        }
+      ],
       "audience": {
         "@type": "Audience",
         "audienceType": "Adults only"
@@ -94,6 +106,57 @@
       "contentRating": "18+",
       "inLanguage": "ru",
       "keywords": "ai чат, виртуальные персонажи, 18+, искусственный интеллект, чат бот, генерация изображений"
+    }
+    </script>
+    
+    <!-- SiteNavigationElement для улучшения sitelinks -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SiteNavigationElement",
+      "name": "Основная навигация",
+      "url": "https://cherrylust.art",
+      "hasPart": [
+        {
+          "@type": "SiteNavigationElement",
+          "name": "Создай персонажа",
+          "url": "https://cherrylust.art/create-character",
+          "description": "Создайте своего уникального AI персонажа"
+        },
+        {
+          "@type": "SiteNavigationElement",
+          "name": "В чат",
+          "url": "https://cherrylust.art/",
+          "description": "Начните общение с AI персонажами"
+        },
+        {
+          "@type": "SiteNavigationElement",
+          "name": "Мои персонажи",
+          "url": "https://cherrylust.art/my-characters",
+          "description": "Управляйте своими созданными персонажами"
+        },
+        {
+          "@type": "SiteNavigationElement",
+          "name": "Магазин",
+          "url": "https://cherrylust.art/shop",
+          "description": "Пополните баланс и получите премиум функции"
+        }
+      ]
+    }
+    </script>
+    
+    <!-- Organization schema для лучшего отображения логотипа -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Cherry Lust",
+      "url": "https://cherrylust.art",
+      "logo": "https://cherrylust.art/logo-cherry.png",
+      "description": "Эксклюзивный AI чат с виртуальными персонажами 18+",
+      "sameAs": [
+        "https://cherrylust.art"
+      ]
     }
     </script>
   </head>

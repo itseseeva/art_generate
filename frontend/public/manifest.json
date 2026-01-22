@@ -9,13 +9,13 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/site-avatar.png",
+      "src": "/logo-cherry.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable any"
     },
     {
-      "src": "/site-avatar.png",
+      "src": "/logo-cherry.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable any"

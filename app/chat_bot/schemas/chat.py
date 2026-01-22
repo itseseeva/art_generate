@@ -222,6 +222,10 @@ class CharacterInDB(CharacterConfig):
         default=True,
         description="Флаг контента 18+ (True = NSFW, False = SAVE)"
     )
+    likes: Optional[int] = Field(None, description="Количество лайков")
+    dislikes: Optional[int] = Field(None, description="Количество дизлайков")
+    views: Optional[int] = Field(None, description="Количество просмотров")
+    comments: Optional[int] = Field(None, description="Количество комментариев")
 
     model_config = ConfigDict(from_attributes=True)
 

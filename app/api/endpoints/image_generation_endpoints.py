@@ -12,6 +12,7 @@ from app.database.db_depends import get_db
 from app.auth.dependencies import get_current_user
 from app.models.user import Users
 from app.models.image_generation_history import ImageGenerationHistory
+from app.utils.redis_cache import cache_delete, key_image_metadata
 
 
 router = APIRouter(prefix="/image-generation", tags=["Image Generation"])
@@ -126,6 +127,9 @@ async def set_admin_prompt(
                     db.add(record)
                     await db.commit()
                     await db.refresh(record)
+                    
+                    # Инвалидируем кэш метаданных изображения
+                    await cache_delete(key_image_metadata(normalized_url))
                 else:
                     # Создаем запись с минимальными данными
                     logger.info(f"[ADMIN PROMPT] Запись не найдена нигде, создаем новую с минимальными данными")
@@ -138,6 +142,9 @@ async def set_admin_prompt(
                     db.add(record)
                     await db.commit()
                     await db.refresh(record)
+                    
+                    # Инвалидируем кэш метаданных изображения
+                    await cache_delete(key_image_metadata(normalized_url))
             except Exception as chat_err:
                 logger.warning(f"[ADMIN PROMPT] Ошибка поиска в ChatHistory: {chat_err}, создаем запись с минимальными данными")
                 # Создаем запись с минимальными данными
@@ -150,6 +157,9 @@ async def set_admin_prompt(
                 db.add(record)
                 await db.commit()
                 await db.refresh(record)
+                
+                # Инвалидируем кэш метаданных изображения
+                await cache_delete(key_image_metadata(normalized_url))
         else:
             # Обновляем существующую запись
             update_stmt = (
@@ -161,6 +171,9 @@ async def set_admin_prompt(
             await db.commit()
         
         logger.info(f"[ADMIN PROMPT] Админский промпт успешно установлен для записи ID={record.id}")
+        
+        # Инвалидируем кэш метаданных изображения
+        await cache_delete(key_image_metadata(normalized_url))
         
         return {
             "success": True,

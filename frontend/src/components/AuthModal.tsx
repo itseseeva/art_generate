@@ -1,282 +1,94 @@
 import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
-import { theme } from '../theme';
 import FingerprintJS from '@fingerprintjs/fingerprintjs';
 
-const ModalOverlay = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.9);
-  backdrop-filter: blur(15px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: ${theme.zIndex.modal};
-  animation: fadeIn 0.3s ease-out;
-`;
+// Loading Spinner Component
+const LoadingSpinner = () => (
+  <div className="inline-block w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+);
 
-const ModalContent = styled.div`
-  background: rgba(30, 30, 30, 0.6);
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
-  border-radius: 24px;
-  padding: ${theme.spacing.xxl};
-  box-shadow: 
-    0 20px 60px rgba(0, 0, 0, 0.8),
-    0 0 0 1px rgba(255, 255, 255, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  max-width: 420px;
-  width: 90vw;
-  max-height: 90vh;
-  overflow-y: auto;
-  animation: slideIn 0.3s ease-out;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-
-  @media (max-width: 768px) {
-    padding: ${theme.spacing.xl} ${theme.spacing.lg};
-    width: 95vw;
-  }
-`;
-
-const LogoWrapper = styled.div`
-  display: flex;
-  justify-content: center;
-  margin-bottom: ${theme.spacing.lg};
-  
-  img {
-    height: 60px;
-    object-fit: contain;
-  }
-`;
-
-const ModalHeader = styled.div`
-  text-align: center;
-  margin-bottom: ${theme.spacing.xl};
-  
-  h3 {
-    font-size: ${theme.fontSize['2xl']};
-    font-weight: 700;
-    color: #ffffff;
-    margin-bottom: ${theme.spacing.sm};
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-  }
-  
-  p {
-    color: #b0b0b0;
-    font-size: ${theme.fontSize.sm};
-    line-height: 1.5;
-  }
-`;
-
-const Form = styled.form`
-  display: flex;
-  flex-direction: column;
-  gap: ${theme.spacing.lg};
-`;
-
-const FormGroup = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
-  
-  label {
-    font-weight: 600;
-    color: #e2e8f0;
-    font-size: 14px;
-    display: block;
-  }
-  
-  input {
-    width: 100%;
-    padding: 14px 16px;
-    background: rgba(30, 30, 30, 0.8);
-    border: 2px solid rgba(80, 80, 80, 0.5);
-    border-radius: 10px;
-    color: #ffffff;
-    font-size: 15px;
-    transition: all 0.3s ease;
-    display: block;
-    position: relative;
-    z-index: 1;
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
-    
-    &:focus {
-      border-color: rgba(150, 150, 150, 0.8);
-      box-shadow: 
-        0 0 0 3px rgba(150, 150, 150, 0.2),
-        inset 0 2px 4px rgba(0, 0, 0, 0.3);
-      outline: none;
-      background: rgba(35, 35, 35, 0.9);
-    }
-    
-    &::placeholder {
-      color: #666666;
-    }
-    
-    &:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-  }
-`;
-
-const ButtonGroup = styled.div`
-  display: flex;
-  gap: ${theme.spacing.md};
-  margin-top: ${theme.spacing.lg};
-`;
-
-const Button = styled.button<{ $variant?: 'primary' | 'secondary' }>`
-  flex: 1;
-  padding: 14px 24px;
-  border: none;
-  border-radius: 12px;
-  font-weight: 700;
-  font-size: ${theme.fontSize.base};
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  position: relative;
-  overflow: hidden;
-  
-  ${props => props.$variant === 'primary' ? `
-    background: linear-gradient(135deg, #3a3a3a 0%, #2a2a2a 100%);
-    color: #ffffff;
-    box-shadow: 
-      0 4px 15px rgba(0, 0, 0, 0.4),
-      inset 0 1px 0 rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    
-    &::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: -100%;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-      transition: left 0.5s;
-    }
-    
-    &:hover {
-      background: linear-gradient(135deg, #4a4a4a 0%, #3a3a3a 100%);
-      box-shadow: 
-        0 6px 20px rgba(0, 0, 0, 0.6),
-        inset 0 1px 0 rgba(255, 255, 255, 0.15);
-      transform: translateY(-2px);
-      
-      &::before {
-        left: 100%;
+// Add animations to document head if not already present
+if (typeof document !== 'undefined') {
+  const styleId = 'auth-modal-animations';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
       }
-    }
-    
-    &:active {
-      transform: translateY(0);
-      box-shadow: 
-        0 2px 10px rgba(0, 0, 0, 0.4),
-        inset 0 1px 0 rgba(255, 255, 255, 0.1);
-    }
-  ` : `
-    background: rgba(40, 40, 40, 0.8);
-    color: #d0d0d0;
-    border: 2px solid rgba(100, 100, 100, 0.4);
-    box-shadow: 
-      0 4px 15px rgba(0, 0, 0, 0.3),
-      inset 0 1px 0 rgba(255, 255, 255, 0.05);
-    
-    &:hover {
-      background: rgba(50, 50, 50, 0.9);
-      border-color: rgba(150, 150, 150, 0.6);
-      color: #ffffff;
-      box-shadow: 
-        0 6px 20px rgba(0, 0, 0, 0.4),
-        inset 0 1px 0 rgba(255, 255, 255, 0.1);
-      transform: translateY(-2px);
-    }
-    
-    &:active {
-      transform: translateY(0);
-      box-shadow: 
-        0 2px 10px rgba(0, 0, 0, 0.3),
-        inset 0 1px 0 rgba(255, 255, 255, 0.05);
-    }
-  `}
-  
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none !important;
-    box-shadow: none !important;
+      @keyframes slideIn {
+        from { 
+          opacity: 0;
+          transform: translateY(-20px) scale(0.95);
+        }
+        to { 
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+      .animate-fadeIn {
+        animation: fadeIn 0.3s ease-out;
+      }
+      .animate-slideIn {
+        animation: slideIn 0.3s ease-out;
+      }
+    `;
+    document.head.appendChild(style);
   }
-`;
+}
 
-const ErrorMessage = styled.div`
-  background: rgba(200, 50, 50, 0.2);
-  border: 1px solid rgba(200, 50, 50, 0.4);
-  color: #ff6b6b;
-  padding: ${theme.spacing.md};
-  border-radius: 10px;
-  font-size: ${theme.fontSize.sm};
-  text-align: center;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
-`;
+interface ValidationErrorItem {
+  loc?: (string | number)[];
+  msg?: string;
+  type?: string;
+  ctx?: Record<string, unknown>;
+}
 
-const LoadingSpinner = styled.div`
-  display: inline-block;
-  width: 20px;
-  height: 20px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  border-top-color: ${theme.colors.text.primary};
-  animation: spin 1s ease-in-out infinite;
-  
-  @keyframes spin {
-    to { transform: rotate(360deg); }
+function formatValidationErrors(detail: unknown): string {
+  if (!Array.isArray(detail)) {
+    return typeof detail === 'string' ? detail : 'Ошибка валидации.';
   }
-`;
-
-const GoogleButton = styled.button`
-  width: 100%;
-  padding: 0;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  overflow: hidden;
-  background: transparent;
-  
-  &:hover {
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-    transform: translateY(-1px);
+  const messages: string[] = [];
+  for (const e of detail as ValidationErrorItem[]) {
+    const loc = e.loc || [];
+    const field = (typeof loc[loc.length - 1] === 'string' ? loc[loc.length - 1] : '') as string;
+    const msg = (e.msg || '').toLowerCase();
+    const type = (e.type || '').toLowerCase();
+    const fullMsg = (e.msg || '').trim();
+    if (/[а-яА-ЯёЁ]/.test(fullMsg)) {
+      messages.push(fullMsg);
+      continue;
+    }
+    if (field === 'password') {
+      if (type === 'string_too_short' || /at least 8|min_length|8 character/.test(msg)) {
+        messages.push('Пароль: не менее 8 символов, заглавная и строчная буквы, цифра.');
+      } else if (/uppercase|заглавн|capital/.test(msg)) {
+        messages.push('Пароль должен содержать хотя бы одну заглавную букву.');
+      } else if (/lowercase|строчн|lower/.test(msg)) {
+        messages.push('Пароль должен содержать хотя бы одну строчную букву.');
+      } else if (/digit|цифр|number/.test(msg)) {
+        messages.push('Пароль должен содержать хотя бы одну цифру.');
+      } else {
+        messages.push('Пароль: не менее 8 символов, заглавная и строчная буквы, цифра.');
+      }
+    } else if (field === 'username') {
+      if (type === 'string_too_short' || /at least 3|min_length|3 character/.test(msg)) {
+        messages.push('Имя пользователя: не менее 3 символов.');
+      } else if (type === 'string_too_long' || /at most 30|max_length|30 character/.test(msg)) {
+        messages.push('Имя пользователя: не более 30 символов.');
+      } else {
+        messages.push('Имя пользователя: от 3 до 30 символов.');
+      }
+    } else if (field === 'email') {
+      messages.push('Введите корректный email.');
+    } else if (fullMsg) {
+      messages.push(fullMsg);
+    }
   }
-  
-  &:active {
-    transform: translateY(0);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  }
-  
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none !important;
-  }
-`;
-
-const GoogleButtonImage = styled.img`
-  width: 100%;
-  height: auto;
-  display: block;
-  object-fit: contain;
-`;
+  const uniq = [...new Set(messages)];
+  return uniq.length ? uniq.join(' ') : 'Ошибка валидации.';
+}
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -361,15 +173,33 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
       });
 
       if (!response.ok) {
-        // Пытаемся получить текст ошибки (может быть JSON или текст)
         let errorMessage = `Ошибка ${currentMode === 'register' ? 'регистрации' : 'авторизации'}`;
         try {
           const errorData = await response.json();
-          errorMessage = errorData.detail || errorMessage;
+          const d = errorData.detail;
+          if (response.status === 422 && d != null) {
+            const arr = Array.isArray(d) ? d : [d];
+            const formatted = formatValidationErrors(arr);
+            errorMessage = currentMode === 'register'
+              ? `Исправьте данные: ${formatted}`
+              : formatted;
+          } else if (response.status === 500 && currentMode === 'register') {
+            errorMessage = 'Временная ошибка. Проверьте: пароль от 8 символов, заглавная и строчная буквы, цифра; имя от 3 до 30 символов. Отправьте снова.';
+          } else if (typeof d === 'string') {
+            errorMessage = d;
+          } else if (d) {
+            errorMessage = formatValidationErrors(Array.isArray(d) ? d : [d]);
+          }
         } catch {
-          // Если не JSON, пытаемся получить текст
-          const text = await response.text();
-          errorMessage = text || errorMessage;
+          try {
+            const text = await response.text();
+            if (text) errorMessage = text;
+          } catch {
+            /* ignore */
+          }
+        }
+        if (currentMode === 'register' && response.status === 500 && errorMessage.includes('JSON serializable')) {
+          errorMessage = 'Временная ошибка. Проверьте: пароль от 8 символов, заглавная и строчная буквы, цифра; имя от 3 до 30 символов. Отправьте снова.';
         }
         throw new Error(errorMessage);
       }
@@ -568,13 +398,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
   };
 
   return (
-    <ModalOverlay>
-      <ModalContent>
-        <LogoWrapper>
-          <img src="/logo-header.png" alt="Site Logo" />
-        </LogoWrapper>
-        <ModalHeader>
-          <h3>
+    <div className="fixed inset-0 bg-gradient-to-br from-black via-gray-950 to-black/90 backdrop-blur-md flex items-center justify-center z-50 animate-fadeIn">
+      <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-8 md:p-10 max-w-md w-[90vw] md:w-full max-h-[90vh] overflow-y-auto border border-white/10 shadow-2xl animate-slideIn">
+        <div className="flex justify-center mb-8">
+          <img src="/logo-header.png" alt="Site Logo" className="h-15 object-contain" />
+        </div>
+        
+        <div className="text-center mb-8">
+          <h3 className="text-3xl md:text-4xl font-bold text-white mb-3 drop-shadow-lg">
             {showForgotPassword 
               ? 'Восстановление пароля'
               : currentMode === 'register' 
@@ -582,7 +413,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                 : 'Вход в систему'
             }
           </h3>
-          <p>
+          <p className="text-gray-400 text-sm md:text-base leading-relaxed">
             {showForgotPassword
               ? resetStep === 'email'
                 ? 'Введите email для восстановления пароля'
@@ -596,13 +427,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                   : 'Войдите в свой аккаунт для продолжения'
             }
           </p>
-        </ModalHeader>
+        </div>
 
         {showForgotPassword ? (
           resetStep === 'email' ? (
-            <Form onSubmit={handleForgotPassword}>
-              <div style={{ marginBottom: '16px' }}>
-                <label htmlFor="reset_email" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#e2e8f0', fontSize: '14px' }}>Email:</label>
+            <form onSubmit={handleForgotPassword} className="flex flex-col gap-6">
+              <div className="mb-4">
+                <label htmlFor="reset_email" className="block mb-2 font-semibold text-gray-200 text-sm">Email:</label>
                 <input
                   type="email"
                   id="reset_email"
@@ -611,56 +442,40 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                   placeholder="Введите ваш email"
                   required
                   disabled={isLoading}
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    background: '#1a1a2e',
-                    border: '2px solid #374151',
-                    borderRadius: '12px',
-                    color: '#ffffff',
-                    fontSize: '16px',
-                    outline: 'none'
-                  }}
+                  className="w-full px-4 py-3 bg-black/20 border border-gray-700/50 rounded-xl text-white placeholder:text-gray-500 text-sm focus:outline-none focus:border-[#9F1239] focus:ring-2 focus:ring-[#9F1239]/20 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
 
-              {error && <ErrorMessage>{error}</ErrorMessage>}
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl text-sm text-center">
+                  {error}
+                </div>
+              )}
 
-              <ButtonGroup>
-                <Button
-                  type="submit"
-                  $variant="primary"
-                  disabled={isLoading || !resetEmail}
-                >
-                  {isLoading ? <LoadingSpinner /> : 'Отправить код'}
-                </Button>
-                <Button
-                  type="button"
-                  $variant="secondary"
-                  onClick={() => {
-                    setShowForgotPassword(false);
-                    setResetEmail('');
-                    setError(null);
-                  }}
-                  disabled={isLoading}
-                >
-                  Отмена
-                </Button>
-              </ButtonGroup>
-            </Form>
+              <button
+                type="submit"
+                disabled={isLoading || !resetEmail}
+                className="w-full py-3.5 bg-gradient-to-r from-[#9F1239] to-[#B91C3C] text-white font-semibold rounded-xl shadow-lg shadow-[#9F1239]/20 hover:shadow-[#9F1239]/30 hover:from-[#B91C3C] hover:to-[#C91E42] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-[#9F1239]/20 flex items-center justify-center gap-2"
+              >
+                {isLoading ? <LoadingSpinner /> : 'Отправить код'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForgotPassword(false);
+                  setResetEmail('');
+                  setError(null);
+                }}
+                disabled={isLoading}
+                className="w-full py-2.5 text-gray-400 hover:text-white transition-colors duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Отмена
+              </button>
+            </form>
           ) : resetStep === 'code' ? (
-            <Form onSubmit={handleVerifyResetCode}>
-              <div style={{ marginBottom: '20px' }}>
-                <label 
-                  htmlFor="reset_code" 
-                  style={{ 
-                    display: 'block', 
-                    marginBottom: '12px', 
-                    fontWeight: 600, 
-                    color: '#e2e8f0', 
-                    fontSize: '14px' 
-                  }}
-                >
+            <form onSubmit={handleVerifyResetCode} className="flex flex-col gap-6">
+              <div className="mb-5">
+                <label htmlFor="reset_code" className="block mb-3 font-semibold text-gray-200 text-sm">
                   Код восстановления:
                 </label>
                 <input
@@ -672,54 +487,40 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                   required
                   disabled={isLoading}
                   maxLength={6}
-                  style={{
-                    width: '100%',
-                    padding: '16px',
-                    background: 'rgba(30, 30, 30, 0.8)',
-                    border: '2px solid rgba(80, 80, 80, 0.5)',
-                    borderRadius: '10px',
-                    color: '#ffffff',
-                    fontSize: '24px',
-                    fontWeight: 'bold',
-                    textAlign: 'center',
-                    letterSpacing: '12px',
-                    outline: 'none',
-                    boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.3)',
-                    transition: 'all 0.3s ease',
-                    display: 'block',
-                    boxSizing: 'border-box'
-                  }}
+                  className="w-full px-4 py-4 bg-black/20 border border-gray-700/50 rounded-xl text-white text-2xl font-bold text-center tracking-[0.75rem] focus:outline-none focus:border-[#9F1239] focus:ring-2 focus:ring-[#9F1239]/20 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
 
-              {error && <ErrorMessage>{error}</ErrorMessage>}
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl text-sm text-center">
+                  {error}
+                </div>
+              )}
 
-              <ButtonGroup>
-                <Button
-                  type="submit"
-                  $variant="primary"
-                  disabled={isLoading || !resetCode || resetCode.length !== 6}
-                >
-                  {isLoading ? <LoadingSpinner /> : 'Продолжить'}
-                </Button>
-                <Button
-                  type="button"
-                  $variant="secondary"
-                  onClick={() => {
-                    setResetStep('email');
-                    setResetCode('');
-                    setError(null);
-                  }}
-                  disabled={isLoading}
-                >
-                  Назад
-                </Button>
-              </ButtonGroup>
-            </Form>
+              <button
+                type="submit"
+                disabled={isLoading || !resetCode || resetCode.length !== 6}
+                className="w-full py-3.5 bg-gradient-to-r from-[#9F1239] to-[#B91C3C] text-white font-semibold rounded-xl shadow-lg shadow-[#9F1239]/20 hover:shadow-[#9F1239]/30 hover:from-[#B91C3C] hover:to-[#C91E42] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-[#9F1239]/20 flex items-center justify-center gap-2"
+              >
+                {isLoading ? <LoadingSpinner /> : 'Продолжить'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setResetStep('email');
+                  setResetCode('');
+                  setError(null);
+                }}
+                disabled={isLoading}
+                className="w-full py-2.5 text-gray-400 hover:text-white transition-colors duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Назад
+              </button>
+            </form>
           ) : (
-            <Form onSubmit={handleResetPassword}>
-              <div style={{ marginBottom: '16px' }}>
-                <label htmlFor="new_password" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#e2e8f0', fontSize: '14px' }}>Новый пароль:</label>
+            <form onSubmit={handleResetPassword} className="flex flex-col gap-6">
+              <div className="mb-4">
+                <label htmlFor="new_password" className="block mb-2 font-semibold text-gray-200 text-sm">Новый пароль:</label>
                 <input
                   type="password"
                   id="new_password"
@@ -728,21 +529,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                   placeholder="Введите новый пароль"
                   required
                   disabled={isLoading}
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    background: '#1a1a2e',
-                    border: '2px solid #374151',
-                    borderRadius: '12px',
-                    color: '#ffffff',
-                    fontSize: '16px',
-                    outline: 'none'
-                  }}
+                  className="w-full px-4 py-3 bg-black/20 border border-gray-700/50 rounded-xl text-white placeholder:text-gray-500 text-sm focus:outline-none focus:border-[#9F1239] focus:ring-2 focus:ring-[#9F1239]/20 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
 
-              <div style={{ marginBottom: '16px' }}>
-                <label htmlFor="confirm_password" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#e2e8f0', fontSize: '14px' }}>Подтвердите пароль:</label>
+              <div className="mb-4">
+                <label htmlFor="confirm_password" className="block mb-2 font-semibold text-gray-200 text-sm">Подтвердите пароль:</label>
                 <input
                   type="password"
                   id="confirm_password"
@@ -751,58 +543,42 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                   placeholder="Повторите новый пароль"
                   required
                   disabled={isLoading}
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    background: '#1a1a2e',
-                    border: '2px solid #374151',
-                    borderRadius: '12px',
-                    color: '#ffffff',
-                    fontSize: '16px',
-                    outline: 'none'
-                  }}
+                  className="w-full px-4 py-3 bg-black/20 border border-gray-700/50 rounded-xl text-white placeholder:text-gray-500 text-sm focus:outline-none focus:border-[#9F1239] focus:ring-2 focus:ring-[#9F1239]/20 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
 
-              {error && <ErrorMessage>{error}</ErrorMessage>}
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl text-sm text-center">
+                  {error}
+                </div>
+              )}
 
-              <ButtonGroup>
-                <Button
-                  type="submit"
-                  $variant="primary"
-                  disabled={isLoading || !newPassword || !confirmPassword || newPassword !== confirmPassword}
-                >
-                  {isLoading ? <LoadingSpinner /> : 'Сбросить пароль'}
-                </Button>
-                <Button
-                  type="button"
-                  $variant="secondary"
-                  onClick={() => {
-                    setResetStep('code');
-                    setNewPassword('');
-                    setConfirmPassword('');
-                    setError(null);
-                  }}
-                  disabled={isLoading}
-                >
-                  Назад
-                </Button>
-              </ButtonGroup>
-            </Form>
+              <button
+                type="submit"
+                disabled={isLoading || !newPassword || !confirmPassword || newPassword !== confirmPassword}
+                className="w-full py-3.5 bg-gradient-to-r from-[#9F1239] to-[#B91C3C] text-white font-semibold rounded-xl shadow-lg shadow-[#9F1239]/20 hover:shadow-[#9F1239]/30 hover:from-[#B91C3C] hover:to-[#C91E42] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-[#9F1239]/20 flex items-center justify-center gap-2"
+              >
+                {isLoading ? <LoadingSpinner /> : 'Сбросить пароль'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setResetStep('code');
+                  setNewPassword('');
+                  setConfirmPassword('');
+                  setError(null);
+                }}
+                disabled={isLoading}
+                className="w-full py-2.5 text-gray-400 hover:text-white transition-colors duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Назад
+              </button>
+            </form>
           )
         ) : showVerificationCode ? (
-          <Form onSubmit={handleVerifyCode}>
-            <div style={{ marginBottom: '20px' }}>
-              <label 
-                htmlFor="verification_code" 
-                style={{ 
-                  display: 'block', 
-                  marginBottom: '12px', 
-                  fontWeight: 600, 
-                  color: '#e2e8f0', 
-                  fontSize: '14px' 
-                }}
-              >
+          <form onSubmit={handleVerifyCode} className="flex flex-col gap-6">
+            <div className="mb-5">
+              <label htmlFor="verification_code" className="block mb-3 font-semibold text-gray-200 text-sm">
                 Код верификации:
               </label>
               <input
@@ -815,63 +591,41 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                 required
                 disabled={isLoading}
                 maxLength={6}
-                style={{
-                  width: '100%',
-                  padding: '16px',
-                  background: 'rgba(30, 30, 30, 0.8)',
-                  border: '2px solid rgba(80, 80, 80, 0.5)',
-                  borderRadius: '10px',
-                  color: '#ffffff',
-                  fontSize: '24px',
-                  fontWeight: 'bold',
-                  textAlign: 'center',
-                  letterSpacing: '12px',
-                  outline: 'none',
-                  boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.3)',
-                  transition: 'all 0.3s ease',
-                  display: 'block',
-                  boxSizing: 'border-box'
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = 'rgba(150, 150, 150, 0.8)';
-                  e.target.style.background = 'rgba(35, 35, 35, 0.9)';
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = 'rgba(80, 80, 80, 0.5)';
-                  e.target.style.background = 'rgba(30, 30, 30, 0.8)';
-                }}
+                className="w-full px-4 py-4 bg-black/20 border border-gray-700/50 rounded-xl text-white text-2xl font-bold text-center tracking-[0.75rem] focus:outline-none focus:border-[#9F1239] focus:ring-2 focus:ring-[#9F1239]/20 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
               />
             </div>
 
-            {error && <ErrorMessage>{error}</ErrorMessage>}
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl text-sm text-center">
+                {error}
+              </div>
+            )}
 
-            <ButtonGroup>
-              <Button
-                type="submit"
-                $variant="primary"
-                disabled={isLoading || !verificationCode || verificationCode.length !== 6}
-              >
-                {isLoading ? <LoadingSpinner /> : 'Подтвердить'}
-              </Button>
-              <Button
-                type="button"
-                $variant="secondary"
-                onClick={() => {
-                  setShowVerificationCode(false);
-                  setVerificationCode('');
-                  setError(null);
-                }}
-                disabled={isLoading}
-              >
-                Отмена
-              </Button>
-            </ButtonGroup>
-          </Form>
+            <button
+              type="submit"
+              disabled={isLoading || !verificationCode || verificationCode.length !== 6}
+              className="w-full py-3.5 bg-gradient-to-r from-[#9F1239] to-[#B91C3C] text-white font-semibold rounded-xl shadow-lg shadow-[#9F1239]/20 hover:shadow-[#9F1239]/30 hover:from-[#B91C3C] hover:to-[#C91E42] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-[#9F1239]/20 flex items-center justify-center gap-2"
+            >
+              {isLoading ? <LoadingSpinner /> : 'Подтвердить'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowVerificationCode(false);
+                setVerificationCode('');
+                setError(null);
+              }}
+              disabled={isLoading}
+              className="w-full py-2.5 text-gray-400 hover:text-white transition-colors duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Отмена
+            </button>
+          </form>
         ) : (
-          <Form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-6">
           {currentMode === 'register' && (
-            <div style={{ marginBottom: '16px' }}>
-              <label htmlFor="username" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#e2e8f0', fontSize: '14px' }}>Имя пользователя:</label>
+            <div className="mb-4">
+              <label htmlFor="username" className="block mb-2 font-semibold text-gray-200 text-sm">Имя пользователя:</label>
               <input
                 type="text"
                 id="username"
@@ -880,22 +634,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                 placeholder="Введите имя пользователя"
                 required
                 disabled={isLoading}
-                style={{
-                  width: '100%',
-                  padding: '14px 16px',
-                  background: 'rgba(30, 30, 30, 0.8)',
-                  border: '2px solid rgba(80, 80, 80, 0.5)',
-                  borderRadius: '10px',
-                  color: '#ffffff',
-                  fontSize: '15px',
-                  outline: 'none',
-                  boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.3)'
-                }}
+                className="w-full px-4 py-3 bg-black/20 border border-gray-700/50 rounded-xl text-white placeholder:text-gray-500 text-sm focus:outline-none focus:border-[#9F1239] focus:ring-2 focus:ring-[#9F1239]/20 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
               />
+              <span className="block mt-2 text-xs text-gray-400">От 3 до 30 символов.</span>
             </div>
           )}
-          <div style={{ marginBottom: '16px' }}>
-            <label htmlFor="user_email" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#e2e8f0', fontSize: '14px' }}>Email:</label>
+          
+          <div className="mb-4">
+            <label htmlFor="user_email" className="block mb-2 font-semibold text-gray-200 text-sm">Email:</label>
             <input
               type="email"
               id="user_email"
@@ -906,21 +652,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
               placeholder="Введите ваш email"
               required
               disabled={isLoading}
-              style={{
-                width: '100%',
-                padding: '12px',
-                background: '#1a1a2e',
-                border: '2px solid #374151',
-                borderRadius: '12px',
-                color: '#ffffff',
-                fontSize: '16px',
-                outline: 'none'
-              }}
+              className="w-full px-4 py-3 bg-black/20 border border-gray-700/50 rounded-xl text-white placeholder:text-gray-500 text-sm focus:outline-none focus:border-[#9F1239] focus:ring-2 focus:ring-[#9F1239]/20 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
             />
           </div>
 
-          <div style={{ marginBottom: '16px' }}>
-            <label htmlFor="user_password" style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#e2e8f0', fontSize: '14px' }}>Пароль:</label>
+          <div className="mb-2">
+            <label htmlFor="user_password" className="block mb-2 font-semibold text-gray-200 text-sm">Пароль:</label>
             <input
               type="password"
               id="user_password"
@@ -931,24 +668,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
               placeholder="Введите пароль"
               required
               disabled={isLoading}
-              style={{
-                width: '100%',
-                padding: '12px',
-                background: '#1a1a2e',
-                border: '2px solid #374151',
-                borderRadius: '12px',
-                color: '#ffffff',
-                fontSize: '16px',
-                outline: 'none'
-              }}
+              className="w-full px-4 py-3 bg-black/20 border border-gray-700/50 rounded-xl text-white placeholder:text-gray-500 text-sm focus:outline-none focus:border-[#9F1239] focus:ring-2 focus:ring-[#9F1239]/20 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
             />
+            {currentMode === 'register' && (
+              <span className="block mt-2 text-xs text-gray-400">Не менее 8 символов, заглавная и строчная буквы, цифра.</span>
+            )}
           </div>
 
           {currentMode === 'login' && (
-            <div style={{ marginBottom: '16px' }}>
-              <Button
+            <div className="mb-2">
+              <button
                 type="button"
-                $variant="secondary"
                 onClick={() => {
                   setShowForgotPassword(true);
                   setResetEmail(email);
@@ -956,64 +686,69 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                   setError(null);
                 }}
                 disabled={isLoading}
-                style={{ width: '100%', fontSize: '12px', padding: '10px' }}
+                className="w-full text-left text-sm text-gray-400 hover:text-[#9F1239] transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Забыл пароль?
-              </Button>
+              </button>
             </div>
           )}
 
-          {error && <ErrorMessage>{error}</ErrorMessage>}
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl text-sm text-center">
+              {error}
+            </div>
+          )}
 
-          <ButtonGroup>
-            <Button
-              type="submit"
-              $variant="primary"
-              disabled={isLoading || !email || !password || (currentMode === 'register' && !username)}
-            >
-              {isLoading ? <LoadingSpinner /> : (currentMode === 'register' ? 'Готово' : 'Войти')}
-            </Button>
-            <Button
+          <button
+            type="submit"
+            disabled={isLoading || !email || !password || (currentMode === 'register' && !username)}
+            className="w-full py-3.5 bg-gradient-to-r from-[#9F1239] to-[#B91C3C] text-white font-semibold rounded-xl shadow-lg shadow-[#9F1239]/20 hover:shadow-[#9F1239]/30 hover:from-[#B91C3C] hover:to-[#C91E42] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-[#9F1239]/20 flex items-center justify-center gap-2"
+          >
+            {isLoading ? <LoadingSpinner /> : (currentMode === 'register' ? 'Готово' : 'Войти')}
+          </button>
+
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isLoading}
+            className="w-full py-2.5 text-gray-400 hover:text-white transition-colors duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Отмена
+          </button>
+
+          <div className="text-center mt-2">
+            <button
               type="button"
-              $variant="secondary"
-              onClick={onClose}
-              disabled={isLoading}
-            >
-              Отмена
-            </Button>
-          </ButtonGroup>
-          <div style={{ textAlign: 'center', marginTop: theme.spacing.lg }}>
-            <Button
-              type="button"
-              $variant="secondary"
               onClick={() => {
                 setCurrentMode(currentMode === 'login' ? 'register' : 'login');
                 setError(null);
               }}
               disabled={isLoading}
-              style={{ width: '100%' }}
+              className="text-xs text-gray-400 hover:text-[#9F1239] transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {currentMode === 'login' ? 'Нет аккаунта? Зарегистрироваться' : 'Уже есть аккаунт? Войти'}
-            </Button>
+            </button>
           </div>
-        </Form>
+        </form>
         )}
 
         {!showVerificationCode && !showForgotPassword && (
-          <div style={{ textAlign: 'center', marginTop: theme.spacing.lg }}>
-            <GoogleButton
+          <div className="text-center mt-4">
+            <button
               type="button"
               onClick={handleGoogleAuth}
               disabled={isLoading}
+              className="w-auto max-w-[200px] mx-auto p-0 border-none rounded-lg cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
             >
-              <GoogleButtonImage 
+              <img 
                 src="/photo_2025-11-28_03-16-03.jpg" 
                 alt="Sign in with Google"
+                className="w-full max-w-[200px] h-auto block object-contain rounded-lg"
               />
-            </GoogleButton>
+            </button>
           </div>
         )}
-      </ModalContent>
-    </ModalOverlay>
+      </div>
+    </div>
   );
 };

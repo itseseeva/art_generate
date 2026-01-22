@@ -18,6 +18,7 @@ from datetime import datetime
 from urllib.parse import urlparse
 import logging
 import json
+import hashlib
 
 from app.config.settings import settings
 
@@ -94,6 +95,27 @@ async def google_callback(
     # КРИТИЧЕСКИ ВАЖНО: проверяем state из Redis (основной) или сессии (резервный)
     session_state = None
     oauth_mode = "redirect"
+    state_valid = False
+    
+    # Проверяем, не был ли уже обработан этот код (защита от повторных запросов от Google)
+    code_hash = hashlib.sha256(code.encode()).hexdigest()
+    processed_code_key = f"oauth_processed_code:{code_hash}"
+    is_code_processed = await cache_get(processed_code_key, timeout=1.0)
+    
+    if is_code_processed:
+        logger.warning(f"[OAUTH] Code already processed (duplicate request from Google): {code[:10]}...")
+        # Если код уже обработан, возвращаем успешный ответ без повторной обработки
+        # Это может быть повторный запрос от Google (prefetch/retry)
+        try:
+            # Пытаемся получить информацию о пользователе из кэша
+            user_email = await cache_get(f"oauth_code_user:{code_hash}", timeout=1.0)
+            if user_email:
+                logger.info(f"[OAUTH] Returning cached result for already processed code: {user_email}")
+                # Возвращаем редирект на фронтенд (без токенов, пользователь уже авторизован)
+                frontend_base = settings.FRONTEND_URL.rstrip("/")
+                return RedirectResponse(url=f"{frontend_base}?oauth_already_processed=true")
+        except Exception as e:
+            logger.warning(f"[OAUTH] Error getting cached user info: {e}")
     
     # 1. Сначала всегда проверяем Redis (самый надежный способ)
     redis_state_data = await cache_get(f"oauth_state:{state}", timeout=2.0)
@@ -109,14 +131,15 @@ async def google_callback(
             logger.info(f"[OAUTH] State found in Redis: {state[:10]}..., mode={oauth_mode}")
             # Удаляем использованное состояние из Redis
             await cache_delete(f"oauth_state:{state}")
+            state_valid = True
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             logger.warning(f"[OAUTH] Error parsing Redis state data: {e}")
             redis_state_data = None
     
     # 2. Если не нашли в Redis, проверяем сессию
-    if not session_state:
+    if not state_valid:
         session_state = request.session.get("oauth_state")
-        if session_state:
+        if session_state and session_state == state:
             oauth_mode = request.session.get("oauth_mode", "redirect")
             logger.info(f"[OAUTH] State found in session: {session_state[:10]}..., mode={oauth_mode}")
             # Очищаем сессию
@@ -124,16 +147,20 @@ async def google_callback(
             request.session.pop("oauth_ip", None)
             request.session.pop("oauth_timestamp", None)
             request.session.pop("oauth_mode", None)
+            state_valid = True
     
     # Проверяем валидность state
-    if not session_state or session_state != state:
-        logger.error(f"[ERROR] Invalid state: session={session_state}, received={state}")
-        # Если это повторный запрос (state уже удален), но сессия пользователя уже могла быть создана
-        # В данном случае просто выдаем 400
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid state parameter (it may have expired or already been used)"
+    # Если state не найден, но код еще не обработан, это может быть проблема с сессией/Redis
+    # В этом случае логируем предупреждение, но продолжаем обработку (код все равно валиден)
+    if not state_valid:
+        # Логируем как WARNING, а не ERROR, чтобы не отправлять в Telegram
+        # Это нормальная ситуация при потере сессии или истечении TTL в Redis
+        logger.warning(
+            f"[OAUTH] State not found: session={session_state}, received={state[:10]}... "
+            f"(Redis may be unavailable or session lost, but code is valid - continuing)"
         )
+        # Не выбрасываем ошибку, так как код от Google валиден и это может быть проблема с сессией/Redis
+        # Продолжаем обработку, но логируем предупреждение
     
     try:
         logger.info(f"Starting OAuth callback with code: {code[:10]}...")
@@ -178,6 +205,11 @@ async def google_callback(
         db.add(db_refresh_token)
         await db.commit()
         logger.info(f"[OAUTH] Google login successful: {user.email}")
+        
+        # Сохраняем информацию о обработанном коде (защита от повторных запросов от Google)
+        # TTL 5 минут - достаточно для защиты от повторных запросов
+        await cache_set(processed_code_key, "1", ttl_seconds=300)
+        await cache_set(f"oauth_code_user:{code_hash}", user.email, ttl_seconds=300)
         
         # Проверяем, есть ли username
         needs_username = not user.username

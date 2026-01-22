@@ -85,6 +85,7 @@ interface Character {
   tags: string[];
   author: string;
   likes: number;
+  dislikes?: number;
   views: number;
   comments: number;
 }
@@ -109,6 +110,7 @@ export const FavoritesPage: React.FC<FavoritesPageProps> = ({
   const [characters, setCharacters] = useState<Character[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [characterRatings, setCharacterRatings] = useState<{[key: number]: {likes: number, dislikes: number}}>({});
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -124,6 +126,36 @@ export const FavoritesPage: React.FC<FavoritesPageProps> = ({
 
     checkAuth();
   }, []);
+
+  // Загрузка рейтингов персонажей
+  const loadCharacterRatings = async (charactersList: Character[]) => {
+    const ratings: {[key: number]: {likes: number, dislikes: number}} = {};
+    
+    for (const char of charactersList) {
+      const characterId = typeof char.id === 'number' ? char.id : parseInt(String(char.id), 10);
+      if (isNaN(characterId)) continue;
+      
+      try {
+        const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.GET_CHARACTER_RATINGS(characterId)}`, {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          ratings[characterId] = {
+            likes: data.likes || 0,
+            dislikes: data.dislikes || 0
+          };
+        }
+      } catch (error) {
+        // Игнорируем ошибки
+      }
+    }
+    
+    setCharacterRatings(ratings);
+  };
 
   const loadFavorites = async () => {
     try {
@@ -202,11 +234,15 @@ export const FavoritesPage: React.FC<FavoritesPageProps> = ({
             photos: photosMap[normalizedKey] || [],
             tags: [],
             author: char.user_id ? 'Пользователь' : 'Система',
-            likes: 0,
-            views: 0,
-            comments: 0
+            likes: char.likes || 0,
+            dislikes: char.dislikes || 0,
+            views: char.views || 0,
+            comments: char.comments || 0
           };
         });
+        
+        // Загружаем рейтинги для всех персонажей
+        await loadCharacterRatings(formattedCharacters);
         
         setCharacters(formattedCharacters);
       } else {
@@ -264,18 +300,27 @@ export const FavoritesPage: React.FC<FavoritesPageProps> = ({
               </EmptyDescription>
             </EmptyState>
           ) : (
-            characters.map((character) => (
-              <CharacterCard
-                key={character.id}
-                character={character}
-                onClick={onCharacterSelect}
-                isAuthenticated={isAuthenticated}
-                onPhotoGeneration={onPhotoGeneration}
-                onPaidAlbum={onPaidAlbum}
-                isFavorite={true}
-                onFavoriteToggle={loadFavorites}
-              />
-            ))
+            characters.map((character) => {
+              const characterId = typeof character.id === 'number' ? character.id : parseInt(String(character.id), 10);
+              const rating = !isNaN(characterId) ? characterRatings[characterId] : null;
+              
+              return (
+                <CharacterCard
+                  key={character.id}
+                  character={{
+                    ...character,
+                    likes: rating ? rating.likes : character.likes || 0,
+                    dislikes: rating ? rating.dislikes : character.dislikes || 0
+                  }}
+                  onClick={onCharacterSelect}
+                  isAuthenticated={isAuthenticated}
+                  onPhotoGeneration={onPhotoGeneration}
+                  onPaidAlbum={onPaidAlbum}
+                  isFavorite={true}
+                  onFavoriteToggle={loadFavorites}
+                />
+              );
+            })
           )}
         </CharactersGrid>
       </div>

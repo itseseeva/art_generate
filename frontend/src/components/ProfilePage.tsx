@@ -130,53 +130,58 @@ const InsufficientCreditsNotification: React.FC<InsufficientCreditsNotificationP
   );
 };
 
-interface FreeSubscriptionWarningModalProps {
-  onClose: () => void;
-  onOpenShop?: () => void;
-}
+// Компонент уведомления снизу от кнопки
+const FreeSubscriptionTooltip = styled.div<{ $show: boolean }>`
+  position: absolute;
+  bottom: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  border: 2px solid rgba(150, 150, 150, 0.3);
+  border-radius: ${theme.borderRadius.lg};
+  padding: ${theme.spacing.md} ${theme.spacing.lg};
+  color: rgba(255, 255, 255, 0.9);
+  font-size: ${theme.fontSize.sm};
+  font-weight: 500;
+  white-space: nowrap;
+  z-index: 1000;
+  opacity: ${props => props.$show ? 1 : 0};
+  visibility: ${props => props.$show ? 'visible' : 'hidden'};
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-bottom: 6px solid rgba(150, 150, 150, 0.3);
+  }
+  
+  &::after {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-bottom: 6px solid #1a1a1a;
+  }
+`;
 
-const FreeSubscriptionWarningModal: React.FC<FreeSubscriptionWarningModalProps> = ({
-  onClose,
-  onOpenShop
-}) => {
-  useEffect(() => {
-    
-  }, []);
-
-  const handleShopClick = () => {
-    if (onOpenShop) {
-      onOpenShop();
-    }
-    onClose();
-  };
-
-  return (
-    <>
-      <NotificationOverlay onClick={onClose} />
-      <NotificationContainer $isClosing={false}>
-        <NotificationContent $variant="warning">
-          <IconWrapper>
-            <AlertIcon />
-          </IconWrapper>
-          <NotificationTitle $variant="warning">Требуется подписка</NotificationTitle>
-          <NotificationMessage $variant="warning">
-            Для разблокировки галереи пользователя необходима подписка STANDARD или PREMIUM.
-            Перейдите в магазин, чтобы оформить подписку.
-          </NotificationMessage>
-          <NotificationButtonGroup>
-            <NotificationButton onClick={handleShopClick} $variant="warning">
-              <ShopIcon />
-              Магазин
-            </NotificationButton>
-            <NotificationCancelButton onClick={onClose} $variant="warning">
-              Отмена
-            </NotificationCancelButton>
-          </NotificationButtonGroup>
-        </NotificationContent>
-      </NotificationContainer>
-    </>
-  );
-};
+const GalleryButtonWrapper = styled.div`
+  position: relative;
+  display: inline-block;
+`;
 
 interface ProfilePageProps {
   onBackToMain: () => void;
@@ -1359,7 +1364,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [balanceRefreshTrigger, setBalanceRefreshTrigger] = useState(0);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [isFreeSubscriptionModalOpen, setIsFreeSubscriptionModalOpen] = useState(false);
+  const [showFreeSubscriptionTooltip, setShowFreeSubscriptionTooltip] = useState(false);
+  const galleryButtonRef = useRef<HTMLButtonElement>(null);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authToken, setAuthToken] = useState<string | null>(() => localStorage.getItem('authToken'));
   const [photosCount, setPhotosCount] = useState<number>(0); // Количество фото в "Моей галерее" (UserGallery)
@@ -1882,9 +1888,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     // Проверяем, что подписка есть и она STANDARD или PREMIUM
     const allowedSubscriptions = ['standard', 'premium'];
     if (!currentSubscription || !allowedSubscriptions.includes(currentSubscription)) {
-      // Показываем модальное окно ТОЛЬКО для FREE пользователей
-      
-      setIsFreeSubscriptionModalOpen(true);
+      // Показываем уведомление снизу от кнопки для FREE пользователей
+      setShowFreeSubscriptionTooltip(true);
+      setTimeout(() => {
+        setShowFreeSubscriptionTooltip(false);
+      }, 3000);
       return;
     }
 
@@ -2411,21 +2419,33 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                         <EditIcon className="w-4 h-4" />
                         Редактировать профиль
                       </button>
+                      <GalleryButtonWrapper>
+                        <button
+                          ref={galleryButtonRef}
+                          onClick={handleOpenUserGallery}
+                          className="px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-600 rounded-lg text-white font-semibold text-sm hover:from-pink-600 hover:to-rose-700 transition-all duration-200 shadow-lg shadow-pink-500/25"
+                        >
+                          Галерея пользователя
+                        </button>
+                        <FreeSubscriptionTooltip $show={showFreeSubscriptionTooltip}>
+                          Для доступа нужна подписка Standard или Premium
+                        </FreeSubscriptionTooltip>
+                      </GalleryButtonWrapper>
+                    </>
+                  )}
+                  {!isViewingOwnProfile && (
+                    <GalleryButtonWrapper>
                       <button
+                        ref={galleryButtonRef}
                         onClick={handleOpenUserGallery}
                         className="px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-600 rounded-lg text-white font-semibold text-sm hover:from-pink-600 hover:to-rose-700 transition-all duration-200 shadow-lg shadow-pink-500/25"
                       >
                         Галерея пользователя
                       </button>
-                    </>
-                  )}
-                  {!isViewingOwnProfile && (
-                    <button
-                      onClick={handleOpenUserGallery}
-                      className="px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-600 rounded-lg text-white font-semibold text-sm hover:from-pink-600 hover:to-rose-700 transition-all duration-200 shadow-lg shadow-pink-500/25"
-                    >
-                      Галерея пользователя
-                    </button>
+                      <FreeSubscriptionTooltip $show={showFreeSubscriptionTooltip}>
+                        Для доступа нужна подписка Standard или Premium
+                      </FreeSubscriptionTooltip>
+                    </GalleryButtonWrapper>
                   )}
                 </div>
               </div>
@@ -2695,18 +2715,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             hasShopButton={!!onShop}
           />
         </>
-      )}
-      {isFreeSubscriptionModalOpen && (
-        <FreeSubscriptionWarningModal
-          onClose={() => {
-            setIsFreeSubscriptionModalOpen(false);
-          }}
-          onOpenShop={() => {
-            if (onShop) {
-              onShop();
-            }
-          }}
-        />
       )}
     </MainContainer>
   );

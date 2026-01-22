@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import styled, { css } from 'styled-components';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { AuthModal } from './AuthModal';
 import { SuccessToast } from './SuccessToast';
 import SplitText from './SplitText';
 import { API_CONFIG } from '../config/api';
 import { authManager } from '../utils/auth';
 import { FiCheck, FiCpu, FiImage, FiMessageSquare, FiZap } from 'react-icons/fi';
-import { FaBitcoin } from 'react-icons/fa';
 
 import { GlobalHeader } from './GlobalHeader';
 import DarkVeil from '../../@/components/DarkVeil';
@@ -182,10 +181,10 @@ const PlansGrid = styled.div`
   }
 `;
 
-const PlanCard = styled(motion.div)<{ $highlight?: boolean; $selected?: boolean; $planType?: 'free' | 'standard' | 'premium' }>`
-  background: ${props => props.$highlight 
-      ? 'linear-gradient(145deg, #2d2d2d 0%, #1a1a1a 100%)' 
-      : 'linear-gradient(145deg, #1a1a1a 0%, #2d2d2d 100%)'};
+const PlanCard = styled(motion.div) <{ $highlight?: boolean; $selected?: boolean; $planType?: 'free' | 'standard' | 'premium' }>`
+  background: ${props => props.$highlight
+    ? 'linear-gradient(145deg, #2d2d2d 0%, #1a1a1a 100%)'
+    : 'linear-gradient(145deg, #1a1a1a 0%, #2d2d2d 100%)'};
   border: 2px solid rgba(255, 255, 255, 0.1);
   border-radius: 24px;
   padding: 2rem 1.5rem;
@@ -224,14 +223,14 @@ const BestValueBadge = styled.div`
   position: absolute;
   top: -12px;
   right: 20px;
-  background: #ef4444;
+  background: #7c3aed;
   color: white;
   font-weight: 800;
   font-size: 0.7rem;
   padding: 4px 12px;
   border-radius: 20px; /* Более закругленный */
   text-transform: uppercase;
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
   white-space: nowrap;
   z-index: 100;
   letter-spacing: 0.5px;
@@ -348,42 +347,6 @@ const FeatureItem = styled.div`
   }
 `;
 
-const PaymentButtonsContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-  animation: fadeIn 0.3s ease;
-  
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-`;
-
-const PaymentButton = styled.button`
-  width: 100%;
-  padding: 0.6rem 0.8rem;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 0.6rem;
-  background: #343042;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-  color: white;
-  font-weight: 600;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    transform: translateY(-2px);
-    background: #3d394d;
-    border-color: rgba(124, 58, 237, 0.3);
-  }
-`;
-
 const PaymentLogo = styled.img`
   width: 38px;
   height: 38px;
@@ -454,7 +417,6 @@ export const ShopPage: React.FC<any> = ({
   const [userInfo, setUserInfo] = useState(propUserInfo || null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-  const [showPaymentOptions, setShowPaymentOptions] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [creditPackages, setCreditPackages] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -527,15 +489,15 @@ export const ShopPage: React.FC<any> = ({
   const calculatePrice = (basePrice: number) => {
     const months = CYCLE_MONTHS[billingCycle];
     const discount = DISCOUNTS[billingCycle];
-    
+
     // Рассчитываем месячную цену со скидкой и округляем её
     const monthlyDiscounted = basePrice * (1 - discount);
     const roundedMonthly = Math.floor(monthlyDiscounted); // Используем floor для более привлекательной цены
-    
+
     // Итоговая цена должна быть строго кратна месячной
     const totalDiscounted = roundedMonthly * months;
     const totalOriginal = basePrice * months;
-    
+
     return {
       monthly: roundedMonthly,
       total: totalDiscounted,
@@ -556,7 +518,7 @@ export const ShopPage: React.FC<any> = ({
       setIsAuthModalOpen(true);
       return;
     }
-    setShowPaymentOptions(showPaymentOptions === plan ? null : plan);
+    handlePayment(plan, 'sbp');
   };
 
   const handlePayment = async (plan: string, method: string) => {
@@ -645,12 +607,17 @@ export const ShopPage: React.FC<any> = ({
     const is6Months = billingCycle === '6_months';
 
     return (
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
         style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
       >
+        <SaleBanner>
+          <SaleText>СПЕЦИАЛЬНОЕ ПРЕДЛОЖЕНИЕ</SaleText>
+          <DiscountTag>СКИДКА ДО 20%</DiscountTag>
+        </SaleBanner>
+        
         <DurationTabs>
           <DurationTab $active={billingCycle === 'yearly'} onClick={() => setBillingCycle('yearly')}>
             Год
@@ -677,125 +644,93 @@ export const ShopPage: React.FC<any> = ({
 
         <PlansGrid>
           {/* PREMIUM CARD */}
-          <PlanCard 
+          <PlanCard
             $planType="premium"
-            $highlight={true} 
+            $highlight={true}
             $selected={selectedPlan === 'premium'}
-            onClick={() => setSelectedPlan('premium')}
             whileHover={{ y: -12, scale: 1.02 }}
             whileTap={{ scale: 0.96 }}
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ type: "spring", stiffness: 300, damping: 20 }}
-            style={{ 
-              borderColor: selectedPlan === 'premium' ? '#ef4444' : 'rgba(239, 68, 68, 0.3)',
-              boxShadow: selectedPlan === 'premium' ? '0 0 40px rgba(239, 68, 68, 0.3)' : 'none'
+            style={{
+              borderColor: selectedPlan === 'premium' ? '#7c3aed' : 'rgba(124, 58, 237, 0.3)',
+              boxShadow: selectedPlan === 'premium' ? '0 0 40px rgba(124, 58, 237, 0.3)' : 'none'
             }}
           >
             <BestValueBadge>ЛУЧШИЙ ВЫБОР</BestValueBadge>
             <PlanHeader>
-              <PlanTitle color="#ef4444">
-                Premium <FaBitcoin />
+              <PlanTitle color="white">
+                Premium
               </PlanTitle>
               <PriceContainer>
-                <Price>{premiumPrice.monthly}₽</Price>
-                <Period>/мес</Period>
+                <Price style={{ color: 'white' }}>{premiumPrice.monthly}₽</Price>
+                <Period style={{ color: 'white' }}>/мес</Period>
               </PriceContainer>
-              <OldPrice>{premiumPrice.originalMonthly}₽/мес</OldPrice>
-              <BillingInfo>{getBillingText()}</BillingInfo>
+              <OldPrice style={{ color: 'white' }}>{premiumPrice.originalMonthly}₽/мес</OldPrice>
+              <BillingInfo style={{ color: 'white' }}>{getBillingText()}</BillingInfo>
             </PlanHeader>
 
             <FeaturesList>
               <FeatureItem>
-                <FiCheck style={{ color: '#ef4444' }} /> 
+                <FiCheck style={{ color: '#7c3aed' }} />
                 {isYearly ? (
-                  <span style={{color: '#ef4444', fontWeight: 'bold'}}>
+                  <span style={{ color: '#7c3aed', fontWeight: 'bold' }}>
                     {Math.round(5000 * months * 1.1)} кредитов (+10% БОНУС)
                   </span>
                 ) : is6Months ? (
-                  <span style={{color: '#ef4444', fontWeight: 'bold'}}>
+                  <span style={{ color: '#7c3aed', fontWeight: 'bold' }}>
                     {Math.round(5000 * months * 1.05)} кредитов (+5% БОНУС)
                   </span>
                 ) : (
-                  `${5000 * months} кредитов`
+                  <span style={{ color: '#7c3aed', fontWeight: 'bold' }}>{`${5000 * months} кредитов`}</span>
                 )}
               </FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> Доступ ко всем персонажам</FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> Глубокая память (16 000 токенов)</FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> Сохранение истории сообщений</FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> Создание платных альбомов</FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> <span style={{color: '#ef4444'}}>Доступ ко всем платным альбомам</span></FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> Доступ ко всем галереям пользователей</FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> Выбор модели (PREMIUM могут выбрать текстовые модели сами)</FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> <span style={{color: '#ef4444'}}>Приоритет в очереди генерации</span></FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#ef4444' }} /> <span style={{color: '#ef4444'}}>Возможность загружать свои голоса для озвучки</span></FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Доступ ко всем персонажам</span></FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Глубокая память (16 000 токенов)</span></FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Сохранение истории сообщений</span></FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Создание платных альбомов</span></FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Доступ ко всем платным альбомам</span></FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Доступ ко всем галереям пользователей</span></FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Доступ к Pro моделям</span></FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Приоритет в очереди генерации</span></FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Возможность загружать свои голоса для озвучки</span></FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Доступ к Premium голосам</span></FeatureItem>
             </FeaturesList>
 
-            <CheckoutButton 
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={(e) => { e.stopPropagation(); handleSubscriptionClick('premium'); }}
-              style={{ background: 'linear-gradient(135deg, #ef4444 0%, #991b1b 100%)' }}
-            >
-              Купить за {premiumPrice.total}₽
-              <span style={{opacity: 0.7, fontSize: '0.8rem', textDecoration: 'line-through'}}>{premiumPrice.originalTotal}₽</span>
-            </CheckoutButton>
-
-            <AnimatePresence>
-              {showPaymentOptions === 'premium' && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.5, ease: "easeInOut" }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <PaymentButtonsContainer onClick={(e) => e.stopPropagation()}>
-                    {userCountry && userCountry.toLowerCase() !== 'ru' && userCountry.toLowerCase() !== 'russia' && (
-                      <VPNWarning>
-                        Платёжные способы не работают с VPN!
-                      </VPNWarning>
-                    )}
-                    <PaymentButton onClick={(e) => { e.stopPropagation(); handlePayment('premium', 'sberbank'); }}>
-                      <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
-                      SberPay
-                    </PaymentButton>
-                    <PaymentButton onClick={(e) => { e.stopPropagation(); handlePayment('premium', 'yoo_money'); }}>
-                      <PaymentLogo src="/payment_images/yumoney.png?v=15" alt="ЮMoney" />
-                      ЮMoney
-                    </PaymentButton>
-                    <PaymentButton onClick={(e) => { e.stopPropagation(); handlePayment('premium', 'bank_card'); }}>
-                      <PaymentLogo src="/payment_images/%D0%BA%D0%B0%D1%80%D1%82%D1%8B.png?v=15" alt="Банковские карты" />
-                      Банковские карты
-                    </PaymentButton>
-                    <PaymentButton onClick={(e) => { e.stopPropagation(); handlePayment('premium', 'sbp'); }}>
-                      <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
-                      СБП
-                    </PaymentButton>
-                  </PaymentButtonsContainer>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <div style={{ position: 'relative', marginTop: 'auto' }}>
+              <CheckoutButton
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={(e) => { e.stopPropagation(); handleSubscriptionClick('premium'); }}
+                style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" style={{ width: '32px', height: '32px' }} />
+                  <span>Купить за {premiumPrice.total}₽</span>
+                </div>
+                <span style={{ opacity: 0.7, fontSize: '0.8rem', textDecoration: 'line-through' }}>{premiumPrice.originalTotal}₽</span>
+              </CheckoutButton>
+            </div>
           </PlanCard>
 
           {/* LITE (STANDARD) CARD */}
           <PlanCard
             $planType="standard"
             $selected={selectedPlan === 'standard'}
-            onClick={() => setSelectedPlan('standard')}
             whileHover={{ y: -12, scale: 1.02 }}
             whileTap={{ scale: 0.96 }}
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ type: "spring", stiffness: 300, damping: 20 }}
-            style={{ 
+            style={{
               borderColor: selectedPlan === 'standard' ? '#fbbf24' : 'rgba(251, 191, 36, 0.3)',
               boxShadow: selectedPlan === 'standard' ? '0 0 40px rgba(251, 191, 36, 0.2)' : 'none'
             }}
           >
             <PlanHeader>
               <PlanTitle color="#fbbf24">
-                Standard <FaBitcoin />
+                Standard
               </PlanTitle>
               <PriceContainer>
                 <Price>{standardPrice.monthly}₽</Price>
@@ -807,13 +742,13 @@ export const ShopPage: React.FC<any> = ({
 
             <FeaturesList>
               <FeatureItem>
-                <FiCheck style={{ color: '#fbbf24' }} /> 
+                <FiCheck style={{ color: '#fbbf24' }} />
                 {isYearly ? (
-                  <span style={{color: '#fbbf24', fontWeight: 'bold'}}>
+                  <span style={{ color: '#fbbf24', fontWeight: 'bold' }}>
                     {Math.round(1500 * months * 1.1)} кредитов (+10% БОНУС)
                   </span>
                 ) : is6Months ? (
-                  <span style={{color: '#fbbf24', fontWeight: 'bold'}}>
+                  <span style={{ color: '#fbbf24', fontWeight: 'bold' }}>
                     {Math.round(1500 * months * 1.05)} кредитов (+5% БОНУС)
                   </span>
                 ) : (
@@ -826,64 +761,32 @@ export const ShopPage: React.FC<any> = ({
               <FeatureItem><FiCheck style={{ color: '#fbbf24' }} /> Создание платных альбомов</FeatureItem>
             </FeaturesList>
 
-            <CheckoutButton 
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={(e) => { e.stopPropagation(); handleSubscriptionClick('standard'); }}
-              style={{ background: 'linear-gradient(135deg, #fbbf24 0%, #d97706 100%)', color: 'black' }}
-            >
-              Купить за {standardPrice.total}₽
-              <span style={{opacity: 0.7, fontSize: '0.8rem', textDecoration: 'line-through'}}>{standardPrice.originalTotal}₽</span>
-            </CheckoutButton>
-
-            <AnimatePresence>
-              {showPaymentOptions === 'standard' && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.5, ease: "easeInOut" }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <PaymentButtonsContainer onClick={(e) => e.stopPropagation()}>
-                    {userCountry && userCountry.toLowerCase() !== 'ru' && userCountry.toLowerCase() !== 'russia' && (
-                      <VPNWarning>
-                        Платёжные способы не работают с VPN!
-                      </VPNWarning>
-                    )}
-                    <PaymentButton onClick={(e) => { e.stopPropagation(); handlePayment('standard', 'sberbank'); }}>
-                      <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
-                      SberPay
-                    </PaymentButton>
-                    <PaymentButton onClick={(e) => { e.stopPropagation(); handlePayment('standard', 'yoo_money'); }}>
-                      <PaymentLogo src="/payment_images/yumoney.png?v=15" alt="ЮMoney" />
-                      ЮMoney
-                    </PaymentButton>
-                    <PaymentButton onClick={(e) => { e.stopPropagation(); handlePayment('standard', 'bank_card'); }}>
-                      <PaymentLogo src="/payment_images/%D0%BA%D0%B0%D1%80%D1%82%D1%8B.png?v=15" alt="Банковские карты" />
-                      Банковские карты
-                    </PaymentButton>
-                    <PaymentButton onClick={(e) => { e.stopPropagation(); handlePayment('standard', 'sbp'); }}>
-                      <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
-                      СБП
-                    </PaymentButton>
-                  </PaymentButtonsContainer>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <div style={{ position: 'relative', marginTop: 'auto' }}>
+              <CheckoutButton
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={(e) => { e.stopPropagation(); handleSubscriptionClick('standard'); }}
+                style={{ background: 'linear-gradient(135deg, #fbbf24 0%, #d97706 100%)', color: 'black' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" style={{ width: '32px', height: '32px' }} />
+                  <span>Купить за {standardPrice.total}₽</span>
+                </div>
+                <span style={{ opacity: 0.7, fontSize: '0.8rem', textDecoration: 'line-through' }}>{standardPrice.originalTotal}₽</span>
+              </CheckoutButton>
+            </div>
           </PlanCard>
 
           {/* FREE CARD */}
           <PlanCard
             $planType="free"
             $selected={selectedPlan === 'free'}
-            onClick={() => setSelectedPlan('free')}
             whileHover={{ y: -8, scale: 1.02 }}
             whileTap={{ scale: 0.96 }}
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ type: "spring", stiffness: 300, damping: 20 }}
-            style={{ 
+            style={{
               borderColor: selectedPlan === 'free' ? '#888' : 'rgba(136, 136, 136, 0.2)',
             }}
           >
@@ -905,11 +808,11 @@ export const ShopPage: React.FC<any> = ({
               <FeatureItem><FiCheck style={{ color: '#888' }} /> Премиум модель с ограничением на 20 сообщений</FeatureItem>
             </FeaturesList>
 
-            <CheckoutButton 
-              disabled 
+            <CheckoutButton
+              disabled
               style={{
-                background: 'rgba(255, 255, 255, 0.05)', 
-                color: '#666', 
+                background: 'rgba(255, 255, 255, 0.05)',
+                color: '#666',
                 border: '1px solid rgba(255, 255, 255, 0.1)',
                 boxShadow: 'none'
               }}
@@ -938,10 +841,9 @@ export const ShopPage: React.FC<any> = ({
         )}
         <PlansGrid>
           {creditPackages.map((pkg, index) => (
-            <PlanCard 
+            <PlanCard
               key={pkg.id}
               $selected={selectedPlan === pkg.id}
-              onClick={() => setSelectedPlan(pkg.id)}
               whileHover={{ y: -8, scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
               initial={{ opacity: 0, y: 20 }}
@@ -962,46 +864,18 @@ export const ShopPage: React.FC<any> = ({
                 <FeatureItem><FiCheck /> Для генераций и общения</FeatureItem>
               </FeaturesList>
 
-              <CheckoutButton 
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={(e) => { e.stopPropagation(); setShowPaymentOptions(showPaymentOptions === pkg.id ? null : pkg.id); }}
-              >
-                Купить сейчас
-              </CheckoutButton>
-
-              <AnimatePresence>
-                {showPaymentOptions === pkg.id && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.5, ease: "easeInOut" }}
-                  >
-                    <PaymentButtonsContainer>
-                      <VPNWarning>
-                        Платёжные способы не работают с VPN!
-                      </VPNWarning>
-                      <PaymentButton onClick={() => handleCreditPayment(pkg, 'sberbank')}>
-                        <PaymentLogo src="/payment_images/sber-pay-9a236c32.png?v=15" alt="SberPay" />
-                        SberPay
-                      </PaymentButton>
-                      <PaymentButton onClick={() => handleCreditPayment(pkg, 'yoo_money')}>
-                        <PaymentLogo src="/payment_images/yumoney.png?v=15" alt="ЮMoney" />
-                        ЮMoney
-                      </PaymentButton>
-                      <PaymentButton onClick={() => handleCreditPayment(pkg, 'bank_card')}>
-                        <PaymentLogo src="/payment_images/%D0%BA%D0%B0%D1%80%D1%82%D1%8B.png?v=15" alt="Банковские карты" />
-                        Банковские карты
-                      </PaymentButton>
-                      <PaymentButton onClick={() => handleCreditPayment(pkg, 'sbp')}>
-                        <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
-                        СБП
-                      </PaymentButton>
-                    </PaymentButtonsContainer>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              <div style={{ position: 'relative', marginTop: 'auto' }}>
+                <CheckoutButton
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={(e) => { e.stopPropagation(); handleCreditPayment(pkg, 'sbp'); }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" style={{ width: '32px', height: '32px' }} />
+                    <span>Купить сейчас</span>
+                  </div>
+                </CheckoutButton>
+              </div>
             </PlanCard>
           ))}
         </PlansGrid>
@@ -1014,20 +888,20 @@ export const ShopPage: React.FC<any> = ({
       <BackgroundWrapper>
         <DarkVeil speed={1.1} />
       </BackgroundWrapper>
-      <GlobalHeader 
+      <GlobalHeader
         onHome={onBackToMain}
         onProfile={onProfile}
       />
       <ContentWrapper>
         <ToggleContainer>
-          <ToggleButton 
-            $active={viewMode === 'credits'} 
+          <ToggleButton
+            $active={viewMode === 'credits'}
             onClick={() => setViewMode('credits')}
           >
             Кредиты
           </ToggleButton>
-          <ToggleButton 
-            $active={viewMode === 'subscription'} 
+          <ToggleButton
+            $active={viewMode === 'subscription'}
             onClick={() => setViewMode('subscription')}
           >
             Подписка

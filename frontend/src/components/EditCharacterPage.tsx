@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import styled from 'styled-components';
+import styled, { keyframes, css } from 'styled-components';
 import { authManager } from '../utils/auth';
 import { theme } from '../theme';
 import { API_CONFIG } from '../config/api';
@@ -1975,6 +1975,50 @@ const WaveformBar = styled.div<{ $delay: number; $isPremium?: boolean }>`
   }
 `;
 
+const VoiceCheckmark = styled.div<{ $show: boolean; $isPremium?: boolean }>`
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  pointer-events: none;
+  opacity: ${props => props.$show ? '1' : '0'};
+  transition: opacity 0.3s ease;
+  animation: ${props => props.$show ? 'checkmarkAppear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' : 'none'};
+  
+  @keyframes checkmarkAppear {
+    0% {
+      transform: scale(0) rotate(-180deg);
+      opacity: 0;
+    }
+    50% {
+      transform: scale(1.2) rotate(10deg);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1) rotate(0deg);
+      opacity: 1;
+    }
+  }
+  
+  &::before {
+    content: '';
+    position: absolute;
+    width: 6px;
+    height: 12px;
+    border: 3px solid ${props => props.$isPremium ? '#ff4444' : '#4ade80'};
+    border-top: none;
+    border-left: none;
+    transform: rotate(45deg) translate(-2px, -2px);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    filter: drop-shadow(0 0 3px ${props => props.$isPremium ? 'rgba(255, 68, 68, 0.8)' : 'rgba(74, 222, 128, 0.8)'});
+  }
+`;
+
 const VoicePhotoWrapper = styled.div`
   display: flex;
   flex-direction: column;
@@ -2011,8 +2055,8 @@ const CreatorTooltip = styled.div`
 
 const CreatorNameLabel = styled.div`
   position: absolute;
-  top: -20px;
-  right: 0;
+  top: -14px;
+  left: -24px;
   background: rgba(30, 30, 30, 0.95);
   border: 1px solid rgba(139, 92, 246, 0.6);
   border-radius: 6px;
@@ -2134,7 +2178,46 @@ const PhotoUploadSpinner = styled.div`
   }
 `;
 
-const AddVoiceContainer = styled.div<{ $isUploading?: boolean }>`
+const premiumGlow = keyframes`
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(124, 58, 237, 0.4);
+    border-color: rgba(124, 58, 237, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(124, 58, 237, 0.8), 0 0 45px rgba(124, 58, 237, 0.4);
+    border-color: rgba(124, 58, 237, 1);
+  }
+`;
+
+const PremiumWarning = styled(motion.div)`
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(124, 58, 237, 0.95);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+  z-index: 1000;
+  pointer-events: none;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 6px solid rgba(124, 58, 237, 0.95);
+  }
+`;
+
+const AddVoiceContainer = styled.div<{ $isUploading?: boolean; $isPremium?: boolean }>`
   position: relative;
   width: 74px;
   height: 74px;
@@ -2150,6 +2233,10 @@ const AddVoiceContainer = styled.div<{ $isUploading?: boolean }>`
   justify-content: center;
   background: ${props => props.$isUploading ? 'rgba(40, 40, 40, 0.7)' : 'rgba(30, 30, 30, 0.5)'};
   opacity: ${props => props.$isUploading ? 0.8 : 1};
+  
+  ${props => !props.$isUploading && css`
+    animation: ${premiumGlow} 2s ease-in-out infinite;
+  `}
   
   &:hover {
     border-color: ${props => props.$isUploading ? 'rgba(139, 92, 246, 0.9)' : 'rgba(139, 92, 246, 0.9)'};
@@ -3168,7 +3255,30 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   }[]>([]);
   const [isUploadingVoice, setIsUploadingVoice] = useState(false); // Состояние загрузки голоса
   const [playingVoiceUrl, setPlayingVoiceUrl] = useState<string | null>(null);
+  const [voiceSelectionTime, setVoiceSelectionTime] = useState<{ [key: string]: number }>({});
   const audioRef = useRef<HTMLAudioElement | null>(null); // Ref для управления аудио
+
+  // Автоматическая очистка времени выбора через 0.5 секунды
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setVoiceSelectionTime(prev => {
+        const now = Date.now();
+        const updated = { ...prev };
+        let hasChanges = false;
+        
+        for (const key in updated) {
+          if (now - updated[key] >= 500) {
+            delete updated[key];
+            hasChanges = true;
+          }
+        }
+        
+        return hasChanges ? updated : prev;
+      });
+    }, 100); // Проверяем каждые 100мс
+
+    return () => clearInterval(interval);
+  }, []);
   const [editingVoiceId, setEditingVoiceId] = useState<string | null>(null); // ID голоса, который редактируется
   const [editedVoiceNames, setEditedVoiceNames] = useState<{ [key: string]: string }>({}); // Редактируемые имена голосов
   const [editingVoicePhotoId, setEditingVoicePhotoId] = useState<string | null>(null); // ID голоса, фото которого редактируется
@@ -3178,6 +3288,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const [dragStart, setDragStart] = useState<{ x: number, y: number, photoX: number, photoY: number, element: HTMLElement } | null>(null);
   const [isVoiceCloneModalOpen, setIsVoiceCloneModalOpen] = useState(false);
   const [isVoiceSubscriptionModalOpen, setIsVoiceSubscriptionModalOpen] = useState(false);
+  const [premiumVoiceWarningId, setPremiumVoiceWarningId] = useState<string | null>(null);
   const [voiceFile, setVoiceFile] = useState<File | null>(null);
   const [voiceDuration, setVoiceDuration] = useState<number | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
@@ -5100,8 +5211,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                           const isPublic = voice.is_public === true || voice.is_public === 1 || voice.is_public === '1';
                           const isOwner = voice.is_owner === true || voice.is_owner === 1 || voice.is_owner === '1';
                           const isSelected = isUserVoice
-                            ? formData.voice_url === voice.url
-                            : formData.voice_id === voice.id;
+                            ? String(formData.voice_url || '') === String(voice.url || '')
+                            : String(formData.voice_id || '') === String(voice.id || '');
                           const audioUrl = voice.preview_url || voice.url;
                           const isPlaying = playingVoiceUrl !== null && (playingVoiceUrl === audioUrl || playingVoiceUrl === voice.url || playingVoiceUrl === voice.preview_url);
                           // Для пользовательских голосов используем photo_url, если есть, иначе placeholder
@@ -5162,8 +5273,20 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
                                   if (isUserVoice) {
                                     setFormData(prev => ({ ...prev, voice_url: voice.url, voice_id: '' }));
+                                    setVoiceSelectionTime(prev => ({ ...prev, [voice.url]: Date.now() }));
                                   } else {
                                     setFormData(prev => ({ ...prev, voice_id: voice.id, voice_url: '' }));
+                                    setVoiceSelectionTime(prev => ({ ...prev, [voice.id]: Date.now() }));
+                                  }
+
+                                  // Останавливаем предыдущее воспроизведение, если оно есть
+                                  if (audioRef.current) {
+                                    audioRef.current.pause();
+                                    audioRef.current.currentTime = 0;
+                                    audioRef.current = null;
+                                  }
+                                  if (playingVoiceUrl) {
+                                    setPlayingVoiceUrl(null);
                                   }
 
                                   // Воспроизводим аудио
@@ -5171,21 +5294,10 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
                                   // Если нажали на уже играющий голос - просто останавливаем его
                                   if (playingVoiceUrl && (playingVoiceUrl === audioUrlToPlay || playingVoiceUrl === voice.url || playingVoiceUrl === voice.preview_url)) {
-                                    setPlayingVoiceUrl(null);
-                                    if (audioRef.current) {
-                                      audioRef.current.pause();
-                                      audioRef.current = null;
-                                    }
                                     return;
                                   }
 
                                   // Премиум голоса можно прослушивать всем, проверка только при сохранении персонажа
-
-                                  // Останавливаем текущее аудио, если оно есть
-                                  if (audioRef.current) {
-                                    audioRef.current.pause();
-                                    audioRef.current = null;
-                                  }
 
                                   if (audioUrlToPlay) {
                                     try {
@@ -5246,6 +5358,10 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                       target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9InJnYmEoNjAsIDYwLCA2MCwgMC4zKSIvPgo8cGF0aCBkPSJNMzAgNDBDMzAgMzUuMDI5IDM0LjAyOSAzMSAzOSAzMUg0MUM0NS45NzEgMzEgNTAgMzUuMDI5IDUwIDQwQzUwIDQ0Ljk3MSA0NS45NzEgNDkgNDEgNDlIMzlDMzQuMDI5IDQ5IDMwIDQ0Ljk3MSAzMCA0MFoiIGZpbGw9InJnYmEoMTUwLCAxNTAsIDE1MCwgMC41KSIvPgo8L3N2Zz4K';
                                     }
                                   }}
+                                />
+                                <VoiceCheckmark 
+                                  $show={isSelected}
+                                  $isPremium={false}
                                 />
                                 {isPlaying && (
                                   <WaveformContainer $isPlaying={isPlaying}>
@@ -6100,20 +6216,37 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                         <VoicePhotoWrapper>
                           <AddVoiceContainer
                             $isUploading={isUploadingVoice}
+                            $isPremium={true}
                             onClick={(e) => {
                               e.preventDefault();
                               if (isUploadingVoice) return;
 
                               // Проверка PREMIUM подписки
-                              const subscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || 'free';
-                              if (subscriptionType !== 'premium') {
-                                setIsVoiceSubscriptionModalOpen(true);
+                              const subscriptionType = userInfo?.subscription?.subscription_type ||
+                                (userInfo as any)?.subscription_type ||
+                                'free';
+                              const isPremiumUser = ['pro', 'premium'].includes(subscriptionType.toLowerCase());
+
+                              if (!isPremiumUser) {
+                                setPremiumVoiceWarningId('add-voice');
+                                setTimeout(() => setPremiumVoiceWarningId(null), 2000);
                                 return;
                               }
 
                               setIsVoiceCloneModalOpen(true);
                             }}
                           >
+                            <AnimatePresence>
+                              {premiumVoiceWarningId === 'add-voice' && (
+                                <PremiumWarning
+                                  initial={{ opacity: 0, y: 10, x: '-50%' }}
+                                  animate={{ opacity: 1, y: 0, x: '-50%' }}
+                                  exit={{ opacity: 0, y: 10, x: '-50%' }}
+                                >
+                                  Только для Premium подписчиков!
+                                </PremiumWarning>
+                              )}
+                            </AnimatePresence>
                             {isUploadingVoice ? <VoiceLoadingSpinner /> : <AddVoicePlus />}
                           </AddVoiceContainer>
                           <AddVoiceName>{isUploadingVoice ? 'Загрузка...' : 'добавить свой голос'}</AddVoiceName>
@@ -6131,8 +6264,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                             const isPublic = voice.is_public === true || voice.is_public === 1;
                             const isOwner = voice.is_owner === true || voice.is_owner === 1 || voice.is_owner === '1';
                             const isSelected = isUserVoice
-                              ? formData.voice_url === voice.url
-                              : formData.voice_id === voice.id;
+                              ? String(formData.voice_url || '') === String(voice.url || '')
+                              : String(formData.voice_id || '') === String(voice.id || '');
                             const audioUrl = voice.preview_url || voice.url;
                             const isPlaying = playingVoiceUrl !== null && (playingVoiceUrl === audioUrl || playingVoiceUrl === voice.url || playingVoiceUrl === voice.preview_url);
                             const defaultPlaceholder = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9InJnYmEoNjAsIDYwLCA2MCwgMC4zKSIvPgo8cGF0aCBkPSJNMzAgNDBDMzAgMzUuMDI5IDM0LjAyOSAzMSAzOSAzMUg0MUM0NS45NzEgMzEgNTAgMzUuMDI5IDUwIDQwQzUwIDQ0Ljk3MSA0NS45NzEgNDkgNDEgNDlIMzlDMzQuMDI5IDQ5IDMwIDQ0Ljk3MSAzMCA0MFoiIGZpbGw9InJnYmEoMTUwLCAxNTAsIDE1MCwgMC41KSIvPgo8L3N2Zz4K';
@@ -6169,17 +6302,26 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
                                     if (isUserVoice) {
                                       setFormData(prev => ({ ...prev, voice_url: voice.url, voice_id: '' }));
+                                      setVoiceSelectionTime(prev => ({ ...prev, [voice.url]: Date.now() }));
                                     } else {
                                       setFormData(prev => ({ ...prev, voice_id: voice.id, voice_url: '' }));
+                                      setVoiceSelectionTime(prev => ({ ...prev, [voice.id]: Date.now() }));
+                                    }
+
+                                    // Останавливаем предыдущее воспроизведение, если оно есть
+                                    if (audioRef.current) {
+                                      audioRef.current.pause();
+                                      audioRef.current.currentTime = 0;
+                                      audioRef.current = null;
+                                    }
+                                    if (playingVoiceUrl) {
+                                      setPlayingVoiceUrl(null);
                                     }
 
                                     const audioUrlToPlay = voice.preview_url || voice.url;
+                                    
+                                    // Если нажали на уже играющий голос - просто останавливаем его
                                     if (playingVoiceUrl && (playingVoiceUrl === audioUrlToPlay || playingVoiceUrl === voice.url || playingVoiceUrl === voice.preview_url)) {
-                                      setPlayingVoiceUrl(null);
-                                      if (audioRef.current) {
-                                        audioRef.current.pause();
-                                        audioRef.current.currentTime = 0;
-                                      }
                                       return;
                                     }
 
@@ -6188,11 +6330,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                         ? audioUrlToPlay
                                         : `${API_CONFIG.BASE_URL}${audioUrlToPlay}`;
                                       console.log('Воспроизведение голоса:', fullUrl);
-
-                                      if (audioRef.current) {
-                                        audioRef.current.pause();
-                                        audioRef.current.currentTime = 0;
-                                      }
 
                                       const audio = new Audio(fullUrl);
                                       audioRef.current = audio;
@@ -6210,7 +6347,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                       setPlayingVoiceUrl(audioUrlToPlay);
                                     } catch (err) {
                                       console.error('Ошибка воспроизведения:', err);
-                                      setPlayingVoiceUrl(null);
                                     }
                                   }}
                                 >
@@ -6237,6 +6373,10 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                       target.onerror = tryNext;
                                       tryNext();
                                     }}
+                                  />
+                                  <VoiceCheckmark 
+                                    $show={isSelected}
+                                    $isPremium={false}
                                   />
                                   {((isUserVoice && (isOwner || isAdmin || userInfo?.is_admin)) || (!isUserVoice && (isAdmin || userInfo?.is_admin))) && (
                                     <EditButton
@@ -7573,7 +7713,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
                           if (response.ok) {
                             const result = await response.json();
-                            setFormData(prev => ({ ...prev, voice_url: result.voice_url, voice_id: '' }));
+                            const newVoiceId = `user_voice_${result.voice_id}`;
 
                             // Перезагружаем список голосов
                             const voicesResponse = await fetch('/api/v1/characters/available-voices', {
@@ -7584,6 +7724,27 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                             if (voicesResponse.ok) {
                               const voicesData = await voicesResponse.json();
                               setAvailableVoices(voicesData);
+                              
+                              // Автоматически открываем пользовательские голоса и выбираем добавленный голос
+                              setShowUserVoices(true);
+                              
+                              // Находим и выбираем добавленный голос
+                              const addedVoice = voicesData.find((v: any) => v.id === newVoiceId || v.user_voice_id === result.voice_id);
+                              if (addedVoice) {
+                                const isUserVoice = addedVoice.is_user_voice || false;
+                                if (isUserVoice) {
+                                  // Для пользовательских голосов используем voice_url и очищаем voice_id
+                                  setFormData(prev => ({ ...prev, voice_url: addedVoice.url, voice_id: '' }));
+                                  setVoiceSelectionTime(prev => ({ ...prev, [addedVoice.url]: Date.now() }));
+                                } else {
+                                  setFormData(prev => ({ ...prev, voice_id: addedVoice.id, voice_url: '' }));
+                                  setVoiceSelectionTime(prev => ({ ...prev, [addedVoice.id]: Date.now() }));
+                                }
+                              } else {
+                                // Если голос не найден, используем данные из ответа API
+                                setFormData(prev => ({ ...prev, voice_url: result.voice_url, voice_id: '' }));
+                                setVoiceSelectionTime(prev => ({ ...prev, [result.voice_url]: Date.now() }));
+                              }
                             }
 
                             // Закрываем модальное окно и сбрасываем состояние

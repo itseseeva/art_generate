@@ -11,6 +11,10 @@ from app.chat_bot.models.models import CharacterDB, CharacterRating
 from app.database.db_depends import get_db
 from app.auth.dependencies import get_current_user, get_current_user_optional
 from app.models.user import Users
+from app.utils.redis_cache import (
+    cache_get, cache_set, cache_delete,
+    key_character_ratings, TTL_CHARACTER_RATINGS
+)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -55,12 +59,18 @@ async def like_character(
             if existing.is_like:
                 await db.delete(existing)
                 await db.commit()
+                # Инвалидируем кэш рейтингов для этого персонажа
+                await cache_delete(key_character_ratings(character_id))
+                await cache_delete(key_character_ratings(character_id, current_user.id))
                 return {"success": True, "message": "Like removed", "user_rating": None}
             else:
                 # Если есть дизлайк, меняем на лайк
                 existing.is_like = True
                 existing.updated_at = datetime.utcnow()
                 await db.commit()
+                # Инвалидируем кэш рейтингов для этого персонажа
+                await cache_delete(key_character_ratings(character_id))
+                await cache_delete(key_character_ratings(character_id, current_user.id))
                 return {"success": True, "message": "Changed from dislike to like", "user_rating": "like"}
         else:
             # Создаем новый лайк
@@ -71,6 +81,9 @@ async def like_character(
             )
             db.add(rating)
             await db.commit()
+            # Инвалидируем кэш рейтингов для этого персонажа
+            await cache_delete(key_character_ratings(character_id))
+            await cache_delete(key_character_ratings(character_id, current_user.id))
             return {"success": True, "message": "Character liked", "user_rating": "like"}
     except HTTPException:
         raise
@@ -116,12 +129,18 @@ async def dislike_character(
             if not existing.is_like:
                 await db.delete(existing)
                 await db.commit()
+                # Инвалидируем кэш рейтингов для этого персонажа
+                await cache_delete(key_character_ratings(character_id))
+                await cache_delete(key_character_ratings(character_id, current_user.id))
                 return {"success": True, "message": "Dislike removed", "user_rating": None}
             else:
                 # Если есть лайк, меняем на дизлайк
                 existing.is_like = False
                 existing.updated_at = datetime.utcnow()
                 await db.commit()
+                # Инвалидируем кэш рейтингов для этого персонажа
+                await cache_delete(key_character_ratings(character_id))
+                await cache_delete(key_character_ratings(character_id, current_user.id))
                 return {"success": True, "message": "Changed from like to dislike", "user_rating": "dislike"}
         else:
             # Создаем новый дизлайк
@@ -132,6 +151,9 @@ async def dislike_character(
             )
             db.add(rating)
             await db.commit()
+            # Инвалидируем кэш рейтингов для этого персонажа
+            await cache_delete(key_character_ratings(character_id))
+            await cache_delete(key_character_ratings(character_id, current_user.id))
             return {"success": True, "message": "Character disliked", "user_rating": "dislike"}
     except HTTPException:
         raise
@@ -147,21 +169,23 @@ async def get_character_ratings(
     current_user: Users = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db)
 ):
-    """Получает рейтинг персонажа (лайки, дизлайки, рейтинг пользователя)."""
-    print("=" * 80)
-    print(f"[RATINGS] GET /character-ratings/{character_id} вызван!")
-    print(f"[RATINGS] User ID: {current_user.id if current_user else 'Anonymous'}")
-    print("=" * 80)
-    logger.info("=" * 80)
-    logger.info(f"[RATINGS] GET /character-ratings/{character_id} вызван!")
-    logger.info(f"[RATINGS] User ID: {current_user.id if current_user else 'Anonymous'}")
-    logger.info("=" * 80)
+    """Получает рейтинг персонажа (лайки, дизлайки, рейтинг пользователя) с кэшированием."""
     try:
         # Проверяем, существует ли персонаж
         result = await db.execute(select(CharacterDB).where(CharacterDB.id == character_id))
         character = result.scalar_one_or_none()
         if not character:
             raise HTTPException(status_code=404, detail="Character not found")
+        
+        # Формируем ключ кэша (разный для авторизованных и неавторизованных)
+        user_id = current_user.id if current_user else None
+        cache_key = key_character_ratings(character_id, user_id)
+        
+        # Пытаемся получить из кэша
+        cached_ratings = await cache_get(cache_key, timeout=0.5)
+        if cached_ratings is not None:
+            logger.debug(f"[RATINGS] Использован кэш для character_id={character_id}, user_id={user_id}")
+            return cached_ratings
         
         # Подсчитываем лайки и дизлайки
         from sqlalchemy import func
@@ -194,12 +218,17 @@ async def get_character_ratings(
             if user_rating_obj:
                 user_rating = "like" if user_rating_obj.is_like else "dislike"
         
-        return {
+        ratings_data = {
             "character_id": character_id,
             "likes": likes_count,
             "dislikes": dislikes_count,
             "user_rating": user_rating
         }
+        
+        # Сохраняем в кэш
+        await cache_set(cache_key, ratings_data, ttl_seconds=TTL_CHARACTER_RATINGS, timeout=0.5)
+        
+        return ratings_data
     except HTTPException:
         raise
     except Exception as e:

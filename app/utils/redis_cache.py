@@ -338,6 +338,10 @@ TTL_PROMPTS_DEFAULT = 3600  # 1 час
 TTL_CHAT_HISTORY = 86400  # 24 часа (3600 * 24 секунд)
 TTL_CHAT_STATUS = 30  # 30 секунд
 TTL_USER_CHARACTERS = 300  # 5 минут
+TTL_CHARACTER_RATINGS = 600  # 10 минут - рейтинги персонажей
+TTL_AVAILABLE_VOICES = 900  # 15 минут - список доступных голосов
+TTL_USER_FAVORITES = 180  # 3 минуты - список избранных персонажей пользователя
+TTL_IMAGE_METADATA = 86400  # 24 часа - метаданные изображений (промпты)
 
 
 # Функции для генерации ключей кэша
@@ -476,4 +480,31 @@ def key_chat_status() -> str:
 def key_user_characters(user_id: int) -> str:
     """Генерирует ключ для списка персонажей пользователя с историей."""
     return f"user:characters:{user_id}"
+
+
+def key_character_ratings(character_id: int, user_id: Optional[int] = None) -> str:
+    """Генерирует ключ для рейтингов персонажа."""
+    if user_id:
+        return f"character:ratings:{character_id}:user:{user_id}"
+    return f"character:ratings:{character_id}"
+
+
+def key_available_voices(user_id: Optional[int] = None) -> str:
+    """Генерирует ключ для списка доступных голосов."""
+    if user_id:
+        return f"voices:available:user:{user_id}"
+    return "voices:available:public"
+
+
+def key_user_favorites(user_id: int) -> str:
+    """Генерирует ключ для списка избранных персонажей пользователя."""
+    return f"user:favorites:{user_id}"
+
+
+def key_image_metadata(image_url: str) -> str:
+    """Генерирует ключ для метаданных изображения (промпт и т.д.)."""
+    import hashlib
+    # Используем хэш URL для создания короткого ключа
+    url_hash = hashlib.md5(image_url.encode('utf-8')).hexdigest()
+    return f"image:metadata:{url_hash}"
 

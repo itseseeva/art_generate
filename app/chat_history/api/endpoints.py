@@ -9,6 +9,9 @@ from pydantic import BaseModel
 from app.database.db_depends import get_db
 from app.auth.dependencies import get_current_user, get_current_user_optional
 from app.models.user import Users
+from app.utils.redis_cache import (
+    cache_get, cache_set, key_image_metadata, TTL_IMAGE_METADATA
+)
 
 
 router = APIRouter()
@@ -267,7 +270,7 @@ async def get_prompt_by_image(
     db: AsyncSession = Depends(get_db),
     current_user: Optional[Users] = Depends(get_current_user_optional)
 ):
-    """Получает промпт для изображения по его URL.
+    """Получает промпт для изображения по его URL с кэшированием.
 
     Доступно для всех пользователей, включая неавторизованных.
     Приоритет: сначала ищем в истории текущего пользователя (если авторизован), затем среди всех пользователей.
@@ -275,14 +278,25 @@ async def get_prompt_by_image(
     try:
         from app.models.chat_history import ChatHistory
         from sqlalchemy import select
+        from app.utils.redis_cache import (
+            cache_get, cache_set, key_image_metadata, TTL_IMAGE_METADATA
+        )
         import logging
 
         logger = logging.getLogger(__name__)
         user_id = current_user.id if current_user else None
-        # Логирование удалено для уменьшения шума в логах
-
+        
         # Максимально простая и надежная нормализация
         normalized_url = image_url.split('?')[0].split('#')[0] if image_url else image_url
+        
+        # Формируем ключ кэша
+        cache_key = key_image_metadata(normalized_url)
+        
+        # Пытаемся получить из кэша
+        cached_metadata = await cache_get(cache_key, timeout=0.5)
+        if cached_metadata is not None:
+            logger.debug(f"[IMAGE METADATA] Использован кэш для image_url={normalized_url[:50]}...")
+            return cached_metadata
         
         # Извлекаем имя файла или путь после /generated/ или /media/generated/
         # Это позволяет находить промпты независимо от домена (localhost, cherrylust.art, yandexcloud и т.д.)
@@ -408,12 +422,17 @@ async def get_prompt_by_image(
                         # Если перевод не удался, возвращаем оригинальный промпт
                         logger.warning(f"[TRANSLATE] Ошибка перевода промпта на русский: {translate_error}")
                         
-                    return {
+                    result = {
                         "success": True,
                         "prompt": clean_prompt,
                         "character_name": image_history_record.character_name,
                         "generation_time": image_history_record.generation_time
                     }
+                    
+                    # Сохраняем в кэш
+                    await cache_set(cache_key, result, ttl_seconds=TTL_IMAGE_METADATA, timeout=0.5)
+                    
+                    return result
         except Exception as img_history_err:
             pass
 
@@ -505,12 +524,17 @@ async def get_prompt_by_image(
                 # Если перевод не удался, возвращаем оригинальный промпт
                 logger.warning(f"[TRANSLATE] Ошибка перевода промпта на русский: {translate_error}")
             
-            return {
+            result = {
                 "success": True,
                 "prompt": prompt_text,
                 "character_name": message.character_name,
                 "generation_time": message.generation_time
             }
+            
+            # Сохраняем в кэш
+            await cache_set(cache_key, result, ttl_seconds=TTL_IMAGE_METADATA, timeout=0.5)
+            
+            return result
 
         # 3. Крайний случай: поиск по всем пользователям по идентификатору файла (тоже исключая заглушки)
         stmt = (
@@ -561,12 +585,17 @@ async def get_prompt_by_image(
                 # Если перевод не удался, возвращаем оригинальный промпт
                 logger.warning(f"[TRANSLATE] Ошибка перевода промпта на русский: {translate_error}")
             
-            return {
+            result = {
                 "success": True,
                 "prompt": prompt_text,
                 "character_name": message.character_name,
                 "generation_time": message.generation_time
             }
+            
+            # Сохраняем в кэш
+            await cache_set(cache_key, result, ttl_seconds=TTL_IMAGE_METADATA, timeout=0.5)
+            
+            return result
 
         # Дополнительная диагностика: проверяем, есть ли вообще записи для этого пользователя
         from sqlalchemy.orm import load_only

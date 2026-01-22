@@ -24,6 +24,7 @@ from app.chat_bot.models.models import CharacterDB, ChatSession, ChatMessageDB
 from app.chat_bot.schemas.chat import TTSRequest, VoicePreviewRequest
 from app.services.tts_service import generate_tts_audio, generate_voice_preview
 from app.services.coins_service import CoinsService
+from app.services.profit_activate import emit_profile_update
 
 logger = logging.getLogger(__name__)
 
@@ -720,9 +721,30 @@ async def generate_voice(
         
         if not audio_path:
             raise HTTPException(status_code=500, detail="Не удалось сгенерировать аудио")
-            
-        # Списываем монеты после успешной генерации
-        await coins_service.spend_coins(current_user.id, cost, commit=True)
+        
+        # Списываем монеты после успешной генерации (без commit, чтобы записать историю)
+        await coins_service.spend_coins(current_user.id, cost, commit=False)
+        
+        # Записываем в историю баланса
+        try:
+            from app.utils.balance_history import record_balance_change
+            await record_balance_change(
+                db=db,
+                user_id=current_user.id,
+                amount=-cost,
+                reason=f"Голосовая генерация ({len(request.text)} символов)"
+            )
+        except Exception as e:
+            logger.warning(f"Не удалось записать историю баланса для TTS: {e}")
+        
+        # Коммитим все изменения вместе
+        await db.commit()
+        
+        # Обновляем кэш и профиль пользователя
+        await emit_profile_update(current_user.id, db)
+        
+        # Обновляем баланс в объекте пользователя для ответа
+        await db.refresh(current_user)
         
         # Формируем URL для фронтенда
         import os

@@ -730,6 +730,9 @@ const CardWrapper = styled.div`
   width: 100%;
 `;
 
+const LIKE_ACTIVE_COLOR = 'rgba(255, 193, 7, 1)';
+const DISLIKE_ACTIVE_COLOR = 'rgba(244, 67, 54, 1)';
+
 const RatingButton = styled.button<{ $isActive?: boolean; $isLike?: boolean }>`
   display: flex;
   flex-direction: column;
@@ -738,10 +741,10 @@ const RatingButton = styled.button<{ $isActive?: boolean; $isLike?: boolean }>`
   background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(15px);
   -webkit-backdrop-filter: blur(15px);
-  border: 2px solid ${props => props.$isActive ? (props.$isLike ? 'rgba(255, 193, 7, 0.8)' : 'rgba(244, 67, 54, 0.8)') : 'rgba(255, 255, 255, 0.4)'};
+  border: 2px solid ${props => props.$isActive ? (props.$isLike ? LIKE_ACTIVE_COLOR : DISLIKE_ACTIVE_COLOR) : 'rgba(255, 255, 255, 0.4)'};
   border-radius: ${theme.borderRadius.sm};
   padding: 6px 10px;
-  color: rgba(255, 255, 255, 1);
+  color: ${props => props.$isActive ? (props.$isLike ? LIKE_ACTIVE_COLOR : DISLIKE_ACTIVE_COLOR) : 'rgba(255, 255, 255, 1)'};
   cursor: pointer;
   transition: all ${theme.transition.fast};
   z-index: 1000;
@@ -754,7 +757,7 @@ const RatingButton = styled.button<{ $isActive?: boolean; $isLike?: boolean }>`
   
   &:hover {
     background: rgba(0, 0, 0, 0.8);
-    border-color: ${props => props.$isLike ? 'rgba(255, 193, 7, 1)' : 'rgba(244, 67, 54, 1)'};
+    border-color: ${props => props.$isLike ? LIKE_ACTIVE_COLOR : DISLIKE_ACTIVE_COLOR};
     transform: scale(1.05);
   }
   
@@ -765,18 +768,18 @@ const RatingButton = styled.button<{ $isActive?: boolean; $isLike?: boolean }>`
   svg {
     width: 16px;
     height: 16px;
-    color: ${props => props.$isActive ? (props.$isLike ? 'rgba(255, 193, 7, 1)' : 'rgba(244, 67, 54, 1)') : 'rgba(255, 255, 255, 0.9)'};
-    fill: ${props => props.$isActive ? (props.$isLike ? 'rgba(255, 193, 7, 1)' : 'rgba(244, 67, 54, 1)') : 'none'};
-    stroke: ${props => props.$isActive ? (props.$isLike ? 'rgba(255, 193, 7, 1)' : 'rgba(244, 67, 54, 1)') : 'rgba(255, 255, 255, 0.9)'};
+    color: ${props => props.$isActive ? (props.$isLike ? LIKE_ACTIVE_COLOR : DISLIKE_ACTIVE_COLOR) : 'rgba(255, 255, 255, 0.9)'};
+    fill: ${props => props.$isActive ? (props.$isLike ? LIKE_ACTIVE_COLOR : DISLIKE_ACTIVE_COLOR) : 'none'};
+    stroke: ${props => props.$isActive ? (props.$isLike ? LIKE_ACTIVE_COLOR : DISLIKE_ACTIVE_COLOR) : 'rgba(255, 255, 255, 0.9)'};
     stroke-width: 2;
     transition: all ${theme.transition.fast};
   }
 `;
 
-const RatingCount = styled.span`
+const RatingCount = styled.span<{ $isActive?: boolean; $isLike?: boolean }>`
   font-size: 14px;
   font-weight: 800;
-  color: rgba(255, 255, 255, 1);
+  color: ${props => props.$isActive ? (props.$isLike ? LIKE_ACTIVE_COLOR : DISLIKE_ACTIVE_COLOR) : 'rgba(255, 255, 255, 1)'};
   text-shadow: 0 2px 6px rgba(0, 0, 0, 1), 0 0 10px rgba(0, 0, 0, 0.8);
   line-height: 1.2;
   margin-top: 2px;
@@ -1284,8 +1287,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   const [editingPhotos, setEditingPhotos] = useState<Array<{url: string, prompt: string}>>([]);
   const [isSavingPrompt, setIsSavingPrompt] = useState(false);
   const [promptSaveError, setPromptSaveError] = useState<string | null>(null);
-  const [likesCount, setLikesCount] = useState<number>(character.likes || 0);
-  const [dislikesCount, setDislikesCount] = useState<number>(character.dislikes || 0);
+  const [likesCount, setLikesCount] = useState<number>(character.likes ?? 0);
+  const [dislikesCount, setDislikesCount] = useState<number>(character.dislikes ?? 0);
   const [userRating, setUserRating] = useState<'like' | 'dislike' | null>(null);
   
   // Состояние для Smart Hover overlay
@@ -1642,12 +1645,35 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
       const response = await authManager.fetchWithAuth(API_CONFIG.GET_CHARACTER_RATINGS(characterId));
       if (response.ok) {
         const data = await response.json();
-        setLikesCount(data.likes || 0);
-        setDislikesCount(data.dislikes || 0);
+        // Обновляем счетчики только если данные получены, иначе используем значения из пропсов
+        if (data.likes !== undefined && data.likes !== null) {
+          setLikesCount(data.likes);
+        } else if (character.likes !== undefined) {
+          setLikesCount(character.likes);
+        }
+        if (data.dislikes !== undefined && data.dislikes !== null) {
+          setDislikesCount(data.dislikes);
+        } else if (character.dislikes !== undefined) {
+          setDislikesCount(character.dislikes);
+        }
         setUserRating(data.user_rating || null);
+      } else {
+        // Если запрос не удался, используем значения из пропсов
+        if (character.likes !== undefined) {
+          setLikesCount(character.likes);
+        }
+        if (character.dislikes !== undefined) {
+          setDislikesCount(character.dislikes);
+        }
       }
     } catch (error) {
-      
+      // При ошибке используем значения из пропсов
+      if (character.likes !== undefined) {
+        setLikesCount(character.likes);
+      }
+      if (character.dislikes !== undefined) {
+        setDislikesCount(character.dislikes);
+      }
     }
   };
 
@@ -1825,12 +1851,29 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     }
   };
 
-  // Загружаем рейтинги при монтировании компонента только если showRatings=true
+  // Загружаем рейтинги при монтировании компонента.
+  // Если showRatings — всегда запрашиваем с сервера (нужен user_rating для подсветки лайка/дизлайка).
+  // Иначе загружаем только когда нет likes/dislikes в пропсах.
   useEffect(() => {
     if (showRatings) {
       loadRatings();
+      return;
     }
-  }, [character.id, showRatings]);
+    if (character.likes !== undefined || character.dislikes !== undefined) {
+      return;
+    }
+    loadRatings();
+  }, [character.id, character.likes, character.dislikes, showRatings]);
+
+  // Синхронизируем счетчики с пропсами, когда они изменяются извне
+  useEffect(() => {
+    if (character.likes !== undefined) {
+      setLikesCount(character.likes);
+    }
+    if (character.dislikes !== undefined) {
+      setDislikesCount(character.dislikes);
+    }
+  }, [character.likes, character.dislikes]);
 
 
   useEffect(() => {
@@ -2049,7 +2092,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           onClick={handleLike}
         >
           <FiThumbsUp />
-          <RatingCount>{likesCount}</RatingCount>
+          <RatingCount $isActive={userRating === 'like'} $isLike={true}>{likesCount ?? 0}</RatingCount>
         </RatingButton>
       )}
       <ElectricBorder
@@ -2213,6 +2256,16 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         
         <ContentOverlay>
           <CharacterName>{character.name}</CharacterName>
+          <StatsContainer>
+            <StatItem>
+              <FiThumbsUp size={12} style={{ marginRight: '4px' }} />
+              <span>{formatNumber(likesCount ?? 0)}</span>
+            </StatItem>
+            <StatItem>
+              <FiThumbsDown size={12} style={{ marginRight: '4px' }} />
+              <span>{formatNumber(dislikesCount ?? 0)}</span>
+            </StatItem>
+          </StatsContainer>
         </ContentOverlay>
         
           <div 
@@ -2441,7 +2494,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           onClick={handleDislike}
         >
           <FiThumbsDown />
-          <RatingCount>{dislikesCount}</RatingCount>
+          <RatingCount $isActive={userRating === 'dislike'} $isLike={false}>{dislikesCount ?? 0}</RatingCount>
         </RatingButton>
       )}
     </CardWrapper>

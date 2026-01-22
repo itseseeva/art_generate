@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import styled from 'styled-components';
+import styled, { keyframes, css } from 'styled-components';
 import { authManager } from '../utils/auth';
 import { theme } from '../theme';
 import '../styles/ContentArea.css';
@@ -2595,6 +2595,50 @@ const WaveformBar = styled.div<{ $delay: number; $isPremium?: boolean }>`
   }
 `;
 
+const VoiceCheckmark = styled.div<{ $show: boolean; $isPremium?: boolean }>`
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  pointer-events: none;
+  opacity: ${props => props.$show ? '1' : '0'};
+  transition: opacity 0.3s ease;
+  animation: ${props => props.$show ? 'checkmarkAppear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' : 'none'};
+  
+  @keyframes checkmarkAppear {
+    0% {
+      transform: scale(0) rotate(-180deg);
+      opacity: 0;
+    }
+    50% {
+      transform: scale(1.2) rotate(10deg);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1) rotate(0deg);
+      opacity: 1;
+    }
+  }
+  
+  &::before {
+    content: '';
+    position: absolute;
+    width: 6px;
+    height: 12px;
+    border: 3px solid ${props => props.$isPremium ? '#ff4444' : '#4ade80'};
+    border-top: none;
+    border-left: none;
+    transform: rotate(45deg) translate(-2px, -2px);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    filter: drop-shadow(0 0 3px ${props => props.$isPremium ? 'rgba(255, 68, 68, 0.8)' : 'rgba(74, 222, 128, 0.8)'});
+  }
+`;
+
 const VoicePhotoWrapper = styled.div`
   display: flex;
   flex-direction: column;
@@ -2631,9 +2675,8 @@ const CreatorTooltip = styled.div`
 
 const CreatorNameLabel = styled.div`
   position: absolute;
-  top: -60px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: -54px;
+  left: -24px;
   background: rgba(30, 30, 30, 0.95);
   border: 1px solid rgba(139, 92, 246, 0.6);
   border-radius: 6px;
@@ -2652,7 +2695,7 @@ const CreatorNameLabel = styled.div`
     background: rgba(40, 40, 40, 0.95);
     border-color: rgba(139, 92, 246, 0.9);
     color: rgba(139, 92, 246, 0.9);
-    transform: translateX(-50%) translateY(-2px);
+    transform: translateY(-2px);
   }
 `;
 
@@ -2674,7 +2717,46 @@ const PhotoUploadSpinner = styled.div`
   }
 `;
 
-const AddVoiceContainer = styled.div<{ $isUploading?: boolean }>`
+const premiumGlow = keyframes`
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(124, 58, 237, 0.4);
+    border-color: rgba(124, 58, 237, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(124, 58, 237, 0.8), 0 0 45px rgba(124, 58, 237, 0.4);
+    border-color: rgba(124, 58, 237, 1);
+  }
+`;
+
+const PremiumWarning = styled(motion.div)`
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(124, 58, 237, 0.95);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+  z-index: 1000;
+  pointer-events: none;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 6px solid rgba(124, 58, 237, 0.95);
+  }
+`;
+
+const AddVoiceContainer = styled.div<{ $isUploading?: boolean; $isPremium?: boolean }>`
   position: relative;
   width: 74px;
   height: 74px;
@@ -2690,6 +2772,10 @@ const AddVoiceContainer = styled.div<{ $isUploading?: boolean }>`
   justify-content: center;
   background: ${props => props.$isUploading ? 'rgba(40, 40, 40, 0.7)' : 'rgba(30, 30, 30, 0.5)'};
   opacity: ${props => props.$isUploading ? 0.8 : 1};
+  
+  ${props => !props.$isUploading && css`
+    animation: ${premiumGlow} 2s ease-in-out infinite;
+  `}
   
   &:hover {
     border-color: ${props => props.$isUploading ? 'rgba(139, 92, 246, 0.9)' : 'rgba(139, 92, 246, 0.9)'};
@@ -3595,7 +3681,30 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   }[]>([]);
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>('');
   const [selectedVoiceUrl, setSelectedVoiceUrl] = useState<string | null>(null); // Для загруженных пользовательских голосов
+  const [voiceSelectionTime, setVoiceSelectionTime] = useState<{ [key: string]: number }>({});
   const [playingVoiceUrl, setPlayingVoiceUrl] = useState<string | null>(null);
+
+  // Автоматическая очистка времени выбора через 0.5 секунды
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setVoiceSelectionTime(prev => {
+        const now = Date.now();
+        const updated = { ...prev };
+        let hasChanges = false;
+        
+        for (const key in updated) {
+          if (now - updated[key] >= 500) {
+            delete updated[key];
+            hasChanges = true;
+          }
+        }
+        
+        return hasChanges ? updated : prev;
+      });
+    }, 100); // Проверяем каждые 100мс
+
+    return () => clearInterval(interval);
+  }, []);
   const [isUploadingVoice, setIsUploadingVoice] = useState(false); // Состояние загрузки голоса
   const [editingVoiceId, setEditingVoiceId] = useState<string | null>(null); // ID голоса, который редактируется
   const [editedVoiceNames, setEditedVoiceNames] = useState<{ [key: string]: string }>({}); // Редактируемые имена голосов
@@ -3606,6 +3715,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [dragStart, setDragStart] = useState<{ x: number, y: number, photoX: number, photoY: number, element: HTMLElement } | null>(null);
   const [isVoiceCloneModalOpen, setIsVoiceCloneModalOpen] = useState(false);
   const [isVoiceSubscriptionModalOpen, setIsVoiceSubscriptionModalOpen] = useState(false);
+  const [premiumVoiceWarningId, setPremiumVoiceWarningId] = useState<string | null>(null);
   const [voiceFile, setVoiceFile] = useState<File | null>(null);
   const [voiceDuration, setVoiceDuration] = useState<number | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
@@ -5077,6 +5187,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                     if ((e.target as HTMLElement).closest('[data-creator-name-label]')) {
                                       return;
                                     }
+
                                     e.preventDefault();
                                     // Если редактируется имя, не выбираем голос
                                     if (editingVoiceId === voice.id) return;
@@ -5084,13 +5195,25 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                     console.log('[VOICE SELECT] Выбран голос:', voice.id, 'Название:', voice.name, 'isUserVoice:', isUserVoice);
 
                                     // Премиум голоса можно прослушивать всем, проверка только при сохранении персонажа
-                                    
+
                                     if (isUserVoice) {
                                       setSelectedVoiceUrl(voice.url);
                                       setSelectedVoiceId(''); // Очищаем voice_id для пользовательских голосов
+                                      setVoiceSelectionTime(prev => ({ ...prev, [voice.url]: Date.now() }));
                                     } else {
                                       setSelectedVoiceId(voice.id);
                                       setSelectedVoiceUrl(null);
+                                      setVoiceSelectionTime(prev => ({ ...prev, [voice.id]: Date.now() }));
+                                    }
+
+                                    // Останавливаем предыдущее воспроизведение, если оно есть
+                                    if (audioRef.current) {
+                                      audioRef.current.pause();
+                                      audioRef.current.currentTime = 0;
+                                      audioRef.current = null;
+                                    }
+                                    if (playingVoiceUrl) {
+                                      setPlayingVoiceUrl(null);
                                     }
 
                                     // Воспроизводим аудио
@@ -5098,54 +5221,40 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
                                     // Если нажали на уже играющий голос - просто останавливаем его
                                     if (playingVoiceUrl && (playingVoiceUrl === audioUrlToPlay || playingVoiceUrl === voice.url || playingVoiceUrl === voice.preview_url)) {
-                                      setPlayingVoiceUrl(null);
-                                      if (audioRef.current) {
-                                        audioRef.current.pause();
-                                        audioRef.current = null;
-                                      }
                                       return;
                                     }
+                                    try {
+                                      const fullUrl = audioUrlToPlay.startsWith('http') ? audioUrlToPlay : `${API_CONFIG.BASE_URL}${audioUrlToPlay}`;
+                                      console.log('Воспроизведение голоса:', fullUrl);
+                                      const encodedUrl = encodeURI(fullUrl);
+                                      const audio = new Audio(encodedUrl);
+                                      audioRef.current = audio;
+                                      audio.preload = 'auto';
+                                      audio.volume = 1.0;
 
-                                    // Останавливаем текущее аудио, если оно есть
-                                    if (audioRef.current) {
-                                      audioRef.current.pause();
-                                      audioRef.current = null;
-                                    }
-
-                                    if (audioUrlToPlay) {
-                                      try {
-                                        const fullUrl = audioUrlToPlay.startsWith('http') ? audioUrlToPlay : `${API_CONFIG.BASE_URL}${audioUrlToPlay}`;
-                                        console.log('Воспроизведение голоса:', fullUrl);
-                                        const encodedUrl = encodeURI(fullUrl);
-                                        const audio = new Audio(encodedUrl);
-                                        audioRef.current = audio;
-                                        audio.preload = 'auto';
-                                        audio.volume = 1.0;
-
-                                        // Обработчики событий
-                                        audio.onloadeddata = () => {
-                                          console.log('Аудио загружено:', audioUrlToPlay);
-                                        };
-                                        audio.onerror = (err) => {
-                                          console.error('Ошибка загрузки аудио:', err, audioUrlToPlay);
-                                          setPlayingVoiceUrl(null);
-                                          audioRef.current = null;
-                                        };
-                                        audio.onended = () => {
-                                          console.log('Воспроизведение завершено:', audioUrlToPlay);
-                                          setPlayingVoiceUrl(null);
-                                          audioRef.current = null;
-                                        };
-
-                                        setPlayingVoiceUrl(audioUrlToPlay);
-                                        await audio.play();
-                                        console.log('Воспроизведение начато:', audioUrlToPlay);
-                                      } catch (err) {
-                                        console.error('Ошибка воспроизведения:', err, audioUrlToPlay);
+                                      // Обработчики событий
+                                      audio.onloadeddata = () => {
+                                        console.log('Аудио загружено:', audioUrlToPlay);
+                                      };
+                                      audio.onerror = (err) => {
+                                        console.error('Ошибка загрузки аудио:', err, audioUrlToPlay);
                                         setPlayingVoiceUrl(null);
                                         audioRef.current = null;
-                                        alert('Не удалось воспроизвести аудио. Проверьте консоль для деталей.');
-                                      }
+                                      };
+                                      audio.onended = () => {
+                                        console.log('Воспроизведение завершено:', audioUrlToPlay);
+                                        setPlayingVoiceUrl(null);
+                                        audioRef.current = null;
+                                      };
+
+                                      setPlayingVoiceUrl(audioUrlToPlay);
+                                      await audio.play();
+                                      console.log('Воспроизведение начато:', audioUrlToPlay);
+                                    } catch (err) {
+                                      console.error('Ошибка воспроизведения:', err, audioUrlToPlay);
+                                      setPlayingVoiceUrl(null);
+                                      audioRef.current = null;
+                                      alert('Не удалось воспроизвести аудио. Проверьте консоль для деталей.');
                                     }
                                   }}
                                 >
@@ -5171,6 +5280,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                         target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9InJnYmEoNjAsIDYwLCA2MCwgMC4zKSIvPgo8cGF0aCBkPSJNMzAgNDBDMzAgMzUuMDI5IDM0LjAyOSAzMSAzOSAzMUg0MUM0NS45NzEgMzEgNTAgMzUuMDI5IDUwIDQwQzUwIDQ0Ljk3MSA0NS45NzEgNDkgNDEgNDlIMzlDMzQuMDI5IDQ5IDMwIDQ0Ljk3MSAzMCA0MFoiIGZpbGw9InJnYmEoMTUwLCAxNTAsIDE1MCwgMC41KSIvPgo8L3N2Zz4K';
                                       }
                                     }}
+                                  />
+                                  <VoiceCheckmark 
+                                    $show={isSelected}
+                                    $isPremium={isPremiumVoice(voice.name)}
                                   />
                                   {isPlaying && (
                                     <WaveformContainer $isPlaying={isPlaying}>
@@ -5338,295 +5451,540 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                     <PhotoUploadSpinner />
                                   )}
                                 </VoicePhotoContainer>
-                                {isUserVoice && voice.creator_username && !isOwner && (
-                                  <CreatorNameLabel
-                                    data-creator-name-label="true"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      // Переходим на страницу создателя голоса
-                                      const creatorId = voice.creator_id;
-                                      const creatorUsername = voice.creator_username;
-                                      const currentUserId = userInfo?.id;
+                                {
+                                  isUserVoice && voice.creator_username && !isOwner && (
+                                    <CreatorNameLabel
+                                      data-creator-name-label="true"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        // Переходим на страницу создателя голоса
+                                        const creatorId = voice.creator_id;
+                                        const creatorUsername = voice.creator_username;
+                                        const currentUserId = userInfo?.id;
 
-                                      console.log('[CREATOR CLICK] Переход на профиль создателя:', {
-                                        creatorUsername,
-                                        creatorId,
-                                        currentUserId,
-                                        voiceData: voice,
-                                        isOwner: voice.is_owner,
-                                        userVoiceId: voice.user_voice_id
-                                      });
+                                        console.log('[CREATOR CLICK] Переход на профиль создателя:', {
+                                          creatorUsername,
+                                          creatorId,
+                                          currentUserId,
+                                          voiceData: voice,
+                                          isOwner: voice.is_owner,
+                                          userVoiceId: voice.user_voice_id
+                                        });
 
-                                      // Проверяем, что creator_id существует, это не текущий пользователь, и это не владелец голоса
-                                      if (creatorId && typeof creatorId === 'number' && creatorId > 0 && creatorId !== currentUserId) {
-                                        // Используем callback для перехода на профиль
-                                        console.log('[CREATOR CLICK] Переход на профиль по ID:', creatorId);
-                                        if (onProfile) {
-                                          onProfile(creatorId);
+                                        // Проверяем, что creator_id существует, это не текущий пользователь, и это не владелец голоса
+                                        if (creatorId && typeof creatorId === 'number' && creatorId > 0 && creatorId !== currentUserId) {
+                                          // Используем callback для перехода на профиль
+                                          console.log('[CREATOR CLICK] Переход на профиль по ID:', creatorId);
+                                          if (onProfile) {
+                                            onProfile(creatorId);
+                                          } else {
+                                            window.location.href = `/profile?user=${creatorId}`;
+                                          }
+                                        } else if (creatorUsername && creatorId !== currentUserId) {
+                                          // Если нет ID, пытаемся использовать username
+                                          console.warn('[CREATOR CLICK] Нет creator_id, пытаемся использовать username:', creatorUsername);
+                                          // Для username используем прямой переход, так как callback принимает только ID
+                                          window.location.href = `/profile?username=${encodeURIComponent(creatorUsername)}`;
                                         } else {
-                                          window.location.href = `/profile?user=${creatorId}`;
+                                          console.error('[CREATOR CLICK] Нет ни creator_id, ни creator_username, или это текущий пользователь');
                                         }
-                                      } else if (creatorUsername && creatorId !== currentUserId) {
-                                        // Если нет ID, пытаемся использовать username
-                                        console.warn('[CREATOR CLICK] Нет creator_id, пытаемся использовать username:', creatorUsername);
-                                        // Для username используем прямой переход, так как callback принимает только ID
-                                        window.location.href = `/profile?username=${encodeURIComponent(creatorUsername)}`;
-                                      } else {
-                                        console.error('[CREATOR CLICK] Нет ни creator_id, ни creator_username, или это текущий пользователь');
-                                      }
-                                    }}
-                                  >
-                                    {voice.creator_username}
-                                  </CreatorNameLabel>
-                                )}
-                                {((isUserVoice && isEditingName) || (!isUserVoice && isAdmin && isEditingName)) ? (
-                                  <input
-                                    type="text"
-                                    value={editedName}
-                                    onChange={(e) => {
-                                      setEditedVoiceNames(prev => ({
-                                        ...prev,
-                                        [voice.id]: e.target.value
-                                      }));
-                                    }}
-                                    onBlur={async () => {
-                                      const newName = editedName.trim();
-                                      if (newName && newName !== voice.name) {
-                                        try {
-                                          const token = localStorage.getItem('authToken');
+                                      }}
+                                    >
+                                      {voice.creator_username}
+                                    </CreatorNameLabel>
+                                  )
+                                }
+                                {
+                                  ((isUserVoice && isEditingName) || (!isUserVoice && isAdmin && isEditingName)) ? (
+                                    <input
+                                      type="text"
+                                      value={editedName}
+                                      onChange={(e) => {
+                                        setEditedVoiceNames(prev => ({
+                                          ...prev,
+                                          [voice.id]: e.target.value
+                                        }));
+                                      }}
+                                      onBlur={async () => {
+                                        const newName = editedName.trim();
+                                        if (newName && newName !== voice.name) {
+                                          try {
+                                            const token = localStorage.getItem('authToken');
 
-                                          if (isUserVoice && voice.user_voice_id) {
-                                            // Редактирование пользовательского голоса
-                                            const formData = new FormData();
-                                            formData.append('voice_name', newName);
-                                            const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${voice.user_voice_id}/name`, {
-                                              method: 'PATCH',
-                                              headers: {
-                                                'Authorization': `Bearer ${token}`
-                                              },
-                                              body: formData
-                                            });
-
-                                            if (response.ok) {
-                                              // Обновляем список голосов
-                                              const voicesResponse = await fetch('/api/v1/characters/available-voices', {
+                                            if (isUserVoice && voice.user_voice_id) {
+                                              // Редактирование пользовательского голоса
+                                              const formData = new FormData();
+                                              formData.append('voice_name', newName);
+                                              const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${voice.user_voice_id}/name`, {
+                                                method: 'PATCH',
                                                 headers: {
                                                   'Authorization': `Bearer ${token}`
-                                                }
+                                                },
+                                                body: formData
                                               });
-                                              if (voicesResponse.ok) {
-                                                const voicesData = await voicesResponse.json();
-                                                setAvailableVoices(voicesData);
+
+                                              if (response.ok) {
+                                                // Обновляем список голосов
+                                                const voicesResponse = await fetch('/api/v1/characters/available-voices', {
+                                                  headers: {
+                                                    'Authorization': `Bearer ${token}`
+                                                  }
+                                                });
+                                                if (voicesResponse.ok) {
+                                                  const voicesData = await voicesResponse.json();
+                                                  setAvailableVoices(voicesData);
+                                                }
+                                              } else {
+                                                // Откатываем изменение при ошибке
+                                                setEditedVoiceNames(prev => {
+                                                  const newState = { ...prev };
+                                                  delete newState[voice.id];
+                                                  return newState;
+                                                });
                                               }
-                                            } else {
-                                              // Откатываем изменение при ошибке
-                                              setEditedVoiceNames(prev => {
-                                                const newState = { ...prev };
-                                                delete newState[voice.id];
-                                                return newState;
-                                              });
-                                            }
-                                          } else if (!isUserVoice && isAdmin) {
-                                            // Редактирование дефолтного голоса
-                                            const formData = new FormData();
-                                            formData.append('new_name', newName);
-                                            const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/default-voice/${voice.id}/name`, {
-                                              method: 'PATCH',
-                                              headers: {
-                                                'Authorization': `Bearer ${token}`
-                                              },
-                                              body: formData
-                                            });
-
-                                            if (response.ok) {
-                                              // Обновляем список голосов
-                                              const voicesResponse = await fetch('/api/v1/characters/available-voices', {
+                                            } else if (!isUserVoice && isAdmin) {
+                                              // Редактирование дефолтного голоса
+                                              const formData = new FormData();
+                                              formData.append('new_name', newName);
+                                              const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/default-voice/${voice.id}/name`, {
+                                                method: 'PATCH',
                                                 headers: {
                                                   'Authorization': `Bearer ${token}`
-                                                }
+                                                },
+                                                body: formData
                                               });
-                                              if (voicesResponse.ok) {
-                                                const voicesData = await voicesResponse.json();
-                                                setAvailableVoices(voicesData);
-                                                // Обновляем выбранный голос, если он был переименован
-                                                if (selectedVoiceId === voice.id) {
-                                                  const updatedVoice = voicesData.find((v: any) => v.name === newName);
-                                                  if (updatedVoice) {
-                                                    setSelectedVoiceId(updatedVoice.id);
-                                                    setSelectedVoiceUrl(null);
+
+                                              if (response.ok) {
+                                                // Обновляем список голосов
+                                                const voicesResponse = await fetch('/api/v1/characters/available-voices', {
+                                                  headers: {
+                                                    'Authorization': `Bearer ${token}`
+                                                  }
+                                                });
+                                                if (voicesResponse.ok) {
+                                                  const voicesData = await voicesResponse.json();
+                                                  setAvailableVoices(voicesData);
+                                                  // Обновляем выбранный голос, если он был переименован
+                                                  if (selectedVoiceId === voice.id) {
+                                                    const updatedVoice = voicesData.find((v: any) => v.name === newName);
+                                                    if (updatedVoice) {
+                                                      setSelectedVoiceId(updatedVoice.id);
+                                                      setSelectedVoiceUrl(null);
+                                                    }
                                                   }
                                                 }
+                                              } else {
+                                                const error = await response.json();
+                                                alert('Ошибка переименования голоса: ' + (error.detail || 'Неизвестная ошибка'));
+                                                // Откатываем изменение при ошибке
+                                                setEditedVoiceNames(prev => {
+                                                  const newState = { ...prev };
+                                                  delete newState[voice.id];
+                                                  return newState;
+                                                });
                                               }
-                                            } else {
-                                              const error = await response.json();
-                                              alert('Ошибка переименования голоса: ' + (error.detail || 'Неизвестная ошибка'));
-                                              // Откатываем изменение при ошибке
-                                              setEditedVoiceNames(prev => {
-                                                const newState = { ...prev };
-                                                delete newState[voice.id];
-                                                return newState;
-                                              });
                                             }
+                                          } catch (err) {
+                                            console.error('Ошибка обновления имени голоса:', err);
+                                            alert('Не удалось обновить имя голоса. Проверьте консоль для деталей.');
+                                            setEditedVoiceNames(prev => {
+                                              const newState = { ...prev };
+                                              delete newState[voice.id];
+                                              return newState;
+                                            });
                                           }
-                                        } catch (err) {
-                                          console.error('Ошибка обновления имени голоса:', err);
-                                          alert('Не удалось обновить имя голоса. Проверьте консоль для деталей.');
+                                        } else {
                                           setEditedVoiceNames(prev => {
                                             const newState = { ...prev };
                                             delete newState[voice.id];
                                             return newState;
                                           });
                                         }
-                                      } else {
-                                        setEditedVoiceNames(prev => {
-                                          const newState = { ...prev };
-                                          delete newState[voice.id];
-                                          return newState;
-                                        });
-                                      }
-                                      setEditingVoiceId(null);
-                                    }}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') {
-                                        (e.target as HTMLInputElement).blur();
-                                      } else if (e.key === 'Escape') {
-                                        setEditedVoiceNames(prev => {
-                                          const newState = { ...prev };
-                                          delete newState[voice.id];
-                                          return newState;
-                                        });
                                         setEditingVoiceId(null);
-                                      }
-                                    }}
-                                    autoFocus
-                                    style={{
-                                      position: 'absolute',
-                                      bottom: '-20px',
-                                      left: '50%',
-                                      transform: 'translateX(-50%)',
-                                      width: '120px',
-                                      fontSize: '11px',
-                                      padding: '2px 4px',
-                                      background: 'rgba(30, 30, 30, 0.95)',
-                                      border: '1px solid rgba(139, 92, 246, 0.6)',
-                                      borderRadius: '4px',
-                                      color: '#e4e4e7',
-                                      textAlign: 'center',
-                                      outline: 'none'
-                                    }}
-                                  />
-                                ) : null}
-                                {!((isUserVoice && isEditingName) || (!isUserVoice && isAdmin && isEditingName)) && (
-                                  <>
-                                    {isPremiumVoice(voice.name) ? (
-                                      <PremiumVoiceName>
-                                        <span>{voice.name}</span>
-                                      </PremiumVoiceName>
-                                    ) : (
-                                      <VoiceName>
-                                        {voice.name}
-                                      </VoiceName>
-                                    )}
-                                    {isPremiumVoice(voice.name) && (
-                                      <PremiumVoiceLabel>Только для Premium</PremiumVoiceLabel>
-                                    )}
-                                  </>
-                                )}
-
-                                {/* Модальное окно редактирования голоса */}
-                                {isEditingPhoto && (voice.user_voice_id || voice.id) && (
-                                  <div
-                                    style={{
-                                      position: 'fixed',
-                                      top: 0,
-                                      left: 0,
-                                      right: 0,
-                                      bottom: 0,
-                                      background: 'rgba(0, 0, 0, 0.8)',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      zIndex: 99999
-                                    }}
-                                    onClick={(e) => {
-                                      if (e.target === e.currentTarget) {
-                                        setEditingVoicePhotoId(null);
-                                      }
-                                    }}
-                                  >
-                                    <div
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          (e.target as HTMLInputElement).blur();
+                                        } else if (e.key === 'Escape') {
+                                          setEditedVoiceNames(prev => {
+                                            const newState = { ...prev };
+                                            delete newState[voice.id];
+                                            return newState;
+                                          });
+                                          setEditingVoiceId(null);
+                                        }
+                                      }}
+                                      autoFocus
                                       style={{
+                                        position: 'absolute',
+                                        bottom: '-20px',
+                                        left: '50%',
+                                        transform: 'translateX(-50%)',
+                                        width: '120px',
+                                        fontSize: '11px',
+                                        padding: '2px 4px',
                                         background: 'rgba(30, 30, 30, 0.95)',
                                         border: '1px solid rgba(139, 92, 246, 0.6)',
-                                        borderRadius: '12px',
-                                        padding: '24px',
-                                        minWidth: '400px',
-                                        maxWidth: '500px'
+                                        borderRadius: '4px',
+                                        color: '#e4e4e7',
+                                        textAlign: 'center',
+                                        outline: 'none'
                                       }}
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <h3 style={{ color: '#e4e4e7', marginBottom: '20px', fontSize: '18px' }}>
-                                        Редактировать голос
-                                      </h3>
+                                    />
+                                  ) : null
+                                }
+                                {
+                                  !((isUserVoice && isEditingName) || (!isUserVoice && isAdmin && isEditingName)) && (
+                                    <>
+                                      {isPremiumVoice(voice.name) ? (
+                                        <PremiumVoiceName>
+                                          <span>{voice.name}</span>
+                                        </PremiumVoiceName>
+                                      ) : (
+                                        <VoiceName>
+                                          {voice.name}
+                                        </VoiceName>
+                                      )}
+                                      {isPremiumVoice(voice.name) && (
+                                        <PremiumVoiceLabel>Только для Premium</PremiumVoiceLabel>
+                                      )}
+                                    </>
+                                  )
+                                }
 
-                                      {/* Редактирование фото */}
-                                      <div style={{ marginBottom: '20px' }}>
-                                        <label style={{ display: 'block', color: '#e4e4e7', marginBottom: '8px', fontSize: '14px' }}>
-                                          Фото голоса
-                                        </label>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '12px' }}>
-                                          {photoPreview && photoPreview.url && photoPreview.voiceId === voice.id ? (
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center', width: '100%' }}>
-                                              <div
-                                                style={{
-                                                  width: '120px',
-                                                  height: '120px',
-                                                  borderRadius: '50%',
-                                                  overflow: 'hidden',
-                                                  border: '3px solid rgba(139, 92, 246, 0.6)',
-                                                  position: 'relative',
-                                                  cursor: 'move',
-                                                  userSelect: 'none',
-                                                  margin: '0 auto',
-                                                  touchAction: 'none'
-                                                }}
-                                                onMouseDown={(e) => {
-                                                  e.preventDefault();
-                                                  e.stopPropagation();
-                                                  setIsDraggingPhoto(true);
-                                                  // Сохраняем начальную позицию мыши И начальную позицию фото
-                                                  setDragStart({
-                                                    x: e.clientX,
-                                                    y: e.clientY,
-                                                    photoX: photoPreview.x,
-                                                    photoY: photoPreview.y,
-                                                    element: e.currentTarget
-                                                  });
-                                                }}
-                                              >
-                                                <img
-                                                  src={photoPreview.url}
-                                                  alt="Preview"
-                                                  draggable="false"
+                                {/* Модальное окно редактирования голоса */}
+                                {
+                                  isEditingPhoto && (voice.user_voice_id || voice.id) && (
+                                    <div
+                                      style={{
+                                        position: 'fixed',
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                        background: 'rgba(0, 0, 0, 0.8)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        zIndex: 99999
+                                      }}
+                                      onClick={(e) => {
+                                        if (e.target === e.currentTarget) {
+                                          setEditingVoicePhotoId(null);
+                                        }
+                                      }}
+                                    >
+                                      <div
+                                        style={{
+                                          background: 'rgba(30, 30, 30, 0.95)',
+                                          border: '1px solid rgba(139, 92, 246, 0.6)',
+                                          borderRadius: '12px',
+                                          padding: '24px',
+                                          minWidth: '400px',
+                                          maxWidth: '500px'
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <h3 style={{ color: '#e4e4e7', marginBottom: '20px', fontSize: '18px' }}>
+                                          Редактировать голос
+                                        </h3>
+
+                                        {/* Редактирование фото */}
+                                        <div style={{ marginBottom: '20px' }}>
+                                          <label style={{ display: 'block', color: '#e4e4e7', marginBottom: '8px', fontSize: '14px' }}>
+                                            Фото голоса
+                                          </label>
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '12px' }}>
+                                            {photoPreview && photoPreview.url && photoPreview.voiceId === voice.id ? (
+                                              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center', width: '100%' }}>
+                                                <div
                                                   style={{
-                                                    position: 'absolute',
-                                                    top: '50%',
-                                                    left: '50%',
-                                                    minWidth: '100%',
-                                                    minHeight: '100%',
-                                                    width: 'auto',
-                                                    height: 'auto',
-                                                    maxWidth: '200%',
-                                                    maxHeight: '200%',
-                                                    transform: `translate(calc(-50% + ${photoPreview.x}px), calc(-50% + ${photoPreview.y}px))`,
-                                                    pointerEvents: 'none',
+                                                    width: '120px',
+                                                    height: '120px',
+                                                    borderRadius: '50%',
+                                                    overflow: 'hidden',
+                                                    border: '3px solid rgba(139, 92, 246, 0.6)',
+                                                    position: 'relative',
+                                                    cursor: 'move',
                                                     userSelect: 'none',
-                                                    objectFit: 'cover'
+                                                    margin: '0 auto',
+                                                    touchAction: 'none'
                                                   }}
-                                                />
+                                                  onMouseDown={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    setIsDraggingPhoto(true);
+                                                    // Сохраняем начальную позицию мыши И начальную позицию фото
+                                                    setDragStart({
+                                                      x: e.clientX,
+                                                      y: e.clientY,
+                                                      photoX: photoPreview.x,
+                                                      photoY: photoPreview.y,
+                                                      element: e.currentTarget
+                                                    });
+                                                  }}
+                                                >
+                                                  <img
+                                                    src={photoPreview.url}
+                                                    alt="Preview"
+                                                    draggable="false"
+                                                    style={{
+                                                      position: 'absolute',
+                                                      top: '50%',
+                                                      left: '50%',
+                                                      minWidth: '100%',
+                                                      minHeight: '100%',
+                                                      width: 'auto',
+                                                      height: 'auto',
+                                                      maxWidth: '200%',
+                                                      maxHeight: '200%',
+                                                      transform: `translate(calc(-50% + ${photoPreview.x}px), calc(-50% + ${photoPreview.y}px))`,
+                                                      pointerEvents: 'none',
+                                                      userSelect: 'none',
+                                                      objectFit: 'cover'
+                                                    }}
+                                                  />
+                                                </div>
+                                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                                                  <input
+                                                    type="file"
+                                                    accept="image/png,image/jpeg,image/jpg,image/webp"
+                                                    onChange={(e) => {
+                                                      const file = e.target.files?.[0];
+                                                      if (file) {
+                                                        const reader = new FileReader();
+                                                        reader.onload = (event) => {
+                                                          setPhotoPreview({
+                                                            url: event.target?.result as string,
+                                                            x: 0,
+                                                            y: 0,
+                                                            voiceId: voice.id
+                                                          });
+                                                        };
+                                                        reader.readAsDataURL(file);
+                                                      }
+                                                    }}
+                                                    style={{ display: 'none' }}
+                                                    id={`photo-reload-input-${voice.id}`}
+                                                  />
+                                                  <label
+                                                    htmlFor={`photo-reload-input-${voice.id}`}
+                                                    style={{
+                                                      padding: '8px 16px',
+                                                      background: 'rgba(139, 92, 246, 0.8)',
+                                                      border: '1px solid rgba(139, 92, 246, 0.6)',
+                                                      borderRadius: '6px',
+                                                      color: 'white',
+                                                      cursor: 'pointer',
+                                                      fontSize: '14px',
+                                                      fontWeight: '500',
+                                                      transition: 'all 0.2s ease',
+                                                      transform: 'scale(1)'
+                                                    }}
+                                                    onMouseEnter={(e) => {
+                                                      e.currentTarget.style.background = 'rgba(139, 92, 246, 1)';
+                                                      e.currentTarget.style.transform = 'scale(1.05)';
+                                                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(139, 92, 246, 0.4)';
+                                                    }}
+                                                    onMouseLeave={(e) => {
+                                                      e.currentTarget.style.background = 'rgba(139, 92, 246, 0.8)';
+                                                      e.currentTarget.style.transform = 'scale(1)';
+                                                      e.currentTarget.style.boxShadow = 'none';
+                                                    }}
+                                                    onMouseDown={(e) => {
+                                                      e.currentTarget.style.transform = 'scale(0.95)';
+                                                    }}
+                                                    onMouseUp={(e) => {
+                                                      e.currentTarget.style.transform = 'scale(1.05)';
+                                                    }}
+                                                  >
+                                                    Загрузить фото
+                                                  </label>
+                                                  <button
+                                                    onClick={async () => {
+                                                      if (photoPreview && voice.user_voice_id) {
+                                                        try {
+                                                          // Создаем canvas для обрезки
+                                                          const canvas = document.createElement('canvas');
+                                                          const ctx = canvas.getContext('2d');
+                                                          const size = 200; // Размер выходного изображения
+                                                          canvas.width = size;
+                                                          canvas.height = size;
+
+                                                          const img = new Image();
+                                                          img.crossOrigin = 'anonymous';
+                                                          img.onload = async () => {
+                                                            const previewSize = 120; // размер круга в preview
+                                                            const finalSize = size; // 200px
+                                                            const scale = finalSize / previewSize; // 1.667
+
+                                                            // Масштабируем изображение чтобы покрыть круг (как objectFit: cover)
+                                                            const imgScale = Math.max(finalSize / img.width, finalSize / img.height);
+                                                            const imgW = img.width * imgScale;
+                                                            const imgH = img.height * imgScale;
+
+                                                            // Центрируем изображение
+                                                            const baseX = (finalSize - imgW) / 2;
+                                                            const baseY = (finalSize - imgH) / 2;
+
+                                                            // Добавляем смещение пользователя (масштабированное)
+                                                            const offsetX = photoPreview.x * scale;
+                                                            const offsetY = photoPreview.y * scale;
+
+                                                            // Создаём круглую маску
+                                                            ctx.beginPath();
+                                                            ctx.arc(finalSize / 2, finalSize / 2, finalSize / 2, 0, Math.PI * 2);
+                                                            ctx.clip();
+
+                                                            // Рисуем изображение
+                                                            ctx.drawImage(img, baseX + offsetX, baseY + offsetY, imgW, imgH);
+
+                                                            // Конвертируем в blob
+                                                            canvas.toBlob(async (blob) => {
+                                                              if (blob && voice.user_voice_id) {
+                                                                setUploadingPhotoVoiceId(voice.id);
+                                                                try {
+                                                                  const formData = new FormData();
+                                                                  formData.append('photo_file', blob, 'voice_photo.png');
+                                                                  const token = localStorage.getItem('authToken');
+                                                                  const photoUrl = `${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${voice.user_voice_id}/photo`;
+                                                                  const response = await fetch(photoUrl, {
+                                                                    method: 'PATCH',
+                                                                    headers: {
+                                                                      'Authorization': `Bearer ${token}`
+                                                                    },
+                                                                    body: formData
+                                                                  });
+
+                                                                  if (response.ok) {
+                                                                    const token = localStorage.getItem('authToken');
+                                                                    const voicesResponse = await fetch('/api/v1/characters/available-voices', {
+                                                                      headers: {
+                                                                        'Authorization': `Bearer ${token}`
+                                                                      }
+                                                                    });
+                                                                    if (voicesResponse.ok) {
+                                                                      const voicesData = await voicesResponse.json();
+                                                                      setAvailableVoices(voicesData);
+                                                                    }
+                                                                    setPhotoPreview(null);
+                                                                    setEditingVoicePhotoId(null);
+                                                                    // Убрано уведомление об успешном обновлении
+                                                                  } else {
+                                                                    const error = await response.json();
+                                                                    alert('Ошибка обновления фото: ' + (error.detail || 'Неизвестная ошибка'));
+                                                                  }
+                                                                } catch (err) {
+                                                                  console.error('Ошибка обновления фото голоса:', err);
+                                                                  alert('Не удалось обновить фото. Проверьте консоль для деталей.');
+                                                                } finally {
+                                                                  setUploadingPhotoVoiceId(null);
+                                                                }
+                                                              }
+                                                            }, 'image/png');
+                                                          };
+                                                          img.src = photoPreview.url;
+                                                        } catch (err) {
+                                                          console.error('Ошибка обработки фото:', err);
+                                                          alert('Не удалось обработать фото');
+                                                        }
+                                                      }
+                                                    }}
+                                                    style={{
+                                                      padding: '8px 16px',
+                                                      background: 'rgba(255, 215, 0, 0.8)',
+                                                      border: '1px solid rgba(255, 215, 0, 0.6)',
+                                                      borderRadius: '6px',
+                                                      color: '#1a1a1a',
+                                                      cursor: 'pointer',
+                                                      fontSize: '14px',
+                                                      fontWeight: '500',
+                                                      transition: 'all 0.2s ease',
+                                                      transform: 'scale(1)'
+                                                    }}
+                                                    onMouseEnter={(e) => {
+                                                      e.currentTarget.style.background = 'rgba(255, 215, 0, 1)';
+                                                      e.currentTarget.style.transform = 'scale(1.05)';
+                                                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(255, 215, 0, 0.4)';
+                                                    }}
+                                                    onMouseLeave={(e) => {
+                                                      e.currentTarget.style.background = 'rgba(255, 215, 0, 0.8)';
+                                                      e.currentTarget.style.transform = 'scale(1)';
+                                                      e.currentTarget.style.boxShadow = 'none';
+                                                    }}
+                                                    onMouseDown={(e) => {
+                                                      e.currentTarget.style.transform = 'scale(0.95)';
+                                                    }}
+                                                    onMouseUp={(e) => {
+                                                      e.currentTarget.style.transform = 'scale(1.05)';
+                                                    }}
+                                                  >
+                                                    Сохранить
+                                                  </button>
+                                                  <button
+                                                    onClick={() => {
+                                                      setPhotoPreview(null);
+                                                    }}
+                                                    style={{
+                                                      padding: '8px 16px',
+                                                      background: 'rgba(100, 100, 100, 0.8)',
+                                                      border: '1px solid rgba(100, 100, 100, 0.6)',
+                                                      borderRadius: '6px',
+                                                      color: 'white',
+                                                      cursor: 'pointer',
+                                                      fontSize: '14px',
+                                                      transition: 'all 0.2s ease',
+                                                      transform: 'scale(1)'
+                                                    }}
+                                                    onMouseEnter={(e) => {
+                                                      e.currentTarget.style.background = 'rgba(100, 100, 100, 1)';
+                                                      e.currentTarget.style.transform = 'scale(1.05)';
+                                                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(100, 100, 100, 0.4)';
+                                                    }}
+                                                    onMouseLeave={(e) => {
+                                                      e.currentTarget.style.background = 'rgba(100, 100, 100, 0.8)';
+                                                      e.currentTarget.style.transform = 'scale(1)';
+                                                      e.currentTarget.style.boxShadow = 'none';
+                                                    }}
+                                                    onMouseDown={(e) => {
+                                                      e.currentTarget.style.transform = 'scale(0.95)';
+                                                    }}
+                                                    onMouseUp={(e) => {
+                                                      e.currentTarget.style.transform = 'scale(1.05)';
+                                                    }}
+                                                  >
+                                                    Отмена
+                                                  </button>
+                                                </div>
+                                                <p style={{ fontSize: '11px', color: '#999', textAlign: 'center', margin: 0 }}>
+                                                  Перетащите фото для выбора области
+                                                </p>
                                               </div>
-                                              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                                            ) : (
+                                              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center', width: '100%' }}>
+                                                <div
+                                                  style={{
+                                                    width: '120px',
+                                                    height: '120px',
+                                                    borderRadius: '50%',
+                                                    overflow: 'hidden',
+                                                    border: '3px solid rgba(139, 92, 246, 0.6)',
+                                                    position: 'relative',
+                                                    margin: '0 auto'
+                                                  }}
+                                                >
+                                                  <img
+                                                    src={photoPath}
+                                                    alt={voice.name}
+                                                    style={{
+                                                      width: '100%',
+                                                      height: '100%',
+                                                      objectFit: 'cover',
+                                                      objectPosition: 'center'
+                                                    }}
+                                                  />
+                                                </div>
                                                 <input
                                                   type="file"
                                                   accept="image/png,image/jpeg,image/jpg,image/webp"
@@ -5646,10 +6004,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                                     }
                                                   }}
                                                   style={{ display: 'none' }}
-                                                  id={`photo-reload-input-${voice.id}`}
+                                                  id={`photo-input-${voice.id}`}
                                                 />
                                                 <label
-                                                  htmlFor={`photo-reload-input-${voice.id}`}
+                                                  htmlFor={`photo-input-${voice.id}`}
                                                   style={{
                                                     padding: '8px 16px',
                                                     background: 'rgba(139, 92, 246, 0.8)',
@@ -5658,373 +6016,136 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                                     color: 'white',
                                                     cursor: 'pointer',
                                                     fontSize: '14px',
-                                                    fontWeight: '500',
-                                                    transition: 'all 0.2s ease',
-                                                    transform: 'scale(1)'
+                                                    transition: 'background 0.2s ease'
                                                   }}
                                                   onMouseEnter={(e) => {
                                                     e.currentTarget.style.background = 'rgba(139, 92, 246, 1)';
-                                                    e.currentTarget.style.transform = 'scale(1.05)';
-                                                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(139, 92, 246, 0.4)';
                                                   }}
                                                   onMouseLeave={(e) => {
                                                     e.currentTarget.style.background = 'rgba(139, 92, 246, 0.8)';
-                                                    e.currentTarget.style.transform = 'scale(1)';
-                                                    e.currentTarget.style.boxShadow = 'none';
-                                                  }}
-                                                  onMouseDown={(e) => {
-                                                    e.currentTarget.style.transform = 'scale(0.95)';
-                                                  }}
-                                                  onMouseUp={(e) => {
-                                                    e.currentTarget.style.transform = 'scale(1.05)';
                                                   }}
                                                 >
-                                                  Загрузить фото
+                                                  Изменить фото
                                                 </label>
-                                                <button
-                                                  onClick={async () => {
-                                                    if (photoPreview && voice.user_voice_id) {
-                                                      try {
-                                                        // Создаем canvas для обрезки
-                                                        const canvas = document.createElement('canvas');
-                                                        const ctx = canvas.getContext('2d');
-                                                        const size = 200; // Размер выходного изображения
-                                                        canvas.width = size;
-                                                        canvas.height = size;
-
-                                                        const img = new Image();
-                                                        img.crossOrigin = 'anonymous';
-                                                        img.onload = async () => {
-                                                          const previewSize = 120; // размер круга в preview
-                                                          const finalSize = size; // 200px
-                                                          const scale = finalSize / previewSize; // 1.667
-
-                                                          // Масштабируем изображение чтобы покрыть круг (как objectFit: cover)
-                                                          const imgScale = Math.max(finalSize / img.width, finalSize / img.height);
-                                                          const imgW = img.width * imgScale;
-                                                          const imgH = img.height * imgScale;
-
-                                                          // Центрируем изображение
-                                                          const baseX = (finalSize - imgW) / 2;
-                                                          const baseY = (finalSize - imgH) / 2;
-
-                                                          // Добавляем смещение пользователя (масштабированное)
-                                                          const offsetX = photoPreview.x * scale;
-                                                          const offsetY = photoPreview.y * scale;
-
-                                                          // Создаём круглую маску
-                                                          ctx.beginPath();
-                                                          ctx.arc(finalSize / 2, finalSize / 2, finalSize / 2, 0, Math.PI * 2);
-                                                          ctx.clip();
-
-                                                          // Рисуем изображение
-                                                          ctx.drawImage(img, baseX + offsetX, baseY + offsetY, imgW, imgH);
-
-                                                          // Конвертируем в blob
-                                                          canvas.toBlob(async (blob) => {
-                                                            if (blob && voice.user_voice_id) {
-                                                              setUploadingPhotoVoiceId(voice.id);
-                                                              try {
-                                                                const formData = new FormData();
-                                                                formData.append('photo_file', blob, 'voice_photo.png');
-                                                                const token = localStorage.getItem('authToken');
-                                                                const photoUrl = `${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${voice.user_voice_id}/photo`;
-                                                                const response = await fetch(photoUrl, {
-                                                                  method: 'PATCH',
-                                                                  headers: {
-                                                                    'Authorization': `Bearer ${token}`
-                                                                  },
-                                                                  body: formData
-                                                                });
-
-                                                                if (response.ok) {
-                                                                  const token = localStorage.getItem('authToken');
-                                                                  const voicesResponse = await fetch('/api/v1/characters/available-voices', {
-                                                                    headers: {
-                                                                      'Authorization': `Bearer ${token}`
-                                                                    }
-                                                                  });
-                                                                  if (voicesResponse.ok) {
-                                                                    const voicesData = await voicesResponse.json();
-                                                                    setAvailableVoices(voicesData);
-                                                                  }
-                                                                  setPhotoPreview(null);
-                                                                  setEditingVoicePhotoId(null);
-                                                                  // Убрано уведомление об успешном обновлении
-                                                                } else {
-                                                                  const error = await response.json();
-                                                                  alert('Ошибка обновления фото: ' + (error.detail || 'Неизвестная ошибка'));
-                                                                }
-                                                              } catch (err) {
-                                                                console.error('Ошибка обновления фото голоса:', err);
-                                                                alert('Не удалось обновить фото. Проверьте консоль для деталей.');
-                                                              } finally {
-                                                                setUploadingPhotoVoiceId(null);
-                                                              }
-                                                            }
-                                                          }, 'image/png');
-                                                        };
-                                                        img.src = photoPreview.url;
-                                                      } catch (err) {
-                                                        console.error('Ошибка обработки фото:', err);
-                                                        alert('Не удалось обработать фото');
-                                                      }
-                                                    }
-                                                  }}
-                                                  style={{
-                                                    padding: '8px 16px',
-                                                    background: 'rgba(255, 215, 0, 0.8)',
-                                                    border: '1px solid rgba(255, 215, 0, 0.6)',
-                                                    borderRadius: '6px',
-                                                    color: '#1a1a1a',
-                                                    cursor: 'pointer',
-                                                    fontSize: '14px',
-                                                    fontWeight: '500',
-                                                    transition: 'all 0.2s ease',
-                                                    transform: 'scale(1)'
-                                                  }}
-                                                  onMouseEnter={(e) => {
-                                                    e.currentTarget.style.background = 'rgba(255, 215, 0, 1)';
-                                                    e.currentTarget.style.transform = 'scale(1.05)';
-                                                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(255, 215, 0, 0.4)';
-                                                  }}
-                                                  onMouseLeave={(e) => {
-                                                    e.currentTarget.style.background = 'rgba(255, 215, 0, 0.8)';
-                                                    e.currentTarget.style.transform = 'scale(1)';
-                                                    e.currentTarget.style.boxShadow = 'none';
-                                                  }}
-                                                  onMouseDown={(e) => {
-                                                    e.currentTarget.style.transform = 'scale(0.95)';
-                                                  }}
-                                                  onMouseUp={(e) => {
-                                                    e.currentTarget.style.transform = 'scale(1.05)';
-                                                  }}
-                                                >
-                                                  Сохранить
-                                                </button>
-                                                <button
-                                                  onClick={() => {
-                                                    setPhotoPreview(null);
-                                                  }}
-                                                  style={{
-                                                    padding: '8px 16px',
-                                                    background: 'rgba(100, 100, 100, 0.8)',
-                                                    border: '1px solid rgba(100, 100, 100, 0.6)',
-                                                    borderRadius: '6px',
-                                                    color: 'white',
-                                                    cursor: 'pointer',
-                                                    fontSize: '14px',
-                                                    transition: 'all 0.2s ease',
-                                                    transform: 'scale(1)'
-                                                  }}
-                                                  onMouseEnter={(e) => {
-                                                    e.currentTarget.style.background = 'rgba(100, 100, 100, 1)';
-                                                    e.currentTarget.style.transform = 'scale(1.05)';
-                                                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(100, 100, 100, 0.4)';
-                                                  }}
-                                                  onMouseLeave={(e) => {
-                                                    e.currentTarget.style.background = 'rgba(100, 100, 100, 0.8)';
-                                                    e.currentTarget.style.transform = 'scale(1)';
-                                                    e.currentTarget.style.boxShadow = 'none';
-                                                  }}
-                                                  onMouseDown={(e) => {
-                                                    e.currentTarget.style.transform = 'scale(0.95)';
-                                                  }}
-                                                  onMouseUp={(e) => {
-                                                    e.currentTarget.style.transform = 'scale(1.05)';
-                                                  }}
-                                                >
-                                                  Отмена
-                                                </button>
                                               </div>
-                                              <p style={{ fontSize: '11px', color: '#999', textAlign: 'center', margin: 0 }}>
-                                                Перетащите фото для выбора области
-                                              </p>
-                                            </div>
-                                          ) : (
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center', width: '100%' }}>
-                                              <div
-                                                style={{
-                                                  width: '120px',
-                                                  height: '120px',
-                                                  borderRadius: '50%',
-                                                  overflow: 'hidden',
-                                                  border: '3px solid rgba(139, 92, 246, 0.6)',
-                                                  position: 'relative',
-                                                  margin: '0 auto'
-                                                }}
-                                              >
-                                                <img
-                                                  src={photoPath}
-                                                  alt={voice.name}
-                                                  style={{
-                                                    width: '100%',
-                                                    height: '100%',
-                                                    objectFit: 'cover',
-                                                    objectPosition: 'center'
-                                                  }}
-                                                />
-                                              </div>
-                                              <input
-                                                type="file"
-                                                accept="image/png,image/jpeg,image/jpg,image/webp"
-                                                onChange={(e) => {
-                                                  const file = e.target.files?.[0];
-                                                  if (file) {
-                                                    const reader = new FileReader();
-                                                    reader.onload = (event) => {
-                                                      setPhotoPreview({
-                                                        url: event.target?.result as string,
-                                                        x: 0,
-                                                        y: 0,
-                                                        voiceId: voice.id
-                                                      });
-                                                    };
-                                                    reader.readAsDataURL(file);
-                                                  }
-                                                }}
-                                                style={{ display: 'none' }}
-                                                id={`photo-input-${voice.id}`}
-                                              />
-                                              <label
-                                                htmlFor={`photo-input-${voice.id}`}
-                                                style={{
-                                                  padding: '8px 16px',
-                                                  background: 'rgba(139, 92, 246, 0.8)',
-                                                  border: '1px solid rgba(139, 92, 246, 0.6)',
-                                                  borderRadius: '6px',
-                                                  color: 'white',
-                                                  cursor: 'pointer',
-                                                  fontSize: '14px',
-                                                  transition: 'background 0.2s ease'
-                                                }}
-                                                onMouseEnter={(e) => {
-                                                  e.currentTarget.style.background = 'rgba(139, 92, 246, 1)';
-                                                }}
-                                                onMouseLeave={(e) => {
-                                                  e.currentTarget.style.background = 'rgba(139, 92, 246, 0.8)';
-                                                }}
-                                              >
-                                                Изменить фото
-                                              </label>
-                                            </div>
-                                          )}
+                                            )}
+                                          </div>
                                         </div>
-                                      </div>
 
-                                      {/* Редактирование названия */}
-                                      <div style={{ marginBottom: '20px' }}>
-                                        <label style={{ display: 'block', color: '#e4e4e7', marginBottom: '8px', fontSize: '14px' }}>
-                                          Название голоса
-                                        </label>
-                                        <input
-                                          type="text"
-                                          value={editedName}
-                                          onChange={(e) => {
-                                            setEditedVoiceNames(prev => ({
-                                              ...prev,
-                                              [voice.id]: e.target.value
-                                            }));
-                                          }}
-                                          style={{
-                                            width: '100%',
-                                            padding: '10px',
-                                            background: 'rgba(10, 10, 10, 0.8)',
-                                            border: '1px solid rgba(139, 92, 246, 0.6)',
-                                            borderRadius: '6px',
-                                            color: '#e4e4e7',
-                                            fontSize: '14px',
-                                            outline: 'none'
-                                          }}
-                                          placeholder="Введите название голоса"
-                                        />
-                                      </div>
-
-                                      {/* Кнопка публичности */}
-                                      {voice.is_owner && (
+                                        {/* Редактирование названия */}
                                         <div style={{ marginBottom: '20px' }}>
-                                          <button
-                                            onClick={async () => {
-                                              if (voice.user_voice_id) {
-                                                try {
-                                                  const formData = new FormData();
-                                                  formData.append('is_public', String(!voice.is_public));
-                                                  const token = localStorage.getItem('authToken');
-                                                  const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${voice.user_voice_id}/public`, {
-                                                    method: 'PATCH',
-                                                    headers: {
-                                                      'Authorization': `Bearer ${token}`
-                                                    },
-                                                    body: formData
-                                                  });
-
-                                                  if (response.ok) {
-                                                    // Обновляем список голосов
-                                                    const token = localStorage.getItem('authToken');
-                                                    const voicesResponse = await fetch('/api/v1/characters/available-voices', {
-                                                      headers: {
-                                                        'Authorization': `Bearer ${token}`
-                                                      }
-                                                    });
-                                                    if (voicesResponse.ok) {
-                                                      const voicesData = await voicesResponse.json();
-                                                      setAvailableVoices(voicesData);
-                                                    }
-                                                  } else {
-                                                    const error = await response.json();
-                                                    alert('Ошибка изменения статуса: ' + (error.detail || 'Неизвестная ошибка'));
-                                                  }
-                                                } catch (err) {
-                                                  console.error('Ошибка изменения статуса публичности:', err);
-                                                  alert('Не удалось изменить статус. Проверьте консоль для деталей.');
-                                                }
-                                              }
+                                          <label style={{ display: 'block', color: '#e4e4e7', marginBottom: '8px', fontSize: '14px' }}>
+                                            Название голоса
+                                          </label>
+                                          <input
+                                            type="text"
+                                            value={editedName}
+                                            onChange={(e) => {
+                                              setEditedVoiceNames(prev => ({
+                                                ...prev,
+                                                [voice.id]: e.target.value
+                                              }));
                                             }}
                                             style={{
                                               width: '100%',
                                               padding: '10px',
-                                              background: voice.is_public
-                                                ? 'rgba(100, 100, 100, 0.8)'
-                                                : 'rgba(255, 215, 0, 0.8)',
-                                              border: `1px solid ${voice.is_public ? 'rgba(100, 100, 100, 0.6)' : 'rgba(255, 215, 0, 0.6)'}`,
+                                              background: 'rgba(10, 10, 10, 0.8)',
+                                              border: '1px solid rgba(139, 92, 246, 0.6)',
                                               borderRadius: '6px',
-                                              color: voice.is_public ? 'white' : '#1a1a1a',
-                                              cursor: 'pointer',
+                                              color: '#e4e4e7',
                                               fontSize: '14px',
-                                              fontWeight: '500',
-                                              transition: 'all 0.2s ease',
-                                              transform: 'scale(1)'
+                                              outline: 'none'
                                             }}
-                                            onMouseEnter={(e) => {
-                                              e.currentTarget.style.background = voice.is_public
-                                                ? 'rgba(100, 100, 100, 1)'
-                                                : 'rgba(255, 215, 0, 1)';
-                                              e.currentTarget.style.transform = 'scale(1.02)';
-                                              if (!voice.is_public) {
-                                                e.currentTarget.style.boxShadow = '0 4px 12px rgba(255, 215, 0, 0.4)';
-                                              }
-                                            }}
-                                            onMouseLeave={(e) => {
-                                              e.currentTarget.style.background = voice.is_public
-                                                ? 'rgba(100, 100, 100, 0.8)'
-                                                : 'rgba(255, 215, 0, 0.8)';
-                                              e.currentTarget.style.transform = 'scale(1)';
-                                              e.currentTarget.style.boxShadow = 'none';
-                                            }}
-                                            onMouseDown={(e) => {
-                                              e.currentTarget.style.transform = 'scale(0.98)';
-                                            }}
-                                            onMouseUp={(e) => {
-                                              e.currentTarget.style.transform = 'scale(1.02)';
-                                            }}
-                                          >
-                                            {voice.is_public ? 'Сделать голос приватным' : 'Сделать голос общедоступным'}
-                                          </button>
+                                            placeholder="Введите название голоса"
+                                          />
                                         </div>
-                                      )}
+
+                                        {/* Кнопка публичности */}
+                                        {voice.is_owner && (
+                                          <div style={{ marginBottom: '20px' }}>
+                                            <button
+                                              onClick={async () => {
+                                                if (voice.user_voice_id) {
+                                                  try {
+                                                    const formData = new FormData();
+                                                    formData.append('is_public', String(!voice.is_public));
+                                                    const token = localStorage.getItem('authToken');
+                                                    const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${voice.user_voice_id}/public`, {
+                                                      method: 'PATCH',
+                                                      headers: {
+                                                        'Authorization': `Bearer ${token}`
+                                                      },
+                                                      body: formData
+                                                    });
+
+                                                    if (response.ok) {
+                                                      // Обновляем список голосов
+                                                      const token = localStorage.getItem('authToken');
+                                                      const voicesResponse = await fetch('/api/v1/characters/available-voices', {
+                                                        headers: {
+                                                          'Authorization': `Bearer ${token}`
+                                                        }
+                                                      });
+                                                      if (voicesResponse.ok) {
+                                                        const voicesData = await voicesResponse.json();
+                                                        setAvailableVoices(voicesData);
+                                                      }
+                                                    } else {
+                                                      const error = await response.json();
+                                                      alert('Ошибка изменения статуса: ' + (error.detail || 'Неизвестная ошибка'));
+                                                    }
+                                                  } catch (err) {
+                                                    console.error('Ошибка изменения статуса публичности:', err);
+                                                    alert('Не удалось изменить статус. Проверьте консоль для деталей.');
+                                                  }
+                                                }
+                                              }}
+                                              style={{
+                                                width: '100%',
+                                                padding: '10px',
+                                                background: voice.is_public
+                                                  ? 'rgba(100, 100, 100, 0.8)'
+                                                  : 'rgba(255, 215, 0, 0.8)',
+                                                border: `1px solid ${voice.is_public ? 'rgba(100, 100, 100, 0.6)' : 'rgba(255, 215, 0, 0.6)'}`,
+                                                borderRadius: '6px',
+                                                color: voice.is_public ? 'white' : '#1a1a1a',
+                                                cursor: 'pointer',
+                                                fontSize: '14px',
+                                                fontWeight: '500',
+                                                transition: 'all 0.2s ease',
+                                                transform: 'scale(1)'
+                                              }}
+                                              onMouseEnter={(e) => {
+                                                e.currentTarget.style.background = voice.is_public
+                                                  ? 'rgba(100, 100, 100, 1)'
+                                                  : 'rgba(255, 215, 0, 1)';
+                                                e.currentTarget.style.transform = 'scale(1.02)';
+                                                if (!voice.is_public) {
+                                                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(255, 215, 0, 0.4)';
+                                                }
+                                              }}
+                                              onMouseLeave={(e) => {
+                                                e.currentTarget.style.background = voice.is_public
+                                                  ? 'rgba(100, 100, 100, 0.8)'
+                                                  : 'rgba(255, 215, 0, 0.8)';
+                                                e.currentTarget.style.transform = 'scale(1)';
+                                                e.currentTarget.style.boxShadow = 'none';
+                                              }}
+                                              onMouseDown={(e) => {
+                                                e.currentTarget.style.transform = 'scale(0.98)';
+                                              }}
+                                              onMouseUp={(e) => {
+                                                e.currentTarget.style.transform = 'scale(1.02)';
+                                              }}
+                                            >
+                                              {voice.is_public ? 'Сделать голос приватным' : 'Сделать голос общедоступным'}
+                                            </button>
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
-                                  </div>
-                                )}
+                                  )
+                                }
                               </VoicePhotoWrapper>
                             );
                           })}
@@ -6033,20 +6154,35 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                           <VoicePhotoWrapper>
                             <AddVoiceContainer
                               $isUploading={isUploadingVoice}
+                              $isPremium={true}
                               onClick={(e) => {
                                 e.preventDefault();
                                 if (isUploadingVoice) return;
 
                                 // Проверка PREMIUM подписки
                                 const subscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || 'free';
-                                if (subscriptionType !== 'premium') {
-                                  setIsVoiceSubscriptionModalOpen(true);
+                                const isPremiumUser = ['pro', 'premium'].includes(subscriptionType.toLowerCase());
+
+                                if (!isPremiumUser) {
+                                  setPremiumVoiceWarningId('add-voice');
+                                  setTimeout(() => setPremiumVoiceWarningId(null), 2000);
                                   return;
                                 }
 
                                 setIsVoiceCloneModalOpen(true);
                               }}
                             >
+                              <AnimatePresence>
+                                {premiumVoiceWarningId === 'add-voice' && (
+                                  <PremiumWarning
+                                    initial={{ opacity: 0, y: 10, x: '-50%' }}
+                                    animate={{ opacity: 1, y: 0, x: '-50%' }}
+                                    exit={{ opacity: 0, y: 10, x: '-50%' }}
+                                  >
+                                    Только для Premium подписчиков!
+                                  </PremiumWarning>
+                                )}
+                              </AnimatePresence>
                               {isUploadingVoice ? <VoiceLoadingSpinner /> : <AddVoicePlus />}
                             </AddVoiceContainer>
                             <AddVoiceName>{isUploadingVoice ? 'Загрузка...' : 'добавить свой голос'}</AddVoiceName>
@@ -6107,18 +6243,27 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                       if (isUserVoice) {
                                         setSelectedVoiceUrl(voice.url);
                                         setSelectedVoiceId('');
+                                        setVoiceSelectionTime(prev => ({ ...prev, [voice.url]: Date.now() }));
                                       } else {
                                         setSelectedVoiceId(voice.id);
                                         setSelectedVoiceUrl(null);
+                                        setVoiceSelectionTime(prev => ({ ...prev, [voice.id]: Date.now() }));
+                                      }
+
+                                      // Останавливаем предыдущее воспроизведение, если оно есть
+                                      if (audioRef.current) {
+                                        audioRef.current.pause();
+                                        audioRef.current.currentTime = 0;
+                                        audioRef.current = null;
+                                      }
+                                      if (playingVoiceUrl) {
+                                        setPlayingVoiceUrl(null);
                                       }
 
                                       const audioUrlToPlay = voice.preview_url || voice.url;
+                                      
+                                      // Если нажали на уже играющий голос - просто останавливаем его
                                       if (playingVoiceUrl && (playingVoiceUrl === audioUrlToPlay || playingVoiceUrl === voice.url || playingVoiceUrl === voice.preview_url)) {
-                                        setPlayingVoiceUrl(null);
-                                        if (audioRef.current) {
-                                          audioRef.current.pause();
-                                          audioRef.current.currentTime = 0;
-                                        }
                                         return;
                                       }
 
@@ -6127,11 +6272,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                           ? audioUrlToPlay
                                           : `${API_CONFIG.BASE_URL}${audioUrlToPlay}`;
                                         console.log('Воспроизведение голоса:', fullUrl);
-
-                                        if (audioRef.current) {
-                                          audioRef.current.pause();
-                                          audioRef.current.currentTime = 0;
-                                        }
 
                                         const audio = new Audio(fullUrl);
                                         audioRef.current = audio;
@@ -6176,6 +6316,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                         target.onerror = tryNext;
                                         tryNext();
                                       }}
+                                    />
+                                    <VoiceCheckmark 
+                                      $show={isSelected}
+                                      $isPremium={isPremiumVoice(voice.name)}
                                     />
                                     {((isUserVoice && (isOwner || isAdmin || userInfo?.is_admin)) || (!isUserVoice && (isAdmin || userInfo?.is_admin))) && (
                                       <EditButton
@@ -7341,10 +7485,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
               </div>
             )}
           </PhotoGenerationContainer>
-        </form>
+        </form >
 
         {/* Модальное окно для просмотра фото в полный размер */}
-        <PromptGlassModal
+        < PromptGlassModal
           isOpen={!!selectedPhotoForView}
           onClose={closePhotoModal}
           imageUrl={selectedPhotoForView?.url || ''}
@@ -7358,221 +7502,225 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         { }
 
         {/* Модальное окно авторизации */}
-        {isAuthModalOpen && (
-          <AuthModal
-            isOpen={isAuthModalOpen}
-            mode={authMode}
-            onClose={() => {
-              setIsAuthModalOpen(false);
-              setAuthMode('login');
-              // Если закрыл без входа и есть сохраненные данные формы - остаемся на странице
-              // Если нет сохраненных данных - перебрасываем на главную
-              if (!isAuthenticated) {
+        {
+          isAuthModalOpen && (
+            <AuthModal
+              isOpen={isAuthModalOpen}
+              mode={authMode}
+              onClose={() => {
+                setIsAuthModalOpen(false);
+                setAuthMode('login');
+                // Если закрыл без входа и есть сохраненные данные формы - остаемся на странице
+                // Если нет сохраненных данных - перебрасываем на главную
+                if (!isAuthenticated) {
+                  const savedFormData = localStorage.getItem('createCharacterFormData');
+                  if (!savedFormData) {
+                    onBackToMain();
+                  }
+                }
+              }}
+              onAuthSuccess={async (accessToken, refreshToken) => {
+                authManager.setTokens(accessToken, refreshToken);
+                setIsAuthModalOpen(false);
+                setAuthMode('login');
+
+                // Обновляем состояние авторизации
+                await checkAuth();
+
+                // Диспатчим событие для обновления App.tsx
+                window.dispatchEvent(new Event('auth-success'));
+
+                // Если есть сохраненные данные формы, продолжаем создание персонажа
                 const savedFormData = localStorage.getItem('createCharacterFormData');
-                if (!savedFormData) {
+                if (savedFormData) {
+                  // Не перебрасываем на главную, остаемся на странице создания
+                  // Обновляем formData для отображения сохраненных данных
+                  try {
+                    const parsedFormData = JSON.parse(savedFormData);
+                    setFormData(parsedFormData);
+
+                    // Восстанавливаем видимость полей
+                    if (parsedFormData.name && parsedFormData.name.trim().length >= 2) {
+                      setShowPersonality(true);
+                    }
+                    if (parsedFormData.personality && parsedFormData.personality.trim().length > 0) {
+                      setShowSituation(true);
+                    }
+                    if (parsedFormData.situation && parsedFormData.situation.trim().length > 0) {
+                      setShowInstructions(true);
+                    }
+                    if (parsedFormData.instructions && parsedFormData.instructions.trim().length > 0) {
+                      setShowAppearance(true);
+                    }
+                    if (parsedFormData.appearance && parsedFormData.appearance.trim().length > 0) {
+                      setShowLocation(true);
+                    }
+                  } catch (error) {
+                    console.error('Ошибка при восстановлении данных формы:', error);
+                  }
+
+                  // Автоматически продолжаем создание персонажа
+                  setTimeout(async () => {
+                    try {
+                      setIsLoading(true);
+                      setError(null);
+                      setSuccess(null);
+
+                      const parsedFormData = JSON.parse(savedFormData);
+
+                      // Переводим поля appearance и location на английский перед отправкой
+                      let translatedAppearance = parsedFormData.appearance?.trim() || null;
+                      let translatedLocation = parsedFormData.location?.trim() || null;
+
+                      if (translatedAppearance) {
+                        translatedAppearance = await translateToEnglish(translatedAppearance);
+                      }
+                      if (translatedLocation) {
+                        translatedLocation = await translateToEnglish(translatedLocation);
+                      }
+
+                      // Преобразуем данные в формат UserCharacterCreate
+                      const requestData = {
+                        name: parsedFormData.name.trim(),
+                        personality: parsedFormData.personality.trim(),
+                        situation: parsedFormData.situation.trim(),
+                        instructions: parsedFormData.instructions.trim(),
+                        style: parsedFormData.style?.trim() || null,
+                        appearance: translatedAppearance,
+                        location: translatedLocation,
+                        is_nsfw: contentMode === 'nsfw'
+                      };
+
+                      // Проверяем обязательные поля
+                      if (!requestData.name || !requestData.personality || !requestData.situation || !requestData.instructions) {
+                        throw new Error('Все обязательные поля должны быть заполнены');
+                      }
+
+                      const apiUrl = API_CONFIG.CHARACTER_CREATE_FULL;
+                      const token = localStorage.getItem('authToken');
+
+                      const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify(requestData)
+                      });
+
+                      if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.detail || 'Ошибка при создании персонажа');
+                      }
+
+                      const result = await response.json();
+                      setCreatedCharacterData(result);
+                      setIsCharacterCreated(true);
+                      setSuccess('Персонаж успешно создан!');
+
+                      // Очищаем сохраненные данные формы после успешного создания
+                      localStorage.removeItem('createCharacterFormData');
+
+                      // Автоматически заполняем промпт для генерации фото
+                      if (!customPromptManuallySet) {
+                        const parts = [parsedFormData.appearance, parsedFormData.location].filter(p => p && p.trim());
+                        if (parts.length > 0) {
+                          const autoPrompt = parts.join(' | ');
+                          setCustomPrompt(autoPrompt);
+                          customPromptRef.current = autoPrompt;
+                        }
+                      }
+
+                      // Обновляем информацию о пользователе
+                      await checkAuth();
+
+                      // Даем время бэкенду сохранить персонажа в БД (увеличена задержка для надежности)
+                      await new Promise(resolve => setTimeout(resolve, 3000));
+
+                      // Отправляем событие для обновления персонажей на главной странице
+                      const event = new CustomEvent('character-created', {
+                        detail: { character: result }
+                      });
+                      window.dispatchEvent(event);
+
+                      // Также отправляем событие auth-success для обновления главной страницы
+                      // Это особенно важно после регистрации, чтобы главная страница обновилась
+                      window.dispatchEvent(new Event('auth-success'));
+
+                      // Дополнительно отправляем событие через небольшую задержку для надежности
+                      setTimeout(() => {
+                        window.dispatchEvent(new CustomEvent('character-created', {
+                          detail: { character: result }
+                        }));
+                      }, 1000);
+
+                      // Еще одна отправка через 2 секунды для максимальной надежности
+                      setTimeout(() => {
+                        window.dispatchEvent(new CustomEvent('character-created', {
+                          detail: { character: result }
+                        }));
+                        window.dispatchEvent(new Event('auth-success'));
+                      }, 2000);
+
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Ошибка при создании персонажа');
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  }, 500);
+                } else {
+                  // Если нет сохраненных данных, перебрасываем на главную
                   onBackToMain();
                 }
+              }}
+            />
+          )
+        }
+
+        {
+          isSubscriptionModalOpen && (
+            <SubscriptionModal onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setIsSubscriptionModalOpen(false);
               }
-            }}
-            onAuthSuccess={async (accessToken, refreshToken) => {
-              authManager.setTokens(accessToken, refreshToken);
-              setIsAuthModalOpen(false);
-              setAuthMode('login');
-
-              // Обновляем состояние авторизации
-              await checkAuth();
-
-              // Диспатчим событие для обновления App.tsx
-              window.dispatchEvent(new Event('auth-success'));
-
-              // Если есть сохраненные данные формы, продолжаем создание персонажа
-              const savedFormData = localStorage.getItem('createCharacterFormData');
-              if (savedFormData) {
-                // Не перебрасываем на главную, остаемся на странице создания
-                // Обновляем formData для отображения сохраненных данных
-                try {
-                  const parsedFormData = JSON.parse(savedFormData);
-                  setFormData(parsedFormData);
-
-                  // Восстанавливаем видимость полей
-                  if (parsedFormData.name && parsedFormData.name.trim().length >= 2) {
-                    setShowPersonality(true);
-                  }
-                  if (parsedFormData.personality && parsedFormData.personality.trim().length > 0) {
-                    setShowSituation(true);
-                  }
-                  if (parsedFormData.situation && parsedFormData.situation.trim().length > 0) {
-                    setShowInstructions(true);
-                  }
-                  if (parsedFormData.instructions && parsedFormData.instructions.trim().length > 0) {
-                    setShowAppearance(true);
-                  }
-                  if (parsedFormData.appearance && parsedFormData.appearance.trim().length > 0) {
-                    setShowLocation(true);
-                  }
-                } catch (error) {
-                  console.error('Ошибка при восстановлении данных формы:', error);
-                }
-
-                // Автоматически продолжаем создание персонажа
-                setTimeout(async () => {
-                  try {
-                    setIsLoading(true);
-                    setError(null);
-                    setSuccess(null);
-
-                    const parsedFormData = JSON.parse(savedFormData);
-
-                    // Переводим поля appearance и location на английский перед отправкой
-                    let translatedAppearance = parsedFormData.appearance?.trim() || null;
-                    let translatedLocation = parsedFormData.location?.trim() || null;
-
-                    if (translatedAppearance) {
-                      translatedAppearance = await translateToEnglish(translatedAppearance);
-                    }
-                    if (translatedLocation) {
-                      translatedLocation = await translateToEnglish(translatedLocation);
-                    }
-
-                    // Преобразуем данные в формат UserCharacterCreate
-                    const requestData = {
-                      name: parsedFormData.name.trim(),
-                      personality: parsedFormData.personality.trim(),
-                      situation: parsedFormData.situation.trim(),
-                      instructions: parsedFormData.instructions.trim(),
-                      style: parsedFormData.style?.trim() || null,
-                      appearance: translatedAppearance,
-                      location: translatedLocation,
-                      is_nsfw: contentMode === 'nsfw'
-                    };
-
-                    // Проверяем обязательные поля
-                    if (!requestData.name || !requestData.personality || !requestData.situation || !requestData.instructions) {
-                      throw new Error('Все обязательные поля должны быть заполнены');
-                    }
-
-                    const apiUrl = API_CONFIG.CHARACTER_CREATE_FULL;
-                    const token = localStorage.getItem('authToken');
-
-                    const response = await fetch(apiUrl, {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                      },
-                      body: JSON.stringify(requestData)
-                    });
-
-                    if (!response.ok) {
-                      const errorData = await response.json();
-                      throw new Error(errorData.detail || 'Ошибка при создании персонажа');
-                    }
-
-                    const result = await response.json();
-                    setCreatedCharacterData(result);
-                    setIsCharacterCreated(true);
-                    setSuccess('Персонаж успешно создан!');
-
-                    // Очищаем сохраненные данные формы после успешного создания
-                    localStorage.removeItem('createCharacterFormData');
-
-                    // Автоматически заполняем промпт для генерации фото
-                    if (!customPromptManuallySet) {
-                      const parts = [parsedFormData.appearance, parsedFormData.location].filter(p => p && p.trim());
-                      if (parts.length > 0) {
-                        const autoPrompt = parts.join(' | ');
-                        setCustomPrompt(autoPrompt);
-                        customPromptRef.current = autoPrompt;
+            }}>
+              <SubscriptionModalContent onClick={(e) => e.stopPropagation()}>
+                <SubscriptionModalTitle>Создание платного альбома</SubscriptionModalTitle>
+                <SubscriptionModalText>
+                  Для создания платного альбома персонажа необходима подписка STANDARD или PREMIUM.
+                  Вы можете закончить создание персонажа сейчас или приобрести подписку.
+                </SubscriptionModalText>
+                <SubscriptionModalButtons>
+                  <SubscriptionModalButton
+                    $variant="secondary"
+                    onClick={() => {
+                      setIsSubscriptionModalOpen(false);
+                      // Перенаправляем в чат с персонажем
+                      if (createdCharacterData && onOpenChat) {
+                        onOpenChat(createdCharacterData);
+                      } else {
+                        onBackToMain(); // Fallback if chat cannot be opened
                       }
-                    }
-
-                    // Обновляем информацию о пользователе
-                    await checkAuth();
-
-                    // Даем время бэкенду сохранить персонажа в БД (увеличена задержка для надежности)
-                    await new Promise(resolve => setTimeout(resolve, 3000));
-
-                    // Отправляем событие для обновления персонажей на главной странице
-                    const event = new CustomEvent('character-created', {
-                      detail: { character: result }
-                    });
-                    window.dispatchEvent(event);
-
-                    // Также отправляем событие auth-success для обновления главной страницы
-                    // Это особенно важно после регистрации, чтобы главная страница обновилась
-                    window.dispatchEvent(new Event('auth-success'));
-
-                    // Дополнительно отправляем событие через небольшую задержку для надежности
-                    setTimeout(() => {
-                      window.dispatchEvent(new CustomEvent('character-created', {
-                        detail: { character: result }
-                      }));
-                    }, 1000);
-
-                    // Еще одна отправка через 2 секунды для максимальной надежности
-                    setTimeout(() => {
-                      window.dispatchEvent(new CustomEvent('character-created', {
-                        detail: { character: result }
-                      }));
-                      window.dispatchEvent(new Event('auth-success'));
-                    }, 2000);
-
-                  } catch (err) {
-                    setError(err instanceof Error ? err.message : 'Ошибка при создании персонажа');
-                  } finally {
-                    setIsLoading(false);
-                  }
-                }, 500);
-              } else {
-                // Если нет сохраненных данных, перебрасываем на главную
-                onBackToMain();
-              }
-            }}
-          />
-        )}
-
-        {isSubscriptionModalOpen && (
-          <SubscriptionModal onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setIsSubscriptionModalOpen(false);
-            }
-          }}>
-            <SubscriptionModalContent onClick={(e) => e.stopPropagation()}>
-              <SubscriptionModalTitle>Создание платного альбома</SubscriptionModalTitle>
-              <SubscriptionModalText>
-                Для создания платного альбома персонажа необходима подписка STANDARD или PREMIUM.
-                Вы можете закончить создание персонажа сейчас или приобрести подписку.
-              </SubscriptionModalText>
-              <SubscriptionModalButtons>
-                <SubscriptionModalButton
-                  $variant="secondary"
-                  onClick={() => {
-                    setIsSubscriptionModalOpen(false);
-                    // Перенаправляем в чат с персонажем
-                    if (createdCharacterData && onOpenChat) {
-                      onOpenChat(createdCharacterData);
-                    } else {
-                      onBackToMain(); // Fallback if chat cannot be opened
-                    }
-                  }}
-                >
-                  Закончить создание
-                </SubscriptionModalButton>
-                <SubscriptionModalButton
-                  $variant="primary"
-                  onClick={() => {
-                    setIsSubscriptionModalOpen(false);
-                    if (onShop) {
-                      onShop();
-                    }
-                  }}
-                >
-                  Купить подписку
-                </SubscriptionModalButton>
-              </SubscriptionModalButtons>
-            </SubscriptionModalContent>
-          </SubscriptionModal>
-        )}
+                    }}
+                  >
+                    Закончить создание
+                  </SubscriptionModalButton>
+                  <SubscriptionModalButton
+                    $variant="primary"
+                    onClick={() => {
+                      setIsSubscriptionModalOpen(false);
+                      if (onShop) {
+                        onShop();
+                      }
+                    }}
+                  >
+                    Купить подписку
+                  </SubscriptionModalButton>
+                </SubscriptionModalButtons>
+              </SubscriptionModalContent>
+            </SubscriptionModal>
+          )
+        }
 
         {/* Модальное окно Clone Your Voice */}
         <AnimatePresence>
@@ -7721,8 +7869,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
                         if (response.ok) {
                           const result = await response.json();
-                          setSelectedVoiceUrl(result.voice_url);
-                          setSelectedVoiceId('');
+                          const newVoiceId = `user_voice_${result.voice_id}`;
 
                           // Перезагружаем список голосов
                           const voicesResponse = await fetch('/api/v1/characters/available-voices', {
@@ -7733,6 +7880,30 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                           if (voicesResponse.ok) {
                             const voicesData = await voicesResponse.json();
                             setAvailableVoices(voicesData);
+                            
+                            // Автоматически открываем пользовательские голоса и выбираем добавленный голос
+                            setShowUserVoices(true);
+                            
+                            // Находим и выбираем добавленный голос
+                            const addedVoice = voicesData.find((v: any) => v.id === newVoiceId || v.user_voice_id === result.voice_id);
+                            if (addedVoice) {
+                              const isUserVoice = addedVoice.is_user_voice || false;
+                              if (isUserVoice) {
+                                // Для пользовательских голосов используем voice_url и очищаем voice_id
+                                setSelectedVoiceUrl(addedVoice.url);
+                                setSelectedVoiceId(''); // Очищаем voice_id для пользовательских голосов
+                                setVoiceSelectionTime(prev => ({ ...prev, [addedVoice.url]: Date.now() }));
+                              } else {
+                                setSelectedVoiceId(addedVoice.id);
+                                setSelectedVoiceUrl(null);
+                                setVoiceSelectionTime(prev => ({ ...prev, [addedVoice.id]: Date.now() }));
+                              }
+                            } else {
+                              // Если голос не найден, используем данные из ответа API
+                              setSelectedVoiceUrl(result.voice_url);
+                              setSelectedVoiceId('');
+                              setVoiceSelectionTime(prev => ({ ...prev, [result.voice_url]: Date.now() }));
+                            }
                           }
 
                           // Закрываем модальное окно и сбрасываем состояние
@@ -7812,82 +7983,84 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
             </motion.div>
           )}
         </AnimatePresence>
-      </MainContent>
+      </MainContent >
 
       {/* Модальное окно Premium */}
-      {showPremiumModal && (
-        <PremiumModalOverlay onClick={() => setShowPremiumModal(false)}>
-          <PremiumModalContent onClick={(e) => e.stopPropagation()}>
-            {/* Фото голоса вместо короны */}
-            {(() => {
-              const selectedVoice = availableVoices.find(v => v.id === selectedVoiceId);
-              const defaultPlaceholder = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9InJnYmEoNjAsIDYwLCA2MCwgMC4zKSIvPgo8cGF0aCBkPSJNMzAgNDBDMzAgMzUuMDI5IDM0LjAyOSAzMSAzOSAzMUg0MUM0NS45NzEgMzEgNTAgMzUuMDI5IDUwIDQwQzUwIDQ0Ljk3MSA0NS45NzEgNDkgNDEgNDlIMzlDMzQuMDI5IDQ5IDMwIDQ0Ljk3MSAzMCA0MFoiIGZpbGw9InJnYmEoMTUwLCAxNTAsIDE1MCwgMC41KSIvPgo8L3N2Zz4K';
+      {
+        showPremiumModal && (
+          <PremiumModalOverlay onClick={() => setShowPremiumModal(false)}>
+            <PremiumModalContent onClick={(e) => e.stopPropagation()}>
+              {/* Фото голоса вместо короны */}
+              {(() => {
+                const selectedVoice = availableVoices.find(v => v.id === selectedVoiceId);
+                const defaultPlaceholder = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9InJnYmEoNjAsIDYwLCA2MCwgMC4zKSIvPgo8cGF0aCBkPSJNMzAgNDBDMzAgMzUuMDI5IDM0LjAyOSAzMSAzOSAzMUg0MUM0NS45NzEgMzEgNTAgMzUuMDI5IDUwIDQwQzUwIDQ0Ljk3MSA0NS45NzEgNDkgNDEgNDlIMzlDMzQuMDI5IDQ5IDMwIDQ0Ljk3MSAzMCA0MFoiIGZpbGw9InJnYmEoMTUwLCAxNTAsIDE1MCwgMC41KSIvPgo8L3N2Zz4K';
 
-              let photoPath = defaultPlaceholder;
-              if (selectedVoice) {
-                photoPath = selectedVoice.is_user_voice
-                  ? (selectedVoice.photo_url
-                    ? (selectedVoice.photo_url.startsWith('http') ? selectedVoice.photo_url : `${API_CONFIG.BASE_URL}${selectedVoice.photo_url}`)
-                    : defaultPlaceholder)
-                  : `/default_voice_photo/${selectedVoice.name.replace(/\.(mp3|wav|ogg)$/i, '')}.png`;
-              }
+                let photoPath = defaultPlaceholder;
+                if (selectedVoice) {
+                  photoPath = selectedVoice.is_user_voice
+                    ? (selectedVoice.photo_url
+                      ? (selectedVoice.photo_url.startsWith('http') ? selectedVoice.photo_url : `${API_CONFIG.BASE_URL}${selectedVoice.photo_url}`)
+                      : defaultPlaceholder)
+                    : `/default_voice_photo/${selectedVoice.name.replace(/\.(mp3|wav|ogg)$/i, '')}.png`;
+                }
 
-              return (
-                <div style={{
-                  width: '120px',
-                  height: '120px',
-                  borderRadius: '50%',
-                  overflow: 'hidden',
-                  border: '4px solid #ecc94b', // Gold border for premium
-                  boxShadow: '0 0 20px rgba(236, 201, 75, 0.4)',
-                  margin: '0 auto 20px auto',
-                  position: 'relative'
-                }}>
-                  <img
-                    src={photoPath}
-                    alt="Premium Voice"
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    onError={(e) => {
-                      e.currentTarget.src = defaultPlaceholder;
-                    }}
-                  />
+                return (
                   <div style={{
-                    position: 'absolute',
-                    bottom: '5px',
-                    right: '5px',
-                    fontSize: '24px'
-                  }}>👑</div>
-                </div>
-              );
-            })()}
+                    width: '120px',
+                    height: '120px',
+                    borderRadius: '50%',
+                    overflow: 'hidden',
+                    border: '4px solid #ecc94b', // Gold border for premium
+                    boxShadow: '0 0 20px rgba(236, 201, 75, 0.4)',
+                    margin: '0 auto 20px auto',
+                    position: 'relative'
+                  }}>
+                    <img
+                      src={photoPath}
+                      alt="Premium Voice"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={(e) => {
+                        e.currentTarget.src = defaultPlaceholder;
+                      }}
+                    />
+                    <div style={{
+                      position: 'absolute',
+                      bottom: '5px',
+                      right: '5px',
+                      fontSize: '24px'
+                    }}>👑</div>
+                  </div>
+                );
+              })()}
 
-            <PremiumModalTitle>Премиальный голос</PremiumModalTitle>
-            <PremiumModalText>
-              Оформите Premium-подписку, чтобы получить доступ к эксклюзивным голосам или выберите другой голос.
-            </PremiumModalText>
-            <PremiumModalButtons>
-              <PremiumModalButton
-                $primary
-                onClick={() => {
-                  setShowPremiumModal(false);
-                  if (onShop) {
-                    onShop();
-                  }
-                }}
-              >
-                Оформить Premium
-              </PremiumModalButton>
-              <PremiumModalButton onClick={() => setShowPremiumModal(false)}>
-                Закрыть
-              </PremiumModalButton>
-            </PremiumModalButtons>
-          </PremiumModalContent>
-        </PremiumModalOverlay>
-      )}
+              <PremiumModalTitle>Премиальный голос</PremiumModalTitle>
+              <PremiumModalText>
+                Оформите Premium-подписку, чтобы получить доступ к эксклюзивным голосам или выберите другой голос.
+              </PremiumModalText>
+              <PremiumModalButtons>
+                <PremiumModalButton
+                  $primary
+                  onClick={() => {
+                    setShowPremiumModal(false);
+                    if (onShop) {
+                      onShop();
+                    }
+                  }}
+                >
+                  Оформить Premium
+                </PremiumModalButton>
+                <PremiumModalButton onClick={() => setShowPremiumModal(false)}>
+                  Закрыть
+                </PremiumModalButton>
+              </PremiumModalButtons>
+            </PremiumModalContent>
+          </PremiumModalOverlay>
+        )
+      }
 
       <BackgroundWrapper>
         <DarkVeil speed={1.1} />
       </BackgroundWrapper>
-    </MainContainer>
+    </MainContainer >
   );
 }

@@ -1,6 +1,22 @@
-import React from 'react';
-import styled from 'styled-components';
+import React, { useState } from 'react';
+import styled, { keyframes, css } from 'styled-components';
+import { motion, AnimatePresence } from 'motion/react';
 import { theme } from '../theme';
+
+const premiumGlow = keyframes`
+  0% {
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.35);
+    border-color: rgba(239, 68, 68, 0.6);
+  }
+  100% {
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.3);
+  }
+`;
 
 const ModalOverlay = styled.div`
   position: fixed;
@@ -30,7 +46,7 @@ const ModalContent = styled.div`
 
 const ModalTitle = styled.h2`
   color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.xxl};
+  font-size: ${theme.fontSize['3xl']};
   font-weight: 700;
   margin: 0 0 ${theme.spacing.xl} 0;
   text-align: center;
@@ -53,15 +69,16 @@ const ModelList = styled.div`
   }
 `;
 
-const ModelOption = styled.button<{ $isSelected: boolean }>`
-  background: ${props => props.$isSelected 
-    ? 'rgba(236, 72, 153, 0.15)' 
+const StyledModelOption = styled.button<{ $isSelected: boolean; $isPremium?: boolean }>`
+  background: ${props => props.$isSelected
+    ? (props.$isPremium ? 'rgba(239, 68, 68, 0.15)' : 'rgba(236, 72, 153, 0.15)')
     : 'rgba(30, 30, 30, 0.6)'};
-  border: 1px solid ${props => props.$isSelected 
-    ? 'rgba(236, 72, 153, 0.6)' 
-    : 'rgba(255, 255, 255, 0.1)'};
+  border: 1px solid ${props => props.$isSelected
+    ? (props.$isPremium ? 'rgba(239, 68, 68, 0.6)' : 'rgba(236, 72, 153, 0.6)')
+    : (props.$isPremium ? 'rgba(239, 68, 68, 0.3)' : 'rgba(255, 255, 255, 0.1)')};
   border-radius: ${theme.borderRadius.xl};
   padding: ${theme.spacing.xl};
+  padding-bottom: ${theme.spacing.xxl}; /* Extra padding for bottom content if needed, though absolute positioning overlays it */
   color: ${theme.colors.text.primary};
   font-size: ${theme.fontSize.sm};
   text-align: left;
@@ -74,13 +91,26 @@ const ModelOption = styled.button<{ $isSelected: boolean }>`
   position: relative;
   overflow: hidden;
   
+  /* Add glow animation for premium items */
+  ${props => props.$isPremium && css`
+    animation: ${premiumGlow} 2.5s infinite ease-in-out;
+  `}
+  
   &:hover {
-    background: ${props => props.$isSelected 
-      ? 'rgba(236, 72, 153, 0.2)' 
-      : 'rgba(50, 50, 50, 0.8)'};
-    border-color: rgba(236, 72, 153, 0.4);
+    background: ${props => props.$isSelected
+    ? (props.$isPremium ? 'rgba(239, 68, 68, 0.2)' : 'rgba(236, 72, 153, 0.2)')
+    : 'rgba(50, 50, 50, 0.8)'};
+    border-color: ${props => props.$isPremium ? 'rgba(239, 68, 68, 0.8)' : 'rgba(236, 72, 153, 0.4)'};
     transform: translateY(-5px);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(236, 72, 153, 0.1);
+    
+    /* Stronger shadow on hover */
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 
+                ${props => props.$isPremium
+    ? '0 0 25px rgba(239, 68, 68, 0.4)'
+    : '0 0 15px rgba(236, 72, 153, 0.1)'};
+    
+    /* Pause animation on hover to show steady state or just let it continue */
+    animation: none;
   }
 
   &::before {
@@ -90,9 +120,27 @@ const ModelOption = styled.button<{ $isSelected: boolean }>`
     left: 0;
     width: 4px;
     height: 100%;
-    background: ${props => props.$isSelected ? '#ec4899' : 'transparent'};
+    background: ${props => props.$isSelected
+    ? (props.$isPremium ? '#ef4444' : '#ec4899')
+    : 'transparent'};
     transition: all 0.3s ease;
   }
+`;
+
+const PremiumBadge = styled.div`
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.1);
 `;
 
 const ModelDescription = styled.div`
@@ -163,6 +211,8 @@ interface ModelSelectorModalProps {
   selectedModel: string;
   onSelectModel: (model: string) => void;
   onClose: () => void;
+  isPremium?: boolean;
+  onOpenPremiumModal?: () => void;
 }
 
 const AVAILABLE_MODELS = [
@@ -172,7 +222,8 @@ const AVAILABLE_MODELS = [
     subtitle: '«Мастер темного фэнтези и глубокого погружения»',
     features: 'Эта модель обучена специально для того, чтобы быть максимально «человечной» в диалогах. У неё один из лучших показателей понимания контекста персонажа.',
     style: 'Она пишет очень выразительно, уделяя внимание не только действиям, но и внутренним переживаниям, запахам и атмосфере.',
-    forWho: 'Идеально, если ты хочешь долгого развития сюжета, где важна психология и «химия» между персонажами. Она реже других моделей «ломает» образ героя.'
+    forWho: 'Идеально, если ты хочешь долгого развития сюжета, где важна психология и «химия» между персонажами. Она реже других моделей «ломает» образ героя.',
+    isPremium: false
   },
   {
     id: 'thedrummer/cydonia-24b-v4.1',
@@ -180,7 +231,8 @@ const AVAILABLE_MODELS = [
     subtitle: '«Новый стандарт ролевого взаимодействия»',
     features: 'Эта модель значительно умнее классических аналогов. Она обладает великолепной логикой и способна удерживать сложнейшие сюжетные линии.',
     style: 'Художественный, глубокий и последовательный стиль. Великолепно справляется с описанием окружения и нюансов поведения.',
-    forWho: 'Для тех, кто ищет баланс между скоростью и высочайшим качеством повествования. Идеально для длительных ролевых сессий.'
+    forWho: 'Для тех, кто ищет баланс между скоростью и высочайшим качеством повествования. Идеально для длительных ролевых сессий.',
+    isPremium: false
   },
   {
     id: 'deepseek/deepseek-chat-v3-0324',
@@ -188,19 +240,51 @@ const AVAILABLE_MODELS = [
     subtitle: '«Новейшая версия от DeepSeek»',
     features: 'Современная мультимодальная модель с высокой скоростью генерации и отличным пониманием контекста. Оптимизирована для естественных диалогов.',
     style: 'Сбалансированный стиль с акцентом на естественность и живость общения. Хорошо справляется как с легкими беседами, так и с глубокими темами.',
-    forWho: 'Для тех, кто ценит быстрые и качественные ответы. Отлично подходит для динамичных диалогов и ситуаций, где важна скорость реакции.'
+    forWho: 'Для тех, кто ценит быстрые и качественные ответы. Отлично подходит для динамичных диалогов и ситуаций, где важна скорость реакции.',
+    isPremium: true
   }
 ];
+
+const PremiumWarning = styled(motion.div)`
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: ${theme.spacing.md};
+  background: rgba(30, 30, 30, 0.95);
+  border-top: 1px solid #ef4444;
+  border-bottom-left-radius: ${theme.borderRadius.xl};
+  border-bottom-right-radius: ${theme.borderRadius.xl};
+  color: #ef4444;
+  font-size: ${theme.fontSize.xs};
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  z-index: 10;
+  box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.2);
+`;
 
 export const ModelSelectorModal: React.FC<ModelSelectorModalProps> = ({
   isOpen,
   selectedModel,
   onSelectModel,
-  onClose
+  onClose,
+  isPremium = false,
+  onOpenPremiumModal
 }) => {
+  const [premiumWarningId, setPremiumWarningId] = useState<string | null>(null);
+
   if (!isOpen) return null;
 
   const handleSelect = (modelId: string) => {
+    const model = AVAILABLE_MODELS.find(m => m.id === modelId);
+    if (model?.isPremium && !isPremium) {
+      setPremiumWarningId(modelId);
+      setTimeout(() => setPremiumWarningId(null), 2000);
+      return;
+    }
+
     onSelectModel(modelId);
     onClose();
   };
@@ -211,11 +295,15 @@ export const ModelSelectorModal: React.FC<ModelSelectorModalProps> = ({
         <ModalTitle>Выберите нейросеть</ModalTitle>
         <ModelList>
           {AVAILABLE_MODELS.map((model) => (
-            <ModelOption
+            <StyledModelOption
               key={model.id}
               $isSelected={selectedModel === model.id}
+              $isPremium={model.isPremium}
               onClick={() => handleSelect(model.id)}
             >
+              {model.isPremium && (
+                <PremiumBadge>Только для Premium</PremiumBadge>
+              )}
               <ModelName>{model.name}</ModelName>
               <ModelSubtitle>{model.subtitle}</ModelSubtitle>
               <ModelDescription>
@@ -229,7 +317,19 @@ export const ModelSelectorModal: React.FC<ModelSelectorModalProps> = ({
                   <ModelSectionTitle>Для кого</ModelSectionTitle> {model.forWho}
                 </ModelSection>
               </ModelDescription>
-            </ModelOption>
+              <AnimatePresence>
+                {premiumWarningId === model.id && (
+                  <PremiumWarning
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 30 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                  >
+                    Только для Premium подписчиков!
+                  </PremiumWarning>
+                )}
+              </AnimatePresence>
+            </StyledModelOption>
           ))}
         </ModelList>
         <CloseButton onClick={onClose}>Назад к чату</CloseButton>

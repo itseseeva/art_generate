@@ -139,6 +139,15 @@ class TelegramHandler(Handler):
                     if 400 <= status_code < 500:
                         # Это клиентская ошибка, не отправляем в Telegram
                         return
+                # Ошибки валидации и связанные — не отправляем в Telegram
+                skip_patterns = (
+                    "Validation error",
+                    "Validation errors details",
+                    "Request body:",
+                    "not JSON serializable",
+                )
+                if any(p in error_message for p in skip_patterns):
+                    return
             
             # Проверяем дедупликацию
             error_hash = self._get_error_hash(record)

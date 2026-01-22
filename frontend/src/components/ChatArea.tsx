@@ -107,67 +107,6 @@ const LoadingDots = styled.div`
   }
 `;
 
-// --- Обновленный Empty State с Ice breakers ---
-const EmptyState = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 400px;
-  text-align: center;
-  color: rgba(160, 160, 160, 1);
-  padding: ${theme.spacing.xl};
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  
-  h3 {
-    font-size: ${theme.fontSize.xxl};
-    margin-bottom: ${theme.spacing.md};
-    color: rgba(255, 255, 255, 0.95);
-    font-weight: 700;
-    text-shadow: 0 0 20px rgba(236, 72, 153, 0.3);
-  }
-  
-  p {
-    font-size: ${theme.fontSize.lg};
-    line-height: 1.7;
-    max-width: 500px;
-    color: rgba(200, 200, 200, 0.8);
-    margin-bottom: ${theme.spacing.xl};
-  }
-`;
-
-const IceBreakersGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: ${theme.spacing.md};
-  width: 100%;
-  max-width: 600px;
-  margin-top: ${theme.spacing.lg};
-`;
-
-const IceBreakerChip = styled.button`
-  padding: ${theme.spacing.md} ${theme.spacing.lg};
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: ${theme.borderRadius.xl};
-  color: rgba(220, 220, 220, 1);
-  font-size: ${theme.fontSize.sm};
-  cursor: pointer;
-  transition: all 0.3s ease;
-  text-align: left;
-  display: flex;
-  align-items: center;
-  
-  &:hover {
-    background: rgba(236, 72, 153, 0.1);
-    border-color: rgba(236, 72, 153, 0.4);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  }
-`;
-
 // --- Обновленная карточка ситуации ---
 const RoleSituationCard = styled.div`
   display: flex;
@@ -301,19 +240,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     return () => clearTimeout(timeoutId);
   }, [messages, isLoading]);
 
-  const iceBreakers = [
-    "Расскажи мне о себе...",
-    "Что ты здесь делаешь?",
-    "У меня есть предложение...",
-    "Какая твоя самая большая тайна?"
-  ];
-
-  const handleIceBreakerClick = (text: string) => {
-    if (onSendMessage) {
-      onSendMessage(text);
-    }
-  };
-
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', minHeight: 0 }}>
       <MessagesContainer ref={messagesContainerRef} style={{ position: 'relative', zIndex: 10 }}>
@@ -323,24 +249,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               <h3>Ролевая ситуация</h3>
               <p>{characterSituation}</p>
             </RoleSituationCard>
-          )}
-          
-          {messages.length === 0 && !isLoading && !characterSituation && (
-            <EmptyState>
-              <h3>Начни свою историю</h3>
-              <p>
-                {characterName ? `${characterName} ждет твоего сообщения.` : 'Выберите персонажа и начните общение.'}
-              </p>
-              {onSendMessage && (
-                 <IceBreakersGrid>
-                   {iceBreakers.map((text, idx) => (
-                     <IceBreakerChip key={idx} onClick={() => handleIceBreakerClick(text)}>
-                       {text}
-                     </IceBreakerChip>
-                   ))}
-                 </IceBreakersGrid>
-              )}
-            </EmptyState>
           )}
           
           {messages && messages.length > 0 && messages.map((message, index) => {

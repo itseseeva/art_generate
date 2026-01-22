@@ -636,12 +636,12 @@ const ModelSelectionContainer = styled.div`
 const ModelCard = styled.div<{ $isSelected: boolean; $previewImage?: string }>`
   flex: 0 0 200px;
   height: 300px;
-  background: ${props => props.$isSelected 
-    ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(99, 102, 241, 0.2) 100%)' 
+  background: ${props => props.$isSelected
+    ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(99, 102, 241, 0.2) 100%)'
     : 'rgba(30, 30, 30, 0.4)'};
   backdrop-filter: blur(8px);
-  border: 2px solid ${props => props.$isSelected 
-    ? '#8b5cf6' 
+  border: 2px solid ${props => props.$isSelected
+    ? '#8b5cf6'
     : 'rgba(255, 255, 255, 0.05)'};
   border-radius: ${theme.borderRadius.lg};
   padding: 0;
@@ -770,7 +770,7 @@ const TagButton = styled.button`
   }
 `;
 
-export const ChatContainer: React.FC<ChatContainerProps> = ({ 
+export const ChatContainer: React.FC<ChatContainerProps> = ({
   onBackToMain,
   onCreateCharacter,
   onEditCharacters,
@@ -787,22 +787,22 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const isLoadingHistoryRef = useRef<string | null>(null); // Отслеживаем, для какого персонажа идет загрузка истории
   const lastLoadedCharacterRef = useRef<string | null>(null); // Отслеживаем последнего загруженного персонажа, чтобы избежать бесконечных запросов
-  
+
   // Утилита для дедупликации сообщений по ID и URL изображения
   const deduplicateMessages = (msgs: Message[]): Message[] => {
     const seenIds = new Map<string, Message>();
     const seenUrls = new Set<string>();
-    
+
     for (const msg of msgs) {
       // Нормализуем URL для сравнения (убираем query параметры и якоря)
       const normalizedUrl = msg.imageUrl ? msg.imageUrl.split('?')[0].split('#')[0] : null;
-      
+
       // Если есть imageUrl, проверяем дубликаты по URL (высокий приоритет)
       if (normalizedUrl && seenUrls.has(normalizedUrl)) {
-        
+
         continue; // Пропускаем дубликат по URL
       }
-      
+
       // Проверяем дубликаты по ID
       const existing = seenIds.get(msg.id);
       if (!existing) {
@@ -813,17 +813,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       } else {
         // Если ID уже есть, оставляем сообщение с большим количеством данных
         // Приоритет: imageUrl > generationTime > существующее сообщение
-        const shouldReplace = 
+        const shouldReplace =
           (msg.imageUrl && !existing.imageUrl) ||
           (msg.imageUrl && msg.generationTime && !existing.generationTime) ||
           (msg.generationTime && !existing.generationTime && msg.imageUrl === existing.imageUrl);
-        
+
         if (shouldReplace) {
           seenIds.set(msg.id, msg);
           if (normalizedUrl && !seenUrls.has(normalizedUrl)) {
             seenUrls.add(normalizedUrl);
           }
-          
+
         }
       }
     }
@@ -833,10 +833,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     initialCharacter || null
   );
   const isLoadingFromUrlRef = useRef(false); // Флаг для отслеживания загрузки из URL
-  
+
   // Состояние для хранения отредактированного промпта в рамках сессии (для текущего персонажа)
   const [sessionPrompt, setSessionPrompt] = useState<string | null>(null);
-  
+
   // Сбрасываем sessionPrompt при смене персонажа
   useEffect(() => {
     setSessionPrompt(null);
@@ -865,7 +865,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const [characterPhotos, setCharacterPhotos] = useState<string[]>([]);
   const [isCharacterFavorite, setIsCharacterFavorite] = useState<boolean>(false);
   const [isModelSelectorOpen, setIsModelSelectorOpen] = useState(false);
-  const [isModelAccessDeniedOpen, setIsModelAccessDeniedOpen] = useState(false);
+
   const [selectedChatModel, setSelectedChatModel] = useState<string>(() => {
     const saved = localStorage.getItem('selectedChatModel');
     return saved || 'sao10k/l3-euryale-70b';
@@ -877,16 +877,16 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     if (savedLanguage === 'ru' || savedLanguage === 'en') {
       return savedLanguage as 'ru' | 'en';
     }
-    
+
     // Если в localStorage нет, определяем по языку браузера
     const browserLanguage = navigator.language || navigator.languages?.[0] || 'en';
     const languageCode = browserLanguage.toLowerCase().split('-')[0];
-    
+
     // Если язык начинается с 'ru', ставим RU, иначе EN
     if (languageCode === 'ru') {
       return 'ru';
     }
-    
+
     return 'en';
   };
 
@@ -921,14 +921,14 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         });
 
         if (response.ok) {
-      const statsData = await response.json();
-      const subType = statsData?.subscription_type || 'free';
-      setFetchedSubscriptionType(subType);
+          const statsData = await response.json();
+          const subType = statsData?.subscription_type || 'free';
+          setFetchedSubscriptionType(subType);
         } else {
           setFetchedSubscriptionType('free');
         }
       } catch (error) {
-        
+
         setFetchedSubscriptionType('free');
       }
     };
@@ -951,7 +951,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   }, [effectiveSubscriptionType]);
 
   const canCreatePaidAlbum = normalizedSubscriptionType === 'standard' || normalizedSubscriptionType === 'premium';
-  
+
   // Получаем лимит очереди генераций на основе подписки
   const getGenerationQueueLimit = useMemo(() => {
     const subType = normalizedSubscriptionType;
@@ -969,17 +969,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const progressIntervalsRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
 
   const updateMessageProgressContent = useCallback((messageId: string, value: number, usePlaceholder: boolean = false) => {
-    setMessages(prev => 
+    setMessages(prev =>
       prev.map(msg => {
         if (msg.id === messageId && !msg.imageUrl) {
           const startTime = generationStartTimesRef.current.get(messageId);
           let displayProgress = value;
-          
+
           // Если нужно использовать заглушку, вычисляем её
           if (usePlaceholder && startTime) {
             const elapsed = Date.now() - startTime;
             const placeholderDuration = 8000; // Строго 8 секунд (8000 миллисекунд)
-            
+
             if (elapsed < placeholderDuration) {
               // Заглушка: от 0% до 100% строго за 8 секунд
               // elapsed в миллисекундах, placeholderDuration тоже в миллисекундах
@@ -1006,7 +1006,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               progressIntervalsRef.current.delete(messageId);
             }
           }
-          
+
           return { ...msg, content: `${Math.round(displayProgress)}%` };
         }
         return msg;
@@ -1038,9 +1038,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         // Вычисляем прогресс заглушки: от 0% до 100% за 8 секунд
         const placeholderProgress = (elapsed / placeholderDuration) * 100;
         const displayProgress = Math.min(100, Math.round(placeholderProgress));
-        
+
         // Обновляем сообщение напрямую
-        setMessages(prev => 
+        setMessages(prev =>
           prev.map(msg => {
             if (msg.id === messageId && !msg.imageUrl) {
               return { ...msg, content: `${displayProgress}%` };
@@ -1096,7 +1096,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         setPaidAlbumError(null);
       }
     } catch (error) {
-      
+
       setPaidAlbumStatus(null);
     }
   }, []);
@@ -1126,87 +1126,87 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     const urlParams = new URLSearchParams(window.location.search);
     const accessToken = urlParams.get('access_token');
     const refreshToken = urlParams.get('refresh_token');
-    
+
     if (accessToken && refreshToken) {
       // Сохраняем токены в менеджере аутентификации
       authManager.setTokens(accessToken, refreshToken);
-      
+
       // Очищаем URL от токенов
       window.history.replaceState({}, document.title, window.location.pathname);
       window.history.pushState({}, document.title, window.location.pathname);
-      
+
       // Проверяем авторизацию
       refreshUserStats();
     } else {
       // Обычная проверка авторизации
       refreshUserStats();
     }
-    
+
     // КРИТИЧНО: Определяем эффективного персонажа (currentCharacter или initialCharacter)
     const effectiveCharacter = currentCharacter || initialCharacter;
-    
+
     if (!effectiveCharacter) {
-      
+
       return;
     }
-    
+
     // Если currentCharacter не установлен, но есть initialCharacter, устанавливаем его СРАЗУ
     if (!currentCharacter && initialCharacter) {
-      
+
       setCurrentCharacter(initialCharacter);
       // Используем initialCharacter для дальнейшей обработки
       const characterIdentifier = initialCharacter.raw?.name || initialCharacter.name;
-    if (!characterIdentifier) {
-        
+      if (!characterIdentifier) {
+
         return;
       }
-      
+
       // Проверяем, не загружали ли мы уже этого персонажа
       if (lastLoadedCharacterRef.current === characterIdentifier) {
-        
+
         return;
       }
-      
-      
-      
+
+
+
       // Отмечаем, что мы загружаем этого персонажа
       lastLoadedCharacterRef.current = characterIdentifier;
-      
+
       // Сбрасываем флаг загрузки перед началом новой загрузки
       isLoadingHistoryRef.current = null;
-      
+
       loadModelInfo();
       loadCharacterData(characterIdentifier);
       loadChatHistory(characterIdentifier, initialCharacter);
       return; // Выходим, чтобы не выполнять код ниже
     }
-    
+
     const characterIdentifier = effectiveCharacter.raw?.name || effectiveCharacter.name;
     if (!characterIdentifier) {
-      
+
       return;
     }
 
     // Проверяем, не загружали ли мы уже этого персонажа
     if (lastLoadedCharacterRef.current === characterIdentifier) {
-      
+
       return;
     }
-    
-    
-    
+
+
+
     // Отмечаем, что мы загружаем этого персонажа
     lastLoadedCharacterRef.current = characterIdentifier;
-    
+
     // Сбрасываем флаг загрузки перед началом новой загрузки
     isLoadingHistoryRef.current = null;
-    
+
     loadModelInfo();
     loadCharacterData(characterIdentifier);
     loadChatHistory(characterIdentifier, effectiveCharacter); // Загружаем историю чатов при инициализации
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    (currentCharacter?.raw?.name || currentCharacter?.name) ?? '', 
+    (currentCharacter?.raw?.name || currentCharacter?.name) ?? '',
     (initialCharacter?.raw?.name || initialCharacter?.name) ?? ''
   ]); // Используем только идентификаторы персонажей, функции мемоизированы
 
@@ -1241,21 +1241,21 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       // Проверяем, что это изображение для текущего персонажа
       const currentCharacterName = currentCharacter?.raw?.name || currentCharacter?.name;
       const currentCharacterId = currentCharacter?.raw?.id || currentCharacter?.id;
-      
-      const isForCurrentCharacter = 
+
+      const isForCurrentCharacter =
         (characterName && currentCharacterName && characterName.toLowerCase() === currentCharacterName.toLowerCase()) ||
         (characterId && currentCharacterId && String(characterId) === String(currentCharacterId));
-      
+
       if (!isForCurrentCharacter) {
         return; // Это изображение не для текущего персонажа
       }
 
       // Получаем messageId для этого taskId
       const messageId = taskIdToMessageIdRef.current.get(taskId);
-      
+
       if (messageId) {
         // Обновляем конкретное сообщение по messageId
-        setMessages(prev => 
+        setMessages(prev =>
           prev.map(msg => {
             if (msg.id === messageId) {
               return {
@@ -1269,7 +1269,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             return msg;
           })
         );
-        
+
         // Удаляем из карты после обновления
         taskIdToMessageIdRef.current.delete(taskId);
       } else {
@@ -1290,7 +1290,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             }
             return msg;
           });
-          
+
           // Если не нашли подходящее сообщение, добавляем новое
           if (!found) {
             updated.push({
@@ -1301,7 +1301,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               imageUrl: imageUrl
             });
           }
-          
+
           return updated;
         });
       }
@@ -1316,7 +1316,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   useEffect(() => {
     const loadFavoriteStatus = async () => {
       if (!currentCharacter?.id || !isAuthenticated) {
-        
+
         setIsCharacterFavorite(false);
         return;
       }
@@ -1329,31 +1329,31 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         } else if (typeof currentCharacter.id === 'string') {
           characterId = parseInt(currentCharacter.id, 10);
           if (isNaN(characterId)) {
-            
+
             setIsCharacterFavorite(false);
             return;
           }
         } else {
-          
+
           setIsCharacterFavorite(false);
           return;
         }
-        
-        
+
+
         const favoriteResponse = await authManager.fetchWithAuth(
           API_CONFIG.CHECK_FAVORITE(characterId)
         );
         if (favoriteResponse.ok) {
           const favoriteData = await favoriteResponse.json();
           const isFavorite = favoriteData?.is_favorite || false;
-          
+
           setIsCharacterFavorite(isFavorite);
         } else {
-          
+
           setIsCharacterFavorite(false);
         }
       } catch (error) {
-        
+
         setIsCharacterFavorite(false);
       }
     };
@@ -1379,7 +1379,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
       // Проверяем токен через API
       const response = await authManager.fetchWithAuth('/api/v1/auth/me/');
-      
+
       if (response.ok) {
         const userData = await response.json();
         const info: UserInfo = {
@@ -1402,7 +1402,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     } catch (error) {
       // Только логируем ошибку, не показываем в консоли для неавторизованных пользователей
       if (authManager.getToken()) {
-        
+
       }
       authManager.clearTokens();
       setIsAuthenticated(false);
@@ -1419,7 +1419,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         setModelInfo(`${models.length} модель(ей) доступно`);
       }
     } catch (error) {
-      
+
       setModelInfo('Информация недоступна');
     }
   }, []);
@@ -1434,27 +1434,27 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         console.log('[loadCharacterData] Пустой identifier, выход');
         return;
       }
-      
+
       // Проверяем, не загружаем ли мы уже этого персонажа
       if (isLoadingCharacterDataRef.current === characterIdentifier) {
         console.log('[loadCharacterData] Уже загружаем этого персонажа, выход');
         return;
       }
-      
+
       console.log('[loadCharacterData] Начинаем загрузку персонажа:', characterIdentifier);
       isLoadingCharacterDataRef.current = characterIdentifier;
-      
+
       const safeIdentifier = encodeURIComponent(characterIdentifier);
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${safeIdentifier}/with-creator`);
-      
+
       if (response.status === 404) {
-        
+
         setError(`Персонаж "${characterIdentifier}" не найден. Возможно, он был удален.`);
         setCurrentCharacter(null);
         isLoadingCharacterDataRef.current = null;
         return;
       }
-      
+
       if (response.ok) {
         const characterData = await response.json();
         console.log('[loadCharacterData] Получены данные персонажа:', {
@@ -1462,32 +1462,36 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           voice_id: characterData.voice_id,
           voice_url: characterData.voice_url
         });
-        
+
         const situation = extractRolePlayingSituation(characterData.prompt || '');
         setCharacterSituation(situation);
-        
+
         // Обновляем currentCharacter с полными данными, включая id
         // Преобразуем id в строку, если он число (для совместимости с интерфейсом Character)
-        const characterId = characterData.id 
+        const characterId = characterData.id
           ? (typeof characterData.id === 'number' ? characterData.id.toString() : characterData.id)
           : currentCharacter?.id;
-        
-        
-        
+
+
+
         // Создаем или обновляем объект персонажа
         const updatedCharacter = currentCharacter ? {
-            ...currentCharacter,
-            id: characterId || currentCharacter.id,
-            name: characterData.name || currentCharacter.name,
-            display_name: characterData.display_name || characterData.name || currentCharacter.display_name,
-            description: characterData.description || currentCharacter.description,
-            avatar: characterData.avatar || currentCharacter.avatar,
-            user_id: characterData.user_id || (currentCharacter as any).user_id,
-            character_appearance: characterData.character_appearance || '',
-            location: characterData.location || '',
-            voice_url: characterData.voice_url,
-            voice_id: characterData.voice_id,
-            raw: characterData // Сохраняем raw данные для правильной работы с именем
+          ...currentCharacter,
+          id: characterId || currentCharacter.id,
+          name: characterData.name || currentCharacter.name,
+          display_name: characterData.display_name || characterData.name || currentCharacter.display_name,
+          description: characterData.description || currentCharacter.description,
+          avatar: characterData.avatar || currentCharacter.avatar,
+          user_id: characterData.user_id || (currentCharacter as any).user_id,
+          character_appearance: characterData.character_appearance || '',
+          location: characterData.location || '',
+          voice_url: characterData.voice_url,
+          voice_id: characterData.voice_id,
+          likes: characterData.likes !== undefined ? characterData.likes : (currentCharacter.likes || 0),
+          dislikes: characterData.dislikes !== undefined ? characterData.dislikes : ((currentCharacter as any).dislikes || 0),
+          views: characterData.views !== undefined ? characterData.views : (currentCharacter.views || 0),
+          comments: characterData.comments !== undefined ? characterData.comments : (currentCharacter.comments || 0),
+          raw: characterData // Сохраняем raw данные для правильной работы с именем
         } : {
           id: characterId || characterData.id?.toString() || '',
           name: characterData.name || '',
@@ -1495,13 +1499,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           description: characterData.description || '',
           avatar: characterData.avatar || '',
           user_id: characterData.user_id,
-            character_appearance: characterData.character_appearance || '',
-            location: characterData.location || '',
-            voice_url: characterData.voice_url,
-            voice_id: characterData.voice_id,
-            raw: characterData // Сохраняем raw данные для правильной работы с именем
-          };
-        
+          character_appearance: characterData.character_appearance || '',
+          location: characterData.location || '',
+          voice_url: characterData.voice_url,
+          voice_id: characterData.voice_id,
+          likes: characterData.likes || 0,
+          dislikes: characterData.dislikes || 0,
+          views: characterData.views || 0,
+          comments: characterData.comments || 0,
+          raw: characterData // Сохраняем raw данные для правильной работы с именем
+        };
+
         // Проверяем, изменились ли данные перед обновлением, чтобы избежать бесконечного цикла
         const currentId = currentCharacter?.id;
         const currentName = currentCharacter?.name;
@@ -1509,7 +1517,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         const newId = updatedCharacter.id;
         const newName = updatedCharacter.name;
         const newRawName = updatedCharacter.raw?.name;
-        
+
         // Обновляем только если данные действительно изменились
         // КРИТИЧНО: Также проверяем изменение voice_id и voice_url
         const currentVoiceId = currentCharacter?.voice_id;
@@ -1517,14 +1525,22 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         const currentVoiceUrl = currentCharacter?.voice_url;
         const newVoiceUrl = updatedCharacter.voice_url;
         
-        const hasChanged = 
-          currentId !== newId || 
-          currentName !== newName || 
+        // Проверяем изменение likes и dislikes
+        const currentLikes = currentCharacter?.likes ?? 0;
+        const newLikes = updatedCharacter.likes ?? 0;
+        const currentDislikes = (currentCharacter as any)?.dislikes ?? 0;
+        const newDislikes = updatedCharacter.dislikes ?? 0;
+
+        const hasChanged =
+          currentId !== newId ||
+          currentName !== newName ||
           currentRawName !== newRawName ||
           currentVoiceId !== newVoiceId ||
           currentVoiceUrl !== newVoiceUrl ||
+          currentLikes !== newLikes ||
+          currentDislikes !== newDislikes ||
           !currentCharacter; // Или если персонаж еще не загружен
-        
+
         if (hasChanged) {
           console.log('[loadCharacterData] Обновляем currentCharacter:', {
             voice_id: updatedCharacter.voice_id,
@@ -1540,55 +1556,55 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         } else {
           console.log('[loadCharacterData] Данные не изменились, пропускаем обновление');
         }
-        
+
         // Сбрасываем флаг загрузки после успешной загрузки
         isLoadingCharacterDataRef.current = null;
-        
+
         // Загружаем состояние избранного сразу после получения id
         if (characterData.id && isAuthenticated) {
           try {
-            const favoriteCharacterId = typeof characterData.id === 'number' 
-              ? characterData.id 
+            const favoriteCharacterId = typeof characterData.id === 'number'
+              ? characterData.id
               : parseInt(characterData.id, 10);
-            
+
             if (!isNaN(favoriteCharacterId)) {
-              
+
               const favoriteResponse = await authManager.fetchWithAuth(
                 API_CONFIG.CHECK_FAVORITE(favoriteCharacterId)
               );
               if (favoriteResponse.ok) {
                 const favoriteData = await favoriteResponse.json();
                 const isFavorite = favoriteData?.is_favorite || false;
-                
+
                 setIsCharacterFavorite(isFavorite);
               } else {
-                
+
                 setIsCharacterFavorite(false);
               }
             } else {
-              
+
               setIsCharacterFavorite(false);
             }
           } catch (error) {
-            
+
             setIsCharacterFavorite(false);
           }
         } else {
-          
+
           setIsCharacterFavorite(false);
         }
-        
+
         // Сохраняем информацию о создателе
         if (characterData.creator_info) {
-          
+
           // Сохраняем информацию о создателе, даже если username null
           // (пользователь может еще не установить username после OAuth входа)
           setCreatorInfo(characterData.creator_info);
         } else {
-          
+
           setCreatorInfo(null);
         }
-        
+
         // Загружаем главные фото персонажа
         if (characterData.main_photos) {
           let parsedPhotos: any[] = [];
@@ -1598,11 +1614,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             try {
               parsedPhotos = JSON.parse(characterData.main_photos);
             } catch (e) {
-              
+
               parsedPhotos = [];
             }
           }
-          
+
           const photoUrls = parsedPhotos
             .map((photo: any) => {
               if (!photo) return null;
@@ -1614,13 +1630,13 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               return null;
             })
             .filter((url): url is string => Boolean(url));
-          
+
           setCharacterPhotos(photoUrls);
         } else {
           setCharacterPhotos([]);
         }
       } else {
-        
+
         const errorText = await response.text().catch(() => 'Неизвестная ошибка');
         setError(`Не удалось загрузить данные персонажа: ${errorText || `Ошибка ${response.status}`}`);
         setCurrentCharacter(null);
@@ -1629,7 +1645,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         setCharacterPhotos([]);
       }
     } catch (error) {
-      
+
       setError(error instanceof Error ? error.message : 'Не удалось загрузить данные персонажа');
       setCurrentCharacter(null);
       setCharacterSituation(null);
@@ -1645,7 +1661,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   useEffect(() => {
     const handleCharacterUpdated = (event: CustomEvent) => {
       const { characterName, characterId } = event.detail || {};
-      
+
       console.log('[ChatContainer] Получено событие character-updated:', { characterName, characterId });
       console.log('[ChatContainer] Текущий персонаж:', {
         currentName: currentCharacter?.raw?.name || currentCharacter?.name,
@@ -1653,18 +1669,18 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         voice_id: currentCharacter?.voice_id,
         voice_url: currentCharacter?.voice_url
       });
-      
+
       // Проверяем, что это обновление текущего персонажа
       const currentName = currentCharacter?.raw?.name || currentCharacter?.name;
       const currentId = currentCharacter?.raw?.id || currentCharacter?.id;
-      
-      if ((characterName && currentName && characterName === currentName) || 
-          (characterId && currentId && String(characterId) === String(currentId))) {
+
+      if ((characterName && currentName && characterName === currentName) ||
+        (characterId && currentId && String(characterId) === String(currentId))) {
         console.log('[ChatContainer] Обновляем данные персонажа после редактирования');
-        
+
         // Сбрасываем флаг загрузки, чтобы разрешить повторную загрузку
         isLoadingCharacterDataRef.current = null;
-        
+
         // Принудительно перезагружаем данные персонажа
         const identifier = characterName || characterId?.toString() || currentName;
         if (identifier) {
@@ -1677,7 +1693,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     };
 
     window.addEventListener('character-updated', handleCharacterUpdated as EventListener);
-    
+
     return () => {
       window.removeEventListener('character-updated', handleCharacterUpdated as EventListener);
     };
@@ -1697,7 +1713,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         return JSON.parse(stored);
       }
     } catch (e) {
-      
+
     }
     return {};
   };
@@ -1711,8 +1727,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const getCharacterName = () => {
     const characterForData = currentCharacter || initialCharacter;
     // Используем ту же логику, что и для characterIdentifier в других местах
-    const name = characterForData?.name 
-      || (characterForData as any)?.raw?.name 
+    const name = characterForData?.name
+      || (characterForData as any)?.raw?.name
       || '';
     return name;
   };
@@ -1724,7 +1740,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     try {
       localStorage.setItem('modifiedPrompts', JSON.stringify(modifiedPrompts));
     } catch (e) {
-      
+
     }
   }, [modifiedPrompts]);
 
@@ -1734,17 +1750,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     if (sessionPrompt && sessionPrompt.trim()) {
       return sessionPrompt;
     }
-    
+
     // Иначе формируем из данных персонажа
     const characterForData = currentCharacter || initialCharacter;
-    const appearance = (characterForData as any)?.character_appearance 
-      || (characterForData as any)?.raw?.character_appearance 
-      || (characterForData as any)?.appearance 
+    const appearance = (characterForData as any)?.character_appearance
+      || (characterForData as any)?.raw?.character_appearance
+      || (characterForData as any)?.appearance
       || '';
-    const location = (characterForData as any)?.location 
-      || (characterForData as any)?.raw?.location 
+    const location = (characterForData as any)?.location
+      || (characterForData as any)?.raw?.location
       || '';
-    
+
     const parts: string[] = [];
     if (appearance && appearance.trim()) {
       parts.push(appearance.trim());
@@ -1752,7 +1768,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     if (location && location.trim()) {
       parts.push(location.trim());
     }
-    
+
     return parts.length > 0 ? parts.join('\n') : '';
   };
 
@@ -1765,12 +1781,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       } else {
         // Формируем из данных персонажа
         const characterForData = currentCharacter || initialCharacter;
-        const appearance = (characterForData as any)?.character_appearance 
-          || (characterForData as any)?.raw?.character_appearance 
-          || (characterForData as any)?.appearance 
+        const appearance = (characterForData as any)?.character_appearance
+          || (characterForData as any)?.raw?.character_appearance
+          || (characterForData as any)?.appearance
           || '';
-        const location = (characterForData as any)?.location 
-          || (characterForData as any)?.raw?.location 
+        const location = (characterForData as any)?.location
+          || (characterForData as any)?.raw?.location
           || '';
         const parts = [appearance, location].filter(p => p && p.trim());
         const defaultPrompt = parts.length > 0 ? parts.join('\n') : '';
@@ -1851,58 +1867,58 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           generatedImageUrl = result.image_url || result.cloud_url || statusData.image_url || statusData.cloud_url;
           generationTime = result.generation_time || statusData.generation_time;
 
-            if (generatedImageUrl) {
-              // НЕ удаляем генерацию из трекера здесь - пусть generationTracker сам уведомит слушателей
-              // generationTracker.removeGeneration(taskId);
-              
-              // Останавливаем прогресс заглушки
-              stopPlaceholderProgress(messageId);
-              setMessages(prev => prev.map(msg => 
-                msg.id === messageId 
-                  ? { 
-                      ...msg, 
-                      content: '',
-                      imageUrl: generatedImageUrl,
-                      ...(generationTime !== undefined && generationTime !== null ? { generationTime } : {})
-                    }
-                  : msg
-              ));
-              setActiveGenerations(prev => {
-                const newSet = new Set(prev);
-                newSet.delete(messageId);
-                if (newSet.size === 0) setIsLoading(false);
-                return newSet;
-              });
-              
-              // КРИТИЧЕСКИ ВАЖНО: Добавляем фото в галерею пользователя
-              try {
-                if (token) {
-                  const addToGalleryResponse = await fetch('/api/v1/auth/user-gallery/add/', {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({
-                      image_url: generatedImageUrl,
-                      character_name: currentCharacter?.name || null
-                    })
-                  });
-                  
-                  if (addToGalleryResponse.ok) {
-                    
-                  }
+          if (generatedImageUrl) {
+            // НЕ удаляем генерацию из трекера здесь - пусть generationTracker сам уведомит слушателей
+            // generationTracker.removeGeneration(taskId);
+
+            // Останавливаем прогресс заглушки
+            stopPlaceholderProgress(messageId);
+            setMessages(prev => prev.map(msg =>
+              msg.id === messageId
+                ? {
+                  ...msg,
+                  content: '',
+                  imageUrl: generatedImageUrl,
+                  ...(generationTime !== undefined && generationTime !== null ? { generationTime } : {})
                 }
-              } catch (galleryError) {
-                
+                : msg
+            ));
+            setActiveGenerations(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(messageId);
+              if (newSet.size === 0) setIsLoading(false);
+              return newSet;
+            });
+
+            // КРИТИЧЕСКИ ВАЖНО: Добавляем фото в галерею пользователя
+            try {
+              if (token) {
+                const addToGalleryResponse = await fetch('/api/v1/auth/user-gallery/add/', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                  },
+                  body: JSON.stringify({
+                    image_url: generatedImageUrl,
+                    character_name: currentCharacter?.name || null
+                  })
+                });
+
+                if (addToGalleryResponse.ok) {
+
+                }
               }
-              
-              break;
+            } catch (galleryError) {
+
             }
+
+            break;
+          }
         } else if (statusData.status === 'FAILURE' || statusData.status === 'ERROR') {
           // Удаляем генерацию из трекера при ошибке (только при ошибке)
           generationTracker.removeGeneration(taskId);
-          
+
           stopPlaceholderProgress(messageId);
           setError(statusData.message || statusData.error || 'Ошибка генерации изображения');
           setMessages(prev => prev.filter(msg => msg.id !== messageId));
@@ -1920,7 +1936,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       } catch (error) {
         // Не удаляем из трекера при ошибке опроса - продолжаем отслеживать
         // generationTracker.removeGeneration(taskId);
-        
+
         setError('Ошибка проверки статуса генерации');
         setMessages(prev => prev.filter(msg => msg.id !== messageId));
         setActiveGenerations(prev => {
@@ -1937,7 +1953,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     if (!generatedImageUrl) {
       // Не удаляем из трекера при таймауте - продолжаем отслеживать в фоне
       // generationTracker.removeGeneration(taskId);
-      
+
       stopPlaceholderProgress(messageId);
       setError('Превышено время ожидания генерации изображения');
       setMessages(prev => prev.filter(msg => msg.id !== messageId));
@@ -1961,7 +1977,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       setIsImagePromptModalOpen(true);
       return;
     }
-    
+
     const trimmedPrompt = userPrompt.trim();
     if (!trimmedPrompt) {
       return;
@@ -1992,7 +2008,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
     // Промпт для генерации фото не должен попадать в чат - это только для генерации изображения
     // Создаем только сообщение ассистента с прогрессом генерации
-    
+
     const assistantMessageId = `image-${Date.now()}`;
     const assistantMessage: Message = {
       id: assistantMessageId,
@@ -2002,10 +2018,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     };
 
     setMessages(prev => deduplicateMessages([...prev, assistantMessage]));
-    
+
     // Добавляем генерацию в очередь активных
     setActiveGenerations(prev => new Set(prev).add(assistantMessageId));
-    
+
     // УБРАН ФЕЙКОВЫЙ ПРОГРЕСС - используем только реальный из RunPod API
     setIsLoading(true);
     setError(null);
@@ -2015,10 +2031,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     try {
       // Используем оригинальный промпт на русском языке
       // Убеждаемся, что модель валидна
-      const validModel = selectedModel === 'anime' || selectedModel === 'anime-realism' || selectedModel === 'realism' 
-        ? selectedModel 
+      const validModel = selectedModel === 'anime' || selectedModel === 'anime-realism' || selectedModel === 'realism'
+        ? selectedModel
         : 'anime-realism';
-      
+
       const requestBody = {
         prompt: trimmedPrompt,
         custom_prompt: trimmedPrompt, // Передаем отредактированный промпт как custom_prompt
@@ -2028,9 +2044,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         model: validModel
         // Размеры берутся из generation_defaults.py (768x1344)
       };
-      
-      
-      
+
+
+
 
       // Запоминаем время начала генерации СРАЗУ после создания сообщения (до отправки запроса)
       // Это нужно для правильного отображения прогресса заглушки
@@ -2038,7 +2054,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       // Запускаем интервал для плавного обновления прогресса заглушки
       startPlaceholderProgress(assistantMessageId);
 
-      
+
 
       const response = await fetch('/api/v1/generate-image/', {
         method: 'POST',
@@ -2053,13 +2069,13 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         let errorData;
         try {
           errorData = await response.json();
-          
+
         } catch (e) {
           const text = await response.text();
-          
+
           errorData = { detail: text || 'Ошибка генерации изображения' };
         }
-        
+
         // Если это ошибка валидации, показываем детали
         if (response.status === 422 && errorData.detail) {
           const validationErrors = Array.isArray(errorData.detail) ? errorData.detail : [errorData.detail];
@@ -2072,19 +2088,19 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           }).join('; ');
           throw new Error(`Ошибка валидации: ${errorMessages}`);
         }
-        
+
         throw new Error(errorData.detail || errorData.message || 'Ошибка генерации изображения');
       }
 
       const data = await response.json();
-      
-      
-      
+
+
+
       // Проверяем, пришел ли синхронный ответ с URL или асинхронный с task_id
       let generatedImageUrl = data.cloud_url || data.image_url;
       let generationTime: number | undefined = data.generation_time; // Время генерации в секундах
-      
-      
+
+
       // Если пришел task_id, опрашиваем статус до получения изображения
       if (!generatedImageUrl && data.task_id) {
         // Добавляем генерацию в трекер для отслеживания даже после выхода из чата
@@ -2099,39 +2115,39 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           characterId || undefined,
           token
         );
-        
+
         const statusUrl = data.status_url || `/api/v1/generation-status/${data.task_id}`;
-        
+
         // Опрашиваем статус с интервалом
         const maxAttempts = 60; // Максимум 2 минуты (60 * 2 секунды)
         const pollInterval = 2000; // Опрашиваем каждые 2 секунды (вместо 1 секунды)
         let attempts = 0;
-        
+
         while (attempts < maxAttempts) {
           await new Promise(resolve => setTimeout(resolve, pollInterval)); // Ждем 2 секунды
-          
+
           try {
             const statusResponse = await fetch(statusUrl, {
               headers: {
                 'Authorization': `Bearer ${token}`
               }
             });
-            
+
             if (!statusResponse.ok) {
               throw new Error('Ошибка проверки статуса генерации');
             }
-            
+
             const statusData = await statusResponse.json();
-            
+
             // ЛОГИРУЕМ ПОЛНЫЙ ОТВЕТ для отладки (только первые несколько раз)
             if (attempts < 3 || attempts % 10 === 0) {
-              
+
             }
-            
+
             // ИЗВЛЕКАЕМ ПРОГРЕСС ИЗ ОТВЕТА RUNPOD API
             // Прогресс может быть в разных местах ответа
             let progressValue: number | undefined = undefined;
-            
+
             // КРИТИЧЕСКИ ВАЖНО: Проверяем статус "generating" (новый статус из бэкенда)
             if (statusData.status === 'generating' && statusData.result?.progress !== undefined) {
               const rawProgress = typeof statusData.result.progress === 'number'
@@ -2139,16 +2155,16 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 : parseInt(String(statusData.result.progress).replace('%', ''), 10);
               // Ограничиваем прогресс до 99% для статуса "generating", 100% только при SUCCESS
               progressValue = Math.min(99, Math.max(0, rawProgress));
-              
+
             }
-            
+
             // 1. Проверяем прямое поле progress (только для статуса "generating", чтобы не показывать >99%)
             if (progressValue === undefined && statusData.status === 'generating' && statusData.progress !== undefined && statusData.progress !== null) {
               const rawProgress = typeof statusData.progress === 'number'
                 ? statusData.progress
                 : parseInt(String(statusData.progress).replace('%', ''), 10);
               progressValue = Math.min(99, Math.max(0, rawProgress));
-              
+
             }
 
             // 2. Проверяем в result.progress (для статуса "generating")
@@ -2157,7 +2173,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 ? statusData.result.progress
                 : parseInt(String(statusData.result.progress).replace('%', ''), 10);
               progressValue = Math.min(99, Math.max(0, rawProgress));
-              
+
             }
 
             // 3. Проверяем в output.progress (RunPod может возвращать прогресс здесь) - только для "generating"
@@ -2168,14 +2184,14 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 if (match) {
                   const rawProgress = parseInt(match[1], 10);
                   progressValue = Math.min(99, Math.max(0, rawProgress));
-                  
+
                 }
               } else if (typeof statusData.output === 'object' && statusData.output.progress !== undefined) {
                 const rawProgress = typeof statusData.output.progress === 'number'
                   ? statusData.output.progress
                   : parseInt(String(statusData.output.progress).replace('%', ''), 10);
                 progressValue = Math.min(99, Math.max(0, rawProgress));
-                
+
               }
             }
 
@@ -2185,83 +2201,83 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               if (progressMatch) {
                 const rawProgress = parseInt(progressMatch[1], 10);
                 progressValue = Math.min(99, Math.max(0, rawProgress));
-                
+
               }
             }
-            
+
             // Определяем, нужно ли использовать заглушку (строго первые 10 секунд)
             const startTime = generationStartTimesRef.current.get(assistantMessageId);
             const elapsed = startTime ? Date.now() - startTime : 0;
             const placeholderDuration = 10000; // Строго 10 секунд
             const usePlaceholder = elapsed < placeholderDuration;
-            
+
             // Обновляем прогресс если он найден
             if (progressValue !== undefined && !isNaN(progressValue)) {
               // В первые 8 секунд используем заглушку, после - реальный прогресс
               updateMessageProgressContent(assistantMessageId, progressValue, usePlaceholder);
               if (attempts % 5 === 0) {  // Логируем каждые 5 попыток
-                
+
               }
             } else {
               // Если прогресс не найден, используем заглушку в первые 8 секунд
               if (usePlaceholder) {
                 updateMessageProgressContent(assistantMessageId, 0, true);
               }
-              
+
               // Если прогресс не найден, логируем для отладки
               if (attempts % 10 === 0) {
-                
+
               }
             }
-            
+
             // Логируем только при изменении статуса или при завершении
             if (statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED' || statusData.status === 'FAILURE' || statusData.status === 'generating' || attempts % 10 === 0) {
-              
+
             }
-            
+
             // Обрабатываем статус "generating" - продолжаем опрос
             if (statusData.status === 'generating') {
               // Продолжаем опрос, прогресс уже обновлен выше
               attempts++;
               continue;
             }
-            
+
             if (statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED') {
               // При успешном завершении устанавливаем прогресс в 100% (без заглушки)
               stopPlaceholderProgress(assistantMessageId);
               updateMessageProgressContent(assistantMessageId, 100, false);
               // Удаляем время начала генерации
               generationStartTimesRef.current.delete(assistantMessageId);
-              
+
               // URL может быть в result.image_url, result.cloud_url или напрямую в statusData
               const result = statusData.result || {};
               generatedImageUrl = result.image_url || result.cloud_url || statusData.image_url || statusData.cloud_url;
               const resultGenerationTime = result.generation_time || statusData.generation_time;
-              
+
               if (resultGenerationTime !== undefined) {
                 generationTime = resultGenerationTime;
               }
-              
+
               // Логируем только финальный результат
-              
-              
+
+
               if (generatedImageUrl) {
-                
+
                 break;
               } else {
-                
+
               }
             } else if (statusData.status === 'FAILURE' || statusData.status === 'ERROR') {
               throw new Error(statusData.message || statusData.error || 'Ошибка генерации изображения');
             }
-            
+
             attempts++;
           } catch (error) {
-            
+
             throw error;
           }
         }
-        
+
         if (!generatedImageUrl) {
           throw new Error('Превышено время ожидания генерации изображения');
         }
@@ -2270,8 +2286,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       if (!generatedImageUrl) {
         throw new Error('Не удалось получить изображение');
       }
-      
-      setMessages(prev => 
+
+      setMessages(prev =>
         prev.map(msg => {
           if (msg.id === assistantMessageId) {
             return {
@@ -2284,7 +2300,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           return msg;
         })
       );
-      
+
       // Удаляем генерацию из очереди активных после успешного завершения
       setActiveGenerations(prev => {
         const newSet = new Set(prev);
@@ -2295,7 +2311,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         }
         return newSet;
       });
-      
+
       // Очищаем время начала генерации
       stopPlaceholderProgress(assistantMessageId);
       generationStartTimesRef.current.delete(assistantMessageId);
@@ -2316,19 +2332,19 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               character_name: currentCharacter.name
             })
           });
-          
+
           if (addToGalleryResponse.ok) {
-            
+
           }
         }
       } catch (galleryError) {
-        
+
       }
 
       // ИСТОРИЯ ЧАТА: История уже сохраняется на бэкенде в /generation-status эндпоинте
       // Убрано двойное сохранение на фронтенде, чтобы избежать дублирования сообщений
       // История сохраняется через ImageGenerationHistoryService в main.py при завершении генерации
-      
+
 
       if (isAuthenticated) {
         await refreshUserStats();
@@ -2339,7 +2355,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       const errorMessage = error instanceof Error ? error.message : 'Ошибка генерации изображения';
       setError(errorMessage);
       setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
-      
+
       // Очищаем время начала генерации при ошибке
       generationStartTimesRef.current.delete(assistantMessageId);
     } finally {
@@ -2349,8 +2365,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         newSet.delete(assistantMessageId);
         // Обновляем isLoading только если нет активных генераций
         if (newSet.size === 0) {
-      setIsLoading(false);
-      }
+          setIsLoading(false);
+        }
         return newSet;
       });
     }
@@ -2434,7 +2450,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
     console.log('[ChatContainer] Создано сообщение ассистента:', assistantMessageId, 'generateImage:', generateImage);
     setMessages(prev => [...prev, assistantMessage]);
-    
+
     // Если генерация изображения, добавляем в очередь активных генераций и запускаем прогресс
     if (generateImage) {
       setActiveGenerations(prev => new Set(prev).add(assistantMessageId));
@@ -2457,7 +2473,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
       // Включаем стриминг для всех запросов
       // 
-      
+
       // Передаем выбранную модель только для PREMIUM подписки
       const requestBody: any = {
         message: originalMessage, // Отправляем оригинальное сообщение
@@ -2468,12 +2484,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         target_language: targetLanguage, // Передаем выбранный язык
         stream: true // Включаем стриминг
       };
-      
+
       // Добавляем модель только для PREMIUM
       if (normalizedSubscriptionType === 'premium' && selectedChatModel) {
         requestBody.model = selectedChatModel;
       }
-      
+
       console.log('[ChatContainer] Отправка сообщения:', {
         character: currentCharacter.name,
         message: originalMessage.substring(0, 50),
@@ -2487,7 +2503,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         headers,
         body: JSON.stringify(requestBody)
       });
-      
+
       console.log('[ChatContainer] Ответ от сервера:', {
         status: response.status,
         ok: response.ok,
@@ -2512,7 +2528,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           setIsAuthModalOpen(true);
           setError('Сессия истекла. Пожалуйста, войдите снова.');
           // Удаляем сообщения пользователя (если было) и ассистента
-          setMessages(prev => prev.filter(msg => 
+          setMessages(prev => prev.filter(msg =>
             (userMessage ? msg.id !== userMessage.id : true) && msg.id !== assistantMessageId
           ));
           setIsLoading(false);
@@ -2559,9 +2575,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
         while (true) {
           const { done, value } = await reader.read();
-          
+
           console.log('[SSE DEBUG] reader.read() вызван, done:', done, 'value length:', value?.length || 0);
-          
+
           if (done) {
             console.log('[SSE DEBUG] Поток завершен (done=true)');
             break;
@@ -2571,11 +2587,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           const decodedChunk = decoder.decode(value, { stream: true });
           console.log('[SSE DEBUG] Декодированный чанк:', decodedChunk);
           buffer += decodedChunk;
-          
+
           // Обрабатываем все полные строки
           const lines = buffer.split('\n');
           buffer = lines.pop() || ''; // Сохраняем неполную строку обратно в буфер
-          
+
           console.log('[SSE DEBUG] Обработка строк, количество:', lines.length, 'lines:', lines);
 
           for (const line of lines) {
@@ -2586,13 +2602,13 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 console.log('[SSE DEBUG] data string:', dataString);
                 const data = JSON.parse(dataString);
                 console.log('[SSE] Получены данные:', data, 'Ключи:', Object.keys(data));
-                
+
                 if (data.error) {
                   console.error('[SSE] Ошибка:', data.error);
                   setIsLoading(false);
                   throw new Error(data.error);
                 }
-                
+
                 // Обработка генерации изображений: если пришел task_id, запускаем опрос статуса
                 if (isImageGeneration && data.task_id && !data.image_url && !data.cloud_url) {
                   // Добавляем генерацию в трекер для отслеживания даже после выхода из чата
@@ -2611,19 +2627,19 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   pollImageGenerationStatus(data.task_id, assistantMessageId, authToken || undefined);
                   continue;
                 }
-                
+
                 // Обработка готового изображения из потока
                 if (isImageGeneration && (data.image_url || data.cloud_url)) {
                   const imageUrl = data.image_url || data.cloud_url;
                   // 
-                  setMessages(prev => prev.map(msg => 
-                    msg.id === assistantMessageId 
-                      ? { 
-                          ...msg, 
-                          content: '',
-                          imageUrl: imageUrl,
-                          generationTime: data.generation_time
-                        }
+                  setMessages(prev => prev.map(msg =>
+                    msg.id === assistantMessageId
+                      ? {
+                        ...msg,
+                        content: '',
+                        imageUrl: imageUrl,
+                        generationTime: data.generation_time
+                      }
                       : msg
                   ));
                   setActiveGenerations(prev => {
@@ -2634,7 +2650,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   });
                   stopPlaceholderProgress(assistantMessageId);
                   generationStartTimesRef.current.delete(assistantMessageId);
-                  
+
                   // КРИТИЧЕСКИ ВАЖНО: Добавляем фото в галерею пользователя
                   try {
                     if (authToken) {
@@ -2649,48 +2665,48 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                           character_name: currentCharacter?.name || null
                         })
                       });
-                      
+
                       if (addToGalleryResponse.ok) {
                         // 
                       }
                     }
                   } catch (galleryError) {
-                    
+
                   }
-                  
+
                   continue;
                 }
-                
+
                 console.log('[SSE DEBUG] Проверка data.content, значение:', data.content, 'typeof:', typeof data.content, 'truthy:', !!data.content);
-                
+
                 if (data.content) {
                   // Накопляем контент только если это не генерация изображения
                   if (!isImageGeneration) {
-                  accumulatedContent += data.content;
-                  
-                  // Обновляем сообщение ассистента с накопленным контентом
-                  setMessages(prev => {
-                    const messageIndex = prev.findIndex(msg => msg.id === assistantMessageId);
-                    if (messageIndex === -1) {
-                      return prev;
-                    }
-                    
-                    const updated = [...prev];
-                    updated[messageIndex] = {
-                      ...updated[messageIndex],
-                      content: accumulatedContent
-                    };
-                    
-                    return updated;
-                  });
+                    accumulatedContent += data.content;
+
+                    // Обновляем сообщение ассистента с накопленным контентом
+                    setMessages(prev => {
+                      const messageIndex = prev.findIndex(msg => msg.id === assistantMessageId);
+                      if (messageIndex === -1) {
+                        return prev;
+                      }
+
+                      const updated = [...prev];
+                      updated[messageIndex] = {
+                        ...updated[messageIndex],
+                        content: accumulatedContent
+                      };
+
+                      return updated;
+                    });
                   }
                 }
-                
+
                 if (data.done) {
                   // Стриминг завершен
                   console.log('[SSE] Стриминг завершен, isImageGeneration:', isImageGeneration);
                   if (!isImageGeneration) {
-                  setIsLoading(false);
+                    setIsLoading(false);
                   }
                   break;
                 }
@@ -2701,7 +2717,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   throw e;
                 }
                 // Иначе это ошибка парсинга, просто логируем
-                
+
               }
             }
           }
@@ -2730,7 +2746,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   });
                 }
               } catch (e) {
-                
+
               }
             }
           }
@@ -2739,24 +2755,24 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         setIsLoading(false);
       } else {
         // Обрабатываем обычный JSON ответ (fallback)
-      const data = await response.json();
-      
-      if (data.response) {
-        // Обновляем сообщение ассистента с полным ответом и изображением (если есть)
-        setMessages(prev => prev.map(msg => 
-          msg.id === assistantMessageId 
-            ? { 
-                ...msg, 
+        const data = await response.json();
+
+        if (data.response) {
+          // Обновляем сообщение ассистента с полным ответом и изображением (если есть)
+          setMessages(prev => prev.map(msg =>
+            msg.id === assistantMessageId
+              ? {
+                ...msg,
                 content: data.response,
                 imageUrl: data.image_url || data.cloud_url || undefined,
                 generationTime: data.generation_time
               }
-            : msg
-        ));
-        
-        setIsLoading(false);
-      } else {
-        throw new Error('Некорректный ответ от сервера');
+              : msg
+          ));
+
+          setIsLoading(false);
+        } else {
+          throw new Error('Некорректный ответ от сервера');
         }
       }
 
@@ -2775,12 +2791,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         assistantMessageId,
         hasToken: !!authManager.getToken()
       });
-      
+
       setError(error instanceof Error ? error.message : 'Ошибка отправки сообщения');
-      
+
       // Удаляем сообщение ассистента при ошибке
       setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
-      
+
       // Если была генерация изображения, удаляем из очереди
       if (generateImage) {
         setActiveGenerations(prev => {
@@ -2800,7 +2816,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     // Используем raw.name из expectedCharacter если передан, иначе из currentCharacter, иначе используем переданный name
     // Важно: identifier должен быть реальным именем из БД, не display_name
     let identifier = characterName; // По умолчанию используем переданный name
-    
+
     if (expectedCharacter?.raw?.name) {
       identifier = expectedCharacter.raw.name;
     } else if (currentCharacter?.raw?.name) {
@@ -2811,45 +2827,45 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     } else if (currentCharacter?.name && currentCharacter.name !== currentCharacter.display_name) {
       identifier = currentCharacter.name;
     }
-    
+
     // Проверяем, что identifier не пустой
     if (!identifier || identifier.trim() === '') {
-      
+
       return;
     }
-    
-    
-    
+
+
+
     // Отмечаем, что начинаем загрузку истории для этого персонажа
     // Сохраняем identifier в начале для проверки в конце
     const loadIdentifier = identifier;
     isLoadingHistoryRef.current = loadIdentifier;
-    
+
     try {
-      
-      
+
+
       const token = authManager.getToken();
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${encodeURIComponent(identifier)}/chat-history`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined
       });
-      
+
       if (response.status === 404) {
-        
+
         setMessages([]);
         isLoadingHistoryRef.current = null;
         return;
       }
-      
+
       if (!response.ok) {
-        
+
         setMessages([]);
         isLoadingHistoryRef.current = null;
         return;
       }
-      
+
       if (response.ok) {
         const data = await response.json();
-        
+
 
         if (data.messages && data.messages.length > 0) {
           // Преобразуем сообщения в формат, ожидаемый компонентом
@@ -2857,7 +2873,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             const rawContent = typeof msg.content === 'string' ? msg.content : '';
             // Проверяем image_url из API ответа (приоритет) или из content
             let imageUrl = msg.image_url;
-            
+
             // Если image_url нет в ответе, пытаемся извлечь из content
             if (!imageUrl) {
               const imageMatch = rawContent.match(/\[image:(.*?)\]/);
@@ -2865,17 +2881,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 imageUrl = imageMatch[1].trim();
               }
             }
-            
+
             // Очищаем content от [image:url] если он там есть
             let cleanedContent = rawContent.replace(/\n?\[image:.*?\]/g, '').trim();
-            
+
             // Если есть imageUrl, content должен быть полностью пустым (скрываем промпт)
             // Если imageUrl нет, используем очищенный content
             const finalContent = imageUrl ? '' : cleanedContent;
 
             // Логируем для отладки
             if (imageUrl) {
-              
+
             }
 
             return {
@@ -2884,54 +2900,54 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               content: finalContent,
               timestamp: new Date(msg.timestamp),
               imageUrl: imageUrl,
-              generationTime: msg.generation_time !== undefined && msg.generation_time !== null 
+              generationTime: msg.generation_time !== undefined && msg.generation_time !== null
                 ? (typeof msg.generation_time === 'number' ? msg.generation_time : parseFloat(msg.generation_time))
                 : undefined
             };
           });
-          
+
           // Улучшенная дедупликация: сначала по URL изображения, потом по ID
           const seenUrls = new Set<string>();
           const seenIds = new Map<string, Message>();
           const uniqueMessages: Message[] = [];
-          
+
           for (const msg of formattedMessages) {
             // Нормализуем URL для сравнения (убираем query параметры и якоря)
             const normalizedUrl = msg.imageUrl ? msg.imageUrl.split('?')[0].split('#')[0] : null;
-            
+
             // Если есть imageUrl, проверяем дубликаты по URL (приоритет)
             if (normalizedUrl) {
               if (seenUrls.has(normalizedUrl)) {
-                
+
                 continue; // Пропускаем дубликат по URL
               }
               seenUrls.add(normalizedUrl);
             }
-            
+
             // Проверяем дубликаты по ID
             const existing = seenIds.get(msg.id);
             if (existing) {
               // Если ID уже был, оставляем сообщение с большим количеством данных (приоритет imageUrl и generationTime)
-              if ((msg.imageUrl && !existing.imageUrl) || 
-                  (msg.generationTime && !existing.generationTime) ||
-                  (msg.imageUrl && msg.generationTime && (!existing.generationTime))) {
+              if ((msg.imageUrl && !existing.imageUrl) ||
+                (msg.generationTime && !existing.generationTime) ||
+                (msg.imageUrl && msg.generationTime && (!existing.generationTime))) {
                 // Заменяем на более полную версию
                 const index = uniqueMessages.findIndex(m => m.id === msg.id);
                 if (index !== -1) {
                   uniqueMessages[index] = msg;
                   seenIds.set(msg.id, msg);
-                  
+
                 }
               }
               continue;
             }
-            
+
             seenIds.set(msg.id, msg);
             uniqueMessages.push(msg);
           }
-          
+
           const finalMessages = deduplicateMessages(uniqueMessages);
-          
+
           // Проверяем активные генерации и обновляем сообщения, если изображения готовы
           // Это нужно для случая, когда пользователь вернулся в чат после генерации
           const activeGenerations = generationTracker.getGenerations();
@@ -2940,11 +2956,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             const genCharacterId = generation.characterId;
             const currentCharacterName = expectedCharacter?.raw?.name || expectedCharacter?.name || currentCharacter?.raw?.name || currentCharacter?.name;
             const currentCharacterId = expectedCharacter?.raw?.id || expectedCharacter?.id || currentCharacter?.raw?.id || currentCharacter?.id;
-            
-            const isForCurrentCharacter = 
+
+            const isForCurrentCharacter =
               (genCharacterName && currentCharacterName && genCharacterName.toLowerCase() === currentCharacterName.toLowerCase()) ||
               (genCharacterId && currentCharacterId && String(genCharacterId) === String(currentCharacterId));
-            
+
             if (isForCurrentCharacter) {
               // Проверяем статус генерации
               const checkGenerationStatus = async () => {
@@ -2954,17 +2970,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   const response = await fetch(statusUrl, {
                     headers: token ? { 'Authorization': `Bearer ${token}` } : undefined
                   });
-                  
+
                   if (response.ok) {
                     const statusData = await response.json();
                     if (statusData.status === 'SUCCESS' || statusData.status === 'COMPLETED') {
                       const result = statusData.result || {};
                       const imageUrl = result.image_url || result.cloud_url || statusData.image_url || statusData.cloud_url;
-                      
+
                       if (imageUrl) {
                         // Обновляем сообщение с готовым изображением
                         const messageId = generation.messageId;
-                        setMessages(prev => 
+                        setMessages(prev =>
                           prev.map(msg => {
                             if (msg.id === messageId) {
                               return {
@@ -2985,12 +3001,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   // Игнорируем ошибки проверки статуса
                 }
               };
-              
+
               // Проверяем статус асинхронно
               checkGenerationStatus();
             }
           }
-          
+
           // Устанавливаем messages синхронно, чтобы избежать race condition
           // Проверяем, что мы все еще загружаем историю для того же персонажа (защита от race condition)
           // Используем loadIdentifier, сохраненный в начале функции
@@ -2999,37 +3015,37 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           const expectedIdentifier = expectedCharacter?.raw?.name || expectedCharacter?.name;
           const matchesCurrent = currentIdentifier === loadIdentifier;
           const matchesExpected = expectedIdentifier === loadIdentifier;
-          
+
           // КРИТИЧНО: Всегда устанавливаем сообщения, если мы их загрузили
           // Упрощаем логику до максимума - устанавливаем сообщения ВСЕГДА, если они есть
           // Это важно, чтобы сообщения отображались даже при race conditions
-          
-          
+
+
           // КРИТИЧНО: Всегда устанавливаем сообщения, если они загружены
           // Не проверяем условия - просто устанавливаем
-            setMessages(finalMessages);
+          setMessages(finalMessages);
           isLoadingHistoryRef.current = null;
-          
-          } else {
+
+        } else {
           const currentIdentifier = currentCharacter?.raw?.name || currentCharacter?.name;
           const expectedIdentifier = expectedCharacter?.raw?.name || expectedCharacter?.name;
           const matchesCurrent = currentIdentifier === loadIdentifier;
           const matchesExpected = expectedIdentifier === loadIdentifier;
-          
+
           // КРИТИЧНО: Всегда устанавливаем пустой массив, если истории нет
-            
-            setMessages([]);
+
+          setMessages([]);
           isLoadingHistoryRef.current = null;
         }
       } else {
-        
+
         // КРИТИЧНО: Всегда устанавливаем пустой массив при ошибке
-          setMessages([]);
+        setMessages([]);
       }
     } catch (error) {
-      
+
       // КРИТИЧНО: Всегда устанавливаем пустой массив при ошибке
-        setMessages([]);
+      setMessages([]);
     } finally {
       // Сбрасываем флаг загрузки только если это была загрузка для текущего идентификатора
       if (isLoadingHistoryRef.current === loadIdentifier) {
@@ -3041,22 +3057,22 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
   const handleCharacterSelect = (character: Character) => {
     const characterIdentifier = character.raw?.name || character.name;
-    
-    
+
+
     // Проверяем, не загружали ли мы уже этого персонажа
     if (lastLoadedCharacterRef.current === characterIdentifier) {
-      
+
       return;
     }
-    
+
     // Очищаем messages только если персонаж действительно изменился
-    const isDifferentCharacter = currentCharacter?.name !== character.name || 
-                                 currentCharacter?.raw?.name !== character.raw?.name;
+    const isDifferentCharacter = currentCharacter?.name !== character.name ||
+      currentCharacter?.raw?.name !== character.raw?.name;
     if (isDifferentCharacter) {
-      
+
       setMessages([]);
     }
-    
+
     lastLoadedCharacterRef.current = characterIdentifier;
     setCurrentCharacter(character);
     loadCharacterData(characterIdentifier); // Загружаем данные нового персонажа
@@ -3071,35 +3087,35 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
   // Обновляем персонажа если изменился initialCharacter
   useEffect(() => {
-    
+
     if (initialCharacterIdentifier) {
       const characterIdentifier = initialCharacterIdentifier;
-      
-      
+
+
       // Проверяем, изменился ли персонаж действительно (сравниваем по raw.name или name)
       const currentIdentifier = currentCharacter?.raw?.name || currentCharacter?.name;
       const newIdentifier = initialCharacter.raw?.name || initialCharacter.name;
       const isNewCharacter = currentIdentifier !== newIdentifier;
-      
+
       if (isNewCharacter) {
-        
+
         // НЕ сбрасываем isLoadingHistoryRef здесь - это вызовет race condition
         // Вместо этого сбросим его только в самом начале loadChatHistory
         setMessages([]); // Очищаем только при реальной смене персонажа
       } else {
-        
+
       }
 
       // Проверяем, не загружали ли мы уже этого персонажа
       if (lastLoadedCharacterRef.current !== characterIdentifier) {
         lastLoadedCharacterRef.current = characterIdentifier;
-      setCurrentCharacter(initialCharacter);
-      loadCharacterData(characterIdentifier);
-      // Загружаем историю всегда, даже если персонаж не изменился (на случай, если история обновилась)
-      loadChatHistory(characterIdentifier, initialCharacter); // Передаем initialCharacter для правильного identifier
-      fetchPaidAlbumStatus(characterIdentifier);
+        setCurrentCharacter(initialCharacter);
+        loadCharacterData(characterIdentifier);
+        // Загружаем историю всегда, даже если персонаж не изменился (на случай, если история обновилась)
+        loadChatHistory(characterIdentifier, initialCharacter); // Передаем initialCharacter для правильного identifier
+        fetchPaidAlbumStatus(characterIdentifier);
       } else {
-        
+
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3107,33 +3123,33 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
   // Загружаем персонажа из URL, если initialCharacter не передан
   useEffect(() => {
-    
+
     // Если initialCharacter не передан и currentCharacter тоже null, пытаемся загрузить из URL
     // Также проверяем, что мы еще не загружали из URL
     if (!initialCharacter && !currentCharacter && !isLoadingFromUrlRef.current) {
       const urlParams = new URLSearchParams(window.location.search);
       const characterId = urlParams.get('character');
-      
+
       if (characterId) {
-      
-      isLoadingFromUrlRef.current = true; // Устанавливаем флаг загрузки
-      
-      // Функция для загрузки персонажа по ID
-      const loadCharacterFromUrl = async () => {
+
+        isLoadingFromUrlRef.current = true; // Устанавливаем флаг загрузки
+
+        // Функция для загрузки персонажа по ID
+        const loadCharacterFromUrl = async () => {
           try {
             // Сначала проверяем localStorage
             const savedCharacter = localStorage.getItem(`character_${characterId}`);
             if (savedCharacter) {
               try {
                 const character = JSON.parse(savedCharacter);
-                
+
                 setCurrentCharacter(character);
-                
+
                 // Используем raw.name (реальное имя из БД) для загрузки истории
                 // Если raw.name нет, используем name, но лучше загрузить полные данные через loadCharacterData
                 const characterIdentifier = character.raw?.name || character.name;
-                
-                
+
+
                 if (characterIdentifier) {
                   // Проверяем, не загружали ли мы уже этого персонажа
                   if (lastLoadedCharacterRef.current !== characterIdentifier) {
@@ -3147,17 +3163,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                       fetchPaidAlbumStatus(characterIdentifier);
                     }
                   } else {
-                    
+
                     setCurrentCharacter(character); // Устанавливаем персонажа, но не загружаем данные повторно
                   }
                 } else {
-                  
+
                   // Если нет identifier, загружаем из API
                   throw new Error('No identifier in localStorage character');
                 }
                 return;
               } catch (parseError) {
-                
+
                 // Продолжаем загрузку из API
               }
             }
@@ -3166,8 +3182,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${encodeURIComponent(characterId)}/with-creator`);
             if (response.ok) {
               const characterData = await response.json();
-              
-              
+
+
               // Создаем объект персонажа с правильной структурой
               const character = {
                 id: characterData.id?.toString() || characterId,
@@ -3177,21 +3193,21 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 avatar: characterData.avatar || '',
                 raw: characterData // Сохраняем raw данные для правильной работы с именем
               };
-              
+
               // Сохраняем в localStorage для будущего использования
               try {
                 localStorage.setItem(`character_${characterId}`, JSON.stringify(character));
-                
+
               } catch (storageError) {
-                
+
               }
-              
+
               setCurrentCharacter(character);
-              
+
               // Используем raw.name (реальное имя из БД) для загрузки истории
               const characterIdentifier = characterData.name || characterId;
-              
-              
+
+
               if (characterIdentifier) {
                 // Проверяем, не загружали ли мы уже этого персонажа
                 if (lastLoadedCharacterRef.current !== characterIdentifier) {
@@ -3203,24 +3219,24 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   loadChatHistory(characterIdentifier, character);
                   fetchPaidAlbumStatus(characterIdentifier);
                 } else {
-                  
+
                   setCurrentCharacter(character); // Устанавливаем персонажа, но не загружаем данные повторно
                 }
               } else {
-                
+
                 setError('Не удалось определить идентификатор персонажа');
               }
             } else {
               const errorText = await response.text().catch(() => 'Unknown error');
-              
-              
+
+
               // Если персонаж не найден (404), показываем ошибку и очищаем localStorage
               if (response.status === 404) {
-                
+
                 try {
                   localStorage.removeItem(`character_${characterId}`);
                 } catch (e) {
-                  
+
                 }
                 // Устанавливаем ошибку, чтобы показать сообщение пользователю
                 setError(`Персонаж с ID "${characterId}" не найден. Возможно, он был удален.`);
@@ -3230,7 +3246,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               }
             }
           } catch (error) {
-            
+
             setError(error instanceof Error ? error.message : 'Не удалось загрузить персонажа');
           } finally {
             isLoadingFromUrlRef.current = false; // Сбрасываем флаг загрузки
@@ -3239,7 +3255,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
         loadCharacterFromUrl();
       } else {
-        
+
         // Если нет параметра character и нет initialCharacter, показываем ошибку
         if (!initialCharacter) {
           setError('Персонаж не выбран. Выберите персонажа на главной странице.');
@@ -3254,10 +3270,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     authManager.setTokens(accessToken, refreshToken);
     setIsAuthModalOpen(false);
     setAuthMode('login');
-    
+
     // Небольшая задержка, чтобы токены успели сохраниться в localStorage
     await new Promise(resolve => setTimeout(resolve, 100));
-    
+
     // Обновляем состояние аутентификации через checkAuth для надежности
     const userInfo = await checkAuth();
     if (userInfo) {
@@ -3270,7 +3286,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       }
     } else {
       // Если checkAuth не сработал, устанавливаем состояние вручную
-      
+
       setIsAuthenticated(true);
     }
   };
@@ -3360,7 +3376,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
       // Если в ответе есть обновленный баланс, используем его для немедленного обновления
       if (data.coins !== undefined && typeof data.coins === 'number') {
-        
+
         // Диспатчим событие с новым балансом для немедленного обновления
         window.dispatchEvent(new CustomEvent('balance-update', { detail: { coins: data.coins } }));
         // Не отправляем второе событие, так как баланс уже обновлен
@@ -3371,12 +3387,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           window.dispatchEvent(new Event('balance-update'));
         }, 200);
       }
-      
+
       const identifier = currentCharacter.raw?.name || currentCharacter.name;
       await fetchPaidAlbumStatus(identifier);
       handleOpenPaidAlbumView();
     } catch (error) {
-      
+
       setPaidAlbumError(error instanceof Error ? error.message : 'Не удалось разблокировать альбом');
     } finally {
       setIsUnlockingAlbum(false);
@@ -3462,10 +3478,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       // Обновляем статус альбома (используем raw.name если доступен)
       const identifier = currentCharacter?.raw?.name || characterName;
       await fetchPaidAlbumStatus(identifier);
-      
-      
+
+
     } catch (error) {
-      
+
       throw error;
     }
   }, [isAuthenticated, fetchPaidAlbumStatus]);
@@ -3512,11 +3528,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       }
 
       const data = await response.json();
-      
+
       // Обновляем счетчик фото в профиле
       window.dispatchEvent(new CustomEvent('gallery-update'));
     } catch (error) {
-      
+
       throw error;
     }
   }, [isAuthenticated]);
@@ -3540,7 +3556,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         clearChat();
         break;
       default:
-        
+
     }
   };
 
@@ -3549,7 +3565,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     if (newLanguage === targetLanguage) {
       return;
     }
-    
+
     // Если есть сообщения в чате, показываем модальное окно
     if (messages.length > 0) {
       setPendingLanguage(newLanguage);
@@ -3580,15 +3596,15 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const clearChat = async () => {
     try {
       if (!currentCharacter) return;
-      
-      
+
+
 
       const token = authManager.getToken();
       if (!token) {
-        
+
         return;
       }
-      
+
       // Очищаем историю в базе данных через правильный endpoint
       const response = await authManager.fetchWithAuth(
         `/api/v1/chat-history/clear-history`,
@@ -3603,31 +3619,31 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           })
         }
       );
-      
+
       if (response.ok) {
         const data = await response.json();
-        
-        
+
+
         // Очищаем локальное состояние
         setMessages([]);
         setError(null);
-        
+
         // Диспатчим событие для обновления страницы истории
         // Используем name (как возвращается из API истории), а не display_name
         const characterName = currentCharacter.name;
-        
+
         window.dispatchEvent(new CustomEvent('chat-history-cleared', {
           detail: { characterName: characterName }
         }));
-        
+
       } else {
-        
+
         // Все равно очищаем локальное состояние
         setMessages([]);
         setError(null);
       }
     } catch (error) {
-      
+
       // Все равно очищаем локальное состояние
       setMessages([]);
       setError(null);
@@ -3658,21 +3674,21 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   // Показываем спиннер только если персонаж еще не загружен И идет загрузка
   // Если персонаж уже есть, показываем интерфейс даже при isLoading (например, при генерации изображения)
   // Если персонаж не найден (есть ошибка), показываем сообщение об ошибке
-  
+
   // Используем currentCharacter или initialCharacter для проверки
   const effectiveCharacterForRender = currentCharacter || initialCharacter;
-  
+
   // Если есть сообщения, но нет персонажа - все равно показываем интерфейс (персонаж может загружаться)
   // Это важно, чтобы сообщения отображались даже если персонаж еще загружается
   const hasMessages = messages.length > 0;
-  
-  
+
+
   // УБРАНО: проверки, которые блокируют отображение чата
   // Чат всегда должен отображаться, даже если персонаж еще загружается или есть ошибки
   // Показываем спиннер ТОЛЬКО если идет загрузка И нет персонажа, нет сообщений И нет ошибки
   // Если есть хотя бы что-то одно (персонаж ИЛИ сообщения) - показываем интерфейс
   // const shouldShowLoading = isLoading && !effectiveCharacterForRender && !hasMessages && !error;
-  
+
   // if (shouldShowLoading) {
   //   
   //   return (
@@ -3691,7 +3707,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   //     </div>
   //   );
   // }
-  
+
   // Если есть ошибка и нет персонажа/сообщений - показываем ошибку
   // if (error && !effectiveCharacterForRender && !hasMessages) {
   //   
@@ -3729,7 +3745,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   //     </div>
   //   );
   // }
-  
+
   // Если дошли сюда - значит есть персонаж ИЛИ сообщения - показываем интерфейс
   // Используем effectiveCharacterForRender для рендера
   const characterForRender = currentCharacter || initialCharacter;
@@ -3751,19 +3767,19 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         if (!m) return false;
         // Для сообщений с изображением используем content + imageUrl для обнаружения дубликатов
         // Для текстовых сообщений используем id
-        const key = m.imageUrl && m.imageUrl.trim() !== '' 
-          ? `${m.content || ''}_${m.imageUrl.split('?')[0].split('#')[0]}` 
+        const key = m.imageUrl && m.imageUrl.trim() !== ''
+          ? `${m.content || ''}_${m.imageUrl.split('?')[0].split('#')[0]}`
           : m.id;
-        
+
         if (seen.has(key)) {
-          
+
           return false;
         }
         seen.add(key);
         return true;
       });
     } catch (error) {
-      
+
       // В случае ошибки возвращаем пустой массив или оригинальный массив, если он валиден
       if (!messages || !Array.isArray(messages)) {
         return [];
@@ -3782,7 +3798,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   return (
     <Container>
       <MainContent>
-        <GlobalHeader 
+        <GlobalHeader
           onShop={onShop}
           onLogin={() => {
             setAuthMode('login');
@@ -3803,7 +3819,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           refreshTrigger={balanceRefreshTrigger}
           currentCharacterId={currentCharacter?.id}
         />
-        
+
         {/* Кнопки альбома для мобильных устройств - под хедером */}
         <MobileAlbumButtonsContainer>
           {isPaidAlbumUnlocked || (normalizedSubscriptionType as string) === 'premium' ? (
@@ -3812,7 +3828,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               Открыть альбом
             </MobileAlbumButton>
           ) : (
-            <MobileAlbumButton 
+            <MobileAlbumButton
               onClick={handleUnlockPaidAlbum}
               disabled={isUnlockingAlbum || !isAuthenticated || userCoins < PAID_ALBUM_COST}
             >
@@ -3832,7 +3848,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
           {/* Кнопка расширения для владельца */}
           {isOwner && (
-            <MobileAlbumButton 
+            <MobileAlbumButton
               onClick={() => {
                 if (canCreatePaidAlbum) {
                   handleOpenPaidAlbumBuilderView();
@@ -3847,10 +3863,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             </MobileAlbumButton>
           )}
         </MobileAlbumButtonsContainer>
-        
+
         <ChatContentWrapper>
           <ChatMessagesArea style={{ zIndex: 10, position: 'relative' }}>
-            <ChatArea 
+            <ChatArea
               onSendMessage={handleSendMessage}
               messages={uniqueMessages}
               isLoading={isLoading}
@@ -3859,8 +3875,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               characterName={characterForRender?.name || ''}
               characterAvatar={characterPhotos && characterPhotos.length > 0 ? characterPhotos[0] : undefined}
               voiceUrl={(() => {
-                const voiceUrl = currentCharacter?.voice_id 
-                  ? `/default_character_voices/${currentCharacter.voice_id}` 
+                const voiceUrl = currentCharacter?.voice_id
+                  ? `/default_character_voices/${currentCharacter.voice_id}`
                   : currentCharacter?.voice_url;
                 console.log('🔊 [ChatContainer] ПЕРЕДАЧА ДАННЫХ В ChatArea:', {
                   totalMessages: uniqueMessages.length,
@@ -3889,39 +3905,33 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               onAddToGallery={handleAddToGallery}
               creatorInfo={creatorInfo}
             />
-            
+
             {error && (
-              <ErrorMessage 
+              <ErrorMessage
                 message={error}
                 onClose={() => setError(null)}
               />
             )}
-            
-            <MessageInput 
+
+            <MessageInput
               onSendMessage={handleSendMessage}
               targetLanguage={targetLanguage}
               onLanguageChange={handleLanguageChange}
               isPremium={normalizedSubscriptionType === 'premium'}
-              onSelectModel={() => {
-                if (normalizedSubscriptionType === 'premium') {
-                  setIsModelSelectorOpen(true);
-                } else {
-                  setIsModelAccessDeniedOpen(true);
-                }
-              }}
+              onSelectModel={() => setIsModelSelectorOpen(true)}
               onGenerateImage={() => {
                 // Открываем модалку с предзаполненным промптом из данных персонажа (проверяем несколько источников)
                 const characterForData = currentCharacter || initialCharacter;
-                const appearance = (characterForData as any)?.character_appearance 
-                  || (characterForData as any)?.raw?.character_appearance 
-                  || (characterForData as any)?.appearance 
+                const appearance = (characterForData as any)?.character_appearance
+                  || (characterForData as any)?.raw?.character_appearance
+                  || (characterForData as any)?.appearance
                   || '';
-                const location = (characterForData as any)?.location 
-                  || (characterForData as any)?.raw?.location 
+                const location = (characterForData as any)?.location
+                  || (characterForData as any)?.raw?.location
                   || '';
                 const parts = [appearance, location].filter(p => p && p.trim());
                 const defaultPrompt = parts.length > 0 ? parts.join('\n') : '';
-                
+
                 setImagePromptInput(defaultPrompt);
                 setIsImagePromptModalOpen(true);
               }}
@@ -3930,15 +3940,15 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               }}
               onClearChat={clearChat}
               onTipCreator={() => {
-                
-                
-                
+
+
+
                 if (!isAuthenticated) {
-                  
+
                   setAuthMode('login');
                   setIsAuthModalOpen(true);
                 } else {
-                  
+
                   setIsTipModalOpen(true);
                 }
               }}
@@ -3969,169 +3979,200 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           {(!isMobile || messages.length === 0) && (
             <PaidAlbumPanel>
               <PaidAlbumTitle>
-              Разблокируйте обнажённые фото {albumCharacterName}
-            </PaidAlbumTitle>
-            <PaidAlbumBadge>
-              <FiImage size={16} />
-              Стоимость: {PAID_ALBUM_COST} кредитов
-            </PaidAlbumBadge>
-            <PaidAlbumDescription>
-              Доступ к эксклюзивному альбому персонажа. После разблокировки фотографии будут доступны всегда.
-            </PaidAlbumDescription>
+                Разблокируйте обнажённые фото {albumCharacterName}
+              </PaidAlbumTitle>
+              <PaidAlbumBadge>
+                <FiImage size={16} />
+                Стоимость: {PAID_ALBUM_COST} кредитов
+              </PaidAlbumBadge>
+              <PaidAlbumDescription>
+                Доступ к эксклюзивному альбому персонажа. После разблокировки фотографии будут доступны всегда.
+              </PaidAlbumDescription>
 
-            {/* Индикатор очереди генераций - вверху панели */}
-            <GenerationQueueIndicator>
-              {Array.from({ length: getGenerationQueueLimit }).map((_, index) => (
-                <QueueBar 
-                  key={index} 
-                  $isFilled={index < activeGenerations.size}
-                />
-              ))}
-            </GenerationQueueIndicator>
-            <QueueLabel>Очередь генерации</QueueLabel>
+              {/* Индикатор очереди генераций - вверху панели */}
+              <GenerationQueueIndicator>
+                {Array.from({ length: getGenerationQueueLimit }).map((_, index) => (
+                  <QueueBar
+                    key={index}
+                    $isFilled={index < activeGenerations.size}
+                  />
+                ))}
+              </GenerationQueueIndicator>
+              <QueueLabel>Очередь генерации</QueueLabel>
 
-            {/* Карточка персонажа сразу после очереди */}
-            {currentCharacter && (
-              <CharacterCardWrapper>
-                <CharacterCard
-                  character={{
-                    id: currentCharacter.id,
-                    name: currentCharacter.name,
-                    description: currentCharacter.description || '',
-                    avatar: currentCharacter.avatar || currentCharacter.name.charAt(0).toUpperCase(),
-                    photos: characterPhotos,
-                    tags: [],
-                    author: creatorInfo?.username || 'Unknown',
-                    likes: currentCharacter.likes || 0,
-                    dislikes: (currentCharacter as any).dislikes || 0,
-                    views: currentCharacter.views || 0,
-                    comments: currentCharacter.comments || 0
-                  }}
-                  onClick={() => {}}
-                  isAuthenticated={isAuthenticated}
-                  isFavorite={isCharacterFavorite}
-                  showRatings={true}
-                  onFavoriteToggle={async () => {
-                    // Обновляем состояние избранного после переключения, загружая актуальное состояние с сервера
-                    if (currentCharacter?.id) {
-                      try {
-                        const characterId = typeof currentCharacter.id === 'number' 
-                          ? currentCharacter.id 
-                          : parseInt(currentCharacter.id, 10);
-                        
-                        if (!isNaN(characterId)) {
-                          const favoriteResponse = await authManager.fetchWithAuth(
-                            API_CONFIG.CHECK_FAVORITE(characterId)
-                          );
-                          if (favoriteResponse.ok) {
-                            const favoriteData = await favoriteResponse.json();
-                            setIsCharacterFavorite(favoriteData?.is_favorite || false);
+              {/* Карточка персонажа сразу после очереди */}
+              {currentCharacter && (
+                <CharacterCardWrapper>
+                  <CharacterCard
+                    character={{
+                      id: currentCharacter.id,
+                      name: currentCharacter.name,
+                      description: currentCharacter.description || '',
+                      avatar: currentCharacter.avatar || currentCharacter.name.charAt(0).toUpperCase(),
+                      photos: characterPhotos,
+                      tags: [],
+                      author: creatorInfo?.username || 'Unknown',
+                      likes: currentCharacter.likes || 0,
+                      dislikes: currentCharacter.dislikes || 0,
+                      views: currentCharacter.views || 0,
+                      comments: currentCharacter.comments || 0
+                    }}
+                    onClick={() => { }}
+                    isAuthenticated={isAuthenticated}
+                    isFavorite={isCharacterFavorite}
+                    showRatings={true}
+                    onFavoriteToggle={async () => {
+                      // Обновляем состояние избранного после переключения, загружая актуальное состояние с сервера
+                      if (currentCharacter?.id) {
+                        try {
+                          const characterId = typeof currentCharacter.id === 'number'
+                            ? currentCharacter.id
+                            : parseInt(currentCharacter.id, 10);
+
+                          if (!isNaN(characterId)) {
+                            const favoriteResponse = await authManager.fetchWithAuth(
+                              API_CONFIG.CHECK_FAVORITE(characterId)
+                            );
+                            if (favoriteResponse.ok) {
+                              const favoriteData = await favoriteResponse.json();
+                              setIsCharacterFavorite(favoriteData?.is_favorite || false);
+                            }
                           }
+                        } catch (error) {
+
+                          // В случае ошибки просто переключаем состояние локально
+                          setIsCharacterFavorite(!isCharacterFavorite);
                         }
-                      } catch (error) {
-                        
-                        // В случае ошибки просто переключаем состояние локально
+                      } else {
                         setIsCharacterFavorite(!isCharacterFavorite);
                       }
-                    } else {
-                      setIsCharacterFavorite(!isCharacterFavorite);
-                    }
-                  }}
-                  onPhotoGeneration={() => {
-                    if (onOpenPaidAlbumBuilder && currentCharacter) {
-                      onOpenPaidAlbumBuilder(currentCharacter);
-                    }
-                  }}
-                  onPaidAlbum={() => {
-                    if (onOpenPaidAlbum && currentCharacter) {
-                      onOpenPaidAlbum(currentCharacter);
-                    } else {
-                      handleOpenPaidAlbumView();
-                    }
-                  }}
-                />
-              </CharacterCardWrapper>
-            )}
-
-            {creatorInfo && (
-              <CreatorInfoWrapper>
-                {creatorInfo.avatar_url ? (
-                  <CreatorAvatar 
-                    src={creatorInfo.avatar_url} 
-                    alt={creatorInfo.username || 'Создатель'}
+                    }}
+                    onPhotoGeneration={() => {
+                      if (onOpenPaidAlbumBuilder && currentCharacter) {
+                        onOpenPaidAlbumBuilder(currentCharacter);
+                      }
+                    }}
+                    onPaidAlbum={() => {
+                      if (onOpenPaidAlbum && currentCharacter) {
+                        onOpenPaidAlbum(currentCharacter);
+                      } else {
+                        handleOpenPaidAlbumView();
+                      }
+                    }}
                   />
-                ) : (
-                  <CreatorAvatarPlaceholder>
-                    {(creatorInfo.username || String(creatorInfo.id)).charAt(0).toUpperCase()}
-                  </CreatorAvatarPlaceholder>
-                )}
-                <span>Создал: </span>
-                <CreatorLink 
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    
-                    if (onProfile) {
-                      onProfile(creatorInfo.id);
-                    } else {
-                      window.dispatchEvent(new CustomEvent('navigate-to-profile', { 
-                        detail: { userId: creatorInfo.id } 
-                      }));
-                    }
-                  }}
-                >
-                  {creatorInfo.username && creatorInfo.username.trim() ? creatorInfo.username : `user_${creatorInfo.id}`}
-                </CreatorLink>
-              </CreatorInfoWrapper>
-            )}
+                </CharacterCardWrapper>
+              )}
 
-            {(() => {
-              // Альтернативная проверка владельца через creatorInfo
-              const isOwnerByCreatorInfo = creatorInfo && userInfo && creatorInfo.id === userInfo.id;
-              // Также проверяем через currentCharacter.user_id, если есть
-              const isOwnerByCharacter = characterForRender?.user_id && userInfo && characterForRender.user_id === userInfo.id;
-              const isOwner = paidAlbumStatus?.is_owner || isOwnerByCreatorInfo || isOwnerByCharacter;
-              
-              
-              // ПРИОРИТЕТ 1: Если пользователь является создателем
-              if (isOwner) {
-                // Если есть подписка STANDARD/PREMIUM - показываем кнопку "Расширить альбом"
-                if (canCreatePaidAlbum) {
+              {creatorInfo && (
+                <CreatorInfoWrapper>
+                  {creatorInfo.avatar_url ? (
+                    <CreatorAvatar
+                      src={creatorInfo.avatar_url}
+                      alt={creatorInfo.username || 'Создатель'}
+                    />
+                  ) : (
+                    <CreatorAvatarPlaceholder>
+                      {(creatorInfo.username || String(creatorInfo.id)).charAt(0).toUpperCase()}
+                    </CreatorAvatarPlaceholder>
+                  )}
+                  <span>Создал: </span>
+                  <CreatorLink
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+
+                      if (onProfile) {
+                        onProfile(creatorInfo.id);
+                      } else {
+                        window.dispatchEvent(new CustomEvent('navigate-to-profile', {
+                          detail: { userId: creatorInfo.id }
+                        }));
+                      }
+                    }}
+                  >
+                    {creatorInfo.username && creatorInfo.username.trim() ? creatorInfo.username : `user_${creatorInfo.id}`}
+                  </CreatorLink>
+                </CreatorInfoWrapper>
+              )}
+
+              {(() => {
+                // Альтернативная проверка владельца через creatorInfo
+                const isOwnerByCreatorInfo = creatorInfo && userInfo && creatorInfo.id === userInfo.id;
+                // Также проверяем через currentCharacter.user_id, если есть
+                const isOwnerByCharacter = characterForRender?.user_id && userInfo && characterForRender.user_id === userInfo.id;
+                const isOwner = paidAlbumStatus?.is_owner || isOwnerByCreatorInfo || isOwnerByCharacter;
+
+
+                // ПРИОРИТЕТ 1: Если пользователь является создателем
+                if (isOwner) {
+                  // Если есть подписка STANDARD/PREMIUM - показываем кнопку "Расширить альбом"
+                  if (canCreatePaidAlbum) {
+                    return (
+                      <>
+                        {isPaidAlbumUnlocked && (
+                          <PaidAlbumButton onClick={handleOpenPaidAlbumView}>
+                            <FiUnlock />
+                            Открыть альбом
+                          </PaidAlbumButton>
+                        )}
+                        <PaidAlbumButton
+                          $variant={isPaidAlbumUnlocked ? "secondary" : undefined}
+                          onClick={handleOpenPaidAlbumBuilderView}
+                        >
+                          <FiImage />
+                          Расширить альбом
+                        </PaidAlbumButton>
+                        {!isPaidAlbumUnlocked && (
+                          <PaidAlbumInfo>
+                            Вы создатель этого персонажа. Можете создать платный альбом и добавлять в него фотографии.
+                          </PaidAlbumInfo>
+                        )}
+                        {isPaidAlbumUnlocked && (
+                          <PaidAlbumInfo>
+                            Альбом разблокирован. Вы можете расширить коллекцию фотографий.
+                          </PaidAlbumInfo>
+                        )}
+                      </>
+                    );
+                  }
+
+                  // Если нет подписки STANDARD/PREMIUM - показываем кнопку "Разблокировать" и ниже "Расширить альбом"
+                  // Для BASE подписки показываем кнопку "Разблокировать" с модальным окном
+                  if (normalizedSubscriptionType === 'base') {
+                    return (
+                      <>
+                        {isPaidAlbumUnlocked ? (
+                          <PaidAlbumButton
+                            onClick={handleOpenPaidAlbumView}
+                          >
+                            <FiUnlock />
+                            Открыть
+                          </PaidAlbumButton>
+                        ) : (
+                          <PaidAlbumButton
+                            onClick={handleUnlockPaidAlbum}
+                          >
+                            <FiLock />
+                            Разблокировать
+                          </PaidAlbumButton>
+                        )}
+                        <PaidAlbumButton
+                          $variant="secondary"
+                          onClick={() => setIsUpgradeModalOpen(true)}
+                        >
+                          <FiImage />
+                          Расширить альбом
+                        </PaidAlbumButton>
+                        {paidAlbumError && <PaidAlbumError>{paidAlbumError}</PaidAlbumError>}
+                      </>
+                    );
+                  }
+
+                  // Для FREE подписки показываем обычную кнопку разблокировки и ниже "Расширить альбом"
+                  // Для PREMIUM показываем "Открыть" вместо "Разблокировать"
                   return (
                     <>
-                      {isPaidAlbumUnlocked && (
-                <PaidAlbumButton onClick={handleOpenPaidAlbumView}>
-                  <FiUnlock />
-                  Открыть альбом
-                </PaidAlbumButton>
-                      )}
-                      <PaidAlbumButton 
-                        $variant={isPaidAlbumUnlocked ? "secondary" : undefined}
-                        onClick={handleOpenPaidAlbumBuilderView}
-                      >
-                    <FiImage />
-                    Расширить альбом
-                  </PaidAlbumButton>
-                      {!isPaidAlbumUnlocked && (
-                <PaidAlbumInfo>
-                          Вы создатель этого персонажа. Можете создать платный альбом и добавлять в него фотографии.
-                </PaidAlbumInfo>
-                      )}
-                      {isPaidAlbumUnlocked && (
-                  <PaidAlbumInfo>
-                          Альбом разблокирован. Вы можете расширить коллекцию фотографий.
-                  </PaidAlbumInfo>
-                )}
-                    </>
-                  );
-                }
-                
-                // Если нет подписки STANDARD/PREMIUM - показываем кнопку "Разблокировать" и ниже "Расширить альбом"
-                // Для BASE подписки показываем кнопку "Разблокировать" с модальным окном
-                if (normalizedSubscriptionType === 'base') {
-                  return (
-                    <>
-                      {isPaidAlbumUnlocked ? (
+                      {isPaidAlbumUnlocked || (normalizedSubscriptionType as string) === 'premium' ? (
                         <PaidAlbumButton
                           onClick={handleOpenPaidAlbumView}
                         >
@@ -4141,9 +4182,19 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                       ) : (
                         <PaidAlbumButton
                           onClick={handleUnlockPaidAlbum}
+                          disabled={isUnlockingAlbum || userCoins < PAID_ALBUM_COST}
                         >
-                          <FiLock />
-                          Разблокировать
+                          {isUnlockingAlbum ? (
+                            <>
+                              <LoadingSpinner size="sm" />
+                              Разблокируем...
+                            </>
+                          ) : (
+                            <>
+                              <FiLock />
+                              Разблокировать
+                            </>
+                          )}
                         </PaidAlbumButton>
                       )}
                       <PaidAlbumButton
@@ -4153,12 +4204,16 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                         <FiImage />
                         Расширить альбом
                       </PaidAlbumButton>
+                      <PaidAlbumInfo>
+                        Доступно кредитов: {userCoins}. Разблокировка за 200 кредитов.
+                      </PaidAlbumInfo>
                       {paidAlbumError && <PaidAlbumError>{paidAlbumError}</PaidAlbumError>}
                     </>
                   );
                 }
-                
-                // Для FREE подписки показываем обычную кнопку разблокировки и ниже "Расширить альбом"
+
+                // Обычный пользователь, альбом не разблокирован
+                // Но если пользователь является создателем, показываем кнопку "Расширить альбом" ниже
                 // Для PREMIUM показываем "Открыть" вместо "Разблокировать"
                 return (
                   <>
@@ -4187,75 +4242,30 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                         )}
                       </PaidAlbumButton>
                     )}
-                    <PaidAlbumButton
-                      $variant="secondary"
-                      onClick={() => setIsUpgradeModalOpen(true)}
-                    >
-                      <FiImage />
-                      Расширить альбом
-                    </PaidAlbumButton>
+                    {/* Показываем кнопку "Расширить альбом" для создателя, даже если он не в блоке isOwner */}
+                    {isOwner && (
+                      <PaidAlbumButton
+                        $variant="secondary"
+                        onClick={() => {
+                          if (canCreatePaidAlbum) {
+                            handleOpenPaidAlbumBuilderView();
+                          } else {
+                            setIsUpgradeModalOpen(true);
+                          }
+                        }}
+                      >
+                        <FiImage />
+                        Расширить альбом
+                      </PaidAlbumButton>
+                    )}
                     <PaidAlbumInfo>
                       Доступно кредитов: {userCoins}. Разблокировка за 200 кредитов.
                     </PaidAlbumInfo>
                     {paidAlbumError && <PaidAlbumError>{paidAlbumError}</PaidAlbumError>}
                   </>
                 );
-              }
-              
-              // Обычный пользователь, альбом не разблокирован
-              // Но если пользователь является создателем, показываем кнопку "Расширить альбом" ниже
-              // Для PREMIUM показываем "Открыть" вместо "Разблокировать"
-              return (
-              <>
-                {isPaidAlbumUnlocked || (normalizedSubscriptionType as string) === 'premium' ? (
-                  <PaidAlbumButton
-                    onClick={handleOpenPaidAlbumView}
-                  >
-                    <FiUnlock />
-                    Открыть
-                  </PaidAlbumButton>
-                ) : (
-                  <PaidAlbumButton
-                    onClick={handleUnlockPaidAlbum}
-                    disabled={isUnlockingAlbum || userCoins < PAID_ALBUM_COST}
-                  >
-                    {isUnlockingAlbum ? (
-                      <>
-                        <LoadingSpinner size="sm" />
-                        Разблокируем...
-                      </>
-                    ) : (
-                      <>
-                        <FiLock />
-                        Разблокировать
-                      </>
-                    )}
-                  </PaidAlbumButton>
-                )}
-                  {/* Показываем кнопку "Расширить альбом" для создателя, даже если он не в блоке isOwner */}
-                  {isOwner && (
-                    <PaidAlbumButton
-                      $variant="secondary"
-                      onClick={() => {
-                        if (canCreatePaidAlbum) {
-                          handleOpenPaidAlbumBuilderView();
-                        } else {
-                          setIsUpgradeModalOpen(true);
-                        }
-                      }}
-                    >
-                      <FiImage />
-                      Расширить альбом
-                    </PaidAlbumButton>
-                  )}
-                <PaidAlbumInfo>
-                 Доступно кредитов: {userCoins}. Разблокировка за 200 кредитов.
-                </PaidAlbumInfo>
-                {paidAlbumError && <PaidAlbumError>{paidAlbumError}</PaidAlbumError>}
-              </>
-              );
-            })()}
-          </PaidAlbumPanel>
+              })()}
+            </PaidAlbumPanel>
           )}
         </ChatContentWrapper>
       </MainContent>
@@ -4264,12 +4274,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         <UpgradeOverlay onClick={() => setIsUpgradeModalOpen(false)}>
           <UpgradeModal onClick={(e) => e.stopPropagation()}>
             <UpgradeModalTitle>
-              {normalizedSubscriptionType === 'base' 
-                ? 'Платные альбомы недоступны' 
+              {normalizedSubscriptionType === 'base'
+                ? 'Платные альбомы недоступны'
                 : 'Разблокировка альбома недоступна'}
             </UpgradeModalTitle>
             <UpgradeModalText>
-              {normalizedSubscriptionType === 'base' 
+              {normalizedSubscriptionType === 'base'
                 ? 'Платные альбомы доступны только для подписчиков Standard и Premium. Оформите подписку, чтобы создавать и расширять платные альбомы.'
                 : 'Разблокировка и добавление фотографий в альбом доступны только подписчикам Standard и Premium. Оформите подписку, чтобы получить доступ к этой функции.'}
             </UpgradeModalText>
@@ -4334,18 +4344,18 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               Стоимость: 30 монет. Опишите желаемое изображение или отредактируйте предзаполненный промпт.
             </p>
             <div style={{ marginBottom: '1.5rem' }}>
-              <label style={{ 
-                color: '#fff', 
-                fontSize: '0.9rem', 
-                marginBottom: '0.75rem', 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '0.5rem' 
+              <label style={{
+                color: '#fff',
+                fontSize: '0.9rem',
+                marginBottom: '0.75rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
               }}>
                 <FiSettings size={14} /> Выберите стиль
               </label>
               <ModelSelectionContainer>
-                <ModelCard 
+                <ModelCard
                   $isSelected={selectedModel === 'anime-realism'}
                   $previewImage="/model_previews/анимереализм1.jpg"
                   onClick={() => setSelectedModel('anime-realism')}
@@ -4355,8 +4365,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                     <ModelDescription>Сбалансированный стиль</ModelDescription>
                   </ModelInfoOverlay>
                 </ModelCard>
-                
-                <ModelCard 
+
+                <ModelCard
                   $isSelected={selectedModel === 'anime'}
                   $previewImage="/model_previews/аниме.jpeg"
                   onClick={() => setSelectedModel('anime')}
@@ -4366,8 +4376,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                     <ModelDescription>Классический 2D стиль</ModelDescription>
                   </ModelInfoOverlay>
                 </ModelCard>
-                
-                <ModelCard 
+
+                <ModelCard
                   $isSelected={selectedModel === 'realism'}
                   $previewImage="/model_previews/реализм.jpg"
                   onClick={() => setSelectedModel('realism')}
@@ -4398,7 +4408,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 fontFamily: 'inherit'
               }}
             />
-            
+
             {/* Теги-помощники */}
             <div style={{ position: 'relative', marginBottom: '1.5rem' }}>
               <TagsContainer $isExpanded={isTagsExpanded}>
@@ -4419,7 +4429,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   { label: 'Летнее платье', value: 'в легком летнем платье, летящая ткань' },
                   { label: 'Вечерний свет', value: 'мягкий вечерний свет, теплые тона' },
                   { label: 'Зима', value: 'зимний пейзаж, падающий снег, меховая одежда' },
-                  
+
                   // Пошлые промпты (18+)
                   { label: 'Соблазнительно', value: 'соблазнительная поза, игривый взгляд, эротично' },
                   { label: 'Нижнее белье', value: 'в кружевном нижнем белье, прозрачные ткани' },
@@ -4437,7 +4447,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   { label: 'Кусает губу', value: 'возбужденное лицо, кусает губу, томный взгляд' },
                   { label: 'Прозрачное боди', value: 'в прозрачном облегающем боди, все детали видны' }
                 ].map((tag, idx) => (
-                  <TagButton 
+                  <TagButton
                     key={idx}
                     type="button"
                     onClick={(e) => {
@@ -4451,8 +4461,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   </TagButton>
                 ))}
               </TagsContainer>
-              <ExpandButton 
-                $isExpanded={isTagsExpanded} 
+              <ExpandButton
+                $isExpanded={isTagsExpanded}
                 onClick={() => setIsTagsExpanded(!isTagsExpanded)}
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -4460,21 +4470,21 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 </svg>
               </ExpandButton>
             </div>
-            <div style={{ 
-              display: 'flex', 
-              gap: '1rem', 
-              flexDirection: isMobile ? 'column' : 'row' 
+            <div style={{
+              display: 'flex',
+              gap: '1rem',
+              flexDirection: isMobile ? 'column' : 'row'
             }}>
               <button
                 onClick={() => {
                   // Сброс промпта к дефолтным данным из БД
                   const characterForData = currentCharacter || initialCharacter;
-                  const appearance = (characterForData as any)?.character_appearance 
-                    || (characterForData as any)?.raw?.character_appearance 
-                    || (characterForData as any)?.appearance 
+                  const appearance = (characterForData as any)?.character_appearance
+                    || (characterForData as any)?.raw?.character_appearance
+                    || (characterForData as any)?.appearance
                     || '';
-                  const location = (characterForData as any)?.location 
-                    || (characterForData as any)?.raw?.location 
+                  const location = (characterForData as any)?.location
+                    || (characterForData as any)?.raw?.location
                     || '';
                   const parts = [appearance, location].filter(p => p && p.trim());
                   const defaultPrompt = parts.length > 0 ? parts.join('\n') : '';
@@ -4638,7 +4648,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       )}
 
       {isAuthModalOpen && (
-        <AuthModal 
+        <AuthModal
           isOpen={isAuthModalOpen}
           mode={authMode}
           onClose={() => {
@@ -4653,8 +4663,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         <TipCreatorModal
           isOpen={isTipModalOpen}
           onClose={() => {
-            
-            
+
+
             setIsTipModalOpen(false);
           }}
           characterName={currentCharacter.name}
@@ -4703,22 +4713,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             localStorage.setItem('selectedChatModel', model);
           }}
           onClose={() => setIsModelSelectorOpen(false)}
+          isPremium={(normalizedSubscriptionType as string) === 'premium'}
+          onOpenPremiumModal={() => setIsUpgradeModalOpen(true)}
         />
       )}
 
-      {isModelAccessDeniedOpen && (
-        <ModelAccessDeniedModal
-          isOpen={isModelAccessDeniedOpen}
-          onClose={() => setIsModelAccessDeniedOpen(false)}
-          onGoToShop={() => {
-            if (onShop) {
-              onShop();
-            } else {
-              window.dispatchEvent(new CustomEvent('navigate-to-shop'));
-            }
-          }}
-        />
-      )}
+
     </Container>
   );
 };

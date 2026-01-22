@@ -47,7 +47,7 @@ const CharactersGrid = styled.div`
   padding: ${theme.spacing.xs} ${theme.spacing.sm};
   overflow-y: auto;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 0;
   align-content: start;
 
@@ -104,6 +104,7 @@ export interface CharacterWithHistory {
   tags: string[];
   author: string;
   likes: number;
+  dislikes?: number;
   views: number;
   comments: number;
   mode?: 'safe' | 'nsfw';
@@ -230,6 +231,7 @@ const buildCharacterData = (
     tags: Array.isArray(source?.tags) ? source.tags : [],
     author: source?.author || source?.created_by || 'Unknown',
     likes: source?.likes || 0,
+    dislikes: source?.dislikes || 0,
     views: source?.views || 0,
     comments: source?.comments || 0,
     mode: source?.is_nsfw ? 'nsfw' : 'safe',
@@ -252,6 +254,37 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [characterPhotos, setCharacterPhotos] = useState<{[key: string]: string[]}>({});
   const [favoriteCharacterIds, setFavoriteCharacterIds] = useState<Set<number>>(new Set());
+  const [characterRatings, setCharacterRatings] = useState<{[key: number]: {likes: number, dislikes: number}}>({});
+
+  // Загрузка рейтингов персонажей
+  const loadCharacterRatings = async (charactersList: CharacterWithHistory[]) => {
+    const ratings: {[key: number]: {likes: number, dislikes: number}} = {};
+    
+    for (const char of charactersList) {
+      const characterId = typeof char.id === 'number' ? char.id : parseInt(char.id, 10);
+      if (isNaN(characterId)) continue;
+      
+      try {
+        const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.GET_CHARACTER_RATINGS(characterId)}`, {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          ratings[characterId] = {
+            likes: data.likes || 0,
+            dislikes: data.dislikes || 0
+          };
+        }
+      } catch (error) {
+        // Игнорируем ошибки
+      }
+    }
+    
+    setCharacterRatings(ratings);
+  };
 
   // Загрузка избранных персонажей
   const loadFavorites = async () => {
@@ -559,6 +592,9 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
 
         
         setCharacters(formatted);
+        
+        // Загружаем рейтинги для всех персонажей
+        await loadCharacterRatings(formatted);
       } catch (err) {
         
         setError(err instanceof Error ? err.message : 'Неизвестная ошибка загрузки');
@@ -792,11 +828,16 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                   ? character.id 
                   : parseInt(character.id, 10);
                 const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
+                const rating = !isNaN(characterId) ? characterRatings[characterId] : null;
                 
                 return (
                 <CardWrapper key={character.id} style={{ gap: 0 }}>
                   <CharacterCard
-                    character={character}
+                    character={{
+                      ...character,
+                      likes: rating ? rating.likes : character.likes || 0,
+                      dislikes: rating ? rating.dislikes : character.dislikes || 0
+                    }}
                     onClick={() => onOpenChat(character)}
                     showPromptButton={true}
                       isFavorite={isFavorite}
