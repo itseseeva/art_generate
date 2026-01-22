@@ -64,6 +64,9 @@ packaging>=24.0
 # Replicate API (опционально)
 replicate>=0.25.0
 
+# Fish Audio TTS
+fish-audio-sdk>=1.0.0
+
 # Тестирование (опционально)
 pytest>=7.4.0
 pytest-cov>=4.1.0
