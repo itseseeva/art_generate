@@ -2,9 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { theme } from '../theme';
 import { authManager } from '../utils/auth';
-import { ShoppingBag, User, Coins, DollarSign, LogOut, LogIn, UserPlus, X, FileText } from 'lucide-react';
+import { ShoppingBag, User, Coins, DollarSign, LogOut, LogIn, UserPlus, X } from 'lucide-react';
 import { generationTracker } from '../utils/generationTracker';
-import { AdminLogsModal } from './AdminLogsModal';
 
 const HeaderContainer = styled.div`
   background: rgba(0, 0, 0, 0.2);
@@ -182,61 +181,6 @@ const ShopButton = styled.button`
     svg {
       width: 20px;
       height: 20px;
-    }
-  }
-`;
-
-const LogsButton = styled.button`
-  background: transparent;
-  color: white;
-  border: none;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  font-weight: 600;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: none;
-  white-space: nowrap;
-  position: relative;
-  overflow: visible;
-  
-  &:hover {
-    background: transparent;
-    box-shadow: none;
-    transform: none;
-    filter: none;
-    color: #ffd700;
-    
-    svg {
-      filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.8)) drop-shadow(0 2px 4px rgba(255, 237, 78, 0.6));
-      transform: scale(1.1);
-      color: #ffd700;
-    }
-  }
-
-  &:active {
-    transform: none;
-    box-shadow: none;
-  }
-  
-  svg {
-    transition: all 0.3s ease;
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
-  }
-
-  @media (max-width: 768px) {
-    padding: 0.4rem 0.6rem;
-    gap: 0.25rem;
-    font-size: 0.85rem;
-    
-    svg {
-      width: 18px;
-      height: 18px;
     }
   }
 `;
@@ -463,7 +407,6 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     characterName?: string;
     characterId?: string | number;
   } | null>(null);
-  const [isAdminLogsOpen, setIsAdminLogsOpen] = useState(false);
 
   // Проверка авторизации и обновление баланса
   useEffect(() => {
@@ -668,13 +611,6 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
             <ShopButton onClick={handleShop}>
               <DollarSign size={20} />
             </ShopButton>
-
-            {userInfo?.is_admin && (
-              <LogsButton onClick={() => setIsAdminLogsOpen(true)} title="Логи">
-                <FileText size={20} />
-                <span>logs</span>
-              </LogsButton>
-            )}
           </>
         )}
         
@@ -719,13 +655,6 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
           )}
         </ProfileButton>
       </RightSection>
-
-      {isAdminLogsOpen && (
-        <AdminLogsModal 
-          isOpen={isAdminLogsOpen} 
-          onClose={() => setIsAdminLogsOpen(false)} 
-        />
-      )}
     </HeaderContainer>
   );
 };

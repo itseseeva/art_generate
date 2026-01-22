@@ -60,8 +60,11 @@ flower>=2.0.0
 
 # Токенизация
 tiktoken>=0.5.0
-# Replicate API (опционально)
+
+# Базовые зависимости для других пакетов
 packaging>=24.0
+
+# Replicate API (опционально)
 replicate>=0.25.0
 itsdangerous>=2.1.2
 
