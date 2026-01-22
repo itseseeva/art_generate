@@ -21,6 +21,7 @@ import { FavoritesPage } from './components/FavoritesPage';
 import { BalanceHistoryPage } from './components/BalanceHistoryPage';
 import { CharacterCommentsPage } from './components/CharacterCommentsPage';
 import { BugReportPage } from './components/BugReportPage';
+import { AdminLogsPage } from './components/AdminLogsPage';
 import { LeftDockSidebar } from './components/LeftDockSidebar';
 import { AuthModal } from './components/AuthModal';
 import { LegalPage } from './components/LegalPage';
@@ -90,7 +91,8 @@ type PageType =
   | 'legal'
   | 'about'
   | 'how-it-works'
-  | 'bug-report';
+  | 'bug-report'
+  | 'admin-logs';
 
 function App() {
   const isMobile = useIsMobile();
@@ -133,7 +135,8 @@ function App() {
         'legal': 'Правовая информация',
         'about': 'О проекте',
         'how-it-works': 'Как это работает',
-        'bug-report': 'Сообщить об ошибке'
+        'bug-report': 'Сообщить об ошибке',
+        'admin-logs': 'Логи'
       };
       document.title = pageTitles[currentPage] || 'cherrylust.art';
     }
@@ -409,6 +412,9 @@ function App() {
         setCurrentPage('main');
         window.history.replaceState({ page: 'main' }, '', '/');
       }
+    } else if (path.includes('/admin-logs')) {
+      setCurrentPage('admin-logs');
+      window.history.replaceState({ page: 'admin-logs' }, '', '/admin-logs');
     } else {
       setCurrentPage('main');
       window.history.replaceState({ page: 'main' }, '', '/');
@@ -435,11 +441,12 @@ function App() {
         // Если нет состояния, проверяем текущий путь
         const path = window.location.pathname;
         if (path.includes('/shop')) {
-          // Если мы на /shop, восстанавливаем состояние shop
           setCurrentPage('shop');
           window.history.replaceState({ page: 'shop' }, '', '/shop');
+        } else if (path.includes('/admin-logs')) {
+          setCurrentPage('admin-logs');
+          window.history.replaceState({ page: 'admin-logs' }, '', '/admin-logs');
         } else {
-          // Иначе возвращаемся на главную
           setCurrentPage('main');
           setSelectedCharacter(null);
         }
@@ -496,6 +503,15 @@ function App() {
       window.removeEventListener('navigate-to-chat-with-character', handleNavigateToChat as EventListener);
       window.removeEventListener('navigate-to-chat', handleNavigateToChatSimple);
     };
+  }, []);
+
+  useEffect(() => {
+    const handleNavigateToAdminLogs = () => {
+      setCurrentPage('admin-logs');
+      window.history.pushState({ page: 'admin-logs' }, '', '/admin-logs');
+    };
+    window.addEventListener('navigate-to-admin-logs', handleNavigateToAdminLogs);
+    return () => window.removeEventListener('navigate-to-admin-logs', handleNavigateToAdminLogs);
   }, []);
 
   // Обработка OAuth callback - сохранение токенов из URL
@@ -754,8 +770,6 @@ function App() {
     setCurrentPage('bug-report');
     window.history.pushState({ page: 'bug-report' }, '', '/bug-report');
   };
-
-
 
   const handlePaymentMethod = (subscriptionType: string) => {
     // Этот метод больше не используется, так как кнопки оплаты теперь на странице магазина
@@ -1167,6 +1181,14 @@ function App() {
         return <HowItWorksPage />;
       case 'bug-report':
         return <BugReportPage onBackToMain={handleBackToMain} onProfile={handleProfile} onLogout={handleLogout} />;
+      case 'admin-logs':
+        return (
+          <AdminLogsPage
+            onBackToMain={handleBackToMain}
+            onShop={handleShop}
+            onProfile={handleProfile}
+          />
+        );
       case 'character-comments':
         if (selectedCharacter && selectedCharacter.name) {
           return (

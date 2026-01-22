@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { FiPlusCircle, FiEdit, FiClock, FiHeart, FiGrid, FiHome, FiMessageSquare, FiTrendingUp, FiChevronRight, FiAlertTriangle, FiUser, FiLogIn, FiUserPlus, FiLogOut, FiDollarSign, FiRefreshCw, FiFileText } from 'react-icons/fi';
+import { FiPlusCircle, FiEdit, FiClock, FiHeart, FiGrid, FiHome, FiMessageSquare, FiTrendingUp, FiChevronRight, FiAlertTriangle, FiUser, FiLogIn, FiUserPlus, FiLogOut, FiDollarSign, FiRefreshCw, FiFileText, FiBarChart2 } from 'react-icons/fi';
 import Switcher4 from './Switcher4';
 import { NSFWWarningModal } from './NSFWWarningModal';
 
-import Dock from './Dock';
+import Dock, { type DockItemData } from './Dock';
 import { theme } from '../theme';
 import { authManager } from '../utils/auth';
 import './LeftDockSidebar.css';
@@ -351,7 +351,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   ];
 
   // Основные кнопки (всегда видимые)
-  const mainBottomDockItems = [
+  const mainBottomDockItems: DockItemData[] = [
     {
       icon: <FiGrid size={18} />,
       label: 'Персонажи',
@@ -387,6 +387,15 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
         badgeCount: unreadMessagesCount > 0 ? unreadMessagesCount : undefined,
       });
     }
+  }
+
+  if (isAuthenticated && isAdmin) {
+    mainBottomDockItems.push({
+      icon: <FiBarChart2 size={18} />,
+      label: 'Логи',
+      onClick: () => window.dispatchEvent(new CustomEvent('navigate-to-admin-logs')),
+      className: 'dock-item-admin-logs',
+    });
   }
 
   // Дополнительные кнопки (скрытые по умолчанию)

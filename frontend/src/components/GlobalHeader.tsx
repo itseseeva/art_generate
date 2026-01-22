@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { theme } from '../theme';
 import { authManager } from '../utils/auth';
@@ -374,69 +374,6 @@ const CloseButton = styled.button`
   }
 `;
 
-const AdminLogsOverlay = styled.div`
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  z-index: 10001;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-`;
-
-const AdminLogsModal = styled.div`
-  background: rgba(30, 30, 30, 0.98);
-  border: 2px solid rgba(100, 100, 100, 0.3);
-  border-radius: 12px;
-  padding: 1.5rem;
-  min-width: 320px;
-  max-width: 420px;
-  color: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-  position: relative;
-`;
-
-const AdminLogsTitle = styled.h3`
-  margin: 0 0 1rem 0;
-  font-size: 1.1rem;
-  font-weight: 700;
-`;
-
-const AdminLogsStatRow = styled.div`
-  display: flex;
-  justify-content: space-between;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  font-size: 0.95rem;
-
-  &:last-of-type {
-    border-bottom: none;
-  }
-`;
-
-const AdminLogsCloseBtn = styled.button`
-  position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
-  background: transparent;
-  border: none;
-  color: rgba(255, 255, 255, 0.7);
-  cursor: pointer;
-  padding: 0.25rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0.8;
-  transition: opacity 0.2s ease;
-
-  &:hover {
-    opacity: 1;
-    color: rgba(255, 255, 255, 1);
-  }
-`;
-
 interface GlobalHeaderProps {
   onShop?: () => void;
   onLogin?: () => void;
@@ -470,15 +407,6 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     characterName?: string;
     characterId?: string | number;
   } | null>(null);
-  const [adminLogsOpen, setAdminLogsOpen] = useState(false);
-  const [adminStats, setAdminStats] = useState<{
-    new_users_24h: number;
-    new_users_7d: number;
-    subscriptions_purchased: number;
-  } | null>(null);
-  const [adminStatsLoading, setAdminStatsLoading] = useState(false);
-  const [adminStatsError, setAdminStatsError] = useState<string | null>(null);
-
   // Проверка авторизации и обновление баланса
   useEffect(() => {
     let isMounted = true;
@@ -585,42 +513,6 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     };
   }, [currentCharacterId]); // Переподписываемся при смене персонажа
 
-  const fetchAdminStats = useCallback(async () => {
-    setAdminStatsLoading(true);
-    setAdminStatsError(null);
-    try {
-      const response = await authManager.fetchWithAuth('/api/v1/admin/stats');
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.detail || `Ошибка ${response.status}`);
-      }
-      const data = await response.json();
-      setAdminStats({
-        new_users_24h: data.new_users_24h ?? 0,
-        new_users_7d: data.new_users_7d ?? 0,
-        subscriptions_purchased: data.subscriptions_purchased ?? 0
-      });
-    } catch (e) {
-      setAdminStatsError(e instanceof Error ? e.message : 'Не удалось загрузить статистику');
-      setAdminStats(null);
-    } finally {
-      setAdminStatsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (adminLogsOpen && userInfo?.is_admin) {
-      fetchAdminStats();
-    } else if (!adminLogsOpen) {
-      setAdminStats(null);
-      setAdminStatsError(null);
-    }
-  }, [adminLogsOpen, userInfo?.is_admin, fetchAdminStats]);
-
-  const handleAdminLogsClose = useCallback(() => {
-    setAdminLogsOpen(false);
-  }, []);
-
   const handleNotificationClick = async () => {
     // Переходим в чат с персонажем, если указан
     if (notification?.characterId || notification?.characterName) {
@@ -709,7 +601,10 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
       
       <RightSection>
         {isAuthenticated && userInfo?.is_admin && (
-          <ShopButton onClick={() => setAdminLogsOpen(true)} title="Логи">
+          <ShopButton
+            onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-admin-logs'))}
+            title="Логи"
+          >
             <ClipboardList size={20} />
           </ShopButton>
         )}
@@ -767,41 +662,6 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
           )}
         </ProfileButton>
       </RightSection>
-
-      {adminLogsOpen && (
-        <AdminLogsOverlay onClick={handleAdminLogsClose}>
-          <AdminLogsModal onClick={(e) => e.stopPropagation()}>
-            <AdminLogsTitle>Логи</AdminLogsTitle>
-            <AdminLogsCloseBtn onClick={handleAdminLogsClose} aria-label="Закрыть">
-              <X size={20} />
-            </AdminLogsCloseBtn>
-            {adminStatsLoading && (
-              <AdminLogsStatRow>Загрузка...</AdminLogsStatRow>
-            )}
-            {!adminStatsLoading && adminStatsError && (
-              <AdminLogsStatRow style={{ color: 'rgba(239, 68, 68, 0.9)' }}>
-                {adminStatsError}
-              </AdminLogsStatRow>
-            )}
-            {!adminStatsLoading && !adminStatsError && adminStats && (
-              <>
-                <AdminLogsStatRow>
-                  <span>Новых пользователей (24 ч)</span>
-                  <span>{adminStats.new_users_24h}</span>
-                </AdminLogsStatRow>
-                <AdminLogsStatRow>
-                  <span>Новых пользователей (7 дней)</span>
-                  <span>{adminStats.new_users_7d}</span>
-                </AdminLogsStatRow>
-                <AdminLogsStatRow>
-                  <span>Куплено подписок</span>
-                  <span>{adminStats.subscriptions_purchased}</span>
-                </AdminLogsStatRow>
-              </>
-            )}
-          </AdminLogsModal>
-        </AdminLogsOverlay>
-      )}
     </HeaderContainer>
   );
 };
