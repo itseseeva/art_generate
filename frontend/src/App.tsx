@@ -21,7 +21,6 @@ import { FavoritesPage } from './components/FavoritesPage';
 import { BalanceHistoryPage } from './components/BalanceHistoryPage';
 import { CharacterCommentsPage } from './components/CharacterCommentsPage';
 import { BugReportPage } from './components/BugReportPage';
-import { AdminLogsPage } from './components/AdminLogsPage';
 import { LeftDockSidebar } from './components/LeftDockSidebar';
 import { AuthModal } from './components/AuthModal';
 import { LegalPage } from './components/LegalPage';
@@ -91,8 +90,7 @@ type PageType =
   | 'legal'
   | 'about'
   | 'how-it-works'
-  | 'bug-report'
-  | 'admin-logs';
+  | 'bug-report';
 
 function App() {
   const isMobile = useIsMobile();
@@ -135,8 +133,7 @@ function App() {
         'legal': 'Правовая информация',
         'about': 'О проекте',
         'how-it-works': 'Как это работает',
-        'bug-report': 'Сообщить об ошибке',
-        'admin-logs': 'Логи пользователей'
+        'bug-report': 'Сообщить об ошибке'
       };
       document.title = pageTitles[currentPage] || 'cherrylust.art';
     }
@@ -267,9 +264,6 @@ function App() {
     } else if (path.includes('/bug-report')) {
       setCurrentPage('bug-report');
       window.history.replaceState({ page: 'bug-report' }, '', path);
-    } else if (path.includes('/admin-logs')) {
-      setCurrentPage('admin-logs');
-      window.history.replaceState({ page: 'admin-logs' }, '', path);
     } else if (path.includes('/history')) {
       setCurrentPage('history');
       window.history.replaceState({ page: 'history' }, '', path);
@@ -761,10 +755,6 @@ function App() {
     window.history.pushState({ page: 'bug-report' }, '', '/bug-report');
   };
 
-  const handleAdminLogs = () => {
-    setCurrentPage('admin-logs');
-    window.history.pushState({ page: 'admin-logs' }, '', '/admin-logs');
-  };
 
 
   const handlePaymentMethod = (subscriptionType: string) => {
@@ -1177,8 +1167,6 @@ function App() {
         return <HowItWorksPage />;
       case 'bug-report':
         return <BugReportPage onBackToMain={handleBackToMain} onProfile={handleProfile} onLogout={handleLogout} />;
-      case 'admin-logs':
-        return <AdminLogsPage onBack={handleBackToMain} onProfile={handleProfile} />;
       case 'character-comments':
         if (selectedCharacter && selectedCharacter.name) {
           return (
@@ -1584,7 +1572,6 @@ function App() {
           onMessages={handleMessages}
           onBalanceHistory={handleBalanceHistory}
           onBugReport={handleBugReport}
-          onAdminLogs={handleAdminLogs}
           onProfile={handleProfile}
           onShop={handleShop}
           onLogin={handleLogin}

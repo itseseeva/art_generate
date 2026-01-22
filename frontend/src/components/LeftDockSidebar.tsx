@@ -25,7 +25,6 @@ interface LeftDockSidebarProps {
   onLogin?: () => void;
   onRegister?: () => void;
   onLogout?: () => void;
-  onAdminLogs?: () => void;
   isAuthenticated?: boolean;
   isAdmin?: boolean;
   contentMode?: 'safe' | 'nsfw';
@@ -308,7 +307,6 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   onLogin,
   onRegister,
   onLogout,
-  onAdminLogs,
   isAuthenticated = false,
   isAdmin = false,
   contentMode = 'safe',
@@ -407,15 +405,6 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
     });
   }
 
-  // Логи - только для админов
-  if (isAdmin && onAdminLogs) {
-    additionalDockItems.push({
-      icon: <FiFileText size={18} />,
-      label: 'Логи',
-      onClick: () => onAdminLogs?.(),
-      className: 'dock-item-logs',
-    });
-  }
 
   // Кнопки авторизации - УДАЛЕНЫ (перенесены в хедер)
   if (!isAuthenticated) {
