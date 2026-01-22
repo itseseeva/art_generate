@@ -17,6 +17,7 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import { GlobalHeader } from './GlobalHeader';
 import DarkVeil from '../../@/components/DarkVeil';
 import { PromptGlassModal } from './PromptGlassModal';
+import { LeftDockSidebar } from './LeftDockSidebar';
 
 const BackgroundWrapper = styled.div`
   position: fixed;
@@ -3631,6 +3632,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [isAuthenticated, setIsAuthenticated] = useState(propIsAuthenticated ?? false);
   const [userInfo, setUserInfo] = useState<{ username: string, coins: number, id: number, subscription?: { subscription_type?: string }, is_admin?: boolean } | null>(propUserInfo ?? null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [currentContentMode, setCurrentContentMode] = useState<'safe' | 'nsfw'>(contentMode);
   const [isPhotoGenerationExpanded, setIsPhotoGenerationExpanded] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
 
@@ -3754,7 +3756,6 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
       audio.src = objectUrl;
     } catch (err) {
-      console.error('Ошибка обработки аудио файла:', err);
       setVoiceError('Ошибка обработки файла. Проверьте формат.');
       setIsCalculatingDuration(false);
       setVoiceDuration(null);
@@ -3819,13 +3820,9 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         const response = await fetch('/api/v1/characters/available-voices', { headers });
         if (response.ok) {
           const data = await response.json();
-          console.log('Получены голоса:', data);
           setAvailableVoices(data);
-        } else {
-          console.error('Ошибка получения голосов:', response.status, response.statusText);
         }
       } catch (err) {
-        console.error('Error fetching voices:', err);
       }
     };
     fetchVoices();
@@ -3988,7 +3985,6 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
             setShowLocation(true);
           }
         } catch (error) {
-          console.error('Ошибка при восстановлении данных формы:', error);
         }
       }
 
@@ -4045,7 +4041,6 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     try {
       localStorage.setItem('createCharacterFormData', JSON.stringify(newFormData));
     } catch (error) {
-      console.error('Ошибка при сохранении данных формы:', error);
     }
 
     setError(null);
@@ -4172,8 +4167,6 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         voice_id: selectedVoiceId || null,
         voice_url: selectedVoiceUrl || null // Добавляем поддержку voice_url для загруженных голосов
       };
-
-      console.log('[CREATE CHARACTER] Отправка запроса с voice_id:', selectedVoiceId);
 
       // Проверяем обязательные поля
       if (!requestData.name || !requestData.personality || !requestData.situation || !requestData.instructions) {
@@ -4699,6 +4692,31 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
       imageId = filename.replace('.png', '').replace('.jpg', '');
     }
 
+    if (!imageUrl) {
+      throw new Error('URL изображения не получен');
+    }
+
+    // Добавляем фото в галерею пользователя
+    try {
+      const characterName = createdCharacterData?.name || formData.name || 'character';
+      const addToGalleryResponse = await authManager.fetchWithAuth('/api/v1/auth/user-gallery/add/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          image_url: imageUrl,
+          character_name: characterName
+        })
+      });
+
+      if (addToGalleryResponse.ok) {
+        // Фото успешно добавлено в галерею
+      }
+    } catch (galleryError) {
+      // Игнорируем ошибки добавления в галерею, чтобы не блокировать генерацию
+    }
+
     return {
       id: imageId || Date.now().toString(),
       url: imageUrl,
@@ -4716,12 +4734,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         ? rawSubscriptionType.toLowerCase().trim()
         : String(rawSubscriptionType).toLowerCase().trim();
     }
-
-    console.log('[DEBUG] Subscription detection:', {
-      raw: rawSubscriptionType,
-      processed: subscriptionType,
-      userId: userInfo?.id
-    });
 
     let queueLimit = 1;
     if (subscriptionType === 'premium') {
@@ -4877,6 +4889,41 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         />
       </HeaderWrapper>
       <MainContent>
+        {!isMobile && (
+          <LeftDockSidebar
+            isMobile={isMobile}
+            onCreateCharacter={undefined}
+            onEditCharacters={undefined}
+            onHistory={undefined}
+            onFavorites={undefined}
+            onMyCharacters={onMyCharacters}
+            onHome={onBackToMain}
+            onMessages={undefined}
+            onBalanceHistory={undefined}
+            onBugReport={undefined}
+            onProfile={onProfile}
+            onShop={onShop}
+            onLogin={() => {
+              setAuthMode('login');
+              setIsAuthModalOpen(true);
+            }}
+            onRegister={() => {
+              setAuthMode('register');
+              setIsAuthModalOpen(true);
+            }}
+            onLogout={() => {
+              localStorage.removeItem('authToken');
+              localStorage.removeItem('refreshToken');
+              window.location.reload();
+            }}
+            isAuthenticated={isAuthenticated}
+            isAdmin={isAdmin}
+            contentMode={currentContentMode}
+            onContentModeChange={(mode) => {
+              setCurrentContentMode(mode);
+            }}
+          />
+        )}
         <form onSubmit={isCharacterCreated ? handleEditCharacter : handleSubmit} className={`flex-1 flex gap-6 ${isMobile ? 'h-auto' : 'h-full'} flex-col md:flex-row w-full`}>
           {/* Левая колонка - Форма */}
           <div className={`flex-1 flex flex-col min-w-0 md:min-w-[400px] bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 ${isMobile ? 'overflow-visible' : 'overflow-y-auto'}`}>
@@ -5144,19 +5191,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                             const editedName = editedVoiceNames[voice.id] || voice.name;
                             const isEditingPhoto = editingVoicePhotoId === voice.id;
 
-                            // Отладка для дефолтных голосов
-                            if (!isUserVoice) {
-                              console.log('[DEFAULT VOICE DEBUG]', {
-                                voiceName: voice.name,
-                                isUserVoice,
-                                isAdmin,
-                                isOwner,
-                                shouldShowButtons: (!isUserVoice && isAdmin),
-                                condition1: (isUserVoice && (isOwner || isAdmin)),
-                                condition2: (!isUserVoice && isAdmin)
-                              });
-                            }
-
                             return (
                               <VoicePhotoWrapper
                                 key={voice.id}
@@ -5192,8 +5226,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                     // Если редактируется имя, не выбираем голос
                                     if (editingVoiceId === voice.id) return;
 
-                                    console.log('[VOICE SELECT] Выбран голос:', voice.id, 'Название:', voice.name, 'isUserVoice:', isUserVoice);
-
                                     // Премиум голоса можно прослушивать всем, проверка только при сохранении персонажа
 
                                     if (isUserVoice) {
@@ -5225,7 +5257,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                     }
                                     try {
                                       const fullUrl = audioUrlToPlay.startsWith('http') ? audioUrlToPlay : `${API_CONFIG.BASE_URL}${audioUrlToPlay}`;
-                                      console.log('Воспроизведение голоса:', fullUrl);
                                       const encodedUrl = encodeURI(fullUrl);
                                       const audio = new Audio(encodedUrl);
                                       audioRef.current = audio;
@@ -5233,25 +5264,18 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                       audio.volume = 1.0;
 
                                       // Обработчики событий
-                                      audio.onloadeddata = () => {
-                                        console.log('Аудио загружено:', audioUrlToPlay);
-                                      };
                                       audio.onerror = (err) => {
-                                        console.error('Ошибка загрузки аудио:', err, audioUrlToPlay);
                                         setPlayingVoiceUrl(null);
                                         audioRef.current = null;
                                       };
                                       audio.onended = () => {
-                                        console.log('Воспроизведение завершено:', audioUrlToPlay);
                                         setPlayingVoiceUrl(null);
                                         audioRef.current = null;
                                       };
 
                                       setPlayingVoiceUrl(audioUrlToPlay);
                                       await audio.play();
-                                      console.log('Воспроизведение начато:', audioUrlToPlay);
                                     } catch (err) {
-                                      console.error('Ошибка воспроизведения:', err, audioUrlToPlay);
                                       setPlayingVoiceUrl(null);
                                       audioRef.current = null;
                                       alert('Не удалось воспроизвести аудио. Проверьте консоль для деталей.');
@@ -5298,15 +5322,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         e.preventDefault();
-                                        console.log('[EDIT VOICE] Клик на кнопку редактирования:', {
-                                          voiceId: voice.id,
-                                          voiceName: voice.name,
-                                          userVoiceId: voice.user_voice_id,
-                                          isUserVoice,
-                                          isOwner,
-                                          isAdmin,
-                                          userInfoIsAdmin: userInfo?.is_admin
-                                        });
                                         setEditingVoicePhotoId(voice.id);
                                         setEditedVoiceNames(prev => ({
                                           ...prev,
@@ -5332,16 +5347,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                         try {
                                           const token = localStorage.getItem('authToken');
 
-                                          console.log('[DELETE VOICE] Попытка удаления:', {
-                                            voiceId: voice.id,
-                                            voiceName: voice.name,
-                                            isUserVoice,
-                                            userVoiceId: voice.user_voice_id,
-                                            isAdmin,
-                                            isOwner,
-                                            voiceObject: voice
-                                          });
-
                                           // Проверяем, что это действительно пользовательский голос с валидным ID
                                           if (isUserVoice && voice.user_voice_id) {
                                             // Удаление пользовательского голоса
@@ -5350,12 +5355,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                               : parseInt(String(voice.user_voice_id), 10);
 
                                             if (isNaN(voiceIdToDelete)) {
-                                              console.error('[DELETE VOICE] Неверный user_voice_id:', voice.user_voice_id);
                                               alert('Ошибка: неверный ID голоса для удаления');
                                               return;
                                             }
 
-                                            console.log('[DELETE VOICE] Удаление пользовательского голоса:', voiceIdToDelete);
                                             const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${voiceIdToDelete}`, {
                                               method: 'DELETE',
                                               headers: {
@@ -5387,12 +5390,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                               } catch {
                                                 errorMessage = errorText || errorMessage;
                                               }
-                                              console.error('[DELETE VOICE] Ошибка удаления пользовательского голоса:', response.status, errorMessage);
                                               alert('Ошибка удаления голоса: ' + errorMessage);
                                             }
                                           } else if (!isUserVoice && isAdmin) {
                                             // Удаление дефолтного голоса
-                                            console.log('[DELETE VOICE] Удаление дефолтного голоса:', voice.id);
                                             const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/default-voice/${voice.id}`, {
                                               method: 'DELETE',
                                               headers: {
@@ -5425,20 +5426,12 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                               } catch {
                                                 errorMessage = errorText || errorMessage;
                                               }
-                                              console.error('[DELETE VOICE] Ошибка удаления дефолтного голоса:', response.status, errorMessage);
                                               alert('Ошибка удаления голоса: ' + errorMessage);
                                             }
                                           } else {
-                                            console.error('[DELETE VOICE] Неверные данные для удаления:', {
-                                              isUserVoice,
-                                              userVoiceId: voice.user_voice_id,
-                                              isAdmin,
-                                              voiceId: voice.id
-                                            });
-                                            alert('Не удалось определить тип голоса для удаления. Проверьте консоль для деталей.');
+                                            alert('Не удалось определить тип голоса для удаления.');
                                           }
                                         } catch (err) {
-                                          console.error('Ошибка удаления голоса:', err);
                                           alert('Не удалось удалить голос. Проверьте консоль для деталей.');
                                         }
                                       }}
@@ -5463,19 +5456,9 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                         const creatorUsername = voice.creator_username;
                                         const currentUserId = userInfo?.id;
 
-                                        console.log('[CREATOR CLICK] Переход на профиль создателя:', {
-                                          creatorUsername,
-                                          creatorId,
-                                          currentUserId,
-                                          voiceData: voice,
-                                          isOwner: voice.is_owner,
-                                          userVoiceId: voice.user_voice_id
-                                        });
-
                                         // Проверяем, что creator_id существует, это не текущий пользователь, и это не владелец голоса
                                         if (creatorId && typeof creatorId === 'number' && creatorId > 0 && creatorId !== currentUserId) {
                                           // Используем callback для перехода на профиль
-                                          console.log('[CREATOR CLICK] Переход на профиль по ID:', creatorId);
                                           if (onProfile) {
                                             onProfile(creatorId);
                                           } else {
@@ -5483,11 +5466,8 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                           }
                                         } else if (creatorUsername && creatorId !== currentUserId) {
                                           // Если нет ID, пытаемся использовать username
-                                          console.warn('[CREATOR CLICK] Нет creator_id, пытаемся использовать username:', creatorUsername);
                                           // Для username используем прямой переход, так как callback принимает только ID
                                           window.location.href = `/profile?username=${encodeURIComponent(creatorUsername)}`;
-                                        } else {
-                                          console.error('[CREATOR CLICK] Нет ни creator_id, ни creator_username, или это текущий пользователь');
                                         }
                                       }}
                                     >
@@ -5586,7 +5566,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                               }
                                             }
                                           } catch (err) {
-                                            console.error('Ошибка обновления имени голоса:', err);
                                             alert('Не удалось обновить имя голоса. Проверьте консоль для деталей.');
                                             setEditedVoiceNames(prev => {
                                               const newState = { ...prev };
@@ -5876,7 +5855,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                                                     alert('Ошибка обновления фото: ' + (error.detail || 'Неизвестная ошибка'));
                                                                   }
                                                                 } catch (err) {
-                                                                  console.error('Ошибка обновления фото голоса:', err);
                                                                   alert('Не удалось обновить фото. Проверьте консоль для деталей.');
                                                                 } finally {
                                                                   setUploadingPhotoVoiceId(null);
@@ -5886,7 +5864,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                                           };
                                                           img.src = photoPreview.url;
                                                         } catch (err) {
-                                                          console.error('Ошибка обработки фото:', err);
                                                           alert('Не удалось обработать фото');
                                                         }
                                                       }
@@ -6095,7 +6072,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                                       alert('Ошибка изменения статуса: ' + (error.detail || 'Неизвестная ошибка'));
                                                     }
                                                   } catch (err) {
-                                                    console.error('Ошибка изменения статуса публичности:', err);
                                                     alert('Не удалось изменить статус. Проверьте консоль для деталей.');
                                                   }
                                                 }
@@ -6238,7 +6214,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                       }
                                       if (editingVoiceId === voice.id) return;
 
-                                      console.log('[VOICE SELECT] Выбран голос:', voice.id, 'Название:', voice.name, 'isUserVoice:', isUserVoice);
 
                                       if (isUserVoice) {
                                         setSelectedVoiceUrl(voice.url);
@@ -6271,7 +6246,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                         const fullUrl = audioUrlToPlay.startsWith('http')
                                           ? audioUrlToPlay
                                           : `${API_CONFIG.BASE_URL}${audioUrlToPlay}`;
-                                        console.log('Воспроизведение голоса:', fullUrl);
 
                                         const audio = new Audio(fullUrl);
                                         audioRef.current = audio;
@@ -6281,14 +6255,12 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                         };
 
                                         audio.onerror = () => {
-                                          console.error('Ошибка воспроизведения аудио');
                                           setPlayingVoiceUrl(null);
                                         };
 
                                         await audio.play();
                                         setPlayingVoiceUrl(audioUrlToPlay);
                                       } catch (err) {
-                                        console.error('Ошибка воспроизведения:', err);
                                         setPlayingVoiceUrl(null);
                                       }
                                     }}
@@ -6351,15 +6323,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
                                           try {
                                             const token = localStorage.getItem('authToken');
-                                            console.log('[DELETE VOICE] Попытка удаления:', {
-                                              voiceId: voice.id,
-                                              voiceName: voice.name,
-                                              isUserVoice,
-                                              userVoiceId: voice.user_voice_id,
-                                              isOwner,
-                                              isAdmin,
-                                              voiceObject: voice
-                                            });
 
                                             if (isUserVoice && voice.user_voice_id) {
                                               const voiceIdToDelete = typeof voice.user_voice_id === 'number'
@@ -6367,12 +6330,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                                 : parseInt(String(voice.user_voice_id), 10);
 
                                               if (isNaN(voiceIdToDelete)) {
-                                                console.error('[DELETE VOICE] Неверный user_voice_id:', voice.user_voice_id);
                                                 alert('Ошибка: неверный ID голоса для удаления');
                                                 return;
                                               }
 
-                                              console.log('[DELETE VOICE] Удаление пользовательского голоса:', voiceIdToDelete);
                                               const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${voiceIdToDelete}`, {
                                                 method: 'DELETE',
                                                 headers: {
@@ -6397,11 +6358,9 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                               } else {
                                                 const error = await response.json();
                                                 const errorMessage = error.detail || 'Неизвестная ошибка';
-                                                console.error('[DELETE VOICE] Ошибка удаления пользовательского голоса:', response.status, errorMessage);
                                                 alert('Ошибка удаления голоса: ' + errorMessage);
                                               }
                                             } else if (!isUserVoice && isAdmin) {
-                                              console.log('[DELETE VOICE] Удаление дефолтного голоса:', voice.id);
                                               const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/default-voice/${voice.id}`, {
                                                 method: 'DELETE',
                                                 headers: {
@@ -6426,21 +6385,12 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                               } else {
                                                 const error = await response.json();
                                                 const errorMessage = error.detail || 'Неизвестная ошибка';
-                                                console.error('[DELETE VOICE] Ошибка удаления дефолтного голоса:', response.status, errorMessage);
                                                 alert('Ошибка удаления голоса: ' + errorMessage);
                                               }
                                             } else {
-                                              console.error('[DELETE VOICE] Неверные данные для удаления:', {
-                                                isUserVoice,
-                                                userVoiceId: voice.user_voice_id,
-                                                isOwner,
-                                                isAdmin,
-                                                voiceId: voice.id
-                                              });
-                                              alert('Не удалось определить тип голоса для удаления. Проверьте консоль для деталей.');
+                                              alert('Не удалось определить тип голоса для удаления.');
                                             }
                                           } catch (err) {
-                                            console.error('Ошибка удаления голоса:', err);
                                             alert('Не удалось удалить голос. Проверьте консоль для деталей.');
                                           }
                                         }}
@@ -6472,19 +6422,9 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                         const creatorId = voice.creator_id;
                                         const currentUserId = userInfo?.id;
 
-                                        console.log('[CREATOR CLICK] Переход на профиль создателя:', {
-                                          creatorUsername,
-                                          creatorId,
-                                          currentUserId,
-                                          voiceData: voice,
-                                          isOwner: voice.is_owner,
-                                          userVoiceId: voice.user_voice_id
-                                        });
-
                                         // Проверяем, что creator_id существует, это не текущий пользователь, и это не владелец голоса
                                         if (creatorId && typeof creatorId === 'number' && creatorId > 0 && creatorId !== currentUserId) {
                                           // Используем callback для перехода на профиль
-                                          console.log('[CREATOR CLICK] Переход на профиль по ID:', creatorId);
                                           if (onProfile) {
                                             onProfile(creatorId);
                                           } else {
@@ -6492,11 +6432,8 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                           }
                                         } else if (creatorUsername && creatorId !== currentUserId) {
                                           // Если нет ID, пытаемся использовать username
-                                          console.warn('[CREATOR CLICK] Нет creator_id, пытаемся использовать username:', creatorUsername);
                                           // Для username используем прямой переход, так как callback принимает только ID
                                           window.location.href = `/profile?username=${encodeURIComponent(creatorUsername)}`;
-                                        } else {
-                                          console.error('[CREATOR CLICK] Нет ни creator_id, ни creator_username, или это текущий пользователь');
                                         }
                                       }}
                                     >
@@ -6572,7 +6509,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                               }
                                             }
                                           } catch (err) {
-                                            console.error('Ошибка изменения имени голоса:', err);
                                             alert('Не удалось изменить имя. Проверьте консоль для деталей.');
                                           }
                                         } else {
@@ -6686,7 +6622,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                               alert('Ошибка изменения статуса: ' + (error.detail || 'Неизвестная ошибка'));
                                             }
                                           } catch (err) {
-                                            console.error('Ошибка изменения статуса публичности:', err);
                                             alert('Не удалось изменить статус. Проверьте консоль для деталей.');
                                           }
                                         }}
@@ -6854,7 +6789,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                                         };
                                                         img.src = photoPreview.url;
                                                       } catch (err) {
-                                                        console.error('Ошибка обновления фото:', err);
                                                         alert('Не удалось обновить фото. Проверьте консоль для деталей.');
                                                       }
                                                     }
@@ -7556,7 +7490,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                       setShowLocation(true);
                     }
                   } catch (error) {
-                    console.error('Ошибка при восстановлении данных формы:', error);
                   }
 
                   // Автоматически продолжаем создание персонажа
@@ -7916,7 +7849,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                           setVoiceError('Ошибка загрузки голоса: ' + (error.detail || 'Неизвестная ошибка'));
                         }
                       } catch (err) {
-                        console.error('Ошибка загрузки голоса:', err);
                         setVoiceError('Не удалось загрузить голос. Проверьте консоль для деталей.');
                       } finally {
                         setIsUploadingVoice(false);

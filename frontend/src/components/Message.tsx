@@ -711,37 +711,6 @@ const MessageComponent: React.FC<MessageProps> = ({
   const hasContent = message.content && message.content.trim().length > 0;
   const shouldShowVoiceButton = !isUser && hasContent && !isGenerationProgress;
 
-  // ДИАГНОСТИКА: Детальное логирование для отладки кнопки голоса
-  console.log('═══════════════════════════════════════════════════════');
-  console.log('[Message] ДЕТАЛЬНЫЙ АНАЛИЗ РЕНДЕРИНГА СООБЩЕНИЯ:', {
-    messageId: message.id,
-    timestamp: message.timestamp,
-    // Типы и роли
-    'message.type': message.type,
-    'message.role': (message as any).role,
-    'computed_messageType': messageType,
-    'isUser': isUser,
-    '!isUser': !isUser,
-    // Контент
-    'message.content': message.content,
-    'content_length': message.content?.length || 0,
-    'content_trimmed': message.content?.trim() || '',
-    'hasContent': hasContent,
-    // Изображение
-    'message.imageUrl': message.imageUrl,
-    'hasValidImageUrl': hasValidImageUrl,
-    // Прогресс генерации
-    'isGenerationProgress': isGenerationProgress,
-    'progressRegex_test': message.content ? /^\d+%$/.test(message.content.trim()) : false,
-    // Итоговые условия
-    'shouldShowVoiceButton': shouldShowVoiceButton,
-    'условие_1_!isUser': !isUser,
-    'условие_2_hasContent': hasContent,
-    'условие_3_!isGenerationProgress': !isGenerationProgress,
-    // Голос
-    'voiceUrl_prop': voiceUrl
-  });
-  console.log('═══════════════════════════════════════════════════════');
   const [isPromptVisible, setIsPromptVisible] = useState(true);
   const [isAddingToPaidAlbum, setIsAddingToPaidAlbum] = useState(false);
   const [isAddingToGallery, setIsAddingToGallery] = useState(false);
@@ -814,10 +783,8 @@ const MessageComponent: React.FC<MessageProps> = ({
         audioRef.current = audio;
         audio.onended = () => setIsPlaying(false);
         audio.onpause = () => setIsPlaying(false);
-        audio.play().then(() => setIsPlaying(true)).catch(e => console.error(e));
       }
     } catch (error) {
-      console.error('TTS Error:', error);
       setErrorModalMessage(error instanceof Error ? error.message : 'Не удалось сгенерировать голос');
     } finally {
       setIsVoiceLoading(false);
@@ -1109,19 +1076,7 @@ const MessageComponent: React.FC<MessageProps> = ({
   // Убираем аватар при генерации фото
   const hasOnlyImage = hasValidImageUrl && (!message.content || message.content.trim() === '');
 
-  console.log('[Message] ПРОВЕРКА hasOnlyImage:', {
-    messageId: message.id,
-    hasOnlyImage,
-    hasValidImageUrl,
-    'message.content': message.content,
-    'content_is_empty': !message.content,
-    'content_trim_empty': message.content?.trim() === '',
-    'early_return': hasOnlyImage ? 'ДА - кнопка НЕ будет показана' : 'НЕТ - продолжаем'
-  });
-
   if (hasOnlyImage) {
-    console.log('[Message] ⚠️ РАННИЙ ВОЗВРАТ - только изображение, кнопка голоса НЕ будет показана');
-    console.log('═══════════════════════════════════════════════════════');
     return (
       <>
         <div style={{
@@ -1213,9 +1168,6 @@ const MessageComponent: React.FC<MessageProps> = ({
   }
 
   // Обычное сообщение с текстом
-  console.log('[Message] ✅ ОБЫЧНЫЙ РЕНДЕРИНГ - сообщение с текстом');
-  console.log('[Message] Будет проверка shouldShowVoiceButton:', shouldShowVoiceButton);
-  console.log('═══════════════════════════════════════════════════════');
 
   return (
     <>
@@ -1241,15 +1193,6 @@ const MessageComponent: React.FC<MessageProps> = ({
                 {message.content}
                 {isTyping && <TypingCursor />}
               </MessageText>
-              {console.log('[Message] ПРОВЕРКА РЕНДЕРИНГА КНОПКИ ГОЛОСА:', {
-                messageId: message.id,
-                shouldShowVoiceButton,
-                'будет_ли_рендериться_кнопка': shouldShowVoiceButton ? 'ДА ✅' : 'НЕТ ❌',
-                isUser,
-                hasContent,
-                isGenerationProgress,
-                voiceUrl
-              })}
               {shouldShowVoiceButton && (
                 <MessageButtonsRow>
                   <VoiceButton onClick={handleGenerateVoice} disabled={isVoiceLoading}>
@@ -1283,7 +1226,6 @@ const MessageComponent: React.FC<MessageProps> = ({
                           audio.onended = () => setIsPlaying(false);
                           audio.onpause = () => setIsPlaying(false);
                         }
-                        audio.play().then(() => setIsPlaying(true)).catch(e => console.error(e));
                       }
                     }}
                     disabled={!audioUrl}

@@ -380,16 +380,6 @@ export const MainPage: React.FC<MainPageProps> = ({
         }
         const payload = await response.json();
         
-        console.log(`[MainPage] Response from ${endpoint}:`, {
-          isArray: Array.isArray(payload),
-          length: Array.isArray(payload) ? payload.length : (payload?.characters?.length || 0),
-          firstChar: Array.isArray(payload) && payload.length > 0 ? {
-            id: payload[0].id,
-            name: payload[0].name,
-            is_nsfw: payload[0].is_nsfw
-          } : null
-        });
-        
         if (Array.isArray(payload)) {
           return payload;
         }
@@ -676,15 +666,12 @@ export const MainPage: React.FC<MainPageProps> = ({
     
     const handleCharacterCreated = async (event: Event) => {
       const customEvent = event as CustomEvent;
-      console.log('[MAIN PAGE] Получено событие character-created', customEvent.detail);
       
       // Даем время бэкенду сохранить персонажа и очистить кэш (увеличена задержка)
       await new Promise(resolve => setTimeout(resolve, 2500));
       // Принудительно перезагружаем персонажей из API, игнорируя кэш
-      console.log('[MAIN PAGE] Начинаем перезагрузку персонажей после создания');
       await loadCharacters(true); // forceRefresh = true
       await loadCharacterPhotos();
-      console.log('[MAIN PAGE] Персонажи перезагружены после создания');
     };
     
     // Обработчик обновления персонажа
@@ -692,12 +679,9 @@ export const MainPage: React.FC<MainPageProps> = ({
       const now = Date.now();
       // Предотвращаем частые обновления (не чаще раза в 2 секунды)
       if (now - lastCharactersUpdateRef.current < 2000) {
-        console.log('[MAIN PAGE] Пропуск обновления (слишком частое)');
         return;
       }
       lastCharactersUpdateRef.current = now;
-      
-      console.log('[MAIN PAGE] Персонаж обновлён, перезагружаем список');
       // Даем время бэкенду очистить кэш
       await new Promise(resolve => setTimeout(resolve, 500));
       // Принудительно перезагружаем персонажей из API
@@ -708,10 +692,9 @@ export const MainPage: React.FC<MainPageProps> = ({
           const charactersArray = Array.isArray(data) ? data : [];
           setCharacters(charactersArray);
           setCachedRawCharacters(charactersArray);
-          console.log('[MAIN PAGE] Персонажи перезагружены после обновления:', charactersArray.length);
         }
       } catch (error) {
-        console.error('[MAIN PAGE] Ошибка перезагрузки персонажей:', error);
+        
       }
     };
     

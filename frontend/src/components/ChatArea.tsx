@@ -252,18 +252,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           )}
           
           {messages && messages.length > 0 && messages.map((message, index) => {
-            console.log('[ChatArea] Рендеринг сообщения:', {
-              index,
-              messageId: message.id,
-              messageType: message.type,
-              messageRole: (message as any).role,
-              hasContent: !!message.content,
-              contentLength: message.content?.length || 0,
-              hasImage: !!message.imageUrl,
-              voiceUrl_passed: voiceUrl,
-              characterName,
-              isAuthenticated
-            });
             return (
               <Message 
                 key={message.id} 

@@ -136,7 +136,7 @@ function App() {
         'about': 'О проекте',
         'how-it-works': 'Как это работает',
         'bug-report': 'Сообщить об ошибке',
-        'admin-logs': 'Логи администратора'
+        'admin-logs': 'Логи пользователей'
       };
       document.title = pageTitles[currentPage] || 'cherrylust.art';
     }
@@ -149,11 +149,9 @@ function App() {
 
   // Функция загрузки персонажа по ID или имени
   const loadCharacterById = async (characterId: string | number): Promise<any | null> => {
-    console.log('[loadCharacterById] START:', characterId);
     try {
       // Сначала проверяем localStorage (по ID и по имени)
       const savedById = localStorage.getItem(`character_${characterId}`);
-      console.log('[loadCharacterById] localStorage check:', { key: `character_${characterId}`, found: !!savedById });
       if (savedById) {
 
         return JSON.parse(savedById);
@@ -161,12 +159,9 @@ function App() {
 
       // Пытаемся загрузить из API по ID
       try {
-        console.log('[loadCharacterById] Fetching from API:', `/api/v1/characters/${encodeURIComponent(characterId)}`);
         const response = await fetch(`/api/v1/characters/${encodeURIComponent(characterId)}`);
-        console.log('[loadCharacterById] API response status:', response.status);
         if (response.ok) {
           const character = await response.json();
-          console.log('[loadCharacterById] API response data:', character);
           if (character && (character.id || character.name)) {
             // Сохраняем в localStorage
             const storageKey = character.id ? `character_${character.id}` : `character_${character.name}`;
@@ -272,6 +267,9 @@ function App() {
     } else if (path.includes('/bug-report')) {
       setCurrentPage('bug-report');
       window.history.replaceState({ page: 'bug-report' }, '', path);
+    } else if (path.includes('/admin-logs')) {
+      setCurrentPage('admin-logs');
+      window.history.replaceState({ page: 'admin-logs' }, '', path);
     } else if (path.includes('/history')) {
       setCurrentPage('history');
       window.history.replaceState({ page: 'history' }, '', path);
@@ -281,26 +279,20 @@ function App() {
     } else if (path.includes('/edit-character')) {
       // КРИТИЧНО: Восстанавливаем персонажа для страницы редактирования
       const characterId = urlParams.get('character');
-      console.log('[App.tsx] /edit-character route detected:', { characterId, path });
       if (characterId) {
         // КРИТИЧНО: Устанавливаем флаг загрузки и страницу СРАЗУ для показа спиннера
-        console.log('[App.tsx] Setting isLoadingCharacter=true and currentPage=edit-character');
         setIsLoadingCharacter(true);
         setCurrentPage('edit-character');
 
         loadCharacterById(characterId).then(char => {
-          console.log('[App.tsx] loadCharacterById result:', { char, hasName: char?.name, hasId: char?.id });
           if (char) {
-            console.log('[App.tsx] Setting selectedCharacter:', char);
             setSelectedCharacter(char);
             window.history.replaceState({ page: 'edit-character', character: characterId }, '', path);
           } else {
-            console.log('[App.tsx] Character not found, redirecting to edit-characters');
             setCurrentPage('edit-characters');
             window.history.replaceState({ page: 'edit-characters' }, '', '/edit-characters');
           }
         }).finally(() => {
-          console.log('[App.tsx] Setting isLoadingCharacter=false');
           setIsLoadingCharacter(false);
         });
         return; // Выходим, чтобы не устанавливать main
@@ -769,11 +761,11 @@ function App() {
     window.history.pushState({ page: 'bug-report' }, '', '/bug-report');
   };
 
-
-  const handleLogs = () => {
+  const handleAdminLogs = () => {
     setCurrentPage('admin-logs');
     window.history.pushState({ page: 'admin-logs' }, '', '/admin-logs');
   };
+
 
   const handlePaymentMethod = (subscriptionType: string) => {
     // Этот метод больше не используется, так как кнопки оплаты теперь на странице магазина
@@ -1186,7 +1178,7 @@ function App() {
       case 'bug-report':
         return <BugReportPage onBackToMain={handleBackToMain} onProfile={handleProfile} onLogout={handleLogout} />;
       case 'admin-logs':
-        return <AdminLogsPage onBackToMain={handleBackToMain} />;
+        return <AdminLogsPage onBack={handleBackToMain} onProfile={handleProfile} />;
       case 'character-comments':
         if (selectedCharacter && selectedCharacter.name) {
           return (
@@ -1592,12 +1584,12 @@ function App() {
           onMessages={handleMessages}
           onBalanceHistory={handleBalanceHistory}
           onBugReport={handleBugReport}
+          onAdminLogs={handleAdminLogs}
           onProfile={handleProfile}
           onShop={handleShop}
           onLogin={handleLogin}
           onRegister={handleRegister}
           onLogout={handleLogout}
-          onLogs={handleLogs}
           isAuthenticated={isAuthenticated}
           isAdmin={userInfo?.is_admin || false}
           contentMode={contentMode}

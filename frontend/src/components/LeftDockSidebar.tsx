@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { FiPlusCircle, FiEdit, FiClock, FiHeart, FiGrid, FiHome, FiMessageSquare, FiTrendingUp, FiChevronRight, FiAlertTriangle, FiUser, FiLogIn, FiUserPlus, FiLogOut, FiDollarSign, FiBarChart2, FiRefreshCw } from 'react-icons/fi';
+import { FiPlusCircle, FiEdit, FiClock, FiHeart, FiGrid, FiHome, FiMessageSquare, FiTrendingUp, FiChevronRight, FiAlertTriangle, FiUser, FiLogIn, FiUserPlus, FiLogOut, FiDollarSign, FiRefreshCw, FiFileText } from 'react-icons/fi';
 import Switcher4 from './Switcher4';
 import { NSFWWarningModal } from './NSFWWarningModal';
 
@@ -25,7 +25,7 @@ interface LeftDockSidebarProps {
   onLogin?: () => void;
   onRegister?: () => void;
   onLogout?: () => void;
-  onLogs?: () => void;
+  onAdminLogs?: () => void;
   isAuthenticated?: boolean;
   isAdmin?: boolean;
   contentMode?: 'safe' | 'nsfw';
@@ -308,7 +308,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   onLogin,
   onRegister,
   onLogout,
-  onLogs,
+  onAdminLogs,
   isAuthenticated = false,
   isAdmin = false,
   contentMode = 'safe',
@@ -386,16 +386,6 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   // Дополнительные кнопки (скрытые по умолчанию)
   const additionalDockItems = [];
 
-  // Кнопка Logs - только для админов
-  if (isAdmin && onLogs) {
-    additionalDockItems.push({
-      icon: <FiBarChart2 size={18} />,
-      label: 'Logs',
-      onClick: () => onLogs?.(),
-      className: 'dock-item-logs',
-    });
-  }
-
   // Добавляем кнопки из правой верхней панели
   // Профиль - только для авторизованных
   if (isAuthenticated && onProfile) {
@@ -414,6 +404,16 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
       label: 'Магазин',
       onClick: () => onShop?.(),
       className: 'dock-item-shop',
+    });
+  }
+
+  // Логи - только для админов
+  if (isAdmin && onAdminLogs) {
+    additionalDockItems.push({
+      icon: <FiFileText size={18} />,
+      label: 'Логи',
+      onClick: () => onAdminLogs?.(),
+      className: 'dock-item-logs',
     });
   }
 
@@ -438,7 +438,6 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
           setUnreadMessagesCount(data.unread_count || 0);
         }
       } catch (error) {
-        console.error('Ошибка загрузки количества непрочитанных сообщений:', error);
       }
     };
     

@@ -288,7 +288,6 @@ export const PromptGlassModal: React.FC<PromptGlassModalProps> = ({
         setIsCopied(true);
         setTimeout(() => setIsCopied(false), 2000);
       } catch (err) {
-        console.error('Failed to copy:', err);
       }
     }
   };

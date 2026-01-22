@@ -41,12 +41,10 @@ class AuthManager {
     const token = localStorage.getItem('authToken');
     // Закомментировано для уменьшения спама в консоль и повышения производительности
     // if (token) {
-    //   console.log('[AuthManager] Токен получен из localStorage:', {
     //     tokenLength: token.length,
     //     tokenPreview: token.substring(0, 20) + '...'
     //   });
     // } else {
-    //   console.log('[AuthManager] Токен не найден в localStorage');
     // }
     return token;
   }
@@ -62,18 +60,11 @@ class AuthManager {
    * Сохраняет токены в localStorage
    */
   public setTokens(accessToken: string, refreshToken?: string | null): void {
-    console.log('[AuthManager] Сохранение токенов в localStorage:', {
-      hasAccessToken: !!accessToken,
-      hasRefreshToken: !!refreshToken,
-      accessTokenLength: accessToken?.length || 0
-    });
     localStorage.setItem('authToken', accessToken);
     if (refreshToken) {
       localStorage.setItem('refreshToken', refreshToken);
-      console.log('[AuthManager] Refresh token сохранен');
     } else {
       localStorage.removeItem('refreshToken');
-      console.log('[AuthManager] Refresh token удален');
     }
     this.startAutoRefresh();
     this.notifyAuthChange({ isAuthenticated: true });
@@ -266,17 +257,14 @@ class AuthManager {
 
     // Если получили 401, пытаемся обновить токен и повторить запрос
     if (response.status === 401) {
-      console.log('[authManager] Получен 401, пытаемся обновить токен...');
       const refreshToken = this.getRefreshToken();
       if (!refreshToken) {
-        console.error('[authManager] Нет refresh token для обновления');
         this.clearTokens();
         throw new Error('Authentication failed: No refresh token');
       }
       
       try {
         const newTokens = await this.refreshAccessToken();
-        console.log('[authManager] Токен обновлен, повторяем запрос...');
         const newHeaders = {
           ...options.headers,
           'Authorization': `Bearer ${newTokens.access_token}`
@@ -288,14 +276,12 @@ class AuthManager {
         });
         
         if (retryResponse.status === 401) {
-          console.error('[authManager] Повторный запрос также вернул 401 после обновления токена');
           this.clearTokens();
           throw new Error('Authentication failed: Token refresh did not help');
         }
         
         return retryResponse;
       } catch (error) {
-        console.error('[authManager] Ошибка при обновлении токена:', error);
         this.clearTokens();
         throw error instanceof Error ? error : new Error('Authentication failed');
       }
@@ -367,11 +353,9 @@ class AuthManager {
           });
         } catch (error) {
           // Игнорируем ошибки API, все равно очищаем токены локально
-          console.log('[AuthManager] Ошибка при вызове API logout (игнорируем):', error);
         }
       }
     } catch (error) {
-      console.log('[AuthManager] Ошибка в logout (игнорируем):', error);
     } finally {
       // Всегда очищаем токены локально, даже если сервер вернул ошибку
       this.clearTokens();

@@ -3327,7 +3327,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
       audio.src = objectUrl;
     } catch (err) {
-      console.error('Ошибка обработки аудио файла:', err);
       setVoiceError('Ошибка обработки файла. Проверьте формат.');
       setIsCalculatingDuration(false);
       setVoiceDuration(null);
@@ -3443,19 +3442,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   // Безопасное обновление characterIdentifier при изменении character
   useEffect(() => {
     const newName = character?.name || character?.id?.toString() || '';
-    console.log('[EditCharacterPage useEffect character change]:', {
-      newName,
-      characterIdentifier,
-      characterProp: character,
-      willUpdate: newName && newName !== characterIdentifier
-    });
 
     if (newName && newName !== characterIdentifier) {
-      console.log('[EditCharacterPage] Updating characterIdentifier from', characterIdentifier, 'to', newName);
       setCharacterIdentifier(newName);
       // Данные загрузятся автоматически через useEffect для characterIdentifier
     } else if (!newName && !characterIdentifier) {
-      console.log('[EditCharacterPage] No name and no identifier, setting isLoadingData=false');
       setIsLoadingData(false);
     }
     // eslint-disable-next-line react-hooks-exhaustive-deps
@@ -3476,7 +3467,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           setAvailableVoices(data);
         }
       } catch (err) {
-        console.error('Error fetching voices:', err);
       }
     };
     fetchVoices();
@@ -3553,7 +3543,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         const photoUrl = normalizeImageUrl(photo.url);
 
         if (!photoUrl) {
-          console.warn('[EditCharacterPage] Photo without URL:', photo);
         }
 
         return {
@@ -3728,7 +3717,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   // Загружаем данные персонажа
   const loadCharacterData = useCallback(async (targetIdentifier?: string, showLoading: boolean = true) => {
     let identifier = targetIdentifier || characterIdentifier;
-    console.log('[loadCharacterData] START:', { targetIdentifier, characterIdentifier, showLoading });
 
 
 
@@ -3857,7 +3845,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           voice_url: characterData?.voice_url || '' // Загружаем voice_url если он есть
         };
 
-        console.log('[loadCharacterData] Setting formData:', newFormData);
 
         // КРИТИЧНО: Устанавливаем formData СРАЗУ перед установкой isLoadingData в false
         // Это гарантирует, что поля формы будут заполнены до рендеринга
@@ -3927,7 +3914,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         voice_id: ''
       });
     } finally {
-      console.log('[loadCharacterData] FINALLY: Setting isLoadingData to false (showLoading:', showLoading, ')');
       if (showLoading) {
         setIsLoadingData(false);
       }
@@ -4152,7 +4138,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
     // КРИТИЧНО: Загружаем данные персонажа сразу при монтировании или изменении character
     if (effectiveIdentifier && effectiveIdentifier.trim() !== '') {
-      console.log('[useEffect mount] Loading character data for:', effectiveIdentifier);
 
       // КРИТИЧНО: Обновляем refs ПЕРЕД вызовом loadCharacterData для предотвращения race condition
       lastLoadedIdentifierRef.current = effectiveIdentifier;
@@ -4167,14 +4152,12 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       // Используем effectiveIdentifier (может быть characterIdentifier или character?.name)
       // ВАЖНО: loadCharacterData сам управляет isLoadingData через параметр showLoading
       loadCharacterData(effectiveIdentifier, true).catch((error) => {
-        console.error('[useEffect mount] Error loading character:', error);
         setIsLoadingData(false);
         setError('Ошибка при загрузке данных персонажа');
       }).finally(() => {
         isLoadingRef.current = false;
       });
     } else {
-      console.log('[useEffect mount] No identifier, setting isLoadingData to false');
       setIsLoadingData(false);
     }
 
@@ -4208,28 +4191,17 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     // Это гарантирует, что мы используем актуальное имя после редактирования
     const effectiveIdentifier = characterIdentifier || character?.name;
 
-    console.log('[useEffect characterIdentifier]:', {
-      effectiveIdentifier,
-      lastLoaded: lastLoadedIdentifierRef.current,
-      isLoading: isLoadingRef.current,
-      characterName: character?.name,
-      characterIdentifier
-    });
-
     if (effectiveIdentifier && effectiveIdentifier.trim() !== '' && lastLoadedIdentifierRef.current !== effectiveIdentifier && !isLoadingRef.current) {
-      console.log('[useEffect characterIdentifier] Loading data for:', effectiveIdentifier);
       lastLoadedIdentifierRef.current = effectiveIdentifier;
       isLoadingRef.current = true;
       loadCharacterData(effectiveIdentifier, true).finally(() => {
         isLoadingRef.current = false;
       });
     } else if (!effectiveIdentifier || effectiveIdentifier.trim() === '') {
-      console.log('[useEffect characterIdentifier] No identifier, stopping loading');
       setIsLoadingData(false);
       lastLoadedIdentifierRef.current = null;
       isLoadingRef.current = false;
     } else {
-      console.log('[useEffect characterIdentifier] Skipping load (already loaded or loading)');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [character?.name, characterIdentifier]); // Реагируем на изменения name из prop и characterIdentifier
@@ -4281,7 +4253,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         voice_url: formData.voice_url || null // Добавляем поддержку voice_url для загруженных голосов
       };
 
-      console.log('[EDIT CHARACTER] Отправка запроса с voice_id:', formData.voice_id, 'voice_url:', formData.voice_url);
 
       if (!requestData.name || !requestData.personality || !requestData.situation || !requestData.instructions) {
         throw new Error('Все обязательные поля должны быть заполнены');
@@ -4350,17 +4321,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         // Это гарантирует, что все последующие запросы будут использовать новое имя
         setTimeout(() => {
           loadCharacterData(newName, false).catch((error) => {
-            console.error('Error reloading character data after update:', error);
           });
         }, 200); // Задержка для синхронизации состояния
       }
 
       // Отправляем событие для обновления главной страницы
-      console.log('[EditCharacter] Отправка события character-updated:', {
-        characterId: updatedCharacter?.id,
-        characterName: updatedName,
-        oldName: characterIdentifier
-      });
       window.dispatchEvent(new CustomEvent('character-updated', {
         detail: {
           characterId: updatedCharacter?.id,
@@ -4872,17 +4837,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
   // Проверка на undefined character с более детальной информацией
   // ВАЖНО: Показываем ошибку только если character точно отсутствует И мы не в процессе загрузки
-  console.log('[EditCharacterPage] RENDER CHECK:', {
-    hasCharacter: !!character,
-    characterName: character?.name,
-    characterId: character?.id,
-    isLoadingData,
-    characterIdentifier,
-    formDataName: formData?.name
-  });
-
   if (!character || (!character.name && !character.id)) {
-    console.log('[EditCharacterPage] No character prop - showing error/loading:', { character, isLoadingData });
 
     // Если мы еще загружаем данные, показываем спиннер
     if (isLoadingData) {
@@ -5002,18 +4957,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   }
 
   // Финальная проверка перед рендерингом формы
-  console.log('[EditCharacterPage] Rendering form:', {
-    isLoadingData,
-    hasFormData: !!formData,
-    formDataName: formData?.name,
-    formDataPersonality: formData?.personality?.substring(0, 30),
-    characterName: character?.name,
-    characterIdentifier,
-    formDataKeys: formData ? Object.keys(formData) : []
-  });
-
-  // ДИАГНОСТИКА: Проверяем, что рендерится
-  console.log('[EditCharacterPage] About to render MainContainer', { isMobile, formData });
 
   try {
     return (
@@ -5226,19 +5169,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                           const editedName = editedVoiceNames[voice.id] || voice.name;
                           const isEditingPhoto = editingVoicePhotoId === voice.id || editingVoicePhotoId === String(voice.id);
 
-                          // Отладка для дефолтных голосов
-                          if (!isUserVoice) {
-                            console.log('[DEFAULT VOICE DEBUG - EDIT PAGE]', {
-                              voiceName: voice.name,
-                              isUserVoice,
-                              isAdmin,
-                              isOwner,
-                              userInfoIsAdmin: userInfo?.is_admin,
-                              shouldShowButtons: (!isUserVoice && (isAdmin || userInfo?.is_admin)),
-                              condition: ((isUserVoice && (isOwner || isAdmin || userInfo?.is_admin)) || (!isUserVoice && (isAdmin || userInfo?.is_admin)))
-                            });
-                          }
-
                           return (
                             <VoicePhotoWrapper
                               key={voice.id}
@@ -5269,7 +5199,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                   // Если редактируется имя, не выбираем голос
                                   if (editingVoiceId === voice.id) return;
 
-                                  console.log('[VOICE SELECT EDIT] Выбран голос:', voice.id, 'Название:', voice.name, 'isUserVoice:', isUserVoice);
 
                                   if (isUserVoice) {
                                     setFormData(prev => ({ ...prev, voice_url: voice.url, voice_id: '' }));
@@ -5302,7 +5231,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                   if (audioUrlToPlay) {
                                     try {
                                       const fullUrl = audioUrlToPlay.startsWith('http') ? audioUrlToPlay : `${API_CONFIG.BASE_URL}${audioUrlToPlay}`;
-                                      console.log('Воспроизведение голоса:', fullUrl);
                                       const encodedUrl = encodeURI(fullUrl);
                                       const audio = new Audio(encodedUrl);
                                       audioRef.current = audio;
@@ -5311,24 +5239,19 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
                                       // Обработчики событий
                                       audio.onloadeddata = () => {
-                                        console.log('Аудио загружено:', audioUrlToPlay);
                                       };
                                       audio.onerror = (err) => {
-                                        console.error('Ошибка загрузки аудио:', err, audioUrlToPlay);
                                         setPlayingVoiceUrl(null);
                                         audioRef.current = null;
                                       };
                                       audio.onended = () => {
-                                        console.log('Воспроизведение завершено:', audioUrlToPlay);
                                         setPlayingVoiceUrl(null);
                                         audioRef.current = null;
                                       };
 
                                       setPlayingVoiceUrl(audioUrlToPlay);
                                       await audio.play();
-                                      console.log('Воспроизведение начато:', audioUrlToPlay);
                                     } catch (err) {
-                                      console.error('Ошибка воспроизведения:', err, audioUrlToPlay);
                                       setPlayingVoiceUrl(null);
                                       audioRef.current = null;
                                       alert('Не удалось воспроизвести аудио. Проверьте консоль для деталей.');
@@ -5376,26 +5299,14 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       e.preventDefault();
-                                      console.log('[EDIT VOICE] Клик на кнопку редактирования:', {
-                                        voiceId: voice.id,
-                                        voiceName: voice.name,
-                                        userVoiceId: voice.user_voice_id,
-                                        isUserVoice,
-                                        isOwner,
-                                        isAdmin,
-                                        currentEditingId: editingVoicePhotoId
-                                      });
                                       const newEditingId = voice.id;
-                                      console.log('[EDIT VOICE] Устанавливаем editingVoicePhotoId:', newEditingId, 'voice.user_voice_id:', voice.user_voice_id);
                                       setEditingVoicePhotoId(newEditingId);
                                       setEditedVoiceNames(prev => ({
                                         ...prev,
                                         [voice.id]: voice.name
                                       }));
-                                      console.log('[EDIT VOICE] После установки, editingVoicePhotoId должен быть:', newEditingId);
                                       // Принудительно обновляем состояние для отладки
                                       setTimeout(() => {
-                                        console.log('[EDIT VOICE] Проверка состояния через 100ms, editingVoicePhotoId:', editingVoicePhotoId);
                                       }, 100);
                                     }}
                                     title="Редактировать фото и название"
@@ -5416,16 +5327,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                       try {
                                         const token = localStorage.getItem('authToken');
 
-                                        console.log('[DELETE VOICE EDIT] Попытка удаления:', {
-                                          voiceId: voice.id,
-                                          voiceName: voice.name,
-                                          isUserVoice,
-                                          userVoiceId: voice.user_voice_id,
-                                          isAdmin,
-                                          isOwner,
-                                          voiceObject: voice
-                                        });
-
                                         // Проверяем, что это действительно пользовательский голос с валидным ID
                                         if (isUserVoice && voice.user_voice_id) {
                                           // Удаление пользовательского голоса
@@ -5434,12 +5335,10 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                             : parseInt(String(voice.user_voice_id), 10);
 
                                           if (isNaN(voiceIdToDelete)) {
-                                            console.error('[DELETE VOICE EDIT] Неверный user_voice_id:', voice.user_voice_id);
                                             alert('Ошибка: неверный ID голоса для удаления');
                                             return;
                                           }
 
-                                          console.log('[DELETE VOICE EDIT] Удаление пользовательского голоса:', voiceIdToDelete);
                                           const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${voiceIdToDelete}`, {
                                             method: 'DELETE',
                                             headers: {
@@ -5468,7 +5367,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                           }
                                         } else if (!isUserVoice && isAdmin) {
                                           // Удаление дефолтного голоса
-                                          console.log('[DELETE VOICE EDIT] Удаление дефолтного голоса:', voice.id);
                                           const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/default-voice/${voice.id}`, {
                                             method: 'DELETE',
                                             headers: {
@@ -5500,20 +5398,12 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                             } catch {
                                               errorMessage = errorText || errorMessage;
                                             }
-                                            console.error('[DELETE VOICE EDIT] Ошибка удаления:', response.status, errorMessage);
                                             alert('Ошибка удаления голоса: ' + errorMessage);
                                           }
-                                        } else {
-                                          console.error('[DELETE VOICE EDIT] Неверные данные для удаления:', {
-                                            isUserVoice,
-                                            userVoiceId: voice.user_voice_id,
-                                            isAdmin,
-                                            voiceId: voice.id
-                                          });
-                                          alert('Не удалось определить тип голоса для удаления. Проверьте консоль для деталей.');
+                                          } else {
+                                            alert('Не удалось определить тип голоса для удаления.');
                                         }
                                       } catch (err) {
-                                        console.error('Ошибка удаления голоса:', err);
                                         alert('Не удалось удалить голос. Проверьте консоль для деталей.');
                                       }
                                     }}
@@ -5537,19 +5427,9 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                     const creatorId = voice.creator_id;
                                     const currentUserId = userInfo?.id;
 
-                                    console.log('[CREATOR CLICK] Переход на профиль создателя:', {
-                                      creatorUsername,
-                                      creatorId,
-                                      currentUserId,
-                                      voiceData: voice,
-                                      isOwner: voice.is_owner,
-                                      userVoiceId: voice.user_voice_id
-                                    });
-
                                     // Проверяем, что creator_id существует, это не текущий пользователь, и это не владелец голоса
                                     if (creatorId && typeof creatorId === 'number' && creatorId > 0 && creatorId !== currentUserId) {
                                       // Используем callback для перехода на профиль
-                                      console.log('[CREATOR CLICK] Переход на профиль по ID:', creatorId);
                                       if (onProfile) {
                                         onProfile(creatorId);
                                       } else {
@@ -5557,11 +5437,9 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                       }
                                     } else if (creatorUsername && creatorId !== currentUserId) {
                                       // Если нет ID, пытаемся использовать username
-                                      console.warn('[CREATOR CLICK] Нет creator_id, пытаемся использовать username:', creatorUsername);
                                       // Для username используем прямой переход, так как callback принимает только ID
                                       window.location.href = `/profile?username=${encodeURIComponent(creatorUsername)}`;
                                     } else {
-                                      console.error('[CREATOR CLICK] Нет ни creator_id, ни creator_username, или это текущий пользователь');
                                     }
                                   }}
                                 >
@@ -5657,7 +5535,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                           }
                                         }
                                       } catch (err) {
-                                        console.error('Ошибка обновления имени голоса:', err);
                                         alert('Не удалось обновить имя голоса. Проверьте консоль для деталей.');
                                         setEditedVoiceNames(prev => {
                                           const newState = { ...prev };
@@ -5940,7 +5817,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                                               alert('Ошибка обновления фото: ' + (error.detail || 'Неизвестная ошибка'));
                                                             }
                                                           } catch (err) {
-                                                            console.error('Ошибка обновления фото голоса:', err);
                                                             alert('Не удалось обновить фото. Проверьте консоль для деталей.');
                                                           } finally {
                                                             setUploadingPhotoVoiceId(null);
@@ -5950,7 +5826,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                                     };
                                                     img.src = photoPreview.url;
                                                   } catch (err) {
-                                                    console.error('Ошибка обработки фото:', err);
                                                     alert('Не удалось обработать фото');
                                                   }
                                                 }
@@ -6158,7 +6033,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                                   alert('Ошибка изменения статуса: ' + (error.detail || 'Неизвестная ошибка'));
                                                 }
                                               } catch (err) {
-                                                console.error('Ошибка изменения статуса публичности:', err);
                                                 alert('Не удалось изменить статус. Проверьте консоль для деталей.');
                                               }
                                             }
@@ -6298,7 +6172,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                     }
                                     if (editingVoiceId === voice.id) return;
 
-                                    console.log('[VOICE SELECT EDIT] Выбран голос:', voice.id, 'Название:', voice.name, 'isUserVoice:', isUserVoice);
 
                                     if (isUserVoice) {
                                       setFormData(prev => ({ ...prev, voice_url: voice.url, voice_id: '' }));
@@ -6329,7 +6202,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                       const fullUrl = audioUrlToPlay.startsWith('http')
                                         ? audioUrlToPlay
                                         : `${API_CONFIG.BASE_URL}${audioUrlToPlay}`;
-                                      console.log('Воспроизведение голоса:', fullUrl);
 
                                       const audio = new Audio(fullUrl);
                                       audioRef.current = audio;
@@ -6339,14 +6211,12 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                       };
 
                                       audio.onerror = () => {
-                                        console.error('Ошибка воспроизведения аудио');
                                         setPlayingVoiceUrl(null);
                                       };
 
                                       await audio.play();
                                       setPlayingVoiceUrl(audioUrlToPlay);
                                     } catch (err) {
-                                      console.error('Ошибка воспроизведения:', err);
                                     }
                                   }}
                                 >
@@ -6408,15 +6278,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
                                         try {
                                           const token = localStorage.getItem('authToken');
-                                          console.log('[DELETE VOICE EDIT] Попытка удаления:', {
-                                            voiceId: voice.id,
-                                            voiceName: voice.name,
-                                            isUserVoice,
-                                            userVoiceId: voice.user_voice_id,
-                                            isOwner,
-                                            isAdmin,
-                                            voiceObject: voice
-                                          });
 
                                           if (isUserVoice && voice.user_voice_id) {
                                             const voiceIdToDelete = typeof voice.user_voice_id === 'number'
@@ -6424,12 +6285,10 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                               : parseInt(String(voice.user_voice_id), 10);
 
                                             if (isNaN(voiceIdToDelete)) {
-                                              console.error('[DELETE VOICE EDIT] Неверный user_voice_id:', voice.user_voice_id);
                                               alert('Ошибка: неверный ID голоса для удаления');
                                               return;
                                             }
 
-                                            console.log('[DELETE VOICE EDIT] Удаление пользовательского голоса:', voiceIdToDelete);
                                             const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${voiceIdToDelete}`, {
                                               method: 'DELETE',
                                               headers: {
@@ -6456,7 +6315,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                               alert('Ошибка удаления голоса: ' + (error.detail || 'Неизвестная ошибка'));
                                             }
                                           } else if (!isUserVoice && isAdmin) {
-                                            console.log('[DELETE VOICE EDIT] Удаление дефолтного голоса:', voice.id);
                                             const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/default-voice/${voice.id}`, {
                                               method: 'DELETE',
                                               headers: {
@@ -6481,21 +6339,12 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                             } else {
                                               const error = await response.json();
                                               const errorMessage = error.detail || 'Неизвестная ошибка';
-                                              console.error('[DELETE VOICE EDIT] Ошибка удаления:', response.status, errorMessage);
                                               alert('Ошибка удаления голоса: ' + errorMessage);
                                             }
                                           } else {
-                                            console.error('[DELETE VOICE EDIT] Неверные данные для удаления:', {
-                                              isUserVoice,
-                                              userVoiceId: voice.user_voice_id,
-                                              isOwner,
-                                              isAdmin,
-                                              voiceId: voice.id
-                                            });
-                                            alert('Не удалось определить тип голоса для удаления. Проверьте консоль для деталей.');
+                                            alert('Не удалось определить тип голоса для удаления.');
                                           }
                                         } catch (err) {
-                                          console.error('Ошибка удаления голоса:', err);
                                           alert('Не удалось удалить голос. Проверьте консоль для деталей.');
                                         }
                                       }}
@@ -6526,19 +6375,9 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                       const creatorId = voice.creator_id;
                                       const currentUserId = userInfo?.id;
 
-                                      console.log('[CREATOR CLICK] Переход на профиль создателя:', {
-                                        creatorUsername,
-                                        creatorId,
-                                        currentUserId,
-                                        voiceData: voice,
-                                        isOwner: voice.is_owner,
-                                        userVoiceId: voice.user_voice_id
-                                      });
-
                                       // Проверяем, что creator_id существует, это не текущий пользователь, и это не владелец голоса
                                       if (creatorId && typeof creatorId === 'number' && creatorId > 0 && creatorId !== currentUserId) {
                                         // Используем callback для перехода на профиль
-                                        console.log('[CREATOR CLICK] Переход на профиль по ID:', creatorId);
                                         if (onProfile) {
                                           onProfile(creatorId);
                                         } else {
@@ -6546,11 +6385,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                         }
                                       } else if (creatorUsername && creatorId !== currentUserId) {
                                         // Если нет ID, пытаемся использовать username
-                                        console.warn('[CREATOR CLICK] Нет creator_id, пытаемся использовать username:', creatorUsername);
                                         // Для username используем прямой переход, так как callback принимает только ID
                                         window.location.href = `/profile?username=${encodeURIComponent(creatorUsername)}`;
-                                      } else {
-                                        console.error('[CREATOR CLICK] Нет ни creator_id, ни creator_username, или это текущий пользователь');
                                       }
                                     }}
                                   >
@@ -6626,7 +6462,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                             }
                                           }
                                         } catch (err) {
-                                          console.error('Ошибка изменения имени голоса:', err);
                                           alert('Не удалось изменить имя. Проверьте консоль для деталей.');
                                         }
                                       } else {
@@ -6740,7 +6575,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                             alert('Ошибка изменения статуса: ' + (error.detail || 'Неизвестная ошибка'));
                                           }
                                         } catch (err) {
-                                          console.error('Ошибка изменения статуса публичности:', err);
                                           alert('Не удалось изменить статус. Проверьте консоль для деталей.');
                                         }
                                       }}
@@ -6836,7 +6670,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                                     }
                                                   }
                                                 } catch (err) {
-                                                  console.error('Ошибка обновления имени:', err);
                                                   alert('Не удалось обновить имя');
                                                 }
                                               }
@@ -6977,7 +6810,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                                       };
                                                       img.src = photoPreview.url;
                                                     } catch (err) {
-                                                      console.error('Ошибка обновления фото:', err);
                                                       alert('Не удалось обновить фото. Проверьте консоль для деталей.');
                                                     }
                                                   }
@@ -7482,7 +7314,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                     if (photo) openPhotoModal(photo);
                                   }}
                                   onError={(e) => {
-                                    console.error('[EditCharacterPage] Ошибка загрузки изображения:', photo.url);
                                     e.currentTarget.style.display = 'none';
                                   }}
                                 />
@@ -7757,7 +7588,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                             setVoiceError('Ошибка загрузки голоса: ' + (error.detail || 'Неизвестная ошибка'));
                           }
                         } catch (err) {
-                          console.error('Ошибка загрузки голоса:', err);
                           setVoiceError('Не удалось загрузить голос. Проверьте консоль для деталей.');
                         } finally {
                           setIsUploadingVoice(false);
@@ -7906,7 +7736,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       </>
     );
   } catch (err) {
-    console.error('[EditCharacterPage] Render error:', err);
     return (
       <div style={{ color: 'white', padding: '20px', background: '#333', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <h2>Ошибка рендеринга страницы</h2>

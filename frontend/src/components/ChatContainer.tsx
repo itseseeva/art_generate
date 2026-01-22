@@ -1431,17 +1431,14 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     try {
       // Проверяем, что identifier не пустой
       if (!characterIdentifier || characterIdentifier.trim() === '') {
-        console.log('[loadCharacterData] Пустой identifier, выход');
         return;
       }
 
       // Проверяем, не загружаем ли мы уже этого персонажа
       if (isLoadingCharacterDataRef.current === characterIdentifier) {
-        console.log('[loadCharacterData] Уже загружаем этого персонажа, выход');
         return;
       }
 
-      console.log('[loadCharacterData] Начинаем загрузку персонажа:', characterIdentifier);
       isLoadingCharacterDataRef.current = characterIdentifier;
 
       const safeIdentifier = encodeURIComponent(characterIdentifier);
@@ -1457,11 +1454,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
       if (response.ok) {
         const characterData = await response.json();
-        console.log('[loadCharacterData] Получены данные персонажа:', {
-          name: characterData.name,
-          voice_id: characterData.voice_id,
-          voice_url: characterData.voice_url
-        });
 
         const situation = extractRolePlayingSituation(characterData.prompt || '');
         setCharacterSituation(situation);
@@ -1542,19 +1534,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           !currentCharacter; // Или если персонаж еще не загружен
 
         if (hasChanged) {
-          console.log('[loadCharacterData] Обновляем currentCharacter:', {
-            voice_id: updatedCharacter.voice_id,
-            voice_url: updatedCharacter.voice_url,
-            changed_fields: {
-              id: currentId !== newId,
-              name: currentName !== newName,
-              voice_id: currentVoiceId !== newVoiceId,
-              voice_url: currentVoiceUrl !== newVoiceUrl
-            }
-          });
           setCurrentCharacter(updatedCharacter);
-        } else {
-          console.log('[loadCharacterData] Данные не изменились, пропускаем обновление');
         }
 
         // Сбрасываем флаг загрузки после успешной загрузки
@@ -1662,21 +1642,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     const handleCharacterUpdated = (event: CustomEvent) => {
       const { characterName, characterId } = event.detail || {};
 
-      console.log('[ChatContainer] Получено событие character-updated:', { characterName, characterId });
-      console.log('[ChatContainer] Текущий персонаж:', {
-        currentName: currentCharacter?.raw?.name || currentCharacter?.name,
-        currentId: currentCharacter?.raw?.id || currentCharacter?.id,
-        voice_id: currentCharacter?.voice_id,
-        voice_url: currentCharacter?.voice_url
-      });
-
       // Проверяем, что это обновление текущего персонажа
       const currentName = currentCharacter?.raw?.name || currentCharacter?.name;
       const currentId = currentCharacter?.raw?.id || currentCharacter?.id;
 
       if ((characterName && currentName && characterName === currentName) ||
         (characterId && currentId && String(characterId) === String(currentId))) {
-        console.log('[ChatContainer] Обновляем данные персонажа после редактирования');
 
         // Сбрасываем флаг загрузки, чтобы разрешить повторную загрузку
         isLoadingCharacterDataRef.current = null;
@@ -1684,11 +1655,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         // Принудительно перезагружаем данные персонажа
         const identifier = characterName || characterId?.toString() || currentName;
         if (identifier) {
-          console.log('[ChatContainer] Вызываем loadCharacterData для:', identifier);
           loadCharacterData(identifier);
         }
       } else {
-        console.log('[ChatContainer] Событие не для текущего персонажа, игнорируем');
       }
     };
 
@@ -2448,7 +2417,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       timestamp: new Date()
     };
 
-    console.log('[ChatContainer] Создано сообщение ассистента:', assistantMessageId, 'generateImage:', generateImage);
     setMessages(prev => [...prev, assistantMessage]);
 
     // Если генерация изображения, добавляем в очередь активных генераций и запускаем прогресс
@@ -2490,39 +2458,18 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         requestBody.model = selectedChatModel;
       }
 
-      console.log('[ChatContainer] Отправка сообщения:', {
-        character: currentCharacter.name,
-        message: originalMessage.substring(0, 50),
-        generateImage,
-        userId: effectiveUserId,
-        hasToken: !!authToken
-      });
-
       const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody)
       });
 
-      console.log('[ChatContainer] Ответ от сервера:', {
-        status: response.status,
-        ok: response.ok,
-        contentType: response.headers.get('content-type')
-      });
-
       // Проверяем, является ли ответ SSE потоком
       const contentType = response.headers.get('content-type');
 
       if (!response.ok) {
-        console.error('[ChatContainer] Ошибка отправки сообщения:', {
-          status: response.status,
-          statusText: response.statusText,
-          contentType
-        });
-
         // Обработка 401 - неавторизован
         if (response.status === 401) {
-          console.warn('[ChatContainer] Получен 401, очищаем токены и перенаправляем на логин');
           authManager.clearTokens();
           setAuthMode('login');
           setIsAuthModalOpen(true);
@@ -2537,13 +2484,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
         // Обработка 404 - чат не найден, создаем новый
         if (response.status === 404) {
-          console.warn('[ChatContainer] Получен 404, чат не найден. Создаем новый chat_id');
           // Удаляем текущий chat_id из состояния, чтобы создать новый
           // Это произойдет автоматически при следующем запросе
           setError('Чат не найден. Создаю новый чат...');
           // Повторяем запрос через небольшую задержку
           setTimeout(() => {
-            console.log('[ChatContainer] Повторная попытка отправки сообщения после 404');
             sendChatMessage(message, generateImage);
           }, 500);
           return;
@@ -2552,7 +2497,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         // Если это не SSE, пытаемся получить JSON ошибку
         if (!contentType || !contentType.includes('text/event-stream')) {
           const errorData = await response.json().catch(() => ({ detail: 'Ошибка отправки сообщения' }));
-          console.error('[ChatContainer] Детали ошибки:', errorData);
           throw new Error(errorData.detail || `Ошибка отправки сообщения (${response.status})`);
         } else {
           // Если это SSE с ошибкой, обрабатываем её в потоке
@@ -2563,7 +2507,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         // Обрабатываем SSE поток
         // ВАЖНО: Сохраняем generateImage в локальную константу для замыкания
         const isImageGeneration = generateImage;
-        console.log('[SSE] Начинаем обработку SSE потока, generateImage:', generateImage, 'isImageGeneration:', isImageGeneration);
         const reader = response.body?.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
@@ -2576,35 +2519,27 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         while (true) {
           const { done, value } = await reader.read();
 
-          console.log('[SSE DEBUG] reader.read() вызван, done:', done, 'value length:', value?.length || 0);
 
           if (done) {
-            console.log('[SSE DEBUG] Поток завершен (done=true)');
             break;
           }
 
           // Декодируем чанк
           const decodedChunk = decoder.decode(value, { stream: true });
-          console.log('[SSE DEBUG] Декодированный чанк:', decodedChunk);
           buffer += decodedChunk;
 
           // Обрабатываем все полные строки
           const lines = buffer.split('\n');
           buffer = lines.pop() || ''; // Сохраняем неполную строку обратно в буфер
 
-          console.log('[SSE DEBUG] Обработка строк, количество:', lines.length, 'lines:', lines);
 
           for (const line of lines) {
-            console.log('[SSE DEBUG] Обрабатываем строку:', line);
             if (line.startsWith('data: ')) {
               try {
                 const dataString = line.slice(6);
-                console.log('[SSE DEBUG] data string:', dataString);
                 const data = JSON.parse(dataString);
-                console.log('[SSE] Получены данные:', data, 'Ключи:', Object.keys(data));
 
                 if (data.error) {
-                  console.error('[SSE] Ошибка:', data.error);
                   setIsLoading(false);
                   throw new Error(data.error);
                 }
@@ -2677,7 +2612,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   continue;
                 }
 
-                console.log('[SSE DEBUG] Проверка data.content, значение:', data.content, 'typeof:', typeof data.content, 'truthy:', !!data.content);
 
                 if (data.content) {
                   // Накопляем контент только если это не генерация изображения
@@ -2704,7 +2638,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
                 if (data.done) {
                   // Стриминг завершен
-                  console.log('[SSE] Стриминг завершен, isImageGeneration:', isImageGeneration);
                   if (!isImageGeneration) {
                     setIsLoading(false);
                   }
@@ -2781,16 +2714,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         await refreshUserStats();
       }
     } catch (error) {
-      console.error('[ChatContainer] Критическая ошибка отправки сообщения:', {
-        error: error,
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        character: currentCharacter?.name,
-        generateImage,
-        userId: effectiveUserId,
-        assistantMessageId,
-        hasToken: !!authManager.getToken()
-      });
 
       setError(error instanceof Error ? error.message : 'Ошибка отправки сообщения');
 
@@ -3878,22 +3801,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 const voiceUrl = currentCharacter?.voice_id
                   ? `/default_character_voices/${currentCharacter.voice_id}`
                   : currentCharacter?.voice_url;
-                console.log('🔊 [ChatContainer] ПЕРЕДАЧА ДАННЫХ В ChatArea:', {
-                  totalMessages: uniqueMessages.length,
-                  messagesDetails: uniqueMessages.map(m => ({
-                    id: m.id,
-                    type: m.type,
-                    role: (m as any).role,
-                    hasContent: !!m.content,
-                    contentPreview: m.content?.substring(0, 50),
-                    hasImage: !!m.imageUrl
-                  })),
-                  voice_id: currentCharacter?.voice_id,
-                  voice_url: currentCharacter?.voice_url,
-                  computed_voiceUrl: voiceUrl,
-                  characterName: characterForRender?.name,
-                  isAuthenticated
-                });
                 return voiceUrl;
               })()}
               userAvatar={userInfo?.avatar_url || undefined}

@@ -269,6 +269,52 @@ async def get_users_list(
                     "monthly_photos": user.subscription.monthly_photos
                 }
             
+            # Статистика чатов
+            try:
+                from app.chat_bot.models.models import ChatSession, ChatMessageDB
+                user_id_str = str(user.id)
+                
+                # Проверяем, есть ли у пользователя чат-сессии
+                chat_sessions_result = await db.execute(
+                    select(func.count(ChatSession.id)).where(
+                        or_(
+                            ChatSession.user_id == user_id_str,
+                            func.trim(ChatSession.user_id) == user_id_str
+                        )
+                    )
+                )
+                chat_sessions_count = chat_sessions_result.scalar() or 0
+                
+                # Подсчитываем общее количество сообщений пользователя
+                total_chat_messages = 0
+                if chat_sessions_count > 0:
+                    # Получаем все session_id для этого пользователя
+                    sessions_result = await db.execute(
+                        select(ChatSession.id).where(
+                            or_(
+                                ChatSession.user_id == user_id_str,
+                                func.trim(ChatSession.user_id) == user_id_str
+                            )
+                        )
+                    )
+                    session_ids = [row[0] for row in sessions_result.all()]
+                    
+                    if session_ids:
+                        messages_result = await db.execute(
+                            select(func.count(ChatMessageDB.id)).where(
+                                ChatMessageDB.session_id.in_(session_ids),
+                                ChatMessageDB.role == "user"
+                            )
+                        )
+                        total_chat_messages = messages_result.scalar() or 0
+            except Exception as chat_error:
+                logger.warning(f"[ADMIN] Ошибка получения статистики чата для user_id={user.id}: {chat_error}")
+                chat_sessions_count = 0
+                total_chat_messages = 0
+            
+            has_subscription = subscription_info is not None and subscription_info.get("type") != "free"
+            has_chat = chat_sessions_count > 0
+            
             users_list.append({
                 "id": user.id,
                 "email": user.email,
@@ -280,7 +326,11 @@ async def get_users_list(
                 "country": user.country,
                 "created_at": user.created_at.isoformat() if user.created_at else None,
                 "total_messages_sent": user.total_messages_sent,
-                "subscription": subscription_info
+                "subscription": subscription_info,
+                "has_subscription": has_subscription,
+                "has_chat": has_chat,
+                "chat_sessions_count": chat_sessions_count,
+                "total_chat_messages": total_chat_messages
             })
         
         return {

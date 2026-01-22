@@ -1424,26 +1424,46 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       // Определяем ID пользователя, чьих персонажей нужно загрузить
       let targetUserId: number | null = null;
       
-      if (isViewingOwnProfile) {
-        // Для своего профиля получаем ID текущего пользователя
-        const userResponse = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`);
-
-        if (!userResponse.ok) {
-          return;
-        }
-
-        const userData = await userResponse.json();
-        targetUserId = userData?.id;
-      } else if (profileUserId) {
-        // Для чужого профиля используем ID профиля
+      // Если передан profileUserId, используем его (для чужого профиля)
+      if (profileUserId) {
         targetUserId = profileUserId;
+      } else {
+        // Для своего профиля получаем ID текущего пользователя
+        // Используем currentUserId если он уже установлен, иначе делаем запрос
+        if (currentUserId !== null) {
+          targetUserId = currentUserId;
+        } else {
+          const userResponse = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`);
+
+          if (!userResponse.ok) {
+            return;
+          }
+
+          const userData = await userResponse.json();
+          targetUserId = userData?.id;
+          
+          // Сохраняем currentUserId для будущих вызовов
+          if (targetUserId) {
+            setCurrentUserId(targetUserId);
+          }
+        }
       }
       
       if (!targetUserId) {
+        setUserCharacters([]);
         return;
       }
 
-      const response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/characters/`);
+      // Для своего профиля можно использовать эндпоинт /my-characters
+      // Для чужого профиля используем общий эндпоинт и фильтруем
+      let response: Response;
+      if (!profileUserId && currentUserId === targetUserId) {
+        // Свой профиль - используем специальный эндпоинт
+        response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/characters/my-characters`);
+      } else {
+        // Чужой профиль или свой, но нужно загрузить все и отфильтровать
+        response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/characters/`);
+      }
 
       if (response.ok) {
         const charactersData = await response.json();
@@ -1453,13 +1473,18 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           return;
         }
         
-        // Фильтруем только персонажей целевого пользователя
-        const myCharacters = charactersData.filter((char: any) => {
-          if (!char || !char.id) {
-            return false;
-          }
-          return Number(char.user_id) === Number(targetUserId);
-        });
+        // Если использовали /my-characters, персонажи уже отфильтрованы
+        // Если использовали общий эндпоинт, фильтруем по user_id
+        const myCharacters = !profileUserId && currentUserId === targetUserId
+          ? charactersData  // Уже отфильтрованы
+          : charactersData.filter((char: any) => {
+              if (!char || !char.id) {
+                return false;
+              }
+              // Проверяем оба варианта: user_id и creator_id (на случай разных версий API)
+              const charUserId = char.user_id || char.creator_id;
+              return charUserId !== null && charUserId !== undefined && Number(charUserId) === Number(targetUserId);
+            });
         
         // Загружаем фото из main_photos
         const photosMap: Record<string, string[]> = {};
@@ -1594,6 +1619,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         // Фильтруем персонажей с валидным id (та же фильтрация, что и для formattedCharacters)
         const filteredCharacters = myCharacters.filter((char: any) => char && char.id != null);
         
+        console.log('[ProfilePage] Загружено персонажей:', {
+          total: charactersData.length,
+          filtered: filteredCharacters.length,
+          targetUserId,
+          profileUserId,
+          currentUserId
+        });
+        
         // Сохраняем raw данные персонажей (только отфильтрованные, чтобы индексы совпадали с userCharacters)
         setRawCharactersData(filteredCharacters);
         // Сохраняем photosMap в состояние
@@ -1601,12 +1634,17 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         
         // Сохраняем персонажей (используем rawCharactersData для отображения)
         setUserCharacters(filteredCharacters);
+      } else {
+        console.warn('[ProfilePage] Ошибка загрузки персонажей:', response.status, response.statusText);
+        setUserCharacters([]);
+        setRawCharactersData([]);
       }
     } catch (error) {
-      
+      console.error('[ProfilePage] Ошибка загрузки персонажей пользователя:', error);
       setUserCharacters([]);
+      setRawCharactersData([]);
     }
-  }, [isViewingOwnProfile, profileUserId]);
+  }, [profileUserId, currentUserId]);
   const viewedUserName = userInfo?.username || userInfo?.email?.split('@')[0] || 'Пользователь';
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -1666,8 +1704,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     
     // Если это свой профиль, сохраняем ID текущего пользователя
     if (!profileUserId) {
-      
-      setCurrentUserId(data.id);
+      const userId = data.id;
+      setCurrentUserId(userId);
       setCurrentUserCoins(typeof data.coins === 'number' ? data.coins : null);
     }
     
@@ -2074,11 +2112,26 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   // Загружаем персонажей пользователя (для своего и чужого профиля)
   useEffect(() => {
     if (authToken) {
+      // Для своего профиля ждем, пока currentUserId установится
+      if (!profileUserId && currentUserId === null) {
+        // currentUserId еще не установлен, пропускаем загрузку
+        // Она произойдет после установки currentUserId через другой useEffect
+        return;
+      }
       loadUserCharacters();
     } else {
       setUserCharacters([]);
+      setRawCharactersData([]);
     }
-  }, [authToken, loadUserCharacters]);
+  }, [authToken, loadUserCharacters, profileUserId, currentUserId]);
+  
+  // Дополнительный useEffect для загрузки персонажей после установки currentUserId
+  useEffect(() => {
+    if (authToken && !profileUserId && currentUserId !== null) {
+      // Для своего профиля загружаем персонажей после установки currentUserId
+      loadUserCharacters();
+    }
+  }, [authToken, currentUserId, profileUserId, loadUserCharacters]);
 
   const startRealtimeConnection = useCallback(() => {
     if (!authToken || !isViewingOwnProfile) {
@@ -2222,8 +2275,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     return unsubscribe;
   }, [loadProfileData, loadUserCharacters, clearRealtimeConnection]);
 
-  const subscriptionType = stats?.subscription_type ?? userInfo?.subscription?.subscription_type ?? '—';
-  const photosRemaining = stats?.photos_remaining ?? userInfo?.subscription?.monthly_photos ?? 0;
+  // Для своего профиля используем stats, для чужого - только userInfo
+  // КРИТИЧНО: stats содержит данные ТЕКУЩЕГО пользователя, а не того, чей профиль просматривается
+  const subscriptionType = isViewingOwnProfile 
+    ? (stats?.subscription_type ?? userInfo?.subscription?.subscription_type ?? '—')
+    : (userInfo?.subscription?.subscription_type ?? '—');
+  const photosRemaining = isViewingOwnProfile
+    ? (stats?.photos_remaining ?? userInfo?.subscription?.monthly_photos ?? 0)
+    : (userInfo?.subscription?.monthly_photos ?? 0);
   const coinBalance = userInfo?.coins ?? 0;
 
   const renderContent = () => {
