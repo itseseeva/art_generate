@@ -233,64 +233,10 @@ export const GlobalStyles = createGlobalStyle`
     }
   }
 
-  /* Удаление класса sc-hdBJTi iGWqch */
-  .sc-hdBJTi,
-  .iGWqch {
-    display: none !important;
-  }
-
-  /* Удаление класса sc-gahYZc cBMqJP */
-  .sc-gahYZc,
-  .cBMqJP {
-    display: none !important;
-  }
-
-  /* Ограничение кнопок боковой панели в контейнере sc-jLuyGO jDTrGv */
-  .sc-jLuyGO,
-  .jDTrGv {
-    overflow: hidden !important;
-    position: relative !important;
-  }
-
-  /* Удаление класса sc-vugip gseMbG */
-  .sc-vugip,
-  .gseMbG {
-    display: none !important;
-  }
-
-  /* Удаление класса sc-bjzMPS fzlyhQ */
-  .sc-bjzMPS,
-  .fzlyhQ {
-    display: none !important;
-  }
-
-  /* Удаление класса sc-jGvnpY jVDNcE */
-  .sc-jGvnpY,
-  .jVDNcE {
-    display: none !important;
-  }
-
-  /* Удаление класса sc-dRjvQj bTHvTZ */
-  .sc-dRjvQj,
-  .bTHvTZ {
-    display: none !important;
-  }
-
-  /* Удаление класса sc-gCBilh bJcQIz */
-  .sc-gCBilh,
-  .bJcQIz {
-    display: none !important;
-  }
-
-  /* Удаление класса sc-lcEZZw laKZCy */
-  .sc-lcEZZw,
-  .laKZCy {
-    display: none !important;
-  }
-
-  /* Удаление класса sc-cCueEX frqKB */
-  .sc-cCueEX,
-  .frqKB {
-    display: none !important;
+  /* Левая боковая панель: защита от случайного скрытия глобальными правилами */
+  .left-dock-sidebar-root {
+    display: block !important;
+    visibility: visible !important;
+    flex-shrink: 0 !important;
   }
 `;

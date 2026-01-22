@@ -35,7 +35,11 @@ const SidebarWrapper = styled.div`
   position: relative;
   height: 100%;
   z-index: 5;
+  flex-shrink: 0;
 `;
+
+const SIDEBAR_EASING = 'cubic-bezier(0.32, 0.72, 0, 1)';
+const SIDEBAR_DURATION = '0.35s';
 
 const SidebarContainer = styled.aside<{ $isCollapsed?: boolean; $isMobile?: boolean }>`
   width: ${props => props.$isCollapsed ? '0' : (props.$isMobile ? '70px' : '76px')};
@@ -43,7 +47,9 @@ const SidebarContainer = styled.aside<{ $isCollapsed?: boolean; $isMobile?: bool
   height: 100%;
   padding: ${props => props.$isCollapsed ? '0' : '1.5rem 0.25rem 1.5rem 0.5rem'};
   background: rgba(8, 8, 18, 0.95);
-  border-right: ${props => props.$isCollapsed ? 'none' : '1px solid rgba(255, 255, 255, 0.06)'};
+  border-right-width: ${props => props.$isCollapsed ? '0' : '1px'};
+  border-right-style: solid;
+  border-right-color: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   display: flex;
@@ -52,10 +58,13 @@ const SidebarContainer = styled.aside<{ $isCollapsed?: boolean; $isMobile?: bool
   justify-content: flex-start;
   gap: 1.25rem;
   position: relative;
-  overflow: visible;
-  transition: width 0.3s ease, min-width 0.3s ease, padding 0.3s ease, border 0.3s ease;
+  overflow: ${props => props.$isCollapsed ? 'hidden' : 'visible'};
+  transition:
+    width ${SIDEBAR_DURATION} ${SIDEBAR_EASING},
+    min-width ${SIDEBAR_DURATION} ${SIDEBAR_EASING},
+    padding ${SIDEBAR_DURATION} ${SIDEBAR_EASING},
+    border-right-width ${SIDEBAR_DURATION} ${SIDEBAR_EASING};
   z-index: 1000;
-  will-change: width, min-width, padding;
 `;
 
 const HomeButton = styled.button`
@@ -120,8 +129,6 @@ const DockWrapper = styled.div<{ $isMobile?: boolean }>`
   gap: 0.8rem;
   overflow: visible;
   margin-top: ${props => props.$isMobile ? '0' : '15%'};
-  visibility: visible !important;
-  opacity: 1 !important;
   
   &::-webkit-scrollbar {
     width: 0;
@@ -152,12 +159,11 @@ const ToggleArrowButton = styled.button<{ $isCollapsed?: boolean }>`
   justify-content: center;
   cursor: pointer;
   transition:
-    transform 0.3s ease,
+    left ${SIDEBAR_DURATION} ${SIDEBAR_EASING},
+    transform ${SIDEBAR_DURATION} ${SIDEBAR_EASING},
     border-color 0.2s ease,
     background 0.2s ease,
-    color 0.2s ease,
-    left 0.3s ease,
-    top 0.3s ease;
+    color 0.2s ease;
   flex-shrink: 0;
   outline: none;
   z-index: 20;
@@ -285,7 +291,9 @@ const SidebarContent = styled.div<{ $isCollapsed?: boolean; $isMobile?: boolean 
   min-height: 0;
   opacity: ${props => props.$isCollapsed ? 0 : 1};
   visibility: ${props => props.$isCollapsed ? 'hidden' : 'visible'};
-  transition: opacity 0.3s ease 0.1s, visibility 0.3s ease 0.1s;
+  transition:
+    opacity ${SIDEBAR_DURATION} ${SIDEBAR_EASING} ${props => props.$isCollapsed ? '0s' : '0.08s'},
+    visibility 0s linear ${props => props.$isCollapsed ? SIDEBAR_DURATION : '0s'};
   pointer-events: ${props => props.$isCollapsed ? 'none' : 'auto'};
   position: relative;
   z-index: 1;
@@ -494,7 +502,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
           
           setArrowTop(`${middleY}px`);
         }
-      }, 50);
+      }, 400);
       
       return () => clearTimeout(timeoutId);
     }
@@ -503,7 +511,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   const allDockItems = [...topDockItems, ...mainBottomDockItems, ...additionalDockItems];
 
   return (
-    <SidebarWrapper style={{ height: '100%' }}>
+    <SidebarWrapper className="left-dock-sidebar-root" style={{ height: '100%' }}>
       <ToggleArrowButton 
         onClick={() => setIsCollapsed(!isCollapsed)}
         title={isCollapsed ? "Развернуть панель" : "Свернуть панель"}

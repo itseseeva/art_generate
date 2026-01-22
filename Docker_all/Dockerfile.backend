@@ -17,9 +17,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY requirements-docker.txt ./requirements.txt
 
-# ОПТИМИЗАЦИЯ: Явно устанавливаем h2 и httpx[http2] перед остальными
+# ОПТИМИЗАЦИЯ: Явно устанавливаем базовые зависимости перед остальными
 RUN pip install --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir --user h2 httpx[http2] && \
+    pip install --no-cache-dir --user packaging h2 httpx[http2] && \
     pip install --default-timeout=1000 --no-cache-dir --user -r requirements.txt
 
 # --- Stage 2: Final image ---
