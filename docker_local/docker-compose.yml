@@ -55,6 +55,7 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/0
       - REDIS_LOCAL=redis://redis:6379/0
+      - IS_DOCKER=true
       - APP_SD_API_URL=http://host.docker.internal:7860
       - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:///./app.db}
       - APP_DATABASE_URL=${APP_DATABASE_URL:-sqlite+aiosqlite:///./app.db}
@@ -95,6 +96,7 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/0
       - REDIS_LOCAL=redis://redis:6379/0
+      - IS_DOCKER=true
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
     depends_on:
