@@ -17,7 +17,6 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import { GlobalHeader } from './GlobalHeader';
 import DarkVeil from '../../@/components/DarkVeil';
 import { PromptGlassModal } from './PromptGlassModal';
-import { LeftDockSidebar } from './LeftDockSidebar';
 
 const BackgroundWrapper = styled.div`
   position: fixed;
@@ -4889,41 +4888,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         />
       </HeaderWrapper>
       <MainContent>
-        {!isMobile && (
-          <LeftDockSidebar
-            isMobile={isMobile}
-            onCreateCharacter={undefined}
-            onEditCharacters={undefined}
-            onHistory={undefined}
-            onFavorites={undefined}
-            onMyCharacters={onMyCharacters}
-            onHome={onBackToMain}
-            onMessages={undefined}
-            onBalanceHistory={undefined}
-            onBugReport={undefined}
-            onProfile={onProfile}
-            onShop={onShop}
-            onLogin={() => {
-              setAuthMode('login');
-              setIsAuthModalOpen(true);
-            }}
-            onRegister={() => {
-              setAuthMode('register');
-              setIsAuthModalOpen(true);
-            }}
-            onLogout={() => {
-              localStorage.removeItem('authToken');
-              localStorage.removeItem('refreshToken');
-              window.location.reload();
-            }}
-            isAuthenticated={isAuthenticated}
-            isAdmin={isAdmin}
-            contentMode={currentContentMode}
-            onContentModeChange={(mode) => {
-              setCurrentContentMode(mode);
-            }}
-          />
-        )}
         <form onSubmit={isCharacterCreated ? handleEditCharacter : handleSubmit} className={`flex-1 flex gap-6 ${isMobile ? 'h-auto' : 'h-full'} flex-col md:flex-row w-full`}>
           {/* Левая колонка - Форма */}
           <div className={`flex-1 flex flex-col min-w-0 md:min-w-[400px] bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 ${isMobile ? 'overflow-visible' : 'overflow-y-auto'}`}>

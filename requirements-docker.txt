@@ -1,6 +1,7 @@
 # FastAPI и сервер
 fastapi>=0.104.1
 uvicorn[standard]>=0.24.0
+gunicorn>=21.2.0
 pydantic>=2.7.0
 pydantic-settings>=2.0.0
 starlette>=0.27.0
@@ -58,7 +59,8 @@ flower>=2.0.0
 tiktoken>=0.5.0
 
 # Replicate API (опционально)
-replicate
+packaging>=24.0
+replicate>=0.25.0
 
 # Тестирование (опционально)
 pytest>=7.4.0

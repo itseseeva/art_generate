@@ -3,7 +3,6 @@ import styled from 'styled-components';
 import { authManager } from '../utils/auth';
 import { API_CONFIG } from '../config/api';
 import { GlobalHeader } from './GlobalHeader';
-import DarkVeil from '../../@/components/DarkVeil';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { FiArrowLeft, FiUser, FiMapPin, FiCreditCard, FiMessageSquare, FiChevronRight } from 'react-icons/fi';
 
@@ -14,26 +13,6 @@ const MainContainer = styled.div`
   flex-direction: column;
   background: transparent;
   position: relative;
-`;
-
-const BackgroundWrapper = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 0;
-  pointer-events: none;
-`;
-
-const HeaderWrapper = styled.div`
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-  width: 100%;
-  background: transparent;
 `;
 
 const ContentWrapper = styled.div`
@@ -47,6 +26,7 @@ const ContentWrapper = styled.div`
   max-width: 1400px;
   margin: 0 auto;
   width: 100%;
+  min-height: 600px;
 `;
 
 const PageTitle = styled.h1`
@@ -57,6 +37,8 @@ const PageTitle = styled.h1`
   display: flex;
   align-items: center;
   gap: 1rem;
+  position: relative;
+  z-index: 2;
 `;
 
 const BackButton = styled.button`
@@ -84,6 +66,8 @@ const StatsContainer = styled.div`
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 1.5rem;
   margin-bottom: 2rem;
+  position: relative;
+  z-index: 1;
 `;
 
 const StatCard = styled.div`
@@ -113,6 +97,8 @@ const UsersTable = styled.div`
   border: 2px solid rgba(60, 60, 60, 0.9);
   border-radius: 12px;
   overflow: hidden;
+  position: relative;
+  z-index: 1;
 `;
 
 const TableHeader = styled.div`
@@ -230,6 +216,8 @@ const LoadingContainer = styled.div`
   align-items: center;
   padding: 4rem;
   color: rgba(255, 255, 255, 0.6);
+  position: relative;
+  z-index: 1;
 `;
 
 const ErrorContainer = styled.div`
@@ -239,6 +227,8 @@ const ErrorContainer = styled.div`
   gap: 1rem;
   padding: 4rem;
   color: #ef4444;
+  position: relative;
+  z-index: 1;
 `;
 
 const UserModal = styled.div`
@@ -363,14 +353,29 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({ onBack, onProfile 
   });
 
   useEffect(() => {
-    loadUsers();
+    let isMounted = true;
+    
+    const fetchData = async () => {
+      if (isMounted) {
+        await loadUsers();
+      }
+    };
+    
+    fetchData();
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const loadUsers = async () => {
     try {
       setLoading(true);
       setError(null);
+      console.log('[AdminLogsPage] Начинаем загрузку пользователей...');
       const response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/admin/users?limit=1000`);
+      
+      console.log('[AdminLogsPage] Ответ получен:', response.status, response.ok);
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -390,19 +395,26 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({ onBack, onProfile 
         }
         
         console.error('[AdminLogsPage] Ошибка загрузки:', response.status, errorMessage);
-        throw new Error(errorMessage);
+        setError(errorMessage);
+        setLoading(false);
+        return;
       }
 
       const data = await response.json();
       console.log('[AdminLogsPage] Загружено пользователей:', data.total, 'Данные:', data);
+      console.log('[AdminLogsPage] Количество пользователей в массиве:', data.users?.length || 0);
       
-      setUsers(data.users || []);
+      const usersList = data.users || [];
+      console.log('[AdminLogsPage] Устанавливаем пользователей в состояние, количество:', usersList.length);
+      setUsers(usersList);
       
       // Подсчитываем статистику
       const total = data.total || 0;
-      const withSubscription = (data.users || []).filter((u: User) => u.has_subscription).length;
-      const withChat = (data.users || []).filter((u: User) => u.has_chat).length;
-      const totalMessages = (data.users || []).reduce((sum: number, u: User) => sum + u.total_chat_messages, 0);
+      const withSubscription = usersList.filter((u: User) => u.has_subscription).length;
+      const withChat = usersList.filter((u: User) => u.has_chat).length;
+      const totalMessages = usersList.reduce((sum: number, u: User) => sum + (u.total_chat_messages || 0), 0);
+      
+      console.log('[AdminLogsPage] Статистика:', { total, withSubscription, withChat, totalMessages });
       
       setStats({
         total,
@@ -410,11 +422,14 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({ onBack, onProfile 
         withChat,
         totalMessages
       });
+      
+      console.log('[AdminLogsPage] Состояние обновлено, loading будет установлен в false');
     } catch (err: any) {
       console.error('[AdminLogsPage] Ошибка:', err);
       setError(err.message || 'Ошибка загрузки данных');
     } finally {
       setLoading(false);
+      console.log('[AdminLogsPage] Загрузка завершена, loading:', false);
     }
   };
 
@@ -438,25 +453,83 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({ onBack, onProfile 
     });
   };
 
+  // Отладочное логирование состояния
+  useEffect(() => {
+    const shouldRender = !loading && !error && users.length > 0;
+    console.log('[AdminLogsPage] Состояние компонента:', {
+      loading,
+      error,
+      usersCount: users.length,
+      stats,
+      shouldRenderContent: shouldRender,
+      usersArray: users.slice(0, 3) // Первые 3 пользователя для проверки
+    });
+    
+    if (shouldRender) {
+      console.log('[AdminLogsPage] ✅ Контент должен отображаться!');
+    } else {
+      console.log('[AdminLogsPage] ❌ Контент НЕ должен отображаться:', {
+        loading,
+        error,
+        usersLength: users.length
+      });
+    }
+  }, [loading, error, users, stats]);
+
+  console.log('[AdminLogsPage] РЕНДЕР компонента, состояние:', { loading, error, usersCount: users.length });
+
   return (
-    <MainContainer>
-      <BackgroundWrapper>
-        <DarkVeil speed={1.1} />
-      </BackgroundWrapper>
-      <HeaderWrapper>
+    <div style={{
+      width: '100%',
+      minHeight: '100vh',
+      background: '#000000',
+      color: '#ffffff',
+      padding: '20px',
+      position: 'relative',
+      zIndex: 1000
+    }}>
+      <div style={{
+        background: '#ff0000',
+        color: '#ffffff',
+        padding: '20px',
+        fontSize: '24px',
+        fontWeight: 'bold',
+        marginBottom: '20px'
+      }}>
+        КОМПОНЕНТ АДМИН ЛОГОВ РЕНДЕРИТСЯ!
+      </div>
+      
+      <div style={{
+        background: '#00ff00',
+        color: '#000000',
+        padding: '15px',
+        marginBottom: '20px',
+        fontSize: '16px'
+      }}>
+        Состояние: loading={String(loading)}, error={error || 'нет'}, users={users.length}
+      </div>
+      
+      <MainContainer>
         <GlobalHeader
           onHome={onBack}
           refreshTrigger={0}
         />
-      </HeaderWrapper>
-      <ContentWrapper>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-          <BackButton onClick={onBack}>
-            <FiArrowLeft size={16} />
-            Назад
-          </BackButton>
-          <PageTitle>Логи пользователей</PageTitle>
-        </div>
+        <ContentWrapper>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '1rem', 
+            marginBottom: '2rem',
+            position: 'relative',
+            zIndex: 10
+          }}>
+            <BackButton onClick={onBack}>
+              <FiArrowLeft size={16} />
+              Назад
+            </BackButton>
+            <PageTitle>Логи пользователей</PageTitle>
+          </div>
+        
 
         {loading && (
           <LoadingContainer>Загрузка данных...</LoadingContainer>
@@ -501,27 +574,27 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({ onBack, onProfile 
 
         {!loading && !error && users.length > 0 && (
           <>
-            <StatsContainer>
-              <StatCard>
+            <StatsContainer style={{ display: 'grid', visibility: 'visible', opacity: 1 }}>
+              <StatCard style={{ display: 'flex', visibility: 'visible', opacity: 1 }}>
                 <StatLabel>Всего пользователей</StatLabel>
                 <StatValue>{stats.total}</StatValue>
               </StatCard>
-              <StatCard>
+              <StatCard style={{ display: 'flex', visibility: 'visible', opacity: 1 }}>
                 <StatLabel>С подпиской</StatLabel>
                 <StatValue>{stats.withSubscription}</StatValue>
               </StatCard>
-              <StatCard>
+              <StatCard style={{ display: 'flex', visibility: 'visible', opacity: 1 }}>
                 <StatLabel>Общались в чате</StatLabel>
                 <StatValue>{stats.withChat}</StatValue>
               </StatCard>
-              <StatCard>
+              <StatCard style={{ display: 'flex', visibility: 'visible', opacity: 1 }}>
                 <StatLabel>Всего сообщений</StatLabel>
                 <StatValue>{stats.totalMessages}</StatValue>
               </StatCard>
             </StatsContainer>
 
-            <UsersTable>
-              <TableHeader>
+            <UsersTable style={{ display: 'block', visibility: 'visible', opacity: 1 }}>
+              <TableHeader style={{ display: 'grid', visibility: 'visible', opacity: 1 }}>
                 <div>ID</div>
                 <div>Пользователь</div>
                 <div>Страна</div>
@@ -700,5 +773,6 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({ onBack, onProfile 
         )}
       </ContentWrapper>
     </MainContainer>
+    </div>
   );
 };
