@@ -51,14 +51,37 @@ async def get_redis_client() -> Optional[Redis]:
             # Приоритет: REDIS_URL из settings (читает из .env) -> REDIS_LOCAL -> дефолт
             # Используем settings для чтения из .env файла
             from app.config.settings import settings
-            redis_url = settings.REDIS_URL or settings.REDIS_LOCAL or "redis://localhost:6379/0"
             
-            # ФИКС для локальной разработки: если hostname "redis" - заменяем на "localhost"
-            # Это нужно когда .env настроен для Docker (redis://redis:6379), но backend запущен локально
-            # НО: если мы в Docker контейнере (переменная DATABASE_URL содержит имя сервиса), используем имя сервиса "redis"
-            is_docker = os.getenv("DATABASE_URL", "").find("postgres:") != -1
-            if "://redis:" in redis_url and not is_docker:
-                redis_url = redis_url.replace("://redis:", "://localhost:")
+            # Проверяем переменные окружения напрямую (имеют приоритет)
+            env_redis_url = os.getenv('REDIS_URL')
+            env_redis_local = os.getenv('REDIS_LOCAL')
+            
+            # Определяем, запущен ли backend в Docker
+            is_docker = os.path.exists('/.dockerenv') or os.getenv('IS_DOCKER') == 'true'
+            
+            # Используем переменные окружения если они установлены, иначе settings
+            if env_redis_url and env_redis_url.strip():
+                redis_url = env_redis_url.strip()
+            elif env_redis_local and env_redis_local.strip():
+                redis_url = env_redis_local.strip()
+            else:
+                redis_url = settings.REDIS_URL or settings.REDIS_LOCAL or "redis://localhost:6379/0"
+            
+            # Если в URL указано имя сервиса Docker (redis или art_generation_redis_local), используем его как есть
+            # Если мы НЕ в Docker и URL содержит имя сервиса - заменяем на localhost (порт проброшен)
+            if not is_docker:
+                if "://redis:" in redis_url or "://art_generation_redis_local:" in redis_url:
+                    # Заменяем имя сервиса на localhost для локальной разработки
+                    redis_url = redis_url.replace("://redis:", "://localhost:").replace("://art_generation_redis_local:", "://localhost:")
+                    logger.debug(f"[REDIS] Заменено имя сервиса на localhost для локальной разработки: {redis_url}")
+            # Если в Docker и URL содержит localhost - заменяем на имя сервиса
+            elif is_docker and ("localhost" in redis_url or "127.0.0.1" in redis_url):
+                # Пробуем определить имя сервиса из переменных окружения или используем дефолт
+                if "art_generation_redis_local" in str(env_redis_url or env_redis_local):
+                    redis_url = redis_url.replace("localhost", "art_generation_redis_local").replace("127.0.0.1", "art_generation_redis_local")
+                else:
+                    redis_url = redis_url.replace("localhost", "redis").replace("127.0.0.1", "redis")
+                logger.debug(f"[REDIS] Заменен localhost на имя сервиса для Docker: {redis_url}")
             
             # Оптимизированная конфигурация с connection pooling
             # Определяем, локальная разработка или Docker

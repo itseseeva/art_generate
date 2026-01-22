@@ -166,6 +166,53 @@ async def get_admin_stats(
         )
         total_coins = total_coins_result.scalar() or 0
 
+        # Статистика по купленным подпискам за всё время
+        # Подсчитываем сколько пользователей когда-либо имели платную подписку (STANDARD, PREMIUM, PRO)
+        try:
+            paid_subscriptions_all_time_result = await db.execute(
+                select(func.count(func.distinct(UserSubscription.user_id))).where(
+                    UserSubscription.subscription_type.in_([
+                        SubscriptionType.STANDARD,
+                        SubscriptionType.PREMIUM,
+                        SubscriptionType.PRO
+                    ])
+                )
+            )
+            paid_subscriptions_all_time = paid_subscriptions_all_time_result.scalar() or 0
+        except Exception:
+            paid_subscriptions_all_time = 0
+        
+        # Статистика по типам купленных подписок за всё время
+        try:
+            standard_all_time_result = await db.execute(
+                select(func.count(func.distinct(UserSubscription.user_id))).where(
+                    UserSubscription.subscription_type == SubscriptionType.STANDARD
+                )
+            )
+            standard_all_time = standard_all_time_result.scalar() or 0
+        except Exception:
+            standard_all_time = 0
+        
+        try:
+            premium_all_time_result = await db.execute(
+                select(func.count(func.distinct(UserSubscription.user_id))).where(
+                    UserSubscription.subscription_type == SubscriptionType.PREMIUM
+                )
+            )
+            premium_all_time = premium_all_time_result.scalar() or 0
+        except Exception:
+            premium_all_time = 0
+        
+        try:
+            pro_all_time_result = await db.execute(
+                select(func.count(func.distinct(UserSubscription.user_id))).where(
+                    UserSubscription.subscription_type == SubscriptionType.PRO
+                )
+            )
+            pro_all_time = pro_all_time_result.scalar() or 0
+        except Exception:
+            pro_all_time = 0
+
         return {
             "total_visits": total_users,
             "new_registrations": total_users,
@@ -177,6 +224,12 @@ async def get_admin_stats(
                 "standard": standard_subscriptions,
                 "premium": premium_subscriptions,
                 "total_paid": paid_subscriptions
+            },
+            "subscriptions_all_time": {
+                "total_paid": paid_subscriptions_all_time,
+                "standard": standard_all_time,
+                "premium": premium_all_time,
+                "pro": pro_all_time
             },
             "registrations_by_country": registrations_by_country,
             "content": {
@@ -487,6 +540,150 @@ async def get_user_details(
         raise HTTPException(
             status_code=500,
             detail=f"Ошибка получения информации о пользователе: {str(e)}"
+        )
+
+
+@admin_router.get("/users-table")
+@admin_router.get("/users-table/")
+async def get_users_table(
+    current_user: Users = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+    skip: int = 0,
+    limit: int = 100
+) -> Dict[str, Any]:
+    """
+    Получает таблицу пользователей с данными:
+    - user (email/username)
+    - количество отправленных сообщений
+    - тип подписки
+    - количество сгенерированных фото
+    - последний вход (последнее сообщение)
+    """
+    try:
+        from sqlalchemy.orm import selectinload
+        from app.models.chat_history import ChatHistory
+        from app.models.image_generation_history import ImageGenerationHistory
+        
+        # Получаем пользователей
+        query = select(Users).order_by(Users.created_at.desc())
+        
+        # Подсчет общего количества
+        total_result = await db.execute(select(func.count(Users.id)))
+        total = total_result.scalar() or 0
+        
+        # Получаем пользователей с пагинацией
+        query = query.offset(skip).limit(limit)
+        result = await db.execute(query)
+        users = result.scalars().all()
+        
+        users_table = []
+        for user in users:
+            # Получаем самую новую активную подписку для пользователя
+            subscription_type = "Нет подписки"
+            try:
+                subscription_query = await db.execute(
+                    select(UserSubscription)
+                    .where(UserSubscription.user_id == user.id)
+                    .where(UserSubscription.status == SubscriptionStatus.ACTIVE)
+                    .order_by(UserSubscription.activated_at.desc())
+                    .limit(1)
+                )
+                subscription = subscription_query.scalar_one_or_none()
+                
+                if subscription:
+                    # Получаем тип подписки
+                    sub_type = subscription.subscription_type
+                    try:
+                        if isinstance(sub_type, SubscriptionType):
+                            subscription_type = sub_type.value
+                        elif hasattr(sub_type, 'value'):
+                            subscription_type = sub_type.value
+                        else:
+                            # Если это строка, нормализуем её
+                            subscription_type = str(sub_type).lower() if sub_type else "Нет подписки"
+                    except Exception as e:
+                        logger.warning(f"[ADMIN] Ошибка получения типа подписки для user_id={user.id}: {e}, sub_type={sub_type}, type={type(sub_type)}")
+                        subscription_type = str(sub_type).lower() if sub_type else "Нет подписки"
+            except Exception as e:
+                logger.warning(f"[ADMIN] Ошибка получения подписки для user_id={user.id}: {e}")
+                subscription_type = "Нет подписки"
+            
+            # Количество отправленных сообщений
+            messages_count = user.total_messages_sent or 0
+            
+            # Количество сгенерированных фото
+            try:
+                photos_result = await db.execute(
+                    select(func.count(ImageGenerationHistory.id)).where(
+                        ImageGenerationHistory.user_id == user.id
+                    )
+                )
+                photos_count = photos_result.scalar() or 0
+            except Exception:
+                photos_count = 0
+            
+            # Последний вход (последнее сообщение)
+            last_login = None
+            try:
+                last_message_result = await db.execute(
+                    select(ChatHistory.created_at)
+                    .where(ChatHistory.user_id == user.id)
+                    .order_by(ChatHistory.created_at.desc())
+                    .limit(1)
+                )
+                last_message_date = last_message_result.scalar_one_or_none()
+                if last_message_date:
+                    last_login = last_message_date.isoformat()
+            except Exception:
+                pass
+            
+            # Если нет сообщений в ChatHistory, пробуем ChatMessageDB
+            if not last_login:
+                try:
+                    from app.chat_bot.models.models import ChatSession, ChatMessageDB
+                    user_id_str = str(user.id)
+                    
+                    # Получаем последнее сообщение через ChatSession
+                    last_chat_result = await db.execute(
+                        select(func.max(ChatMessageDB.timestamp))
+                        .select_from(ChatMessageDB)
+                        .join(ChatSession, ChatMessageDB.session_id == ChatSession.id)
+                        .where(
+                            or_(
+                                ChatSession.user_id == user_id_str,
+                                func.trim(ChatSession.user_id) == user_id_str
+                            )
+                        )
+                    )
+                    last_chat_date = last_chat_result.scalar_one_or_none()
+                    if last_chat_date:
+                        last_login = last_chat_date.isoformat()
+                except Exception:
+                    pass
+            
+            users_table.append({
+                "id": user.id,
+                "user": user.email or user.username or f"User {user.id}",
+                "username": user.username,
+                "email": user.email,
+                "messages_count": messages_count,
+                "subscription_type": subscription_type,
+                "photos_count": photos_count,
+                "last_login": last_login
+            })
+        
+        return {
+            "users": users_table,
+            "total": total,
+            "skip": skip,
+            "limit": limit
+        }
+        
+    except Exception as e:
+        logger.error(f"[ADMIN] Ошибка получения таблицы пользователей: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка получения таблицы пользователей: {str(e)}"
         )
 
 

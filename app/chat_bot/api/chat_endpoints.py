@@ -748,8 +748,30 @@ async def generate_voice(
         
         # Формируем URL для фронтенда
         import os
+        from app.config.paths import VOICES_DIR
+        
+        # Проверяем, что файл находится в правильной директории
+        if not str(audio_path).startswith(str(VOICES_DIR)):
+            logger.error(f"[GENERATE_VOICE] Файл не в директории voices: {audio_path}, ожидается в {VOICES_DIR}")
+            raise HTTPException(status_code=500, detail="Файл сохранен в неправильной директории")
+        
         file_name = os.path.basename(audio_path)
         audio_url = f"/voices/{file_name}"
+        
+        logger.info(f"[GENERATE_VOICE] Аудио сгенерировано: audio_path={audio_path}, file_name={file_name}, audio_url={audio_url}")
+        
+        # Проверяем существование файла
+        if not os.path.exists(audio_path):
+            logger.error(f"[GENERATE_VOICE] Файл не существует: {audio_path}")
+            raise HTTPException(status_code=500, detail=f"Сгенерированный файл не найден: {audio_path}")
+        
+        # Проверяем размер файла
+        file_size = os.path.getsize(audio_path)
+        logger.info(f"[GENERATE_VOICE] Размер файла: {file_size} байт")
+        
+        if file_size == 0:
+            logger.error(f"[GENERATE_VOICE] Файл пустой: {audio_path}")
+            raise HTTPException(status_code=500, detail="Сгенерированный файл пустой")
         
         return {
             "status": "success",

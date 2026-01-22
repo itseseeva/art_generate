@@ -3641,6 +3641,7 @@ async def generate_image(
         dict: Результат с image_url и cloud_url.
     """
     import traceback
+    import os  # Импортируем os в начале функции для использования на строке 3657
     # КРИТИЧЕСКАЯ ПРОВЕРКА: Если вы видите этот лог, значит новый код выполняется
     print("=" * 80)
     # Проверяем валидность модели
@@ -4064,16 +4065,39 @@ async def generate_image(
             # Проверяем доступность Redis перед отправкой задачи
             try:
                 import redis
-                # Приоритет: REDIS_LOCAL (для локальной разработки) > REDIS_URL (для VPS/Docker)
-                if settings.REDIS_LOCAL:
+                
+                # Определяем, запущен ли backend в Docker
+                is_docker = os.path.exists('/.dockerenv') or os.getenv('IS_DOCKER') == 'true'
+                
+                # Приоритет: переменные окружения > REDIS_LOCAL > REDIS_URL
+                env_redis_url = os.getenv('REDIS_URL')
+                env_redis_local = os.getenv('REDIS_LOCAL')
+                
+                if env_redis_local and env_redis_local.strip():
+                    r_url = env_redis_local.strip()
+                    source = "REDIS_LOCAL (env)"
+                elif env_redis_url and env_redis_url.strip():
+                    r_url = env_redis_url.strip()
+                    source = "REDIS_URL (env)"
+                elif settings.REDIS_LOCAL:
                     r_url = settings.REDIS_LOCAL
-                    source = "REDIS_LOCAL"
+                    source = "REDIS_LOCAL (settings)"
                 else:
                     r_url = settings.REDIS_URL
-                    source = "REDIS_URL"
+                    source = "REDIS_URL (settings)"
                 
-                # НЕ заменяем localhost на 127.0.0.1, так как localhost работает лучше с Docker port mapping
-                # Оставляем localhost как есть для локального подключения к Redis в Docker
+                # Если backend НЕ в Docker, а URL содержит имя сервиса - заменяем на localhost
+                if not is_docker:
+                    if "://redis:" in r_url or "://art_generation_redis_local:" in r_url:
+                        r_url = r_url.replace("://redis:", "://localhost:").replace("://art_generation_redis_local:", "://localhost:")
+                        logger.debug(f"[REDIS] Заменено имя сервиса на localhost для локальной разработки: {r_url}")
+                # Если backend в Docker, а URL содержит localhost - заменяем на имя сервиса
+                elif is_docker and ("localhost" in r_url or "127.0.0.1" in r_url):
+                    if "art_generation_redis_local" in str(env_redis_url or env_redis_local):
+                        r_url = r_url.replace("localhost", "art_generation_redis_local").replace("127.0.0.1", "art_generation_redis_local")
+                    else:
+                        r_url = r_url.replace("localhost", "redis").replace("127.0.0.1", "redis")
+                    logger.debug(f"[REDIS] Заменен localhost на имя сервиса для Docker: {r_url}")
                 
                 # Используем redis.from_url для корректной обработки всех параметров
                 r = redis.from_url(r_url, socket_connect_timeout=3, socket_timeout=3)

@@ -562,11 +562,53 @@ async def get_available_voices(
         
         # Добавляем приватные голоса текущего пользователя
         for user_voice in user_private_voices:
+            # Проверяем существование preview файла
+            preview_url = user_voice.preview_url
+            if preview_url:
+                from app.config.paths import VOICES_DIR
+                preview_filename = os.path.basename(preview_url)
+                preview_path = VOICES_DIR / preview_filename
+                # Если файл не существует, пытаемся перегенерировать preview
+                if not preview_path.exists():
+                    logger.warning(f"[VOICES] Preview файл не найден для голоса {user_voice.id}: {preview_path}, пытаемся перегенерировать")
+                    try:
+                        # Читаем оригинальный файл голоса
+                        from app.config.paths import USER_VOICES_DIR
+                        voice_filename = os.path.basename(user_voice.voice_url)
+                        voice_path = USER_VOICES_DIR / voice_filename
+                        
+                        if voice_path.exists():
+                            with open(voice_path, "rb") as f:
+                                voice_audio = f.read()
+                            
+                            # Генерируем новый preview
+                            from app.services.tts_service import generate_preview_from_uploaded_voice
+                            result = await generate_preview_from_uploaded_voice(
+                                voice_audio=voice_audio,
+                                voice_filename=voice_filename
+                            )
+                            
+                            if result and result.get("preview_url"):
+                                # Обновляем preview_url в БД
+                                user_voice.preview_url = result["preview_url"]
+                                await db.commit()
+                                preview_url = result["preview_url"]
+                                logger.info(f"[VOICES] Preview перегенерирован для голоса {user_voice.id}: {preview_url}")
+                            else:
+                                logger.error(f"[VOICES] Не удалось перегенерировать preview для голоса {user_voice.id}")
+                                preview_url = None
+                        else:
+                            logger.warning(f"[VOICES] Оригинальный файл голоса не найден: {voice_path}")
+                            preview_url = None
+                    except Exception as e:
+                        logger.error(f"[VOICES] Ошибка при перегенерации preview для голоса {user_voice.id}: {e}")
+                        preview_url = None
+            
             voices.append({
                 "id": f"user_voice_{user_voice.id}",
                 "name": user_voice.voice_name,
                 "url": user_voice.voice_url,
-                "preview_url": user_voice.preview_url,
+                "preview_url": preview_url,
                 "photo_url": user_voice.photo_url,
                 "is_user_voice": True,
                 "is_public": False,
@@ -578,11 +620,54 @@ async def get_available_voices(
         # Добавляем публичные голоса всех пользователей
         for user_voice in public_voices:
             is_owner = current_user and user_voice.user_id == current_user.id
+            
+            # Проверяем существование preview файла
+            preview_url = user_voice.preview_url
+            if preview_url:
+                from app.config.paths import VOICES_DIR
+                preview_filename = os.path.basename(preview_url)
+                preview_path = VOICES_DIR / preview_filename
+                # Если файл не существует, пытаемся перегенерировать preview
+                if not preview_path.exists():
+                    logger.warning(f"[VOICES] Preview файл не найден для голоса {user_voice.id}: {preview_path}, пытаемся перегенерировать")
+                    try:
+                        # Читаем оригинальный файл голоса
+                        from app.config.paths import USER_VOICES_DIR
+                        voice_filename = os.path.basename(user_voice.voice_url)
+                        voice_path = USER_VOICES_DIR / voice_filename
+                        
+                        if voice_path.exists():
+                            with open(voice_path, "rb") as f:
+                                voice_audio = f.read()
+                            
+                            # Генерируем новый preview
+                            from app.services.tts_service import generate_preview_from_uploaded_voice
+                            result = await generate_preview_from_uploaded_voice(
+                                voice_audio=voice_audio,
+                                voice_filename=voice_filename
+                            )
+                            
+                            if result and result.get("preview_url"):
+                                # Обновляем preview_url в БД
+                                user_voice.preview_url = result["preview_url"]
+                                await db.commit()
+                                preview_url = result["preview_url"]
+                                logger.info(f"[VOICES] Preview перегенерирован для голоса {user_voice.id}: {preview_url}")
+                            else:
+                                logger.error(f"[VOICES] Не удалось перегенерировать preview для голоса {user_voice.id}")
+                                preview_url = None
+                        else:
+                            logger.warning(f"[VOICES] Оригинальный файл голоса не найден: {voice_path}")
+                            preview_url = None
+                    except Exception as e:
+                        logger.error(f"[VOICES] Ошибка при перегенерации preview для голоса {user_voice.id}: {e}")
+                        preview_url = None
+            
             voices.append({
                 "id": f"user_voice_{user_voice.id}",
                 "name": user_voice.voice_name,
                 "url": user_voice.voice_url,
-                "preview_url": user_voice.preview_url,
+                "preview_url": preview_url,
                 "photo_url": user_voice.photo_url,
                 "is_user_voice": True,
                 "is_public": True,

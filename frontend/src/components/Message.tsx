@@ -770,7 +770,19 @@ const MessageComponent: React.FC<MessageProps> = ({
 
       const data = await response.json();
       if (data.status === 'success' && data.audio_url) {
-        const fullAudioUrl = `${API_CONFIG.BASE_URL}${data.audio_url}`;
+        // Формируем полный URL для аудио
+        // Если BASE_URL пустой (относительный путь), используем data.audio_url как есть
+        // Если BASE_URL задан, добавляем его к audio_url
+        const fullAudioUrl = API_CONFIG.BASE_URL 
+          ? `${API_CONFIG.BASE_URL}${data.audio_url}` 
+          : data.audio_url;
+        
+        console.log('[VOICE] Генерация голоса успешна:', {
+          audio_url: data.audio_url,
+          BASE_URL: API_CONFIG.BASE_URL,
+          fullAudioUrl: fullAudioUrl
+        });
+        
         setAudioUrl(fullAudioUrl);
 
         // Обновляем баланс пользователя если он вернулся в ответе
@@ -781,8 +793,49 @@ const MessageComponent: React.FC<MessageProps> = ({
         // Проигрываем аудио
         const audio = new Audio(fullAudioUrl);
         audioRef.current = audio;
-        audio.onended = () => setIsPlaying(false);
-        audio.onpause = () => setIsPlaying(false);
+        audio.onended = () => {
+          console.log('[VOICE] Аудио завершено');
+          setIsPlaying(false);
+        };
+        audio.onpause = () => {
+          console.log('[VOICE] Аудио приостановлено');
+          setIsPlaying(false);
+        };
+        audio.onerror = (e) => {
+          console.error('[VOICE] Ошибка воспроизведения аудио:', {
+            error: e,
+            audioUrl: fullAudioUrl,
+            audioSrc: audio.src,
+            audioError: audio.error
+          });
+          setIsPlaying(false);
+          setErrorModalMessage(`Ошибка воспроизведения аудио: ${audio.error?.message || 'Неизвестная ошибка'}`);
+        };
+        audio.onloadstart = () => {
+          console.log('[VOICE] Начало загрузки аудио:', fullAudioUrl);
+        };
+        audio.oncanplay = () => {
+          console.log('[VOICE] Аудио готово к воспроизведению');
+        };
+        audio.onloadeddata = () => {
+          console.log('[VOICE] Аудио данные загружены');
+        };
+        
+        // Автоматически воспроизводим после загрузки
+        audio.load();
+        audio.play().then(() => {
+          console.log('[VOICE] Воспроизведение начато успешно');
+          setIsPlaying(true);
+        }).catch((error) => {
+          console.error('[VOICE] Ошибка при воспроизведении:', {
+            error: error,
+            audioUrl: fullAudioUrl,
+            audioSrc: audio.src,
+            audioError: audio.error
+          });
+          setIsPlaying(false);
+          setErrorModalMessage(`Не удалось воспроизвести аудио: ${error.message || 'Неизвестная ошибка'}`);
+        });
       }
     } catch (error) {
       setErrorModalMessage(error instanceof Error ? error.message : 'Не удалось сгенерировать голос');

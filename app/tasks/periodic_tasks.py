@@ -280,38 +280,80 @@ def transfer_expired_subscription_credits_task(self) -> Dict[str, Any]:
 def cleanup_old_voices_task(self) -> Dict[str, Any]:
     """
     Очистка старых аудиофайлов из app/voices/.
-    Удаляет файлы старше 3-х дней.
+    Удаляет только временные preview файлы старше 3-х дней, которые НЕ связаны с UserVoice.
+    НЕ удаляет файлы, которые используются в БД (preview_url в UserVoice).
     """
     try:
+        import asyncio
         from app.config.paths import VOICES_DIR
+        from app.database.db import async_session_maker
+        from app.models.user_voice import UserVoice
+        from sqlalchemy import select
         import os
         import time
         
-        stats = {"deleted": 0, "errors": []}
-        
-        if not VOICES_DIR.exists():
-            return {"success": True, "deleted": 0}
+        async def cleanup():
+            stats = {"deleted": 0, "skipped": 0, "errors": []}
             
-        now = time.time()
-        retention_period = 3 * 24 * 60 * 60  # 3 дня в секундах
-        
-        for file_path in VOICES_DIR.glob("*.mp3"):
-            try:
-                if file_path.is_file():
-                    file_age = now - file_path.stat().st_mtime
-                    if file_age > retention_period:
-                        file_path.unlink()
-                        stats["deleted"] += 1
-            except Exception as e:
-                stats["errors"].append(f"Ошибка при удалении {file_path}: {e}")
+            if not VOICES_DIR.exists():
+                return {"success": True, "deleted": 0, "skipped": 0}
+            
+            # Получаем список всех preview_url из БД, которые используются
+            async with async_session_maker() as db:
+                result = await db.execute(
+                    select(UserVoice.preview_url).where(UserVoice.preview_url.isnot(None))
+                )
+                used_preview_urls = {row[0] for row in result.all() if row[0]}
                 
-        logger.info(f"[CLEANUP] Удалено {stats['deleted']} старых голосовых файлов")
-        return {
-            "success": True, 
-            "stats": stats
-        }
+                # Извлекаем имена файлов из URL (например, /voices/preview_xxx.mp3 -> preview_xxx.mp3)
+                used_filenames = set()
+                for url in used_preview_urls:
+                    if url:
+                        # Извлекаем имя файла из URL
+                        filename = os.path.basename(url)
+                        if filename:
+                            used_filenames.add(filename)
+            
+            now = time.time()
+            retention_period = 3 * 24 * 60 * 60  # 3 дня в секундах
+            
+            # Обрабатываем только preview файлы (начинаются с preview_)
+            for file_path in VOICES_DIR.glob("preview_*.mp3"):
+                try:
+                    if file_path.is_file():
+                        filename = file_path.name
+                        
+                        # Пропускаем файлы, которые используются в БД
+                        if filename in used_filenames:
+                            stats["skipped"] += 1
+                            continue
+                        
+                        # Проверяем возраст файла
+                        file_age = now - file_path.stat().st_mtime
+                        if file_age > retention_period:
+                            file_path.unlink()
+                            stats["deleted"] += 1
+                            logger.debug(f"[CLEANUP] Удален старый preview файл: {filename}")
+                except Exception as e:
+                    stats["errors"].append(f"Ошибка при удалении {file_path}: {e}")
+                    logger.warning(f"[CLEANUP] Ошибка при удалении {file_path}: {e}")
+            
+            logger.info(f"[CLEANUP] Удалено {stats['deleted']} старых preview файлов, пропущено {stats['skipped']} используемых файлов")
+            return {
+                "success": True,
+                "stats": stats
+            }
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(cleanup())
+            return result
+        finally:
+            loop.close()
+            
     except Exception as e:
-        logger.error(f"[CLEANUP] Ошибка в задаче очистки голосов: {e}")
+        logger.error(f"[CLEANUP] Ошибка в задаче очистки голосов: {e}", exc_info=True)
         return {
             "success": False, 
             "error": str(e)

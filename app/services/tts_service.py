@@ -176,11 +176,11 @@ async def generate_tts_audio(text: str, voice_url: str) -> Optional[str]:
             with open(file_path, "wb") as f:
                 f.write(audio_data.content if hasattr(audio_data, 'content') else bytes(audio_data))
         
-        logger.info(f"Аудио успешно сгенерировано и сохранено: {file_path}")
+        logger.info(f"Аудио успешно сгенерировано и сохранено: {file_path}, размер: {file_path.stat().st_size} байт")
         
-        # Возвращаем относительный путь для использования в API
-        from app.config.paths import get_relative_path
-        return get_relative_path(file_path)
+        # Возвращаем абсолютный путь к файлу (для использования в API)
+        # API сам сформирует правильный URL /voices/filename.mp3
+        return str(file_path)
         
     except Exception as e:
         logger.error(f"Ошибка при генерации речи через Fish Audio: {e}")
