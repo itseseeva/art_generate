@@ -5,9 +5,8 @@ WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
-ENV PYTHONUSERBASE=/root/.local
 
-# Устанавливаем инструменты для сборки
+# Install build tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
@@ -15,19 +14,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Create a virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
 COPY requirements-docker.txt ./requirements.txt
 
-# ОПТИМИЗАЦИЯ: Явно устанавливаем базовые зависимости перед остальными
+# Install dependencies into the virtual environment
 RUN pip install --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir --user packaging h2 httpx[http2] && \
-    pip install --default-timeout=1000 --no-cache-dir --user -r requirements.txt
+    pip install --no-cache-dir packaging h2 httpx[http2] && \
+    pip install --default-timeout=1000 --no-cache-dir -r requirements.txt
 
 # --- Stage 2: Final image ---
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Устанавливаем только runtime библиотеки (легкие)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     postgresql-client \
@@ -35,17 +37,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Копируем установленные пакеты из builder
-COPY --from=builder /root/.local /root/.local
+# Copy the virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
 
-# Настраиваем пути для пользовательских пакетов
-ENV PYTHONUSERBASE=/root/.local
-ENV PATH=/root/.local/bin:$PATH
+# Ensure the app uses the virtual environment
+ENV PATH="/opt/venv/bin:$PATH"
+ENV PYTHONPATH="/app"
 
-# Копируем код приложения
+# Copy code
 COPY . .
 
 EXPOSE 8000
 
-# Команда по умолчанию (переопределяется в docker-compose.yml)
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
