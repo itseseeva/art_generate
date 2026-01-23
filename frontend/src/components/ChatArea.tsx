@@ -168,9 +168,20 @@ interface ChatAreaProps {
   userEmail?: string;
   isAuthenticated?: boolean;
   isCharacterOwner?: boolean;
+  isAdmin?: boolean;
   onAddToGallery?: (imageUrl: string, characterName: string) => Promise<void>;
   onAddToPaidAlbum?: (imageUrl: string, characterName: string) => Promise<void>;
   onSendMessage?: (message: string) => void;
+  userInfo?: {
+    subscription?: {
+      subscription_type?: string;
+    };
+    subscription_type?: string;
+  } | null;
+  onShop?: () => void;
+  selectedVoiceId?: string | null;
+  selectedVoiceUrl?: string | null;
+  onSelectVoice?: (voiceId: string | null, voiceUrl: string | null) => void;
   [key: string]: any; 
 }
 
@@ -186,9 +197,15 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   userEmail,
   isAuthenticated,
   isCharacterOwner,
+  isAdmin,
   onAddToGallery,
   onAddToPaidAlbum,
   onSendMessage,
+  userInfo,
+  onShop,
+  selectedVoiceId,
+  selectedVoiceUrl,
+  onSelectVoice,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -264,9 +281,15 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 userEmail={userEmail}
                 isAuthenticated={isAuthenticated}
                 isCharacterOwner={isCharacterOwner}
+                isAdmin={isAdmin}
                 onAddToGallery={onAddToGallery}
                 onAddToPaidAlbum={onAddToPaidAlbum}
                 isTyping={isLoading && index === messages.length - 1 && (message.type === 'assistant' || (message as any).role === 'assistant')}
+                userInfo={userInfo}
+                onShop={onShop}
+                selectedVoiceId={selectedVoiceId}
+                selectedVoiceUrl={selectedVoiceUrl}
+                onSelectVoice={onSelectVoice}
               />
             );
           })}

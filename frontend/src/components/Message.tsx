@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { theme } from '../theme';
-import { FiX, FiImage, FiFolder, FiVolume2, FiPlay, FiPause } from 'react-icons/fi';
+import { FiX, FiImage, FiFolder, FiVolume2, FiPlay, FiPause, FiSettings } from 'react-icons/fi';
 import { Plus, Loader2 } from 'lucide-react';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToRussian } from '../utils/translate';
@@ -11,6 +11,7 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import { API_CONFIG } from '../config/api';
 import { authManager } from '../utils/auth';
 import { PromptGlassModal } from './PromptGlassModal';
+import { VoiceSelectorModal } from './VoiceSelectorModal';
 
 const MessageContainer = styled.div<{ $isUser: boolean }>`
   display: flex !important;
@@ -325,16 +326,69 @@ const VoiceButtonContent = styled.div`
   gap: 8px;
 `;
 
+const WaveformContainer = styled.div<{ $isPlaying: boolean }>`
+  position: absolute;
+  bottom: -35px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: ${props => props.$isPlaying ? 'flex' : 'none'};
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 16px;
+  z-index: 10;
+  pointer-events: none;
+`;
+
+const WaveformBar = styled.div<{ $delay: number; $isPremium?: boolean }>`
+  width: 4px;
+  background: ${props => props.$isPremium
+    ? 'linear-gradient(to top, #ff0000, #ff4444, #ff0000)'
+    : 'linear-gradient(to top, #ffd700, #ffed4e, #ffd700)'};
+  border-radius: 2px;
+  box-shadow: ${props => props.$isPremium
+    ? '0 0 8px rgba(255, 0, 0, 0.6)'
+    : '0 0 8px rgba(255, 215, 0, 0.6)'};
+  animation: waveform ${props => 0.4 + props.$delay * 0.08}s ease-in-out infinite;
+  animation-delay: ${props => props.$delay * 0.08}s;
+  
+  @keyframes waveform {
+    0%, 100% {
+      height: 6px;
+      opacity: 0.7;
+    }
+    50% {
+      height: 16px;
+      opacity: 1;
+    }
+  }
+`;
+
 const RepeatButton = styled(VoiceButton)`
+  position: relative;
   background: rgba(16, 185, 129, 0.15);
   border: 1px solid rgba(16, 185, 129, 0.3);
   color: #10b981;
   min-width: 120px;
+  overflow: visible;
   
   &:hover:not(:disabled) {
     background: rgba(16, 185, 129, 0.25);
     border-color: rgba(16, 185, 129, 0.5);
     box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+  }
+`;
+
+const SelectVoiceButton = styled(VoiceButton)`
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #3b82f6;
+  min-width: 120px;
+  
+  &:hover:not(:disabled) {
+    background: rgba(59, 130, 246, 0.25);
+    border-color: rgba(59, 130, 246, 0.5);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
   }
 `;
 
@@ -649,8 +703,19 @@ interface MessageProps {
   isAuthenticated?: boolean;
   isCharacterOwner?: boolean;
   isTyping?: boolean;
+  isAdmin?: boolean;
   onAddToGallery?: (imageUrl: string, characterName: string) => Promise<void>;
   onAddToPaidAlbum?: (imageUrl: string, characterName: string) => Promise<void>;
+  userInfo?: {
+    subscription?: {
+      subscription_type?: string;
+    };
+    subscription_type?: string;
+  } | null;
+  onShop?: () => void;
+  selectedVoiceId?: string | null;
+  selectedVoiceUrl?: string | null;
+  onSelectVoice?: (voiceId: string | null, voiceUrl: string | null) => void;
 }
 
 const TypingCursor = styled.span`
@@ -681,8 +746,14 @@ const MessageComponent: React.FC<MessageProps> = ({
   isAuthenticated,
   isCharacterOwner,
   isTyping,
+  isAdmin,
   onAddToGallery,
-  onAddToPaidAlbum
+  onAddToPaidAlbum,
+  userInfo,
+  onShop,
+  selectedVoiceId: propSelectedVoiceId,
+  selectedVoiceUrl: propSelectedVoiceUrl,
+  onSelectVoice
 }) => {
   // Функция для получения первой буквы из username или email
   const getUserInitial = (): string => {
@@ -723,6 +794,11 @@ const MessageComponent: React.FC<MessageProps> = ({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [promptError, setPromptError] = useState<string | null>(null);
   const [errorModalMessage, setErrorModalMessage] = useState<string | null>(null);
+  const [isVoiceSelectorOpen, setIsVoiceSelectorOpen] = useState(false);
+  
+  // Используем переданные из ChatContainer значения или локальные (для обратной совместимости)
+  const selectedVoiceId = propSelectedVoiceId ?? null;
+  const selectedVoiceUrl = propSelectedVoiceUrl ?? null;
 
   // Функция для создания стабильного ключа на основе characterName и content
   // Это позволяет находить audioUrl даже после обновления страницы, когда ID сообщения может измениться
@@ -783,8 +859,10 @@ const MessageComponent: React.FC<MessageProps> = ({
     };
   }, []);
 
-  const handleGenerateVoice = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleGenerateVoice = async (e?: React.MouseEvent, paramVoiceId?: string | null, paramVoiceUrl?: string | null) => {
+    if (e) {
+      e.stopPropagation();
+    }
     if (!message.content || isVoiceLoading) return;
 
     // Logic moved to Repeat button
@@ -802,6 +880,31 @@ const MessageComponent: React.FC<MessageProps> = ({
       // Очищаем текст от лишних символов для TTS (например, Markdown)
       const cleanText = message.content.replace(/[\*\_\~]/g, '');
 
+      // Определяем какой голос использовать: переданный параметр, выбранный в модальном окне или текущий
+      let finalVoiceUrl: string | null = null;
+      
+      // Сначала проверяем переданные параметры функции (для обратной совместимости)
+      if (paramVoiceId !== undefined && paramVoiceId !== null) {
+        finalVoiceUrl = `/default_character_voices/${paramVoiceId}`;
+        console.log('[VOICE] Используется голос из параметра функции (voiceId):', paramVoiceId);
+      } else if (paramVoiceUrl !== undefined && paramVoiceUrl !== null) {
+        finalVoiceUrl = paramVoiceUrl;
+        console.log('[VOICE] Используется голос из параметра функции (voiceUrl):', paramVoiceUrl);
+      }
+      // Затем проверяем сохраненные значения из state компонента (выбранные в модальном окне)
+      else if (selectedVoiceId) {
+        finalVoiceUrl = `/default_character_voices/${selectedVoiceId}`;
+        console.log('[VOICE] Используется выбранный голос из state (voiceId):', selectedVoiceId);
+      } else if (selectedVoiceUrl) {
+        finalVoiceUrl = selectedVoiceUrl;
+        console.log('[VOICE] Используется выбранный голос из state (voiceUrl):', selectedVoiceUrl);
+      }
+      // Если ничего не выбрано, используем голос по умолчанию
+      else {
+        finalVoiceUrl = voiceUrl || "/default_character_voices/[Mita Miside (Russian voice)]Ммм........упим_.mp3";
+        console.log('[VOICE] Используется голос по умолчанию:', finalVoiceUrl);
+      }
+
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/chat/generate_voice`, {
         method: 'POST',
         headers: {
@@ -810,7 +913,7 @@ const MessageComponent: React.FC<MessageProps> = ({
         },
         body: JSON.stringify({
           text: cleanText,
-          voice_url: voiceUrl || "/default_character_voices/[Mita Miside (Russian voice)]Ммм........упим_.mp3" // Fallback to default voice
+          voice_url: finalVoiceUrl // Используем выбранный голос или голос по умолчанию
         })
       });
 
@@ -1161,6 +1264,7 @@ const MessageComponent: React.FC<MessageProps> = ({
     }
   };
 
+
   // Для прогресса генерации - отображаем БЕЗ MessageContent контейнера (прозрачный фон)
   // Убираем аватар при генерации фото
   if (isGenerationProgress && !hasValidImageUrl) {
@@ -1370,7 +1474,26 @@ const MessageComponent: React.FC<MessageProps> = ({
                       {isPlaying ? <FiPause /> : <FiPlay />}
                       <span>{isPlaying ? 'Остановить' : 'Повторить'}</span>
                     </VoiceButtonContent>
+                    {isPlaying && (
+                      <WaveformContainer $isPlaying={isPlaying}>
+                        {[...Array(5)].map((_, i) => (
+                          <WaveformBar key={i} $delay={i} $isPremium={false} />
+                        ))}
+                      </WaveformContainer>
+                    )}
                   </RepeatButton>
+
+                  <SelectVoiceButton
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsVoiceSelectorOpen(true);
+                    }}
+                  >
+                    <VoiceButtonContent>
+                      <FiSettings />
+                      <span>Выбрать голос</span>
+                    </VoiceButtonContent>
+                  </SelectVoiceButton>
                 </MessageButtonsRow>
               )}
             </>
@@ -1451,6 +1574,22 @@ const MessageComponent: React.FC<MessageProps> = ({
         </ErrorModalOverlay>,
         document.body
       )}
+
+      <VoiceSelectorModal
+        isOpen={isVoiceSelectorOpen}
+        onClose={() => setIsVoiceSelectorOpen(false)}
+        onSelectVoice={(voiceId, voiceUrl) => {
+          setIsVoiceSelectorOpen(false);
+          // Сохраняем выбранный голос через callback в ChatContainer
+          // Голос будет использован при следующей генерации для всех сообщений
+          if (onSelectVoice) {
+            onSelectVoice(voiceId, voiceUrl);
+          }
+        }}
+        currentVoiceUrl={voiceUrl}
+        userInfo={userInfo}
+        onShop={onShop}
+      />
     </>
   );
 };

@@ -598,6 +598,11 @@ interface UserInfo {
   coins: number;
   avatar_url?: string | null;
   email?: string | null;
+  is_admin?: boolean;
+  subscription?: {
+    subscription_type?: string;
+  };
+  subscription_type?: string;
 }
 
 interface PaidAlbumStatus {
@@ -833,14 +838,13 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     initialCharacter || null
   );
   const isLoadingFromUrlRef = useRef(false); // Флаг для отслеживания загрузки из URL
+  
+  // Выбранный голос для текущего персонажа (локально для пользователя)
+  const [selectedVoiceId, setSelectedVoiceId] = useState<string | null>(null);
+  const [selectedVoiceUrl, setSelectedVoiceUrl] = useState<string | null>(null);
 
   // Состояние для хранения отредактированного промпта в рамках сессии (для текущего персонажа)
   const [sessionPrompt, setSessionPrompt] = useState<string | null>(null);
-
-  // Сбрасываем sessionPrompt при смене персонажа
-  useEffect(() => {
-    setSessionPrompt(null);
-  }, [currentCharacter?.id]);
   const [isLoading, setIsLoading] = useState(false);
   // Очередь активных генераций: Set с ID сообщений, которые генерируются
   const [activeGenerations, setActiveGenerations] = useState<Set<string>>(new Set());
@@ -853,6 +857,54 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [modelInfo, setModelInfo] = useState<string>('Загрузка...');
+
+  // Сбрасываем sessionPrompt при смене персонажа
+  useEffect(() => {
+    setSessionPrompt(null);
+  }, [currentCharacter?.id]);
+
+  // Загружаем выбранный голос из localStorage при смене персонажа
+  useEffect(() => {
+    if (currentCharacter && userInfo) {
+      const characterName = currentCharacter.name || currentCharacter.raw?.name;
+      const userId = userInfo.id;
+      if (characterName && userId) {
+        const storageKey = `selected_voice_${characterName}_${userId}`;
+        const saved = localStorage.getItem(storageKey);
+        if (saved) {
+          try {
+            const data = JSON.parse(saved);
+            setSelectedVoiceId(data.voiceId || null);
+            setSelectedVoiceUrl(data.voiceUrl || null);
+          } catch (e) {
+            console.error('[VOICE] Ошибка загрузки выбранного голоса:', e);
+          }
+        } else {
+          // Если нет сохраненного голоса, сбрасываем
+          setSelectedVoiceId(null);
+          setSelectedVoiceUrl(null);
+        }
+      }
+    } else {
+      // Если нет персонажа или пользователя, сбрасываем
+      setSelectedVoiceId(null);
+      setSelectedVoiceUrl(null);
+    }
+  }, [currentCharacter?.id, currentCharacter?.name, userInfo?.id]);
+
+  // Сохраняем выбранный голос в localStorage
+  const saveSelectedVoice = useCallback((voiceId: string | null, voiceUrl: string | null) => {
+    if (currentCharacter && userInfo) {
+      const characterName = currentCharacter.name || currentCharacter.raw?.name;
+      const userId = userInfo.id;
+      if (characterName && userId) {
+        const storageKey = `selected_voice_${characterName}_${userId}`;
+        localStorage.setItem(storageKey, JSON.stringify({ voiceId, voiceUrl }));
+        setSelectedVoiceId(voiceId);
+        setSelectedVoiceUrl(voiceUrl);
+      }
+    }
+  }, [currentCharacter, userInfo]);
   const [characterSituation, setCharacterSituation] = useState<string | null>(null);
   const [balanceRefreshTrigger, setBalanceRefreshTrigger] = useState(0);
   const [creatorInfo, setCreatorInfo] = useState<{ id: number; username: string | null; avatar_url: string | null } | null>(null);
@@ -1387,7 +1439,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           username: userData.username || 'Пользователь',
           coins: userData.coins || 0,
           avatar_url: userData.avatar_url || null,
-          email: userData.email || null
+          email: userData.email || null,
+          is_admin: userData.is_admin || false,
+          subscription: userData.subscription || undefined,
+          subscription_type: userData.subscription_type || userData.subscription?.subscription_type || undefined
         };
         setUserInfo(info);
         setIsAuthenticated(true);
@@ -3808,9 +3863,15 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               userEmail={userInfo?.email || undefined}
               isCharacterOwner={paidAlbumStatus?.is_owner ?? false}
               isAuthenticated={isAuthenticated}
+              isAdmin={userInfo?.is_admin ?? false}
               onAddToPaidAlbum={handleAddToPaidAlbum}
               onAddToGallery={handleAddToGallery}
               creatorInfo={creatorInfo}
+              userInfo={userInfo}
+              onShop={onShop}
+              selectedVoiceId={selectedVoiceId}
+              selectedVoiceUrl={selectedVoiceUrl}
+              onSelectVoice={saveSelectedVoice}
             />
 
             {error && (

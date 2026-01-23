@@ -164,7 +164,8 @@ async def generate_tts_audio(text: str, voice_url: str) -> Optional[str]:
         # Создание директории если не существует
         VOICES_DIR.mkdir(parents=True, exist_ok=True)
         
-        file_name = f"{uuid.uuid4()}.mp3"
+        # Fish Audio возвращает WAV формат, поэтому используем расширение .wav
+        file_name = f"{uuid.uuid4()}.wav"
         file_path = VOICES_DIR / file_name
         
         # Сохранение на диск
@@ -179,7 +180,7 @@ async def generate_tts_audio(text: str, voice_url: str) -> Optional[str]:
         logger.info(f"Аудио успешно сгенерировано и сохранено: {file_path}, размер: {file_path.stat().st_size} байт")
         
         # Возвращаем абсолютный путь к файлу (для использования в API)
-        # API сам сформирует правильный URL /voices/filename.mp3
+        # API сам сформирует правильный URL /voices/filename.wav
         return str(file_path)
         
     except Exception as e:
@@ -241,7 +242,7 @@ async def generate_voice_preview(voice_id: str, text: Optional[str] = None) -> O
         
         # Создаем хэш для кэширования: voice_id + text
         cache_key = hashlib.md5(f"{voice_id}_{preview_text}".encode('utf-8')).hexdigest()
-        cache_filename = f"preview_{cache_key}.mp3"
+        cache_filename = f"preview_{cache_key}.wav"
         cache_path = VOICES_DIR / cache_filename
         
         # Проверяем наличие в кэше
@@ -383,7 +384,7 @@ async def generate_preview_from_uploaded_voice(voice_audio: bytes, voice_filenam
         logger.info(f"Генерация превью завершена, получены данные")
         
         # Сохраняем превью
-        preview_filename = f"preview_{unique_id}.mp3"
+        preview_filename = f"preview_{unique_id}.wav"
         preview_path = VOICES_DIR / preview_filename
         
         if isinstance(audio_data, bytes):

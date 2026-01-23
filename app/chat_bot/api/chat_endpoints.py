@@ -707,6 +707,27 @@ async def generate_voice(
         raise HTTPException(status_code=401, detail="Требуется авторизация")
         
     try:
+        # Извлекаем название голоса из voice_url
+        voice_name = "Неизвестный голос"
+        if request.voice_url:
+            # Извлекаем имя файла из пути
+            import os
+            voice_filename = os.path.basename(request.voice_url)
+            # Убираем расширение и декодируем специальные символы
+            voice_name = os.path.splitext(voice_filename)[0]
+            # Убираем квадратные скобки если есть
+            voice_name = voice_name.replace('[', '').replace(']', '')
+        
+        # Логируем информацию о генерации голоса
+        logger.info("=" * 80)
+        logger.info(f"[VOICE PLAYBACK] Начало генерации/воспроизведения голоса")
+        logger.info(f"[VOICE PLAYBACK] Пользователь: {current_user.username} (ID: {current_user.id})")
+        logger.info(f"[VOICE PLAYBACK] Название голоса: {voice_name}")
+        logger.info(f"[VOICE PLAYBACK] Путь к голосу: {request.voice_url}")
+        logger.info(f"[VOICE PLAYBACK] Текст для озвучки: {request.text[:100]}{'...' if len(request.text) > 100 else ''}")
+        logger.info(f"[VOICE PLAYBACK] Длина текста: {len(request.text)} символов")
+        logger.info("=" * 80)
+        
         coins_service = CoinsService(db)
         
         # Проверяем баланс перед генерацией
@@ -758,6 +779,14 @@ async def generate_voice(
         file_name = os.path.basename(audio_path)
         audio_url = f"/voices/{file_name}"
         
+        logger.info("=" * 80)
+        logger.info(f"[VOICE PLAYBACK] Голос успешно сгенерирован/воспроизведен")
+        logger.info(f"[VOICE PLAYBACK] Название голоса: {voice_name}")
+        logger.info(f"[VOICE PLAYBACK] Файл аудио: {file_name}")
+        logger.info(f"[VOICE PLAYBACK] URL аудио: {audio_url}")
+        logger.info(f"[VOICE PLAYBACK] Пользователь: {current_user.username} (ID: {current_user.id})")
+        logger.info("=" * 80)
+        
         logger.info(f"[GENERATE_VOICE] Аудио сгенерировано: audio_path={audio_path}, file_name={file_name}, audio_url={audio_url}")
         
         # Проверяем существование файла
@@ -806,8 +835,8 @@ async def preview_voice(request: VoicePreviewRequest):
             raise HTTPException(status_code=500, detail="Не удалось сгенерировать превью голоса")
             
         # Формируем URL для фронтенда
-        # Путь возвращается относительно BASE_DIR (app/voices/preview_xxx.mp3)
-        # Нам нужно сделать его доступным через HTTP (/voices/preview_xxx.mp3)
+        # Путь возвращается относительно BASE_DIR (app/voices/preview_xxx.wav)
+        # Нам нужно сделать его доступным через HTTP (/voices/preview_xxx.wav)
         import os
         file_name = os.path.basename(audio_path)
         audio_url = f"/voices/{file_name}"

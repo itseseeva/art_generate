@@ -525,6 +525,56 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
+# Middleware для логирования запросов к голосовым файлам
+@app.middleware("http")
+async def log_voice_requests(request: Request, call_next):
+	"""Middleware для логирования запросов к голосовым файлам."""
+	# Логируем запросы к /voices/ (воспроизведение уже сгенерированных голосов)
+	if request.method == "GET" and "/voices/" in str(request.url.path):
+		import os
+		# Извлекаем имя файла из пути
+		file_name = os.path.basename(request.url.path)
+		# Извлекаем название голоса из имени файла (убираем UUID и расширение)
+		voice_name = "Неизвестный голос"
+		if file_name:
+			# Пытаемся найти информацию о голосе из заголовков или из пути
+			# В большинстве случаев имя файла - это UUID, но можем попробовать найти связанный голос
+			voice_name = f"Файл: {file_name}"
+		
+		# Получаем информацию о пользователе из токена, если есть
+		user_info = "Неавторизованный пользователь"
+		auth_header = request.headers.get("Authorization", "")
+		if auth_header.startswith("Bearer "):
+			try:
+				from app.auth.dependencies import get_current_user_optional
+				# Пытаемся получить пользователя из токена
+				token = auth_header.replace("Bearer ", "")
+				# Декодируем токен для получения user_id (упрощенная версия)
+				import jwt
+				from app.config.settings import settings
+				decoded = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+				user_id = decoded.get("sub") or decoded.get("user_id")
+				if user_id:
+					user_info = f"Пользователь ID: {user_id}"
+			except Exception:
+				pass
+		
+		logger.info("=" * 80)
+		logger.info(f"[VOICE PLAYBACK] Запрос на воспроизведение голоса")
+		logger.info(f"[VOICE PLAYBACK] Файл: {file_name}")
+		logger.info(f"[VOICE PLAYBACK] Путь: {request.url.path}")
+		logger.info(f"[VOICE PLAYBACK] {user_info}")
+		logger.info(f"[VOICE PLAYBACK] IP адрес: {request.client.host if request.client else 'Unknown'}")
+		logger.info("=" * 80)
+	
+	response = await call_next(request)
+	
+	# Логируем статус ответа для голосовых файлов
+	if request.method == "GET" and "/voices/" in str(request.url.path):
+		logger.info(f"[VOICE PLAYBACK] Статус ответа: {response.status_code}")
+	
+	return response
+
 # Middleware для логирования запросов к YooMoney
 @app.middleware("http")
 async def log_ratings_requests(request: Request, call_next):
