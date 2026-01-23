@@ -5076,13 +5076,13 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         if (token) {
           const requestData = {
             character_name: createdCharacterData.name,
-            photo_ids: newSelectedPhotos.map(photo => ({
+            photos: newSelectedPhotos.map(photo => ({
               id: photo.id,
               url: photo.url
             }))
           };
 
-          const response = await fetch('/api/v1/characters/set-photos-full/', {
+          const response = await fetch(API_CONFIG.CHARACTER_SET_PHOTOS_FULL, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -5092,19 +5092,32 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
           });
 
           if (response.ok) {
+            // Даем время БД сохранить изменения
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
             // Обновляем данные персонажа
-            const characterResponse = await fetch(`/api/v1/characters/${createdCharacterData.name}`, {
+            const characterResponse = await fetch(`/api/v1/characters/${createdCharacterData.name}?_t=${Date.now()}`, {
               headers: { 'Authorization': `Bearer ${token}` }
             });
             if (characterResponse.ok) {
               const updatedCharacter = await characterResponse.json();
               setCreatedCharacterData(updatedCharacter);
               
+              // Еще одна небольшая задержка перед отправкой события
+              await new Promise(resolve => setTimeout(resolve, 500));
+              
               // Отправляем событие для обновления главной страницы
               const event = new CustomEvent('character-photos-updated', {
                 detail: { character: updatedCharacter, photos: newSelectedPhotos.map(p => p.id) }
               });
               window.dispatchEvent(event);
+              
+              // Дополнительно отправляем событие через небольшую задержку для надежности
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('character-photos-updated', {
+                  detail: { character: updatedCharacter, photos: newSelectedPhotos.map(p => p.id) }
+                }));
+              }, 1000);
             }
           }
         }
@@ -5155,7 +5168,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
       const requestData = {
         character_name: createdCharacterData.name,
-        photo_ids: selectedPhotos.map(photo => ({
+        photos: selectedPhotos.map(photo => ({
           id: photo.id,
           url: photo.url
         }))
@@ -5491,11 +5504,12 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         const photo = await generateSinglePhoto(currentPrompt);
         if (photo) {
           const isFirstPhoto = generatedPhotos.length === 0;
-          setGeneratedPhotos(prev => [...prev, { ...photo, isSelected: false }]);
 
           // Автоматически вставляем первую сгенерированную фотографию в карточку персонажа
           if (isFirstPhoto && createdCharacterData) {
             const firstPhoto = { ...photo, isSelected: true };
+            // Сначала обновляем generatedPhotos с правильным isSelected
+            setGeneratedPhotos(prev => [...prev, { ...photo, isSelected: true }]);
             setSelectedPhotos([firstPhoto]);
             setPreviewPhotoIndex(0); // Устанавливаем индекс на первое фото
             
@@ -5503,44 +5517,69 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
             try {
               const token = localStorage.getItem('authToken');
               if (token) {
-                const requestData = {
-                  character_name: createdCharacterData.name,
-                  photo_ids: [{
-                    id: photo.id,
-                    url: photo.url
-                  }]
-                };
-
-                const response = await fetch('/api/v1/characters/set-photos-full/', {
+                const response = await fetch(API_CONFIG.CHARACTER_SET_PHOTOS_FULL, {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                   },
-                  body: JSON.stringify(requestData)
+                  body: JSON.stringify({
+                    character_name: createdCharacterData.name,
+                    photos: [{
+                      id: photo.id,
+                      url: photo.url
+                    }]
+                  })
                 });
 
                 if (response.ok) {
-                  // Обновляем данные персонажа
-                  const characterResponse = await fetch(`/api/v1/characters/${createdCharacterData.name}`, {
+                  const result = await response.json();
+                  
+                  // Даем время БД сохранить изменения
+                  await new Promise(resolve => setTimeout(resolve, 1500));
+                  
+                  // Обновляем данные персонажа с принудительным обновлением кэша
+                  const characterResponse = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${createdCharacterData.name}?force_refresh=true&_t=${Date.now()}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                   });
                   if (characterResponse.ok) {
                     const updatedCharacter = await characterResponse.json();
                     setCreatedCharacterData(updatedCharacter);
                     
+                    // Еще одна небольшая задержка перед отправкой события
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
                     // Отправляем событие для обновления главной страницы
                     const event = new CustomEvent('character-photos-updated', {
                       detail: { character: updatedCharacter, photos: [photo.id] }
                     });
                     window.dispatchEvent(event);
+                    
+                    // Дополнительно отправляем событие через небольшую задержку для надежности
+                    setTimeout(() => {
+                      window.dispatchEvent(new CustomEvent('character-photos-updated', {
+                        detail: { character: updatedCharacter, photos: [photo.id] }
+                      }));
+                      // Также отправляем событие создания персонажа для полного обновления
+                      window.dispatchEvent(new CustomEvent('character-created', {
+                        detail: { character: updatedCharacter }
+                      }));
+                    }, 1500);
                   }
+                } else {
+                  const errorData = await response.json().catch(() => ({}));
+                  console.error('Ошибка сохранения первого фото:', errorData);
                 }
               }
             } catch (error) {
               // Игнорируем ошибки автоматического сохранения
             }
-          } else if (createdCharacterData) {
+          } else {
+            // Для последующих фото просто добавляем в список
+            setGeneratedPhotos(prev => [...prev, { ...photo, isSelected: false }]);
+          }
+          
+          if (createdCharacterData && !isFirstPhoto) {
             // Для последующих фото автоматически переключаемся на новое фото в превью
             // Собираем все фото для определения индекса
             const allPhotos: Array<{ url: string; id?: string }> = [];
@@ -6512,41 +6551,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                       </div>
                     </FormField>
 
-                    {/* Кнопка "Продолжить" - появляется после генерации первого фото */}
-                    {generatedPhotos && generatedPhotos.length > 0 && (
-                      <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'flex-end' }}>
-                        <ContinueButton
-                          type="button"
-                          onClick={() => {
-                            if (!createdCharacterData) return;
-
-                            // Определяем тип подписки
-                            const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
-                            let subscriptionType = 'free';
-                            if (rawSubscriptionType) {
-                              subscriptionType = typeof rawSubscriptionType === 'string'
-                                ? rawSubscriptionType.toLowerCase().trim()
-                                : String(rawSubscriptionType).toLowerCase().trim();
-                            }
-
-                            // Если подписка Standard или Premium - открываем создание альбома
-                            if (subscriptionType === 'standard' || subscriptionType === 'premium') {
-                              if (onOpenPaidAlbumBuilder) {
-                                onOpenPaidAlbumBuilder(createdCharacterData);
-                              }
-                            } else {
-                              // Иначе открываем чат
-                              if (onOpenChat) {
-                                onOpenChat(createdCharacterData);
-                              }
-                            }
-                          }}
-                        >
-                          Продолжить
-                        </ContinueButton>
-                      </div>
-                    )}
-
                     {/* 3. Действие: Кнопка "Сгенерировать" */}
                     <GenerationArea>
                       <div className="flex justify-between items-center mb-2">
@@ -7033,6 +7037,41 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                   </PreviewTags>
                 )}
               </LivePreviewCard>
+              
+              {/* Кнопка "Продолжить" - появляется под карточкой справа после генерации первого фото */}
+              {generatedPhotos && generatedPhotos.length > 0 && createdCharacterData && (
+                <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <ContinueButton
+                    type="button"
+                    onClick={() => {
+                      if (!createdCharacterData) return;
+
+                      // Определяем тип подписки
+                      const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
+                      let subscriptionType = 'free';
+                      if (rawSubscriptionType) {
+                        subscriptionType = typeof rawSubscriptionType === 'string'
+                          ? rawSubscriptionType.toLowerCase().trim()
+                          : String(rawSubscriptionType).toLowerCase().trim();
+                      }
+
+                      // Если подписка Standard или Premium - открываем создание альбома
+                      if (subscriptionType === 'standard' || subscriptionType === 'premium') {
+                        if (onOpenPaidAlbumBuilder) {
+                          onOpenPaidAlbumBuilder(createdCharacterData);
+                        }
+                      } else {
+                        // Иначе открываем чат
+                        if (onOpenChat) {
+                          onOpenChat(createdCharacterData);
+                        }
+                      }
+                    }}
+                  >
+                    Продолжить
+                  </ContinueButton>
+                </div>
+              )}
             </RightColumn>
           </form>
         </MainContent>
