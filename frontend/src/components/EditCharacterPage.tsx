@@ -17,6 +17,7 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import DarkVeil from '../../@/components/DarkVeil';
 import { PromptGlassModal } from './PromptGlassModal';
 import { motion, AnimatePresence } from 'motion/react';
+import { ErrorToast } from './ErrorToast';
 
 /**
  * Нормализует URL изображения для локальной разработки.
@@ -1251,6 +1252,8 @@ const ModelSelectionContainer = styled.div`
   justify-content: center;
   gap: ${theme.spacing.lg};
   margin-bottom: ${theme.spacing.lg};
+  position: relative;
+  overflow: visible;
   overflow: visible;
   padding-bottom: ${theme.spacing.md};
   padding-top: ${theme.spacing.xs};
@@ -1262,7 +1265,7 @@ const ModelSelectionContainer = styled.div`
   }
 `;
 
-const ModelCard = styled.div<{ $isSelected: boolean; $previewImage: string }>`
+const ModelCard = styled.div<{ $isSelected: boolean; $previewImage: string; $showToast?: boolean }>`
   flex: 0 0 200px;
   height: 300px;
   background: ${props => props.$isSelected
@@ -1277,7 +1280,7 @@ const ModelCard = styled.div<{ $isSelected: boolean; $previewImage: string }>`
   cursor: pointer;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
-  overflow: hidden;
+  overflow: ${props => props.$showToast ? 'visible' : 'hidden'};
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -3265,14 +3268,14 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         const now = Date.now();
         const updated = { ...prev };
         let hasChanges = false;
-        
+
         for (const key in updated) {
           if (now - updated[key] >= 500) {
             delete updated[key];
             hasChanges = true;
           }
         }
-        
+
         return hasChanges ? updated : prev;
       });
     }, 100); // Проверяем каждые 100мс
@@ -3378,6 +3381,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const [isLoadingData, setIsLoadingData] = useState(!!character?.name || !!character?.id);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [showErrorToast, setShowErrorToast] = useState(false);
+  const [errorToastMessage, setErrorToastMessage] = useState<string>('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userInfo, setUserInfo] = useState<{ username: string, coins: number, id: number, subscription?: { subscription_type?: string }, avatar_url?: string | null, is_admin?: boolean } | null>(initialUserInfo || null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -5282,7 +5287,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                     }
                                   }}
                                 />
-                                <VoiceCheckmark 
+                                <VoiceCheckmark
                                   $show={isSelected}
                                   $isPremium={false}
                                 />
@@ -5400,8 +5405,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                             }
                                             alert('Ошибка удаления голоса: ' + errorMessage);
                                           }
-                                          } else {
-                                            alert('Не удалось определить тип голоса для удаления.');
+                                        } else {
+                                          alert('Не удалось определить тип голоса для удаления.');
                                         }
                                       } catch (err) {
                                         alert('Не удалось удалить голос. Проверьте консоль для деталей.');
@@ -6192,7 +6197,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                     }
 
                                     const audioUrlToPlay = voice.preview_url || voice.url;
-                                    
+
                                     // Если нажали на уже играющий голос - просто останавливаем его
                                     if (playingVoiceUrl && (playingVoiceUrl === audioUrlToPlay || playingVoiceUrl === voice.url || playingVoiceUrl === voice.preview_url)) {
                                       return;
@@ -6244,7 +6249,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                       tryNext();
                                     }}
                                   />
-                                  <VoiceCheckmark 
+                                  <VoiceCheckmark
                                     $show={isSelected}
                                     $isPremium={false}
                                   />
@@ -7010,12 +7015,23 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                       <ModelCard
                         $isSelected={selectedModel === 'realism'}
                         $previewImage="/model_previews/реализм.jpg"
-                        onClick={() => setSelectedModel('realism')}
+                        $showToast={showErrorToast}
+                        onClick={() => {
+                          setErrorToastMessage('Данная модель находится в разработке');
+                          setShowErrorToast(true);
+                        }}
                       >
                         <ModelInfoOverlay>
                           <ModelName>Реализм</ModelName>
                           <ModelDescription>Фотореалистичность</ModelDescription>
                         </ModelInfoOverlay>
+                        {showErrorToast && (
+                          <ErrorToast
+                            message={errorToastMessage}
+                            onClose={() => setShowErrorToast(false)}
+                            duration={3000}
+                          />
+                        )}
                       </ModelCard>
                     </ModelSelectionContainer>
                   </div>
@@ -7555,10 +7571,10 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                             if (voicesResponse.ok) {
                               const voicesData = await voicesResponse.json();
                               setAvailableVoices(voicesData);
-                              
+
                               // Автоматически открываем пользовательские голоса и выбираем добавленный голос
                               setShowUserVoices(true);
-                              
+
                               // Находим и выбираем добавленный голос
                               const addedVoice = voicesData.find((v: any) => v.id === newVoiceId || v.user_voice_id === result.voice_id);
                               if (addedVoice) {
@@ -7746,4 +7762,17 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       </div>
     );
   }
+
+  return (
+    <>
+      {/* ... existing JSX ... */}
+      {showErrorToast && (
+        <ErrorToast
+          message={errorToastMessage}
+          onClose={() => setShowErrorToast(false)}
+          duration={3000}
+        />
+      )}
+    </>
+  );
 };

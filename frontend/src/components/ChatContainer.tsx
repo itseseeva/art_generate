@@ -8,6 +8,7 @@ import { TipCreatorModal } from './TipCreatorModal';
 import { SuccessToast } from './SuccessToast';
 import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
+import { ErrorToast } from './ErrorToast';
 import { ConfirmModal } from './ConfirmModal';
 import { GlobalHeader } from './GlobalHeader';
 import { PhotoGenerationHelpModal } from './PhotoGenerationHelpModal';
@@ -766,7 +767,7 @@ const ModelSelectionContainer = styled.div`
   flex-wrap: wrap;
 `;
 
-const ModelCard = styled.div<{ $isSelected: boolean; $previewImage?: string }>`
+const ModelCard = styled.div<{ $isSelected: boolean; $previewImage?: string; $showToast?: boolean }>`
   flex: 0 0 200px;
   height: 300px;
   background: ${props => props.$isSelected
@@ -781,7 +782,7 @@ const ModelCard = styled.div<{ $isSelected: boolean; $previewImage?: string }>`
   cursor: pointer;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
-  overflow: hidden;
+  overflow: ${props => props.$showToast ? 'visible' : 'hidden'};
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -966,7 +967,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     initialCharacter || null
   );
   const isLoadingFromUrlRef = useRef(false); // Флаг для отслеживания загрузки из URL
-  
+
   // Выбранный голос для текущего персонажа (локально для пользователя)
   const [selectedVoiceId, setSelectedVoiceId] = useState<string | null>(null);
   const [selectedVoiceUrl, setSelectedVoiceUrl] = useState<string | null>(null);
@@ -977,6 +978,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   // Очередь активных генераций: Set с ID сообщений, которые генерируются
   const [activeGenerations, setActiveGenerations] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [showErrorToast, setShowErrorToast] = useState(false);
+  const [errorToastMessage, setErrorToastMessage] = useState<string>('');
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [isTipModalOpen, setIsTipModalOpen] = useState(false);
@@ -1699,7 +1702,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         const newVoiceId = updatedCharacter.voice_id;
         const currentVoiceUrl = currentCharacter?.voice_url;
         const newVoiceUrl = updatedCharacter.voice_url;
-        
+
         // Проверяем изменение likes и dislikes
         const currentLikes = currentCharacter?.likes ?? 0;
         const newLikes = updatedCharacter.likes ?? 0;
@@ -3929,7 +3932,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         {/* Кнопки альбома для мобильных устройств - под хедером */}
         <MobileAlbumButtonsContainer>
           {isPaidAlbumUnlocked || (normalizedSubscriptionType as string) === 'premium' ? (
-            <MobileAlbumButton 
+            <MobileAlbumButton
               $variant="secondary"
               onClick={handleOpenPaidAlbumView}
             >
@@ -4091,8 +4094,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               <GenerationQueueContainer>
                 <QueueLabel>ОЧЕРЕДЬ ГЕНЕРАЦИИ</QueueLabel>
                 <GenerationQueueIndicator>
-                  <QueueProgressBar 
-                    $filled={activeGenerations.size} 
+                  <QueueProgressBar
+                    $filled={activeGenerations.size}
                     $total={getGenerationQueueLimit}
                   />
                 </GenerationQueueIndicator>
@@ -4211,7 +4214,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                     return (
                       <>
                         {isPaidAlbumUnlocked && (
-                          <PaidAlbumButton 
+                          <PaidAlbumButton
                             $variant="secondary"
                             onClick={handleOpenPaidAlbumView}
                           >
@@ -4483,7 +4486,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 <ModelCard
                   $isSelected={selectedModel === 'realism'}
                   $previewImage="/model_previews/реализм.jpg"
-                  onClick={() => setSelectedModel('realism')}
+                  onClick={() => {
+                    setErrorToastMessage('Данная модель находится в разработке');
+                    setShowErrorToast(true);
+                  }}
                 >
                   <ModelInfoOverlay>
                     <ModelName>Реализм</ModelName>
