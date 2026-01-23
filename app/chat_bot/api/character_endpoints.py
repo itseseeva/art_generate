@@ -1174,12 +1174,15 @@ async def create_character(character: CharacterCreate, db: AsyncSession = Depend
             )
         
         # Create new character
+        # Если голос не указан, устанавливаем дефолтный голос "Даша"
+        voice_id = character.voice_id or "Даша.mp3"
+        
         db_char = CharacterDB(
             name=character.name,
             prompt=character.prompt,
             character_appearance=character.character_appearance,
             location=character.location,
-            voice_id=character.voice_id
+            voice_id=voice_id
         )
         
         db.add(db_char)
@@ -1543,7 +1546,8 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         logger.info(f"[CREATE_CHAR] voice_id из запроса: {character.voice_id}, voice_url из запроса: {character.voice_url}")
         
         # КРИТИЧНО: Правильная обработка пользовательских и дефолтных голосов при создании
-        voice_id_to_save = character.voice_id
+        # Если голос не указан, устанавливаем дефолтный голос "Даша"
+        voice_id_to_save = character.voice_id or "Даша.mp3"
         voice_url_to_save = character.voice_url
         
         # Если это пользовательский голос, получаем voice_url из БД если не передан

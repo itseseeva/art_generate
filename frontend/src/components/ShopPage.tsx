@@ -411,7 +411,7 @@ export const ShopPage: React.FC<any> = ({
   onProfile
 }) => {
   const [viewMode, setViewMode] = useState<'subscription' | 'credits'>('subscription');
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>('yearly');
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>('3_months');
   const [stats, setStats] = useState<SubscriptionStats | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(propIsAuthenticated || false);
   const [userInfo, setUserInfo] = useState(propUserInfo || null);

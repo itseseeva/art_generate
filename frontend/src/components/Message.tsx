@@ -724,6 +724,57 @@ const MessageComponent: React.FC<MessageProps> = ({
   const [promptError, setPromptError] = useState<string | null>(null);
   const [errorModalMessage, setErrorModalMessage] = useState<string | null>(null);
 
+  // Функция для создания стабильного ключа на основе characterName и content
+  // Это позволяет находить audioUrl даже после обновления страницы, когда ID сообщения может измениться
+  const getStorageKey = useCallback(() => {
+    if (!characterName || !message.content || !message.content.trim()) {
+      // Если нет characterName или content, используем message.id как fallback
+      const fallbackKey = `audio_url_${message.id}`;
+      console.log('[VOICE] Используем fallback ключ:', fallbackKey, { characterName, hasContent: !!message.content });
+      return fallbackKey;
+    }
+    // Нормализуем content: убираем лишние пробелы и берем первые 200 символов
+    const normalizedContent = message.content.trim().replace(/\s+/g, ' ').substring(0, 200);
+    // Создаем ключ на основе characterName и нормализованного content
+    const str = `${characterName}_${normalizedContent}`;
+    // Простая hash функция для создания более короткого ключа
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    const storageKey = `audio_url_${Math.abs(hash)}`;
+    console.log('[VOICE] Создан ключ storage:', storageKey, { characterName, contentLength: normalizedContent.length });
+    return storageKey;
+  }, [characterName, message.content, message.id]);
+
+  // Восстанавливаем audioUrl из localStorage при монтировании компонента
+  useEffect(() => {
+    const storageKey = getStorageKey();
+    let savedAudioUrl = localStorage.getItem(storageKey);
+    console.log('[VOICE] Восстановление audioUrl:', { storageKey, savedAudioUrl: !!savedAudioUrl, messageId: message.id });
+    
+    // Если не найден по основному ключу, пробуем найти по message.id (fallback для старых записей)
+    if (!savedAudioUrl && message.id) {
+      const fallbackKey = `audio_url_${message.id}`;
+      savedAudioUrl = localStorage.getItem(fallbackKey);
+      if (savedAudioUrl) {
+        console.log('[VOICE] audioUrl найден по fallback ключу:', fallbackKey);
+        // Мигрируем на новый ключ
+        localStorage.setItem(storageKey, savedAudioUrl);
+        localStorage.removeItem(fallbackKey);
+      }
+    }
+    
+    if (savedAudioUrl) {
+      setAudioUrl(savedAudioUrl);
+      console.log('[VOICE] audioUrl восстановлен из localStorage:', savedAudioUrl);
+    } else {
+      console.log('[VOICE] audioUrl не найден в localStorage для ключа:', storageKey);
+    }
+  }, [getStorageKey, message.id]);
+
   useEffect(() => {
     return () => {
       if (audioRef.current) {
@@ -784,6 +835,11 @@ const MessageComponent: React.FC<MessageProps> = ({
         });
         
         setAudioUrl(fullAudioUrl);
+        
+        // Сохраняем audioUrl в localStorage для восстановления после обновления страницы
+        // Используем стабильный ключ на основе characterName и content
+        const storageKey = getStorageKey();
+        localStorage.setItem(storageKey, fullAudioUrl);
 
         // Обновляем баланс пользователя если он вернулся в ответе
         if (data.remaining_coins !== undefined) {
@@ -1273,11 +1329,38 @@ const MessageComponent: React.FC<MessageProps> = ({
                         audioRef.current.pause();
                         setIsPlaying(false);
                       } else if (audioUrl) {
-                        const audio = audioRef.current || new Audio(audioUrl);
-                        if (!audioRef.current) {
+                        // Если audioRef.current существует, используем его, иначе создаем новый
+                        if (audioRef.current) {
+                          // Если аудио уже загружено, просто воспроизводим
+                          audioRef.current.currentTime = 0; // Сбрасываем на начало
+                          audioRef.current.play().then(() => {
+                            setIsPlaying(true);
+                          }).catch((error) => {
+                            console.error('[VOICE] Ошибка при воспроизведении:', error);
+                            setIsPlaying(false);
+                          });
+                        } else {
+                          // Создаем новый Audio объект
+                          const audio = new Audio(audioUrl);
                           audioRef.current = audio;
-                          audio.onended = () => setIsPlaying(false);
-                          audio.onpause = () => setIsPlaying(false);
+                          audio.onended = () => {
+                            setIsPlaying(false);
+                          };
+                          audio.onpause = () => {
+                            setIsPlaying(false);
+                          };
+                          audio.onerror = (e) => {
+                            console.error('[VOICE] Ошибка воспроизведения аудио:', e);
+                            setIsPlaying(false);
+                            setErrorModalMessage('Ошибка воспроизведения аудио. Попробуйте перегенерировать голос.');
+                          };
+                          audio.play().then(() => {
+                            setIsPlaying(true);
+                          }).catch((error) => {
+                            console.error('[VOICE] Ошибка при воспроизведении:', error);
+                            setIsPlaying(false);
+                            setErrorModalMessage('Не удалось воспроизвести аудио. Попробуйте перегенерировать голос.');
+                          });
                         }
                       }
                     }}

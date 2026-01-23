@@ -78,11 +78,13 @@ def cleanup_old_data_task(self) -> Dict[str, Any]:
                     cleanup_stats["errors"].append(str(e))
                     logger.error(f"[CLEANUP] Ошибка очистки: {e}")
                     raise
+                
+                return cleanup_stats
         
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            loop.run_until_complete(cleanup())
+            cleanup_stats = loop.run_until_complete(cleanup())
         finally:
             loop.close()
         
@@ -250,11 +252,13 @@ def transfer_expired_subscription_credits_task(self) -> Dict[str, Any]:
                     stats["errors"].append(str(e))
                     logger.error(f"[EXPIRED SUBSCRIPTION] Ошибка обработки: {e}")
                     raise
+                
+                return stats
         
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            loop.run_until_complete(transfer_credits())
+            stats = loop.run_until_complete(transfer_credits())
         finally:
             loop.close()
         
