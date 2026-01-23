@@ -14,8 +14,8 @@ import { PhotoGenerationHelpModal } from './PhotoGenerationHelpModal';
 import { extractRolePlayingSituation } from '../utils/characterUtils';
 import { authManager } from '../utils/auth';
 import { translateToEnglish } from '../utils/translate';
-import { FiUnlock, FiLock, FiImage, FiSettings } from 'react-icons/fi';
-import { Plus } from 'lucide-react';
+import { FiUnlock, FiLock, FiSettings } from 'react-icons/fi';
+import { Plus, Sparkles, FolderOpen, Image } from 'lucide-react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { CharacterCard } from './CharacterCard';
 import { API_CONFIG } from '../config/api';
@@ -41,67 +41,94 @@ const MobileAlbumButtonsContainer = styled.div`
   }
 `;
 
-const MobileAlbumButton = styled.button`
+const MobileAlbumButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   flex: 1;
-  height: 38px;
-  border: none;
-  border-radius: 10px;
+  height: 42px;
+  border: ${props => props.$variant === 'secondary' ? '1px solid rgba(255, 255, 255, 0.15)' : 'none'};
+  border-radius: 12px;
   padding: 0 1rem;
   color: white;
-  font-weight: 800;
-  font-size: 0.85rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-  transition: all 0.3s ease;
-  background: #343042;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* Primary (Expand) - Gradient background */
+  ${props => props.$variant !== 'secondary' && `
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3), 0 0 0 1px rgba(139, 92, 246, 0.2);
+    
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.3),
+        transparent
+      );
+      animation: shimmer 3s infinite;
+    }
+    
+    @keyframes shimmer {
+      0% {
+        left: -100%;
+      }
+      100% {
+        left: 100%;
+      }
+    }
+    
+    &:hover:not(:disabled) {
+      transform: scale(1.05);
+      box-shadow: 0 6px 30px rgba(99, 102, 241, 0.5), 0 0 0 1px rgba(139, 92, 246, 0.4);
+      background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+    }
+  `}
+  
+  /* Secondary (Open) - Glassmorphism */
+  ${props => props.$variant === 'secondary' && `
+    background: rgba(20, 20, 20, 0.4);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    
+    &:hover:not(:disabled) {
+      transform: scale(1.05);
+      background: rgba(30, 30, 30, 0.5);
+      border-color: rgba(255, 255, 255, 0.25);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+  `}
 
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.2),
-      transparent
-    );
-    transition: 0.5s;
-  }
-
-  &:hover::before {
-    left: 100%;
-  }
-
-  &:hover:not(:disabled) {
-    background: #3d394d;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-  }
-
-  &:active {
-    transform: scale(0.98);
+  &:active:not(:disabled) {
+    transform: scale(0.95);
   }
 
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-    background: #333;
+    background: ${props => props.$variant === 'secondary' ? 'rgba(20, 20, 20, 0.2)' : '#4c4c4c'};
     transform: none;
     box-shadow: none;
   }
 
   svg {
-    width: 14px;
-    height: 14px;
+    width: 18px;
+    height: 18px;
+    stroke-width: 2.5;
+    flex-shrink: 0;
   }
 `;
 
@@ -322,34 +349,99 @@ const CharacterCardWrapper = styled.div`
   }
 `;
 
-const GenerationQueueIndicator = styled.div`
+const GenerationQueueContainer = styled.div`
   display: flex;
-  flex-direction: row;
-  gap: 4px;
-  padding: 8px 12px;
-  background: rgba(40, 40, 40, 0.4);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: ${theme.borderRadius.md};
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
   margin: 0 auto;
+  width: 100%;
 `;
 
-const QueueBar = styled.div<{ $isFilled: boolean }>`
-  width: 8px;
-  height: 20px;
-  background: ${props => props.$isFilled ? '#FFD700' : 'rgba(150, 150, 150, 0.5)'};
-  border-radius: 2px;
-  transition: background 0.2s ease;
+const GenerationQueueIndicator = styled.div`
+  position: relative;
+  width: 100%;
+  height: 6px;
+  background: rgba(20, 20, 20, 0.6);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+`;
+
+const QueueProgressBar = styled.div<{ $filled: number; $total: number }>`
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: ${props => (props.$filled / props.$total) * 100}%;
+  background: linear-gradient(90deg, #06b6d4 0%, #8b5cf6 50%, #ec4899 100%);
+  border-radius: 12px;
+  box-shadow: 
+    0 0 10px rgba(6, 182, 212, 0.5),
+    0 0 20px rgba(139, 92, 246, 0.3),
+    0 0 30px rgba(236, 72, 153, 0.2);
+  animation: pulse-glow 2s ease-in-out infinite;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  @keyframes pulse-glow {
+    0%, 100% {
+      opacity: 1;
+      box-shadow: 
+        0 0 10px rgba(6, 182, 212, 0.5),
+        0 0 20px rgba(139, 92, 246, 0.3),
+        0 0 30px rgba(236, 72, 153, 0.2);
+    }
+    50% {
+      opacity: 0.9;
+      box-shadow: 
+        0 0 15px rgba(6, 182, 212, 0.7),
+        0 0 30px rgba(139, 92, 246, 0.5),
+        0 0 45px rgba(236, 72, 153, 0.3);
+    }
+  }
+  
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.3),
+      transparent
+    );
+    animation: shimmer 2s infinite;
+  }
+  
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
 `;
 
 const QueueLabel = styled.div`
-  font-size: ${theme.fontSize.xs};
-  color: rgba(160, 160, 160, 1);
+  font-size: 10px;
+  color: rgba(160, 160, 160, 0.8);
   text-align: center;
-  margin-top: 8px;
   font-weight: 500;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+`;
+
+const QueueCounter = styled.div`
+  font-size: 11px;
+  color: rgba(200, 200, 200, 0.9);
+  text-align: center;
+  font-weight: 600;
+  margin-top: 4px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 `;
 
 const QueueTitle = styled.div`
@@ -443,57 +535,93 @@ const PaidAlbumBadge = styled.div`
 
 const PaidAlbumButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   width: 100%;
-  height: 38px;
-  border: none;
-  border-radius: 10px;
-  padding: 0 1rem;
+  height: 42px;
+  border: ${props => props.$variant === 'secondary' ? '1px solid rgba(255, 255, 255, 0.15)' : 'none'};
+  border-radius: 12px;
+  padding: 0 1.25rem;
   color: white;
-  font-weight: 800;
-  font-size: 0.85rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: ${theme.spacing.xs};
+  gap: 8px;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
   margin-bottom: ${theme.spacing.sm};
-  transition: all 0.3s ease;
-  background: #343042;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* Primary (Expand) - Gradient background */
+  ${props => props.$variant !== 'secondary' && `
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3), 0 0 0 1px rgba(139, 92, 246, 0.2);
+    
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.3),
+        transparent
+      );
+      animation: shimmer 3s infinite;
+    }
+    
+    @keyframes shimmer {
+      0% {
+        left: -100%;
+      }
+      100% {
+        left: 100%;
+      }
+    }
+    
+    &:hover:not(:disabled) {
+      transform: scale(1.05);
+      box-shadow: 0 6px 30px rgba(99, 102, 241, 0.5), 0 0 0 1px rgba(139, 92, 246, 0.4);
+      background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+    }
+  `}
+  
+  /* Secondary (Open) - Glassmorphism */
+  ${props => props.$variant === 'secondary' && `
+    background: rgba(20, 20, 20, 0.4);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    
+    &:hover:not(:disabled) {
+      transform: scale(1.05);
+      background: rgba(30, 30, 30, 0.5);
+      border-color: rgba(255, 255, 255, 0.25);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+  `}
 
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.2),
-      transparent
-    );
-    transition: 0.5s;
-  }
-
-  &:hover::before {
-    left: 100%;
-  }
-
-  &:hover:not(:disabled) {
-    background: #3d394d;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  &:active:not(:disabled) {
+    transform: scale(0.95);
   }
 
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-    background: #333;
+    background: ${props => props.$variant === 'secondary' ? 'rgba(20, 20, 20, 0.2)' : '#4c4c4c'};
     transform: none;
     box-shadow: none;
+  }
+  
+  svg {
+    width: 18px;
+    height: 18px;
+    stroke-width: 2.5;
+    flex-shrink: 0;
   }
 `;
 
@@ -3801,8 +3929,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         {/* Кнопки альбома для мобильных устройств - под хедером */}
         <MobileAlbumButtonsContainer>
           {isPaidAlbumUnlocked || (normalizedSubscriptionType as string) === 'premium' ? (
-            <MobileAlbumButton onClick={handleOpenPaidAlbumView}>
-              <FiUnlock />
+            <MobileAlbumButton 
+              $variant="secondary"
+              onClick={handleOpenPaidAlbumView}
+            >
+              <FolderOpen />
               Открыть альбом
             </MobileAlbumButton>
           ) : (
@@ -3834,10 +3965,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   setIsUpgradeModalOpen(true);
                 }
               }}
-              style={{ background: 'rgba(60, 60, 60, 0.8)', borderColor: 'rgba(150, 150, 150, 0.3)' }}
             >
-              <FiImage />
-              Расширить
+              <Sparkles />
+              Расширить альбом
             </MobileAlbumButton>
           )}
         </MobileAlbumButtonsContainer>
@@ -3950,23 +4080,26 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 Разблокируйте обнажённые фото {albumCharacterName}
               </PaidAlbumTitle>
               <PaidAlbumBadge>
-                <FiImage size={16} />
+                <Image size={16} strokeWidth={2.5} />
                 Стоимость: {PAID_ALBUM_COST} кредитов
               </PaidAlbumBadge>
               <PaidAlbumDescription>
-                Доступ к эксклюзивному альбому персонажа. После разблокировки фотографии будут доступны всегда.
+                Доступ к эксклюзивному альбому персонажа.
               </PaidAlbumDescription>
 
               {/* Индикатор очереди генераций - вверху панели */}
-              <GenerationQueueIndicator>
-                {Array.from({ length: getGenerationQueueLimit }).map((_, index) => (
-                  <QueueBar
-                    key={index}
-                    $isFilled={index < activeGenerations.size}
+              <GenerationQueueContainer>
+                <QueueLabel>ОЧЕРЕДЬ ГЕНЕРАЦИИ</QueueLabel>
+                <GenerationQueueIndicator>
+                  <QueueProgressBar 
+                    $filled={activeGenerations.size} 
+                    $total={getGenerationQueueLimit}
                   />
-                ))}
-              </GenerationQueueIndicator>
-              <QueueLabel>Очередь генерации</QueueLabel>
+                </GenerationQueueIndicator>
+                <QueueCounter>
+                  Queue: {activeGenerations.size}/{getGenerationQueueLimit}
+                </QueueCounter>
+              </GenerationQueueContainer>
 
               {/* Карточка персонажа сразу после очереди */}
               {currentCharacter && (
@@ -4078,16 +4211,18 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                     return (
                       <>
                         {isPaidAlbumUnlocked && (
-                          <PaidAlbumButton onClick={handleOpenPaidAlbumView}>
-                            <FiUnlock />
+                          <PaidAlbumButton 
+                            $variant="secondary"
+                            onClick={handleOpenPaidAlbumView}
+                          >
+                            <FolderOpen />
                             Открыть альбом
                           </PaidAlbumButton>
                         )}
                         <PaidAlbumButton
-                          $variant={isPaidAlbumUnlocked ? "secondary" : undefined}
                           onClick={handleOpenPaidAlbumBuilderView}
                         >
-                          <FiImage />
+                          <Sparkles />
                           Расширить альбом
                         </PaidAlbumButton>
                         {!isPaidAlbumUnlocked && (
@@ -4111,10 +4246,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                       <>
                         {isPaidAlbumUnlocked ? (
                           <PaidAlbumButton
+                            $variant="secondary"
                             onClick={handleOpenPaidAlbumView}
                           >
-                            <FiUnlock />
-                            Открыть
+                            <FolderOpen />
+                            Открыть альбом
                           </PaidAlbumButton>
                         ) : (
                           <PaidAlbumButton
@@ -4125,10 +4261,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                           </PaidAlbumButton>
                         )}
                         <PaidAlbumButton
-                          $variant="secondary"
                           onClick={() => setIsUpgradeModalOpen(true)}
                         >
-                          <FiImage />
+                          <Sparkles />
                           Расширить альбом
                         </PaidAlbumButton>
                         {paidAlbumError && <PaidAlbumError>{paidAlbumError}</PaidAlbumError>}
@@ -4142,10 +4277,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                     <>
                       {isPaidAlbumUnlocked || (normalizedSubscriptionType as string) === 'premium' ? (
                         <PaidAlbumButton
+                          $variant="secondary"
                           onClick={handleOpenPaidAlbumView}
                         >
-                          <FiUnlock />
-                          Открыть
+                          <FolderOpen />
+                          Открыть альбом
                         </PaidAlbumButton>
                       ) : (
                         <PaidAlbumButton
@@ -4166,10 +4302,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                         </PaidAlbumButton>
                       )}
                       <PaidAlbumButton
-                        $variant="secondary"
                         onClick={() => setIsUpgradeModalOpen(true)}
                       >
-                        <FiImage />
+                        <Sparkles />
                         Расширить альбом
                       </PaidAlbumButton>
                       <PaidAlbumInfo>
@@ -4187,10 +4322,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   <>
                     {isPaidAlbumUnlocked || (normalizedSubscriptionType as string) === 'premium' ? (
                       <PaidAlbumButton
+                        $variant="secondary"
                         onClick={handleOpenPaidAlbumView}
                       >
-                        <FiUnlock />
-                        Открыть
+                        <FolderOpen />
+                        Открыть альбом
                       </PaidAlbumButton>
                     ) : (
                       <PaidAlbumButton
@@ -4213,7 +4349,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                     {/* Показываем кнопку "Расширить альбом" для создателя, даже если он не в блоке isOwner */}
                     {isOwner && (
                       <PaidAlbumButton
-                        $variant="secondary"
                         onClick={() => {
                           if (canCreatePaidAlbum) {
                             handleOpenPaidAlbumBuilderView();
@@ -4222,7 +4357,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                           }
                         }}
                       >
-                        <FiImage />
+                        <Sparkles />
                         Расширить альбом
                       </PaidAlbumButton>
                     )}

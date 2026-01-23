@@ -728,6 +728,7 @@ const CardWrapper = styled.div`
   justify-content: center;
   gap: 0;
   width: 100%;
+  overflow: visible;
 `;
 
 const LIKE_ACTIVE_COLOR = 'rgba(255, 193, 7, 1)';
@@ -737,55 +738,94 @@ const RatingButton = styled.button<{ $isActive?: boolean; $isLike?: boolean }>`
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 3px;
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(15px);
-  -webkit-backdrop-filter: blur(15px);
-  border: 2px solid ${props => props.$isActive ? (props.$isLike ? LIKE_ACTIVE_COLOR : DISLIKE_ACTIVE_COLOR) : 'rgba(255, 255, 255, 0.4)'};
-  border-radius: ${theme.borderRadius.sm};
-  padding: 6px 10px;
-  color: ${props => props.$isActive ? (props.$isLike ? LIKE_ACTIVE_COLOR : DISLIKE_ACTIVE_COLOR) : 'rgba(255, 255, 255, 1)'};
+  width: 41px;
+  height: 41px;
+  background: rgba(20, 20, 20, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  padding: 0;
+  color: ${props => {
+    if (props.$isActive) {
+      return props.$isLike ? 'rgba(255, 193, 7, 1)' : 'rgba(200, 200, 200, 0.6)';
+    }
+    return props.$isLike ? 'rgba(255, 255, 255, 0.7)' : 'rgba(150, 150, 150, 0.5)';
+  }};
   cursor: pointer;
-  transition: all ${theme.transition.fast};
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 1000;
   pointer-events: auto;
-  min-width: 40px;
-  flex-shrink: 0;
-  position: relative;
+  position: absolute;
   visibility: visible;
   opacity: 1;
+  box-shadow: ${props => {
+    if (props.$isActive && props.$isLike) {
+      return '0 3px 14px rgba(255, 193, 7, 0.4), 0 0 0 1px rgba(255, 193, 7, 0.2)';
+    }
+    return '0 1px 7px rgba(0, 0, 0, 0.3)';
+  }};
+  
+  ${props => props.$isLike ? `
+    top: 50%;
+    left: -21px;
+    transform: translateY(-50%);
+  ` : `
+    top: 50%;
+    right: -21px;
+    transform: translateY(-50%);
+  `}
   
   &:hover {
-    background: rgba(0, 0, 0, 0.8);
-    border-color: ${props => props.$isLike ? LIKE_ACTIVE_COLOR : DISLIKE_ACTIVE_COLOR};
-    transform: scale(1.05);
+    transform: ${props => props.$isLike ? 'translateY(-50%) scale(1.1)' : 'translateY(-50%) scale(1.1)'};
+    background: rgba(30, 30, 30, 0.7);
+    border-color: ${props => {
+      if (props.$isLike) {
+        return props.$isActive ? 'rgba(255, 193, 7, 0.6)' : 'rgba(255, 255, 255, 0.2)';
+      }
+      return 'rgba(150, 150, 150, 0.3)';
+    }};
+    box-shadow: ${props => {
+      if (props.$isLike) {
+        return props.$isActive 
+          ? '0 5px 22px rgba(255, 193, 7, 0.5), 0 0 0 1px rgba(255, 193, 7, 0.3)'
+          : '0 3px 14px rgba(255, 255, 255, 0.15)';
+      }
+      return '0 3px 14px rgba(0, 0, 0, 0.4)';
+    }};
+    filter: ${props => props.$isLike ? 'brightness(1.2)' : 'brightness(1.1)'};
   }
   
   &:active {
-    transform: scale(0.95);
+    transform: ${props => props.$isLike ? 'translateY(-50%) scale(0.95)' : 'translateY(-50%) scale(0.95)'};
   }
   
   svg {
-    width: 16px;
-    height: 16px;
-    color: ${props => props.$isActive ? (props.$isLike ? LIKE_ACTIVE_COLOR : DISLIKE_ACTIVE_COLOR) : 'rgba(255, 255, 255, 0.9)'};
-    fill: ${props => props.$isActive ? (props.$isLike ? LIKE_ACTIVE_COLOR : DISLIKE_ACTIVE_COLOR) : 'none'};
-    stroke: ${props => props.$isActive ? (props.$isLike ? LIKE_ACTIVE_COLOR : DISLIKE_ACTIVE_COLOR) : 'rgba(255, 255, 255, 0.9)'};
-    stroke-width: 2;
-    transition: all ${theme.transition.fast};
+    width: 14px;
+    height: 14px;
+    stroke-width: 2.5;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 `;
 
 const RatingCount = styled.span<{ $isActive?: boolean; $isLike?: boolean }>`
-  font-size: 14px;
-  font-weight: 800;
-  color: ${props => props.$isActive ? (props.$isLike ? LIKE_ACTIVE_COLOR : DISLIKE_ACTIVE_COLOR) : 'rgba(255, 255, 255, 1)'};
-  text-shadow: 0 2px 6px rgba(0, 0, 0, 1), 0 0 10px rgba(0, 0, 0, 0.8);
-  line-height: 1.2;
-  margin-top: 2px;
+  font-size: 8px;
+  font-weight: 700;
+  color: ${props => {
+    if (props.$isActive && props.$isLike) {
+      return 'rgba(255, 193, 7, 1)';
+    }
+    return props.$isLike ? 'rgba(255, 255, 255, 0.9)' : 'rgba(200, 200, 200, 0.7)';
+  }};
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  line-height: 1;
+  margin-top: -1px;
   display: block;
-  min-height: 16px;
-  letter-spacing: 0.3px;
+  min-height: 10px;
+  letter-spacing: 0.2px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 `;
 
 

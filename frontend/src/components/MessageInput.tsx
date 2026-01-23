@@ -3,8 +3,15 @@ import styled from 'styled-components';
 import { theme } from '../theme';
 import Dock from './Dock';
 import type { DockItemData } from './Dock';
-import { FiSend, FiImage, FiTrash2, FiSettings, FiHelpCircle, FiMessageSquare, FiHeart } from 'react-icons/fi';
-import { Bot } from 'lucide-react';
+import { FiSend } from 'react-icons/fi';
+import { 
+  Image, 
+  Trash2, 
+  HelpCircle, 
+  MessageSquare, 
+  Heart, 
+  Bot 
+} from 'lucide-react';
 
 import { useIsMobile } from '../hooks/useIsMobile';
 
@@ -282,48 +289,116 @@ const DockWrapper = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: ${theme.spacing.sm} 0;
-  background: transparent !important;
+  padding: 8px 12px;
+  background: rgba(20, 20, 20, 0.4) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
   opacity: 1;
+  height: fit-content;
+  align-self: flex-end;
 `;
 
-const AnimatedBotIcon = styled(Bot)`
-  animation: pulse-glow 2s ease-in-out infinite;
-  filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.6));
+const PremiumIconWrapper = styled.div<{ $disabled?: boolean; $color?: string; $isImage?: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 10px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: ${props => props.$disabled ? 'not-allowed' : 'pointer'};
+  opacity: ${props => props.$disabled ? 0.5 : 1};
+  pointer-events: ${props => props.$disabled ? 'none' : 'auto'};
   
-  @keyframes pulse-glow {
+  svg {
+    width: 20px;
+    height: 20px;
+    stroke-width: 2.5;
+    color: ${props => {
+      if (props.$disabled) return 'rgba(150, 150, 150, 0.4)';
+      if (props.$color) return props.$color;
+      return 'rgba(240, 240, 240, 0.6)';
+    }};
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    ${props => props.$isImage && !props.$disabled ? `
+      animation: pulse-glow-image 2s ease-in-out infinite;
+      filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.9)) drop-shadow(0 0 12px rgba(59, 130, 246, 0.6));
+    ` : ''}
+  }
+  
+  @keyframes pulse-glow-image {
     0%, 100% {
       opacity: 1;
-      filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.6));
+      filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.9)) drop-shadow(0 0 12px rgba(59, 130, 246, 0.6)) drop-shadow(0 0 16px rgba(59, 130, 246, 0.4));
       transform: scale(1);
     }
     50% {
-      opacity: 0.9;
-      filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.9));
+      opacity: 1;
+      filter: drop-shadow(0 0 12px rgba(59, 130, 246, 1)) drop-shadow(0 0 18px rgba(59, 130, 246, 0.8)) drop-shadow(0 0 24px rgba(59, 130, 246, 0.6));
       transform: scale(1.05);
     }
   }
   
-  &:hover {
-    animation: none;
-    filter: drop-shadow(0 0 12px rgba(59, 130, 246, 1));
+  &:hover:not([data-disabled="true"]) {
     transform: scale(1.1);
-    transition: all 0.3s ease;
+    
+    svg {
+      color: ${props => {
+        if (props.$disabled) return 'rgba(150, 150, 150, 0.4)';
+        if (props.$color) return props.$color;
+        return '#8B5CF6';
+      }};
+      filter: ${props => {
+        if (props.$disabled) return 'none';
+        if (props.$isImage) {
+          return 'drop-shadow(0 0 16px rgba(59, 130, 246, 1)) drop-shadow(0 0 24px rgba(59, 130, 246, 0.8)) drop-shadow(0 0 32px rgba(59, 130, 246, 0.6))';
+        }
+        if (props.$color) {
+          const r = parseInt(props.$color.slice(1, 3), 16);
+          const g = parseInt(props.$color.slice(3, 5), 16);
+          const b = parseInt(props.$color.slice(5, 7), 16);
+          return `drop-shadow(0 0 8px rgba(${r}, ${g}, ${b}, 0.5))`;
+        }
+        return 'drop-shadow(0 0 8px rgba(139, 92, 246, 0.6))';
+      }};
+      ${props => props.$isImage ? 'animation: none;' : ''}
+    }
+  }
+  
+  &:active:not([data-disabled="true"]) {
+    transform: scale(0.95);
   }
 `;
 
-const AnimatedIconWrapper = styled.div`
+const AnimatedBotIcon = styled(Bot)`
+  width: 20px;
+  height: 20px;
+  stroke-width: 2.5;
+  color: rgba(59, 130, 246, 0.6);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+`;
+
+const BotIconWrapper = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 8px;
+  border-radius: 10px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
   
-  svg {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  &:hover {
+    transform: scale(1.1);
+    
+    ${AnimatedBotIcon} {
+      color: #3B82F6;
+      transform: scale(1.1);
+    }
   }
   
-  &:hover svg {
-    transform: scale(1.15) rotate(5deg);
-    filter: drop-shadow(0 2px 8px rgba(255, 255, 255, 0.3));
+  &:active {
+    transform: scale(0.95);
   }
 `;
 
@@ -414,39 +489,69 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   const dockItems: DockItemData[] = [
-    // Убрали кнопку Send отсюда для десктопа, она теперь в Input
     {
-      icon: <AnimatedIconWrapper><FiImage size={20} /></AnimatedIconWrapper>,
+      icon: (
+        <PremiumIconWrapper 
+          $disabled={disableImageGeneration || !onGenerateImage}
+          $isImage={true}
+          data-disabled={disableImageGeneration || !onGenerateImage}
+        >
+          <Image strokeWidth={2.5} />
+        </PremiumIconWrapper>
+      ),
       label: 'Сгенерировать изображение',
       onClick: handleImageGeneration,
       className: disableImageGeneration || !onGenerateImage ? 'disabled' : ''
     },
     ...(onShowHelp ? [{
-      icon: <AnimatedIconWrapper><FiHelpCircle size={22} /></AnimatedIconWrapper>,
+      icon: (
+        <PremiumIconWrapper 
+          $disabled={disabled}
+          data-disabled={disabled}
+        >
+          <HelpCircle strokeWidth={2.5} />
+        </PremiumIconWrapper>
+      ),
       label: 'Помощь',
       onClick: handleShowHelp,
       className: disabled ? 'disabled' : ''
     }] : []),
     ...(onClearChat && hasMessages ? [{
-      icon: <AnimatedIconWrapper><FiTrash2 size={20} /></AnimatedIconWrapper>,
+      icon: (
+        <PremiumIconWrapper>
+          <Trash2 strokeWidth={2.5} />
+        </PremiumIconWrapper>
+      ),
       label: 'Очистить историю',
       onClick: handleClear,
       className: ''
     }] : []),
     ...(onTipCreator ? [{
-      icon: <AnimatedIconWrapper><FiHeart size={20} color="#ec4899" /></AnimatedIconWrapper>,
+      icon: (
+        <PremiumIconWrapper $color="#ec4899">
+          <Heart strokeWidth={2.5} />
+        </PremiumIconWrapper>
+      ),
       label: 'Поблагодарить',
       onClick: onTipCreator,
       className: '' 
     }] : []),
     ...(onShowComments ? [{
-      icon: <AnimatedIconWrapper><FiMessageSquare size={20} /></AnimatedIconWrapper>,
+      icon: (
+        <PremiumIconWrapper>
+          <MessageSquare strokeWidth={2.5} />
+        </PremiumIconWrapper>
+      ),
       label: 'Комментарии',
       onClick: onShowComments,
       className: '' 
     }] : []),
     ...(onSelectModel ? [{
-      icon: <AnimatedBotIcon size={20} color="rgba(59, 130, 246, 0.9)" />,
+      icon: (
+        <BotIconWrapper>
+          <AnimatedBotIcon strokeWidth={2.5} />
+        </BotIconWrapper>
+      ),
       label: 'Выбрать модель',
       onClick: onSelectModel,
       className: '' 
@@ -555,7 +660,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 {onSelectModel && (
                   <MobileIconButton type="button" onClick={onSelectModel} title="Выбрать модель">
                     <MobileButtonLabel>Модель</MobileButtonLabel>
-                    <AnimatedBotIcon size={20} color="rgba(59, 130, 246, 0.9)" />
+                    <Bot size={20} color="rgba(59, 130, 246, 0.9)" strokeWidth={2.5} />
                   </MobileIconButton>
                 )}
                 {onGenerateImage && (
@@ -566,31 +671,31 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                     title="Сгенерировать фото"
                   >
                     <MobileButtonLabel>Фото</MobileButtonLabel>
-                    <FiImage size={22} />
+                    <Image size={22} strokeWidth={2.5} />
                   </MobileIconButton>
                 )}
                 {onShowHelp && (
                   <MobileIconButton type="button" onClick={handleShowHelp} title="Помощь">
                     <MobileButtonLabel>Помощь</MobileButtonLabel>
-                    <FiHelpCircle size={24} />
+                    <HelpCircle size={24} strokeWidth={2.5} />
                   </MobileIconButton>
                 )}
                 {onTipCreator && (
                   <MobileIconButton type="button" onClick={onTipCreator} title="Поблагодарить">
                     <MobileButtonLabel>Донат</MobileButtonLabel>
-                    <FiHeart size={20} color="#ec4899" />
+                    <Heart size={20} color="#ec4899" strokeWidth={2.5} />
                   </MobileIconButton>
                 )}
                 {onShowComments && (
                   <MobileIconButton type="button" onClick={onShowComments} title="Комментарии">
                     <MobileButtonLabel>Чат</MobileButtonLabel>
-                    <FiMessageSquare size={20} />
+                    <MessageSquare size={20} strokeWidth={2.5} />
                   </MobileIconButton>
                 )}
                 {onClearChat && hasMessages && (
                   <MobileIconButton type="button" onClick={handleClear} title="Очистить чат">
                     <MobileButtonLabel>Очистить</MobileButtonLabel>
-                    <FiTrash2 size={20} />
+                    <Trash2 size={20} strokeWidth={2.5} />
                   </MobileIconButton>
                 )}
               </MobileButtons>
