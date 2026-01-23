@@ -5050,23 +5050,68 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
       )
     );
 
+    let newSelectedPhotos: any[] = [];
     setSelectedPhotos(prev => {
       if (alreadySelected) {
-        const newPhotos = prev.filter(p => p.id !== photoId);
+        newSelectedPhotos = prev.filter(p => p.id !== photoId);
         // Обновляем индекс превью, если текущее фото было удалено
-        if (previewPhotoIndex >= newPhotos.length && newPhotos.length > 0) {
-          setPreviewPhotoIndex(newPhotos.length - 1);
-        } else if (newPhotos.length === 0) {
+        if (previewPhotoIndex >= newSelectedPhotos.length && newSelectedPhotos.length > 0) {
+          setPreviewPhotoIndex(newSelectedPhotos.length - 1);
+        } else if (newSelectedPhotos.length === 0) {
           setPreviewPhotoIndex(0);
         }
-        return newPhotos;
+        return newSelectedPhotos;
       } else {
-        const newPhotos = [...prev, { id: targetPhoto.id, url: targetPhoto.url }];
+        newSelectedPhotos = [...prev, { id: targetPhoto.id, url: targetPhoto.url }];
         // Переключаемся на новое добавленное фото
-        setPreviewPhotoIndex(newPhotos.length - 1);
-        return newPhotos;
+        setPreviewPhotoIndex(newSelectedPhotos.length - 1);
+        return newSelectedPhotos;
       }
     });
+
+    // Автоматически сохраняем изменения в базу данных
+    if (createdCharacterData && newSelectedPhotos.length > 0) {
+      try {
+        const token = localStorage.getItem('authToken');
+        if (token) {
+          const requestData = {
+            character_name: createdCharacterData.name,
+            photo_ids: newSelectedPhotos.map(photo => ({
+              id: photo.id,
+              url: photo.url
+            }))
+          };
+
+          const response = await fetch('/api/v1/characters/set-photos-full/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(requestData)
+          });
+
+          if (response.ok) {
+            // Обновляем данные персонажа
+            const characterResponse = await fetch(`/api/v1/characters/${createdCharacterData.name}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (characterResponse.ok) {
+              const updatedCharacter = await characterResponse.json();
+              setCreatedCharacterData(updatedCharacter);
+              
+              // Отправляем событие для обновления главной страницы
+              const event = new CustomEvent('character-photos-updated', {
+                detail: { character: updatedCharacter, photos: newSelectedPhotos.map(p => p.id) }
+              });
+              window.dispatchEvent(event);
+            }
+          }
+        }
+      } catch (error) {
+        // Игнорируем ошибки автоматического сохранения
+      }
+    }
   };
 
   const handleAddPhoto = async (photoId: string) => {
@@ -5450,28 +5495,11 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
           // Автоматически вставляем первую сгенерированную фотографию в карточку персонажа
           if (isFirstPhoto && createdCharacterData) {
-            setSelectedPhotos([{ ...photo, isSelected: true }]);
+            const firstPhoto = { ...photo, isSelected: true };
+            setSelectedPhotos([firstPhoto]);
             setPreviewPhotoIndex(0); // Устанавливаем индекс на первое фото
-          } else if (createdCharacterData) {
-            // Для последующих фото автоматически переключаемся на новое фото в превью
-            // Собираем все фото для определения индекса
-            const allPhotos: Array<{ url: string; id?: string }> = [];
-            if (selectedPhotos.length > 0) {
-              allPhotos.push(...selectedPhotos);
-            }
-            if (createdCharacterData?.photos && Array.isArray(createdCharacterData.photos)) {
-              createdCharacterData.photos.forEach((p: any) => {
-                if (p?.url && !allPhotos.some(ap => ap.url === p.url)) {
-                  allPhotos.push({ url: p.url, id: p.id });
-                }
-              });
-            }
-            // Добавляем новое фото
-            allPhotos.push({ url: photo.url, id: photo.id });
-            // Переключаемся на последнее фото
-            setPreviewPhotoIndex(allPhotos.length - 1);
-
-            // Автоматически обновляем карточку персонажа с первой фотографией
+            
+            // Автоматически сохраняем первое фото в базу данных
             try {
               const token = localStorage.getItem('authToken');
               if (token) {
@@ -5500,12 +5528,36 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                   if (characterResponse.ok) {
                     const updatedCharacter = await characterResponse.json();
                     setCreatedCharacterData(updatedCharacter);
+                    
+                    // Отправляем событие для обновления главной страницы
+                    const event = new CustomEvent('character-photos-updated', {
+                      detail: { character: updatedCharacter, photos: [photo.id] }
+                    });
+                    window.dispatchEvent(event);
                   }
                 }
               }
             } catch (error) {
               // Игнорируем ошибки автоматического сохранения
             }
+          } else if (createdCharacterData) {
+            // Для последующих фото автоматически переключаемся на новое фото в превью
+            // Собираем все фото для определения индекса
+            const allPhotos: Array<{ url: string; id?: string }> = [];
+            if (selectedPhotos.length > 0) {
+              allPhotos.push(...selectedPhotos);
+            }
+            if (createdCharacterData?.photos && Array.isArray(createdCharacterData.photos)) {
+              createdCharacterData.photos.forEach((p: any) => {
+                if (p?.url && !allPhotos.some(ap => ap.url === p.url)) {
+                  allPhotos.push({ url: p.url, id: p.id });
+                }
+              });
+            }
+            // Добавляем новое фото
+            allPhotos.push({ url: photo.url, id: photo.id });
+            // Переключаемся на последнее фото
+            setPreviewPhotoIndex(allPhotos.length - 1);
           }
 
           setSuccess('Фото успешно сгенерировано!');
