@@ -36,12 +36,14 @@ const PageContainer = styled.div`
   flex-direction: column;
   background: transparent;
   padding: ${theme.spacing.xl};
+  padding-top: 5.5rem;
   box-sizing: border-box;
   gap: ${theme.spacing.xl};
   overflow-y: auto;
 
   @media (max-width: 768px) {
     padding: 1rem;
+    padding-top: 5rem;
     gap: 1rem;
   }
 `;

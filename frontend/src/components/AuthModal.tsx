@@ -62,15 +62,13 @@ function formatValidationErrors(detail: unknown): string {
     }
     if (field === 'password') {
       if (type === 'string_too_short' || /at least 8|min_length|8 character/.test(msg)) {
-        messages.push('Пароль: не менее 8 символов, заглавная и строчная буквы, цифра.');
-      } else if (/uppercase|заглавн|capital/.test(msg)) {
-        messages.push('Пароль должен содержать хотя бы одну заглавную букву.');
+        messages.push('Пароль: не менее 8 символов, строчная буква и цифра.');
       } else if (/lowercase|строчн|lower/.test(msg)) {
         messages.push('Пароль должен содержать хотя бы одну строчную букву.');
       } else if (/digit|цифр|number/.test(msg)) {
         messages.push('Пароль должен содержать хотя бы одну цифру.');
       } else {
-        messages.push('Пароль: не менее 8 символов, заглавная и строчная буквы, цифра.');
+        messages.push('Пароль: не менее 8 символов, строчная буква и цифра.');
       }
     } else if (field === 'username') {
       if (type === 'string_too_short' || /at least 3|min_length|3 character/.test(msg)) {
@@ -184,7 +182,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
               ? `Исправьте данные: ${formatted}`
               : formatted;
           } else if (response.status === 500 && currentMode === 'register') {
-            errorMessage = 'Временная ошибка. Проверьте: пароль от 8 символов, заглавная и строчная буквы, цифра; имя от 3 до 30 символов. Отправьте снова.';
+            errorMessage = 'Временная ошибка. Проверьте: пароль от 8 символов, строчная буква и цифра; имя от 3 до 30 символов. Отправьте снова.';
           } else if (typeof d === 'string') {
             errorMessage = d;
           } else if (d) {
@@ -199,7 +197,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
           }
         }
         if (currentMode === 'register' && response.status === 500 && errorMessage.includes('JSON serializable')) {
-          errorMessage = 'Временная ошибка. Проверьте: пароль от 8 символов, заглавная и строчная буквы, цифра; имя от 3 до 30 символов. Отправьте снова.';
+          errorMessage = 'Временная ошибка. Проверьте: пароль от 8 символов, строчная буква и цифра; имя от 3 до 30 символов. Отправьте снова.';
         }
         throw new Error(errorMessage);
       }
@@ -671,7 +669,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
               className="w-full px-4 py-3 bg-black/20 border border-gray-700/50 rounded-xl text-white placeholder:text-gray-500 text-sm focus:outline-none focus:border-[#9F1239] focus:ring-2 focus:ring-[#9F1239]/20 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
             />
             {currentMode === 'register' && (
-              <span className="block mt-2 text-xs text-gray-400">Не менее 8 символов, заглавная и строчная буквы, цифра.</span>
+              <span className="block mt-2 text-xs text-gray-400">Не менее 8 символов, строчная буква и цифра.</span>
             )}
           </div>
 

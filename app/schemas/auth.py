@@ -40,8 +40,6 @@ class UserCreate(BaseModel):
         """Валидация пароля"""
         if len(v) < 8:
             raise ValueError('Пароль должен содержать минимум 8 символов')
-        if not re.search(r'[A-Z]', v):
-            raise ValueError('Пароль должен содержать хотя бы одну заглавную букву')
         if not re.search(r'[a-z]', v):
             raise ValueError('Пароль должен содержать хотя бы одну строчную букву')
         if not re.search(r'\d', v):
@@ -211,8 +209,6 @@ class ConfirmPasswordChangeRequest(BaseModel):
         """Валидация пароля"""
         if len(v) < 8:
             raise ValueError('Пароль должен содержать минимум 8 символов')
-        if not re.search(r'[A-Z]', v):
-            raise ValueError('Пароль должен содержать хотя бы одну заглавную букву')
         if not re.search(r'[a-z]', v):
             raise ValueError('Пароль должен содержать хотя бы одну строчную букву')
         if not re.search(r'\d', v):
@@ -232,8 +228,6 @@ class RequestPasswordChangeWithOldPasswordRequest(BaseModel):
         """Валидация пароля"""
         if len(v) < 8:
             raise ValueError('Пароль должен содержать минимум 8 символов')
-        if not re.search(r'[A-Z]', v):
-            raise ValueError('Пароль должен содержать хотя бы одну заглавную букву')
         if not re.search(r'[a-z]', v):
             raise ValueError('Пароль должен содержать хотя бы одну строчную букву')
         if not re.search(r'\d', v):
@@ -289,8 +283,6 @@ class ResetPasswordRequest(BaseModel):
         """Валидация пароля"""
         if len(v) < 8:
             raise ValueError('Пароль должен содержать минимум 8 символов')
-        if not re.search(r'[A-Z]', v):
-            raise ValueError('Пароль должен содержать хотя бы одну заглавную букву')
         if not re.search(r'[a-z]', v):
             raise ValueError('Пароль должен содержать хотя бы одну строчную букву')
         if not re.search(r'\d', v):
