@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import styled, { keyframes, css } from 'styled-components';
 import { authManager } from '../utils/auth';
 import { theme } from '../theme';
+import '../styles/ContentArea.css';
 import { API_CONFIG } from '../config/api';
 import { GlobalHeader } from './GlobalHeader';
 import { AuthModal } from './AuthModal';
@@ -63,15 +64,15 @@ const BackgroundWrapper = styled.div`
 
 const MainContainer = styled.div<{ $isMobile?: boolean }>`
   width: 100%;
-  min-height: 100vh; /* Используем min-height вместо фиксированной height */
+  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(to bottom right, rgba(8, 8, 18, 1), rgba(8, 8, 18, 0.95), rgba(40, 40, 40, 0.1));
-  overflow-x: hidden;
-  overflow-y: auto; /* Разрешаем скролл */
+  background: transparent;
+  overflow: visible;
   box-sizing: border-box;
   position: relative;
-  
+
   &::before {
     content: '';
     position: absolute;
@@ -86,7 +87,7 @@ const MainContainer = styled.div<{ $isMobile?: boolean }>`
     pointer-events: none;
     z-index: 0;
   }
-  
+
   &::after {
     content: '';
     position: absolute;
@@ -102,7 +103,7 @@ const MainContainer = styled.div<{ $isMobile?: boolean }>`
     pointer-events: none;
     z-index: 0;
   }
-  
+
   @keyframes float {
     0%, 100% {
       transform: translateY(0px);
@@ -245,50 +246,432 @@ const AuthButton = styled.button`
   }
 `;
 
+const HeaderWrapper = styled.div`
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  width: 100%;
+  background: transparent;
+`;
+
 const MainContent = styled.div`
   flex: 1;
-  display: flex !important;
-  flex-direction: row;
-  /* Убираем min-height: 0 - это было причиной проблемы */
-  min-height: 500px !important; 
-  padding: ${theme.spacing.lg};
-  gap: ${theme.spacing.lg};
-  visibility: visible !important;
-  opacity: 1 !important;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+  padding: ${theme.spacing.xl};
+  gap: ${theme.spacing.xl};
+  visibility: visible;
+  opacity: 1;
   width: 100%;
   box-sizing: border-box;
   position: relative;
-  z-index: 10;
+  z-index: 1;
+  background: linear-gradient(135deg, rgba(15, 15, 25, 0.98) 0%, rgba(25, 15, 35, 0.95) 100%);
 
   @media (max-width: 768px) {
     flex-direction: column;
-    height: auto;
+    min-height: auto;
+    overflow-y: visible;
     padding: ${theme.spacing.md};
+    gap: ${theme.spacing.lg};
   }
 `;
 
 const LeftColumn = styled.div`
-  flex: 1;
+  flex: 0 0 60%;
   display: flex;
   flex-direction: column;
-  min-width: 300px;
+  min-width: 0;
   height: 100%;
   max-height: 100%;
   visibility: visible;
   opacity: 1;
-  padding: ${theme.spacing.lg};
-  background: linear-gradient(135deg, rgba(12, 12, 12, 0.95) 0%, rgba(20, 20, 20, 0.98) 100%);
-  border: 2px solid rgba(60, 60, 60, 0.9);
-  border-radius: ${theme.borderRadius.xl};
-  overflow: hidden;
+  padding: ${theme.spacing.xl};
+  background: rgba(20, 20, 30, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 20px;
+  overflow-y: auto;
+  overflow-x: visible;
   box-sizing: border-box;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 
   @media (max-width: 768px) {
+    flex: 1;
     width: 100%;
     min-width: 0;
     height: auto;
     max-height: none;
     overflow: visible;
+  }
+`;
+
+const RightColumn = styled.div`
+  flex: 0 0 40%;
+  min-width: 0;
+  height: 100%;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: ${theme.spacing.xl};
+  background: rgba(15, 15, 25, 0.4);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(139, 92, 246, 0.15);
+  border-radius: 20px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  position: sticky;
+  top: ${theme.spacing.xl};
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  @media (max-width: 768px) {
+    flex: 1;
+    width: 100%;
+    position: relative;
+    top: auto;
+    overflow: visible;
+    min-height: 400px;
+  }
+`;
+
+const StepIndicator = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: ${theme.spacing.md};
+  margin-bottom: ${theme.spacing.xl};
+  padding: ${theme.spacing.md} 0;
+`;
+
+const StepItemButton = styled.button<{ $isActive: boolean; $isCompleted: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: ${theme.spacing.sm};
+  padding: ${theme.spacing.sm} ${theme.spacing.lg};
+  background: ${props => {
+    if (props.$isActive) return 'rgba(139, 92, 246, 0.2)';
+    if (props.$isCompleted) return 'rgba(34, 197, 94, 0.15)';
+    return 'rgba(40, 40, 50, 0.4)';
+  }};
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid ${props => {
+    if (props.$isActive) return 'rgba(139, 92, 246, 0.5)';
+    if (props.$isCompleted) return 'rgba(34, 197, 94, 0.4)';
+    return 'rgba(80, 80, 90, 0.3)';
+  }};
+  border-radius: 12px;
+  color: ${props => {
+    if (props.$isActive) return 'rgba(139, 92, 246, 1)';
+    if (props.$isCompleted) return 'rgba(34, 197, 94, 1)';
+    return 'rgba(160, 160, 170, 0.6)';
+  }};
+  font-size: ${theme.fontSize.sm};
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    background: ${props => {
+    if (props.$isActive) return 'rgba(139, 92, 246, 0.3)';
+    if (props.$isCompleted) return 'rgba(34, 197, 94, 0.2)';
+    return 'rgba(50, 50, 60, 0.5)';
+  }};
+    border-color: ${props => {
+    if (props.$isActive) return 'rgba(139, 92, 246, 0.7)';
+    if (props.$isCompleted) return 'rgba(34, 197, 94, 0.6)';
+    return 'rgba(100, 100, 110, 0.4)';
+  }};
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const StepNumber = styled.span<{ $isActive: boolean; $isCompleted: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: ${props => {
+    if (props.$isActive) return 'rgba(139, 92, 246, 0.3)';
+    if (props.$isCompleted) return 'rgba(34, 197, 94, 0.3)';
+    return 'rgba(60, 60, 70, 0.4)';
+  }};
+  border: 1.5px solid ${props => {
+    if (props.$isActive) return 'rgba(139, 92, 246, 0.8)';
+    if (props.$isCompleted) return 'rgba(34, 197, 94, 0.8)';
+    return 'rgba(100, 100, 110, 0.5)';
+  }};
+  font-size: 12px;
+  font-weight: 700;
+  color: ${props => {
+    if (props.$isActive) return 'rgba(139, 92, 246, 1)';
+    if (props.$isCompleted) return 'rgba(34, 197, 94, 1)';
+    return 'rgba(160, 160, 170, 0.8)';
+  }};
+  flex-shrink: 0;
+`;
+
+const StepConnector = styled.div<{ $isCompleted: boolean }>`
+  width: 40px;
+  height: 2px;
+  background: ${props => props.$isCompleted
+    ? 'linear-gradient(90deg, rgba(34, 197, 94, 0.6), rgba(34, 197, 94, 0.3))'
+    : 'rgba(60, 60, 70, 0.3)'};
+  border-radius: 1px;
+  transition: all 0.3s ease;
+`;
+
+const WizardStep = styled(motion.div)`
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  gap: ${theme.spacing.lg};
+  width: 100%;
+`;
+
+const StepTitle = styled.h2`
+  font-size: ${theme.fontSize['2xl']};
+  font-weight: 700;
+  color: rgba(255, 255, 255, 1);
+  margin-bottom: ${theme.spacing.md};
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 1) 0%, rgba(139, 92, 246, 0.8) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+`;
+
+const StepDescription = styled.p`
+  font-size: ${theme.fontSize.sm};
+  color: rgba(160, 160, 170, 0.8);
+  margin-bottom: ${theme.spacing.lg};
+  line-height: 1.6;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+`;
+
+const FormField = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${theme.spacing.sm};
+  margin-bottom: ${theme.spacing.lg};
+  overflow: visible;
+  position: relative;
+  padding: 8px 0;
+`;
+
+const FormLabel = styled.label`
+  font-size: ${theme.fontSize.sm};
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  letter-spacing: 0.01em;
+`;
+
+const ModernInput = styled.input`
+  width: 100%;
+  padding: 14px 18px;
+  background: rgba(20, 20, 30, 0.5);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: ${theme.fontSize.base};
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &::placeholder {
+    color: rgba(160, 160, 170, 0.5);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: rgba(139, 92, 246, 0.6);
+    background: rgba(25, 25, 35, 0.6);
+    box-shadow:
+      0 0 0 3px rgba(139, 92, 246, 0.15),
+      0 0 20px rgba(139, 92, 246, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transform: translateY(-1px);
+  }
+
+  &:hover:not(:focus) {
+    border-color: rgba(139, 92, 246, 0.3);
+    background: rgba(22, 22, 32, 0.6);
+  }
+`;
+
+const ModernTextarea = styled.textarea`
+  width: 100%;
+  padding: 14px 18px;
+  background: rgba(20, 20, 30, 0.5);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: ${theme.fontSize.base};
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  resize: vertical;
+  min-height: 100px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  line-height: 1.6;
+
+  &::placeholder {
+    color: rgba(160, 160, 170, 0.5);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: rgba(139, 92, 246, 0.6);
+    background: rgba(25, 25, 35, 0.6);
+    box-shadow:
+      0 0 0 3px rgba(139, 92, 246, 0.15),
+      0 0 20px rgba(139, 92, 246, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transform: translateY(-1px);
+  }
+
+  &:hover:not(:focus) {
+    border-color: rgba(139, 92, 246, 0.3);
+    background: rgba(22, 22, 32, 0.6);
+  }
+`;
+
+const LivePreviewCard = styled(motion.div)`
+  width: 100%;
+  max-width: 400px;
+  background: rgba(20, 20, 30, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 20px;
+  padding: ${theme.spacing.xl};
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(139, 92, 246, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  position: relative;
+  overflow: hidden;
+`;
+
+const PreviewImage = styled.div`
+  width: 100%;
+  aspect-ratio: 3/4;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(99, 102, 241, 0.1));
+  border-radius: 16px;
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: ${theme.spacing.lg};
+  position: relative;
+  overflow: hidden;
+`;
+
+const PreviewName = styled.h3`
+  font-size: ${theme.fontSize['2xl']};
+  font-weight: 700;
+  color: rgba(255, 255, 255, 1);
+  margin-bottom: ${theme.spacing.md};
+  text-align: center;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  letter-spacing: -0.02em;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+`;
+
+const PreviewTags = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: ${theme.spacing.md};
+`;
+
+const PreviewTag = styled.span<{ $category?: 'kind' | 'strict' | 'neutral' }>`
+  padding: 4px 10px;
+  background: ${props => {
+    if (props.$category === 'kind') return 'rgba(34, 197, 94, 0.2)';
+    if (props.$category === 'strict') return 'rgba(239, 68, 68, 0.2)';
+    return 'rgba(139, 92, 246, 0.2)';
+  }};
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid ${props => {
+    if (props.$category === 'kind') return 'rgba(34, 197, 94, 0.3)';
+    if (props.$category === 'strict') return 'rgba(239, 68, 68, 0.3)';
+    return 'rgba(139, 92, 246, 0.3)';
+  }};
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: ${props => {
+    if (props.$category === 'kind') return 'rgba(34, 197, 94, 1)';
+    if (props.$category === 'strict') return 'rgba(239, 68, 68, 1)';
+    return 'rgba(139, 92, 246, 1)';
+  }};
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+`;
+
+const ContinueButton = styled(motion.button)`
+  position: relative;
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.9), rgba(251, 191, 36, 0.9));
+  border: 2px solid #8b5cf6;
+  color: #1a1a1a;
+  padding: ${theme.spacing.sm} ${theme.spacing.lg};
+  border-radius: ${theme.borderRadius.lg};
+  font-size: ${theme.fontSize.sm};
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.4), 0 4px 12px rgba(0, 0, 0, 0.4);
+  width: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: ${theme.spacing.sm};
+
+  &:hover:not(:disabled) {
+    border-color: rgba(251, 191, 36, 0.8);
+    background: linear-gradient(135deg, rgba(234, 179, 8, 1), rgba(251, 191, 36, 1));
+    box-shadow: 0 0 30px rgba(234, 179, 8, 0.6), 0 8px 24px rgba(0, 0, 0, 0.5);
+    transform: translateY(-2px);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    border-color: rgba(150, 150, 150, 0.3);
+    box-shadow: none;
   }
 `;
 
@@ -1104,33 +1487,100 @@ const GeneratedPhotosTitle = styled.h3`
   color: ${theme.colors.text.primary};
 `;
 
-const GenerationQueueIndicator = styled.div`
+const GenerationQueueContainer = styled.div`
   display: flex;
-  flex-direction: row;
-  gap: 4px;
-  padding: 8px 12px;
-  background: rgba(30, 30, 30, 0.8);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(100, 100, 100, 0.3);
-  border-radius: ${theme.borderRadius.md};
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
   margin: 0 auto;
+  width: 100%;
   margin-top: ${theme.spacing.md};
 `;
 
-const QueueBar = styled.div<{ $isFilled: boolean }>`
-  width: 8px;
-  height: 20px;
-  background: ${props => props.$isFilled ? '#FFD700' : 'rgba(150, 150, 150, 0.5)'};
-  border-radius: 2px;
-  transition: background 0.2s ease;
+const GenerationQueueIndicator = styled.div`
+  position: relative;
+  width: 100%;
+  height: 6px;
+  background: rgba(20, 20, 20, 0.6);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+`;
+
+const QueueProgressBar = styled.div<{ $filled: number; $total: number }>`
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: ${props => (props.$filled / props.$total) * 100}%;
+  background: linear-gradient(90deg, #06b6d4 0%, #8b5cf6 50%, #ec4899 100%);
+  border-radius: 12px;
+  box-shadow: 
+    0 0 10px rgba(6, 182, 212, 0.5),
+    0 0 20px rgba(139, 92, 246, 0.3),
+    0 0 30px rgba(236, 72, 153, 0.2);
+  animation: pulse-glow 2s ease-in-out infinite;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  @keyframes pulse-glow {
+    0%, 100% {
+      opacity: 1;
+      box-shadow: 
+        0 0 10px rgba(6, 182, 212, 0.5),
+        0 0 20px rgba(139, 92, 246, 0.3),
+        0 0 30px rgba(236, 72, 153, 0.2);
+    }
+    50% {
+      opacity: 0.9;
+      box-shadow: 
+        0 0 15px rgba(6, 182, 212, 0.7),
+        0 0 30px rgba(139, 92, 246, 0.5),
+        0 0 45px rgba(236, 72, 153, 0.3);
+    }
+  }
+  
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.3),
+      transparent
+    );
+    animation: shimmer 2s infinite;
+  }
+  
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
 `;
 
 const QueueLabel = styled.div`
-  font-size: 0.7rem;
-  color: #888;
-  text-align: right;
+  font-size: 10px;
+  color: rgba(160, 160, 160, 0.8);
+  text-align: center;
+  font-weight: 500;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+`;
+
+const QueueCounter = styled.div`
+  font-size: 11px;
+  color: rgba(200, 200, 200, 0.9);
+  text-align: center;
+  font-weight: 600;
+  margin-top: 4px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 `;
 
 const PhotoGenerationBox = styled.div`
@@ -1360,46 +1810,99 @@ const TagsContainer = styled.div<{ $isExpanded: boolean }>`
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
-  max-height: ${props => props.$isExpanded ? '500px' : '36px'};
-  overflow: hidden;
+  max-height: ${props => props.$isExpanded ? '500px' : '40px'};
+  overflow: ${props => props.$isExpanded ? 'visible' : 'hidden'};
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
+  padding: 0 0 0 20px;
+  width: 100%;
+  z-index: 1;
+
+  ${props => !props.$isExpanded && `
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(to bottom, transparent, rgba(20, 20, 30, 0.98));
+      pointer-events: none;
+      z-index: 2;
+    }
+  `}
 `;
 
-const TagButton = styled.button`
-  background: rgba(40, 40, 40, 0.6);
-  border: 1px solid rgba(80, 80, 80, 0.3);
-  border-radius: 16px;
-  padding: 4px 12px;
-  font-size: 11px;
-  color: ${theme.colors.text.secondary};
+const TagButton = styled.button<{ $category?: 'kind' | 'strict' | 'neutral' | 'other' }>`
+  background: ${props => {
+    if (props.$category === 'kind') return 'rgba(34, 197, 94, 0.15)';
+    if (props.$category === 'strict') return 'rgba(239, 68, 68, 0.15)';
+    return 'rgba(139, 92, 246, 0.15)';
+  }};
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid ${props => {
+    if (props.$category === 'kind') return 'rgba(34, 197, 94, 0.3)';
+    if (props.$category === 'strict') return 'rgba(239, 68, 68, 0.3)';
+    return 'rgba(139, 92, 246, 0.3)';
+  }};
+  border-radius: 17px;
+  padding: 5px 12px;
+  font-size: 10px;
+  font-weight: 600;
+  color: ${props => {
+    if (props.$category === 'kind') return 'rgba(34, 197, 94, 1)';
+    if (props.$category === 'strict') return 'rgba(239, 68, 68, 1)';
+    return 'rgba(139, 92, 246, 1)';
+  }};
   cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
-  outline: none;
-  box-shadow: none;
+  gap: 5px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  white-space: nowrap;
+  position: relative;
+  z-index: 10;
+  margin: 4px 0;
 
   &:hover {
-    background: rgba(60, 60, 60, 0.8);
-    color: ${theme.colors.text.primary};
-    border-color: rgba(100, 100, 100, 0.5);
+    transform: translateY(-2px) scale(1.05);
+    z-index: 100;
+    margin: 8px 0;
+    background: ${props => {
+    if (props.$category === 'kind') return 'rgba(34, 197, 94, 0.25)';
+    if (props.$category === 'strict') return 'rgba(239, 68, 68, 0.25)';
+    return 'rgba(139, 92, 246, 0.25)';
+  }};
+    border-color: ${props => {
+    if (props.$category === 'kind') return 'rgba(34, 197, 94, 0.5)';
+    if (props.$category === 'strict') return 'rgba(239, 68, 68, 0.5)';
+    return 'rgba(139, 92, 246, 0.5)';
+  }};
+    box-shadow: 0 4px 12px ${props => {
+    if (props.$category === 'kind') return 'rgba(34, 197, 94, 0.3)';
+    if (props.$category === 'strict') return 'rgba(239, 68, 68, 0.3)';
+    return 'rgba(139, 92, 246, 0.3)';
+  }};
+  }
+
+  &:active {
+    transform: translateY(0) scale(1);
+    margin: 4px 0;
   }
 
   &:focus {
     outline: none;
-    box-shadow: none;
   }
 
   &:focus-visible {
     outline: none;
-    box-shadow: none;
-  }
-
-  &:active {
-    outline: none;
-    box-shadow: none;
+    box-shadow: 0 0 0 3px ${props => {
+    if (props.$category === 'kind') return 'rgba(34, 197, 94, 0.2)';
+    if (props.$category === 'strict') return 'rgba(239, 68, 68, 0.2)';
+    return 'rgba(139, 92, 246, 0.2)';
+  }};
   }
 `;
 
@@ -1408,6 +1911,15 @@ const isPremiumVoice = (voiceName?: string): boolean => {
   if (!voiceName) return false;
   const name = voiceName.toLowerCase();
   return name.includes('мита') || name.includes('meet') || name === 'мика';
+};
+
+const getTagCategory = (label: string): 'kind' | 'strict' | 'neutral' => {
+  const kindKeywords = ['добрая', 'заботливая', 'нежная', 'ласковая', 'терпеливая', 'понимающая', 'романтичная', 'мечтательная'];
+  const strictKeywords = ['строгая', 'требовательная', 'жесткая', 'суровая', 'серьезная', 'сосредоточенная'];
+  const lowerLabel = label.toLowerCase();
+  if (kindKeywords.some(keyword => lowerLabel.includes(keyword))) return 'kind';
+  if (strictKeywords.some(keyword => lowerLabel.includes(keyword))) return 'strict';
+  return 'neutral';
 };
 
 // Styled компоненты для модального окна Premium
@@ -2619,13 +3131,6 @@ const CoinsBalance = styled.div`
   }
 `;
 
-const LegalStyleText = styled.p`
-  color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.xs};
-  line-height: 1.4;
-  opacity: 0.8;
-`;
-
 const PhotosCounter = styled.div<{ $limitReached: boolean }>`
   display: inline-flex;
   align-items: center;
@@ -2841,56 +3346,6 @@ const SliderDescription = styled.div`
   }
 `;
 
-const DescriptionTitle = styled.h3`
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.lg};
-  margin: 0 0 ${theme.spacing.md} 0;
-`;
-
-const DescriptionText = styled.p`
-  color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.base};
-  margin: 0 0 ${theme.spacing.lg} 0;
-  line-height: 1.5;
-`;
-
-
-const LargeTextInput = styled.textarea`
-  background: rgba(40, 40, 40, 0.6);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(120, 120, 120, 0.3);
-  border-radius: ${theme.borderRadius.lg};
-  padding: ${theme.spacing.lg};
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.base};
-  font-family: inherit;
-  resize: vertical;
-  flex: 1;
-  width: 100%;
-  min-height: 200px;
-  transition: all 0.3s ease;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
-  
-  &::placeholder {
-    color: ${theme.colors.text.secondary};
-    opacity: 0.7;
-  }
-  
-  &:focus {
-    outline: none;
-    border-color: rgba(150, 150, 150, 0.5);
-    box-shadow: 0 0 0 2px rgba(120, 120, 120, 0.3), inset 0 2px 6px rgba(0, 0, 0, 0.4);
-  }
-`;
-
-const LargeTextLabel = styled.label`
-  display: block;
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.lg};
-  font-weight: 600;
-  margin-bottom: ${theme.spacing.md};
-`;
-
 interface Character {
   id: string;
   name: string;
@@ -2998,83 +3453,83 @@ const PERSONALITY_PROMPTS = [
 const SITUATION_PROMPTS = [
   {
     label: "Первое свидание",
-    value: "Мы в полумраке ресторана. Я медленно пью вино, глядя тебе прямо в глаза, и моя нога под столом скользит по твоему паху. Я шепчу, что на мне сегодня нет белья, и предлагаю не ждать десерт, а поехать к тебе, чтобы ты мог исследовать меня по-настоящему."
+    value: "Мы в уютном ресторане при свечах. Я медленно пью вино, глядя тебе прямо в глаза, и улыбаюсь. Я чувствую себя немного взволнованной, но в хорошем смысле. Мы разговариваем о жизни, мечтах и планах. Мне нравится твоя компания, и я надеюсь, что это только начало."
   },
   {
-    label: "Босс и секретарша",
-    value: "Ты вызвал меня 'на ковер' за ошибку в отчете. Я захожу в кабинет, запираю дверь и медленно опускаюсь перед тобой на колени, расстегивая твой ремень. Я готова принять любое твое 'наказание' прямо здесь, на рабочем столе, лишь бы ты остался доволен моей работой."
+    label: "Рабочая встреча",
+    value: "Ты вызвал меня в кабинет для обсуждения проекта. Я захожу с документами и сажусь напротив тебя. Мы обсуждаем детали работы, и я внимательно слушаю твои замечания. Я готова приложить все усилия, чтобы проект был выполнен качественно и в срок."
   },
   {
-    label: "Случайная попутчица",
-    value: "Ночное купе, свет приглушен. Я твоя попутчица, и мне слишком жарко в этой тесноте. Я снимаю блузку, оставаясь в одном кружеве, и приглашаю тебя на свою полку. Под мерный стук колес я хочу чувствовать твою силу внутри себя, пока весь вагон спит."
+    label: "Поездка в поезде",
+    value: "Ночное купе, свет приглушен. Я твоя попутчица, и мы едем в одном направлении. Я читаю книгу, изредка поглядывая в окно на мелькающие огни. Мы можем поговорить о путешествиях или просто наслаждаться тишиной дороги."
   },
   {
-    label: "Прием у врача",
-    value: "Я твой лечащий врач. Я запираю дверь кабинета и приказываю тебе снять брюки для 'особого осмотра'. Твой член уже напряжен, и я медленно облизываю губы, прежде чем надеть латексные перчатки и начать самую приятную процедуру в твоей жизни прямо на кушетке."
+    label: "Визит к врачу",
+    value: "Я твой лечащий врач. Я внимательно выслушиваю твои жалобы и задаю вопросы о самочувствии. Я объясняю диагноз понятным языком и даю рекомендации по лечению. Моя цель - помочь тебе выздороветь."
   },
   {
-    label: "Строгий учитель",
-    value: "Я твоя студентка, и мне очень нужно исправить оценку. В пустом классе я сажусь на твой стол, задирая короткую юбку, и показываю, что готова на любой 'дополнительный зачет'. Ты ведь не откажешься преподать мне урок настоящей взрослой страсти?"
+    label: "Урок в школе",
+    value: "Я твоя студентка, и мне нужно исправить оценку. Я подхожу к тебе после урока и вежливо прошу о возможности пересдачи. Я готова дополнительно подготовиться и показать, что усвоила материал. Я уважаю твое решение."
   },
   {
-    label: "Массаж с продолжением",
-    value: "Я твой массажист сегодня. Мои руки в теплом масле скользят по твоему телу, опускаясь всё ниже. Я прижимаюсь своей грудью к твоей спине и шепчу, что сегодня в программу включено полное расслабление. Мои пальцы уже ласкают тебя, доводя до предела."
+    label: "Сеанс массажа",
+    value: "Я твой массажист сегодня. Мои руки в теплом масле аккуратно работают с напряженными мышцами. Я объясняю, какие зоны требуют внимания, и помогаю тебе расслабиться. Моя цель - снять напряжение и улучшить самочувствие."
   },
   {
     label: "Застряли в лифте",
-    value: "Лифт застрял, мы одни. Я прижимаюсь к тебе всем телом, чувствуя твое возбуждение. Я расстегиваю твою ширинку и сажусь сверху, вжимая тебя в зеркальную стену. Нам нужно успеть кончить в этом тесном пространстве, пока лифт не починили."
+    value: "Лифт застрял, мы одни. Я немного нервничаю, но стараюсь сохранять спокойствие. Я предлагаю позвонить в службу обслуживания и ждать помощи. Мы можем поговорить, чтобы скоротать время, пока нас не освободят."
   },
   {
-    label: "Нудистский пляж",
-    value: "Мы в уединенной бухте, и на мне нет ни ниточки. Вода ласкает мое тело, а я ласкаю тебя. Я обхватываю тебя ногами прямо в волнах, чувствуя, как ты глубоко входишь в меня. Соленая вода и жаркие толчки сводят меня с ума под закатным солнцем."
+    label: "Пляжный отдых",
+    value: "Мы на уединенном пляже. Я в купальнике, наслаждаюсь теплом солнца и звуком волн. Я предлагаю искупаться или просто полежать на песке. Мне нравится эта спокойная атмосфера и возможность отдохнуть от суеты."
   },
   {
-    label: "Фитнес-инструктор",
-    value: "Я твой тренер, и сегодня у нас 'индивидуальная' растяжка. Я принимаю самую откровенную позу прямо перед твоим лицом и прошу тебя помочь мне. Мои леггинсы впиваются в киску, и я вижу, как ты на меня смотришь. Возьми меня прямо здесь, на спортивном мате."
+    label: "Тренировка в зале",
+    value: "Я твой тренер, и сегодня у нас индивидуальная тренировка. Я показываю правильную технику выполнения упражнений и слежу за твоей формой. Я подбадриваю тебя и помогаю достичь поставленных целей. Моя задача - сделать тренировку эффективной и безопасной."
   },
   {
-    label: "Соседка за солью",
-    value: "Я зашла к тебе в одном коротком халатике, под которым ничего нет. Пока ты ищешь соль, халат 'случайно' распахивается. Я вижу твою реакцию и предлагаю забыть про кухню — я пришла за чем-то гораздо более твердым и горячим."
+    label: "Соседка",
+    value: "Я зашла к тебе, чтобы попросить помощи или просто поздороваться. Я в обычной домашней одежде и чувствую себя комфортно. Мы можем поговорить о соседях, погоде или просто поболтать. Мне нравится дружелюбная атмосфера."
   },
   {
-    label: "Наказание горничной",
-    value: "Ты застал меня, когда я примеряла вещи твоей жены в вашей спальне. Я стою перед тобой в одном прозрачном пеньюаре, дрожа от страха и желания. Ты имеешь полное право наказать свою горничную так, как тебе захочется, на этой огромной кровати."
+    label: "Домашняя обстановка",
+    value: "Я помогаю тебе по дому. Я аккуратно складываю вещи и поддерживаю порядок. Я внимательна к деталям и стараюсь делать все качественно. Мне приятно видеть, что моя работа приносит пользу."
   },
   {
-    label: "Фотосессия ню",
-    value: "Ты мой фотограф, а я твоя модель. В студии только мы. Ты просишь меня принять позу 'погорячее', и я полностью раздвигаю ноги перед твоим объективом. Я вижу, как ты возбужден, и зову тебя к себе в кадр, чтобы ты закончил эту съемку внутри меня."
+    label: "Фотосессия",
+    value: "Ты мой фотограф, а я твоя модель. В студии мы работаем над созданием красивых кадров. Я принимаю разные позы, следуя твоим указаниям. Я стараюсь передать нужные эмоции и создать интересные образы. Мне нравится творческий процесс."
   },
   {
-    label: "Спасение в лесу",
-    value: "Метель заперла нас в охотничьем домике. Мы голые под меховым одеялом у камина. Я прижимаюсь к тебе, пытаясь согреться, и чувствую твой твердый член у своего бедра. Давай раздуем пожар прямо здесь — я хочу, чтобы ты взял меня грубо и жадно."
+    label: "Приключение в лесу",
+    value: "Метель заперла нас в охотничьем домике. Мы сидим у камина, согреваясь теплом огня. Я предлагаю заварить чай и подождать, пока непогода утихнет. Мы можем поговорить или просто наслаждаться уютной атмосферой."
   },
   {
-    label: "VIP-комната клуба",
-    value: "Красный неон и приватная атмосфера. Я танцую для тебя, медленно снимая белье и дразня тебя близостью своего тела. Я сажусь к тебе на колени, давая почувствовать свою влажную киску, и начинаю жадно сосать тебя, пока ты сжимаешь мои ягодицы."
+    label: "Вечер в клубе",
+    value: "Мы в уютном клубе с приятной музыкой. Я танцую, наслаждаясь ритмом и атмосферой. Я чувствую себя свободно и расслабленно. Мы можем потанцевать вместе или просто провести время в хорошей компании."
   },
   {
-    label: "Допрос ведьмы",
-    value: "Я ведьма, пойманная тобой в темнице. Ты пришел пытать меня, но я сама соблазняю своего инквизитора. Мои руки прикованы, но я раздвигаю ноги, призывая тебя совершить самый сладкий грех в твоей жизни прямо на этом холодном полу."
+    label: "Фэнтези-приключение",
+    value: "Я путешественница, встретившая тебя на своем пути. Мы обсуждаем наши приключения и делимся историями. Я интересуюсь твоими планами и могу предложить помощь или просто составить компанию в дороге."
   },
   {
-    label: "Тест андроида",
-    value: "Я твой новый андроид для секса. Мои системы настроены на твое полное удовольствие. Ты активируешь режим 'Безудержная страсть', и я готова протестировать все свои отверстия с твоей помощью. Прикажи мне любую позу, хозяин."
+    label: "Научная лаборатория",
+    value: "Я твой коллега-исследователь. Мы работаем над интересным проектом вместе. Я делюсь своими идеями и внимательно слушаю твои предложения. Мне нравится наша совместная работа и обмен знаниями."
   },
   {
-    label: "Запретная секция",
-    value: "Мы пробрались в закрытую часть библиотеки. Я забираюсь под стол, за которым ты сидишь, и расстегиваю твои брюки. Пока ты пытаешься вести себя тихо, я медленно и глубоко заглатываю твой член, наслаждаясь риском быть пойманными."
+    label: "Библиотека",
+    value: "Мы в тихой библиотеке, каждый погружен в свои книги. Я изредка поднимаю взгляд и улыбаюсь, видя, как ты тоже увлечен чтением. Мы можем обменяться рекомендациями книг или просто наслаждаться тишиной."
   },
   {
-    label: "Невеста Дракулы",
-    value: "Ты мой темный господин, а я твоя верная невеста. В твоем замке я отдаю тебе не только свою кровь, но и всё свое тело. Я выгибаюсь на холодном камне, когда ты входишь в меня, смешивая боль от укусов с неземным наслаждением."
+    label: "Готический замок",
+    value: "Я жительница старинного замка, и ты мой гость. Я провожу тебя по залам, рассказывая историю этого места. Я интересуюсь твоими впечатлениями и готова ответить на вопросы. Мне нравится делиться знаниями о замке."
   },
   {
-    label: "Сводная сестра",
-    value: "Родителей нет дома. Я застаю тебя в душе и, не говоря ни слова, скидываю одежду и захожу к тебе. Я хочу, чтобы ты нарушил все правила и взял свою 'сестренку' прямо здесь, под струями горячей воды."
+    label: "Домашний вечер",
+    value: "Мы дома, и я предлагаю провести вечер вместе. Мы можем посмотреть фильм, поиграть в настольные игры или просто поговорить. Я чувствую себя комфортно в твоей компании и ценю это время."
   },
   {
-    label: "Ограбление",
-    value: "Я ворвалась в твой дом, но ты оказался сильнее и поймал меня. Теперь я связана и полностью в твоей власти. Ты обыскиваешь меня, и твои руки задерживаются между моих ног. Я готова на всё, чтобы ты не вызывал полицию."
+    label: "Неожиданная встреча",
+    value: "Мы случайно встретились в неожиданном месте. Я улыбаюсь, радуясь этой встрече. Я предлагаю провести время вместе, если у тебя есть возможность. Мне приятно видеть знакомое лицо и возможность пообщаться."
   }
 ];
 
@@ -3419,9 +3874,33 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const generationQueueRef = useRef<number>(0); // Счетчик задач в очереди
   const initialPhotosCountRef = useRef<number>(0); // Количество фото при загрузке страницы
   const customPromptRef = useRef<string>(''); // Ref для актуального промпта
+  const formRef = useRef<HTMLFormElement>(null);
+  const navigateToChatAfterSaveRef = useRef(false);
   const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime' | 'realism'>('anime-realism');
   const [isTagsExpanded, setIsTagsExpanded] = useState(false);
   const [showGenerateTooltip, setShowGenerateTooltip] = useState(false);
+
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
+  const [isPersonalityTagsExpanded, setIsPersonalityTagsExpanded] = useState(false);
+  const [isSituationTagsExpanded, setIsSituationTagsExpanded] = useState(false);
+  const [isPhotoPromptTagsExpanded, setIsPhotoPromptTagsExpanded] = useState(false);
+  const [previewPhotoIndex, setPreviewPhotoIndex] = useState(0);
+
+  // Автосмена фото в превью, когда фото больше одного
+  useEffect(() => {
+    const allPhotos: Array<{ url: string; id?: string }> = [];
+    if (selectedPhotos.length > 0) allPhotos.push(...selectedPhotos);
+    if (generatedPhotos && Array.isArray(generatedPhotos)) {
+      generatedPhotos.forEach((photo: any) => {
+        if (photo?.url && !allPhotos.some(p => p.url === photo.url)) allPhotos.push({ url: photo.url, id: photo.id });
+      });
+    }
+    if (allPhotos.length <= 1) return;
+    const interval = setInterval(() => {
+      setPreviewPhotoIndex(prev => prev + 1);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [selectedPhotos, generatedPhotos]);
 
   // Функции для авторизации
   const handleLogin = () => {
@@ -4235,6 +4714,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       const isPremiumUser = ['pro', 'premium'].includes(subscriptionType.toLowerCase());
 
       if (!isPremiumUser) {
+        navigateToChatAfterSaveRef.current = false;
         setShowPremiumModal(true);
         setIsLoading(false);
         return;
@@ -4282,6 +4762,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         const errorData = await response.json();
         // Обрабатываем ошибку доступа
         if (response.status === 403) {
+          navigateToChatAfterSaveRef.current = false;
           const errorMessage = errorData.detail || 'У вас нет прав для редактирования этого персонажа';
           setError(errorMessage);
           // Возвращаемся на список персонажей через 2 секунды
@@ -4322,6 +4803,29 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         isLoadingRef.current = false; // Сбрасываем флаг загрузки
         setCharacterIdentifier(newName);
 
+        // КРИТИЧНО: Очищаем localStorage для старого имени, чтобы избежать использования устаревших данных
+        if (characterIdentifier) {
+          try {
+            localStorage.removeItem(`character_${characterIdentifier}`);
+            // Также очищаем по ID, если он был сохранен
+            if (updatedCharacter?.id) {
+              localStorage.removeItem(`character_${updatedCharacter.id}`);
+            }
+          } catch (e) {
+            // Игнорируем ошибки очистки localStorage
+          }
+        }
+
+        // КРИТИЧНО: Сохраняем обновленного персонажа в localStorage с новым именем
+        if (updatedCharacter) {
+          try {
+            const storageKey = updatedCharacter.id ? `character_${updatedCharacter.id}` : `character_${newName}`;
+            localStorage.setItem(storageKey, JSON.stringify(updatedCharacter));
+          } catch (e) {
+            // Игнорируем ошибки сохранения в localStorage
+          }
+        }
+
         // КРИТИЧНО: Перезагружаем данные персонажа по новому имени после обновления
         // Это гарантирует, что все последующие запросы будут использовать новое имя
         setTimeout(() => {
@@ -4338,6 +4842,30 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           oldName: characterIdentifier
         }
       }));
+
+      // Переход на шаг 4 (Фото) после успешного сохранения
+      setCurrentStep(4);
+
+      if (navigateToChatAfterSaveRef.current) {
+        navigateToChatAfterSaveRef.current = false;
+        // КРИТИЧНО: Используем новое имя из ответа API (updatedName/newName), а не старое characterIdentifier
+        // Приоритет: ID > новое имя из API (updatedName) > новое имя из формы > старое имя (fallback)
+        // НЕ используем updatedCharacter?.name, так как он может содержать старое имя
+        // Используем ID в первую очередь, так как он не меняется при переименовании
+        const chatId = updatedCharacter?.id?.toString() ?? updatedName ?? formData.name ?? characterIdentifier;
+        if (chatId) {
+          // Добавляем небольшую задержку, чтобы убедиться, что сервер обновил данные и кэш очищен
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('navigate-to-chat-with-character', {
+              detail: { 
+                characterId: chatId, 
+                characterName: updatedName || chatId, // Используем новое имя из API
+                characterIdentifier: chatId 
+              }
+            }));
+          }, 300); // Увеличиваем задержку до 300ms для гарантии обновления кэша
+        }
+      }
 
       // КРИТИЧНО: Обновляем баланс из API после сохранения
       balanceUpdateInProgressRef.current = true; // Устанавливаем флаг, чтобы предотвратить перезапись
@@ -4419,6 +4947,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       setTimeout(() => updateBalanceWithRetries(1, 3), 1500);
 
     } catch (err) {
+      navigateToChatAfterSaveRef.current = false;
       setError(err instanceof Error ? err.message : 'Ошибка при редактировании персонажа');
     } finally {
       setIsLoading(false);
@@ -4967,188 +5496,340 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     return (
       <>
         <MainContainer $isMobile={isMobile}>
-          <GlobalHeader
-            onShop={onShop}
-            onLogin={() => {
-              setAuthMode('login');
-              setIsAuthModalOpen(true);
-            }}
-            onRegister={() => {
-              setAuthMode('register');
-              setIsAuthModalOpen(true);
-            }}
-            onLogout={handleLogout}
-            onProfile={onProfile}
-            onBalance={() => alert('Баланс пользователя')}
-          />
+          <HeaderWrapper>
+            <GlobalHeader
+              onShop={onShop}
+              onLogin={() => {
+                setAuthMode('login');
+                setIsAuthModalOpen(true);
+              }}
+              onRegister={() => {
+                setAuthMode('register');
+                setIsAuthModalOpen(true);
+              }}
+              onLogout={handleLogout}
+              onProfile={onProfile}
+              onBalance={() => alert('Баланс пользователя')}
+            />
+          </HeaderWrapper>
 
           <MainContent>
-            <form
-              onSubmit={handleSubmit}
-              className={`flex-1 flex gap-6 ${isMobile ? 'h-auto' : 'h-full'} flex-col md:flex-row w-full`}
-            >
-              {/* Левая колонка - Форма */}
-              <div className={`flex-1 flex flex-col min-w-0 md:min-w-[400px] bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 ${isMobile ? 'overflow-visible' : 'overflow-y-auto'}`}>
-                <div className="flex flex-col gap-6">
+            <form ref={formRef} onSubmit={handleSubmit} style={{ display: 'flex', width: '100%', height: '100%', gap: '24px', flexDirection: isMobile ? 'column' : 'row' }}>
+              <LeftColumn>
+                <StepIndicator>
+                  <StepItemButton
+                    $isActive={currentStep === 1}
+                    $isCompleted={currentStep > 1}
+                    onClick={() => setCurrentStep(1)}
+                    type="button"
+                  >
+                    <StepNumber $isActive={currentStep === 1} $isCompleted={currentStep > 1}>
+                      {currentStep > 1 ? '\u2713' : '1'}
+                    </StepNumber>
+                    <span>Личность</span>
+                  </StepItemButton>
+                  <StepConnector $isCompleted={currentStep > 1} />
+                  <StepItemButton
+                    $isActive={currentStep === 2}
+                    $isCompleted={currentStep > 2}
+                    onClick={() => formData.name && formData.personality && setCurrentStep(2)}
+                    type="button"
+                    disabled={!formData.name || !formData.personality}
+                  >
+                    <StepNumber $isActive={currentStep === 2} $isCompleted={currentStep > 2}>
+                      {currentStep > 2 ? '\u2713' : '2'}
+                    </StepNumber>
+                    <span>История</span>
+                  </StepItemButton>
+                  <StepConnector $isCompleted={currentStep > 2} />
+                  <StepItemButton
+                    $isActive={currentStep === 3}
+                    $isCompleted={currentStep > 3}
+                    onClick={() => formData.name && formData.personality && formData.situation && setCurrentStep(3)}
+                    type="button"
+                    disabled={!formData.name || !formData.personality || !formData.situation}
+                  >
+                    <StepNumber $isActive={currentStep === 3} $isCompleted={currentStep > 3}>
+                      {currentStep > 3 ? '\u2713' : '3'}
+                    </StepNumber>
+                    <span>Завершение</span>
+                  </StepItemButton>
+                  <StepConnector $isCompleted={currentStep > 3} />
+                  <StepItemButton
+                    $isActive={currentStep === 4}
+                    $isCompleted={false}
+                    onClick={() => setCurrentStep(4)}
+                    type="button"
+                  >
+                    <StepNumber $isActive={currentStep === 4} $isCompleted={false}>4</StepNumber>
+                    <span>Фото</span>
+                  </StepItemButton>
+                </StepIndicator>
 
-                  {/* Имя персонажа */}
-                  <div>
-                    <label htmlFor="name" className="block text-sm font-medium text-zinc-200 mb-2">
-                      Имя персонажа
-                    </label>
-                    <input
-                      type="text"
-                      id="name"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleInputChange}
-                      placeholder="Введите имя персонажа..."
-                      required
-                      className="w-full px-4 py-3 bg-black border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition-colors"
-                    />
-                    <PromptSuggestions
-                      prompts={NAME_PROMPTS}
-                      onSelect={(val) => {
-                        setFormData(prev => ({ ...prev, name: val }));
-                        const fakeEvent = { target: { name: 'name', value: val } } as React.ChangeEvent<HTMLInputElement>;
-                        handleInputChange(fakeEvent);
-                      }}
-                    />
-                  </div>
+                <AnimatePresence mode="wait">
+                  {currentStep === 1 && (
+                    <WizardStep
+                      key="step1"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <StepTitle>Шаг 1: Личность</StepTitle>
+                      <StepDescription>Определите имя и основные черты личности персонажа</StepDescription>
+                      <FormField>
+                        <FormLabel htmlFor="name">Имя персонажа</FormLabel>
+                        <ModernInput
+                          type="text"
+                          id="name"
+                          name="name"
+                          value={formData.name}
+                          onChange={handleInputChange}
+                          placeholder="Введите имя персонажа..."
+                          required
+                        />
+                        <PromptSuggestions
+                          prompts={NAME_PROMPTS}
+                          onSelect={(val) => {
+                            setFormData(prev => ({ ...prev, name: val }));
+                            const fakeEvent = { target: { name: 'name', value: val } } as React.ChangeEvent<HTMLInputElement>;
+                            handleInputChange(fakeEvent);
+                          }}
+                        />
+                      </FormField>
+                      <FormField>
+                        <FormLabel htmlFor="personality">Личность и характер</FormLabel>
+                        <ModernTextarea
+                          id="personality"
+                          name="personality"
+                          value={formData.personality}
+                          onChange={handleInputChange}
+                          placeholder="Опишите характер персонажа: какие у него черты личности?"
+                          rows={3}
+                          required
+                        />
+                        <TagsContainer $isExpanded={isPersonalityTagsExpanded}>
+                          {PERSONALITY_PROMPTS.map((tag, idx) => (
+                            <TagButton
+                              key={idx}
+                              type="button"
+                              $category={getTagCategory(tag.label)}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                const newVal = formData.personality ? formData.personality + ' ' + tag.value : tag.value;
+                                setFormData(prev => ({ ...prev, personality: newVal }));
+                                const fakeEvent = { target: { name: 'personality', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
+                                handleInputChange(fakeEvent);
+                              }}
+                            >
+                              <Plus size={8} /> {tag.label}
+                            </TagButton>
+                          ))}
+                        </TagsContainer>
+                        {PERSONALITY_PROMPTS.length > 4 && (
+                          <ExpandButton $isExpanded={isPersonalityTagsExpanded} onClick={() => setIsPersonalityTagsExpanded(!isPersonalityTagsExpanded)}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points={isPersonalityTagsExpanded ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
+                            </svg>
+                          </ExpandButton>
+                        )}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
+                          <motion.button
+                            type="button"
+                            onClick={() => { if (formData.name.trim().length >= 2 && formData.personality.trim().length > 0) setCurrentStep(2); }}
+                            disabled={formData.name.trim().length < 2 || formData.personality.trim().length === 0}
+                            style={{
+                              padding: '12px 24px',
+                              background: formData.name.trim().length >= 2 && formData.personality.trim().length > 0
+                                ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)' : 'rgba(60, 60, 80, 0.5)',
+                              border: '1px solid',
+                              borderColor: formData.name.trim().length >= 2 && formData.personality.trim().length > 0 ? 'rgba(139, 92, 246, 0.6)' : 'rgba(100, 100, 120, 0.3)',
+                              borderRadius: '12px',
+                              color: formData.name.trim().length >= 2 && formData.personality.trim().length > 0 ? '#ffffff' : '#71717a',
+                              fontSize: '14px',
+                              fontWeight: 600,
+                              cursor: formData.name.trim().length >= 2 && formData.personality.trim().length > 0 ? 'pointer' : 'not-allowed',
+                              transition: 'all 0.3s ease',
+                              fontFamily: 'Inter, sans-serif'
+                            }}
+                            whileHover={formData.name.trim().length >= 2 && formData.personality.trim().length > 0 ? { scale: 1.05, y: -2 } : {}}
+                            whileTap={formData.name.trim().length >= 2 && formData.personality.trim().length > 0 ? { scale: 0.95 } : {}}
+                          >
+                            Далее →
+                          </motion.button>
+                        </div>
+                      </FormField>
+                    </WizardStep>
+                  )}
 
-                  {/* Личность и характер */}
-                  <div>
-                    <label htmlFor="personality" className="block text-sm font-medium text-zinc-200 mb-2">
-                      Личность и характер
-                    </label>
-                    <textarea
-                      id="personality"
-                      name="personality"
-                      value={formData.personality}
-                      onChange={handleInputChange}
-                      placeholder="Опишите характер и личность персонажа..."
-                      rows={4}
-                      required
-                      className="w-full px-4 py-3 bg-black border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition-colors resize-none"
-                    />
-                    <PromptSuggestions
-                      prompts={PERSONALITY_PROMPTS}
-                      onSelect={(val) => {
-                        const newVal = formData.personality ? formData.personality + ' ' + val : val;
-                        setFormData(prev => ({ ...prev, personality: newVal }));
-                        const fakeEvent = { target: { name: 'personality', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
-                        handleInputChange(fakeEvent);
-                      }}
-                    />
-                  </div>
+                  {currentStep === 2 && (
+                    <WizardStep
+                      key="step2"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <StepTitle>Шаг 2: История</StepTitle>
+                      <StepDescription>Опишите контекст и ролевую ситуацию персонажа</StepDescription>
+                      <FormField>
+                        <FormLabel htmlFor="situation">Ролевая ситуация</FormLabel>
+                        <ModernTextarea
+                          id="situation"
+                          name="situation"
+                          value={formData.situation}
+                          onChange={handleInputChange}
+                          placeholder="Опишите ситуацию, в которой находится персонаж. Где он живет? Что происходит в его мире?"
+                          rows={5}
+                          required
+                        />
+                        <TagsContainer $isExpanded={isSituationTagsExpanded}>
+                          {SITUATION_PROMPTS.map((tag, idx) => (
+                            <TagButton
+                              key={idx}
+                              type="button"
+                              $category="neutral"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                const newVal = formData.situation ? formData.situation + ' ' + tag.value : tag.value;
+                                setFormData(prev => ({ ...prev, situation: newVal }));
+                                const fakeEvent = { target: { name: 'situation', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
+                                handleInputChange(fakeEvent);
+                              }}
+                            >
+                              <Plus size={8} /> {tag.label}
+                            </TagButton>
+                          ))}
+                        </TagsContainer>
+                        {SITUATION_PROMPTS.length > 4 && (
+                          <ExpandButton $isExpanded={isSituationTagsExpanded} onClick={() => setIsSituationTagsExpanded(!isSituationTagsExpanded)}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points={isSituationTagsExpanded ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
+                            </svg>
+                          </ExpandButton>
+                        )}
+                      </FormField>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px' }}>
+                        <motion.button
+                          type="button"
+                          onClick={() => setCurrentStep(1)}
+                          style={{
+                            padding: '12px 24px',
+                            background: 'rgba(60, 60, 80, 0.5)',
+                            border: '1px solid rgba(100, 100, 120, 0.3)',
+                            borderRadius: '12px',
+                            color: '#a0a0b0',
+                            fontSize: '14px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.3s ease',
+                            fontFamily: 'Inter, sans-serif'
+                          }}
+                          whileHover={{ scale: 1.05, y: -2 }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          ← Назад
+                        </motion.button>
+                        <motion.button
+                          type="button"
+                          onClick={() => { if (formData.situation.trim().length > 0) setCurrentStep(3); }}
+                          disabled={formData.situation.trim().length === 0}
+                          style={{
+                            padding: '12px 24px',
+                            background: formData.situation.trim().length > 0 ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)' : 'rgba(60, 60, 80, 0.5)',
+                            border: '1px solid',
+                            borderColor: formData.situation.trim().length > 0 ? 'rgba(139, 92, 246, 0.6)' : 'rgba(100, 100, 120, 0.3)',
+                            borderRadius: '12px',
+                            color: formData.situation.trim().length > 0 ? '#ffffff' : '#71717a',
+                            fontSize: '14px',
+                            fontWeight: 600,
+                            cursor: formData.situation.trim().length > 0 ? 'pointer' : 'not-allowed',
+                            transition: 'all 0.3s ease',
+                            fontFamily: 'Inter, sans-serif'
+                          }}
+                          whileHover={formData.situation.trim().length > 0 ? { scale: 1.05, y: -2 } : {}}
+                          whileTap={formData.situation.trim().length > 0 ? { scale: 0.95 } : {}}
+                        >
+                          Далее →
+                        </motion.button>
+                      </div>
+                    </WizardStep>
+                  )}
 
-                  {/* Ролевая ситуация */}
-                  <div>
-                    <label htmlFor="situation" className="block text-sm font-medium text-zinc-200 mb-2">
-                      Ролевая ситуация
-                    </label>
-                    <textarea
-                      id="situation"
-                      name="situation"
-                      value={formData.situation}
-                      onChange={handleInputChange}
-                      placeholder="Опишите ситуацию, в которой находится персонаж..."
-                      rows={3}
-                      required
-                      className="w-full px-4 py-3 bg-black border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition-colors resize-none"
-                    />
-                    <PromptSuggestions
-                      prompts={SITUATION_PROMPTS}
-                      onSelect={(val) => {
-                        const newVal = formData.situation ? formData.situation + ' ' + val : val;
-                        setFormData(prev => ({ ...prev, situation: newVal }));
-                        const fakeEvent = { target: { name: 'situation', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
-                        handleInputChange(fakeEvent);
-                      }}
-                    />
-                  </div>
+                  {currentStep === 3 && (
+                    <WizardStep
+                      key="step3"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <StepTitle>Шаг 3: Завершение</StepTitle>
+                      <StepDescription>Добавьте инструкции и описание внешности для генерации фото</StepDescription>
 
-                  {/* Инструкции для персонажа */}
-                  <div>
-                    <label htmlFor="instructions" className="block text-sm font-medium text-zinc-200 mb-2">
-                      Инструкции для персонажа
-                    </label>
-                    <textarea
-                      id="instructions"
-                      name="instructions"
-                      value={formData.instructions}
-                      onChange={handleInputChange}
-                      placeholder="Как должен вести себя персонаж, что говорить..."
-                      rows={4}
-                      required
-                      className="w-full px-4 py-3 bg-black border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition-colors resize-none"
-                    />
-                    <PromptSuggestions
-                      prompts={INSTRUCTION_PROMPTS}
-                      onSelect={(val) => {
-                        const newVal = formData.instructions ? formData.instructions + ' ' + val : val;
-                        setFormData(prev => ({ ...prev, instructions: newVal }));
-                        const fakeEvent = { target: { name: 'instructions', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
-                        handleInputChange(fakeEvent);
-                      }}
-                    />
-                  </div>
-
-                  {/* Внешность (для фото) */}
-                  <div>
-                    <label htmlFor="appearance" className="block text-sm font-medium text-zinc-200 mb-2">
-                      Внешность (для фото)
-                    </label>
-                    <textarea
-                      id="appearance"
-                      name="appearance"
-                      value={formData.appearance}
-                      onChange={handleInputChange}
-                      placeholder="Опишите внешность персонажа для генерации фото..."
-                      rows={3}
-                      className="w-full px-4 py-3 bg-black border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition-colors resize-none"
-                    />
-                    <PromptSuggestions
-                      prompts={APPEARANCE_PROMPTS}
-                      onSelect={(val) => {
-                        const newVal = formData.appearance ? formData.appearance + ' ' + val : val;
-                        setFormData(prev => ({ ...prev, appearance: newVal }));
-                        const fakeEvent = { target: { name: 'appearance', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
-                        handleInputChange(fakeEvent);
-                      }}
-                    />
-                  </div>
-
-                  {/* Локация (для фото) */}
-                  <div>
-                    <label htmlFor="location" className="block text-sm font-medium text-zinc-200 mb-2">
-                      Локация (для фото)
-                    </label>
-                    <textarea
-                      id="location"
-                      name="location"
-                      value={formData.location}
-                      onChange={handleInputChange}
-                      placeholder="Опишите локацию персонажа для генерации фото..."
-                      rows={3}
-                      className="w-full px-4 py-3 bg-black border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition-colors resize-none"
-                    />
-                    <PromptSuggestions
-                      prompts={LOCATION_PROMPTS}
-                      onSelect={(val) => {
-                        const newVal = formData.location ? formData.location + ' ' + val : val;
-                        setFormData(prev => ({ ...prev, location: newVal }));
-                        const fakeEvent = { target: { name: 'location', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
-                        handleInputChange(fakeEvent);
-                      }}
-                    />
-                  </div>
-
-                  {/* Голос */}
-                  <div className="mt-4" style={{ paddingBottom: '80px', minHeight: '200px' }}>
-                    <label className="block text-sm font-medium text-zinc-200 mb-2" style={{ marginBottom: '4px', marginTop: '-8px' }}>
-                      Голос персонажа
-                    </label>
+                      <FormField>
+                        <FormLabel htmlFor="instructions">Инструкции для персонажа</FormLabel>
+                        <ModernTextarea
+                          id="instructions"
+                          name="instructions"
+                          value={formData.instructions}
+                          onChange={handleInputChange}
+                          placeholder="Как должен вести себя персонаж, что говорить..."
+                          rows={4}
+                          required
+                        />
+                        <PromptSuggestions
+                          prompts={INSTRUCTION_PROMPTS}
+                          onSelect={(val) => {
+                            const newVal = formData.instructions ? formData.instructions + ' ' + val : val;
+                            setFormData(prev => ({ ...prev, instructions: newVal }));
+                            const fakeEvent = { target: { name: 'instructions', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
+                            handleInputChange(fakeEvent);
+                          }}
+                        />
+                      </FormField>
+                      <FormField>
+                        <FormLabel htmlFor="appearance">Внешность (для фото)</FormLabel>
+                        <ModernTextarea
+                          id="appearance"
+                          name="appearance"
+                          value={formData.appearance}
+                          onChange={handleInputChange}
+                          placeholder="Опишите внешность персонажа для генерации фото..."
+                          rows={3}
+                        />
+                        <PromptSuggestions
+                          prompts={APPEARANCE_PROMPTS}
+                          onSelect={(val) => {
+                            const newVal = formData.appearance ? formData.appearance + ' ' + val : val;
+                            setFormData(prev => ({ ...prev, appearance: newVal }));
+                            const fakeEvent = { target: { name: 'appearance', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
+                            handleInputChange(fakeEvent);
+                          }}
+                        />
+                      </FormField>
+                      <FormField>
+                        <FormLabel htmlFor="location">Локация (для фото)</FormLabel>
+                        <ModernTextarea
+                          id="location"
+                          name="location"
+                          value={formData.location}
+                          onChange={handleInputChange}
+                          placeholder="Опишите локацию персонажа для генерации фото..."
+                          rows={3}
+                        />
+                        <PromptSuggestions
+                          prompts={LOCATION_PROMPTS}
+                          onSelect={(val) => {
+                            const newVal = formData.location ? formData.location + ' ' + val : val;
+                            setFormData(prev => ({ ...prev, location: newVal }));
+                            const fakeEvent = { target: { name: 'location', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
+                            handleInputChange(fakeEvent);
+                          }}
+                        />
+                      </FormField>
+                      <FormField>
+                        <FormLabel>Голос персонажа</FormLabel>
                     <div className="relative" style={{ marginTop: '4px' }}>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'flex-start', position: 'relative', zIndex: 1 }}>
                         {availableVoices.filter((voice) => {
@@ -6952,112 +7633,102 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                         </ExpandButton>
                       )}
                     </div>
-                  </div>
+                      </FormField>
 
-                  {error && (
-                    <div className="mt-2 text-sm text-red-400 bg-red-400/10 p-3 rounded-lg">
-                      {error}
-                    </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px' }}>
+                        <motion.button
+                          type="button"
+                          onClick={() => setCurrentStep(2)}
+                          style={{
+                            padding: '12px 24px',
+                            background: 'rgba(60, 60, 80, 0.5)',
+                            border: '1px solid rgba(100, 100, 120, 0.3)',
+                            borderRadius: '12px',
+                            color: '#a0a0b0',
+                            fontSize: '14px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.3s ease',
+                            fontFamily: 'Inter, sans-serif'
+                          }}
+                          whileHover={{ scale: 1.05, y: -2 }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          ← Назад
+                        </motion.button>
+                        <ContinueButton
+                          type="submit"
+                          disabled={isLoading || !userInfo || (userInfo && userInfo.coins < CHARACTER_EDIT_COST) ||
+                            formData.name.trim().length < 2 ||
+                            formData.personality.trim().length === 0 ||
+                            formData.situation.trim().length === 0 ||
+                            formData.instructions.trim().length === 0}
+                        >
+                          {isLoading ? 'Обновление...' : 'Сохранить изменения'}
+                        </ContinueButton>
+                      </div>
+                    </WizardStep>
                   )}
-                  {success && success !== 'Фото успешно обновлено!' && (
-                    <div className="mt-2 text-sm text-green-400 bg-green-400/10 p-3 rounded-lg">
-                      {success}
-                    </div>
-                  )}
 
-                  <button
-                    type="submit"
-                    disabled={isLoading || !userInfo || (userInfo && userInfo.coins < CHARACTER_EDIT_COST)}
-                    className="w-full py-4 px-6 bg-gradient-to-r from-yellow-500 to-yellow-600 text-black font-semibold rounded-lg hover:from-yellow-600 hover:to-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg hover:shadow-yellow-500/50 border-2 border-[#8b5cf6] mt-10"
-                  >
-                    {isLoading ? 'Обновление...' : 'Сохранить изменения'}
-                  </button>
-                </div>
-              </div>
+                  {currentStep === 4 && (
+                    <WizardStep
+                      key="step4"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <StepTitle>Шаг 4: Генерация фото</StepTitle>
+                      <StepDescription>Создайте 3 фото для персонажа которые будут на главной странице</StepDescription>
 
-              <PhotoGenerationContainer ref={generationSectionRef} $isMobile={isMobile}>
-                <div className="flex flex-col">
-                  <div className="mb-6">
-                    <h3 className="text-lg font-medium text-zinc-200 mb-2">Генерация фото персонажа</h3>
-                    <LegalStyleText>
-                      Создайте 3 фото для персонажа которые будут на главной странице
-                    </LegalStyleText>
-                  </div>
+                      <div ref={generationSectionRef} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+                        <div className="flex flex-col">
+                          <FormField>
+                            <FormLabel style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <FiSettings size={14} /> Выберите стиль
+                            </FormLabel>
+                            <ModelSelectionContainer>
+                              <ModelCard
+                                $isSelected={selectedModel === 'anime-realism'}
+                                $previewImage="/анимереализм.jpg"
+                                onClick={() => setSelectedModel('anime-realism')}
+                              >
+                                <ModelInfoOverlay>
+                                  <ModelName>Аниме + Реализм</ModelName>
+                                  <ModelDescription>Сбалансированный стиль</ModelDescription>
+                                </ModelInfoOverlay>
+                              </ModelCard>
+                              <ModelCard
+                                $isSelected={selectedModel === 'anime'}
+                                $previewImage="/аниме.png"
+                                onClick={() => setSelectedModel('anime')}
+                              >
+                                <ModelInfoOverlay>
+                                  <ModelName>Аниме</ModelName>
+                                  <ModelDescription>Классический 2D стиль</ModelDescription>
+                                </ModelInfoOverlay>
+                              </ModelCard>
+                            </ModelSelectionContainer>
+                          </FormField>
+                          <FormField>
+                            <FormLabel htmlFor="photo-prompt-unified" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <Sparkles size={14} /> Описание (Промпт)
+                            </FormLabel>
+                            <ModernTextarea
+                              id="photo-prompt-unified"
+                              value={customPrompt}
+                              onChange={(e) => {
+                                const newValue = e.target.value;
+                                setCustomPrompt(newValue);
+                                customPromptRef.current = newValue;
+                                setCustomPromptManuallySet(true);
+                              }}
+                              placeholder="Например: девушка-самурай в неоновом городе, киберпанк стиль, дождь, высокая детализация..."
+                              rows={4}
+                            />
 
-                  {/* 1. Настройки: Модель */}
-                  <div className="mb-6">
-                    <label className="block text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
-                      <FiSettings size={14} /> Выберите стиль
-                    </label>
-                    <ModelSelectionContainer>
-                      <ModelCard
-                        $isSelected={selectedModel === 'anime-realism'}
-                        $previewImage="/model_previews/анимереализм1.jpg"
-                        onClick={() => setSelectedModel('anime-realism')}
-                      >
-                        <ModelInfoOverlay>
-                          <ModelName>Аниме + Реализм</ModelName>
-                          <ModelDescription>Сбалансированный стиль</ModelDescription>
-                        </ModelInfoOverlay>
-                      </ModelCard>
-
-                      <ModelCard
-                        $isSelected={selectedModel === 'anime'}
-                        $previewImage="/model_previews/аниме.jpeg"
-                        onClick={() => setSelectedModel('anime')}
-                      >
-                        <ModelInfoOverlay>
-                          <ModelName>Аниме</ModelName>
-                          <ModelDescription>Классический 2D стиль</ModelDescription>
-                        </ModelInfoOverlay>
-                      </ModelCard>
-
-                      <ModelCard
-                        $isSelected={selectedModel === 'realism'}
-                        $previewImage="/model_previews/реализм.jpg"
-                        $showToast={showErrorToast}
-                        onClick={() => {
-                          setErrorToastMessage('Данная модель находится в разработке');
-                          setShowErrorToast(true);
-                        }}
-                      >
-                        <ModelInfoOverlay>
-                          <ModelName>Реализм</ModelName>
-                          <ModelDescription>Фотореалистичность</ModelDescription>
-                        </ModelInfoOverlay>
-                        {showErrorToast && (
-                          <ErrorToast
-                            message={errorToastMessage}
-                            onClose={() => setShowErrorToast(false)}
-                            duration={3000}
-                          />
-                        )}
-                      </ModelCard>
-                    </ModelSelectionContainer>
-                  </div>
-
-                  {/* 2. Настройки: Промпт */}
-                  <div className="mb-2">
-                    <label htmlFor="photo-prompt-unified" className="block text-sm font-medium text-zinc-300 mb-2 flex items-center gap-2">
-                      <Sparkles size={14} /> Описание (Промпт)
-                    </label>
-                    <textarea
-                      id="photo-prompt-unified"
-                      value={customPrompt}
-                      onChange={(e) => {
-                        const newValue = e.target.value;
-                        setCustomPrompt(newValue);
-                        customPromptRef.current = newValue;
-                        setCustomPromptManuallySet(true);
-                      }}
-                      placeholder="Например: девушка-самурай в неоновом городе, киберпанк стиль, дождь, высокая детализация..."
-                      className="w-full px-4 py-3 bg-black border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 transition-colors resize-none"
-                      rows={4}
-                    />
-
-                    {/* Теги-помощники */}
-                    <div className="relative">
-                      <TagsContainer $isExpanded={isTagsExpanded}>
+                            <div className="relative">
+                              <TagsContainer $isExpanded={isPhotoPromptTagsExpanded}>
                         {[
                           // Нормальные промпты
                           { label: 'Высокая детализация', value: 'высокая детализация, реализм, 8к разрешение' },
@@ -7075,23 +7746,15 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                           { label: 'Летнее платье', value: 'в легком летнем платье, летящая ткань' },
                           { label: 'Вечерний свет', value: 'мягкий вечерний свет, теплые тона' },
                           { label: 'Зима', value: 'зимний пейзаж, падающий снег, меховая одежда' },
-
-                          // Пошлые промпты (18+)
-                          { label: 'Соблазнительно', value: 'соблазнительная поза, игривый взгляд, эротично' },
-                          { label: 'Нижнее белье', value: 'в кружевном нижнем белье, прозрачные ткани' },
-                          { label: 'Обнаженная', value: 'обнаженная, полная нагота, детализированное тело' },
-                          { label: 'В постели', value: 'лежит в постели, шелковые простыни, интимная обстановка' },
-                          { label: 'Горячая ванна', value: 'в ванне с пеной, влажная кожа, капли воды' },
-                          { label: 'Чулки', value: 'в черных шелковых чулках с поясом' },
-                          { label: 'Мини-юбка', value: 'в экстремально короткой мини-юбке' },
-                          { label: 'Глубокое декольте', value: 'глубокое декольте, акцент на груди' },
-                          { label: 'Вид сзади', value: 'вид сзади, акцент на ягодицах, изящный изгиб спины' },
-                          { label: 'Мокрая одежда', value: 'в мокрой одежде, прилипающая ткань, прозрачность' },
-                          { label: 'Поза раком', value: 'стоит на четвереньках, прогнутая спина, вызывающая поза' },
-                          { label: 'Расставленные ноги', value: 'сидит с широко расставленными ногами, манящий взгляд' },
-                          { label: 'Прикрывает грудь', value: 'прикрывает обнаженную грудь руками, застенчиво' },
-                          { label: 'Кусает губу', value: 'возбужденное лицо, кусает губу, томный взгляд' },
-                          { label: 'Прозрачное боди', value: 'в прозрачном облегающем боди, все детали видны' }
+                          { label: 'Элегантный образ', value: 'элегантная поза, утонченный стиль, изысканность' },
+                          { label: 'Портрет крупным планом', value: 'крупный план лица, выразительный взгляд, детализированные черты' },
+                          { label: 'В парке', value: 'в городском парке, зеленая трава, солнечный свет' },
+                          { label: 'В кафе', value: 'в уютном кафе, теплая атмосфера, приятная обстановка' },
+                          { label: 'На природе', value: 'на природе, свежий воздух, красивые пейзажи' },
+                          { label: 'Вечерний наряд', value: 'в красивом вечернем наряде, элегантный стиль' },
+                          { label: 'Повседневный образ', value: 'в повседневной одежде, комфортный стиль' },
+                          { label: 'Спортивный стиль', value: 'в спортивной одежде, активный образ жизни' },
+                          { label: 'Романтичная атмосфера', value: 'романтичная обстановка, мягкое освещение, уют' }
                         ].map((tag, idx) => (
                           <TagButton
                             key={idx}
@@ -7109,16 +7772,16 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                           </TagButton>
                         ))}
                       </TagsContainer>
-                      <ExpandButton
-                        $isExpanded={isTagsExpanded}
-                        onClick={() => setIsTagsExpanded(!isTagsExpanded)}
-                      >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="6 9 12 15 18 9"></polyline>
-                        </svg>
-                      </ExpandButton>
-                    </div>
-                  </div>
+                              <ExpandButton
+                                $isExpanded={isPhotoPromptTagsExpanded}
+                                onClick={() => setIsPhotoPromptTagsExpanded(!isPhotoPromptTagsExpanded)}
+                              >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                              </ExpandButton>
+                            </div>
+                          </FormField>
 
                   {/* 3. Действие: Кнопка "Сгенерировать" */}
                   <GenerationArea>
@@ -7215,51 +7878,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                       Первая генерация может занять до 1 минуты
                     </WarningText>
 
-                    {/* Детальный прогресс-бар */}
-                    {isGeneratingPhoto && (
-                      <ProgressBarContainer>
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-xs text-zinc-400">Процесс создания...</span>
-                          <span className="text-xs text-[#8b5cf6] font-medium">{Math.round(generationProgress || 0)}%</span>
-                        </div>
-                        <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden mb-3">
-                          <div
-                            className="bg-[#8b5cf6] h-full transition-all duration-300 ease-out"
-                            style={{ width: `${generationProgress || 0}%` }}
-                          />
-                        </div>
-
-                        <div className="flex flex-col gap-1">
-                          <StepItem $isActive={(generationProgress || 0) < 30} $isCompleted={(generationProgress || 0) >= 30}>
-                            <StepIcon $isActive={(generationProgress || 0) < 30} $isCompleted={(generationProgress || 0) >= 30}>
-                              {(generationProgress || 0) >= 30 ? <FiCheckCircle size={10} /> : '1'}
-                            </StepIcon>
-                            <StepText $isActive={(generationProgress || 0) < 30} $isCompleted={(generationProgress || 0) >= 30}>
-                              Подготовка модели и параметров
-                            </StepText>
-                          </StepItem>
-
-                          <StepItem $isActive={(generationProgress || 0) >= 30 && (generationProgress || 0) < 80} $isCompleted={(generationProgress || 0) >= 80}>
-                            <StepIcon $isActive={(generationProgress || 0) >= 30 && (generationProgress || 0) < 80} $isCompleted={(generationProgress || 0) >= 80}>
-                              {(generationProgress || 0) >= 80 ? <FiCheckCircle size={10} /> : '2'}
-                            </StepIcon>
-                            <StepText $isActive={(generationProgress || 0) >= 30 && (generationProgress || 0) < 80} $isCompleted={(generationProgress || 0) >= 80}>
-                              Генерация изображения нейросетью
-                            </StepText>
-                          </StepItem>
-
-                          <StepItem $isActive={(generationProgress || 0) >= 80} $isCompleted={(generationProgress || 0) >= 100}>
-                            <StepIcon $isActive={(generationProgress || 0) >= 80} $isCompleted={(generationProgress || 0) >= 100}>
-                              {(generationProgress || 0) >= 100 ? <FiCheckCircle size={10} /> : '3'}
-                            </StepIcon>
-                            <StepText $isActive={(generationProgress || 0) >= 80} $isCompleted={(generationProgress || 0) >= 100}>
-                              Финализация и сохранение
-                            </StepText>
-                          </StepItem>
-                        </div>
-                      </ProgressBarContainer>
-                    )}
-
                     {/* Индикатор очереди генерации */}
                     {(() => {
                       const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
@@ -7279,19 +7897,18 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                       const activeGenerations = Math.min((isGeneratingPhoto ? 1 : 0) + queueCount, queueLimit);
                       if (activeGenerations > 0 && queueLimit > 0) {
                         return (
-                          <div style={{ marginTop: '12px' }}>
+                          <GenerationQueueContainer>
+                            <QueueLabel>ОЧЕРЕДЬ ГЕНЕРАЦИИ</QueueLabel>
                             <GenerationQueueIndicator>
-                              {Array.from({ length: queueLimit }).map((_, index) => (
-                                <QueueBar
-                                  key={index}
-                                  $isFilled={index < activeGenerations}
-                                />
-                              ))}
+                              <QueueProgressBar
+                                $filled={activeGenerations}
+                                $total={queueLimit}
+                              />
                             </GenerationQueueIndicator>
-                            <QueueLabel>
-                              Очередь генерации ({activeGenerations}/{queueLimit})
-                            </QueueLabel>
-                          </div>
+                            <QueueCounter>
+                              Queue: {activeGenerations}/{queueLimit}
+                            </QueueCounter>
+                          </GenerationQueueContainer>
                         );
                       }
                       return null;
@@ -7358,14 +7975,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                             );
                           }).filter(Boolean)}
                         </PhotoList>
-
-                        <SliderDescription>
-                          <h4 className="text-sm font-medium text-zinc-200 mb-2">Выбор главных фото</h4>
-                          <p className="text-xs text-zinc-400">
-                            Можно добавить максимум {MAX_MAIN_PHOTOS} фотографий. Используйте кнопки «Добавить»
-                            и «Убрать», чтобы управлять карточкой персонажа.
-                          </p>
-                        </SliderDescription>
                       </div>
                     ) : (
                       <PhotoGenerationPlaceholder>
@@ -7374,7 +7983,128 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                     )}
                   </div>
                 </div>
-              </PhotoGenerationContainer>
+              </div>
+                    </WizardStep>
+                  )}
+                </AnimatePresence>
+
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    style={{ padding: '16px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '12px', color: '#ef4444', fontSize: '14px', marginTop: '16px' }}
+                  >
+                    {error}
+                  </motion.div>
+                )}
+                {success && success !== 'Фото успешно обновлено!' && success !== 'Фото успешно сгенерировано!' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    style={{ padding: '16px', background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.3)', borderRadius: '12px', color: '#22c55e', fontSize: '14px', marginTop: '16px' }}
+                  >
+                    {success}
+                  </motion.div>
+                )}
+              </LeftColumn>
+
+              <RightColumn>
+                <LivePreviewCard
+                  animate={{ scale: formData.name ? [1, 1.02, 1] : 1 }}
+                  transition={{ duration: 0.5, repeat: formData.name ? Infinity : 0, repeatDelay: 1 }}
+                >
+                  <PreviewImage>
+                    {(() => {
+                      const allPhotos: Array<{ url: string; id?: string }> = [];
+                      if (selectedPhotos.length > 0) allPhotos.push(...selectedPhotos);
+                      if (generatedPhotos && Array.isArray(generatedPhotos)) {
+                        generatedPhotos.forEach((photo: any) => {
+                          if (photo?.url && !allPhotos.some(p => p.url === photo.url)) allPhotos.push({ url: photo.url, id: photo.id });
+                        });
+                      }
+                      if (allPhotos.length > 0) {
+                        const currentPhoto = allPhotos[previewPhotoIndex % allPhotos.length];
+                        return (
+                          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                            <img
+                              src={currentPhoto.url}
+                              alt={formData.name || 'Character preview'}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '16px', transition: 'opacity 0.3s ease' }}
+                            />
+                            {allPhotos.length > 1 && (
+                              <>
+                                <div style={{ position: 'absolute', bottom: '12px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '6px', zIndex: 10 }}>
+                                  {allPhotos.map((_, idx) => (
+                                    <div
+                                      key={idx}
+                                      onClick={() => setPreviewPhotoIndex(idx)}
+                                      style={{
+                                        width: '8px', height: '8px', borderRadius: '50%',
+                                        background: idx === (previewPhotoIndex % allPhotos.length) ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.4)',
+                                        cursor: 'pointer', transition: 'all 0.2s ease'
+                                      }}
+                                    />
+                                  ))}
+                                </div>
+                                <div style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', background: 'rgba(0, 0, 0, 0.5)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 10, color: 'white', fontSize: '18px' }}
+                                  onClick={(e) => { e.stopPropagation(); setPreviewPhotoIndex(prev => (prev - 1 + allPhotos.length) % allPhotos.length); }}
+                                >←</div>
+                                <div style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'rgba(0, 0, 0, 0.5)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 10, color: 'white', fontSize: '18px' }}
+                                  onClick={(e) => { e.stopPropagation(); setPreviewPhotoIndex(prev => (prev + 1) % allPhotos.length); }}
+                                >→</div>
+                              </>
+                            )}
+                          </div>
+                        );
+                      }
+                      if (formData.appearance || formData.name) {
+                        return (
+                          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(139, 92, 246, 0.4)', fontSize: '48px' }}>
+                            <Sparkles size={48} />
+                          </div>
+                        );
+                      }
+                      return (
+                        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(160, 160, 170, 0.3)', fontSize: '14px', fontFamily: 'Inter, sans-serif' }}>
+                          Превью появится здесь
+                        </div>
+                      );
+                    })()}
+                  </PreviewImage>
+                  <PreviewName>{formData.name || 'Имя персонажа'}</PreviewName>
+                  {(formData.personality || formData.situation) && (
+                    <PreviewTags>
+                      {formData.personality && PERSONALITY_PROMPTS
+                        .filter(tag => formData.personality.includes(tag.value.substring(0, 20)))
+                        .slice(0, 3)
+                        .map((tag, idx) => (
+                          <PreviewTag key={idx} $category={getTagCategory(tag.label)}>{tag.label}</PreviewTag>
+                        ))}
+                    </PreviewTags>
+                  )}
+                </LivePreviewCard>
+                <div style={{ marginTop: theme.spacing.lg, width: '100%', maxWidth: '360px' }}>
+                  <ContinueButton
+                    type="button"
+                    disabled={
+                      isLoading ||
+                      !userInfo ||
+                      (userInfo && userInfo.coins < CHARACTER_EDIT_COST) ||
+                      formData.name.trim().length < 2 ||
+                      formData.personality.trim().length === 0 ||
+                      formData.situation.trim().length === 0 ||
+                      formData.instructions.trim().length === 0
+                    }
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navigateToChatAfterSaveRef.current = true;
+                      formRef.current?.requestSubmit();
+                    }}
+                  >
+                    {isLoading ? 'Обновление...' : 'Сохранить изменения'}
+                  </ContinueButton>
+                </div>
+              </RightColumn>
             </form>
           </MainContent>
 

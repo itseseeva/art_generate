@@ -617,7 +617,7 @@ export const ShopPage: React.FC<any> = ({
           <SaleText>СПЕЦИАЛЬНОЕ ПРЕДЛОЖЕНИЕ</SaleText>
           <DiscountTag>СКИДКА ДО 20%</DiscountTag>
         </SaleBanner>
-        
+
         <DurationTabs>
           <DurationTab $active={billingCycle === 'yearly'} onClick={() => setBillingCycle('yearly')}>
             Год

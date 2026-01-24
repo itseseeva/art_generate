@@ -806,7 +806,6 @@ const MessageComponent: React.FC<MessageProps> = ({
     if (!characterName || !message.content || !message.content.trim()) {
       // Если нет characterName или content, используем message.id как fallback
       const fallbackKey = `audio_url_${message.id}`;
-      console.log('[VOICE] Используем fallback ключ:', fallbackKey, { characterName, hasContent: !!message.content });
       return fallbackKey;
     }
     // Нормализуем content: убираем лишние пробелы и берем первые 200 символов
@@ -821,7 +820,6 @@ const MessageComponent: React.FC<MessageProps> = ({
       hash = hash & hash; // Convert to 32bit integer
     }
     const storageKey = `audio_url_${Math.abs(hash)}`;
-    console.log('[VOICE] Создан ключ storage:', storageKey, { characterName, contentLength: normalizedContent.length });
     return storageKey;
   }, [characterName, message.content, message.id]);
 
@@ -829,14 +827,12 @@ const MessageComponent: React.FC<MessageProps> = ({
   useEffect(() => {
     const storageKey = getStorageKey();
     let savedAudioUrl = localStorage.getItem(storageKey);
-    console.log('[VOICE] Восстановление audioUrl:', { storageKey, savedAudioUrl: !!savedAudioUrl, messageId: message.id });
     
     // Если не найден по основному ключу, пробуем найти по message.id (fallback для старых записей)
     if (!savedAudioUrl && message.id) {
       const fallbackKey = `audio_url_${message.id}`;
       savedAudioUrl = localStorage.getItem(fallbackKey);
       if (savedAudioUrl) {
-        console.log('[VOICE] audioUrl найден по fallback ключу:', fallbackKey);
         // Мигрируем на новый ключ
         localStorage.setItem(storageKey, savedAudioUrl);
         localStorage.removeItem(fallbackKey);
@@ -845,9 +841,7 @@ const MessageComponent: React.FC<MessageProps> = ({
     
     if (savedAudioUrl) {
       setAudioUrl(savedAudioUrl);
-      console.log('[VOICE] audioUrl восстановлен из localStorage:', savedAudioUrl);
     } else {
-      console.log('[VOICE] audioUrl не найден в localStorage для ключа:', storageKey);
     }
   }, [getStorageKey, message.id]);
 
@@ -886,23 +880,18 @@ const MessageComponent: React.FC<MessageProps> = ({
       // Сначала проверяем переданные параметры функции (для обратной совместимости)
       if (paramVoiceId !== undefined && paramVoiceId !== null) {
         finalVoiceUrl = `/default_character_voices/${paramVoiceId}`;
-        console.log('[VOICE] Используется голос из параметра функции (voiceId):', paramVoiceId);
       } else if (paramVoiceUrl !== undefined && paramVoiceUrl !== null) {
         finalVoiceUrl = paramVoiceUrl;
-        console.log('[VOICE] Используется голос из параметра функции (voiceUrl):', paramVoiceUrl);
       }
       // Затем проверяем сохраненные значения из state компонента (выбранные в модальном окне)
       else if (selectedVoiceId) {
         finalVoiceUrl = `/default_character_voices/${selectedVoiceId}`;
-        console.log('[VOICE] Используется выбранный голос из state (voiceId):', selectedVoiceId);
       } else if (selectedVoiceUrl) {
         finalVoiceUrl = selectedVoiceUrl;
-        console.log('[VOICE] Используется выбранный голос из state (voiceUrl):', selectedVoiceUrl);
       }
       // Если ничего не выбрано, используем голос по умолчанию
       else {
         finalVoiceUrl = voiceUrl || "/default_character_voices/[Mita Miside (Russian voice)]Ммм........упим_.mp3";
-        console.log('[VOICE] Используется голос по умолчанию:', finalVoiceUrl);
       }
 
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/chat/generate_voice`, {
@@ -931,11 +920,6 @@ const MessageComponent: React.FC<MessageProps> = ({
           ? `${API_CONFIG.BASE_URL}${data.audio_url}` 
           : data.audio_url;
         
-        console.log('[VOICE] Генерация голоса успешна:', {
-          audio_url: data.audio_url,
-          BASE_URL: API_CONFIG.BASE_URL,
-          fullAudioUrl: fullAudioUrl
-        });
         
         setAudioUrl(fullAudioUrl);
         
@@ -953,45 +937,27 @@ const MessageComponent: React.FC<MessageProps> = ({
         const audio = new Audio(fullAudioUrl);
         audioRef.current = audio;
         audio.onended = () => {
-          console.log('[VOICE] Аудио завершено');
           setIsPlaying(false);
         };
         audio.onpause = () => {
-          console.log('[VOICE] Аудио приостановлено');
           setIsPlaying(false);
         };
         audio.onerror = (e) => {
-          console.error('[VOICE] Ошибка воспроизведения аудио:', {
-            error: e,
-            audioUrl: fullAudioUrl,
-            audioSrc: audio.src,
-            audioError: audio.error
-          });
           setIsPlaying(false);
           setErrorModalMessage(`Ошибка воспроизведения аудио: ${audio.error?.message || 'Неизвестная ошибка'}`);
         };
         audio.onloadstart = () => {
-          console.log('[VOICE] Начало загрузки аудио:', fullAudioUrl);
         };
         audio.oncanplay = () => {
-          console.log('[VOICE] Аудио готово к воспроизведению');
         };
         audio.onloadeddata = () => {
-          console.log('[VOICE] Аудио данные загружены');
         };
         
         // Автоматически воспроизводим после загрузки
         audio.load();
         audio.play().then(() => {
-          console.log('[VOICE] Воспроизведение начато успешно');
           setIsPlaying(true);
         }).catch((error) => {
-          console.error('[VOICE] Ошибка при воспроизведении:', {
-            error: error,
-            audioUrl: fullAudioUrl,
-            audioSrc: audio.src,
-            audioError: audio.error
-          });
           setIsPlaying(false);
           setErrorModalMessage(`Не удалось воспроизвести аудио: ${error.message || 'Неизвестная ошибка'}`);
         });
@@ -1440,7 +1406,6 @@ const MessageComponent: React.FC<MessageProps> = ({
                           audioRef.current.play().then(() => {
                             setIsPlaying(true);
                           }).catch((error) => {
-                            console.error('[VOICE] Ошибка при воспроизведении:', error);
                             setIsPlaying(false);
                           });
                         } else {
@@ -1454,14 +1419,12 @@ const MessageComponent: React.FC<MessageProps> = ({
                             setIsPlaying(false);
                           };
                           audio.onerror = (e) => {
-                            console.error('[VOICE] Ошибка воспроизведения аудио:', e);
                             setIsPlaying(false);
                             setErrorModalMessage('Ошибка воспроизведения аудио. Попробуйте перегенерировать голос.');
                           };
                           audio.play().then(() => {
                             setIsPlaying(true);
                           }).catch((error) => {
-                            console.error('[VOICE] Ошибка при воспроизведении:', error);
                             setIsPlaying(false);
                             setErrorModalMessage('Не удалось воспроизвести аудио. Попробуйте перегенерировать голос.');
                           });

@@ -775,7 +775,6 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
         setAvailableVoices(data);
       }
     } catch (err) {
-      console.error('Ошибка загрузки голосов:', err);
     } finally {
       setIsLoading(false);
     }
@@ -823,7 +822,6 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
       await audio.play();
       setPlayingVoiceUrl(audioUrlToPlay);
     } catch (error) {
-      console.error('Ошибка воспроизведения превью:', error);
       setPlayingVoiceUrl(null);
     }
   };
@@ -1003,14 +1001,6 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
             {(() => {
               const currentVoices = activeTab === 'default' ? defaultVoices : userVoices;
               const hasMoreThanFive = currentVoices.length > 5;
-              console.log('[VOICE SELECTOR]', {
-                activeTab,
-                defaultVoicesCount: defaultVoices.length,
-                userVoicesCount: userVoices.length,
-                currentVoicesCount: currentVoices.length,
-                hasMoreThanFive,
-                isExpanded
-              });
               
               return hasMoreThanFive && (
                 <ExpandButton

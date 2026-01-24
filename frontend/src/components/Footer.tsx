@@ -56,13 +56,6 @@ const FooterColumn = styled.div`
   }
 `;
 
-const FooterTitle = styled.span`
-  color: #ffffff;
-  font-size: 0.6rem;
-  font-weight: 600;
-  margin-right: 0.2rem;
-`;
-
 const FooterText = styled.span`
   color: #888888;
   font-size: 0.6rem;
@@ -84,40 +77,6 @@ const FooterLink = styled.a`
   }
 `;
 
-const SocialLinks = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-left: 0.4rem;
-`;
-
-const SocialLink = styled.a`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  transition: transform 0.2s, opacity 0.2s;
-  opacity: 0.7;
-  text-decoration: none;
-  color: #888888;
-  
-  &:hover {
-    transform: scale(1.05);
-    opacity: 1;
-    color: ${theme.colors.accent.primary};
-  }
-`;
-
-const SocialIcon = styled.img`
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
-`;
-
-const SocialText = styled.span`
-  font-size: 0.6rem;
-  color: inherit;
-`;
-
 export const Footer: React.FC = () => {
   return (
     <FooterContainer>
@@ -128,29 +87,13 @@ export const Footer: React.FC = () => {
           <FooterLink href="/about">О сервисе</FooterLink>
           <FooterSeparator>|</FooterSeparator>
           <FooterLink href="/legal">Оферта / Реквизиты</FooterLink>
+          <FooterSeparator>|</FooterSeparator>
+          <FooterLink href="/terms-of-service.html" target="_blank">Пользовательское соглашение</FooterLink>
+          <FooterSeparator>|</FooterSeparator>
+          <FooterLink href="/privacy-policy.html" target="_blank">Политика конфиденциальности</FooterLink>
         </FooterColumn>
         <FooterSeparator>|</FooterSeparator>
         <FooterText>Крецу Василе, ИНН: 772426525886</FooterText>
-        <SocialLinks>
-          <SocialLink 
-            href="https://t.me/CherryLustClub" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            aria-label="Telegram"
-          >
-            <SocialIcon src="/tg.png" alt="Telegram" />
-            <SocialText>Telegram</SocialText>
-          </SocialLink>
-          <SocialLink 
-            href="https://x.com/CherrylustAI" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            aria-label="X (Twitter)"
-          >
-            <SocialIcon src="/twitter_x_new_logo_square_x_icon_256075.webp" alt="X (Twitter)" />
-            <SocialText>X (Twitter)</SocialText>
-          </SocialLink>
-        </SocialLinks>
       </FooterContent>
     </FooterContainer>
   );

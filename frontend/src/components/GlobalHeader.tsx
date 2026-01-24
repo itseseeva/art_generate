@@ -14,8 +14,11 @@ const HeaderContainer = styled.div`
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  z-index: 1000;
-  position: relative;
+  z-index: 10000;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   height: 55px;
   overflow: visible;
@@ -33,6 +36,11 @@ const LeftSection = styled.div`
   gap: 1.5rem;
   height: 100%;
   overflow: visible;
+  margin-left: 90px;
+  
+  @media (max-width: 768px) {
+    margin-left: 75px;
+  }
 `;
 
 const Logo = styled.img`

@@ -578,7 +578,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
         <div>
           <Title>Платный альбом {displayName}</Title>
           <Description>
-            Здесь собраны эксклюзивные фотографии персонажа. Альбом доступен только пользователям, которые его разблокировали.
+            Здесь собраны фотографии персонажа, которые создал пользователь. В альбоме не содержатся фотографии 18+ и откровенного контента.
           </Description>
         </div>
 
@@ -663,9 +663,9 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
       {isUpgradeModalOpen && (
         <UpgradeOverlay onClick={() => setIsUpgradeModalOpen(false)}>
           <UpgradeModal onClick={(e) => e.stopPropagation()}>
-            <UpgradeTitle>Создание платного альбома недоступно</UpgradeTitle>
+            <UpgradeTitle>Разблокировка альбома недоступна</UpgradeTitle>
             <UpgradeText>
-              Добавление фотографий доступно только подписчикам Standard и Premium. Оформите подписку, чтобы получать 15% от продаж альбома.
+              В альбоме не содержатся фотографии 18+ и откровенного контента. Разблокировка и добавление фотографий в альбом доступны только подписчикам Standard и Premium. Оформите подписку, чтобы получить доступ к этой функции.
             </UpgradeText>
             <UpgradeActions>
               <ActionButton onClick={() => {

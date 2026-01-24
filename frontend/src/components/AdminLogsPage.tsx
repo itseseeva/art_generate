@@ -247,23 +247,19 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({
       const response = await authManager.fetchWithAuth('/api/v1/admin/users-table?limit=1000');
       if (!response.ok) {
         if (response.status === 403) {
-          console.error('[AdminLogs] Доступ запрещён для таблицы пользователей');
           setTableError('Доступ запрещён. Только для администраторов.');
           setUsersTable([]);
           return;
         }
         const errorText = await response.text();
-        console.error(`[AdminLogs] Ошибка загрузки таблицы пользователей: ${response.status} - ${errorText}`);
         setTableError(`Ошибка загрузки: ${response.status}`);
         setUsersTable([]);
         return;
       }
       const data = await response.json();
-      console.log('[AdminLogs] Загружено пользователей:', data.users?.length || 0);
       setUsersTable(data.users ?? []);
       setTableError(null);
     } catch (e) {
-      console.error('[AdminLogs] Исключение при загрузке таблицы пользователей:', e);
       setTableError(e instanceof Error ? e.message : 'Не удалось загрузить таблицу');
       setUsersTable([]);
     } finally {

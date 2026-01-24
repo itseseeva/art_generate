@@ -2524,13 +2524,20 @@ async def chat_endpoint(
                 else:
                     # Если кредиты подписки закончились, проверяем монеты (fallback)
                     from app.services.coins_service import CoinsService
+                    from app.models.user import Users
+                    from sqlalchemy import select
                     coins_service = CoinsService(db)
-                    can_send_message = await coins_service.can_user_send_message(coins_user_id)
+                    # Используем use_cache=False для получения актуальных данных из БД
+                    can_send_message = await coins_service.can_user_send_message(coins_user_id, use_cache=False)
                     
                     if not can_send_message:
-                        coins = await coins_service.get_user_coins(coins_user_id)
+                        # Получаем актуальный баланс из БД для логирования
+                        result = await db.execute(
+                            select(Users.coins).where(Users.id == coins_user_id)
+                        )
+                        coins = result.scalars().first()
                         logger.error(
-                            "[ERROR] Недостаточно ресурсов! У пользователя %s: %s монет (нужно 2), кредиты: %s/%s",
+                            "[ERROR] Недостаточно ресурсов! У пользователя %s: %s монет (нужно 5), кредиты: %s/%s",
                             user_id,
                             coins or 0,
                             subscription.used_credits if subscription else 0,
@@ -2538,7 +2545,7 @@ async def chat_endpoint(
                         )
                         raise HTTPException(
                             status_code=403, 
-                            detail="Недостаточно кредитов подписки или монет для отправки сообщения! Нужно 2 кредита или 2 монеты."
+                            detail="Недостаточно кредитов подписки или монет для отправки сообщения! Нужно 5 кредитов или 5 монет."
                         )
                     use_credits = False  # Используем монеты
                     logger.info(f"[OK] Пользователь {user_id} может отправить сообщение за счет монет")

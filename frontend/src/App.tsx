@@ -463,19 +463,31 @@ function App() {
       const { characterId, characterName, characterIdentifier } = event.detail || {};
 
       if (characterId || characterName || characterIdentifier) {
+        // КРИТИЧНО: Приоритет ID > новое имя > старый идентификатор
+        // Используем characterName (новое имя из API) если оно есть, иначе characterId/characterIdentifier
         const identifier = characterId || characterName || characterIdentifier;
 
         // Пытаемся загрузить персонажа
         const character = await loadCharacterById(identifier);
 
         if (character) {
+          // КРИТИЧНО: Обновляем имя персонажа из ответа API, если оно отличается
+          // Это гарантирует, что используется актуальное имя после переименования
+          if (characterName && character.name !== characterName) {
+            character.name = characterName;
+            // Обновляем raw.name если есть
+            if (character.raw) {
+              character.raw.name = characterName;
+            }
+          }
+
           setSelectedCharacter(character);
           setCurrentPage('chat');
-          // Сохраняем персонажа в localStorage
-          const storageKey = character.id ? `character_${character.id}` : `character_${character.name}`;
+          // Сохраняем персонажа в localStorage с актуальным именем
+          const storageKey = character.id ? `character_${character.id}` : `character_${character.name || characterName || identifier}`;
           localStorage.setItem(storageKey, JSON.stringify(character));
-          // Обновляем URL
-          const urlIdentifier = character.id || character.name || identifier;
+          // Обновляем URL - приоритет ID > новое имя > идентификатор
+          const urlIdentifier = character.id || characterName || character.name || identifier;
           window.history.pushState(
             { page: 'chat', character: urlIdentifier },
             '',
@@ -1601,8 +1613,6 @@ function App() {
           onLogout={handleLogout}
           isAuthenticated={isAuthenticated}
           isAdmin={userInfo?.is_admin || false}
-          contentMode={contentMode}
-          onContentModeChange={setContentMode}
         />
         <PageContainer className="app-scroll-container" $isMobile={isMobile}>
           {renderPage()}

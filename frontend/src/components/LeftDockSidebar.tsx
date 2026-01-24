@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { FiPlusCircle, FiEdit, FiClock, FiHeart, FiGrid, FiHome, FiMessageSquare, FiTrendingUp, FiChevronRight, FiAlertTriangle, FiUser, FiLogIn, FiUserPlus, FiLogOut, FiDollarSign, FiRefreshCw, FiFileText, FiBarChart2 } from 'react-icons/fi';
-import Switcher4 from './Switcher4';
-import { NSFWWarningModal } from './NSFWWarningModal';
 
 import Dock, { type DockItemData } from './Dock';
 import { theme } from '../theme';
@@ -27,8 +25,6 @@ interface LeftDockSidebarProps {
   onLogout?: () => void;
   isAuthenticated?: boolean;
   isAdmin?: boolean;
-  contentMode?: 'safe' | 'nsfw';
-  onContentModeChange?: (mode: 'safe' | 'nsfw') => void;
 }
 
 const SidebarWrapper = styled.div`
@@ -195,89 +191,6 @@ const ToggleArrowButton = styled.button<{ $isCollapsed?: boolean }>`
   }
 `;
 
-const FilterTooltip = styled.div`
-  position: absolute;
-  top: calc(100% - 12px);
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  white-space: nowrap;
-  opacity: 1;
-  pointer-events: none;
-  z-index: 1000;
-  color: #ff0080;
-  text-shadow: 0 0 10px rgba(255, 0, 128, 0.8),
-               0 0 20px rgba(255, 140, 0, 0.6),
-               0 0 30px rgba(138, 43, 226, 0.4);
-  animation: colorShift 4s ease infinite;
-  
-  @keyframes colorShift {
-    0% {
-      color: #ff0080;
-      text-shadow: 0 0 10px rgba(255, 0, 128, 1),
-                   0 0 20px rgba(255, 140, 0, 0.8),
-                   0 0 30px rgba(138, 43, 226, 0.6),
-                   0 0 40px rgba(255, 0, 128, 0.4);
-    }
-    16.66% {
-      color: #ff8c00;
-      text-shadow: 0 0 10px rgba(255, 140, 0, 1),
-                   0 0 20px rgba(255, 215, 0, 0.8),
-                   0 0 30px rgba(255, 0, 128, 0.6),
-                   0 0 40px rgba(255, 140, 0, 0.4);
-    }
-    33.33% {
-      color: #ffd700;
-      text-shadow: 0 0 10px rgba(255, 215, 0, 1),
-                   0 0 20px rgba(50, 205, 50, 0.8),
-                   0 0 30px rgba(255, 140, 0, 0.6),
-                   0 0 40px rgba(255, 215, 0, 0.4);
-    }
-    50% {
-      color: #32cd32;
-      text-shadow: 0 0 10px rgba(50, 205, 50, 1),
-                   0 0 20px rgba(0, 191, 255, 0.8),
-                   0 0 30px rgba(255, 215, 0, 0.6),
-                   0 0 40px rgba(50, 205, 50, 0.4);
-    }
-    66.66% {
-      color: #00bfff;
-      text-shadow: 0 0 10px rgba(0, 191, 255, 1),
-                   0 0 20px rgba(138, 43, 226, 0.8),
-                   0 0 30px rgba(50, 205, 50, 0.6),
-                   0 0 40px rgba(0, 191, 255, 0.4);
-    }
-    83.33% {
-      color: #8a2be2;
-      text-shadow: 0 0 10px rgba(138, 43, 226, 1),
-                   0 0 20px rgba(255, 0, 128, 0.8),
-                   0 0 30px rgba(0, 191, 255, 0.6),
-                   0 0 40px rgba(138, 43, 226, 0.4);
-    }
-    100% {
-      color: #ff0080;
-      text-shadow: 0 0 10px rgba(255, 0, 128, 1),
-                   0 0 20px rgba(255, 140, 0, 0.8),
-                   0 0 30px rgba(138, 43, 226, 0.6),
-                   0 0 40px rgba(255, 0, 128, 0.4);
-    }
-  }
-`;
-
-const SwitcherContainer = styled.div`
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 0.6rem 0;
-  margin-top: calc(0.5rem - 4px);
-  transform: translateY(-20%);
-  position: relative;
-`;
-
 const SidebarContent = styled.div<{ $isCollapsed?: boolean; $isMobile?: boolean }>`
   width: 100%;
   display: flex !important;
@@ -317,11 +230,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   onLogout,
   isAuthenticated = false,
   isAdmin = false,
-  contentMode = 'safe',
-  onContentModeChange,
 }) => {
-  const [showNSFWWarning, setShowNSFWWarning] = useState(false);
-  const [pendingMode, setPendingMode] = useState<'safe' | 'nsfw' | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false); // Панель развернута по умолчанию
   const [arrowTop, setArrowTop] = useState<string>('50%');
   const dockWrapperRef = useRef<HTMLDivElement>(null);
@@ -436,7 +345,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
         setUnreadMessagesCount(0);
         return;
       }
-      
+
       try {
         const response = await authManager.fetchWithAuth('/api/v1/auth/tip-messages/unread-count/');
         if (response.ok) {
@@ -446,17 +355,17 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
       } catch (error) {
       }
     };
-    
+
     loadUnreadCount();
-    
+
     const interval = setInterval(loadUnreadCount, 30000);
-    
+
     const handleMessagesRead = () => {
       loadUnreadCount();
     };
-    
+
     window.addEventListener('tip-messages-read', handleMessagesRead);
-    
+
     return () => {
       clearInterval(interval);
       window.removeEventListener('tip-messages-read', handleMessagesRead);
@@ -468,23 +377,23 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
       const timeoutId = setTimeout(() => {
         const dockWrapper = dockWrapperRef.current;
         if (!dockWrapper) return;
-        
+
         const dockPanel = dockWrapper.querySelector('.dock-panel-vertical');
         if (!dockPanel) return;
-        
+
         const items = dockPanel.querySelectorAll('.dock-item');
         if (items.length === 0) return;
-        
+
         let charactersElement: Element | null = null;
         let bugReportElement: Element | null = null;
-        
+
         items.forEach((item) => {
           const label = item.querySelector('.dock-label-vertical')?.textContent?.trim();
           if (label === 'Персонажи' && !charactersElement) {
             charactersElement = item;
           }
         });
-        
+
         if (charactersElement) {
           let foundCharacters = false;
           items.forEach((item) => {
@@ -500,19 +409,19 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
             }
           });
         }
-        
+
         if (charactersElement && bugReportElement) {
           const charactersRect = charactersElement.getBoundingClientRect();
           const bugReportRect = bugReportElement.getBoundingClientRect();
-          
+
           const spaceStart = charactersRect.bottom;
           const spaceEnd = bugReportRect.top;
           const middleY = (spaceStart + spaceEnd) / 2;
-          
+
           setArrowTop(`${middleY}px`);
         }
       }, 400);
-      
+
       return () => clearTimeout(timeoutId);
     }
   }, [isCollapsed, isAuthenticated, onBalanceHistory, onMessages]);
@@ -521,11 +430,11 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
 
   return (
     <SidebarWrapper className="left-dock-sidebar-root" style={{ height: '100%' }}>
-      <ToggleArrowButton 
+      <ToggleArrowButton
         onClick={() => setIsCollapsed(!isCollapsed)}
         title={isCollapsed ? "Развернуть панель" : "Свернуть панель"}
         $isCollapsed={isCollapsed}
-        style={{ 
+        style={{
           top: isCollapsed ? '50%' : arrowTop,
           left: isCollapsed ? (isMobile ? '-4px' : '-8px') : (isMobile ? '64px' : '70px')
         }}
@@ -537,37 +446,6 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
           <HomeButton onClick={onHome} title="Главная">
             <FiHome size={16} />
           </HomeButton>
-          <SwitcherContainer style={{ display: 'flex' }}>
-            <FilterTooltip>NSFW</FilterTooltip>
-            <Switcher4
-              checked={contentMode === 'nsfw'}
-              onToggle={(checked) => {
-                if (checked && contentMode === 'safe') {
-                  setPendingMode('nsfw');
-                  setShowNSFWWarning(true);
-                } else {
-                  onContentModeChange?.(checked ? 'nsfw' : 'safe');
-                }
-              }}
-              variant="pink"
-            />
-          </SwitcherContainer>
-          
-          {showNSFWWarning && (
-            <NSFWWarningModal
-              onConfirm={() => {
-                setShowNSFWWarning(false);
-                if (pendingMode) {
-                  onContentModeChange?.(pendingMode);
-                  setPendingMode(null);
-                }
-              }}
-              onCancel={() => {
-                setShowNSFWWarning(false);
-                setPendingMode(null);
-              }}
-            />
-          )}
           <DockWrapper ref={dockWrapperRef} $isMobile={false}>
             <Dock
               items={allDockItems}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
 import { theme } from '../theme';
 import { ChatArea } from './ChatArea';
 import { MessageInput } from './MessageInput';
@@ -8,7 +8,6 @@ import { TipCreatorModal } from './TipCreatorModal';
 import { SuccessToast } from './SuccessToast';
 import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
-import { ErrorToast } from './ErrorToast';
 import { ConfirmModal } from './ConfirmModal';
 import { GlobalHeader } from './GlobalHeader';
 import { PhotoGenerationHelpModal } from './PhotoGenerationHelpModal';
@@ -16,7 +15,7 @@ import { extractRolePlayingSituation } from '../utils/characterUtils';
 import { authManager } from '../utils/auth';
 import { translateToEnglish } from '../utils/translate';
 import { FiUnlock, FiLock, FiSettings } from 'react-icons/fi';
-import { Plus, Sparkles, FolderOpen, Image } from 'lucide-react';
+import { Plus, Sparkles, FolderOpen } from 'lucide-react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { CharacterCard } from './CharacterCard';
 import { API_CONFIG } from '../config/api';
@@ -521,19 +520,6 @@ const PaidAlbumDescription = styled.p`
   line-height: 1.6;
 `;
 
-const PaidAlbumBadge = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: ${theme.spacing.xs};
-  padding: ${theme.spacing.xs} ${theme.spacing.sm};
-  border-radius: ${theme.borderRadius.full};
-  background: rgba(60, 60, 60, 0.5);
-  color: rgba(200, 200, 200, 1);
-  font-size: ${theme.fontSize.xs};
-  font-weight: 600;
-  margin-bottom: ${theme.spacing.md};
-`;
-
 const PaidAlbumButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   width: 100%;
   height: 42px;
@@ -631,6 +617,14 @@ const PaidAlbumInfo = styled.div`
   color: ${theme.colors.text.muted};
   line-height: 1.6;
   margin-top: ${theme.spacing.sm};
+`;
+
+const PaidAlbumDisclaimer = styled.div`
+  font-size: ${theme.fontSize.xs};
+  color: ${theme.colors.text.muted};
+  line-height: 1.5;
+  margin-top: ${theme.spacing.md};
+  opacity: 0.9;
 `;
 
 const PaidAlbumError = styled.div`
@@ -978,8 +972,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   // Очередь активных генераций: Set с ID сообщений, которые генерируются
   const [activeGenerations, setActiveGenerations] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
-  const [showErrorToast, setShowErrorToast] = useState(false);
-  const [errorToastMessage, setErrorToastMessage] = useState<string>('');
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [isTipModalOpen, setIsTipModalOpen] = useState(false);
@@ -1008,7 +1000,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             setSelectedVoiceId(data.voiceId || null);
             setSelectedVoiceUrl(data.voiceUrl || null);
           } catch (e) {
-            console.error('[VOICE] Ошибка загрузки выбранного голоса:', e);
           }
         } else {
           // Если нет сохраненного голоса, сбрасываем
@@ -2668,6 +2659,20 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           return;
         }
 
+        // Обработка 403 - недостаточно ресурсов
+        if (response.status === 403) {
+          const errorData = await response.json().catch(() => ({ detail: 'Недостаточно кредитов подписки или монет для отправки сообщения! Нужно 5 кредитов или 5 монет.' }));
+          setError(errorData.detail || 'Недостаточно кредитов подписки или монет для отправки сообщения! Нужно 5 кредитов или 5 монет.');
+          // Удаляем сообщения пользователя (если было) и ассистента
+          setMessages(prev => prev.filter(msg =>
+            (userMessage ? msg.id !== userMessage.id : true) && msg.id !== assistantMessageId
+          ));
+          setIsLoading(false);
+          // Обновляем баланс пользователя
+          await refreshUserStats();
+          return;
+        }
+
         // Обработка 404 - чат не найден, создаем новый
         if (response.status === 404) {
           // Удаляем текущий chat_id из состояния, чтобы создать новый
@@ -4079,17 +4084,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
           {(!isMobile || messages.length === 0) && (
             <PaidAlbumPanel>
-              <PaidAlbumTitle>
-                Разблокируйте обнажённые фото {albumCharacterName}
-              </PaidAlbumTitle>
-              <PaidAlbumBadge>
-                <Image size={16} strokeWidth={2.5} />
-                Стоимость: {PAID_ALBUM_COST} кредитов
-              </PaidAlbumBadge>
-              <PaidAlbumDescription>
-                Доступ к эксклюзивному альбому персонажа.
-              </PaidAlbumDescription>
-
               {/* Индикатор очереди генераций - вверху панели */}
               <GenerationQueueContainer>
                 <QueueLabel>ОЧЕРЕДЬ ГЕНЕРАЦИИ</QueueLabel>
@@ -4371,6 +4365,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   </>
                 );
               })()}
+
+              <PaidAlbumDisclaimer>
+                В альбоме не содержатся фотографии 18+ и откровенного контента.
+              </PaidAlbumDisclaimer>
             </PaidAlbumPanel>
           )}
         </ChatContentWrapper>
@@ -4385,6 +4383,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 : 'Разблокировка альбома недоступна'}
             </UpgradeModalTitle>
             <UpgradeModalText>
+              В альбоме не содержатся фотографии 18+ и откровенного контента.{' '}
               {normalizedSubscriptionType === 'base'
                 ? 'Платные альбомы доступны только для подписчиков Standard и Premium. Оформите подписку, чтобы создавать и расширять платные альбомы.'
                 : 'Разблокировка и добавление фотографий в альбом доступны только подписчикам Standard и Premium. Оформите подписку, чтобы получить доступ к этой функции.'}
@@ -4463,7 +4462,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               <ModelSelectionContainer>
                 <ModelCard
                   $isSelected={selectedModel === 'anime-realism'}
-                  $previewImage="/model_previews/анимереализм1.jpg"
+                  $previewImage="/анимереализм.jpg"
                   onClick={() => setSelectedModel('anime-realism')}
                 >
                   <ModelInfoOverlay>
@@ -4474,26 +4473,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
                 <ModelCard
                   $isSelected={selectedModel === 'anime'}
-                  $previewImage="/model_previews/аниме.jpeg"
+                  $previewImage="/аниме.png"
                   onClick={() => setSelectedModel('anime')}
                 >
                   <ModelInfoOverlay>
                     <ModelName>Аниме</ModelName>
                     <ModelDescription>Классический 2D стиль</ModelDescription>
-                  </ModelInfoOverlay>
-                </ModelCard>
-
-                <ModelCard
-                  $isSelected={selectedModel === 'realism'}
-                  $previewImage="/model_previews/реализм.jpg"
-                  onClick={() => {
-                    setErrorToastMessage('Данная модель находится в разработке');
-                    setShowErrorToast(true);
-                  }}
-                >
-                  <ModelInfoOverlay>
-                    <ModelName>Реализм</ModelName>
-                    <ModelDescription>Фотореалистичность</ModelDescription>
                   </ModelInfoOverlay>
                 </ModelCard>
               </ModelSelectionContainer>
@@ -4538,23 +4523,15 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   { label: 'Летнее платье', value: 'в легком летнем платье, летящая ткань' },
                   { label: 'Вечерний свет', value: 'мягкий вечерний свет, теплые тона' },
                   { label: 'Зима', value: 'зимний пейзаж, падающий снег, меховая одежда' },
-
-                  // Пошлые промпты (18+)
-                  { label: 'Соблазнительно', value: 'соблазнительная поза, игривый взгляд, эротично' },
-                  { label: 'Нижнее белье', value: 'в кружевном нижнем белье, прозрачные ткани' },
-                  { label: 'Обнаженная', value: 'обнаженная, полная нагота, детализированное тело' },
-                  { label: 'В постели', value: 'лежит в постели, шелковые простыни, интимная обстановка' },
-                  { label: 'Горячая ванна', value: 'в ванне с пеной, влажная кожа, капли воды' },
-                  { label: 'Чулки', value: 'в черных шелковых чулках с поясом' },
-                  { label: 'Мини-юбка', value: 'в экстремально короткой мини-юбке' },
-                  { label: 'Глубокое декольте', value: 'глубокое декольте, акцент на груди' },
-                  { label: 'Вид сзади', value: 'вид сзади, акцент на ягодицах, изящный изгиб спины' },
-                  { label: 'Мокрая одежда', value: 'в мокрой одежде, прилипающая ткань, прозрачность' },
-                  { label: 'Поза раком', value: 'стоит на четвереньках, прогнутая спина, вызывающая поза' },
-                  { label: 'Расставленные ноги', value: 'сидит с широко расставленными ногами, манящий взгляд' },
-                  { label: 'Прикрывает грудь', value: 'прикрывает обнаженную грудь руками, застенчиво' },
-                  { label: 'Кусает губу', value: 'возбужденное лицо, кусает губу, томный взгляд' },
-                  { label: 'Прозрачное боди', value: 'в прозрачном облегающем боди, все детали видны' }
+                  { label: 'Элегантный образ', value: 'элегантная поза, утонченный стиль, изысканность' },
+                  { label: 'Портрет крупным планом', value: 'крупный план лица, выразительный взгляд, детализированные черты' },
+                  { label: 'В парке', value: 'в городском парке, зеленая трава, солнечный свет' },
+                  { label: 'В кафе', value: 'в уютном кафе, теплая атмосфера, приятная обстановка' },
+                  { label: 'На природе', value: 'на природе, свежий воздух, красивые пейзажи' },
+                  { label: 'Вечерний наряд', value: 'в красивом вечернем наряде, элегантный стиль' },
+                  { label: 'Повседневный образ', value: 'в повседневной одежде, комфортный стиль' },
+                  { label: 'Спортивный стиль', value: 'в спортивной одежде, активный образ жизни' },
+                  { label: 'Романтичная атмосфера', value: 'романтичная обстановка, мягкое освещение, уют' }
                 ].map((tag, idx) => (
                   <TagButton
                     key={idx}

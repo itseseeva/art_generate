@@ -269,10 +269,28 @@ const TagsContainer = styled.div<{ $isExpanded: boolean }>`
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
-  max-height: ${props => props.$isExpanded ? '500px' : '36px'};
-  overflow: hidden;
+  max-height: ${props => props.$isExpanded ? '500px' : '40px'};
+  overflow: ${props => props.$isExpanded ? 'visible' : 'hidden'};
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
+  padding: 0 0 0 20px;
+  width: 100%;
+  z-index: 1;
+  
+  /* Маскируем невидимые теги когда контейнер свернут */
+  ${props => !props.$isExpanded && `
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(to bottom, transparent, rgba(20, 20, 30, 0.98));
+      pointer-events: none;
+      z-index: 2;
+    }
+  `}
 `;
 
 const ExpandButton = styled.div<{ $isExpanded: boolean }>`
@@ -308,23 +326,76 @@ const ExpandButton = styled.div<{ $isExpanded: boolean }>`
   }
 `;
 
-const TagButton = styled.button`
-  background: rgba(40, 40, 40, 0.6);
-  border: 1px solid rgba(80, 80, 80, 0.3);
-  border-radius: 16px;
-  padding: 4px 12px;
-  font-size: 11px;
-  color: ${theme.colors.text.secondary};
+const TagButton = styled.button<{ $category?: 'kind' | 'strict' | 'neutral' | 'other' }>`
+  background: ${props => {
+    if (props.$category === 'kind') return 'rgba(34, 197, 94, 0.15)';
+    if (props.$category === 'strict') return 'rgba(239, 68, 68, 0.15)';
+    return 'rgba(139, 92, 246, 0.15)';
+  }};
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid ${props => {
+    if (props.$category === 'kind') return 'rgba(34, 197, 94, 0.3)';
+    if (props.$category === 'strict') return 'rgba(239, 68, 68, 0.3)';
+    return 'rgba(139, 92, 246, 0.3)';
+  }};
+  border-radius: 17px;
+  padding: 5px 12px;
+  font-size: 10px;
+  font-weight: 600;
+  color: ${props => {
+    if (props.$category === 'kind') return 'rgba(34, 197, 94, 1)';
+    if (props.$category === 'strict') return 'rgba(239, 68, 68, 1)';
+    return 'rgba(139, 92, 246, 1)';
+  }};
   cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  white-space: nowrap;
+  position: relative;
+  z-index: 10;
+  margin: 4px 0;
 
   &:hover {
-    background: rgba(60, 60, 60, 0.8);
-    color: ${theme.colors.text.primary};
-    border-color: rgba(100, 100, 100, 0.5);
+    transform: translateY(-2px) scale(1.05);
+    z-index: 100;
+    margin: 8px 0;
+    background: ${props => {
+    if (props.$category === 'kind') return 'rgba(34, 197, 94, 0.25)';
+    if (props.$category === 'strict') return 'rgba(239, 68, 68, 0.25)';
+    return 'rgba(139, 92, 246, 0.25)';
+  }};
+    border-color: ${props => {
+    if (props.$category === 'kind') return 'rgba(34, 197, 94, 0.5)';
+    if (props.$category === 'strict') return 'rgba(239, 68, 68, 0.5)';
+    return 'rgba(139, 92, 246, 0.5)';
+  }};
+    box-shadow: 0 4px 12px ${props => {
+    if (props.$category === 'kind') return 'rgba(34, 197, 94, 0.3)';
+    if (props.$category === 'strict') return 'rgba(239, 68, 68, 0.3)';
+    return 'rgba(139, 92, 246, 0.3)';
+  }};
+  }
+  
+  &:active {
+    transform: translateY(0) scale(1);
+    margin: 4px 0;
+  }
+
+  &:focus {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px ${props => {
+    if (props.$category === 'kind') return 'rgba(34, 197, 94, 0.2)';
+    if (props.$category === 'strict') return 'rgba(239, 68, 68, 0.2)';
+    return 'rgba(139, 92, 246, 0.2)';
+  }};
   }
 `;
 
@@ -1136,35 +1207,100 @@ const ShowPromptButton = styled.button`
   }
 `;
 
-const GenerationQueueIndicator = styled.div`
+const GenerationQueueContainer = styled.div`
   display: flex;
-  flex-direction: row;
-  gap: 4px;
-  padding: 8px 12px;
-  background: rgba(30, 30, 30, 0.8);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(100, 100, 100, 0.3);
-  border-radius: ${theme.borderRadius.md};
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
   margin: 0 auto;
+  width: 100%;
   margin-top: ${theme.spacing.md};
 `;
 
-const QueueBar = styled.div<{ $isFilled: boolean }>`
-  width: 8px;
-  height: 20px;
-  background: ${props => props.$isFilled ? '#FFD700' : 'rgba(150, 150, 150, 0.5)'};
-  border-radius: 2px;
-  transition: background 0.2s ease;
+const GenerationQueueIndicator = styled.div`
+  position: relative;
+  width: 100%;
+  height: 6px;
+  background: rgba(20, 20, 20, 0.6);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+`;
+
+const QueueProgressBar = styled.div<{ $filled: number; $total: number }>`
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: ${props => (props.$filled / props.$total) * 100}%;
+  background: linear-gradient(90deg, #06b6d4 0%, #8b5cf6 50%, #ec4899 100%);
+  border-radius: 12px;
+  box-shadow: 
+    0 0 10px rgba(6, 182, 212, 0.5),
+    0 0 20px rgba(139, 92, 246, 0.3),
+    0 0 30px rgba(236, 72, 153, 0.2);
+  animation: pulse-glow 2s ease-in-out infinite;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  @keyframes pulse-glow {
+    0%, 100% {
+      opacity: 1;
+      box-shadow: 
+        0 0 10px rgba(6, 182, 212, 0.5),
+        0 0 20px rgba(139, 92, 246, 0.3),
+        0 0 30px rgba(236, 72, 153, 0.2);
+    }
+    50% {
+      opacity: 0.9;
+      box-shadow: 
+        0 0 15px rgba(6, 182, 212, 0.7),
+        0 0 30px rgba(139, 92, 246, 0.5),
+        0 0 45px rgba(236, 72, 153, 0.3);
+    }
+  }
+  
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.3),
+      transparent
+    );
+    animation: shimmer 2s infinite;
+  }
+  
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
 `;
 
 const QueueLabel = styled.div`
-  font-size: ${theme.fontSize.xs};
-  color: rgba(160, 160, 160, 1);
+  font-size: 10px;
+  color: rgba(160, 160, 160, 0.8);
   text-align: center;
-  margin-top: 8px;
   font-weight: 500;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+`;
+
+const QueueCounter = styled.div`
+  font-size: 11px;
+  color: rgba(200, 200, 200, 0.9);
+  text-align: center;
+  font-weight: 600;
+  margin-top: 4px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 `;
 
 interface PaidAlbumImage {
@@ -1874,7 +2010,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                 <ModelSelectionContainer>
                   <ModelCard 
                     $isSelected={selectedModel === 'anime-realism'}
-                    $previewImage="/model_previews/анимереализм1.jpg"
+                    $previewImage="/анимереализм.jpg"
                     onClick={() => setSelectedModel('anime-realism')}
                   >
                     <ModelInfoOverlay>
@@ -1885,23 +2021,12 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                   
                   <ModelCard 
                     $isSelected={selectedModel === 'anime'}
-                    $previewImage="/model_previews/аниме.jpeg"
+                    $previewImage="/аниме.png"
                     onClick={() => setSelectedModel('anime')}
                   >
                     <ModelInfoOverlay>
                       <ModelName>Аниме</ModelName>
                       <ModelDescription>Классический 2D стиль</ModelDescription>
-                    </ModelInfoOverlay>
-                  </ModelCard>
-                  
-                  <ModelCard 
-                    $isSelected={selectedModel === 'realism'}
-                    $previewImage="/model_previews/реализм.jpg"
-                    onClick={() => setSelectedModel('realism')}
-                  >
-                    <ModelInfoOverlay>
-                      <ModelName>Реализм</ModelName>
-                      <ModelDescription>Фотореалистичность</ModelDescription>
                     </ModelInfoOverlay>
                   </ModelCard>
                 </ModelSelectionContainer>
@@ -1937,27 +2062,20 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                       { label: 'Летнее платье', value: 'в легком летнем платье, летящая ткань' },
                       { label: 'Вечерний свет', value: 'мягкий вечерний свет, теплые тона' },
                       { label: 'Зима', value: 'зимний пейзаж, падающий снег, меховая одежда' },
-                      
-                      // Пошлые промпты (18+)
-                      { label: 'Соблазнительно', value: 'соблазнительная поза, игривый взгляд, эротично' },
-                      { label: 'Нижнее белье', value: 'в кружевном нижнем белье, прозрачные ткани' },
-                      { label: 'Обнаженная', value: 'обнаженная, полная нагота, детализированное тело' },
-                      { label: 'В постели', value: 'лежит в постели, шелковые простыни, интимная обстановка' },
-                      { label: 'Горячая ванна', value: 'в ванне с пеной, влажная кожа, капли воды' },
-                      { label: 'Чулки', value: 'в черных шелковых чулках с поясом' },
-                      { label: 'Мини-юбка', value: 'в экстремально короткой мини-юбке' },
-                      { label: 'Глубокое декольте', value: 'глубокое декольте, акцент на груди' },
-                      { label: 'Вид сзади', value: 'вид сзади, акцент на ягодицах, изящный изгиб спины' },
-                      { label: 'Мокрая одежда', value: 'в мокрой одежде, прилипающая ткань, прозрачность' },
-                      { label: 'Поза раком', value: 'стоит на четвереньках, прогнутая спина, вызывающая поза' },
-                      { label: 'Расставленные ноги', value: 'сидит с широко расставленными ногами, манящий взгляд' },
-                      { label: 'Прикрывает грудь', value: 'прикрывает обнаженную грудь руками, застенчиво' },
-                      { label: 'Кусает губу', value: 'возбужденное лицо, кусает губу, томный взгляд' },
-                      { label: 'Прозрачное боди', value: 'в прозрачном облегающем боди, все детали видны' }
+                      { label: 'Элегантный образ', value: 'элегантная поза, утонченный стиль, изысканность' },
+                      { label: 'Портрет крупным планом', value: 'крупный план лица, выразительный взгляд, детализированные черты' },
+                      { label: 'В парке', value: 'в городском парке, зеленая трава, солнечный свет' },
+                      { label: 'В кафе', value: 'в уютном кафе, теплая атмосфера, приятная обстановка' },
+                      { label: 'На природе', value: 'на природе, свежий воздух, красивые пейзажи' },
+                      { label: 'Вечерний наряд', value: 'в красивом вечернем наряде, элегантный стиль' },
+                      { label: 'Повседневный образ', value: 'в повседневной одежде, комфортный стиль' },
+                      { label: 'Спортивный стиль', value: 'в спортивной одежде, активный образ жизни' },
+                      { label: 'Романтичная атмосфера', value: 'романтичная обстановка, мягкое освещение, уют' }
                     ].map((tag, idx) => (
                       <TagButton 
                         key={idx}
                         type="button"
+                        $category="neutral"
                         onClick={(e) => {
                           e.preventDefault();
                           const separator = prompt.length > 0 && !prompt.endsWith(', ') && !prompt.endsWith(',') ? ', ' : '';
@@ -1965,7 +2083,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                           setPrompt(newValue);
                         }}
                       >
-                        <Plus size={10} /> {tag.label}
+                        <Plus size={8} /> {tag.label}
                       </TagButton>
                     ))}
                   </TagsContainer>
@@ -2081,19 +2199,18 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                 const activeGenerations = Math.min((isGenerating ? 1 : 0) + queueCount, queueLimit);
                 if (activeGenerations > 0 && queueLimit > 0) {
                   return (
-                    <div style={{ marginTop: '12px' }}>
+                    <GenerationQueueContainer>
+                      <QueueLabel>ОЧЕРЕДЬ ГЕНЕРАЦИИ</QueueLabel>
                       <GenerationQueueIndicator>
-                        {Array.from({ length: queueLimit }).map((_, index) => (
-                          <QueueBar 
-                            key={index} 
-                            $isFilled={index < activeGenerations}
-                          />
-                        ))}
+                        <QueueProgressBar
+                          $filled={activeGenerations}
+                          $total={queueLimit}
+                        />
                       </GenerationQueueIndicator>
-                      <QueueLabel>
-                        Очередь генерации ({activeGenerations}/{queueLimit})
-                      </QueueLabel>
-                    </div>
+                      <QueueCounter>
+                        Queue: {activeGenerations}/{queueLimit}
+                      </QueueCounter>
+                    </GenerationQueueContainer>
                   );
                 }
                 return null;
@@ -2102,11 +2219,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
 
             <GlassCard>
               <SectionTitle>Свежие изображения</SectionTitle>
-              {isGenerating && generatedPhotos.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '3rem' }}>
-                  <LoadingSpinner text={`Генерация изображения... ${fakeProgress}%`} />
-                </div>
-              ) : generatedPhotos.length === 0 ? (
+              {generatedPhotos.length === 0 ? (
                 <InfoText style={{ textAlign: 'center', padding: '2rem' }}>
                   Сгенерированные изображения появятся здесь
                 </InfoText>

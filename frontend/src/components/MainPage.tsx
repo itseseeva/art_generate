@@ -9,8 +9,6 @@ import { AuthModal } from './AuthModal';
 import { PhotoGenerationPage } from './PhotoGenerationPage';
 import { Footer } from './Footer';
 import { GlobalHeader } from './GlobalHeader';
-import Switcher4 from './Switcher4';
-import { NSFWWarningModal } from './NSFWWarningModal';
 import { API_CONFIG } from '../config/api';
 import { authManager } from '../utils/auth';
 import '../styles/ContentArea.css';
@@ -59,11 +57,16 @@ const FooterWrapper = styled.div`
 `;
 
 const HeaderWrapper = styled.div`
-  position: sticky;
-  top: 0;
-  z-index: 1000;
+  position: relative;
   width: 100%;
   background: transparent;
+  height: 55px;
+  flex-shrink: 0;
+  overflow: visible;
+  
+  @media (max-width: 768px) {
+    height: 45px;
+  }
 `;
 
 
@@ -222,6 +225,7 @@ const ContentArea = styled.div`
   display: flex;
   flex-direction: column;
   min-width: 0;
+  padding-top: 0;
 `;
 
 interface Character {
@@ -350,8 +354,6 @@ export const MainPage: React.FC<MainPageProps> = ({
   const [characterRatings, setCharacterRatings] = useState<{[key: number]: {likes: number, dislikes: number}}>({});
   const lastCharactersUpdateRef = useRef<number>(0); // Для отслеживания последнего обновления
 
-  const [showNSFWWarning, setShowNSFWWarning] = useState(false);
-  const [pendingMode, setPendingMode] = useState<'safe' | 'nsfw' | null>(null);
 
   const fetchCharactersFromApi = async (forceRefresh: boolean = false): Promise<any[]> => {
     const endpoints = [
@@ -437,17 +439,7 @@ export const MainPage: React.FC<MainPageProps> = ({
             is_nsfw: char.is_nsfw === true, // Явная проверка: только true считается NSFW
           raw: char // Сохраняем raw данные для доступа к user_id
         };
-        })
-        .filter((char: any) => {
-          // Фильтруем персонажей ТОЛЬКО по режиму NSFW
-          // НЕ фильтруем по наличию истории - все персонажи должны показываться независимо от истории
-          // В режиме NSFW показываем только персонажей с is_nsfw === true
-          // В режиме SAFE показываем персонажей с is_nsfw !== true (включая null/undefined)
-          const isNsfw = char.is_nsfw === true;
-          const shouldShow = contentMode === 'nsfw' ? isNsfw : !isNsfw;
-          
-          return shouldShow;
-      });
+        });
 
       setCharacters(formattedCharacters);
       
@@ -629,11 +621,6 @@ export const MainPage: React.FC<MainPageProps> = ({
             ...char,
             photos: photosMap[key] || char.photos || []
           };
-        })
-        .filter((char: any) => {
-          // Фильтруем персонажей по режиму NSFW
-          const isNsfw = char.is_nsfw === true; // Явная проверка: только true считается NSFW
-          return contentMode === 'nsfw' ? isNsfw : !isNsfw;
         }));
     } catch (error) {
       
@@ -1039,22 +1026,6 @@ export const MainPage: React.FC<MainPageProps> = ({
             onHome={onHome}
           />
         </HeaderWrapper>
-      {showNSFWWarning && (
-        <NSFWWarningModal
-          onConfirm={() => {
-            setShowNSFWWarning(false);
-            if (pendingMode) {
-              onContentModeChange?.(pendingMode);
-              setPendingMode(null);
-            }
-          }}
-          onCancel={() => {
-            setShowNSFWWarning(false);
-            setPendingMode(null);
-          }}
-        />
-      )}
-
       <ContentArea>
       {isPhotoGenerationOpen && createdCharacter ? (
         <PhotoGenerationPage

@@ -40,10 +40,34 @@ class CoinsService:
             return False
         return True
     
-    async def can_user_afford(self, user_id: int, amount: int) -> bool:
-        """Проверяет, достаточно ли монет у пользователя."""
-        coins = await self.get_user_coins(user_id)
-        return coins is not None and coins >= amount
+    async def can_user_afford(self, user_id: int, amount: int, use_cache: bool = True) -> bool:
+        """
+        Проверяет, достаточно ли монет у пользователя.
+        
+        Args:
+            user_id: ID пользователя
+            amount: Необходимое количество монет
+            use_cache: Использовать ли кэш (по умолчанию True). 
+                      Если False, всегда получает актуальные данные из БД.
+        
+        Returns:
+            True если у пользователя достаточно монет (coins >= amount), иначе False.
+            Если баланс отрицательный, всегда возвращает False.
+        """
+        if use_cache:
+            coins = await self.get_user_coins(user_id)
+        else:
+            # Получаем актуальные данные из БД, минуя кэш
+            result = await self.db.execute(
+                select(Users.coins).where(Users.id == user_id)
+            )
+            coins = result.scalars().first()
+        
+        # Блокируем отправку при отрицательном или недостаточном балансе
+        if coins is None:
+            return False
+        # Проверяем, что баланс неотрицательный и достаточен для операции
+        return coins >= amount
     
     async def get_user_coins(self, user_id: int) -> Optional[int]:
         """Получает количество монет пользователя с кэшированием."""
@@ -64,9 +88,18 @@ class CoinsService:
         
         return coins
     
-    async def can_user_send_message(self, user_id: int) -> bool:
-        """Проверяет, может ли пользователь отправить сообщение (стоимость: 5 монет)."""
-        return await self.can_user_afford(user_id, 5)
+    async def can_user_send_message(self, user_id: int, use_cache: bool = False) -> bool:
+        """
+        Проверяет, может ли пользователь отправить сообщение (стоимость: 5 монет).
+        
+        Args:
+            user_id: ID пользователя
+            use_cache: Использовать ли кэш. По умолчанию False для получения актуальных данных.
+        
+        Returns:
+            True если у пользователя достаточно монет для отправки сообщения, иначе False.
+        """
+        return await self.can_user_afford(user_id, 5, use_cache=use_cache)
     
     async def can_user_generate_photo(self, user_id: int) -> bool:
         """Проверяет, может ли пользователь сгенерировать фото (стоимость: 10 монет)."""

@@ -1619,13 +1619,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         // Фильтруем персонажей с валидным id (та же фильтрация, что и для formattedCharacters)
         const filteredCharacters = myCharacters.filter((char: any) => char && char.id != null);
         
-        console.log('[ProfilePage] Загружено персонажей:', {
-          total: charactersData.length,
-          filtered: filteredCharacters.length,
-          targetUserId,
-          profileUserId,
-          currentUserId
-        });
         
         // Сохраняем raw данные персонажей (только отфильтрованные, чтобы индексы совпадали с userCharacters)
         setRawCharactersData(filteredCharacters);
@@ -1635,12 +1628,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         // Сохраняем персонажей (используем rawCharactersData для отображения)
         setUserCharacters(filteredCharacters);
       } else {
-        console.warn('[ProfilePage] Ошибка загрузки персонажей:', response.status, response.statusText);
         setUserCharacters([]);
         setRawCharactersData([]);
       }
     } catch (error) {
-      console.error('[ProfilePage] Ошибка загрузки персонажей пользователя:', error);
       setUserCharacters([]);
       setRawCharactersData([]);
     }
