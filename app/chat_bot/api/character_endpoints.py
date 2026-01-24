@@ -2485,7 +2485,7 @@ async def update_user_character(
                 "personality": r"Personality and Character:\s*(.+?)(?=\n\s*Role-playing Situation:|$)",
                 "situation": r"Role-playing Situation:\s*(.+?)(?=\n\s*Instructions:|$)",
                 "instructions": r"Instructions:\s*(.+?)(?=\n\s*Response Style:|$)",
-                "style": r"Response Style:\s*(.+?)(?=\n|$)"
+                "style": r"Response Style:\s*(.+?)(?=\n\s*IMPORTANT:|$)"
             }
             
             if field_name in patterns:
@@ -2512,12 +2512,15 @@ async def update_user_character(
                 current_instructions = current_instructions[:marker_index].rstrip() if marker_index > 0 else ''
         
         # Удаляем дефолтные инструкции из новых instructions для корректного сравнения
-        user_instructions = character.instructions
-        user_had_default_instructions = DEFAULT_INSTRUCTIONS_MARKER in user_instructions
+        # Но сохраняем оригинальные instructions для сохранения, если пользователь их явно вставил
+        original_user_instructions = character.instructions
+        user_instructions_for_comparison = original_user_instructions
+        user_had_default_instructions = DEFAULT_INSTRUCTIONS_MARKER in original_user_instructions
         if user_had_default_instructions:
-            marker_index = user_instructions.find(DEFAULT_INSTRUCTIONS_MARKER)
+            marker_index = original_user_instructions.find(DEFAULT_INSTRUCTIONS_MARKER)
             if marker_index >= 0:
-                user_instructions = user_instructions[:marker_index].rstrip() if marker_index > 0 else ''
+                # Для сравнения используем обрезанную версию
+                user_instructions_for_comparison = original_user_instructions[:marker_index].rstrip() if marker_index > 0 else ''
         
         # Нормализуем значения для сравнения (убираем лишние пробелы)
         def normalize_text(text: str) -> str:
@@ -2546,11 +2549,11 @@ async def update_user_character(
         normalized_current_voice_url = normalize_voice_url(current_voice_id, current_voice_url)
         normalized_new_voice_url = normalize_voice_url(character.voice_id or "", character.voice_url or "")
         
-        # Сравниваем текстовые поля
+        # Сравниваем текстовые поля (используем обрезанную версию для сравнения)
         name_changed = normalize_text(character.name) != normalize_text(current_name)
         personality_changed = normalize_text(character.personality) != normalize_text(current_personality)
         situation_changed = normalize_text(character.situation) != normalize_text(current_situation)
-        instructions_changed = normalize_text(user_instructions) != normalize_text(current_instructions)
+        instructions_changed = normalize_text(user_instructions_for_comparison) != normalize_text(current_instructions)
         style_changed = normalize_text(character.style or "") != normalize_text(current_style)
         appearance_changed = normalize_text(character.appearance or "") != normalize_text(current_appearance)
         location_changed = normalize_text(character.location or "") != normalize_text(current_location)
@@ -2579,7 +2582,7 @@ async def update_user_character(
             if situation_changed:
                 logger.info(f"  - situation: изменено (длина: {len(current_situation)} -> {len(character.situation)})")
             if instructions_changed:
-                logger.info(f"  - instructions: изменено (длина: {len(current_instructions)} -> {len(user_instructions)})")
+                logger.info(f"  - instructions: изменено (длина: {len(current_instructions)} -> {len(user_instructions_for_comparison)})")
             if style_changed:
                 logger.info(f"  - style: '{current_style}' -> '{character.style or ''}'")
             if appearance_changed:
@@ -2690,7 +2693,11 @@ async def update_user_character(
             db_char.name = character.name
             db_char.display_name = character.name
         
-        # user_instructions уже обработан выше при сравнении полей
+        # Используем оригинальные instructions для сохранения
+        # Если пользователь явно вставил дефолтные инструкции, они сохранятся
+        instructions_to_save = original_user_instructions
+        logger.info(f"[UPDATE CHARACTER] Оригинальные instructions (длина: {len(instructions_to_save)}): {instructions_to_save[:100]}...")
+        logger.info(f"[UPDATE CHARACTER] remove_default_instructions = {character.remove_default_instructions}")
         
         # Формируем новый промпт из данных пользователя
         full_prompt = f"""Character: {character.name}
@@ -2702,7 +2709,7 @@ Role-playing Situation:
 {character.situation}
 
 Instructions:
-{user_instructions}"""
+{instructions_to_save}"""
 
         if character.style:
             full_prompt += f"""
@@ -2710,13 +2717,40 @@ Instructions:
 Response Style:
 {character.style}"""
 
-        # BEST PRACTICE: Добавляем дефолтные инструкции только если пользователь их НЕ удалил
-        # Если пользователь удалил их из instructions (user_had_default_instructions == False), значит он намеренно их удалил
-        # и мы НЕ добавляем их снова
-        # Если они были в instructions (user_had_default_instructions == True), значит они были добавлены автоматически,
-        # мы их удалили выше, и НЕ добавляем снова (пользователь может их удалить, оставив instructions пустым)
-        
-        # НЕ добавляем дефолтные инструкции - пользователь должен явно их добавить, если хочет
+        # Если пользователь явно нажал кнопку удаления дефолтных инструкций,
+        # не добавляем их в промпт и удаляем из instructions, если они там есть
+        if character.remove_default_instructions:
+            logger.info(f"[UPDATE CHARACTER] Удаление дефолтных инструкций для персонажа '{decoded_name}'")
+            # Удаляем дефолтные инструкции из instructions_to_save, если они там есть
+            if DEFAULT_INSTRUCTIONS_MARKER in instructions_to_save:
+                marker_index = instructions_to_save.find(DEFAULT_INSTRUCTIONS_MARKER)
+                if marker_index >= 0:
+                    instructions_to_save = instructions_to_save[:marker_index].rstrip() if marker_index > 0 else ''
+                    logger.info(f"[UPDATE CHARACTER] Удалены дефолтные инструкции из поля instructions")
+            
+            # Формируем промпт БЕЗ дефолтных инструкций в конце
+            full_prompt = f"""Character: {character.name}
+
+Personality and Character:
+{character.personality}
+
+Role-playing Situation:
+{character.situation}
+
+Instructions:
+{instructions_to_save}"""
+            if character.style:
+                full_prompt += f"""
+
+Response Style:
+{character.style}"""
+            # НЕ добавляем дефолтные инструкции в конец промпта
+            logger.info(f"[UPDATE CHARACTER] Промпт сформирован БЕЗ дефолтных инструкций в конце")
+        else:
+            # Если remove_default_instructions = False, дефолтные инструкции не добавляются автоматически
+            # (пользователь может их добавить вручную в поле instructions, если хочет)
+            # Но если они уже есть в конце промпта в БД, они останутся
+            logger.info(f"[UPDATE CHARACTER] remove_default_instructions = False, дефолтные инструкции не удаляются")
         
         # Обновляем поля
         db_char.prompt = full_prompt

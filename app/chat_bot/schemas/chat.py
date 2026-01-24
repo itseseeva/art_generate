@@ -181,6 +181,10 @@ class UserCharacterCreate(BaseModel):
     )
     voice_id: Optional[str] = Field(None, description="ID выбранного голоса")
     voice_url: Optional[str] = Field(None, description="URL образца голоса для TTS")
+    remove_default_instructions: Optional[bool] = Field(
+        False,
+        description="Удалить дефолтные инструкции из промпта"
+    )
     
     model_config = ConfigDict(from_attributes=True)
     
