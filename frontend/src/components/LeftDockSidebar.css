@@ -1,3 +1,11 @@
+.left-dock-sidebar-root,
+.left-dock-sidebar-root * {
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
 .left-dock-panel.dock-panel-vertical {
   width: 100%;
   background: transparent;
@@ -13,6 +21,10 @@
   overflow: visible;
   overflow-x: visible;
   overflow-y: visible;
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .left-dock-panel .dock-item {
@@ -27,12 +39,44 @@
   align-items: center;
   justify-content: center;
   transform-origin: center center;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
+  backface-visibility: visible !important;
+  -webkit-backface-visibility: visible !important;
+  transform-style: flat !important;
+  -webkit-transform-style: flat !important;
   position: relative;
   overflow: visible;
   overflow-x: visible;
   overflow-y: visible;
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  will-change: transform !important;
+  image-rendering: crisp-edges !important;
+  -webkit-image-rendering: crisp-edges !important;
+  perspective: none !important;
+  -webkit-perspective: none !important;
+}
+
+.left-dock-panel .dock-item * {
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.left-dock-panel .dock-item:hover {
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.left-dock-panel .dock-item:hover * {
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .left-dock-panel .dock-item:focus,
@@ -53,8 +97,12 @@
   top: auto !important;
   bottom: 100% !important;
   left: 50% !important;
-  transform: translateX(-50%) scale(0.756) translateY(5px) !important; /* Еще на 10% ниже (было 2px) */
+  transform: translateX(-50%) scale(0.756) translateY(5px) translateZ(0) !important; /* Еще на 10% ниже (было 2px) */
   transform-origin: center center !important;
+  transform-style: flat !important;
+  -webkit-transform-style: flat !important;
+  backface-visibility: visible !important;
+  -webkit-backface-visibility: visible !important;
   max-width: none !important;
   min-width: max-content !important;
   width: max-content !important;
@@ -74,19 +122,75 @@
   box-shadow: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+  filter: none !important;
+  -webkit-filter: none !important;
   opacity: 0 !important;
   transition: opacity 0s !important;
   animation: none !important;
-  will-change: auto !important;
+  will-change: opacity !important;
   visibility: visible !important;
+  text-rendering: optimizeLegibility !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  image-rendering: crisp-edges !important;
+  -webkit-image-rendering: crisp-edges !important;
+  perspective: none !important;
+  -webkit-perspective: none !important;
+}
+
+.left-dock-panel .dock-label-vertical span {
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  text-rendering: optimizeLegibility !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  display: inline-block !important;
+  transform: scale(1) translateZ(0) !important;
+  transform-origin: center center !important;
+  transform-style: flat !important;
+  -webkit-transform-style: flat !important;
+  backface-visibility: visible !important;
+  -webkit-backface-visibility: visible !important;
+  image-rendering: crisp-edges !important;
+  -webkit-image-rendering: crisp-edges !important;
+  will-change: auto !important;
+  perspective: none !important;
+  -webkit-perspective: none !important;
 }
 
 .left-dock-panel .dock-item:hover .dock-label-vertical,
 .left-dock-panel .dock-item:focus .dock-label-vertical,
 .left-dock-panel .dock-item:focus-within .dock-label-vertical {
   opacity: 1 !important;
-  transform: translateX(-50%) scale(0.756) translateY(5px) !important;
+  transform: translateX(-50%) scale(0.756) translateY(5px) translateZ(0) !important;
+  transform-style: flat !important;
+  -webkit-transform-style: flat !important;
+  backface-visibility: visible !important;
+  -webkit-backface-visibility: visible !important;
   transition: opacity 0s !important;
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  text-rendering: optimizeLegibility !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  image-rendering: crisp-edges !important;
+  -webkit-image-rendering: crisp-edges !important;
+  perspective: none !important;
+  -webkit-perspective: none !important;
+  will-change: opacity !important;
+}
+
+.left-dock-panel .dock-item:hover .dock-label-vertical *,
+.left-dock-panel .dock-item:focus .dock-label-vertical *,
+.left-dock-panel .dock-item:focus-within .dock-label-vertical * {
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 /* Текст снизу для конкретных кнопок */
@@ -112,7 +216,37 @@
 .left-dock-panel .dock-item-login:hover .dock-label-vertical,
 .left-dock-panel .dock-item-register:hover .dock-label-vertical {
   opacity: 1 !important;
-  transform: translateX(-50%) scale(0.756) translateY(-8px) !important;
+  transform: translateX(-50%) scale(0.756) translateY(-8px) translateZ(0) !important;
+  transform-style: flat !important;
+  -webkit-transform-style: flat !important;
+  backface-visibility: visible !important;
+  -webkit-backface-visibility: visible !important;
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  text-rendering: optimizeLegibility !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  image-rendering: crisp-edges !important;
+  -webkit-image-rendering: crisp-edges !important;
+  perspective: none !important;
+  -webkit-perspective: none !important;
+  will-change: opacity !important;
+}
+
+.left-dock-panel .dock-item-profile:hover .dock-label-vertical *,
+.left-dock-panel .dock-item-shop:hover .dock-label-vertical *,
+.left-dock-panel .dock-item-balance:hover .dock-label-vertical *,
+.left-dock-panel .dock-item-messages:hover .dock-label-vertical *,
+.left-dock-panel .dock-item-logout:hover .dock-label-vertical *,
+.left-dock-panel .dock-item-bug:hover .dock-label-vertical *,
+.left-dock-panel .dock-item-login:hover .dock-label-vertical *,
+.left-dock-panel .dock-item-register:hover .dock-label-vertical * {
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 /* Mobile Top Dock Styles */
@@ -163,4 +297,27 @@
 .bottom-dock-panel .dock-item:hover .dock-label,
 .left-dock-panel .dock-item:hover .dock-label {
   opacity: 1 !important;
+}
+
+/* Отключение blur для всех иконок и элементов */
+.left-dock-panel .dock-icon,
+.left-dock-panel .dock-icon *,
+.left-dock-panel .dock-icon svg {
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  image-rendering: crisp-edges !important;
+  image-rendering: -webkit-optimize-contrast !important;
+}
+
+.left-dock-panel .dock-item:hover .dock-icon,
+.left-dock-panel .dock-item:hover .dock-icon *,
+.left-dock-panel .dock-item:hover .dock-icon svg {
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  image-rendering: crisp-edges !important;
+  image-rendering: -webkit-optimize-contrast !important;
 }

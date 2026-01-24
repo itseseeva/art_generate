@@ -54,6 +54,19 @@
   outline: none;
   overflow: visible;
   transition: transform 0.2s ease;
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transform-style: flat !important;
+  -webkit-transform-style: flat !important;
+  backface-visibility: visible !important;
+  -webkit-backface-visibility: visible !important;
+  perspective: none !important;
+  -webkit-perspective: none !important;
+  will-change: transform !important;
+  image-rendering: crisp-edges !important;
+  -webkit-image-rendering: crisp-edges !important;
 }
 
 .dock-item:focus {
@@ -113,7 +126,7 @@
   position: absolute;
   bottom: calc(100% + 4px);
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateZ(0);
   white-space: nowrap;
   pointer-events: none;
   z-index: 10000;
@@ -122,6 +135,20 @@
   font-weight: 500;
   text-align: center;
   opacity: 1;
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transform-style: flat !important;
+  -webkit-transform-style: flat !important;
+  backface-visibility: visible !important;
+  -webkit-backface-visibility: visible !important;
+  will-change: opacity !important;
+  image-rendering: crisp-edges !important;
+  -webkit-image-rendering: crisp-edges !important;
+  text-rendering: optimizeLegibility !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
 }
 
 .dock-item-characters .dock-label-vertical {

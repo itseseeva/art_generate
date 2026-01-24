@@ -32,6 +32,17 @@ const SidebarWrapper = styled.div`
   height: 100%;
   z-index: 5;
   flex-shrink: 0;
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  
+  * {
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
 `;
 
 const SIDEBAR_EASING = 'cubic-bezier(0.32, 0.72, 0, 1)';
@@ -46,8 +57,6 @@ const SidebarContainer = styled.aside<{ $isCollapsed?: boolean; $isMobile?: bool
   border-right-width: ${props => props.$isCollapsed ? '0' : '1px'};
   border-right-style: solid;
   border-right-color: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -61,6 +70,17 @@ const SidebarContainer = styled.aside<{ $isCollapsed?: boolean; $isMobile?: bool
     padding ${SIDEBAR_DURATION} ${SIDEBAR_EASING},
     border-right-width ${SIDEBAR_DURATION} ${SIDEBAR_EASING};
   z-index: 1000;
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  
+  * {
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
 `;
 
 const HomeButton = styled.button`
@@ -88,6 +108,17 @@ const HomeButton = styled.button`
   flex-shrink: 0;
   position: relative;
   z-index: 10;
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  
+  * {
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
 
   &:hover {
     transform: scale(1.05);
@@ -95,11 +126,26 @@ const HomeButton = styled.button`
     background: rgba(20, 20, 35, 0.95);
     box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4),
                 inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  
+  &:hover * {
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 
   &:active {
     transform: scale(0.98);
     border-color: rgba(255, 255, 255, 0.1);
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 
   &:focus-visible {
@@ -107,10 +153,18 @@ const HomeButton = styled.button`
     box-shadow:
       0 0 0 2px rgba(255, 255, 255, 0.2),
       0 15px 35px rgba(0, 0, 0, 0.4);
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 
   &:focus {
     outline: none;
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 `;
 
@@ -125,6 +179,17 @@ const DockWrapper = styled.div<{ $isMobile?: boolean }>`
   gap: 0.8rem;
   overflow: visible;
   margin-top: ${props => props.$isMobile ? '0' : '15%'};
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  
+  * {
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
   
   &::-webkit-scrollbar {
     width: 0;
@@ -166,28 +231,62 @@ const ToggleArrowButton = styled.button<{ $isCollapsed?: boolean }>`
   position: fixed;
   left: ${props => props.$isCollapsed ? '-8px' : '70px'};
   transform: ${props => props.$isCollapsed ? 'translateY(-50%) rotate(0deg)' : 'translateY(-50%) rotate(180deg)'};
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  
+  * {
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
 
   &:hover {
     transform: ${props => props.$isCollapsed ? 'translateY(-50%) scale(1.1) rotate(0deg)' : 'translateY(-50%) scale(1.1) rotate(180deg)'};
     border-color: rgba(255, 255, 255, 0.15);
     background: rgba(20, 20, 35, 0.95);
     color: rgba(240, 240, 240, 1);
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  
+  &:hover * {
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 
   &:active {
     transform: ${props => props.$isCollapsed ? 'translateY(-50%) scale(0.95) rotate(0deg)' : 'translateY(-50%) scale(0.95) rotate(180deg)'};
     outline: none;
     box-shadow: none;
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 
   &:focus-visible {
     outline: none;
     box-shadow: none;
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
   
   &:focus {
     outline: none;
     box-shadow: none;
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 `;
 
@@ -210,6 +309,17 @@ const SidebarContent = styled.div<{ $isCollapsed?: boolean; $isMobile?: boolean 
   pointer-events: ${props => props.$isCollapsed ? 'none' : 'auto'};
   position: relative;
   z-index: 1;
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  
+  * {
+    filter: none !important;
+    -webkit-filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
 `;
 
 export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({

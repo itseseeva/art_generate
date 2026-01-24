@@ -62,7 +62,7 @@ const PageContainer = styled.div<{ $isMobile?: boolean }>`
   overflow-x: hidden;
   overflow-y: auto;
   position: relative;
-  padding-top: 0;
+  padding-top: ${(p) => (p.$isMobile ? '45px' : '55px')};
   scroll-behavior: smooth;
   width: 100%;
   max-width: 100%;

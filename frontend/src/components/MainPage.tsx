@@ -60,13 +60,10 @@ const HeaderWrapper = styled.div`
   position: relative;
   width: 100%;
   background: transparent;
-  height: 55px;
+  height: 0;
+  min-height: 0;
   flex-shrink: 0;
   overflow: visible;
-  
-  @media (max-width: 768px) {
-    height: 45px;
-  }
 `;
 
 
@@ -162,7 +159,7 @@ const FilterButton = styled.button<{ $active?: boolean }>`
 
 const CharactersGrid = styled.div`
   flex: 1;
-  padding: ${theme.spacing.xs} ${theme.spacing.sm};
+  padding: 0 ${theme.spacing.sm} ${theme.spacing.xs} ${theme.spacing.sm};
   overflow-y: visible;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -170,7 +167,7 @@ const CharactersGrid = styled.div`
   align-content: start;
   width: 100%;
   min-height: 0;
-  
+
   @media (max-width: 768px) {
     flex: none;
     overflow-y: visible;
@@ -225,7 +222,7 @@ const ContentArea = styled.div`
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding-top: 0;
+  padding-top: 14px;
 `;
 
 interface Character {

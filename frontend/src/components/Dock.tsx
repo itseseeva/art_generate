@@ -88,7 +88,18 @@ function DockItem({
       style={{
         width: baseItemSize,
         height: baseItemSize,
-        scale: scale
+        scale: scale,
+        filter: 'none',
+        WebkitFilter: 'none',
+        backdropFilter: 'none',
+        WebkitBackdropFilter: 'none',
+        transformStyle: 'flat',
+        WebkitTransformStyle: 'flat',
+        backfaceVisibility: 'visible',
+        WebkitBackfaceVisibility: 'visible',
+        willChange: 'transform',
+        imageRendering: 'crisp-edges',
+        WebkitImageRendering: 'crisp-edges'
       }}
       onHoverStart={() => {
         isHovered.set(1);
@@ -150,18 +161,45 @@ function DockLabel({ children, className = '', isHovered, isLocalHovered = false
             pointerEvents: 'none',
             color: '#ffffff',
             opacity: 1,
-            transform: vertical ? 'translateX(-50%)' : 'translateX(-50%)',
+            transform: vertical ? 'translateX(-50%) translateZ(0)' : 'translateX(-50%) translateZ(0)',
             transformOrigin: 'center center',
+            transformStyle: 'flat',
+            WebkitTransformStyle: 'flat',
+            backfaceVisibility: 'visible',
+            WebkitBackfaceVisibility: 'visible',
             transition: 'none',
             animation: 'none',
-            willChange: 'auto'
+            willChange: 'opacity',
+            filter: 'none',
+            WebkitFilter: 'none',
+            backdropFilter: 'none',
+            WebkitBackdropFilter: 'none',
+            textRendering: 'optimizeLegibility',
+            WebkitFontSmoothing: 'antialiased',
+            MozOsxFontSmoothing: 'grayscale',
+            imageRendering: 'crisp-edges',
+            WebkitImageRendering: 'crisp-edges'
           }}
         >
           <span style={{ 
             color: '#ffffff', 
             display: 'inline-block',
-            transform: 'scale(1)',
-            transformOrigin: 'center center'
+            transform: 'scale(1) translateZ(0)',
+            transformOrigin: 'center center',
+            filter: 'none',
+            WebkitFilter: 'none',
+            backdropFilter: 'none',
+            WebkitBackdropFilter: 'none',
+            transformStyle: 'flat',
+            WebkitTransformStyle: 'flat',
+            backfaceVisibility: 'visible',
+            WebkitBackfaceVisibility: 'visible',
+            textRendering: 'optimizeLegibility',
+            WebkitFontSmoothing: 'antialiased',
+            MozOsxFontSmoothing: 'grayscale',
+            imageRendering: 'crisp-edges',
+            WebkitImageRendering: 'crisp-edges',
+            willChange: 'auto'
           }}>{children}</span>
         </div>
       )}
@@ -231,7 +269,11 @@ export default function Dock({
       style={{ 
         height: isTopRightDock ? panelHeight : (vertical ? 'auto' : panelHeight), 
         width: vertical ? panelHeight : 'auto',
-        scrollbarWidth: 'none' 
+        scrollbarWidth: 'none',
+        filter: 'none',
+        WebkitFilter: 'none',
+        backdropFilter: 'none',
+        WebkitBackdropFilter: 'none'
       }} 
       className={`dock-outer ${vertical ? 'dock-outer-vertical' : ''}`}
     >
@@ -247,7 +289,11 @@ export default function Dock({
         className={`dock-panel ${vertical ? 'dock-panel-vertical' : ''} ${className}`}
         style={{ 
           height: vertical ? 'auto' : panelHeight,
-          width: vertical ? panelHeight : 'auto'
+          width: vertical ? panelHeight : 'auto',
+          filter: 'none',
+          WebkitFilter: 'none',
+          backdropFilter: 'none',
+          WebkitBackdropFilter: 'none'
         }}
         role="toolbar"
         aria-label="Application dock"
