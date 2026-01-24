@@ -1,7 +1,7 @@
 """
 Сервис для взаимодействия с OpenRouter API.
 
-Все пользователи получают модель: CYDONIA 24B V4.1 (anthracite-org/magnum-v4-72b)
+Все пользователи получают модель: L3 Euryale 70B (sao10k/l3-euryale-70b)
 При rate limit отправляется уведомление администратору в Telegram.
 """
 
@@ -69,8 +69,8 @@ def get_model_for_subscription(subscription_type: Optional[SubscriptionType]) ->
     Returns:
         Название модели для использования
     """
-    # Все пользователи получают CYDONIA 24B V4.1
-    return "anthracite-org/magnum-v4-72b"
+    # Все пользователи получают L3 Euryale 70B
+    return "sao10k/l3-euryale-70b"
 
 
 class OpenRouterService:

@@ -1,6 +1,6 @@
 """
 Конфигурация чат-бота для OpenRouter API.
-Оптимизирована для модели thedrummer/cydonia-24b-v4.1.
+Оптимизирована для модели sao10k/l3-euryale-70b.
 
 КАК ИЗМЕНИТЬ МОДЕЛЬ:
 1. Через переменную окружения в .env файле:
@@ -9,8 +9,8 @@
 2. Или измените значение по умолчанию ниже в поле OPENROUTER_MODEL
 
 Примеры моделей:
-- thedrummer/cydonia-24b-v4.1 (текущая)
-- sao10k/l3-euryale-70b
+- sao10k/l3-euryale-70b (текущая)
+- thedrummer/cydonia-24b-v4.1
 - anthropic/claude-3-opus
 - openai/gpt-4
 - meta-llama/llama-3-70b-instruct
