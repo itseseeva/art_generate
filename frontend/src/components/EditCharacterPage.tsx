@@ -4638,9 +4638,9 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           voice_id: characterData?.voice_id || '',
           voice_url: characterData?.voice_url || '' // Загружаем voice_url если он есть
         };
-        
+
         // Обновляем ref для отслеживания изменений appearance и location
-        lastAppearanceLocationRef.current = { appearance: appearance, location: location };
+        // lastAppearanceLocationRef.current = { appearance: appearance, location: location };
 
         // Загружаем теги персонажа
         if (characterData?.tags && Array.isArray(characterData.tags)) {
@@ -4730,11 +4730,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     const currentLocation = formData.location || '';
     const lastAppearance = lastAppearanceLocationRef.current.appearance;
     const lastLocation = lastAppearanceLocationRef.current.location;
-    
+
     // Проверяем, изменились ли appearance или location
     const appearanceChanged = currentAppearance !== lastAppearance;
     const locationChanged = currentLocation !== lastLocation;
-    
+
     if (!customPromptManuallySet && (appearanceChanged || locationChanged) && (currentAppearance || currentLocation)) {
       const parts = [currentAppearance, currentLocation].filter(p => p && p.trim());
       if (parts.length > 0) {
@@ -5080,7 +5080,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       // Проверяем пользовательский голос по URL
       selectedVoice = availableVoices.find(v => v.url === formData.voice_url || v.preview_url === formData.voice_url);
     }
-    
+
     if (selectedVoice && isPremiumVoice(selectedVoice.name)) {
       // Проверяем подписку
       const subscriptionType = userInfo?.subscription?.subscription_type ||
@@ -5172,7 +5172,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       // Это гарантирует, что форма останется заполненной после сохранения
       const oldAppearance = formData.appearance;
       const oldLocation = formData.location;
-      
+
       setFormData({
         name: updatedName, // Используем имя из ответа API
         personality: requestData.personality,
@@ -5191,11 +5191,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       const newLocation = requestData.location || '';
       const appearanceChanged = oldAppearance !== newAppearance;
       const locationChanged = oldLocation !== newLocation;
-      
+
       if (appearanceChanged || locationChanged) {
         // Обновляем ref с новыми значениями для отслеживания изменений
         lastAppearanceLocationRef.current = { appearance: newAppearance, location: newLocation };
-        
+
         // Если пользователь не вводил промпт вручную, обновляем его автоматически из appearance | location
         if (!customPromptManuallySet) {
           const parts = [newAppearance, newLocation].filter(p => p && p.trim());
@@ -5374,24 +5374,24 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     const maxAttempts = 60; // Максимум 2 минуты (60 * 2 секунды) - как в ChatContainer
     const pollInterval = 2000; // Опрашиваем каждые 2 секунды - как в ChatContainer
     let attempts = 0;
-    
+
     // Запускаем автозаполнение прогресса на 20 секунд
     const AUTO_PROGRESS_DURATION = 20000; // 20 секунд
     generationStartTimeRef.current = Date.now();
     setGenerationProgress(0);
-    
+
     // Очищаем предыдущий интервал, если есть
     if (progressIntervalRef.current) {
       clearInterval(progressIntervalRef.current);
     }
-    
+
     // Запускаем интервал для автозаполнения прогресса
     progressIntervalRef.current = setInterval(() => {
       if (generationStartTimeRef.current) {
         const elapsed = Date.now() - generationStartTimeRef.current;
         const progress = Math.min(99, Math.floor((elapsed / AUTO_PROGRESS_DURATION) * 100));
         setGenerationProgress(progress);
-        
+
         // Останавливаем интервал, если достигли 99%
         if (progress >= 99) {
           if (progressIntervalRef.current) {
@@ -5475,7 +5475,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
               progressIntervalRef.current = null;
             }
             generationStartTimeRef.current = null;
-            
+
             // Нормализуем URL для локальной разработки
             const imageUrl = normalizeImageUrl(rawImageUrl);
             setGenerationProgress(100); // Устанавливаем 100% при завершении
@@ -5507,7 +5507,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         throw err;
       }
     }
-    
+
     // Останавливаем автозаполнение прогресса при таймауте
     if (progressIntervalRef.current) {
       clearInterval(progressIntervalRef.current);
@@ -5780,11 +5780,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     try {
       // Находим полные объекты фото из generatedPhotos по URL, чтобы получить generationTime
       const photosWithMetadata = selectedPhotos.map(selectedPhoto => {
-        const fullPhoto = generatedPhotos.find(photo => 
-          photo.url === selectedPhoto.url || 
+        const fullPhoto = generatedPhotos.find(photo =>
+          photo.url === selectedPhoto.url ||
           normalizeImageUrl(photo.url) === normalizeImageUrl(selectedPhoto.url)
         );
-        
+
         return {
           id: selectedPhoto.id,
           url: selectedPhoto.url,
@@ -7325,12 +7325,12 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
                           {/* Общее модальное окно редактирования голоса */}
                           {editingVoicePhotoId && (() => {
-                            const editingVoice = availableVoices.find(v => 
-                              String(v.id) === String(editingVoicePhotoId) || 
+                            const editingVoice = availableVoices.find(v =>
+                              String(v.id) === String(editingVoicePhotoId) ||
                               String(v.user_voice_id) === String(editingVoicePhotoId)
                             );
                             if (!editingVoice) return null;
-                            
+
                             const isUserVoice = editingVoice.is_user_voice || false;
                             const defaultPlaceholder = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9InJnYmEoNjAsIDYwLCA2MCwgMC4zKSIvPgo8cGF0aCBkPSJNMzAgNDBDMzAgMzUuMDI5IDM0LjAyOSAzMSAzOSAzMUg0MUM0NS45NzEgMzEgNTAgMzUuMDI5IDUwIDQwQzUwIDQ0Ljk3MSA0NS45NzEgNDkgNDEgNDlIMzlDMzQuMDI5IDQ5IDMwIDQ0Ljk3MSAzMCA0MFoiIGZpbGw9InJnYmEoMTUwLCAxNTAsIDE1MCwgMC41KSIvPgo8L3N2Zz4K';
                             const photoPath = isUserVoice
@@ -7339,7 +7339,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                 : defaultPlaceholder)
                               : getVoicePhotoPath(editingVoice.name);
                             const editedName = editedVoiceNames[editingVoice.id] || editingVoice.name;
-                            
+
                             return (
                               <div
                                 style={{
@@ -7364,18 +7364,18 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                   }
                                 }}
                               >
-                            <div
-                              style={{
-                                background: 'rgba(30, 30, 30, 0.95)',
-                                border: '1px solid rgba(139, 92, 246, 0.6)',
-                                borderRadius: '12px',
-                                padding: '24px',
-                                width: '100%',
-                                maxWidth: '420px',
-                                maxHeight: '90vh',
-                                overflowY: 'auto',
-                                boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
-                              }}
+                                <div
+                                  style={{
+                                    background: 'rgba(30, 30, 30, 0.95)',
+                                    border: '1px solid rgba(139, 92, 246, 0.6)',
+                                    borderRadius: '12px',
+                                    padding: '24px',
+                                    width: '100%',
+                                    maxWidth: '420px',
+                                    maxHeight: '90vh',
+                                    overflowY: 'auto',
+                                    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
+                                  }}
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   <h3 style={{ color: '#e4e4e7', marginBottom: '20px', fontSize: '18px' }}>
