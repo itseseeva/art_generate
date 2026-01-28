@@ -493,16 +493,14 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
       // НЕ используем кеш при первой загрузке - всегда загружаем свежие данные
       // Кеш может содержать устаревшие данные при обновлении страницы
 
-      // Если передан userId, загружаем галерею конкретного пользователя
+      // Если передан userId, загружаем галерею конкретного пользователя (с пагинацией)
       // Иначе загружаем свою галерею
       const baseUrl = userId 
         ? `${API_CONFIG.BASE_URL}/api/v1/auth/user-generated-photos/${userId}/`
         : `${API_CONFIG.BASE_URL}/api/v1/auth/user-gallery/`;
       
-      // Добавляем параметры пагинации только для своей галереи
-      const url = userId 
-        ? baseUrl
-        : `${baseUrl}?limit=${PAGE_SIZE}&offset=${offset}`;
+      // Пагинация для обеих галерей — меньше данных за раз, быстрее отображение
+      const url = `${baseUrl}?limit=${PAGE_SIZE}&offset=${offset}`;
       
       const response = await authManager.fetchWithAuth(url);
 

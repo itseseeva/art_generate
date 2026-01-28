@@ -411,6 +411,7 @@ export const MainPage: React.FC<MainPageProps> = ({
   const lastCharactersUpdateRef = useRef<number>(0); // Для отслеживания последнего обновления
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
+  const loadedCharacterIdsRef = useRef<Set<string>>(new Set()); // Для отслеживания уже загруженных ID
 
   const toggleTag = (tag: string) => {
     setSelectedTags((prev) => {
@@ -597,6 +598,7 @@ export const MainPage: React.FC<MainPageProps> = ({
       if (!batch.length) {
         setCharacters([]);
         setCachedRawCharacters([]);
+        loadedCharacterIdsRef.current.clear();
         setHasMore(false);
         return;
       }
@@ -606,6 +608,17 @@ export const MainPage: React.FC<MainPageProps> = ({
       setCachedRawCharacters(batch);
 
       const formatted = rawBatchToCharacters(batch, photosMap);
+      
+      // Сбрасываем отслеживание ID при первой загрузке или принудительном обновлении
+      if (forceRefresh || characters.length === 0) {
+        loadedCharacterIdsRef.current.clear();
+      }
+      
+      // Отслеживаем загруженные ID
+      formatted.forEach(char => {
+        loadedCharacterIdsRef.current.add(char.id);
+      });
+      
       setCharacters(formatted);
       setHasMore(batch.length === PAGE_SIZE);
 
@@ -617,6 +630,7 @@ export const MainPage: React.FC<MainPageProps> = ({
     } catch {
       setCharacters([]);
       setCachedRawCharacters([]);
+      loadedCharacterIdsRef.current.clear();
       setHasMore(false);
     } finally {
       setIsLoadingCharacters(false);
@@ -638,11 +652,32 @@ export const MainPage: React.FC<MainPageProps> = ({
 
       const photosMap = buildPhotosMapFromBatch(batch);
       setCharacterPhotos((prev) => ({ ...prev, ...photosMap }));
-      setCachedRawCharacters((prev) => [...prev, ...batch]);
+      
+      // Фильтруем дубликаты перед добавлением
+      const uniqueBatch = batch.filter((char: any) => {
+        const charId = (char.id ?? char.name ?? '').toString();
+        return !loadedCharacterIdsRef.current.has(charId);
+      });
+      
+      // Если все персонажи из batch уже загружены, значит больше нет новых
+      if (uniqueBatch.length === 0) {
+        setHasMore(false);
+        return;
+      }
+      
+      setCachedRawCharacters((prev) => [...prev, ...uniqueBatch]);
 
-      const formatted = rawBatchToCharacters(batch, photosMap);
+      const formatted = rawBatchToCharacters(uniqueBatch, photosMap);
+      
+      // Отслеживаем новые ID
+      formatted.forEach(char => {
+        loadedCharacterIdsRef.current.add(char.id);
+      });
+      
       setCharacters((prev) => [...prev, ...formatted]);
-      setHasMore(batch.length === PAGE_SIZE);
+      
+      // Если получили меньше PAGE_SIZE или все были дубликатами, значит больше нет данных
+      setHasMore(batch.length === PAGE_SIZE && uniqueBatch.length > 0);
 
       await loadCharacterRatings(formatted, true);
     } catch {

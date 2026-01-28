@@ -4,7 +4,7 @@
 
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Request, Depends, UploadFile, File, Body
+from fastapi import APIRouter, HTTPException, Request, Depends, UploadFile, File, Body, Query
 from sqlalchemy import select, update, func, delete, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 import traceback
@@ -2170,22 +2170,22 @@ async def get_user_gallery(
 @auth_router.get("/auth/user-generated-photos/{user_id}/", response_model=UserGalleryResponse)
 async def get_user_generated_photos(
     user_id: int,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     current_user: Users = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Получает все фото из галереи пользователя (UserGallery).
+    Получает фото из галереи пользователя (UserGallery) с пагинацией.
     Используется для платной страницы "Открыть X сгенерированные фото".
-    
-    Если открываем свою галерею - возвращаем все фото.
+
     Если открываем чужую галерею - возвращаем фото только если галерея разблокирована.
-    Разблокировка проверяется через localStorage на фронтенде, но здесь мы просто возвращаем фото.
-    
+
     Returns:
-    - UserGalleryResponse: Список всех фото из галереи пользователя.
+    - UserGalleryResponse: Список фото с пагинацией и общим количеством.
     """
     try:
-        logger.info(f"[USER_GALLERY] Запрос фото пользователя {user_id} от пользователя {current_user.id}")
+        logger.info(f"[USER_GALLERY] Запрос фото пользователя {user_id} от пользователя {current_user.id}, limit={limit}, offset={offset}")
         
         # Если открываем чужую галерею - проверяем разблокировку
         if user_id != current_user.id:
@@ -2206,15 +2206,22 @@ async def get_user_generated_photos(
                 )
             logger.info(f"[USER_GALLERY] Галерея разблокирована, доступ разрешен")
         
-        # Получаем фото из UserGallery для указанного пользователя
+        # Общее количество фото
+        total_result = await db.execute(
+            select(func.count(UserGallery.id)).filter(UserGallery.user_id == user_id)
+        )
+        total = total_result.scalar_one() or 0
+
+        # Получаем фото с пагинацией
         result = await db.execute(
             select(UserGallery)
             .filter(UserGallery.user_id == user_id)
             .order_by(UserGallery.created_at.desc())
+            .limit(limit)
+            .offset(offset)
         )
-        
         gallery_photos = result.scalars().all()
-        logger.info(f"[USER_GALLERY] Найдено {len(gallery_photos)} фото для пользователя {user_id}")
+        logger.info(f"[USER_GALLERY] Найдено {len(gallery_photos)} фото для пользователя {user_id} (total={total})")
         
         # Формируем список фото
         photos = []
@@ -2227,10 +2234,10 @@ async def get_user_generated_photos(
                 created_at=photo.created_at.isoformat() if photo.created_at else ""
             ))
         
-        logger.info(f"[USER_GALLERY] Возвращаем {len(photos)} фото для пользователя {user_id}")
+        logger.info(f"[USER_GALLERY] Возвращаем {len(photos)} фото для пользователя {user_id} (total={total})")
         return UserGalleryResponse(
             photos=photos,
-            total=len(photos)
+            total=total
         )
     except HTTPException:
         raise

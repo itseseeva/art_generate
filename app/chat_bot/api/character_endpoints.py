@@ -261,12 +261,18 @@ def _normalize_main_photos(
         if not photo_url:
             continue
 
-        normalized.append(
-            {
-                "id": photo_id,
-                "url": photo_url,
-            }
-        )
+        normalized_entry = {
+            "id": photo_id,
+            "url": photo_url,
+        }
+        
+        # Сохраняем generation_time, если оно есть во входных данных
+        if isinstance(item, dict):
+            generation_time = item.get("generation_time")
+            if generation_time is not None:
+                normalized_entry["generation_time"] = generation_time
+        
+        normalized.append(normalized_entry)
         if register:
             _append_photo_metadata(character_name, photo_id, photo_url)
 

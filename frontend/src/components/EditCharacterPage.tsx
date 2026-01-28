@@ -4066,6 +4066,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const generationQueueRef = useRef<number>(0); // Счетчик задач в очереди
   const initialPhotosCountRef = useRef<number>(0); // Количество фото при загрузке страницы
   const customPromptRef = useRef<string>(''); // Ref для актуального промпта
+  const lastAppearanceLocationRef = useRef<{ appearance: string; location: string }>({ appearance: '', location: '' }); // Ref для отслеживания предыдущих значений
   const formRef = useRef<HTMLFormElement>(null);
   const generationStartTimeRef = useRef<number | null>(null); // Время начала генерации для автозаполнения прогресса
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null); // Интервал для автозаполнения прогресса
@@ -4622,6 +4623,9 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           voice_id: characterData?.voice_id || '',
           voice_url: characterData?.voice_url || '' // Загружаем voice_url если он есть
         };
+        
+        // Обновляем ref для отслеживания изменений appearance и location
+        lastAppearanceLocationRef.current = { appearance: appearance, location: location };
 
         // Загружаем теги персонажа
         if (characterData?.tags && Array.isArray(characterData.tags)) {
@@ -4707,18 +4711,34 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   // Автоматически заполняем customPrompt на основе appearance и location после загрузки данных
   // НО только если пользователь еще не устанавливал его вручную
   useEffect(() => {
-    if (!customPromptManuallySet && (formData.appearance || formData.location)) {
-      const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
+    const currentAppearance = formData.appearance || '';
+    const currentLocation = formData.location || '';
+    const lastAppearance = lastAppearanceLocationRef.current.appearance;
+    const lastLocation = lastAppearanceLocationRef.current.location;
+    
+    // Проверяем, изменились ли appearance или location
+    const appearanceChanged = currentAppearance !== lastAppearance;
+    const locationChanged = currentLocation !== lastLocation;
+    
+    if (!customPromptManuallySet && (appearanceChanged || locationChanged) && (currentAppearance || currentLocation)) {
+      const parts = [currentAppearance, currentLocation].filter(p => p && p.trim());
       if (parts.length > 0) {
         const defaultPrompt = parts.join(' | ');
-        // Устанавливаем только если customPrompt пустой (чтобы не перезаписывать пользовательский ввод)
-        if (!customPrompt.trim()) {
+        // Обновляем промпт только если он пустой или совпадает со старым автоматически сгенерированным
+        const currentPrompt = customPrompt.trim();
+        const oldPrompt = [lastAppearance, lastLocation].filter(p => p && p.trim()).join(' | ');
+        if (!currentPrompt || currentPrompt === oldPrompt) {
           setCustomPrompt(defaultPrompt);
           customPromptRef.current = defaultPrompt; // Обновляем ref
         }
       }
+      // Обновляем ref с новыми значениями
+      lastAppearanceLocationRef.current = { appearance: currentAppearance, location: currentLocation };
+    } else if (!appearanceChanged && !locationChanged) {
+      // Если значения не изменились, просто обновляем ref (на случай первой загрузки)
+      lastAppearanceLocationRef.current = { appearance: currentAppearance, location: currentLocation };
     }
-  }, [formData.appearance, formData.location, customPromptManuallySet]); // Зависимости от appearance, location и флага
+  }, [formData.appearance, formData.location, customPromptManuallySet, customPrompt]); // Зависимости от appearance, location и флага
 
   // Проверка авторизации (используем тот же метод, что и в ProfilePage)
   const checkAuth = async () => {
@@ -5135,6 +5155,9 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
       // КРИТИЧНО: Обновляем formData из requestData (данные уже сохранены на сервере)
       // Это гарантирует, что форма останется заполненной после сохранения
+      const oldAppearance = formData.appearance;
+      const oldLocation = formData.location;
+      
       setFormData({
         name: updatedName, // Используем имя из ответа API
         personality: requestData.personality,
@@ -5143,8 +5166,40 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         style: '', // style не сохраняется отдельно, он в промпте
         appearance: requestData.appearance || '',
         location: requestData.location || '',
-        voice_id: requestData.voice_id || ''
+        voice_id: requestData.voice_id || '',
+        voice_url: formData.voice_url || '' // Сохраняем voice_url из текущего formData
       });
+
+      // КРИТИЧНО: Если изменились appearance или location, обновляем customPrompt
+      // Это нужно для стадии 4, чтобы промпт соответствовал новым данным
+      const newAppearance = requestData.appearance || '';
+      const newLocation = requestData.location || '';
+      const appearanceChanged = oldAppearance !== newAppearance;
+      const locationChanged = oldLocation !== newLocation;
+      
+      if (appearanceChanged || locationChanged) {
+        // Обновляем ref с новыми значениями для отслеживания изменений
+        lastAppearanceLocationRef.current = { appearance: newAppearance, location: newLocation };
+        
+        // Если пользователь не вводил промпт вручную, обновляем его автоматически
+        if (!customPromptManuallySet) {
+          const parts = [newAppearance, newLocation].filter(p => p && p.trim());
+          const newPrompt = parts.length > 0 ? parts.join(' | ') : '';
+          setCustomPrompt(newPrompt);
+          customPromptRef.current = newPrompt;
+        } else {
+          // Если промпт был введен вручную, но изменились appearance/location,
+          // сбрасываем флаг, чтобы пользователь мог увидеть обновленный промпт
+          // и решить, хочет ли он его использовать
+          setCustomPromptManuallySet(false);
+          const parts = [newAppearance, newLocation].filter(p => p && p.trim());
+          const newPrompt = parts.length > 0 ? parts.join(' | ') : '';
+          if (newPrompt) {
+            setCustomPrompt(newPrompt);
+            customPromptRef.current = newPrompt;
+          }
+        }
+      }
 
       // КРИТИЧНО: Обновляем characterIdentifier на новое имя из ответа API
       // И сбрасываем lastLoadedIdentifierRef, чтобы разрешить повторную загрузку по новому имени
@@ -5718,10 +5773,23 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     }
 
     try {
-      // selectedPhotos уже содержит полные URL
+      // Находим полные объекты фото из generatedPhotos по URL, чтобы получить generationTime
+      const photosWithMetadata = selectedPhotos.map(selectedPhoto => {
+        const fullPhoto = generatedPhotos.find(photo => 
+          photo.url === selectedPhoto.url || 
+          normalizeImageUrl(photo.url) === normalizeImageUrl(selectedPhoto.url)
+        );
+        
+        return {
+          id: selectedPhoto.id,
+          url: selectedPhoto.url,
+          generation_time: fullPhoto?.generationTime ?? null
+        };
+      });
+
       const requestData = {
         character_name: formData.name,
-        photo_ids: selectedPhotos  // Отправляем полные URL напрямую
+        photos: photosWithMetadata  // Отправляем полные объекты с generation_time
       };
 
 
