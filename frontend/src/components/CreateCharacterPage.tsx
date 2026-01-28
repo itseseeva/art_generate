@@ -4791,6 +4791,10 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         try {
           const parsed = JSON.parse(savedFormData);
           setFormData(parsed);
+          // Восстанавливаем выбранные теги
+          if (parsed.selectedTags && Array.isArray(parsed.selectedTags)) {
+            setSelectedTags(parsed.selectedTags);
+          }
 
           // Восстанавливаем видимость полей на основе данных
           if (parsed.name && parsed.name.trim().length >= 2) {
@@ -4834,6 +4838,62 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     initPage();
   }, []);
 
+  // Автоматическое сохранение тегов при изменении на этапе 4 (если персонаж уже создан)
+  useEffect(() => {
+    if (currentStep === 4 && createdCharacterData && selectedTags.length >= 0) {
+      // Используем debounce для автоматического сохранения тегов
+      const timeoutId = setTimeout(async () => {
+        try {
+          const token = localStorage.getItem('authToken');
+          if (!token) return;
+
+          // Получаем текущие данные персонажа
+          const characterName = createdCharacterData.name;
+          
+          // Используем данные из formData (они должны быть актуальными)
+          // Если formData пуст, используем значения по умолчанию из createdCharacterData
+          const requestData = {
+            name: characterName,
+            personality: (formData.personality || '').trim() || 'Персонаж',
+            situation: (formData.situation || '').trim() || 'Ситуация',
+            instructions: (formData.instructions || '').trim() || 'Инструкции',
+            style: formData.style?.trim() || null,
+            appearance: formData.appearance?.trim() || createdCharacterData.character_appearance || null,
+            location: formData.location?.trim() || createdCharacterData.location || null,
+            is_nsfw: currentContentMode === 'nsfw',
+            tags: selectedTags
+          };
+
+          const response = await fetch(`/api/v1/characters/${characterName}/user-edit`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(requestData)
+          });
+
+          if (response.ok) {
+            const updatedCharacter = await response.json();
+            setCreatedCharacterData(updatedCharacter);
+            // Синхронизируем теги с обновленным персонажем
+            if (updatedCharacter.tags && Array.isArray(updatedCharacter.tags)) {
+              setSelectedTags(updatedCharacter.tags);
+            }
+            console.log('[AUTO_SAVE_TAGS] Теги автоматически сохранены:', selectedTags);
+          } else {
+            const errorText = await response.text();
+            console.error('[AUTO_SAVE_TAGS] Ошибка сохранения тегов:', errorText);
+          }
+        } catch (error) {
+          console.error('[AUTO_SAVE_TAGS] Ошибка при автоматическом сохранении тегов:', error);
+        }
+      }, 1500); // Задержка 1.5 секунды после последнего изменения
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [selectedTags, currentStep, createdCharacterData, formData, currentContentMode]);
+
   // Убрана автоматическая модалка авторизации - пользователь может заполнять форму без регистрации
   // Модалка будет показана только при попытке создать персонажа без авторизации
 
@@ -4861,9 +4921,10 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     const newFormData = { ...formData, [name]: value };
     setFormData(newFormData);
 
-    // Сохраняем данные в localStorage при каждом изменении
+    // Сохраняем данные в localStorage при каждом изменении (включая теги)
     try {
-      localStorage.setItem('createCharacterFormData', JSON.stringify(newFormData));
+      const dataToSave = { ...newFormData, selectedTags };
+      localStorage.setItem('createCharacterFormData', JSON.stringify(dataToSave));
     } catch (error) {
     }
 
@@ -4904,11 +4965,11 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   // Вычисляем прогресс заполнения формы
   const calculateProgress = () => {
     let progress = 0;
-    if (formData.name.trim().length >= 2) progress += 20;
-    if (formData.personality.trim().length > 0) progress += 20;
-    if (formData.situation.trim().length > 0) progress += 20;
-    if (formData.instructions.trim().length > 0) progress += 20;
-    if (formData.appearance.trim().length > 0 && formData.location.trim().length > 0) progress += 20;
+    if ((formData.name || '').trim().length >= 2) progress += 20;
+    if ((formData.personality || '').trim().length > 0) progress += 20;
+    if ((formData.situation || '').trim().length > 0) progress += 20;
+    if ((formData.instructions || '').trim().length > 0) progress += 20;
+    if ((formData.appearance || '').trim().length > 0 && (formData.location || '').trim().length > 0) progress += 20;
     return progress;
   };
 
@@ -4987,10 +5048,10 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
       // Преобразуем данные в формат UserCharacterCreate
       const requestData = {
-        name: formData.name.trim(),
-        personality: formData.personality.trim(),
-        situation: formData.situation.trim(),
-        instructions: formData.instructions.trim(),
+        name: (formData.name || '').trim(),
+        personality: (formData.personality || '').trim(),
+        situation: (formData.situation || '').trim(),
+        instructions: (formData.instructions || '').trim(),
         style: formData.style?.trim() || null,
         appearance: translatedAppearance,
         location: translatedLocation,
@@ -4999,6 +5060,10 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         voice_url: selectedVoiceUrl || null,
         tags: selectedTags && selectedTags.length > 0 ? selectedTags : []
       };
+
+      // Логируем теги для отладки
+      console.log('[CREATE_CHAR] Выбранные теги перед отправкой:', selectedTags);
+      console.log('[CREATE_CHAR] Теги в requestData:', requestData.tags);
 
       // Проверяем обязательные поля
       if (!requestData.name || !requestData.personality || !requestData.situation || !requestData.instructions) {
@@ -5028,6 +5093,10 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
       const result = await response.json();
       setCreatedCharacterData(result);
+      // Восстанавливаем теги из созданного персонажа
+      if (result.tags && Array.isArray(result.tags)) {
+        setSelectedTags(result.tags);
+      }
       setIsCharacterCreated(true); // Устанавливаем состояние создания персонажа
       setSuccess('Персонаж успешно создан!');
       // Переходим на Step 4 для генерации фото
@@ -5140,21 +5209,21 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       }
 
       // Проверяем обязательные поля
-      if (!formData.name.trim() || !formData.personality.trim() || !formData.situation.trim() || !formData.instructions.trim()) {
+      if (!(formData.name || '').trim() || !(formData.personality || '').trim() || !(formData.situation || '').trim() || !(formData.instructions || '').trim()) {
         throw new Error('Все обязательные поля должны быть заполнены');
       }
 
       // Формируем prompt из personality, situation, instructions, style (как при создании)
-      let full_prompt = `Character: ${formData.name.trim()}
+      let full_prompt = `Character: ${(formData.name || '').trim()}
 
 Personality and Character:
-${formData.personality.trim()}
+${(formData.personality || '').trim()}
 
 Role-playing Situation:
-${formData.situation.trim()}
+${(formData.situation || '').trim()}
 
 Instructions:
-${formData.instructions.trim()}`;
+${(formData.instructions || '').trim()}`;
 
       if (formData.style?.trim()) {
         full_prompt += `
@@ -5185,12 +5254,17 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
       // Преобразуем данные в формат для редактирования (API ожидает prompt, character_appearance, location)
       const requestData = {
-        name: formData.name.trim(),
+        name: (formData.name || '').trim(),
         prompt: full_prompt,
         character_appearance: translatedAppearance,
         location: translatedLocation,
-        is_nsfw: currentContentMode === 'nsfw'
+        is_nsfw: currentContentMode === 'nsfw',
+        tags: selectedTags && selectedTags.length > 0 ? selectedTags : []
       };
+
+      // Логируем теги для отладки
+      console.log('[EDIT_CHAR] Выбранные теги перед отправкой:', selectedTags);
+      console.log('[EDIT_CHAR] Теги в requestData:', requestData.tags);
 
 
       const response = await fetch(`/api/v1/characters/${createdCharacterData.name}`, {
@@ -5212,6 +5286,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
       const result = await response.json();
 
       setCreatedCharacterData(result);
+      // Синхронизируем теги с обновленным персонажем
+      if (result.tags && Array.isArray(result.tags)) {
+        setSelectedTags(result.tags);
+      }
       // setSuccess('Персонаж успешно обновлен!');
 
       // Обновляем информацию о пользователе
@@ -5303,6 +5381,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
             if (characterResponse.ok) {
               const updatedCharacter = await characterResponse.json();
               setCreatedCharacterData(updatedCharacter);
+              // Синхронизируем теги с обновленным персонажем
+              if (updatedCharacter.tags && Array.isArray(updatedCharacter.tags)) {
+                setSelectedTags(updatedCharacter.tags);
+              }
 
               // Еще одна небольшая задержка перед отправкой события
               await new Promise(resolve => setTimeout(resolve, 500));
@@ -5747,6 +5829,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                   if (characterResponse.ok) {
                     const updatedCharacter = await characterResponse.json();
                     setCreatedCharacterData(updatedCharacter);
+                    // Синхронизируем теги с обновленным персонажем
+                    if (updatedCharacter.tags && Array.isArray(updatedCharacter.tags)) {
+                      setSelectedTags(updatedCharacter.tags);
+                    }
 
                     // Еще одна небольшая задержка перед отправкой события
                     await new Promise(resolve => setTimeout(resolve, 500));
@@ -6051,30 +6137,30 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         <motion.button
                           type="button"
                           onClick={() => {
-                            if (formData.name.trim().length >= 2 && formData.personality.trim().length > 0) {
+                            if ((formData.name || '').trim().length >= 2 && (formData.personality || '').trim().length > 0) {
                               setCurrentStep(2);
                             }
                           }}
-                          disabled={formData.name.trim().length < 2 || formData.personality.trim().length === 0}
+                          disabled={(formData.name || '').trim().length < 2 || (formData.personality || '').trim().length === 0}
                           style={{
                             padding: '12px 24px',
-                            background: formData.name.trim().length >= 2 && formData.personality.trim().length > 0
+                            background: (formData.name || '').trim().length >= 2 && (formData.personality || '').trim().length > 0
                               ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)'
                               : 'rgba(60, 60, 80, 0.5)',
                             border: '1px solid',
-                            borderColor: formData.name.trim().length >= 2 && formData.personality.trim().length > 0
+                            borderColor: (formData.name || '').trim().length >= 2 && (formData.personality || '').trim().length > 0
                               ? 'rgba(139, 92, 246, 0.6)'
                               : 'rgba(100, 100, 120, 0.3)',
                             borderRadius: '12px',
-                            color: formData.name.trim().length >= 2 && formData.personality.trim().length > 0 ? '#ffffff' : '#71717a',
+                            color: (formData.name || '').trim().length >= 2 && (formData.personality || '').trim().length > 0 ? '#ffffff' : '#71717a',
                             fontSize: '14px',
                             fontWeight: 600,
-                            cursor: formData.name.trim().length >= 2 && formData.personality.trim().length > 0 ? 'pointer' : 'not-allowed',
+                            cursor: (formData.name || '').trim().length >= 2 && (formData.personality || '').trim().length > 0 ? 'pointer' : 'not-allowed',
                             transition: 'all 0.3s ease',
                             fontFamily: 'Inter, sans-serif'
                           }}
-                          whileHover={formData.name.trim().length >= 2 && formData.personality.trim().length > 0 ? { scale: 1.05, y: -2 } : {}}
-                          whileTap={formData.name.trim().length >= 2 && formData.personality.trim().length > 0 ? { scale: 0.95 } : {}}
+                          whileHover={(formData.name || '').trim().length >= 2 && (formData.personality || '').trim().length > 0 ? { scale: 1.05, y: -2 } : {}}
+                          whileTap={(formData.name || '').trim().length >= 2 && (formData.personality || '').trim().length > 0 ? { scale: 0.95 } : {}}
                         >
                           Далее →
                         </motion.button>
@@ -6169,30 +6255,30 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                       <motion.button
                         type="button"
                         onClick={() => {
-                          if (formData.situation.trim().length > 0) {
+                          if ((formData.situation || '').trim().length > 0) {
                             setCurrentStep(3);
                           }
                         }}
-                        disabled={formData.situation.trim().length === 0}
+                        disabled={(formData.situation || '').trim().length === 0}
                         style={{
                           padding: '12px 24px',
-                          background: formData.situation.trim().length > 0
+                          background: (formData.situation || '').trim().length > 0
                             ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)'
                             : 'rgba(60, 60, 80, 0.5)',
                           border: '1px solid',
-                          borderColor: formData.situation.trim().length > 0
+                          borderColor: (formData.situation || '').trim().length > 0
                             ? 'rgba(139, 92, 246, 0.6)'
                             : 'rgba(100, 100, 120, 0.3)',
                           borderRadius: '12px',
-                          color: formData.situation.trim().length > 0 ? '#ffffff' : '#71717a',
+                          color: (formData.situation || '').trim().length > 0 ? '#ffffff' : '#71717a',
                           fontSize: '14px',
                           fontWeight: 600,
-                          cursor: formData.situation.trim().length > 0 ? 'pointer' : 'not-allowed',
+                          cursor: (formData.situation || '').trim().length > 0 ? 'pointer' : 'not-allowed',
                           transition: 'all 0.3s ease',
                           fontFamily: 'Inter, sans-serif'
                         }}
-                        whileHover={formData.situation.trim().length > 0 ? { scale: 1.05, y: -2 } : {}}
-                        whileTap={formData.situation.trim().length > 0 ? { scale: 0.95 } : {}}
+                        whileHover={(formData.situation || '').trim().length > 0 ? { scale: 1.05, y: -2 } : {}}
+                        whileTap={(formData.situation || '').trim().length > 0 ? { scale: 0.95 } : {}}
                       >
                         Далее →
                       </motion.button>
@@ -7487,10 +7573,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                       <ContinueButton
                         type="submit"
                         disabled={isLoading ||
-                          formData.name.trim().length < 2 ||
-                          formData.personality.trim().length === 0 ||
-                          formData.situation.trim().length === 0 ||
-                          formData.instructions.trim().length === 0}
+                          (formData.name || '').trim().length < 2 ||
+                          (formData.personality || '').trim().length === 0 ||
+                          (formData.situation || '').trim().length === 0 ||
+                          (formData.instructions || '').trim().length === 0}
                         style={{ width: 'auto', minWidth: '140px', padding: '8px 16px', fontSize: '13px' }}
                       >
                         {isLoading
@@ -8133,11 +8219,21 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                             $selected={isSelected}
                             onClick={(e) => {
                               e.preventDefault();
-                              setSelectedTags(prev =>
-                                prev.includes(tagName)
+                              setSelectedTags(prev => {
+                                const newTags = prev.includes(tagName)
                                   ? prev.filter((t) => t !== tagName)
-                                  : [...prev, tagName]
-                              );
+                                  : [...prev, tagName];
+                                // Сохраняем теги в localStorage сразу при изменении
+                                try {
+                                  const savedFormData = localStorage.getItem('createCharacterFormData');
+                                  const formData = savedFormData ? JSON.parse(savedFormData) : {};
+                                  formData.selectedTags = newTags;
+                                  localStorage.setItem('createCharacterFormData', JSON.stringify(formData));
+                                } catch (error) {
+                                  console.error('Ошибка сохранения тегов в localStorage:', error);
+                                }
+                                return newTags;
+                              });
                             }}
                           >
                             {tagName}

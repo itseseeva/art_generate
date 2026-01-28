@@ -1585,7 +1585,37 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                 voice_url_to_save = user_voice.voice_url
                 logger.info(f"[CREATE_CHAR] Получен voice_url из БД для пользовательского голоса: {voice_url_to_save}")
         
+        # Автоматически добавляем теги в зависимости от создателя персонажа
         tags_value = list(character.tags) if character.tags else []
+        tags_set = set(tags_value)
+        
+        # Email пользователя, который создает "Original" персонажей
+        ORIGINAL_CREATOR_EMAIL = "eseeva228@gmail.com"
+        
+        logger.info(f"[CREATE_CHAR] Email создателя: {current_user.email}, исходные теги: {tags_value}")
+        
+        if current_user.email == ORIGINAL_CREATOR_EMAIL:
+            # Персонажи от eseeva228@gmail.com получают тег "Original"
+            if "Original" not in tags_set:
+                tags_set.add("Original")
+                logger.info(f"[CREATE_CHAR] Добавлен тег 'Original' для персонажа от {ORIGINAL_CREATOR_EMAIL}")
+            # Убираем "User created" если он есть
+            if "User created" in tags_set:
+                tags_set.discard("User created")
+                logger.info(f"[CREATE_CHAR] Удален тег 'User created' для персонажа от {ORIGINAL_CREATOR_EMAIL}")
+        else:
+            # Остальные персонажи получают тег "User created"
+            if "User created" not in tags_set:
+                tags_set.add("User created")
+                logger.info(f"[CREATE_CHAR] Добавлен тег 'User created' для персонажа от {current_user.email}")
+            # Убираем "Original" если он есть
+            if "Original" in tags_set:
+                tags_set.discard("Original")
+                logger.info(f"[CREATE_CHAR] Удален тег 'Original' для персонажа от {current_user.email}")
+        
+        tags_value = list(tags_set)
+        logger.info(f"[CREATE_CHAR] Финальные теги персонажа: {tags_value}")
+        
         new_character = CharacterDB(
             name=ensure_unicode(character.name),
             display_name=ensure_unicode(character.name),
@@ -2815,8 +2845,42 @@ Response Style:
         db_char.prompt = full_prompt
         db_char.character_appearance = character.appearance
         db_char.location = character.location
-        # Обновляем теги
+        # Автоматически добавляем теги в зависимости от создателя персонажа
         tags_value = list(character.tags) if character.tags else []
+        tags_set = set(tags_value)
+        
+        # Email пользователя, который создает "Original" персонажей
+        ORIGINAL_CREATOR_EMAIL = "eseeva228@gmail.com"
+        
+        # Получаем создателя персонажа (может быть другой пользователь, если персонаж был создан ранее)
+        character_creator_id = db_char.user_id
+        if character_creator_id:
+            # Находим создателя персонажа по user_id
+            creator_result = await db.execute(
+                select(Users).where(Users.id == character_creator_id)
+            )
+            character_creator = creator_result.scalar_one_or_none()
+            
+            if character_creator and character_creator.email == ORIGINAL_CREATOR_EMAIL:
+                # Персонажи от eseeva228@gmail.com получают тег "Original"
+                if "Original" not in tags_set:
+                    tags_set.add("Original")
+                    logger.info(f"[UPDATE_CHAR] Добавлен тег 'Original' для персонажа от {ORIGINAL_CREATOR_EMAIL}")
+                # Убираем "User created" если он есть
+                if "User created" in tags_set:
+                    tags_set.discard("User created")
+                    logger.info(f"[UPDATE_CHAR] Удален тег 'User created' для персонажа от {ORIGINAL_CREATOR_EMAIL}")
+            else:
+                # Остальные персонажи получают тег "User created"
+                if "User created" not in tags_set:
+                    tags_set.add("User created")
+                    logger.info(f"[UPDATE_CHAR] Добавлен тег 'User created' для персонажа от {character_creator.email if character_creator else 'unknown'}")
+                # Убираем "Original" если он есть
+                if "Original" in tags_set:
+                    tags_set.discard("Original")
+                    logger.info(f"[UPDATE_CHAR] Удален тег 'Original' для персонажа от {character_creator.email if character_creator else 'unknown'}")
+        
+        tags_value = list(tags_set)
         db_char.tags = tags_value
         logger.info(f"[UPDATE_CHAR] voice_id из запроса: {character.voice_id}, voice_url из запроса: {character.voice_url}, текущий voice_id в БД: {db_char.voice_id}")
         logger.info(f"[UPDATE_CHAR] Теги обновлены: {tags_value}")
