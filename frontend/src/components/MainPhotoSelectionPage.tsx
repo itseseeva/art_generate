@@ -641,6 +641,7 @@ export const MainPhotoSelectionPage: React.FC<MainPhotoSelectionPageProps> = ({
       setAvailablePhotos(prev => [photo, ...prev]);
       setError(null);
       stopFakeProgress(100);
+      window.dispatchEvent(new Event('balance-update'));
     } catch (generateError) {
       
       setError(generateError instanceof Error ? generateError.message : 'Не удалось сгенерировать фото');

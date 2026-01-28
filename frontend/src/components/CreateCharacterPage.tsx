@@ -4554,6 +4554,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
   const generationQueueRef = React.useRef<number>(0); // Счетчик задач в очереди
   const customPromptRef = React.useRef<string>(''); // Ref для актуального промпта
+  const selectedModelRef = React.useRef<'anime-realism' | 'anime' | 'realism'>('anime-realism'); // Актуальная модель при генерации (очередь/смена во время генерации)
   const audioRef = useRef<HTMLAudioElement | null>(null); // Ref для управления аудио
 
   useEffect(() => {
@@ -4592,6 +4593,10 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   useEffect(() => {
     refetchAvailableTags();
   }, [refetchAvailableTags]);
+
+  useEffect(() => {
+    selectedModelRef.current = selectedModel;
+  }, [selectedModel]);
 
   const handleAddTag = React.useCallback(async () => {
     const name = newTagName.trim();
@@ -5645,7 +5650,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
       steps: effectiveSettings.steps,
       cfg_scale: effectiveSettings.cfg_scale,
       use_default_prompts: false,
-      model: selectedModel,
+      model: selectedModelRef.current,
       user_id: userInfo?.id,
       skip_chat_history: true  // Не сохраняем в ChatHistory для генераций со страницы создания
     };
@@ -5957,6 +5962,8 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
         // Обновляем информацию о пользователе
         await checkAuth();
+        // Обновляем баланс в хедере после списания за генерацию фото
+        window.dispatchEvent(new Event('balance-update'));
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Ошибка генерации фото');
       } finally {

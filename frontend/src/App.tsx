@@ -73,6 +73,22 @@ const PageContainer = styled.div<{ $isMobile?: boolean }>`
   z-index: 1;
 `;
 
+const EmptyAlbumToast = styled.div`
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10001;
+  padding: 12px 20px;
+  background: rgba(30, 30, 40, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 12px;
+  color: rgba(226, 232, 240, 1);
+  font-size: 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  max-width: 90vw;
+`;
+
 type PageType =
   | 'main'
   | 'chat'
@@ -701,19 +717,20 @@ function App() {
 
     const normalizedSubscriptionType = currentSubscriptionType.toLowerCase();
 
+    let albumStatus: { unlocked?: boolean; photos_count?: number } | null = null;
+
     // Проверяем статус альбома перед показом модального окна
     try {
       const statusResponse = await authManager.fetchWithAuth(
-        `/api/v1/paid-gallery/${character.name}/status/`
+        `/api/v1/paid-gallery/${encodeURIComponent(character.name)}/status/`
       );
 
       if (statusResponse.ok) {
         const statusData = await statusResponse.json();
-
+        albumStatus = statusData;
 
         // Если альбом уже разблокирован (куплен, Premium, или владелец) - сразу открываем
         if (statusData.unlocked) {
-
           setSelectedCharacter(character);
           setCurrentPage('paid-album');
           if (character?.id) {
@@ -739,6 +756,12 @@ function App() {
       } else {
         window.history.pushState({ page: 'paid-album' }, '', '/paid-album');
       }
+      return;
+    }
+
+    if (albumStatus && (albumStatus.photos_count ?? 0) === 0) {
+      setEmptyAlbumToast(true);
+      setTimeout(() => setEmptyAlbumToast(false), 3000);
       return;
     }
 
@@ -1435,6 +1458,7 @@ function App() {
   const [isPaidAlbumModalOpen, setIsPaidAlbumModalOpen] = useState(false);
   const [selectedAlbumCharacter, setSelectedAlbumCharacter] = useState<any>(null);
   const [subscriptionStats, setSubscriptionStats] = useState<{ subscription_type?: string } | null>(null);
+  const [emptyAlbumToast, setEmptyAlbumToast] = useState(false);
 
   // Состояние для регистрации
   const [registrationEmail, setRegistrationEmail] = React.useState('');
@@ -1850,6 +1874,10 @@ function App() {
         onClose={() => setShowContentRatingModal(false)}
         onSelect={handleContentRatingSelect}
       />
+
+      {emptyAlbumToast && (
+        <EmptyAlbumToast>В альбоме пока что нет фотографий</EmptyAlbumToast>
+      )}
     </>
   );
 }

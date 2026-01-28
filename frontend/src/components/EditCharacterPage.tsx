@@ -4088,6 +4088,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null); // Интервал для автозаполнения прогресса
   const navigateToChatAfterSaveRef = useRef(false);
   const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime' | 'realism'>('anime-realism');
+  const selectedModelRef = useRef<'anime-realism' | 'anime' | 'realism'>('anime-realism'); // Актуальная модель при генерации (очередь/смена во время генерации)
   const [isTagsExpanded, setIsTagsExpanded] = useState(false);
   const [showGenerateTooltip, setShowGenerateTooltip] = useState(false);
 
@@ -4755,6 +4756,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       lastAppearanceLocationRef.current = { appearance: currentAppearance, location: currentLocation };
     }
   }, [formData.appearance, formData.location, customPromptManuallySet, customPrompt]); // Зависимости от appearance, location и флага
+
+  // Синхронизируем выбранную модель в ref (для актуальной модели при генерации из очереди / после смены модели во время генерации)
+  useEffect(() => {
+    selectedModelRef.current = selectedModel;
+  }, [selectedModel]);
 
   // Проверка авторизации (используем тот же метод, что и в ProfilePage)
   const checkAuth = async () => {
@@ -5566,7 +5572,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       steps: effectiveSettings.steps,
       cfg_scale: effectiveSettings.cfg_scale,
       use_default_prompts: false,
-      model: selectedModel
+      model: selectedModelRef.current
     };
 
     if (userInfo) {
@@ -5745,6 +5751,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
         // Обновляем информацию о пользователе
         await checkAuth();
+        // Обновляем баланс в хедере после списания за генерацию фото
+        window.dispatchEvent(new Event('balance-update'));
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Ошибка генерации фото');
       } finally {

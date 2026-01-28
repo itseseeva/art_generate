@@ -1597,11 +1597,11 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         const resultData = status.result || status.data;
         
         if (status.status === 'SUCCESS' && resultData) {
-          const imageUrl = resultData.image_url || resultData.cloud_url || resultData.url || 
+          const imageUrl = resultData.image_url || resultData.cloud_url || resultData.url ||
                           (Array.isArray(resultData.cloud_urls) && resultData.cloud_urls[0]) ||
                           (Array.isArray(resultData.saved_paths) && resultData.saved_paths[0]);
           const imageId = resultData.image_id || resultData.id || resultData.task_id || resultData.filename || `${Date.now()}-${taskId}`;
-          
+
           if (imageUrl) {
             return {
               id: imageId,
@@ -1611,8 +1611,13 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
           }
         } else if (status.status === 'FAILURE') {
           throw new Error(status.error || 'Ошибка генерации изображения');
-        } else if (status.status === 'PENDING' || status.status === 'PROGRESS') {
-          await new Promise(resolve => setTimeout(resolve, delay));
+        } else if (
+          status.status === 'PENDING' ||
+          status.status === 'PROGRESS' ||
+          status.status === 'generating' ||
+          status.status === 'NOT_FOUND'
+        ) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
       } catch (err) {

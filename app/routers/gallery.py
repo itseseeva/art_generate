@@ -57,6 +57,7 @@ class PaidAlbumStatusResponse(BaseModel):
     character_slug: str
     unlocked: bool
     is_owner: bool
+    photos_count: int = 0
 
 
 class PaidAlbumPhotosRequest(BaseModel):
@@ -91,6 +92,29 @@ async def _is_album_unlocked(db: AsyncSession, user_id: int, character_slug: str
     )
     result = await db.execute(stmt)
     return result.scalar_one_or_none() is not None
+
+
+async def _get_paid_album_photos_count(db: AsyncSession, character_db: CharacterDB, slug: str) -> int:
+    """Возвращает количество фотографий в платном альбоме (БД + папка paid_gallery)."""
+    from app.chat_bot.models.models import PaidAlbumPhoto
+    from sqlalchemy import func
+
+    count_stmt = (
+        select(func.count())
+        .select_from(PaidAlbumPhoto)
+        .where(PaidAlbumPhoto.character_id == character_db.id)
+    )
+    result = await db.execute(count_stmt)
+    db_count = result.scalar() or 0
+    if db_count > 0:
+        return db_count
+
+    project_root = Path(__file__).resolve().parents[2]
+    gallery_dir = project_root / "paid_gallery" / slug
+    if not gallery_dir.exists() or not gallery_dir.is_dir():
+        return 0
+    exts = {".png", ".jpg", ".jpeg", ".webp"}
+    return sum(1 for f in gallery_dir.iterdir() if f.is_file() and f.suffix.lower() in exts)
 
 
 @router.get("/paid-gallery/unlocked/", response_model=List[PaidAlbumUnlockedItem])
@@ -141,12 +165,14 @@ async def get_paid_album_status(
             is_premium = True
     
     unlocked = bool(is_unlocked or is_owner or is_admin or is_premium)
+    photos_count = await _get_paid_album_photos_count(db, character_db, slug)
 
     return PaidAlbumStatusResponse(
         character=character_db.name,
         character_slug=slug,
         unlocked=unlocked,
         is_owner=is_owner,
+        photos_count=photos_count,
     )
 
 
@@ -225,6 +251,13 @@ async def unlock_paid_gallery(
             unlocked=True,
             character=character_db.name,
             coins=coins_balance,
+        )
+
+    photos_count = await _get_paid_album_photos_count(db, character_db, slug)
+    if photos_count == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="В альбоме пока что нет фотографий. Покупка недоступна.",
         )
 
     coins_service = CoinsService(db)
