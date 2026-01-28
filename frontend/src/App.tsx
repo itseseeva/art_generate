@@ -1286,7 +1286,7 @@ function App() {
             }}
             onGoogleLogin={() => {
               // Перенаправляем на OAuth endpoint
-              window.location.href = '/api/v1/auth/google/login';
+              window.location.href = '/auth/google/';
             }}
             onSignUp={() => {
               // Переходим на страницу регистрации
@@ -1375,7 +1375,7 @@ function App() {
             }}
             onGoogleRegister={() => {
               // Перенаправляем на OAuth endpoint
-              window.location.href = '/api/v1/auth/google/login';
+              window.location.href = '/auth/google/';
             }}
             onLogin={() => {
               // Переходим на страницу входа
