@@ -233,7 +233,18 @@ function App() {
     const urlParams = new URLSearchParams(window.location.search);
 
     // Парсим состояние из hash или query параметров
-    if (path.includes('/chat')) {
+    if (path.includes('/auth')) {
+      // Обрабатываем роут /auth - перенаправляем на login или register
+      const tab = urlParams.get('tab');
+      if (tab === 'register') {
+        setCurrentPage('register');
+        window.history.replaceState({ page: 'register' }, '', '/register');
+      } else {
+        setCurrentPage('login');
+        window.history.replaceState({ page: 'login' }, '', '/login');
+      }
+      return;
+    } else if (path.includes('/chat')) {
       const characterId = urlParams.get('character');
       if (characterId) {
         // КРИТИЧНО: Показываем спиннер пока персонаж загружается
@@ -429,6 +440,9 @@ function App() {
     } else if (path.includes('/login')) {
       setCurrentPage('login');
       window.history.replaceState({ page: 'login' }, '', '/login');
+    } else if (path.includes('/register')) {
+      setCurrentPage('register');
+      window.history.replaceState({ page: 'register' }, '', '/register');
     } else {
       setCurrentPage('main');
       window.history.replaceState({ page: 'main' }, '', '/');

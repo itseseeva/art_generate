@@ -557,7 +557,9 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
 
   const handleProfile = () => {
     if (!isAuthenticated) {
-      window.location.href = '/auth';
+      if (onLogin) {
+        onLogin();
+      }
       return;
     }
     if (onProfile) {
@@ -631,10 +633,10 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
 
         {!isAuthenticated && (
           <>
-            <ShopButton onClick={() => window.location.href = '/auth'} title="Войти">
+            <ShopButton onClick={() => onLogin && onLogin()} title="Войти">
               <LogIn size={20} />
             </ShopButton>
-            <ShopButton onClick={() => window.location.href = '/auth?tab=register'} title="Регистрация">
+            <ShopButton onClick={() => onRegister && onRegister()} title="Регистрация">
               <UserPlus size={20} />
             </ShopButton>
           </>
