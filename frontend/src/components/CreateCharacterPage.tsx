@@ -4387,6 +4387,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [isSituationTagsExpanded, setIsSituationTagsExpanded] = useState(false);
   const [isInstructionTagsExpanded, setIsInstructionTagsExpanded] = useState(false);
   const [isAppearanceTagsExpanded, setIsAppearanceTagsExpanded] = useState(false);
+  const [isLocationTagsExpanded, setIsLocationTagsExpanded] = useState(false);
   const [isPhotoPromptTagsExpanded, setIsPhotoPromptTagsExpanded] = useState(false);
   const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime' | 'realism'>('anime-realism');
   const [showGenerateTooltip, setShowGenerateTooltip] = useState(false);
@@ -5290,7 +5291,19 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
       if (result.tags && Array.isArray(result.tags)) {
         setSelectedTags(result.tags);
       }
-      // setSuccess('Персонаж успешно обновлен!');
+
+      // КРИТИЧНО: обновляем промпт для шага 4 из актуальных внешности и локации,
+      // чтобы при переходе на шаг 4 использовались только что сохраненные данные
+      const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
+      if (parts.length > 0) {
+        const newPrompt = parts.join(' | ');
+        setCustomPrompt(newPrompt);
+        customPromptRef.current = newPrompt;
+      }
+
+      // Переходим на шаг 4, чтобы пользователь видел обновленный промпт и мог генерировать фото
+      setCurrentStep(4);
+      setSuccess('Изменения сохранены. Данные внешности и локации обновлены для генерации фото.');
 
       // Обновляем информацию о пользователе
       await checkAuth();
@@ -6379,6 +6392,48 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         </ExpandButton>
                       )}
                     </FormField>
+
+                    {showLocation && (
+                      <FormField>
+                        <FormLabel htmlFor="location">Локация (для фото)</FormLabel>
+                        <ModernTextarea
+                          id="location"
+                          name="location"
+                          value={formData.location}
+                          onChange={handleInputChange}
+                          placeholder="Опишите локацию для фото: интерьер, обстановка, атмосфера..."
+                          rows={4}
+                        />
+                        <TagsContainer $isExpanded={isLocationTagsExpanded}>
+                          {LOCATION_PROMPTS.map((tag, idx) => (
+                            <TagButton
+                              key={idx}
+                              type="button"
+                              $category="neutral"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                const newVal = formData.location ? formData.location + ' ' + tag.value : tag.value;
+                                setFormData(prev => ({ ...prev, location: newVal }));
+                                const fakeEvent = { target: { name: 'location', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
+                                handleInputChange(fakeEvent);
+                              }}
+                            >
+                              <Plus size={8} /> {tag.label}
+                            </TagButton>
+                          ))}
+                        </TagsContainer>
+                        {LOCATION_PROMPTS.length > 4 && (
+                          <ExpandButton
+                            $isExpanded={isLocationTagsExpanded}
+                            onClick={() => setIsLocationTagsExpanded(!isLocationTagsExpanded)}
+                          >
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points={isLocationTagsExpanded ? "18 15 12 9 6 15" : "6 9 12 15 18 9"}></polyline>
+                            </svg>
+                          </ExpandButton>
+                        )}
+                      </FormField>
+                    )}
 
                     {/* Выбор голоса */}
                     <FormField>

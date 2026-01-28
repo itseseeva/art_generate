@@ -8215,12 +8215,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                 >
                   <PreviewImage>
                     {(() => {
-                      // Показываем только выбранные фото (те, на которые нажали "Добавить")
+                      // Сначала выбранные фото; если пусто — показываем все загруженные из generatedPhotos
                       const allPhotos: Array<{ url: string; id?: string }> = [];
                       if (selectedPhotos.length > 0) {
                         selectedPhotos.forEach((selectedPhoto) => {
                           if (selectedPhoto.url) {
-                            // Проверяем, нет ли уже такого фото по URL или ID
                             const exists = allPhotos.some(p =>
                               (p.url === selectedPhoto.url) ||
                               (p.id && selectedPhoto.id && p.id === selectedPhoto.id)
@@ -8228,6 +8227,14 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                             if (!exists) {
                               allPhotos.push({ url: selectedPhoto.url, id: selectedPhoto.id });
                             }
+                          }
+                        });
+                      }
+                      // Fallback: при редактировании, если выбранных нет, показываем загруженные фото
+                      if (allPhotos.length === 0 && generatedPhotos?.length > 0) {
+                        generatedPhotos.forEach((photo: { url?: string; id?: string }) => {
+                          if (photo?.url && !allPhotos.some(p => p.url === photo.url)) {
+                            allPhotos.push({ url: photo.url, id: photo.id });
                           }
                         });
                       }
