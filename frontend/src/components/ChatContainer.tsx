@@ -2661,8 +2661,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
         // Обработка 403 - недостаточно ресурсов
         if (response.status === 403) {
-          const errorData = await response.json().catch(() => ({ detail: 'Недостаточно кредитов подписки или монет для отправки сообщения! Нужно 5 кредитов или 5 монет.' }));
-          setError(errorData.detail || 'Недостаточно кредитов подписки или монет для отправки сообщения! Нужно 5 кредитов или 5 монет.');
+          const errorData = await response.json().catch(() => ({ detail: 'Недостаточно кредитов подписки или монет для отправки сообщения! Нужно 2 кредита или 2 монеты.' }));
+          setError(errorData.detail || 'Недостаточно кредитов подписки или монет для отправки сообщения! Нужно 2 кредита или 2 монеты.');
           // Удаляем сообщения пользователя (если было) и ассистента
           setMessages(prev => prev.filter(msg =>
             (userMessage ? msg.id !== userMessage.id : true) && msg.id !== assistantMessageId
@@ -4366,9 +4366,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 );
               })()}
 
-              <PaidAlbumDisclaimer>
-                В альбоме не содержатся фотографии 18+ и откровенного контента.
-              </PaidAlbumDisclaimer>
             </PaidAlbumPanel>
           )}
         </ChatContentWrapper>
@@ -4383,7 +4380,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 : 'Разблокировка альбома недоступна'}
             </UpgradeModalTitle>
             <UpgradeModalText>
-              В альбоме не содержатся фотографии 18+ и откровенного контента.{' '}
+              {' '}
               {normalizedSubscriptionType === 'base'
                 ? 'Платные альбомы доступны только для подписчиков Standard и Premium. Оформите подписку, чтобы создавать и расширять платные альбомы.'
                 : 'Разблокировка и добавление фотографий в альбом доступны только подписчикам Standard и Premium. Оформите подписку, чтобы получить доступ к этой функции.'}

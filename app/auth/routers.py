@@ -190,7 +190,26 @@ async def create_user(
     # Сохраняем в Redis на 1 час (3600 секунд)
     # Если данные уже есть - они будут обновлены с новым кодом
     cache_key = key_registration_data(user.email)
-    await cache_set_json(cache_key, registration_data, ttl_seconds=3600)
+    logger.info(f"[REGISTRATION] Saving registration data to Redis, email: {user.email}, key: {cache_key}")
+    save_result = await cache_set_json(cache_key, registration_data, ttl_seconds=3600, timeout=2.0)
+    
+    if not save_result:
+        logger.error(f"[REGISTRATION] Failed to save registration data to Redis for email: {user.email}, key: {cache_key}")
+        raise HTTPException(
+            status_code=500,
+            detail="Ошибка сохранения данных регистрации. Попробуйте позже."
+        )
+    
+    # Проверяем, что данные действительно сохранились
+    verify_data = await cache_get_json(cache_key)
+    if not verify_data:
+        logger.error(f"[REGISTRATION] Registration data saved but cannot be retrieved from Redis for email: {user.email}, key: {cache_key}")
+        raise HTTPException(
+            status_code=500,
+            detail="Ошибка сохранения данных регистрации. Попробуйте позже."
+        )
+    
+    logger.info(f"[REGISTRATION] Registration data saved and verified in Redis for email: {user.email}, key: {cache_key}, code: {verification_code}")
     
     # Send verification email через Celery (не блокируем ответ)
     # Код уже сохранён в Redis, поэтому пользователь может ввести код
@@ -229,13 +248,18 @@ async def confirm_registration(
     try:
         # Получаем данные регистрации из временного хранилища
         cache_key = key_registration_data(confirm_data.email)
-        registration_data = await cache_get_json(cache_key)
-    
+        logger.info(f"[REGISTRATION] Attempting to get registration data from Redis, key: {cache_key}")
+        # Увеличиваем таймаут для критичной операции чтения данных регистрации
+        registration_data = await cache_get_json(cache_key, timeout=2.0)
+        
         if not registration_data:
+            logger.warning(f"[REGISTRATION] Registration data not found in Redis for email: {confirm_data.email}, key: {cache_key}")
             raise HTTPException(
                 status_code=400,
                 detail="Registration data not found or expired. Please register again."
             )
+        
+        logger.info(f"[REGISTRATION] Registration data found in Redis for email: {confirm_data.email}")
         
         # Проверяем код верификации
         if registration_data.get("verification_code") != confirm_data.verification_code:

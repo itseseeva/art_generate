@@ -155,7 +155,12 @@ class CharacterConfig(BaseModel):
         None,
         description="ID голоса из папки default_character_voices"
     )
-    
+
+    tags: Optional[List[str]] = Field(
+        default_factory=list,
+        description="Список тегов персонажа (из доступных тегов)"
+    )
+
     # face_image удален (IP-Adapter удален)
 
     model_config = ConfigDict(from_attributes=True)
@@ -185,7 +190,11 @@ class UserCharacterCreate(BaseModel):
         False,
         description="Удалить дефолтные инструкции из промпта"
     )
-    
+    tags: Optional[List[str]] = Field(
+        default_factory=list,
+        description="Список тегов персонажа (из доступных тегов)"
+    )
+
     model_config = ConfigDict(from_attributes=True)
     
     def __init__(self, **data):

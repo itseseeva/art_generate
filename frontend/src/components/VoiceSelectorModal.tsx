@@ -1,15 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled, { keyframes, css } from 'styled-components';
 import { theme } from '../theme';
-import { FiX, FiPlay, FiPause } from 'react-icons/fi';
+import { FiX } from 'react-icons/fi';
 import { API_CONFIG } from '../config/api';
 import { authManager } from '../utils/auth';
 
-// Функция для проверки премиальных голосов
+// Функция для проверки премиальных голосов (права доступа)
 const isPremiumVoice = (voiceName?: string): boolean => {
   if (!voiceName) return false;
   const name = voiceName.toLowerCase();
   return name.includes('мита') || name.includes('meet') || name === 'мика' || name === 'ника';
+};
+
+// Для оформления: Ника — без красной обводки, зелёная галочка; права только для премиум сохраняются
+const isPremiumVoiceForStyle = (voiceName?: string): boolean => {
+  if (!voiceName) return false;
+  const name = voiceName.toLowerCase();
+  if (name === 'ника') return false;
+  return name.includes('мита') || name.includes('meet') || name === 'мика';
 };
 
 // Функция для получения пути к фото голоса
@@ -40,7 +48,7 @@ const ModalContent = styled.div`
   border: 1px solid rgba(236, 72, 153, 0.3);
   border-radius: ${theme.borderRadius.xl};
   padding: ${theme.spacing.xl};
-  max-width: 800px;
+  max-width: 980px;
   width: 95%;
   max-height: 90vh;
   overflow-y: auto;
@@ -106,26 +114,28 @@ const Tab = styled.button<{ $isActive: boolean }>`
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  
+  outline: none;
+
   &:hover {
     color: #ec4899;
     border-bottom-color: ${props => props.$isActive ? '#ec4899' : 'rgba(236, 72, 153, 0.5)'};
   }
+
+  &:focus,
+  &:active {
+    outline: none;
+  }
 `;
 
-const VoicesGrid = styled.div<{ $isExpanded: boolean }>`
+const VoicesGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: ${theme.spacing.md};
-  max-height: ${props => props.$isExpanded ? 'none' : '220px'};
-  overflow: hidden;
-  transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   align-items: start;
   width: 100%;
-  
+
   @media (max-width: 768px) {
     grid-template-columns: repeat(3, 1fr);
-    gap: ${theme.spacing.sm};
   }
 `;
 
@@ -191,9 +201,9 @@ const VoicePhotoContainer = styled.div<{ $isSelected: boolean; $isPlaying: boole
   overflow: visible;
   border-radius: 50%;
   
-  /* Анимированная градиентная рамка для премиальных голосов */
+  /* Анимированная градиентная рамка для премиальных голосов (не для Ника) */
   ${props => {
-    const isPremium = isPremiumVoice(props.$voiceName);
+    const isPremium = isPremiumVoiceForStyle(props.$voiceName);
     if (!isPremium) return '';
     return `
       &::before {
@@ -236,9 +246,9 @@ const VoicePhotoContainer = styled.div<{ $isSelected: boolean; $isPlaying: boole
     `;
   }}
   
-  /* Обычная рамка выбора (для не премиальных голосов) */
+  /* Обычная рамка выбора (для не премиальных и для Ника) */
   ${props => {
-    const isPremium = isPremiumVoice(props.$voiceName);
+    const isPremium = isPremiumVoiceForStyle(props.$voiceName);
     if (isPremium) return '';
     return `
       &::before {
@@ -259,9 +269,9 @@ const VoicePhotoContainer = styled.div<{ $isSelected: boolean; $isPlaying: boole
     `;
   }}
   
-  /* Статичное красное свечение для премиальных голосов */
+  /* Статичное красное свечение для премиальных голосов (не для Ника) */
   ${props => {
-    const isPremium = isPremiumVoice(props.$voiceName);
+    const isPremium = isPremiumVoiceForStyle(props.$voiceName);
     if (!isPremium) return '';
     return `
       box-shadow: 0 0 20px rgba(255, 0, 0, 0.4),
@@ -280,12 +290,12 @@ const VoicePhotoContainer = styled.div<{ $isSelected: boolean; $isPlaying: boole
     height: 100%;
     border-radius: 50%;
     border: 3px solid ${props => {
-    const isPremium = isPremiumVoice(props.$voiceName);
+    const isPremium = isPremiumVoiceForStyle(props.$voiceName);
     return isPremium ? 'rgba(255, 0, 0, 0.5)' : 'rgba(255, 215, 0, 0.5)';
   }};
     opacity: ${props => props.$isPlaying ? '1' : '0'};
     animation: ${props => {
-    const isPremium = isPremiumVoice(props.$voiceName);
+    const isPremium = isPremiumVoiceForStyle(props.$voiceName);
     return props.$isPlaying ? (isPremium ? 'redPulseWave 1.2s ease-out infinite' : 'pulseWave 1.2s ease-out infinite') : 'none';
   }};
     z-index: 0;
@@ -339,12 +349,22 @@ const VoicePhoto = styled.img<{ $voiceName?: string; $isSelected?: boolean }>`
   min-height: 100%;
   border-radius: 50%;
   object-fit: cover;
+  object-position: center;
   position: relative;
   z-index: 2;
   
-  /* Эффект Shimmer для премиальных голосов */
+  /* Компенсация смещения для Миты (изображение смещено влево в PNG файле) */
+  transform: ${props => {
+    const name = props.$voiceName?.toLowerCase() || '';
+    if (name.includes('мита') || name.includes('mita')) {
+      return 'translateX(8px)'; // Сдвигаем вправо чтобы отцентровать
+    }
+    return 'none';
+  }};
+  
+  /* Эффект Shimmer для премиальных голосов (не для Ника) */
   ${props => {
-    const isPremium = isPremiumVoice(props.$voiceName);
+    const isPremium = isPremiumVoiceForStyle(props.$voiceName);
     if (!isPremium) return '';
     return `
       &::after {
@@ -408,10 +428,10 @@ const VoiceName = styled.div`
 
 const VoiceCheckmark = styled.div<{ $show: boolean; $isPremium?: boolean }>`
   position: absolute;
-  top: -8px;
-  right: -8px;
-  width: 24px;
-  height: 24px;
+  top: -6px;
+  right: -6px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -442,50 +462,21 @@ const VoiceCheckmark = styled.div<{ $show: boolean; $isPremium?: boolean }>`
     width: 100%;
     height: 100%;
     border-radius: 50%;
-    background: ${props => props.$isPremium
-      ? 'linear-gradient(135deg, #ff0000 0%, #cc0000 100%)'
-      : 'linear-gradient(135deg, #10b981 0%, #059669 100%)'};
-    box-shadow: ${props => props.$isPremium
-      ? '0 0 12px rgba(255, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.3)'
-      : '0 0 12px rgba(16, 185, 129, 0.6), 0 2px 8px rgba(0, 0, 0, 0.3)'};
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    box-shadow: 0 0 14px rgba(16, 185, 129, 0.7), 0 2px 8px rgba(0, 0, 0, 0.3);
   }
   
   &::after {
     content: '';
     position: absolute;
-    width: 6px;
-    height: 12px;
-    border: 3px solid ${props => props.$isPremium ? '#ff4444' : '#4ade80'};
+    width: 7px;
+    height: 14px;
+    border: 3px solid #4ade80;
     border-top: none;
     border-left: none;
     transform: rotate(45deg) translate(-2px, -2px);
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-    filter: drop-shadow(0 0 3px ${props => props.$isPremium ? 'rgba(255, 68, 68, 0.8)' : 'rgba(74, 222, 128, 0.8)'});
-  }
-`;
-
-const SelectVoiceButton = styled.button`
-  background: rgba(236, 72, 153, 0.15);
-  border: 1px solid rgba(236, 72, 153, 0.3);
-  color: #ec4899;
-  cursor: pointer;
-  padding: 6px 12px;
-  border-radius: ${theme.borderRadius.md};
-  font-size: ${theme.fontSize.xs};
-  font-weight: 600;
-  transition: all 0.2s ease;
-  margin-top: ${theme.spacing.sm};
-  width: auto;
-  min-width: 80px;
-  
-  &:hover {
-    background: rgba(236, 72, 153, 0.25);
-    border-color: rgba(236, 72, 153, 0.5);
-    transform: translateY(-1px);
-  }
-  
-  &:active {
-    transform: translateY(0);
+    filter: drop-shadow(0 0 3px rgba(74, 222, 128, 0.9));
   }
 `;
 
@@ -523,34 +514,6 @@ const SaveButton = styled.button`
     opacity: 0.5;
     cursor: not-allowed;
     transform: none;
-  }
-`;
-
-const PlayIcon = styled.div<{ $isPlaying: boolean }>`
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 40px;
-  height: 40px;
-  border-radius: ${theme.borderRadius.full};
-  background: rgba(236, 72, 153, 0.9);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-  z-index: 5;
-  pointer-events: none;
-  color: white;
-  
-  ${VoicePhotoContainer}:hover & {
-    opacity: 1;
-  }
-  
-  svg {
-    width: 18px;
-    height: 18px;
   }
 `;
 
@@ -783,9 +746,9 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
 
   const handlePlayPreview = async (voice: Voice, e: React.MouseEvent) => {
     e.stopPropagation();
-    
+
     const audioUrlToPlay = voice.preview_url || voice.url;
-    
+
     if (playingVoiceUrl === audioUrlToPlay) {
       if (audioRef.current) {
         audioRef.current.pause();
@@ -803,22 +766,22 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
     }
 
     try {
-      const fullUrl = audioUrlToPlay.startsWith('http') 
-        ? audioUrlToPlay 
+      const fullUrl = audioUrlToPlay.startsWith('http')
+        ? audioUrlToPlay
         : `${API_CONFIG.BASE_URL}${audioUrlToPlay}`;
       const audio = new Audio(fullUrl);
       audioRef.current = audio;
-      
+
       audio.onended = () => {
         setPlayingVoiceUrl(null);
         audioRef.current = null;
       };
-      
+
       audio.onerror = () => {
         setPlayingVoiceUrl(null);
         audioRef.current = null;
       };
-      
+
       await audio.play();
       setPlayingVoiceUrl(audioUrlToPlay);
     } catch (error) {
@@ -827,22 +790,6 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
   };
 
   const handleSelectVoice = (voice: Voice) => {
-    // Проверяем, является ли голос премиальным
-    if (isPremiumVoice(voice.name)) {
-      // Проверяем подписку
-      const subscriptionType = userInfo?.subscription?.subscription_type ||
-        (userInfo as any)?.subscription_type ||
-        'free';
-
-      const isPremiumUser = ['pro', 'premium'].includes(subscriptionType.toLowerCase());
-
-      if (!isPremiumUser) {
-        // Показываем модальное окно, но не выбираем голос
-        setShowPremiumModal(true);
-        return;
-      }
-    }
-    
     setSelectedVoice(voice);
   };
 
@@ -858,12 +805,11 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
         const isPremiumUser = ['pro', 'premium'].includes(subscriptionType.toLowerCase());
 
         if (!isPremiumUser) {
-          // Показываем модальное окно, но не сохраняем голос
           setShowPremiumModal(true);
           return;
         }
       }
-      
+
       if (selectedVoice.is_user_voice) {
         onSelectVoice(null, selectedVoice.url);
       } else {
@@ -898,14 +844,14 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
         </ModalHeader>
 
         <TabsContainer>
-          <Tab 
-            $isActive={activeTab === 'default'} 
-            onClick={() => setActiveTab('default')}
+          <Tab
+            $isActive={activeTab === 'default'}
+            onClick={() => { setActiveTab('default'); setIsExpanded(false); }}
           >
             Стандартные ({defaultVoices.length})
           </Tab>
-          <Tab 
-            $isActive={activeTab === 'user'} 
+          <Tab
+            $isActive={activeTab === 'user'}
             onClick={() => setActiveTab('user')}
           >
             Пользовательские ({userVoices.length})
@@ -918,102 +864,90 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
           </div>
         ) : (
           <>
-            <VoicesGrid $isExpanded={isExpanded}>
-              {(activeTab === 'default' ? defaultVoices : userVoices).map((voice) => {
-              const audioUrlToPlay = voice.preview_url || voice.url;
-              const isPlaying = playingVoiceUrl === audioUrlToPlay;
-              const isSelected = isVoiceSelected(voice);
-              // Рамка показывается только для выбранного в модальном окне голоса (с галочкой)
-              const isSelectedInModal = selectedVoice?.id === voice.id || (voice.is_user_voice && selectedVoice?.url === voice.url);
-              
-              const defaultPlaceholder = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9InJnYmEoNjAsIDYwLCA2MCwgMC4zKSIvPgo8cGF0aCBkPSJNMzAgNDBDMzAgMzUuMDI5IDM0LjAyOSAzMSAzOSAzMUg0MUM0NS45NzEgMzEgNTAgMzUuMDI5IDUwIDQwQzUwIDQ0Ljk3MSA0NS45NzEgNDkgNDEgNDlIMzlDMzQuMDI5IDQ5IDMwIDQ0Ljk3MSAzMCA0MFoiIGZpbGw9InJnYmEoMTUwLCAxNTAsIDE1MCwgMC41KSIvPgo8L3N2Zz4K';
-              const photoPath = voice.is_user_voice
-                ? (voice.photo_url
-                  ? (voice.photo_url.startsWith('http') ? voice.photo_url : `${API_CONFIG.BASE_URL}${voice.photo_url}`)
-                  : defaultPlaceholder)
-                : getVoicePhotoPath(voice.name);
+            <VoicesGrid>
+              {(activeTab === 'default'
+                ? defaultVoices
+                : (userVoices.length > 6 && !isExpanded ? userVoices.slice(0, 6) : userVoices)
+              ).map((voice) => {
+                const audioUrlToPlay = voice.preview_url || voice.url;
+                const isPlaying = playingVoiceUrl === audioUrlToPlay;
+                const isSelected = isVoiceSelected(voice);
+                // Рамка показывается только для выбранного в модальном окне голоса (с галочкой)
+                const isSelectedInModal = selectedVoice?.id === voice.id || (voice.is_user_voice && selectedVoice?.url === voice.url);
 
-              return (
-                <VoiceCard
-                  key={voice.id}
-                >
-                  <VoiceName>{voice.name}</VoiceName>
-                  {voice.is_user_voice && voice.creator_username && (
-                    <div style={{ 
-                      fontSize: theme.fontSize.xs, 
-                      color: 'rgba(255, 255, 255, 0.5)',
-                      marginTop: '-8px',
-                      marginBottom: theme.spacing.xs
-                    }}>
-                      @{voice.creator_username}
-                    </div>
-                  )}
-                  <VoicePhotoWrapper>
-                    <VoicePhotoContainer
-                      $isSelected={isSelectedInModal}
-                      $isPlaying={isPlaying}
-                      $voiceName={voice.name}
-                      $isUserVoice={voice.is_user_voice}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handlePlayPreview(voice, e);
-                      }}
-                    >
-                      <VoicePhoto
-                        src={photoPath}
-                        alt={voice.name}
-                        $voiceName={voice.name}
-                        $isSelected={isSelectedInModal}
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          const normalizedName = voice.name.replace(/\.(mp3|wav|ogg)$/i, '');
-                          const extensions = ['.png', '.jpg', '.jpeg', '.webp'];
-                          let currentIndex = extensions.findIndex(ext => target.src.includes(ext));
-                          if (currentIndex === -1) currentIndex = 0;
-                          if (currentIndex < extensions.length - 1) {
-                            target.src = `/default_voice_photo/${normalizedName}${extensions[currentIndex + 1]}`;
-                          } else {
-                            target.src = defaultPlaceholder;
-                          }
-                        }}
-                      />
-                      <PlayIcon $isPlaying={isPlaying}>
-                        {isPlaying ? <FiPause /> : <FiPlay />}
-                      </PlayIcon>
-                      <VoiceCheckmark 
-                        $show={isSelectedInModal}
-                        $isPremium={isPremiumVoice(voice.name)}
-                      />
-                    </VoicePhotoContainer>
-                  </VoicePhotoWrapper>
-                  <SelectVoiceButton
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSelectVoice(voice);
-                    }}
+                const defaultPlaceholder = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9InJnYmEoNjAsIDYwLCA2MCwgMC4zKSIvPgo8cGF0aCBkPSJNMzAgNDBDMzAgMzUuMDI5IDM0LjAyOSAzMSAzOSAzMUg0MUM0NS45NzEgMzEgNTAgMzUuMDI5IDUwIDQwQzUwIDQ0Ljk3MSA0NS45NzEgNDkgNDEgNDlIMzlDMzQuMDI5IDQ5IDMwIDQ0Ljk3MSAzMCA0MFoiIGZpbGw9InJnYmEoMTUwLCAxNTAsIDE1MCwgMC41KSIvPgo8L3N2Zz4K';
+                const photoPath = voice.is_user_voice
+                  ? (voice.photo_url
+                    ? (voice.photo_url.startsWith('http') ? voice.photo_url : `${API_CONFIG.BASE_URL}${voice.photo_url}`)
+                    : defaultPlaceholder)
+                  : getVoicePhotoPath(voice.name);
+
+                return (
+                  <VoiceCard
+                    key={voice.id}
                   >
-                    Выбрать
-                  </SelectVoiceButton>
-                </VoiceCard>
-              );
-            })}
+                    <VoiceName>{voice.name}</VoiceName>
+                    {voice.is_user_voice && voice.creator_username && (
+                      <div style={{
+                        fontSize: theme.fontSize.xs,
+                        color: 'rgba(255, 255, 255, 0.5)',
+                        marginTop: '-8px',
+                        marginBottom: theme.spacing.xs
+                      }}>
+                        @{voice.creator_username}
+                      </div>
+                    )}
+                    <VoicePhotoWrapper>
+                      <VoicePhotoContainer
+                        $isSelected={isSelectedInModal}
+                        $isPlaying={isPlaying}
+                        $voiceName={voice.name}
+                        $isUserVoice={voice.is_user_voice}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectVoice(voice);
+                          handlePlayPreview(voice, e);
+                        }}
+                      >
+                        <VoicePhoto
+                          src={photoPath}
+                          alt={voice.name}
+                          $voiceName={voice.name}
+                          $isSelected={isSelectedInModal}
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            const normalizedName = voice.name.replace(/\.(mp3|wav|ogg)$/i, '');
+                            const extensions = ['.png', '.jpg', '.jpeg', '.webp'];
+                            let currentIndex = extensions.findIndex(ext => target.src.includes(ext));
+                            if (currentIndex === -1) currentIndex = 0;
+                            if (currentIndex < extensions.length - 1) {
+                              target.src = `/default_voice_photo/${normalizedName}${extensions[currentIndex + 1]}`;
+                            } else {
+                              target.src = defaultPlaceholder;
+                            }
+                          }}
+                        />
+                        <VoiceCheckmark
+                          $show={isSelectedInModal}
+                          $isPremium={false}
+                        />
+                      </VoicePhotoContainer>
+                    </VoicePhotoWrapper>
+                  </VoiceCard>
+                );
+              })}
             </VoicesGrid>
-            {(() => {
-              const currentVoices = activeTab === 'default' ? defaultVoices : userVoices;
-              const hasMoreThanFive = currentVoices.length > 5;
-              
-              return hasMoreThanFive && (
-                <ExpandButton
-                  $isExpanded={isExpanded}
-                  onClick={() => setIsExpanded(!isExpanded)}
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                  </svg>
-                  <span>{isExpanded ? 'Скрыть остальные голоса' : 'Показать остальные голоса'}</span>
-                </ExpandButton>
-              );
-            })()}
+            {activeTab === 'user' && userVoices.length > 6 && (
+              <ExpandButton
+                $isExpanded={isExpanded}
+                onClick={() => setIsExpanded(!isExpanded)}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+                <span>{isExpanded ? 'Скрыть остальные голоса' : 'Показать остальные голоса'}</span>
+              </ExpandButton>
+            )}
           </>
         )}
         {selectedVoice && (
@@ -1024,71 +958,25 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
           </SaveButtonContainer>
         )}
       </ModalContent>
-      
+
       {showPremiumModal && (
         <PremiumModalOverlay onClick={() => setShowPremiumModal(false)}>
           <PremiumModalContent onClick={(e) => e.stopPropagation()}>
-            {(() => {
-              const premiumVoice = selectedVoice || availableVoices.find(v => isPremiumVoice(v.name));
-              const defaultPlaceholder = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9InJnYmEoNjAsIDYwLCA2MCwgMC4zKSIvPgo8cGF0aCBkPSJNMzAgNDBDMzAgMzUuMDI5IDM0LjAyOSAzMSAzOSAzMUg0MUM0NS45NzEgMzEgNTAgMzUuMDI5IDUwIDQwQzUwIDQ0Ljk3MSA0NS45NzEgNDkgNDEgNDlIMzlDMzQuMDI5IDQ5IDMwIDQ0Ljk3MSAzMCA0MFoiIGZpbGw9InJnYmEoMTUwLCAxNTAsIDE1MCwgMC41KSIvPgo8L3N2Zz4K';
-              
-              let photoPath = defaultPlaceholder;
-              if (premiumVoice) {
-                photoPath = premiumVoice.is_user_voice
-                  ? (premiumVoice.photo_url
-                    ? (premiumVoice.photo_url.startsWith('http') ? premiumVoice.photo_url : `${API_CONFIG.BASE_URL}${premiumVoice.photo_url}`)
-                    : defaultPlaceholder)
-                  : getVoicePhotoPath(premiumVoice.name);
-              }
-
-              return (
-                <div style={{
-                  width: '120px',
-                  height: '120px',
-                  borderRadius: '50%',
-                  overflow: 'hidden',
-                  border: '4px solid #ecc94b',
-                  boxShadow: '0 0 20px rgba(236, 201, 75, 0.4)',
-                  margin: '0 auto 20px auto',
-                  position: 'relative'
-                }}>
-                  <img
-                    src={photoPath}
-                    alt="Premium Voice"
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    onError={(e) => {
-                      e.currentTarget.src = defaultPlaceholder;
-                    }}
-                  />
-                  <div style={{
-                    position: 'absolute',
-                    bottom: '5px',
-                    right: '5px',
-                    fontSize: '24px'
-                  }}>👑</div>
-                </div>
-              );
-            })()}
-
-            <PremiumModalTitle>Премиальный голос</PremiumModalTitle>
+            <PremiumModalTitle>Голос только для Premium</PremiumModalTitle>
             <PremiumModalText>
-              Оформите Premium-подписку, чтобы получить доступ к эксклюзивным голосам или выберите другой голос.
+              Оформите подписку PREMIUM, чтобы использовать премиальные голоса, или выберите другой голос.
             </PremiumModalText>
             <PremiumModalButtons>
               <PremiumModalButton
                 $primary
                 onClick={() => {
                   setShowPremiumModal(false);
-                  if (onShop) {
-                    onShop();
-                  }
+                  if (onShop) onShop();
                 }}
               >
                 Перейти в магазин
               </PremiumModalButton>
-              <PremiumModalButton
-                onClick={() => setShowPremiumModal(false)}
-              >
+              <PremiumModalButton onClick={() => setShowPremiumModal(false)}>
                 Закрыть
               </PremiumModalButton>
             </PremiumModalButtons>

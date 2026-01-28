@@ -386,7 +386,7 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
             description: char.character_appearance || 'No description available',
             avatar: char.name.charAt(0).toUpperCase(),
             photos: photosMap[char.name.toLowerCase()] || [],
-            tags: isOwnCharacter ? ['My Character'] : ['Character'],
+            tags: Array.isArray(char.tags) && char.tags.length ? char.tags : [],
             author: isOwnCharacter ? 'Me' : (char.author || 'Unknown'),
             likes: char.likes || 0,
             dislikes: char.dislikes || 0,

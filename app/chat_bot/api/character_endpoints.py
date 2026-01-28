@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 from urllib.parse import urlparse, unquote
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Query, Response
@@ -1260,7 +1260,8 @@ async def read_characters(
                                     "main_photos": char_data.get('main_photos'),
                                     "is_nsfw": char_data.get('is_nsfw') if char_data.get('is_nsfw') is not None else False,
                                     "voice_id": voice_id_cached,
-                                    "voice_url": voice_url_cached
+                                    "voice_url": voice_url_cached,
+                                    "tags": char_data.get('tags') if isinstance(char_data.get('tags'), list) else []
                                 }
                                 valid_characters.append(valid_char)
                         elif hasattr(char_data, 'id') and hasattr(char_data, 'name'):
@@ -1272,6 +1273,7 @@ async def read_characters(
                                 voice_url_obj = f"/default_character_voices/{voice_id_obj}"
                             
                             # Если это объект, преобразуем в словарь
+                            tags_val = getattr(char_data, 'tags', None)
                             valid_characters.append({
                                 "id": char_data.id,
                                 "name": char_data.name or "",
@@ -1284,7 +1286,8 @@ async def read_characters(
                                 "main_photos": getattr(char_data, 'main_photos', None),
                                 "is_nsfw": getattr(char_data, 'is_nsfw', None) if getattr(char_data, 'is_nsfw', None) is not None else False,
                                 "voice_id": voice_id_obj,
-                                "voice_url": voice_url_obj
+                                "voice_url": voice_url_obj,
+                                "tags": tags_val if isinstance(tags_val, list) else []
                             })
                     
                     if valid_characters:
@@ -1351,6 +1354,7 @@ async def read_characters(
                 # Только для дефолтных голосов формируем voice_url из voice_id
                 voice_url_value = f"/default_character_voices/{char.voice_id}"
             
+            tags_list = char.tags if isinstance(getattr(char, 'tags', None), list) else []
             char_dict = {
                 "id": char.id,
                 "name": char.name or "",
@@ -1363,7 +1367,8 @@ async def read_characters(
                 "main_photos": char.main_photos,
                 "is_nsfw": char.is_nsfw if char.is_nsfw is not None else False,
                 "voice_id": char.voice_id,
-                "voice_url": voice_url_value
+                "voice_url": voice_url_value,
+                "tags": tags_list
             }
             characters_data.append(char_dict)
         
@@ -1461,6 +1466,24 @@ async def get_available_files(current_user = Depends(get_current_user)):
     except Exception as e:
         logger.error(f"Error getting available files: {e}")
         return []
+
+
+@router.get("/available-tags")
+async def get_available_character_tags(db: AsyncSession = Depends(get_db)) -> List[str]:
+    """
+    Возвращает список доступных тегов для персонажей (для формы создания).
+    Публичный эндпоинт, не требует авторизации.
+    """
+    try:
+        from app.chat_bot.models.models import CharacterAvailableTag
+        result = await db.execute(
+            select(CharacterAvailableTag.name).order_by(CharacterAvailableTag.name)
+        )
+        return [row[0] for row in result.fetchall()]
+    except Exception as e:
+        logger.error(f"Error fetching available tags: {e}")
+        return []
+
 
 @router.post("/create/", response_model=CharacterInDB)
 async def create_user_character(
@@ -1562,6 +1585,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                 voice_url_to_save = user_voice.voice_url
                 logger.info(f"[CREATE_CHAR] Получен voice_url из БД для пользовательского голоса: {voice_url_to_save}")
         
+        tags_value = list(character.tags) if character.tags else []
         new_character = CharacterDB(
             name=ensure_unicode(character.name),
             display_name=ensure_unicode(character.name),
@@ -1572,7 +1596,8 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
             user_id=current_user.id,
             is_nsfw=is_nsfw_value,
             voice_id=voice_id_to_save,
-            voice_url=voice_url_to_save
+            voice_url=voice_url_to_save,
+            tags=tags_value
         )
         
         db.add(new_character)
@@ -2503,6 +2528,7 @@ async def update_user_character(
         current_location = db_char.location or ""
         current_voice_id = db_char.voice_id or ""
         current_voice_url = db_char.voice_url or ""
+        current_tags = list(db_char.tags) if db_char.tags else []
         
         # Удаляем дефолтные инструкции из текущих instructions для корректного сравнения
         DEFAULT_INSTRUCTIONS_MARKER = "IMPORTANT: Always end your answers with the correct punctuation"
@@ -2522,12 +2548,14 @@ async def update_user_character(
                 # Для сравнения используем обрезанную версию
                 user_instructions_for_comparison = original_user_instructions[:marker_index].rstrip() if marker_index > 0 else ''
         
-        # Нормализуем значения для сравнения (убираем лишние пробелы)
+        # Нормализуем значения для сравнения (убираем лишние пробелы и переносы строк)
         def normalize_text(text: str) -> str:
-            """Нормализует текст для сравнения."""
+            """Нормализует текст для сравнения - убирает лишние пробелы, переносы строк и приводит к единому виду."""
             if text is None:
                 return ""
-            return " ".join(text.split())
+            # Убираем все пробельные символы в начале и конце, заменяем множественные пробелы на один
+            normalized = " ".join(text.split())
+            return normalized.strip()
         
         # КРИТИЧНО: Нормализуем voice_url для дефолтных голосов
         # Для дефолтных голосов voice_url может быть автоматически сгенерирован из voice_id
@@ -2549,7 +2577,8 @@ async def update_user_character(
         normalized_current_voice_url = normalize_voice_url(current_voice_id, current_voice_url)
         normalized_new_voice_url = normalize_voice_url(character.voice_id or "", character.voice_url or "")
         
-        # Сравниваем текстовые поля (используем обрезанную версию для сравнения)
+        # Сравниваем текстовые поля (используем нормализованную версию для сравнения)
+        # КРИТИЧНО: Сравниваем только после нормализации, чтобы избежать ложных срабатываний из-за форматирования
         name_changed = normalize_text(character.name) != normalize_text(current_name)
         personality_changed = normalize_text(character.personality) != normalize_text(current_personality)
         situation_changed = normalize_text(character.situation) != normalize_text(current_situation)
@@ -2559,6 +2588,10 @@ async def update_user_character(
         location_changed = normalize_text(character.location or "") != normalize_text(current_location)
         voice_id_changed = normalize_text(character.voice_id or "") != normalize_text(current_voice_id)
         voice_url_changed = normalized_new_voice_url != normalized_current_voice_url
+        # Проверяем изменение тегов (сравниваем отсортированные списки)
+        new_tags = sorted(list(character.tags) if character.tags else [])
+        current_tags_sorted = sorted(current_tags)
+        tags_changed = new_tags != current_tags_sorted
         
         text_fields_changed = (
             name_changed or
@@ -2569,8 +2602,32 @@ async def update_user_character(
             appearance_changed or
             location_changed or
             voice_id_changed or
-            voice_url_changed
+            voice_url_changed or
+            tags_changed
         )
+        
+        # ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: Убеждаемся, что действительно есть изменения
+        # Сравниваем нормализованные значения всех полей для финальной проверки
+        # Это гарантирует, что если пользователь ничего не менял, но нажал "Сохранить",
+        # кредиты не будут списаны, даже если есть небольшие различия в форматировании
+        all_fields_match = (
+            not name_changed and
+            not personality_changed and
+            not situation_changed and
+            not instructions_changed and
+            not style_changed and
+            not appearance_changed and
+            not location_changed and
+            not voice_id_changed and
+            not voice_url_changed and
+            not tags_changed
+        )
+        
+        # КРИТИЧНО: Если все поля совпадают после нормализации, считаем что изменений нет
+        # Это защита от ложных срабатываний из-за форматирования (пробелы, переносы строк и т.д.)
+        # Если пользователь ничего не менял, кредиты не списываются
+        if all_fields_match:
+            text_fields_changed = False
         
         # Логируем детали изменений для отладки
         if text_fields_changed:
@@ -2593,8 +2650,10 @@ async def update_user_character(
                 logger.info(f"  - voice_id: '{current_voice_id}' -> '{character.voice_id or ''}'")
             if voice_url_changed:
                 logger.info(f"  - voice_url: '{normalized_current_voice_url}' -> '{normalized_new_voice_url}'")
+            if tags_changed:
+                logger.info(f"  - tags: {current_tags_sorted} -> {new_tags}")
         else:
-            logger.info(f"[UPDATE CHARACTER] Текстовые поля персонажа '{decoded_name}' не изменились")
+            logger.info(f"[UPDATE CHARACTER] Текстовые поля персонажа '{decoded_name}' не изменились (все поля совпадают после нормализации)")
         
         # КРИТИЧНО: Списываем кредиты только если изменились текстовые поля
         # Если изменилось только фото (или ничего не изменилось), кредиты не списываются
@@ -2756,7 +2815,11 @@ Response Style:
         db_char.prompt = full_prompt
         db_char.character_appearance = character.appearance
         db_char.location = character.location
+        # Обновляем теги
+        tags_value = list(character.tags) if character.tags else []
+        db_char.tags = tags_value
         logger.info(f"[UPDATE_CHAR] voice_id из запроса: {character.voice_id}, voice_url из запроса: {character.voice_url}, текущий voice_id в БД: {db_char.voice_id}")
+        logger.info(f"[UPDATE_CHAR] Теги обновлены: {tags_value}")
         
         # КРИТИЧНО: Правильная обработка пользовательских и дефолтных голосов
         if character.voice_id:
@@ -3369,6 +3432,12 @@ async def get_character_photos(
                 generation_time = getattr(row, 'generation_time', None)
                 if generation_time is None and not hasattr(row, 'generation_time') and len(row) > 6:
                     generation_time = row[6]
+                # Преобразуем в float, если это число
+                if generation_time is not None:
+                    try:
+                        generation_time = float(generation_time) if generation_time else None
+                    except (ValueError, TypeError):
+                        generation_time = None
                 
                 if image_url:
                     # Конвертируем старые URL Яндекс.Бакета в новые через прокси
@@ -3423,7 +3492,8 @@ async def get_character_photos(
                         chat_history_photos.append({
                             "id": photo_id,
                             "url": image_url,
-                            "created_at": created_at.isoformat() + "Z" if created_at else None
+                            "created_at": created_at.isoformat() + "Z" if created_at else None,
+                            "generation_time": None  # UserGallery не хранит generation_time
                             })
         except Exception as e:
             logger.warning(f"Error loading photos from UserGallery for character {character_name}: {e}")
@@ -3476,30 +3546,52 @@ async def get_character_photos(
             from app.models.image_generation_history import ImageGenerationHistory
             
             # Загружаем ВСЕ записи ImageGenerationHistory для создателя персонажа
+            # ВАЖНО: загружаем для ВСЕХ пользователей, которые создавали фото для этого персонажа
+            # Но сначала пробуем для owner_user_id
             prompts_query = select(ImageGenerationHistory).where(
-                ImageGenerationHistory.user_id == owner_user_id
+                ImageGenerationHistory.character_name == character_name
             )
             prompts_result = await db.execute(prompts_query)
             prompts_rows = prompts_result.scalars().all()
+            logger.info(f"Loaded {len(prompts_rows)} ImageGenerationHistory records for character {character_name}")
             
             # Создаем словарь для быстрого поиска промптов и времени генерации по нормализованному URL
             for row in prompts_rows:
                 if row.image_url:
                     normalized_url = row.image_url.split('?')[0].split('#')[0]
+                    # Преобразуем generation_time в float, если оно есть
+                    gen_time = row.generation_time
+                    if gen_time is not None:
+                        try:
+                            gen_time = float(gen_time) if gen_time else None
+                        except (ValueError, TypeError):
+                            gen_time = None
                     prompts_map[normalized_url] = {
                         "prompt": row.prompt,
-                        "generation_time": row.generation_time
+                        "generation_time": gen_time
                     }
             
             if chat_history_photos:
                 # Обновляем промпты и время генерации в chat_history_photos
+                # ПРИОРИТЕТ: используем generation_time из ImageGenerationHistory, если оно есть
                 for photo in chat_history_photos:
                     normalized_url = photo["url"].split('?')[0].split('#')[0]
                     if normalized_url in prompts_map:
                         if not photo.get("prompt"):
                             photo["prompt"] = prompts_map[normalized_url]["prompt"]
-                        if photo.get("generation_time") is None:
-                            photo["generation_time"] = prompts_map[normalized_url]["generation_time"]
+                        # Всегда используем generation_time из ImageGenerationHistory, если оно есть
+                        # Это гарантирует, что время с страницы создания будет отображаться на странице редактирования
+                        map_gen_time = prompts_map[normalized_url].get("generation_time")
+                        if map_gen_time is not None:
+                            # Преобразуем в float, если нужно
+                            try:
+                                photo["generation_time"] = float(map_gen_time) if map_gen_time else None
+                                logger.debug(f"Updated photo generation_time from ImageGenerationHistory: {photo['url'][:50]}... -> {photo['generation_time']}")
+                            except (ValueError, TypeError):
+                                photo["generation_time"] = map_gen_time
+                        # Если в ImageGenerationHistory нет, оставляем то, что есть в chat_history
+                        elif photo.get("generation_time") is None:
+                            logger.debug(f"Photo {photo['url'][:50]}... has no generation_time in ImageGenerationHistory or chat_history")
                             
                 logger.info(f"Enriched {len(chat_history_photos)} photos with data from ImageGenerationHistory")
         except Exception as e:
@@ -3521,12 +3613,21 @@ async def get_character_photos(
             photo_url = YandexCloudStorageService.convert_yandex_url_to_proxy(photo_url)
             seen_urls.add(photo_url)
             
-            # Пытаемся найти время генерации в prompts_map
-            gen_time = entry.get("generation_time")
+            # Пытаемся найти время генерации в prompts_map (ПРИОРИТЕТ: ImageGenerationHistory)
+            # Сначала проверяем prompts_map, так как там более актуальные данные
+            normalized_url = photo_url.split('?')[0].split('#')[0]
+            gen_time = None
+            if normalized_url in prompts_map:
+                gen_time = prompts_map[normalized_url].get("generation_time")
+            # Если в prompts_map нет, используем из entry
             if gen_time is None:
-                normalized_url = photo_url.split('?')[0].split('#')[0]
-                if normalized_url in prompts_map:
-                    gen_time = prompts_map[normalized_url]["generation_time"]
+                gen_time = entry.get("generation_time")
+            # Преобразуем в float, если это число
+            if gen_time is not None:
+                try:
+                    gen_time = float(gen_time) if gen_time else None
+                except (ValueError, TypeError):
+                    gen_time = None
             
             photos.append(
                 {
@@ -3534,7 +3635,7 @@ async def get_character_photos(
                     "url": photo_url,
                     "is_main": (photo_id in main_ids) or (photo_url in main_urls),
                     "created_at": entry.get("created_at"),
-                    "generation_time": gen_time,
+                    "generation_time": gen_time,  # Всегда включаем поле, даже если None
                 }
             )
 
@@ -3548,12 +3649,21 @@ async def get_character_photos(
             photo_url = YandexCloudStorageService.convert_yandex_url_to_proxy(photo_url)
             seen_urls.add(photo_url)
             
-            # Пытаемся найти время генерации в prompts_map если еще нет
-            gen_time = entry.get("generation_time")
+            # Пытаемся найти время генерации в prompts_map (ПРИОРИТЕТ: ImageGenerationHistory)
+            # Сначала проверяем prompts_map, так как там более актуальные данные
+            normalized_url = photo_url.split('?')[0].split('#')[0]
+            gen_time = None
+            if normalized_url in prompts_map:
+                gen_time = prompts_map[normalized_url].get("generation_time")
+            # Если в prompts_map нет, используем из entry
             if gen_time is None:
-                normalized_url = photo_url.split('?')[0].split('#')[0]
-                if normalized_url in prompts_map:
-                    gen_time = prompts_map[normalized_url]["generation_time"]
+                gen_time = entry.get("generation_time")
+            # Преобразуем в float, если это число
+            if gen_time is not None:
+                try:
+                    gen_time = float(gen_time) if gen_time else None
+                except (ValueError, TypeError):
+                    gen_time = None
             
             photos.append(
                 {
@@ -3575,12 +3685,21 @@ async def get_character_photos(
             entry_url = YandexCloudStorageService.convert_yandex_url_to_proxy(entry_url)
             seen_urls.add(entry_url)
             
-            # Пытаемся найти время генерации в prompts_map
-            gen_time = entry.get("generation_time")
+            # Пытаемся найти время генерации в prompts_map (ПРИОРИТЕТ: ImageGenerationHistory)
+            # Сначала проверяем prompts_map, так как там более актуальные данные
+            normalized_url = entry_url.split('?')[0].split('#')[0]
+            gen_time = None
+            if normalized_url in prompts_map:
+                gen_time = prompts_map[normalized_url].get("generation_time")
+            # Если в prompts_map нет, используем из entry
             if gen_time is None:
-                normalized_url = entry_url.split('?')[0].split('#')[0]
-                if normalized_url in prompts_map:
-                    gen_time = prompts_map[normalized_url]["generation_time"]
+                gen_time = entry.get("generation_time")
+            # Преобразуем в float, если это число
+            if gen_time is not None:
+                try:
+                    gen_time = float(gen_time) if gen_time else None
+                except (ValueError, TypeError):
+                    gen_time = None
             
             photos.append(
                 {
@@ -3594,12 +3713,20 @@ async def get_character_photos(
 
         photos.sort(key=lambda item: item.get("created_at") or "", reverse=True)
         
+        # Убеждаемся, что generation_time всегда присутствует в каждом фото (даже если None)
+        for photo in photos:
+            if "generation_time" not in photo:
+                photo["generation_time"] = None
+        
         logger.info(f"Returning {len(photos)} photos for character {character_name}")
         logger.info(f"Photos breakdown: {len(metadata_entries)} from metadata, {len(chat_history_photos)} from ChatHistory/UserGallery, {len(main_entries)} main photos")
         logger.info(f"Total unique photos after deduplication: {len(photos)}")
         if photos:
             logger.info(f"First photo example: {photos[0]}")
             logger.info(f"Last photo example: {photos[-1]}")
+            # Логируем generation_time для первых нескольких фото для отладки
+            for i, photo in enumerate(photos[:3]):
+                logger.info(f"Photo {i} generation_time: {photo.get('generation_time')}, URL: {photo.get('url', '')[:50]}...")
         else:
             logger.warning(f"No photos found for character {character_name}, user {current_user.id if current_user else 'anonymous'}")
         return photos
@@ -3698,12 +3825,50 @@ async def set_main_photos(
                     photo_url=entry["url"],
                 )
             )
+            
+            # Save generation_time to ImageGenerationHistory if provided
+            # This ensures the time persists when viewing photos on EditCharacterPage
+            generation_time = entry.get("generation_time")
+            if generation_time is not None:
+                try:
+                    from app.services.image_generation_history_service import ImageGenerationHistoryService
+                    from app.models.image_generation_history import ImageGenerationHistory
+                    
+                    # Check if entry already exists for this photo
+                    existing_query = select(ImageGenerationHistory).where(
+                        ImageGenerationHistory.user_id == current_user.id,
+                        ImageGenerationHistory.image_url == entry["url"]
+                    )
+                    existing_result = await db.execute(existing_query)
+                    existing_record = existing_result.scalar_one_or_none()
+                    
+                    if existing_record:
+                        # Update existing record with generation_time
+                        existing_record.generation_time = float(generation_time)
+                        logger.info(f"Updated generation_time={generation_time} for existing photo {entry['url']}")
+                    else:
+                        # Create new record with generation_time
+                        history_service = ImageGenerationHistoryService(db)
+                        await history_service.save_generation(
+                            user_id=current_user.id,
+                            character_name=character_name,
+                            image_url=entry["url"],
+                            prompt=None,  # We don't have prompt here
+                            generation_time=float(generation_time),
+                            task_id=None
+                        )
+                        logger.info(f"Saved generation_time={generation_time} for new photo {entry['url']}")
+                except Exception as e:
+                    logger.warning(f"Failed to save generation_time for photo {entry['url']}: {e}")
+
 
         character.main_photos = json.dumps(unique_photos, ensure_ascii=False)
 
         logger.info(f"Setting main_photos field to: {character.main_photos}")
+        logger.info(f"Unique photos to save: {unique_photos}")
 
         await db.commit()
+        await db.refresh(character)
         
         # Инвалидируем кэш персонажа, фотографий и списка персонажей
         await cache_delete(key_character(character_name))
@@ -3713,7 +3878,12 @@ async def set_main_photos(
         await cache_delete(key_characters_list())
         await cache_delete_pattern("characters:list:*")
         
+        # Дополнительно инвалидируем кэш для всех вариантов имени персонажа
+        await cache_delete_pattern(f"character:*{character_name}*")
+        await cache_delete_pattern(f"character:*{character.id}*")
+        
         logger.info(f"Set main photos for character {character_name}: {unique_photos}")
+        logger.info(f"Cache invalidated for character {character_name}")
         
         return {
             "message": "Main photos set successfully",
@@ -3754,6 +3924,120 @@ async def get_main_photos(
         "photos": photos,
         "is_owner": is_owner,
     }
+
+
+@router.post("/upload-image/")
+async def upload_image_file(
+    file: UploadFile = File(...),
+    character_name: Optional[str] = Form(None),
+    is_paid_album: bool = Form(False),
+    db: AsyncSession = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """
+    Загружает изображение с компьютера. Только для админов.
+    
+    Args:
+        file: Загружаемый файл изображения
+        character_name: Имя персонажа (для main_photos или платного альбома)
+        is_paid_album: Если True, добавляет в платный альбом, иначе в main_photos
+    """
+    # Проверяем права доступа - только админы
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="Только администраторы могут загружать изображения с компьютера"
+        )
+    
+    # Проверяем тип файла
+    if not file.content_type or not file.content_type.startswith('image/'):
+        raise HTTPException(
+            status_code=400,
+            detail="Файл должен быть изображением"
+        )
+    
+    try:
+        # Читаем содержимое файла
+        file_content = await file.read()
+        
+        # Загружаем в облако
+        from app.services.yandex_storage import get_yandex_storage_service
+        storage_service = get_yandex_storage_service()
+        
+        # Генерируем уникальное имя файла
+        import uuid
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"uploaded_{timestamp}_{uuid.uuid4().hex[:8]}.webp"
+        
+        # Загружаем в облако с автоматической конвертацией в WebP
+        public_url = await storage_service.upload_file(
+            file_data=file_content,
+            object_key=f"uploaded_images/{filename}",
+            content_type='image/webp',
+            metadata={
+                "source": "admin_upload",
+                "uploaded_by": current_user.id,
+                "character_name": character_name or "",
+                "is_paid_album": is_paid_album
+            },
+            convert_to_webp=True
+        )
+        
+        # Генерируем photo_id для ответа
+        photo_id = f"uploaded_{uuid.uuid4().hex[:8]}"
+        
+        # Если указан персонаж и is_paid_album=True, добавляем фото в платный альбом
+        # Для main_photos фото НЕ добавляется автоматически - пользователь должен выбрать его из списка "Сгенерированные фото"
+        if character_name and is_paid_album:
+            from app.chat_bot.models.models import CharacterDB, PaidAlbumPhoto
+            from app.routers.gallery import PAID_ALBUM_LIMIT
+            
+            result = await db.execute(
+                select(CharacterDB).where(CharacterDB.name.ilike(character_name))
+            )
+            character = result.scalar_one_or_none()
+            
+            if character:
+                # Проверяем лимит
+                existing_photos_result = await db.execute(
+                    select(PaidAlbumPhoto).where(PaidAlbumPhoto.character_id == character.id)
+                )
+                existing_photos = existing_photos_result.scalars().all()
+                
+                if len(existing_photos) >= PAID_ALBUM_LIMIT:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"В платном альбоме может быть не более {PAID_ALBUM_LIMIT} фотографий"
+                    )
+                
+                # Добавляем фото в платный альбом
+                db.add(
+                    PaidAlbumPhoto(
+                        character_id=character.id,
+                        photo_id=photo_id,
+                        photo_url=public_url
+                    )
+                )
+                await db.commit()
+                
+                logger.info(f"Админ {current_user.id} добавил фото в платный альбом персонажа {character_name}")
+        
+        return {
+            "success": True,
+            "url": public_url,
+            "id": photo_id,
+            "message": "Изображение успешно загружено"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка загрузки изображения: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка загрузки изображения: {str(e)}"
+        )
 
 
 async def generate_image_with_sd(prompt: str, character_name: str) -> tuple[str, str]:

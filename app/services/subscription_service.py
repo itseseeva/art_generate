@@ -94,15 +94,15 @@ class SubscriptionService:
             existing_subscription = await self.get_user_subscription(user_id)
             if existing_subscription:
                 raise ValueError("Бесплатная подписка доступна только при регистрации и не может быть активирована повторно.")
-            monthly_credits = 100  # 100 кредитов для FREE подписки
+            monthly_credits = 200  # 200 кредитов для FREE подписки
             monthly_photos = 5  # 5 генераций фото для FREE подписки
             max_message_length = 100
         elif normalized_enum == SubscriptionType.STANDARD:
-            monthly_credits = 1500  # Увеличено с 1000 до 1500
+            monthly_credits = 2000  # Стандартный тариф: 2000 кредитов в месяц
             monthly_photos = 0  # Без лимита - генерация оплачивается кредитами (10 кредитов за фото)
             max_message_length = 200
         elif normalized_enum == SubscriptionType.PREMIUM:
-            monthly_credits = 5000
+            monthly_credits = 6000  # Премиум тариф: 6000 кредитов в месяц
             monthly_photos = 0  # Без лимита - генерация оплачивается кредитами (10 кредитов за фото)
             max_message_length = 300
         else:
@@ -312,8 +312,8 @@ class SubscriptionService:
         if not subscription.can_send_message(message_length):
             return False
         
-        # Для сообщений требуется 5 кредитов
-        return subscription.can_use_credits(5)
+        # Для сообщений требуется 2 кредита
+        return subscription.can_use_credits(2)
     
     async def can_user_generate_photo(self, user_id: int) -> bool:
         """Проверяет, может ли пользователь сгенерировать фото."""
@@ -341,8 +341,8 @@ class SubscriptionService:
             await self.db.commit()
             await self.db.refresh(subscription)
         
-        # Тратим 5 кредитов за сообщение
-        success = subscription.use_credits(5)
+        # Тратим 2 кредита за сообщение
+        success = subscription.use_credits(2)
         if success:
             await self.db.commit()
             await self.db.refresh(subscription)

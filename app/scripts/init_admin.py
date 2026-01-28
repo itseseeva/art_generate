@@ -110,7 +110,7 @@ async def create_admin_user() -> bool:
                 # Обновляем существующую подписку на PREMIUM
                 subscription.subscription_type = SubscriptionType.PREMIUM
                 subscription.status = SubscriptionStatus.ACTIVE
-                subscription.monthly_credits = 5000
+                subscription.monthly_credits = 6000
                 subscription.monthly_photos = 0
                 subscription.max_message_length = 300
                 subscription.used_credits = 0
@@ -127,7 +127,7 @@ async def create_admin_user() -> bool:
                     user_id=user_id,
                     subscription_type=SubscriptionType.PREMIUM,
                     status=SubscriptionStatus.ACTIVE,
-                    monthly_credits=5000,
+                    monthly_credits=6000,
                     monthly_photos=0,
                     max_message_length=300,
                     used_credits=0,

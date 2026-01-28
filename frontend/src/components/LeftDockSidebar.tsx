@@ -5,6 +5,8 @@ import { FiPlusCircle, FiEdit, FiClock, FiHeart, FiGrid, FiHome, FiMessageSquare
 import Dock, { type DockItemData } from './Dock';
 import { theme } from '../theme';
 import { authManager } from '../utils/auth';
+import Switcher4 from './Switcher4';
+import { NSFWWarningModal } from './NSFWWarningModal';
 import './LeftDockSidebar.css';
 
 interface LeftDockSidebarProps {
@@ -25,6 +27,9 @@ interface LeftDockSidebarProps {
   onLogout?: () => void;
   isAuthenticated?: boolean;
   isAdmin?: boolean;
+  contentMode?: 'safe' | 'nsfw';
+  onContentModeChange?: (mode: 'safe' | 'nsfw') => void;
+  onRequireAuth?: () => void;
 }
 
 const SidebarWrapper = styled.div`
@@ -322,6 +327,64 @@ const SidebarContent = styled.div<{ $isCollapsed?: boolean; $isMobile?: boolean 
   }
 `;
 
+const NSFWToggleWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0;
+  position: relative;
+  width: 100%;
+`;
+
+const NSFWToggleLabel = styled.span<{ $isNsfw?: boolean }>`
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: ${props => props.$isNsfw ? '#ff6b9d' : '#f8fafc'};
+  text-shadow: ${props => props.$isNsfw 
+    ? '0 0 10px rgba(255, 107, 157, 0.8), 0 0 20px rgba(255, 107, 157, 0.6), 0 0 30px rgba(255, 107, 157, 0.4)'
+    : '0 0 8px rgba(139, 92, 246, 0.6), 0 0 16px rgba(139, 92, 246, 0.4)'};
+  animation: ${props => props.$isNsfw ? 'glowPulse 2s ease-in-out infinite' : 'glowPulseBlue 2s ease-in-out infinite'};
+  
+  @keyframes glowPulse {
+    0%, 100% {
+      text-shadow: 
+        0 0 10px rgba(255, 107, 157, 0.8),
+        0 0 20px rgba(255, 107, 157, 0.6),
+        0 0 30px rgba(255, 107, 157, 0.4),
+        0 0 40px rgba(255, 107, 157, 0.2);
+      color: #ff6b9d;
+    }
+    50% {
+      text-shadow: 
+        0 0 15px rgba(255, 107, 157, 1),
+        0 0 25px rgba(255, 107, 157, 0.8),
+        0 0 35px rgba(255, 107, 157, 0.6),
+        0 0 45px rgba(255, 107, 157, 0.4);
+      color: #ff8fb3;
+    }
+  }
+  
+  @keyframes glowPulseBlue {
+    0%, 100% {
+      text-shadow: 
+        0 0 8px rgba(139, 92, 246, 0.6),
+        0 0 16px rgba(139, 92, 246, 0.4),
+        0 0 24px rgba(139, 92, 246, 0.2);
+      color: #f8fafc;
+    }
+    50% {
+      text-shadow: 
+        0 0 12px rgba(139, 92, 246, 0.8),
+        0 0 20px rgba(139, 92, 246, 0.6),
+        0 0 28px rgba(139, 92, 246, 0.4);
+      color: #e0e7ff;
+    }
+  }
+`;
+
 export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   isMobile = false,
   onCreateCharacter,
@@ -340,11 +403,39 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   onLogout,
   isAuthenticated = false,
   isAdmin = false,
+  contentMode = 'safe',
+  onContentModeChange,
+  onRequireAuth,
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false); // Панель развернута по умолчанию
   const [arrowTop, setArrowTop] = useState<string>('50%');
   const dockWrapperRef = useRef<HTMLDivElement>(null);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState<number>(0);
+  const isNsfw = contentMode === 'nsfw';
+  const [checked, setChecked] = useState(isNsfw);
+  const [showNSFWWarning, setShowNSFWWarning] = useState(false);
+  const [pendingMode, setPendingMode] = useState<'safe' | 'nsfw' | null>(null);
+
+  useEffect(() => {
+    setChecked(isNsfw);
+  }, [isNsfw]);
+
+  const handleToggleChange = (nextChecked: boolean) => {
+    if (!isAuthenticated) {
+      onRequireAuth?.();
+      return;
+    }
+    
+    if (nextChecked && !isNsfw) {
+      // Показываем предупреждение при переключении на NSFW
+      setPendingMode('nsfw');
+      setShowNSFWWarning(true);
+    } else {
+      // Переключение обратно на SAFE не требует подтверждения
+      setChecked(nextChecked);
+      onContentModeChange?.(nextChecked ? 'nsfw' : 'safe');
+    }
+  };
 
   const topDockItems = [
     {
@@ -556,6 +647,12 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
           <HomeButton onClick={onHome} title="Главная">
             <FiHome size={16} />
           </HomeButton>
+          {onContentModeChange && (
+            <NSFWToggleWrapper>
+              <Switcher4 checked={checked} onToggle={handleToggleChange} variant="pink" />
+              <NSFWToggleLabel $isNsfw={checked}>NSFW</NSFWToggleLabel>
+            </NSFWToggleWrapper>
+          )}
           <DockWrapper ref={dockWrapperRef} $isMobile={false}>
             <Dock
               items={allDockItems}
@@ -572,6 +669,24 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
           </DockWrapper>
         </SidebarContent>
       </SidebarContainer>
+      {showNSFWWarning && (
+        <NSFWWarningModal
+          onConfirm={() => {
+            setShowNSFWWarning(false);
+            if (pendingMode) {
+              setChecked(true);
+              onContentModeChange?.(pendingMode);
+              setPendingMode(null);
+            }
+          }}
+          onCancel={() => {
+            setShowNSFWWarning(false);
+            setPendingMode(null);
+            // Возвращаем переключатель в исходное состояние
+            setChecked(isNsfw);
+          }}
+        />
+      )}
     </SidebarWrapper>
   );
 };

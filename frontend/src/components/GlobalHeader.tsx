@@ -408,7 +408,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   currentCharacterId
 }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userInfo, setUserInfo] = useState<{username: string, coins: number, avatar_url?: string, is_admin?: boolean} | null>(null);
+  const [userInfo, setUserInfo] = useState<{ username: string, coins: number, avatar_url?: string, is_admin?: boolean } | null>(null);
   const [notification, setNotification] = useState<{
     taskId: string;
     imageUrl: string;
@@ -447,9 +447,9 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
             setUserInfo(newUserInfo);
             setIsAuthenticated(true);
           } else if (isMounted) {
-             authManager.clearTokens();
-             setIsAuthenticated(false);
-             setUserInfo(null);
+            authManager.clearTokens();
+            setIsAuthenticated(false);
+            setUserInfo(null);
           }
         } else {
           if (isMounted) {
@@ -462,7 +462,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
         if (!isMounted) {
           return;
         }
-        
+
         setIsAuthenticated(false);
         setUserInfo(null);
       }
@@ -504,11 +504,11 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
       // Проверяем, что пользователь не находится на странице чата с ЭТИМ ЖЕ персонажем
       const isOnChatPage = window.location.pathname.includes('/chat');
       const isSameCharacter = currentCharacterId && characterId && String(currentCharacterId) === String(characterId);
-      
+
       // Показываем уведомление если пользователь не на странице чата ИЛИ если это другой персонаж
       if (!isOnChatPage || !isSameCharacter) {
         setNotification({ taskId, imageUrl, characterName, characterId });
-        
+
         // Автоматически скрываем уведомление через 10 секунд
         setTimeout(() => {
           setNotification(null);
@@ -526,10 +526,10 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     if (notification?.characterId || notification?.characterName) {
       // Используем ID персонажа, если он есть, иначе используем имя
       const characterIdentifier = notification.characterId || notification.characterName;
-      
+
       // Отправляем событие для навигации через App.tsx
       const event = new CustomEvent('navigate-to-chat-with-character', {
-        detail: { 
+        detail: {
           characterId: notification.characterId,
           characterName: notification.characterName,
           characterIdentifier: String(characterIdentifier)
@@ -557,7 +557,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
 
   const handleProfile = () => {
     if (!isAuthenticated) {
-      if (onLogin) onLogin();
+      window.location.href = '/auth';
       return;
     }
     if (onProfile) {
@@ -578,21 +578,21 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   return (
     <HeaderContainer>
       <LeftSection>
-        <Logo 
-          src="/logo-header.png" 
-          alt="CherryLust" 
+        <Logo
+          src="/logo-header.png"
+          alt="CherryLust"
           onClick={handleHome}
         />
         {leftContent}
       </LeftSection>
-      
+
       {notification && (
         <NotificationContainer>
           <Notification>
             <NotificationText>
               <NotificationTitle>Генерация завершена!</NotificationTitle>
               <NotificationMessage>
-                {notification.characterName 
+                {notification.characterName
                   ? `Ваше фото для персонажа "${notification.characterName}" готово`
                   : 'Ваше фото готово'}
               </NotificationMessage>
@@ -606,7 +606,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
           </Notification>
         </NotificationContainer>
       )}
-      
+
       <RightSection>
         {isAuthenticated && userInfo?.is_admin && (
           <ShopButton
@@ -622,19 +622,19 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
               <CoinIcon />
               <BalanceAmount>{userInfo?.coins || 0}</BalanceAmount>
             </BalanceContainer>
-            
+
             <ShopButton onClick={handleShop}>
               <DollarSign size={20} />
             </ShopButton>
           </>
         )}
-        
+
         {!isAuthenticated && (
           <>
-            <ShopButton onClick={onLogin} title="Войти">
+            <ShopButton onClick={() => window.location.href = '/auth'} title="Войти">
               <LogIn size={20} />
             </ShopButton>
-            <ShopButton onClick={onRegister} title="Регистрация">
+            <ShopButton onClick={() => window.location.href = '/auth?tab=register'} title="Регистрация">
               <UserPlus size={20} />
             </ShopButton>
           </>
@@ -652,16 +652,16 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
 
         <ProfileButton onClick={handleProfile} $isAuthenticated={isAuthenticated}>
           {userInfo?.avatar_url ? (
-            <img 
-              src={userInfo.avatar_url} 
+            <img
+              src={userInfo.avatar_url}
               alt={userInfo.username}
               onError={(e) => {
                 e.currentTarget.style.display = 'none';
               }}
             />
           ) : (
-            <img 
-              src="/avatar_default.jpg" 
+            <img
+              src="/avatar_default.jpg"
               alt="Профиль"
               onError={(e) => {
                 e.currentTarget.style.display = 'none';

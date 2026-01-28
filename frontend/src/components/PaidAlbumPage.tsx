@@ -580,7 +580,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
         <div>
           <Title>Платный альбом {displayName}</Title>
           <Description>
-            Здесь собраны фотографии персонажа, которые создал пользователь. В альбоме не содержатся фотографии 18+ и откровенного контента.
+            Здесь собраны фотографии персонажа, которые создал пользователь. 
           </Description>
         </div>
 
@@ -667,7 +667,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
           <UpgradeModal onClick={(e) => e.stopPropagation()}>
             <UpgradeTitle>Разблокировка альбома недоступна</UpgradeTitle>
             <UpgradeText>
-              В альбоме не содержатся фотографии 18+ и откровенного контента. Разблокировка и добавление фотографий в альбом доступны только подписчикам Standard и Premium. Оформите подписку, чтобы получить доступ к этой функции.
+              Разблокировка и добавление фотографий в альбом доступны только подписчикам Standard и Premium. Оформите подписку, чтобы получить доступ к этой функции.
             </UpgradeText>
             <UpgradeActions>
               <ActionButton onClick={() => {

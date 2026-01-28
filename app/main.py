@@ -992,9 +992,9 @@ async def activate_subscription_direct(
         subscription = await service.activate_subscription(current_user.id, request.subscription_type)
         
         if request.subscription_type.lower() == "standard":
-            message = "Подписка Standard активирована! 1500 кредитов. Генерация фото оплачивается кредитами (10 кредитов за фото) и возможность создавать персонажей!"
+            message = "Подписка Standard активирована! 2000 кредитов. Генерация фото оплачивается кредитами (10 кредитов за фото) и возможность создавать персонажей!"
         else:  # premium
-            message = "Подписка Premium активирована! 5000 кредитов. Генерация фото оплачивается кредитами (10 кредитов за фото) и приоритет в очереди!"
+            message = "Подписка Premium активирована! 6000 кредитов. Генерация фото оплачивается кредитами (10 кредитов за фото) и приоритет в очереди!"
         
         return SubscriptionActivateResponse(
             success=True,
@@ -1685,8 +1685,11 @@ async def fallback_characters():
 
                 if characters:
                     logger.info(f"Загружено персонажей из БД: {len(characters)}")
-                    characters_list = [
-                        {
+                    characters_list = []
+                    for char in characters:
+                        tags_val = getattr(char, "tags", None)
+                        tags_list = list(tags_val) if tags_val and isinstance(tags_val, list) else []
+                        characters_list.append({
                             "id": char.id,
                             "name": char.name,
                             "display_name": char.display_name,
@@ -1696,10 +1699,9 @@ async def fallback_characters():
                             "location": char.location,
                             "user_id": char.user_id,
                             "main_photos": char.main_photos,
-                            "is_nsfw": char.is_nsfw
-                        }
-                        for char in characters
-                    ]
+                            "is_nsfw": char.is_nsfw,
+                            "tags": tags_list
+                        })
                     # Сохраняем в кэш
                     await cache_set(cache_key, characters_list, ttl_seconds=TTL_CHARACTERS_LIST)
                     return characters_list
@@ -1724,7 +1726,8 @@ async def fallback_characters():
                 "location": character_data.get("location", ""),
                 "user_id": None,
                 "main_photos": None,
-                "is_nsfw": True
+                "is_nsfw": True,
+                "tags": character_data.get("tags") if isinstance(character_data.get("tags"), list) else []
             })
 
         if not fallback_characters:
@@ -1740,7 +1743,8 @@ async def fallback_characters():
                     "location": "Virtual lounge",
                     "user_id": None,
                     "main_photos": None,
-                    "is_nsfw": True
+                    "is_nsfw": True,
+                    "tags": []
                 },
                 {
                     "id": "default-caitlin",
@@ -1752,7 +1756,8 @@ async def fallback_characters():
                     "location": "Studio apartment",
                     "user_id": None,
                     "main_photos": None,
-                    "is_nsfw": True
+                    "is_nsfw": True,
+                    "tags": []
                 }
             ]
 
@@ -1784,6 +1789,8 @@ async def legacy_characters_redirect(request: Request):
             # Преобразуем в формат, ожидаемый фронтендом (новая схема Alpaca)
             character_list = []
             for char in characters:
+                tags_val = getattr(char, "tags", None)
+                tags_list = list(tags_val) if tags_val and isinstance(tags_val, list) else []
                 character_list.append({
                     "id": char.id,
                     "name": char.name,
@@ -1793,7 +1800,9 @@ async def legacy_characters_redirect(request: Request):
                     "character_appearance": char.character_appearance,
                     "location": char.location,
                     "user_id": char.user_id,
-                    "main_photos": char.main_photos  # Добавляем поле с главными фотографиями
+                    "main_photos": char.main_photos,
+                    "is_nsfw": char.is_nsfw if char.is_nsfw is not None else False,
+                    "tags": tags_list
                 })
             
             logger.info(f"Загружено персонажей: {len(character_list)}")
@@ -2244,7 +2253,7 @@ async def spend_message_resources_async(user_id: int, use_credits: bool) -> None
                         await record_balance_change(
                             db=db,
                             user_id=user_id,
-                            amount=-5,
+                            amount=-2,
                             reason="Отправка сообщения в чате (кредиты подписки)"
                         )
                     except Exception as e:
@@ -2262,7 +2271,7 @@ async def spend_message_resources_async(user_id: int, use_credits: bool) -> None
                         await record_balance_change(
                             db=db,
                             user_id=user_id,
-                            amount=-5,
+                            amount=-2,
                             reason="Отправка сообщения в чате"
                         )
                     except Exception as e:
@@ -2537,7 +2546,7 @@ async def chat_endpoint(
                         )
                         coins = result.scalars().first()
                         logger.error(
-                            "[ERROR] Недостаточно ресурсов! У пользователя %s: %s монет (нужно 5), кредиты: %s/%s",
+                            "[ERROR] Недостаточно ресурсов! У пользователя %s: %s монет (нужно 2), кредиты: %s/%s",
                             user_id,
                             coins or 0,
                             subscription.used_credits if subscription else 0,
@@ -2545,7 +2554,7 @@ async def chat_endpoint(
                         )
                         raise HTTPException(
                             status_code=403, 
-                            detail="Недостаточно кредитов подписки или монет для отправки сообщения! Нужно 5 кредитов или 5 монет."
+                            detail="Недостаточно кредитов подписки или монет для отправки сообщения! Нужно 2 кредита или 2 монеты."
                         )
                     use_credits = False  # Используем монеты
                     logger.info(f"[OK] Пользователь {user_id} может отправить сообщение за счет монет")
@@ -3169,7 +3178,7 @@ async def chat_endpoint(
                             await record_balance_change(
                                 db=db,
                                 user_id=coins_user_id,
-                                amount=-5,
+                                amount=-2,
                                 reason="Отправка сообщения в чате (кредиты подписки)"
                             )
                     except Exception as e:
@@ -3193,7 +3202,7 @@ async def chat_endpoint(
                             await record_balance_change(
                                 db=db,
                                 user_id=coins_user_id,
-                                amount=-5,
+                                amount=-2,
                                 reason="Отправка сообщения в чате (fallback)"
                             )
                         except Exception as e:

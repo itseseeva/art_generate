@@ -11,7 +11,7 @@ import { GlobalHeader } from './GlobalHeader';
 import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
 import { authManager } from '../utils/auth';
-import { FiArrowLeft, FiBarChart2 } from 'react-icons/fi';
+import { FiArrowLeft, FiBarChart2, FiX } from 'react-icons/fi';
 import DarkVeil from '../../@/components/DarkVeil';
 
 const MainContainer = styled.div`
@@ -140,9 +140,10 @@ const TableHeaderCell = styled.th`
 
 const TableBody = styled.tbody``;
 
-const TableRow = styled.tr`
+const TableRow = styled.tr<{ $clickable?: boolean }>`
   border-bottom: 1px solid rgba(100, 100, 100, 0.2);
   transition: background 0.2s ease;
+  cursor: ${props => props.$clickable ? 'pointer' : 'default'};
 
   &:hover {
     background: rgba(50, 50, 50, 0.5);
@@ -160,6 +161,129 @@ const TableTitle = styled.h2`
   font-weight: 600;
   color: rgba(240, 240, 240, 1);
   margin: 0 0 ${theme.spacing.md} 0;
+`;
+
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: ${theme.spacing.xl};
+`;
+
+const ModalContent = styled.div`
+  background: rgba(30, 30, 30, 0.95);
+  border: 1px solid rgba(100, 100, 100, 0.3);
+  border-radius: ${theme.borderRadius.lg};
+  padding: ${theme.spacing.xl};
+  max-width: 900px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+`;
+
+const ModalHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: ${theme.spacing.lg};
+  padding-bottom: ${theme.spacing.md};
+  border-bottom: 1px solid rgba(100, 100, 100, 0.3);
+`;
+
+const ModalTitle = styled.h2`
+  font-size: ${theme.fontSize.xl};
+  font-weight: 600;
+  color: rgba(240, 240, 240, 1);
+  margin: 0;
+`;
+
+const CloseButton = styled.button`
+  background: rgba(50, 50, 50, 0.8);
+  border: 1px solid rgba(100, 100, 100, 0.4);
+  border-radius: ${theme.borderRadius.md};
+  color: rgba(240, 240, 240, 1);
+  padding: ${theme.spacing.sm} ${theme.spacing.md};
+  cursor: pointer;
+  font-size: ${theme.fontSize.base};
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba(60, 60, 60, 0.9);
+    border-color: rgba(139, 92, 246, 0.5);
+  }
+`;
+
+const MessagesList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${theme.spacing.md};
+`;
+
+const MessageItem = styled.div<{ $isUser?: boolean }>`
+  background: ${props => props.$isUser 
+    ? 'rgba(139, 92, 246, 0.1)' 
+    : 'rgba(50, 50, 50, 0.5)'};
+  border: 1px solid ${props => props.$isUser 
+    ? 'rgba(139, 92, 246, 0.3)' 
+    : 'rgba(100, 100, 100, 0.3)'};
+  border-radius: ${theme.borderRadius.md};
+  padding: ${theme.spacing.md};
+`;
+
+const MessageHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: ${theme.spacing.sm};
+`;
+
+const CharacterName = styled.span`
+  font-weight: 600;
+  color: rgba(139, 92, 246, 1);
+  font-size: ${theme.fontSize.sm};
+`;
+
+const MessageDate = styled.span`
+  color: rgba(160, 160, 160, 1);
+  font-size: ${theme.fontSize.xs};
+`;
+
+const MessageContent = styled.div`
+  color: rgba(220, 220, 220, 1);
+  font-size: ${theme.fontSize.base};
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin-bottom: ${theme.spacing.sm};
+`;
+
+const MessageImage = styled.img`
+  max-width: 100%;
+  border-radius: ${theme.borderRadius.md};
+  margin-top: ${theme.spacing.sm};
+`;
+
+const MessageType = styled.span<{ $isUser?: boolean }>`
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: ${theme.borderRadius.sm};
+  font-size: ${theme.fontSize.xs};
+  font-weight: 600;
+  background: ${props => props.$isUser 
+    ? 'rgba(139, 92, 246, 0.3)' 
+    : 'rgba(100, 100, 100, 0.3)'};
+  color: ${props => props.$isUser 
+    ? 'rgba(167, 139, 250, 1)' 
+    : 'rgba(200, 200, 200, 1)'};
+  margin-bottom: ${theme.spacing.xs};
 `;
 
 interface AdminLogsPageProps {
@@ -203,6 +327,11 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({
   const [isLoadingTable, setIsLoadingTable] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tableError, setTableError] = useState<string | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [selectedUsername, setSelectedUsername] = useState<string>('');
+  const [userMessages, setUserMessages] = useState<any[]>([]);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [messagesError, setMessagesError] = useState<string | null>(null);
 
   const loadStats = useCallback(async () => {
     setIsLoading(true);
@@ -286,6 +415,46 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({
     } catch {
       return 'Неизвестно';
     }
+  };
+
+  const loadUserMessages = useCallback(async (userId: number, username: string) => {
+    setIsLoadingMessages(true);
+    setMessagesError(null);
+    setSelectedUserId(userId);
+    setSelectedUsername(username);
+    
+    try {
+      const response = await authManager.fetchWithAuth(`/api/v1/admin/users/${userId}/messages?limit=1000`);
+      if (!response.ok) {
+        if (response.status === 403) {
+          setMessagesError('Доступ запрещён. Только для администраторов.');
+        } else {
+          const data = await response.json().catch(() => ({}));
+          setMessagesError((data.detail as string) || `Ошибка ${response.status}`);
+        }
+        setUserMessages([]);
+        return;
+      }
+      const data = await response.json();
+      setUserMessages(data.messages || []);
+      setMessagesError(null);
+    } catch (e) {
+      setMessagesError(e instanceof Error ? e.message : 'Не удалось загрузить сообщения');
+      setUserMessages([]);
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  }, []);
+
+  const handleUserClick = (user: UserTableItem) => {
+    loadUserMessages(user.id, user.user);
+  };
+
+  const closeModal = () => {
+    setSelectedUserId(null);
+    setSelectedUsername('');
+    setUserMessages([]);
+    setMessagesError(null);
   };
 
   return (
@@ -378,7 +547,11 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({
                       </TableRow>
                     ) : (
                       usersTable.map((user) => (
-                        <TableRow key={user.id}>
+                        <TableRow 
+                          key={user.id} 
+                          $clickable={true}
+                          onClick={() => handleUserClick(user)}
+                        >
                           <TableCell>{user.user}</TableCell>
                           <TableCell>{user.messages_count}</TableCell>
                           <TableCell>{user.subscription_type}</TableCell>
@@ -397,6 +570,60 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({
       <BackgroundWrapper>
         <DarkVeil speed={1.1} />
       </BackgroundWrapper>
+      
+      {selectedUserId !== null && (
+        <ModalOverlay onClick={closeModal}>
+          <ModalContent onClick={(e) => e.stopPropagation()}>
+            <ModalHeader>
+              <ModalTitle>Сообщения пользователя: {selectedUsername}</ModalTitle>
+              <CloseButton onClick={closeModal}>
+                <FiX size={20} />
+              </CloseButton>
+            </ModalHeader>
+            
+            {isLoadingMessages ? (
+              <LoadingSpinner size="md" text="Загрузка сообщений..." />
+            ) : messagesError ? (
+              <ErrorMessage message={messagesError} />
+            ) : userMessages.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: theme.spacing.xl, color: 'rgba(160, 160, 160, 1)' }}>
+                Нет сообщений
+              </div>
+            ) : (
+              <MessagesList>
+                {userMessages.map((msg) => (
+                  <MessageItem key={msg.id} $isUser={msg.message_type === 'user'}>
+                    <MessageHeader>
+                      <div>
+                        <MessageType $isUser={msg.message_type === 'user'}>
+                          {msg.message_type === 'user' ? 'Пользователь' : 'Персонаж'}
+                        </MessageType>
+                        <CharacterName>{msg.character_name || 'Неизвестно'}</CharacterName>
+                      </div>
+                      <MessageDate>{formatDate(msg.created_at)}</MessageDate>
+                    </MessageHeader>
+                    <MessageContent>{msg.message_content || '(пустое сообщение)'}</MessageContent>
+                    {msg.image_url && (
+                      <MessageImage 
+                        src={msg.image_url} 
+                        alt="Изображение из сообщения"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    )}
+                    {msg.generation_time && (
+                      <div style={{ fontSize: theme.fontSize.xs, color: 'rgba(160, 160, 160, 1)', marginTop: theme.spacing.xs }}>
+                        Время генерации: {msg.generation_time}с
+                      </div>
+                    )}
+                  </MessageItem>
+                ))}
+              </MessagesList>
+            )}
+          </ModalContent>
+        </ModalOverlay>
+      )}
     </MainContainer>
   );
 };

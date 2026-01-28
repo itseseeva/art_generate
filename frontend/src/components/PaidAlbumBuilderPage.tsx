@@ -8,7 +8,7 @@ import { SuccessToast } from './SuccessToast';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToEnglish, translateToRussian } from '../utils/translate';
 import { useIsMobile } from '../hooks/useIsMobile';
-import { Sparkles, Plus, X, ArrowLeft, Save, Wand2, Settings } from 'lucide-react';
+import { Sparkles, Plus, X, ArrowLeft, Save, Wand2, Settings, Upload } from 'lucide-react';
 import { FiSettings } from 'react-icons/fi';
 import DarkVeil from '../../@/components/DarkVeil';
 import { PromptGlassModal } from './PromptGlassModal';
@@ -1351,7 +1351,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
   const [fakeProgress, setFakeProgress] = useState(0);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [userSubscription, setUserSubscription] = useState<string | null>(null);
-  const [userInfo, setUserInfo] = useState<{coins: number, subscription?: {subscription_type?: string}, subscription_type?: string} | null>(null);
+  const [userInfo, setUserInfo] = useState<{coins: number, subscription?: {subscription_type?: string}, subscription_type?: string, is_admin?: boolean} | null>(null);
   const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime' | 'realism'>('anime-realism');
   const [isTagsExpanded, setIsTagsExpanded] = useState(false);
   const [promptLoadedFromDB, setPromptLoadedFromDB] = useState(false);
@@ -1386,7 +1386,8 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
           setUserInfo({
             coins: userData.coins || 0,
             subscription: userData.subscription,
-            subscription_type: userData.subscription_type
+            subscription_type: userData.subscription_type,
+            is_admin: userData.is_admin || false
           });
         } else {
           setUserSubscription(null);
@@ -2177,6 +2178,105 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                   }
                 })()}
               </GenerateButton>
+
+              {/* Кнопка загрузки фото с компьютера (только для админов) */}
+              {userInfo?.is_admin && (
+                <div style={{ marginTop: '1rem' }}>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    id="upload-paid-album-photo-input"
+                    style={{ display: 'none' }}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      
+                      try {
+                        setError(null);
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        if (character?.name) {
+                          formData.append('character_name', character.name);
+                        }
+                        formData.append('is_paid_album', 'true');
+                        
+                        const token = localStorage.getItem('authToken');
+                        const response = await fetch('/api/v1/characters/upload-image/', {
+                          method: 'POST',
+                          headers: {
+                            'Authorization': `Bearer ${token}`
+                          },
+                          body: formData
+                        });
+                        
+                        if (!response.ok) {
+                          const error = await response.json().catch(() => ({}));
+                          throw new Error(error.detail || 'Ошибка загрузки изображения');
+                        }
+                        
+                        const result = await response.json();
+                        
+                        // Добавляем загруженное фото в selectedPhotos
+                        if (result.url && result.id) {
+                          const newPhoto = { id: result.id, url: result.url, created_at: new Date().toISOString() };
+                          if (selectedPhotos.length < MAX_PAID_ALBUM_PHOTOS) {
+                            // Автоматически добавляем в альбом
+                            const updatedPhotos = [...selectedPhotos, newPhoto];
+                            setSelectedPhotos(updatedPhotos);
+                            
+                            // Сохраняем в БД
+                            if (character?.name) {
+                              setIsSaving(true);
+                              try {
+                                const saveResponse = await authManager.fetchWithAuth(`/api/v1/paid-gallery/${encodeURIComponent(character.name)}/photos`, {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json'
+                                  },
+                                  body: JSON.stringify({
+                                    photos: updatedPhotos
+                                  })
+                                });
+                                
+                                if (saveResponse.ok) {
+                                  setSuccess('Фото успешно загружено и добавлено в альбом');
+                                } else {
+                                  const saveError = await saveResponse.json().catch(() => ({}));
+                                  throw new Error(saveError.detail || saveError.message || 'Не удалось сохранить альбом');
+                                }
+                              } catch (saveError) {
+                                setError(saveError instanceof Error ? saveError.message : 'Ошибка при добавлении в альбом');
+                                // Откатываем состояние при ошибке
+                                setSelectedPhotos(selectedPhotos);
+                              } finally {
+                                setIsSaving(false);
+                              }
+                            }
+                          } else {
+                            setError(`В платном альбоме может быть не более ${MAX_PAID_ALBUM_PHOTOS} фотографий`);
+                          }
+                        }
+                        
+                        // Очищаем input
+                        e.target.value = '';
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : 'Ошибка загрузки изображения');
+                      }
+                    }}
+                  />
+                  <GenerateButton
+                    type="button"
+                    onClick={() => {
+                      document.getElementById('upload-paid-album-photo-input')?.click();
+                    }}
+                    style={{ background: 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)' }}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Upload size={20} /> Загрузить фото с компьютера
+                    </span>
+                  </GenerateButton>
+                </div>
+              )}
 
               {/* Индикатор очереди генерации */}
               {(() => {

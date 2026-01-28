@@ -21,6 +21,10 @@
   padding: 0 0.5rem 0.5rem;
 }
 
+.dock-panel .dock-toggle {
+  margin-right: 0.5rem;
+}
+
 .dock-toggle {
   display: flex;
   align-items: center;

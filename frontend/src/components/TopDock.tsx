@@ -138,12 +138,6 @@ export default function TopDock({
   return (
     <>
       <motion.div style={{ height: panelHeight, scrollbarWidth: 'none' }} className="dock-outer">
-        {hasToggle && (
-          <div className="dock-toggle">
-            <Switcher4 checked={checked} onToggle={handleToggleChange} variant="pink" />
-            <span className="dock-toggle-label">NSFW</span>
-          </div>
-        )}
         <motion.div
           onMouseMove={({ pageX }) => {
             mouseX.set(pageX);
@@ -156,6 +150,12 @@ export default function TopDock({
           role="toolbar"
           aria-label="Application dock"
         >
+          {hasToggle && (
+            <div className="dock-toggle">
+              <Switcher4 checked={checked} onToggle={handleToggleChange} variant="pink" />
+              <span className="dock-toggle-label">NSFW</span>
+            </div>
+          )}
           {items.map((item, index) => (
             <DockItem
               key={index}

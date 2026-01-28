@@ -239,13 +239,13 @@ class ProfitActivateService:
         if subscription_type.lower() == "free":
             raise ValueError("Подписка Free доступна только при регистрации и не может быть активирована вручную.")
 
-        # Определяем параметры подписки
+        # Определяем параметры подписки (базовые лимиты за месяц)
         if subscription_type.lower() == "standard":
-            monthly_credits = 1500  # Базовый лимит
+            monthly_credits = 2000  # Standard: 2000 кредитов в месяц
             monthly_photos = 0
             max_message_length = 200
         elif subscription_type.lower() == "premium":
-            monthly_credits = 5000
+            monthly_credits = 6000  # Premium: 6000 кредитов в месяц
             monthly_photos = 0
             max_message_length = 300
         else:
@@ -725,8 +725,8 @@ class ProfitActivateService:
         if not subscription.can_send_message(message_length):
             return False
         
-        # Для сообщений требуется 5 кредитов
-        return subscription.can_use_credits(5)
+        # Для сообщений требуется 2 кредита
+        return subscription.can_use_credits(2)
     
     async def can_user_generate_photo(self, user_id: int) -> bool:
         """
@@ -739,7 +739,7 @@ class ProfitActivateService:
     
     async def use_message_credits(self, user_id: int) -> bool:
         """Тратит кредиты за отправку сообщения."""
-        return await self.use_credits_amount(user_id, 5)
+        return await self.use_credits_amount(user_id, 2)
     
     async def use_photo_generation(self, user_id: int, commit: bool = True) -> bool:
         """

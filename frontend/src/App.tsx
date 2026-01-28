@@ -23,14 +23,17 @@ import { CharacterCommentsPage } from './components/CharacterCommentsPage';
 import { BugReportPage } from './components/BugReportPage';
 import { AdminLogsPage } from './components/AdminLogsPage';
 import { LeftDockSidebar } from './components/LeftDockSidebar';
-import { AuthModal } from './components/AuthModal';
 import { LegalPage } from './components/LegalPage';
 import { AboutPage } from './components/AboutPage';
 import { HowItWorksPage } from './components/HowItWorksPage';
+import AuthPage from './components/AuthPage';
+import RegisterPage from './components/RegisterPage';
+import ForgotPasswordPage from './components/ForgotPasswordPage';
 import { PaidAlbumPurchaseModal } from './components/PaidAlbumPurchaseModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Footer } from './components/Footer';
 import { authManager } from './utils/auth';
+import { ContentRatingModal } from './components/ContentRatingModal';
 
 import { useIsMobile } from './hooks/useIsMobile';
 
@@ -92,7 +95,10 @@ type PageType =
   | 'about'
   | 'how-it-works'
   | 'bug-report'
-  | 'admin-logs';
+  | 'admin-logs'
+  | 'login'
+  | 'register'
+  | 'forgot-password';
 
 function App() {
   const isMobile = useIsMobile();
@@ -101,6 +107,8 @@ function App() {
   const [isLoadingCharacter, setIsLoadingCharacter] = useState(false); // Флаг загрузки персонажа
   const [contentMode, setContentMode] = useState<'safe' | 'nsfw'>('safe');
   const [selectedSubscriptionType, setSelectedSubscriptionType] = useState<string>('');
+  const [showContentRatingModal, setShowContentRatingModal] = useState(false);
+  const [selectedContentRating, setSelectedContentRating] = useState<'safe' | 'nsfw' | null>(null);
 
   // Устанавливаем заголовок страницы в зависимости от режима и текущей страницы
   useEffect(() => {
@@ -136,7 +144,10 @@ function App() {
         'about': 'О проекте',
         'how-it-works': 'Как это работает',
         'bug-report': 'Сообщить об ошибке',
-        'admin-logs': 'Логи'
+        'admin-logs': 'Логи администратора',
+        'login': 'Вход',
+        'register': 'Регистрация',
+        'forgot-password': 'Восстановление пароля',
       };
       document.title = pageTitles[currentPage] || 'cherrylust.art';
     }
@@ -415,6 +426,9 @@ function App() {
     } else if (path.includes('/admin-logs')) {
       setCurrentPage('admin-logs');
       window.history.replaceState({ page: 'admin-logs' }, '', '/admin-logs');
+    } else if (path.includes('/login')) {
+      setCurrentPage('login');
+      window.history.replaceState({ page: 'login' }, '', '/login');
     } else {
       setCurrentPage('main');
       window.history.replaceState({ page: 'main' }, '', '/');
@@ -585,7 +599,18 @@ function App() {
     window.history.pushState({ page: 'my-characters' }, '', '/my-characters');
   };
 
+  const handleForgotPassword = () => {
+    setCurrentPage('forgot-password');
+    window.history.pushState({ page: 'forgot-password' }, '', '/forgot-password');
+  };
+
   const handleCreateCharacter = () => {
+    setShowContentRatingModal(true);
+  };
+
+  const handleContentRatingSelect = (rating: 'safe' | 'nsfw') => {
+    setSelectedContentRating(rating);
+    setShowContentRatingModal(false);
     setCurrentPage('create-character');
     window.history.pushState({ page: 'create-character' }, '', '/create-character');
   };
@@ -637,8 +662,9 @@ function App() {
 
   const handlePaidAlbum = async (character: any) => {
     if (!isAuthenticated) {
-      setIsAuthModalOpen(true);
-      setAuthMode('login');
+      // Переходим на страницу входа
+      setCurrentPage('login');
+      window.history.pushState({ page: 'login' }, '', '/login');
       return;
     }
 
@@ -890,6 +916,7 @@ function App() {
               onShop={handleShop}
               onMyCharacters={handleMyCharacters}
               onProfile={handleProfile}
+              contentMode={selectedContentRating ?? contentMode ?? 'safe'}
               onOpenPaidAlbumBuilder={(character) => {
                 setSelectedCharacter(character);
                 setCurrentPage('paid-album-builder');
@@ -905,7 +932,6 @@ function App() {
               }}
               onOpenChat={handleCharacterSelect}
               onPhotoGeneration={handlePhotoGeneration}
-              contentMode={contentMode}
               isAuthenticated={isAuthenticated}
               userInfo={userInfo}
             />
@@ -1161,7 +1187,6 @@ function App() {
             onBackToMain={handleBackToMain}
             onShop={handleShop}
             onProfile={handleProfile}
-            onCreateCharacter={handleCreateCharacter}
             onEditCharacters={handleEditCharacters}
             initialUserInfo={userInfo}
           />
@@ -1199,6 +1224,157 @@ function App() {
             onBackToMain={handleBackToMain}
             onShop={handleShop}
             onProfile={handleProfile}
+          />
+        );
+      case 'login':
+        return (
+          <AuthPage
+            onLogin={async (email, password) => {
+              try {
+                // Выполняем вход через API
+                const response = await fetch('/api/v1/auth/login/', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ email, password }),
+                });
+
+                if (!response.ok) {
+                  const errorData = await response.json().catch(() => ({}));
+                  throw new Error(errorData.detail || 'Ошибка авторизации');
+                }
+
+                const data = await response.json();
+                const accessToken = data.access_token || data.token;
+                const refreshToken = data.refresh_token;
+
+                if (accessToken) {
+                  // Сохраняем токены
+                  localStorage.setItem('authToken', accessToken);
+                  if (refreshToken) {
+                    localStorage.setItem('refreshToken', refreshToken);
+                  }
+
+                  // Обновляем состояние аутентификации
+                  setIsAuthenticated(true);
+
+                  // Отправляем событие успешной авторизации
+                  window.dispatchEvent(new Event('auth-success'));
+
+                  // Перенаправляем на главную
+                  handleBackToMain();
+                }
+              } catch (error) {
+                // Ошибка будет обработана в AuthPage
+                throw error;
+              }
+            }}
+            onGoogleLogin={() => {
+              // Перенаправляем на OAuth endpoint
+              window.location.href = '/api/v1/auth/google/login';
+            }}
+            onSignUp={() => {
+              // Переходим на страницу регистрации
+              handleRegister();
+            }}
+            onForgotPassword={() => {
+              // Переходим на страницу восстановления пароля
+              handleForgotPassword();
+            }}
+          />
+        );
+      case 'register':
+        return (
+          <RegisterPage
+            onRegister={async (email, password, username) => {
+              // Генерируем fingerprint для регистрации
+              const FingerprintJS = (await import('@fingerprintjs/fingerprintjs')).default;
+              const fp = await FingerprintJS.load();
+              const result = await fp.get();
+              const fingerprintId = result.visitorId;
+
+              // Сохраняем для использования при верификации
+              setRegistrationEmail(email);
+              setRegistrationFingerprintId(fingerprintId);
+
+              // Выполняем регистрацию через API
+              const response = await fetch('/api/v1/auth/register/', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  email,
+                  password,
+                  username: username || email,
+                  fingerprint_id: fingerprintId
+                }),
+              });
+
+              if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Ошибка регистрации');
+              }
+
+              // После успешной регистрации RegisterPage покажет поле для ввода кода
+            }}
+            onVerifyCode={async (code) => {
+              // Проверяем код верификации с правильными параметрами
+              const response = await fetch('/api/v1/auth/confirm-registration/', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  email: registrationEmail,
+                  verification_code: code,
+                  fingerprint_id: registrationFingerprintId
+                }),
+              });
+
+              if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Неверный код подтверждения');
+              }
+
+              const data = await response.json();
+              const accessToken = data.access_token || data.token;
+              const refreshToken = data.refresh_token;
+
+              if (accessToken) {
+                // Сохраняем токены
+                localStorage.setItem('authToken', accessToken);
+                if (refreshToken) {
+                  localStorage.setItem('refreshToken', refreshToken);
+                }
+
+                // Обновляем состояние аутентификации
+                setIsAuthenticated(true);
+
+                // Отправляем событие успешной авторизации
+                window.dispatchEvent(new Event('auth-success'));
+
+                // Перенаправляем на главную
+                handleBackToMain();
+              }
+            }}
+            onGoogleRegister={() => {
+              // Перенаправляем на OAuth endpoint
+              window.location.href = '/api/v1/auth/google/login';
+            }}
+            onLogin={() => {
+              // Переходим на страницу входа
+              handleLogin();
+            }}
+          />
+        );
+      case 'forgot-password':
+        return (
+          <ForgotPasswordPage
+            onBackToLogin={() => {
+              handleLogin();
+            }}
           />
         );
       case 'character-comments':
@@ -1242,11 +1418,13 @@ function App() {
 
   const [isAuthenticated, setIsAuthenticated] = React.useState(false);
   const [userInfo, setUserInfo] = React.useState<{ username: string, coins: number, id?: number, is_admin?: boolean, subscription?: { subscription_type: string } } | null>(null);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [isPaidAlbumModalOpen, setIsPaidAlbumModalOpen] = useState(false);
   const [selectedAlbumCharacter, setSelectedAlbumCharacter] = useState<any>(null);
   const [subscriptionStats, setSubscriptionStats] = useState<{ subscription_type?: string } | null>(null);
+
+  // Состояние для регистрации
+  const [registrationEmail, setRegistrationEmail] = React.useState('');
+  const [registrationFingerprintId, setRegistrationFingerprintId] = React.useState('');
 
   React.useEffect(() => {
     const checkAuth = async () => {
@@ -1523,8 +1701,7 @@ function App() {
                 coins: authResult.userInfo.coins || 0,
                 id: authResult.userInfo.id
               });
-              setIsAuthModalOpen(false); // Закрываем модальное окно авторизации
-              setAuthMode('login'); // Сбрасываем режим на login
+              // Переходим на главную после успешной авторизации
               setCurrentPage('main');
               window.history.pushState({ page: 'main' }, '', '/');
             }
@@ -1563,13 +1740,15 @@ function App() {
   };
 
   const handleLogin = () => {
-    setAuthMode('login');
-    setIsAuthModalOpen(true);
+    // Переходим на страницу логина вместо открытия модального окна
+    setCurrentPage('login');
+    window.history.pushState({ page: 'login' }, '', '/login');
   };
 
   const handleRegister = () => {
-    setAuthMode('register');
-    setIsAuthModalOpen(true);
+    // Переходим на страницу регистрации
+    setCurrentPage('register');
+    window.history.pushState({ page: 'register' }, '', '/register');
   };
 
   const handleLogout = async () => {
@@ -1613,6 +1792,9 @@ function App() {
           onLogout={handleLogout}
           isAuthenticated={isAuthenticated}
           isAdmin={userInfo?.is_admin || false}
+          contentMode={contentMode}
+          onContentModeChange={setContentMode}
+          onRequireAuth={handleLogin}
         />
         <PageContainer className="app-scroll-container" $isMobile={isMobile}>
           {renderPage()}
@@ -1649,28 +1831,11 @@ function App() {
         />
       )}
 
-      {isAuthModalOpen && (
-        <AuthModal
-          isOpen={isAuthModalOpen}
-          mode={authMode}
-          onClose={() => {
-            setIsAuthModalOpen(false);
-            setAuthMode('login');
-          }}
-          onAuthSuccess={(accessToken, refreshToken) => {
-            authManager.setTokens(accessToken, refreshToken);
-            setIsAuthenticated(true);
-            setIsAuthModalOpen(false);
-            setAuthMode('login');
-            // Переходим на главную страницу после авторизации
-            setCurrentPage('main');
-            window.history.pushState({ page: 'main' }, '', '/');
-            // Обновляем данные пользователя без перезагрузки
-            checkAuth();
-          }}
-          onGoogleLogin={handleGoogleLogin}
-        />
-      )}
+      <ContentRatingModal
+        isOpen={showContentRatingModal}
+        onClose={() => setShowContentRatingModal(false)}
+        onSelect={handleContentRatingSelect}
+      />
     </>
   );
 }

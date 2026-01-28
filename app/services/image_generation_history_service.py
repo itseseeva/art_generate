@@ -23,7 +23,7 @@ class ImageGenerationHistoryService:
         character_name: str,
         image_url: str,
         prompt: Optional[str] = None,
-        generation_time: Optional[int] = None,
+        generation_time: Optional[float] = None,
         task_id: Optional[str] = None
     ) -> bool:
         """
@@ -55,7 +55,12 @@ class ImageGenerationHistoryService:
                         # Нормализуем URL перед сохранением (убираем query параметры и якоря)
                         normalized_image_url = image_url.split('?')[0].split('#')[0] if image_url and not image_url.startswith("pending:") else image_url
                         existing_record.image_url = normalized_image_url
-                        existing_record.generation_time = generation_time
+                        # Обновляем generation_time, если оно передано
+                        if generation_time is not None:
+                            try:
+                                existing_record.generation_time = float(generation_time) if generation_time else None
+                            except (ValueError, TypeError):
+                                existing_record.generation_time = generation_time
                         
                         # Извлекаем оригинальный промпт из JSON, если он там сохранен
                         if prompt:
@@ -93,7 +98,17 @@ class ImageGenerationHistoryService:
                         ImageGenerationHistory.image_url == normalized_image_url
                     ).limit(1)
                 )
-                if existing.scalars().first():
+                existing_record = existing.scalars().first()
+                if existing_record:
+                    # Обновляем generation_time, если оно передано и отсутствует в записи
+                    if generation_time is not None and existing_record.generation_time is None:
+                        try:
+                            existing_record.generation_time = float(generation_time) if generation_time else None
+                            await self.db.commit()
+                            await self.db.refresh(existing_record)
+                            logger.info(f"[IMAGE_HISTORY] Обновлено generation_time для существующей записи: {normalized_image_url}")
+                        except (ValueError, TypeError):
+                            pass
                     logger.info(f"[IMAGE_HISTORY] Изображение с URL уже сохранено для user_id={user_id}")
                     return True
             
@@ -110,12 +125,20 @@ class ImageGenerationHistoryService:
                 pass
             
             # Создаем новую запись с нормализованным URL
+            # Преобразуем generation_time в float, если оно есть
+            final_generation_time = None
+            if generation_time is not None:
+                try:
+                    final_generation_time = float(generation_time) if generation_time else None
+                except (ValueError, TypeError):
+                    final_generation_time = generation_time
+            
             history_entry = ImageGenerationHistory(
                 user_id=user_id,
                 character_name=character_name,
                 prompt=final_prompt,
                 image_url=normalized_image_url,
-                generation_time=generation_time,
+                generation_time=final_generation_time,
                 task_id=task_id
             )
             

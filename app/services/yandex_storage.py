@@ -339,15 +339,20 @@ class YandexCloudStorageService:
                 for key, value in metadata.items():
                     # Проверяем, что ключ содержит только ASCII символы
                     if key.encode('ascii', errors='ignore').decode('ascii') == key:
+                        # Преобразуем значение в строку для проверки
+                        value_str = str(value)
                         # Проверяем значение - если содержит не-ASCII, кодируем в base64
                         try:
-                            value.encode('ascii')
-                            ascii_metadata[key] = str(value)
+                            value_str.encode('ascii')
+                            ascii_metadata[key] = value_str
                         except UnicodeEncodeError:
                             # Кодируем не-ASCII значения в base64
                             import base64
-                            encoded_value = base64.b64encode(str(value).encode('utf-8')).decode('ascii')
+                            encoded_value = base64.b64encode(value_str.encode('utf-8')).decode('ascii')
                             ascii_metadata[f"{key}_encoded"] = encoded_value
+                        except (AttributeError, TypeError):
+                            # Если значение не может быть закодировано (например, None), просто преобразуем в строку
+                            ascii_metadata[key] = value_str
                 
                 if ascii_metadata:
                     extra_args['Metadata'] = ascii_metadata

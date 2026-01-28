@@ -34,22 +34,22 @@ export const TopRightDock: React.FC<TopRightDockProps> = ({
         ]
       });
     }
-    
+
     if (onBalance) {
       items.push({
         label: 'Баланс',
         bgColor: '#170D27',
         textColor: '#fff',
         links: [
-          { 
-            label: userCoins !== undefined ? `${userCoins} монет` : 'Пополнить баланс', 
-            href: '#', 
-            ariaLabel: 'Баланс' 
+          {
+            label: userCoins !== undefined ? `${userCoins} монет` : 'Пополнить баланс',
+            href: '#',
+            ariaLabel: 'Баланс'
           }
         ]
       });
     }
-    
+
     items.push({
       label: 'Выйти',
       bgColor: '#271E37',
@@ -74,21 +74,21 @@ export const TopRightDock: React.FC<TopRightDockProps> = ({
       const target = e.target as HTMLElement;
       const link = target.closest('a.nav-card-link');
       if (!link) return;
-      
+
       e.preventDefault();
       e.stopPropagation();
-      
+
       const card = link.closest('.nav-card');
       const cardLabel = card?.querySelector('.nav-card-label')?.textContent?.trim() || '';
-      
+
       if (cardLabel === 'Профиль' && onProfile) {
         onProfile();
       } else if (cardLabel === 'Баланс' && onBalance) {
         onBalance();
       } else if (cardLabel === 'Выйти' && onLogout) {
         onLogout();
-      } else if (cardLabel === 'Войти' && onLogin) {
-        onLogin();
+      } else if (cardLabel === 'Войти') {
+        window.location.href = '/auth';
       }
     };
 
@@ -96,9 +96,9 @@ export const TopRightDock: React.FC<TopRightDockProps> = ({
       const target = e.target as HTMLElement;
       const button = target.closest('.card-nav-cta-button');
       if (!button) return;
-      
+
       const buttonText = button.textContent?.trim();
-      
+
       if (buttonText === 'Profile' && onProfile) {
         e.preventDefault();
         e.stopPropagation();
@@ -120,7 +120,7 @@ export const TopRightDock: React.FC<TopRightDockProps> = ({
   const logoUrl = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2'%3E%3Cpath d='M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5'/%3E%3C/svg%3E";
 
   const additionalButtons = [];
-  
+
   if (isAuthenticated) {
     additionalButtons.push({
       label: 'Logout',
@@ -131,7 +131,7 @@ export const TopRightDock: React.FC<TopRightDockProps> = ({
   } else {
     additionalButtons.push({
       label: 'Login',
-      onClick: onLogin,
+      onClick: () => window.location.href = '/auth',
       bgColor: '#0D0716',
       textColor: '#fff'
     });

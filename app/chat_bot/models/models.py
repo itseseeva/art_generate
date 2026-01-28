@@ -56,6 +56,15 @@ class UTF8Text(TypeDecorator):
             return dialect.type_descriptor(Text())
 
 
+class CharacterAvailableTag(Base):
+    """Доступные теги для персонажей (админы могут добавлять)."""
+    __tablename__ = "character_available_tags"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), unique=True, index=True, nullable=False)
+
+
 class CharacterDB(Base):
     """Character model with unified prompt in Alpaca format."""
     __tablename__ = "characters"
@@ -74,6 +83,7 @@ class CharacterDB(Base):
     is_nsfw = Column(Boolean, nullable=False, server_default='1')
     voice_url = Column(String(500), nullable=True, default=None)  # URL для образца голоса (TTS)
     voice_id = Column(String(100), nullable=True, default=None)  # ID голоса из папки default_character_voices
+    tags = Column(JSON, nullable=True, default=list)  # Список тегов (имена из character_available_tags)
     # face_image removed (IP-Adapter removed)
 
 

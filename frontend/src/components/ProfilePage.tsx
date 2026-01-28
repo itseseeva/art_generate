@@ -2637,7 +2637,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       description: rawChar.description || rawChar.character_appearance || 'No description available',
                       avatar: charName.charAt(0).toUpperCase(),
                       photos: finalPhotos,
-                      tags: Array.isArray(rawChar.tags) && rawChar.tags.length ? rawChar.tags : ['User Created'],
+                      tags: Array.isArray(rawChar.tags) && rawChar.tags.length ? rawChar.tags : [],
                       author: 'User',
                       likes: Number(rawChar.likes) || 0,
                       views: Number(rawChar.views) || 0,

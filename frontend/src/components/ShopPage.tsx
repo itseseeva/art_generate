@@ -392,9 +392,9 @@ type BillingCycle = 'monthly' | '3_months' | '6_months' | 'yearly';
 
 const DISCOUNTS = {
   'monthly': 0,
-  '3_months': 0.10,
-  '6_months': 0.15,
-  'yearly': 0.20
+  '3_months': 0.15,
+  '6_months': 0.20,
+  'yearly': 0.25
 };
 
 const CYCLE_MONTHS = {
@@ -508,8 +508,7 @@ export const ShopPage: React.FC<any> = ({
   };
 
   const getBillingText = () => {
-    if (billingCycle === 'monthly') return 'Списывается ежемесячно';
-    return ''; // Удалено "Списывается каждые X месяца(ев)"
+    return ''; // Удалено "Списывается ежемесячно"
   };
 
   const handleSubscriptionClick = (plan: string) => {
@@ -530,8 +529,8 @@ export const ShopPage: React.FC<any> = ({
     }
 
     try {
-      // Базовые цены: 599₽ для STANDARD и 1299₽ для PREMIUM
-      const basePrice = plan === 'premium' ? 1299 : 599;
+      // Базовые цены: 499₽ для STANDARD и 1199₽ для PREMIUM
+      const basePrice = plan === 'premium' ? 1199 : 499;
       const priceInfo = calculatePrice(basePrice);
       const amount = priceInfo.total;
       const description = `${plan.toUpperCase()} Subscription (${billingCycle.replace('_', ' ')})`;
@@ -597,9 +596,9 @@ export const ShopPage: React.FC<any> = ({
   };
 
   const renderSubscriptionContent = () => {
-    // Базовые цены: 599₽ для STANDARD и 1299₽ для PREMIUM
-    const premiumBasePrice = 1299;
-    const standardBasePrice = 599;
+    // Базовые цены: 499₽ для STANDARD и 1199₽ для PREMIUM
+    const premiumBasePrice = 1199;
+    const standardBasePrice = 499;
     const premiumPrice = calculatePrice(premiumBasePrice);
     const standardPrice = calculatePrice(standardBasePrice);
     const months = CYCLE_MONTHS[billingCycle];
@@ -615,21 +614,21 @@ export const ShopPage: React.FC<any> = ({
       >
         <SaleBanner>
           <SaleText>СПЕЦИАЛЬНОЕ ПРЕДЛОЖЕНИЕ</SaleText>
-          <DiscountTag>СКИДКА ДО 20%</DiscountTag>
+          <DiscountTag>СКИДКА ДО 25%</DiscountTag>
         </SaleBanner>
 
         <DurationTabs>
           <DurationTab $active={billingCycle === 'yearly'} onClick={() => setBillingCycle('yearly')}>
             Год
-            <SaveTag>SAVE 20% + 10% БОНУС</SaveTag>
+            <SaveTag>SAVE 25% + 10% БОНУС</SaveTag>
           </DurationTab>
           <DurationTab $active={billingCycle === '6_months'} onClick={() => setBillingCycle('6_months')}>
             6 Месяцев
-            <SaveTag>SAVE 15% + 5% БОНУС</SaveTag>
+            <SaveTag>SAVE 20% + 5% БОНУС</SaveTag>
           </DurationTab>
           <DurationTab $active={billingCycle === '3_months'} onClick={() => setBillingCycle('3_months')}>
             3 Месяца
-            <SaveTag>SAVE 10%</SaveTag>
+            <SaveTag>SAVE 15%</SaveTag>
           </DurationTab>
           <DurationTab $active={billingCycle === 'monthly'} onClick={() => setBillingCycle('monthly')}>
             Месяц
@@ -667,7 +666,9 @@ export const ShopPage: React.FC<any> = ({
                 <Price style={{ color: 'white' }}>{premiumPrice.monthly}₽</Price>
                 <Period style={{ color: 'white' }}>/мес</Period>
               </PriceContainer>
-              <OldPrice style={{ color: 'white' }}>{premiumPrice.originalMonthly}₽/мес</OldPrice>
+              {billingCycle !== 'monthly' && (
+                <OldPrice style={{ color: 'white' }}>{premiumPrice.originalMonthly}₽/мес</OldPrice>
+              )}
               <BillingInfo style={{ color: 'white' }}>{getBillingText()}</BillingInfo>
             </PlanHeader>
 
@@ -676,14 +677,14 @@ export const ShopPage: React.FC<any> = ({
                 <FiCheck style={{ color: '#7c3aed' }} />
                 {isYearly ? (
                   <span style={{ color: '#7c3aed', fontWeight: 'bold' }}>
-                    {Math.round(5000 * months * 1.1)} кредитов (+10% БОНУС)
+                    {Math.round(6000 * months * 1.1)} кредитов (+10% БОНУС)
                   </span>
                 ) : is6Months ? (
                   <span style={{ color: '#7c3aed', fontWeight: 'bold' }}>
-                    {Math.round(5000 * months * 1.05)} кредитов (+5% БОНУС)
+                    {Math.round(6000 * months * 1.05)} кредитов (+5% БОНУС)
                   </span>
                 ) : (
-                  <span style={{ color: '#7c3aed', fontWeight: 'bold' }}>{`${5000 * months} кредитов`}</span>
+                  <span style={{ color: '#7c3aed', fontWeight: 'bold' }}>{`${6000 * months} кредитов`}</span>
                 )}
               </FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Доступ ко всем персонажам</span></FeatureItem>
@@ -709,7 +710,9 @@ export const ShopPage: React.FC<any> = ({
                   <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" style={{ width: '32px', height: '32px' }} />
                   <span>Купить за {premiumPrice.total}₽</span>
                 </div>
-                <span style={{ opacity: 0.7, fontSize: '0.8rem', textDecoration: 'line-through' }}>{premiumPrice.originalTotal}₽</span>
+                {billingCycle !== 'monthly' && (
+                  <span style={{ opacity: 0.7, fontSize: '0.8rem', textDecoration: 'line-through' }}>{premiumPrice.originalTotal}₽</span>
+                )}
               </CheckoutButton>
             </div>
           </PlanCard>
@@ -736,7 +739,9 @@ export const ShopPage: React.FC<any> = ({
                 <Price>{standardPrice.monthly}₽</Price>
                 <Period>/мес</Period>
               </PriceContainer>
-              <OldPrice>{standardPrice.originalMonthly}₽/мес</OldPrice>
+              {billingCycle !== 'monthly' && (
+                <OldPrice>{standardPrice.originalMonthly}₽/мес</OldPrice>
+              )}
               <BillingInfo>{getBillingText()}</BillingInfo>
             </PlanHeader>
 
@@ -745,14 +750,14 @@ export const ShopPage: React.FC<any> = ({
                 <FiCheck style={{ color: '#fbbf24' }} />
                 {isYearly ? (
                   <span style={{ color: '#fbbf24', fontWeight: 'bold' }}>
-                    {Math.round(1500 * months * 1.1)} кредитов (+10% БОНУС)
+                    {Math.round(2000 * months * 1.1)} кредитов (+10% БОНУС)
                   </span>
                 ) : is6Months ? (
                   <span style={{ color: '#fbbf24', fontWeight: 'bold' }}>
-                    {Math.round(1500 * months * 1.05)} кредитов (+5% БОНУС)
+                    {Math.round(2000 * months * 1.05)} кредитов (+5% БОНУС)
                   </span>
                 ) : (
-                  `${1500 * months} кредитов`
+                  `${2000 * months} кредитов`
                 )}
               </FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#fbbf24' }} /> Доступ ко всем персонажам</FeatureItem>
@@ -772,7 +777,9 @@ export const ShopPage: React.FC<any> = ({
                   <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" style={{ width: '32px', height: '32px' }} />
                   <span>Купить за {standardPrice.total}₽</span>
                 </div>
-                <span style={{ opacity: 0.7, fontSize: '0.8rem', textDecoration: 'line-through' }}>{standardPrice.originalTotal}₽</span>
+                {billingCycle !== 'monthly' && (
+                  <span style={{ opacity: 0.7, fontSize: '0.8rem', textDecoration: 'line-through' }}>{standardPrice.originalTotal}₽</span>
+                )}
               </CheckoutButton>
             </div>
           </PlanCard>

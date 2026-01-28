@@ -90,7 +90,7 @@ class CoinsService:
     
     async def can_user_send_message(self, user_id: int, use_cache: bool = False) -> bool:
         """
-        Проверяет, может ли пользователь отправить сообщение (стоимость: 5 монет).
+        Проверяет, может ли пользователь отправить сообщение (стоимость: 2 монеты).
         
         Args:
             user_id: ID пользователя
@@ -99,7 +99,7 @@ class CoinsService:
         Returns:
             True если у пользователя достаточно монет для отправки сообщения, иначе False.
         """
-        return await self.can_user_afford(user_id, 5, use_cache=use_cache)
+        return await self.can_user_afford(user_id, 2, use_cache=use_cache)
     
     async def can_user_generate_photo(self, user_id: int) -> bool:
         """Проверяет, может ли пользователь сгенерировать фото (стоимость: 10 монет)."""
@@ -144,8 +144,8 @@ class CoinsService:
             raise
     
     async def spend_coins_for_message(self, user_id: int, commit: bool = True) -> bool:
-        """Тратит 5 монет за отправку сообщения."""
-        return await self.spend_coins(user_id, 5, commit=commit)
+        """Тратит 2 монеты за отправку сообщения."""
+        return await self.spend_coins(user_id, 2, commit=commit)
     
     async def spend_coins_for_photo(self, user_id: int) -> bool:
         """Тратит 10 монет за генерацию фото."""

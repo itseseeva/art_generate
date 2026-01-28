@@ -522,8 +522,8 @@ export const TariffsPage: React.FC = () => {
 
     try {
       const receiverWallet = '4100119070489003';
-      // Standard теперь 599
-      const amount = subscriptionType === 'premium' ? 1299 : 599;
+      // Standard теперь 499, Premium 1199
+      const amount = subscriptionType === 'premium' ? 1199 : 499;
       const label = `plan:${subscriptionType};uid:${currentUserId}`;
       const successURL = `${window.location.origin}/frontend/payment/success/`;
       const quickPayUrl =
@@ -552,8 +552,8 @@ export const TariffsPage: React.FC = () => {
     if (!userInfo?.id) return;
 
     try {
-      // Standard теперь 599
-      const amount = subscriptionType === 'premium' ? 1299 : 599;
+      // Standard теперь 499, Premium 1199
+      const amount = subscriptionType === 'premium' ? 1199 : 499;
       const description = subscriptionType === 'premium'
         ? 'Оплата подписки PREMIUM на 30 дней'
         : 'Оплата подписки STANDARD на 30 дней';
@@ -695,9 +695,9 @@ export const TariffsPage: React.FC = () => {
 
           <Card $highlight>
             <PlanName>Стандарт</PlanName>
-            <Price>599₽ <span>/ месяц</span></Price>
+            <Price>499₽ <span>/ месяц</span></Price>
             <FeatureList>
-              <Feature>1500 кредитов</Feature>
+              <Feature>2000 кредитов</Feature>
               <Feature>Доступ ко всем персонажам</Feature>
               <Feature>Расширенная память (8 000 токенов)</Feature>
               <Feature>Сохранение истории сообщений</Feature>
@@ -735,9 +735,9 @@ export const TariffsPage: React.FC = () => {
 
           <Card>
             <PlanName>Премиум</PlanName>
-            <Price>1299₽ <span>/ месяц</span></Price>
+            <Price>1199₽ <span>/ месяц</span></Price>
             <FeatureList>
-              <Feature>5000 кредитов</Feature>
+              <Feature>6000 кредитов</Feature>
               <Feature>Доступ ко всем персонажам</Feature>
               <Feature>Глубокая память (16 000 токенов)</Feature>
               <Feature>Сохранение истории сообщений</Feature>

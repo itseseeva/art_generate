@@ -395,7 +395,8 @@ def key_characters_list() -> str:
 
 def key_registration_data(email: str) -> str:
     """Генерирует ключ для временных данных регистрации."""
-    return f"registration:data:{email}"
+    # Нормализуем email в нижний регистр для единообразия ключей
+    return f"registration:data:{email.lower().strip()}"
 
 
 def key_password_change_data(user_id: int) -> str:
@@ -425,6 +426,7 @@ async def cache_set_json(
         serialized_value = json.dumps(value, ensure_ascii=False, default=str)
         return await cache_set(key, serialized_value, ttl_seconds=ttl_seconds, timeout=timeout)
     except Exception as e:
+        logger.error(f"[REDIS] Error in cache_set_json for key {key}: {type(e).__name__}: {str(e)}")
         return False
 
 
@@ -445,6 +447,7 @@ async def cache_get_json(
     try:
         value = await cache_get(key, timeout=timeout)
         if value is None:
+            logger.debug(f"[REDIS] cache_get_json: No value found for key {key}")
             return None
         
         # Если уже dict/list, возвращаем как есть
@@ -454,9 +457,11 @@ async def cache_get_json(
         # Пытаемся распарсить JSON
         try:
             return json.loads(value)
-        except (json.JSONDecodeError, TypeError):
+        except (json.JSONDecodeError, TypeError) as parse_err:
+            logger.warning(f"[REDIS] cache_get_json: Failed to parse JSON for key {key}: {parse_err}")
             return value
     except Exception as e:
+        logger.error(f"[REDIS] Error in cache_get_json for key {key}: {type(e).__name__}: {str(e)}")
         return None
 
 

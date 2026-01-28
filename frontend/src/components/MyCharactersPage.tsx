@@ -330,7 +330,7 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
           description: char.character_appearance || 'No description available',
               avatar: charName.charAt(0).toUpperCase(),
             photos: photosMap[normalizedKey] || [],
-          tags: ['My Character'],
+          tags: Array.isArray(char.tags) && char.tags.length ? char.tags : [],
           author: 'Me',
           likes: char.likes || 0,
           dislikes: char.dislikes || 0,

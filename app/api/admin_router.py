@@ -3,6 +3,7 @@
 """
 
 from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
 from datetime import datetime, timedelta, timezone
@@ -398,6 +399,58 @@ async def get_users_list(
         raise HTTPException(
             status_code=500,
             detail=f"Ошибка получения списка пользователей: {str(e)}"
+        )
+
+
+@admin_router.get("/users/{user_id}/messages")
+async def get_user_messages(
+    user_id: int,
+    current_user: Users = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+    limit: int = 1000
+) -> Dict[str, Any]:
+    """
+    Получает все сообщения пользователя с информацией о персонажах.
+    """
+    try:
+        from app.models.chat_history import ChatHistory
+        
+        # Получаем все сообщения пользователя, отсортированные по дате
+        stmt = (
+            select(ChatHistory)
+            .where(ChatHistory.user_id == user_id)
+            .order_by(ChatHistory.created_at.desc())
+            .limit(limit)
+        )
+        result = await db.execute(stmt)
+        messages = result.scalars().all()
+        
+        # Форматируем сообщения
+        formatted_messages = []
+        for msg in messages:
+            formatted_messages.append({
+                "id": msg.id,
+                "character_name": msg.character_name,
+                "session_id": msg.session_id,
+                "message_type": msg.message_type,
+                "message_content": msg.message_content,
+                "image_url": msg.image_url,
+                "image_filename": msg.image_filename,
+                "generation_time": msg.generation_time,
+                "created_at": msg.created_at.isoformat() if msg.created_at else None
+            })
+        
+        return {
+            "user_id": user_id,
+            "messages": formatted_messages,
+            "total": len(formatted_messages)
+        }
+        
+    except Exception as e:
+        logger.error(f"[ADMIN] Ошибка получения сообщений пользователя {user_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка получения сообщений: {str(e)}"
         )
 
 
@@ -818,3 +871,55 @@ async def reset_stats(
             status_code=500,
             detail=f"Ошибка сброса статистики: {str(e)}"
         )
+
+
+@admin_router.get("/tags")
+@admin_router.get("/tags/")
+async def get_admin_character_tags(
+    current_user: Users = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+) -> List[Dict[str, Any]]:
+    """
+    Список доступных тегов для персонажей (только для админов).
+    """
+    try:
+        from app.chat_bot.models.models import CharacterAvailableTag
+        result = await db.execute(
+            select(CharacterAvailableTag).order_by(CharacterAvailableTag.name)
+        )
+        rows = result.scalars().all()
+        return [{"id": r.id, "name": r.name} for r in rows]
+    except Exception as e:
+        logger.error(f"[ADMIN TAGS] Ошибка получения тегов: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class AdminTagCreate(BaseModel):
+    """Тело запроса для добавления тега персонажа."""
+    name: str = Field(..., min_length=1, max_length=100, description="Название тега")
+
+
+@admin_router.post("/tags")
+@admin_router.post("/tags/")
+async def add_admin_character_tag(
+    body: AdminTagCreate,
+    current_user: Users = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Добавить новый тег для персонажей (только для админов).
+    Передайте в теле запроса: {"name": "Название тега"}.
+    """
+    from app.chat_bot.models.models import CharacterAvailableTag
+
+    name = body.name.strip()
+    result = await db.execute(
+        select(CharacterAvailableTag).where(CharacterAvailableTag.name == name)
+    )
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail=f"Тег «{name}» уже существует")
+    new_tag = CharacterAvailableTag(name=name)
+    db.add(new_tag)
+    await db.commit()
+    await db.refresh(new_tag)
+    return {"id": new_tag.id, "name": new_tag.name}

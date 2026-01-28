@@ -22,7 +22,7 @@ class Users(Base):
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
     is_admin = Column(Boolean, default=False)  # Роль администратора
-    coins = Column(Integer, default=5, nullable=False)  # Начальное количество монет
+    coins = Column(Integer, default=0, nullable=False)  # Начальное количество монет (кредиты начисляются при активации подписки)
     fingerprint_id = Column(String(255), nullable=True, index=True)  # Уникальный идентификатор устройства
     total_messages_sent = Column(Integer, default=0, nullable=False)  # Общее количество отправленных сообщений (не уменьшается при удалении истории)
     registration_ip = Column(String(255), nullable=True)  # IP адрес при регистрации
