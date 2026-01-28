@@ -1,6 +1,6 @@
 """
 Скрипт для обновления тегов персонажей:
-- Добавляет тег "User created" всем персонажам, кроме созданных пользователем eseeva228@gmail.com
+- Добавляет тег "пользовательские" всем персонажам, кроме созданных пользователем eseeva228@gmail.com
 - Добавляет тег "Original" всем персонажам, созданным пользователем eseeva228@gmail.com
 """
 import asyncio
@@ -25,13 +25,14 @@ from app.utils.redis_cache import cache_delete_pattern
 
 
 TARGET_EMAIL = "eseeva228@gmail.com"
-TAG_USER_CREATED = "User created"
+TAG_USER_CREATED = "пользовательские"
 TAG_ORIGINAL = "Original"
+TAG_USER_CREATED_OLD = "User created"  # устаревший тег, удаляем при миграции
 
 
 async def ensure_tags_exist(db) -> bool:
     """
-    Убеждается, что теги "User created" и "Original" существуют в character_available_tags.
+    Убеждается, что теги "пользовательские" и "Original" существуют в character_available_tags.
     """
     try:
         for tag_name in [TAG_USER_CREATED, TAG_ORIGINAL]:
@@ -59,7 +60,7 @@ async def ensure_tags_exist(db) -> bool:
 async def update_character_tags() -> bool:
     """
     Обновляет теги персонажей согласно правилам:
-    - Персонажи НЕ от eseeva228@gmail.com получают тег "User created"
+    - Персонажи НЕ от eseeva228@gmail.com получают тег "пользовательские"
     - Персонажи от eseeva228@gmail.com получают тег "Original"
     """
     async with async_session_maker() as db:
@@ -107,16 +108,23 @@ async def update_character_tags() -> bool:
                         tags_set.add(TAG_ORIGINAL)
                         updated = True
                         original_count += 1
-                    # Убираем "User created" если он есть
+                    # Убираем "пользовательские" и устаревший "User created" если есть
                     if TAG_USER_CREATED in tags_set:
                         tags_set.remove(TAG_USER_CREATED)
                         updated = True
+                    if TAG_USER_CREATED_OLD in tags_set:
+                        tags_set.discard(TAG_USER_CREATED_OLD)
+                        updated = True
                 else:
-                    # Персонаж от другого пользователя - добавляем "User created"
+                    # Персонаж от другого пользователя - добавляем "пользовательские"
                     if TAG_USER_CREATED not in tags_set:
                         tags_set.add(TAG_USER_CREATED)
                         updated = True
                         user_created_count += 1
+                    # Убираем устаревший "User created" при миграции
+                    if TAG_USER_CREATED_OLD in tags_set:
+                        tags_set.discard(TAG_USER_CREATED_OLD)
+                        updated = True
                     # Убираем "Original" если он есть
                     if TAG_ORIGINAL in tags_set:
                         tags_set.remove(TAG_ORIGINAL)
@@ -134,7 +142,7 @@ async def update_character_tags() -> bool:
             if updated_count > 0:
                 await db.commit()
                 print(f"[UPDATE_TAGS] Успешно обновлено персонажей: {updated_count}")
-                print(f"[UPDATE_TAGS] Добавлено 'User created': {user_created_count}")
+                print(f"[UPDATE_TAGS] Добавлено 'пользовательские': {user_created_count}")
                 print(f"[UPDATE_TAGS] Добавлено 'Original': {original_count}")
 
                 # Очищаем кэш персонажей

@@ -4083,6 +4083,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const customPromptRef = useRef<string>(''); // Ref для актуального промпта
   const lastAppearanceLocationRef = useRef<{ appearance: string; location: string }>({ appearance: '', location: '' }); // Ref для отслеживания предыдущих значений
   const formRef = useRef<HTMLFormElement>(null);
+  const submitInProgressRef = useRef<boolean>(false); // Защита от повторной отправки (двойной клик, requestSubmit)
   const generationStartTimeRef = useRef<number | null>(null); // Время начала генерации для автозаполнения прогресса
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null); // Интервал для автозаполнения прогресса
   const navigateToChatAfterSaveRef = useRef(false);
@@ -5068,6 +5069,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitInProgressRef.current) return;
+    submitInProgressRef.current = true;
     setIsLoading(true);
     setError(null);
     setSuccess(null);
@@ -5093,6 +5096,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         navigateToChatAfterSaveRef.current = false;
         setShowPremiumModal(true);
         setIsLoading(false);
+        submitInProgressRef.current = false;
         return;
       }
     }
@@ -5366,6 +5370,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       setError(err instanceof Error ? err.message : 'Ошибка при редактировании персонажа');
     } finally {
       setIsLoading(false);
+      submitInProgressRef.current = false;
     }
   };
 

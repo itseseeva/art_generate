@@ -1605,15 +1605,15 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
             if "Original" not in tags_set:
                 tags_set.add("Original")
                 logger.info(f"[CREATE_CHAR] Добавлен тег 'Original' для персонажа от {ORIGINAL_CREATOR_EMAIL}")
-            # Убираем "User created" если он есть
-            if "User created" in tags_set:
-                tags_set.discard("User created")
-                logger.info(f"[CREATE_CHAR] Удален тег 'User created' для персонажа от {ORIGINAL_CREATOR_EMAIL}")
+            # Убираем "пользовательские" если он есть
+            if "пользовательские" in tags_set:
+                tags_set.discard("пользовательские")
+                logger.info(f"[CREATE_CHAR] Удален тег 'пользовательские' для персонажа от {ORIGINAL_CREATOR_EMAIL}")
         else:
-            # Остальные персонажи получают тег "User created"
-            if "User created" not in tags_set:
-                tags_set.add("User created")
-                logger.info(f"[CREATE_CHAR] Добавлен тег 'User created' для персонажа от {current_user.email}")
+            # Остальные персонажи получают тег "пользовательские"
+            if "пользовательские" not in tags_set:
+                tags_set.add("пользовательские")
+                logger.info(f"[CREATE_CHAR] Добавлен тег 'пользовательские' для персонажа от {current_user.email}")
             # Убираем "Original" если он есть
             if "Original" in tags_set:
                 tags_set.discard("Original")
@@ -2872,15 +2872,15 @@ Response Style:
                 if "Original" not in tags_set:
                     tags_set.add("Original")
                     logger.info(f"[UPDATE_CHAR] Добавлен тег 'Original' для персонажа от {ORIGINAL_CREATOR_EMAIL}")
-                # Убираем "User created" если он есть
-                if "User created" in tags_set:
-                    tags_set.discard("User created")
-                    logger.info(f"[UPDATE_CHAR] Удален тег 'User created' для персонажа от {ORIGINAL_CREATOR_EMAIL}")
+                # Убираем "пользовательские" если он есть
+                if "пользовательские" in tags_set:
+                    tags_set.discard("пользовательские")
+                    logger.info(f"[UPDATE_CHAR] Удален тег 'пользовательские' для персонажа от {ORIGINAL_CREATOR_EMAIL}")
             else:
-                # Остальные персонажи получают тег "User created"
-                if "User created" not in tags_set:
-                    tags_set.add("User created")
-                    logger.info(f"[UPDATE_CHAR] Добавлен тег 'User created' для персонажа от {character_creator.email if character_creator else 'unknown'}")
+                # Остальные персонажи получают тег "пользовательские"
+                if "пользовательские" not in tags_set:
+                    tags_set.add("пользовательские")
+                    logger.info(f"[UPDATE_CHAR] Добавлен тег 'пользовательские' для персонажа от {character_creator.email if character_creator else 'unknown'}")
                 # Убираем "Original" если он есть
                 if "Original" in tags_set:
                     tags_set.discard("Original")

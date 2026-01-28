@@ -47,6 +47,10 @@ ENV PYTHONPATH="/app"
 # Copy code
 COPY . .
 
+# Обновление тегов персонажей (при билде БД нет — скрипт завершится с ошибкой, || true не ломает образ;
+# фактически выполняется при старте контейнера через docker-compose command)
+RUN python -m app.scripts.update_character_tags || true
+
 EXPOSE 8000
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
