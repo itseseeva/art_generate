@@ -412,6 +412,8 @@ export const MainPage: React.FC<MainPageProps> = ({
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const loadedCharacterIdsRef = useRef<Set<string>>(new Set()); // Для отслеживания уже загруженных ID
+  const allCharactersCacheRef = useRef<Character[]>([]); // Кэш всех загруженных персонажей для клиентской пагинации
+  const isAllCharactersLoadedRef = useRef<boolean>(false); // Флаг, что все персонажи загружены
 
   const toggleTag = (tag: string) => {
     setSelectedTags((prev) => {
@@ -422,9 +424,26 @@ export const MainPage: React.FC<MainPageProps> = ({
     });
   };
 
-  // При смене safe/nsfw сбрасываем выбранные теги, чтобы не показывать пустой список из-за тегов другого режима.
+  // При смене safe/nsfw сбрасываем выбранные теги
+  // Кэш не сбрасываем, но пересчитываем отображение на основе отфильтрованных данных
   React.useEffect(() => {
     setSelectedTags(new Set());
+    // Если кэш уже загружен, просто пересчитываем отображение с новым фильтром
+    if (isAllCharactersLoadedRef.current && allCharactersCacheRef.current.length > 0) {
+      const filteredCache = allCharactersCacheRef.current.filter((char) => {
+        if (contentMode === 'safe') return char.is_nsfw !== true;
+        return char.is_nsfw === true;
+      });
+      const firstPage = filteredCache.slice(0, PAGE_SIZE);
+      setCharacters(firstPage);
+      setHasMore(filteredCache.length > PAGE_SIZE);
+    } else {
+      // Если кэш не загружен, загружаем заново
+      allCharactersCacheRef.current = [];
+      isAllCharactersLoadedRef.current = false;
+      loadedCharacterIdsRef.current.clear();
+      loadCharacters(true);
+    }
   }, [contentMode]);
 
   const fetchCharactersFromApi = async (
@@ -586,43 +605,89 @@ export const MainPage: React.FC<MainPageProps> = ({
   };
 
   // Первая страница персонажей (lazy loading).
+  // Загружаем ВСЕ персонажи один раз, затем делаем пагинацию на клиенте
   const loadCharacters = async (forceRefresh: boolean = false) => {
     try {
       if (forceRefresh || characters.length === 0) {
         setIsLoadingCharacters(true);
       }
-      setHasMore(true);
 
-      const batch = await fetchCharactersFromApi(0, PAGE_SIZE, forceRefresh);
+      // Если уже загружены все персонажи и не требуется обновление, используем кэш
+      if (!forceRefresh && isAllCharactersLoadedRef.current && allCharactersCacheRef.current.length > 0) {
+        // Фильтруем кэш по contentMode перед показом
+        const filteredCache = allCharactersCacheRef.current.filter((char) => {
+          if (contentMode === 'safe') return char.is_nsfw !== true;
+          return char.is_nsfw === true;
+        });
+        
+        // Показываем первую страницу отфильтрованных персонажей
+        const firstPage = filteredCache.slice(0, PAGE_SIZE);
+        setCharacters(firstPage);
+        setHasMore(filteredCache.length > PAGE_SIZE);
+        setIsLoadingCharacters(false);
+        return;
+      }
 
-      if (!batch.length) {
+      // Загружаем всех персонажей (запрашиваем большой лимит, чтобы получить все)
+      const allBatch = await fetchCharactersFromApi(0, 10000, forceRefresh);
+
+      if (!allBatch.length) {
         setCharacters([]);
         setCachedRawCharacters([]);
+        allCharactersCacheRef.current = [];
+        isAllCharactersLoadedRef.current = false;
         loadedCharacterIdsRef.current.clear();
         setHasMore(false);
         return;
       }
 
-      const photosMap = buildPhotosMapFromBatch(batch);
+      const photosMap = buildPhotosMapFromBatch(allBatch);
       setCharacterPhotos((prev) => ({ ...prev, ...photosMap }));
-      setCachedRawCharacters(batch);
+      setCachedRawCharacters(allBatch);
 
-      const formatted = rawBatchToCharacters(batch, photosMap);
+      // Удаляем дубликаты по ID и имени
+      const uniqueMap = new Map<string, any>();
+      for (const char of allBatch) {
+        const charId = (char.id ?? char.name ?? '').toString();
+        const charName = (char.name ?? char.display_name ?? '').toString().toLowerCase();
+        const key = `${charId}:${charName}`;
+        if (!uniqueMap.has(key)) {
+          uniqueMap.set(key, char);
+        }
+      }
+      const uniqueBatch = Array.from(uniqueMap.values());
+
+      const allFormatted = rawBatchToCharacters(uniqueBatch, photosMap);
+      
+      // Сохраняем всех персонажей в кэш
+      allCharactersCacheRef.current = allFormatted;
+      isAllCharactersLoadedRef.current = true;
       
       // Сбрасываем отслеживание ID при первой загрузке или принудительном обновлении
       if (forceRefresh || characters.length === 0) {
         loadedCharacterIdsRef.current.clear();
       }
       
-      // Отслеживаем загруженные ID
-      formatted.forEach(char => {
-        loadedCharacterIdsRef.current.add(char.id);
+      // Отслеживаем загруженные ID и имена
+      allFormatted.forEach(char => {
+        const charId = char.id.toString();
+        const charName = char.name.toLowerCase();
+        loadedCharacterIdsRef.current.add(charId);
+        loadedCharacterIdsRef.current.add(`name:${charName}`);
       });
       
-      setCharacters(formatted);
-      setHasMore(batch.length === PAGE_SIZE);
+      // Фильтруем по contentMode перед показом
+      const filteredAll = allFormatted.filter((char) => {
+        if (contentMode === 'safe') return char.is_nsfw !== true;
+        return char.is_nsfw === true;
+      });
+      
+      // Показываем первую страницу отфильтрованных персонажей
+      const firstPage = filteredAll.slice(0, PAGE_SIZE);
+      setCharacters(firstPage);
+      setHasMore(filteredAll.length > PAGE_SIZE);
 
-      await loadCharacterRatings(formatted, false);
+      await loadCharacterRatings(firstPage, false);
 
       if (Object.keys(characterPhotos).length === 0) {
         await loadCharacterPhotos();
@@ -630,6 +695,8 @@ export const MainPage: React.FC<MainPageProps> = ({
     } catch {
       setCharacters([]);
       setCachedRawCharacters([]);
+      allCharactersCacheRef.current = [];
+      isAllCharactersLoadedRef.current = false;
       loadedCharacterIdsRef.current.clear();
       setHasMore(false);
     } finally {
@@ -638,10 +705,36 @@ export const MainPage: React.FC<MainPageProps> = ({
   };
 
   // Подгрузка следующей порции при скролле (по 26).
+  // Берем следующую порцию из кэша всех загруженных персонажей
   const loadMoreCharacters = useCallback(async () => {
     if (isLoadingMore || !hasMore) return;
     setIsLoadingMore(true);
     try {
+      // Если все персонажи уже загружены в кэш, берем следующую порцию из кэша
+      // Но нужно учитывать фильтрацию по contentMode - берем только тех, кто соответствует текущему режиму
+      if (isAllCharactersLoadedRef.current && allCharactersCacheRef.current.length > 0) {
+        // Фильтруем кэш по contentMode
+        const filteredCache = allCharactersCacheRef.current.filter((char) => {
+          if (contentMode === 'safe') return char.is_nsfw !== true;
+          return char.is_nsfw === true;
+        });
+        
+        const currentCount = characters.length;
+        const nextPage = filteredCache.slice(currentCount, currentCount + PAGE_SIZE);
+        
+        if (nextPage.length === 0) {
+          setHasMore(false);
+          return;
+        }
+        
+        setCharacters((prev) => [...prev, ...nextPage]);
+        setHasMore(currentCount + nextPage.length < filteredCache.length);
+        
+        await loadCharacterRatings(nextPage, true);
+        return;
+      }
+
+      // Если кэш еще не заполнен (старая логика для совместимости)
       const skip = characters.length;
       const batch = await fetchCharactersFromApi(skip, PAGE_SIZE, false);
 
@@ -656,7 +749,10 @@ export const MainPage: React.FC<MainPageProps> = ({
       // Фильтруем дубликаты перед добавлением
       const uniqueBatch = batch.filter((char: any) => {
         const charId = (char.id ?? char.name ?? '').toString();
-        return !loadedCharacterIdsRef.current.has(charId);
+        const charName = (char.name ?? char.display_name ?? '').toString().toLowerCase();
+        const idKey = charId;
+        const nameKey = `name:${charName}`;
+        return !loadedCharacterIdsRef.current.has(idKey) && !loadedCharacterIdsRef.current.has(nameKey);
       });
       
       // Если все персонажи из batch уже загружены, значит больше нет новых
@@ -669,15 +765,16 @@ export const MainPage: React.FC<MainPageProps> = ({
 
       const formatted = rawBatchToCharacters(uniqueBatch, photosMap);
       
-      // Отслеживаем новые ID
+      // Отслеживаем новые ID и имена
       formatted.forEach(char => {
-        loadedCharacterIdsRef.current.add(char.id);
+        const charId = char.id.toString();
+        const charName = char.name.toLowerCase();
+        loadedCharacterIdsRef.current.add(charId);
+        loadedCharacterIdsRef.current.add(`name:${charName}`);
       });
       
       setCharacters((prev) => [...prev, ...formatted]);
-      
-      // Если получили меньше PAGE_SIZE или все были дубликатами, значит больше нет данных
-      setHasMore(batch.length === PAGE_SIZE && uniqueBatch.length > 0);
+      setHasMore(uniqueBatch.length === PAGE_SIZE);
 
       await loadCharacterRatings(formatted, true);
     } catch {
@@ -685,7 +782,7 @@ export const MainPage: React.FC<MainPageProps> = ({
     } finally {
       setIsLoadingMore(false);
     }
-  }, [isLoadingMore, hasMore, characters.length]);
+  }, [isLoadingMore, hasMore, characters.length, contentMode]);
 
   // Загрузка фото только из /photos и character-photos.json (без fetch всех персонажей).
   // Мержим в characterPhotos только если ключа ещё нет — main_photos из пагинированных ответов не перезаписываем.
