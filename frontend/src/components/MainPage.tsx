@@ -217,6 +217,25 @@ const CreateCharacterCardWrapper = styled.div`
   height: 300px;
   width: 100%;
   min-width: 200px;
+  /* Обеспечиваем такой же размер как у CharacterCard */
+  background: rgba(22, 33, 62, 0.3);
+  backdrop-filter: blur(5px);
+  border-radius: ${theme.borderRadius.lg};
+  box-shadow: ${theme.colors.shadow.message};
+  transition: ${theme.transition.fast};
+  overflow: hidden;
+  border: 2px solid transparent;
+  cursor: pointer;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: ${theme.colors.shadow.glow};
+    
+    /* При hover сердечко становится красным */
+    .heart-icon {
+      color: #ef4444 !important;
+    }
+  }
 `;
 
 const ContentArea = styled.div`
@@ -1173,30 +1192,66 @@ export const MainPage: React.FC<MainPageProps> = ({
                   </div>
                 ) : (
                   <>
-                    <CreateCharacterCardWrapper>
-                      <motion.div
-                        onClick={() => onCreateCharacter && onCreateCharacter()}
-                        className="relative h-full w-full min-w-[200px] cursor-pointer rounded-lg overflow-hidden group"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5, ease: "easeOut" }}
-                        whileTap={{ scale: 0.98 }}
-                      >
-                        {/* Фон DarkVeil как на странице магазина */}
-                        <div className="absolute inset-0 rounded-lg overflow-hidden">
-                          <DarkVeil speed={1.1} />
-                        </div>
+                    <CreateCharacterCardWrapper
+                      onClick={() => onCreateCharacter && onCreateCharacter()}
+                    >
+                      {/* Фон DarkVeil */}
+                      <div style={{ position: 'absolute', inset: 0, borderRadius: theme.borderRadius.lg, overflow: 'hidden', pointerEvents: 'none' }}>
+                        <DarkVeil speed={1.1} />
+                      </div>
 
-                        {/* Glassmorphism слой поверх фона */}
-                        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 via-indigo-500/20 to-purple-500/20 backdrop-blur-xl border border-white/20 rounded-lg transition-all duration-300 group-hover:border-white/30 group-hover:from-purple-500/30 group-hover:via-indigo-500/30 group-hover:to-purple-500/30" />
+                      {/* Glassmorphism слой поверх фона */}
+                      <div style={{
+                        position: 'absolute',
+                        inset: 0,
+                        background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2))',
+                        backdropFilter: 'blur(12px)',
+                        border: '2px solid rgba(255, 255, 255, 0.2)',
+                        borderRadius: theme.borderRadius.lg,
+                        transition: 'all 0.3s ease',
+                        pointerEvents: 'none'
+                      }} />
 
-                        {/* Контент */}
-                        <div className="relative z-10 h-full w-full flex flex-col items-center justify-center gap-1 sm:gap-2 md:gap-4 p-2 sm:p-3 md:p-6">
-                          {/* Анимированная иконка сердечка */}
+                      {/* Контент */}
+                      <div style={{
+                        position: 'relative',
+                        zIndex: 10,
+                        height: '100%',
+                        width: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: theme.spacing.md,
+                        padding: theme.spacing.md
+                      }}>
+                        {/* Анимированная иконка сердечка */}
+                        <motion.div
+                          style={{
+                            width: '60px',
+                            height: '60px',
+                            borderRadius: '50%',
+                            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05))',
+                            border: '1px solid rgba(255, 255, 255, 0.3)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 0 20px rgba(139, 92, 246, 0.4)'
+                          }}
+                          animate={{
+                            scale: [1, 1.08, 1],
+                          }}
+                          transition={{
+                            duration: 2,
+                            repeat: Infinity,
+                            ease: "easeInOut"
+                          }}
+                        >
                           <motion.div
-                            className="w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 lg:w-20 lg:h-20 rounded-full bg-gradient-to-br from-white/10 to-white/5 border border-white/30 flex items-center justify-center drop-shadow-[0_0_20px_rgba(139,92,246,0.4)]"
+                            className="heart-icon"
+                            style={{ color: 'white', transition: 'color 0.3s ease' }}
                             animate={{
-                              scale: [1, 1.08, 1],
+                              opacity: [0.9, 1, 0.9]
                             }}
                             transition={{
                               duration: 2,
@@ -1204,27 +1259,22 @@ export const MainPage: React.FC<MainPageProps> = ({
                               ease: "easeInOut"
                             }}
                           >
-                            <motion.div
-                              className="text-white group-hover:text-red-500 transition-colors duration-300"
-                              animate={{
-                                opacity: [0.9, 1, 0.9]
-                              }}
-                              transition={{
-                                duration: 2,
-                                repeat: Infinity,
-                                ease: "easeInOut"
-                              }}
-                            >
-                              <FiHeart className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 lg:w-10 lg:h-10" />
-                            </motion.div>
+                            <FiHeart style={{ width: '30px', height: '30px' }} />
                           </motion.div>
+                        </motion.div>
 
-                          {/* Текст */}
-                          <h3 className="text-xs sm:text-sm md:text-lg lg:text-2xl font-semibold text-white text-center leading-tight tracking-wide font-sans max-w-[140px] sm:max-w-[160px] md:max-w-[180px] px-1 sm:px-2">
-                            Создай персонажа
-                          </h3>
-                        </div>
-                      </motion.div>
+                        {/* Текст */}
+                        <h3 style={{
+                          fontSize: theme.fontSize.lg,
+                          fontWeight: 600,
+                          color: 'white',
+                          textAlign: 'center',
+                          margin: 0,
+                          padding: `0 ${theme.spacing.sm}`
+                        }}>
+                          Создай персонажа
+                        </h3>
+                      </div>
                     </CreateCharacterCardWrapper>
                     {charactersWithPhotos.map((character) => {
                       const characterId = typeof character.id === 'number'
