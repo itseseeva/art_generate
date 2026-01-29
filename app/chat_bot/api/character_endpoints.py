@@ -2672,52 +2672,7 @@ async def update_user_character(
         else:
             logger.debug(f"[UPDATE CHARACTER] текстовые поля '{decoded_name}' без изменений")
         
-        # КРИТИЧНО: Списываем кредиты только если изменились текстовые поля
-        # Если изменилось только фото (или ничего не изменилось), кредиты не списываются
-        user_id = current_user.id
-        
-        if text_fields_changed:
-            # Загружаем актуальные данные пользователя из БД
-            user_result = await db.execute(
-                select(Users).where(Users.id == user_id)
-            )
-            db_user = user_result.scalar_one_or_none()
-            
-            if not db_user:
-                raise HTTPException(
-                    status_code=404,
-                    detail="Пользователь не найден"
-                )
-            
-            # Проверяем баланс пользователя
-            if db_user.coins < CHARACTER_EDIT_COST:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Недостаточно кредитов. Для редактирования персонажа требуется {CHARACTER_EDIT_COST} кредитов. У вас: {db_user.coins} кредитов."
-                )
-            
-            # Списываем кредиты с баланса пользователя
-            old_balance = db_user.coins
-            db_user.coins -= CHARACTER_EDIT_COST
-            await db.flush()  # Сохраняем изменения, но не коммитим пока (коммит будет после обновления персонажа)
-            
-            # Записываем в историю баланса
-            try:
-                from app.utils.balance_history import record_balance_change
-                await record_balance_change(
-                    db=db,
-                    user_id=user_id,
-                    amount=-CHARACTER_EDIT_COST,
-                    reason=f"Редактирование персонажа '{decoded_name}'"
-                )
-            except Exception as e:
-                logger.warning(f"Не удалось записать историю баланса: {e}")
-            
-            logger.info(
-                f"Списано {CHARACTER_EDIT_COST} кредитов за редактирование '{decoded_name}', баланс: {old_balance} -> {db_user.coins}"
-            )
-        else:
-            logger.debug(f"Текстовые поля '{decoded_name}' без изменений, кредиты не списываются")
+        # Редактирование персонажа бесплатно для пользователя (кредиты не списываются)
         
         # Update name if changed
         if character.name != db_char.name:
@@ -2900,10 +2855,9 @@ Response Style:
         await db.commit()
         await db.refresh(db_char)
         
-        # Обновляем данные пользователя после коммита только если кредиты были списаны
+        # Уведомляем об обновлении профиля после сохранения персонажа (редактирование бесплатно)
         if text_fields_changed:
-            await db.refresh(db_user)
-            await emit_profile_update(user_id, db)
+            await emit_profile_update(current_user.id, db)
         
         logger.debug(f"[UPDATE_CHAR] сохранено voice_id={db_char.voice_id}")
         
@@ -2939,9 +2893,9 @@ Response Style:
             db_char.voice_url = f"/default_character_voices/{db_char.voice_id}"
         
         if text_fields_changed:
-            logger.info(f"Персонаж '{new_character_name}' обновлён (user {current_user.id}), баланс: {db_user.coins}")
+            logger.info(f"Персонаж '{new_character_name}' обновлён (user {current_user.id})")
         else:
-            logger.debug(f"Персонаж '{new_character_name}' обновлён без списания кредитов")
+            logger.debug(f"Персонаж '{new_character_name}' обновлён без изменений текстовых полей")
         return db_char
         
     except HTTPException:

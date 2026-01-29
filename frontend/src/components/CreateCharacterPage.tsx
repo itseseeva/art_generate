@@ -7949,7 +7949,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                 'realism': 'Реализм'
                               };
                               const currentModelName = modelDisplayNames[selectedModel] || selectedModel;
-                              let buttonText = hasGeneratedPhotos ? `Сгенерировать ещё (${currentModelName})` : `Сгенерировать фото (${currentModelName})`;
+                              let buttonText = hasGeneratedPhotos ? `Сгенерировать(${currentModelName})` : `Сгенерировать фото (${currentModelName})`;
 
                               if (!userInfo) {
                                 return buttonText;

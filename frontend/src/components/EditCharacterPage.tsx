@@ -4114,7 +4114,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const [subscriptionStats, setSubscriptionStats] = useState<{ credits_remaining: number } | null>(null);
   const [customPrompt, setCustomPrompt] = useState('');
   const [customPromptManuallySet, setCustomPromptManuallySet] = useState(false); // Флаг, что пользователь вручную установил промпт
-  const CHARACTER_EDIT_COST = 30; // Кредиты за редактирование персонажа
   const balanceUpdateInProgressRef = useRef(false); // Флаг для предотвращения перезаписи баланса
   // Refs для предотвращения race condition при загрузке данных персонажа
   const lastLoadedIdentifierRef = useRef<string | null>(null);
@@ -5141,9 +5140,28 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     setUserRemovedDefaults(false); // Сбрасываем флаг удаления
   };
 
+  const lastSubmitTimeRef = useRef<number>(0);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (submitInProgressRef.current) return;
+    console.log('handleSubmit called', {
+      isLoading: isLoading,
+      submitInProgress: submitInProgressRef.current,
+      timeSinceLastSubmit: Date.now() - lastSubmitTimeRef.current
+    });
+
+    // Guard against rapid submissions (2 second cooldown)
+    if (Date.now() - lastSubmitTimeRef.current < 2000) {
+      console.log('Submission blocked by cooldown');
+      return;
+    }
+
+    if (submitInProgressRef.current) {
+      console.log('Submission blocked by submitInProgressRef');
+      return;
+    }
+
+    lastSubmitTimeRef.current = Date.now();
     submitInProgressRef.current = true;
     setIsLoading(true);
     setError(null);
@@ -5176,11 +5194,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     }
 
     try {
-      // Проверяем кредиты перед отправкой (используем userInfo.coins, а не subscriptionStats.credits_remaining)
-      if (!userInfo || userInfo.coins < CHARACTER_EDIT_COST) {
-        throw new Error(`Недостаточно кредитов. Для редактирования персонажа требуется ${CHARACTER_EDIT_COST} кредитов. У вас: ${userInfo?.coins || 0} кредитов.`);
-      }
-
+      // Редактирование персонажа бесплатно, проверка кредитов не выполняется
       const requestData = {
         name: formData.name.trim(),
         personality: formData.personality.trim(),
@@ -5383,8 +5397,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
             const userData = await response.json();
 
 
-            // Проверяем, изменился ли баланс (должен быть меньше на CHARACTER_EDIT_COST)
-            const expectedBalance = userInfo ? userInfo.coins - CHARACTER_EDIT_COST : userData.coins;
+            // Редактирование бесплатно, баланс не меняется; обновляем userInfo при изменении данных с сервера
             const balanceChanged = userInfo && userData.coins !== userInfo.coins;
 
             if (balanceChanged || attempt === maxAttempts) {
@@ -6388,26 +6401,43 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                           }}
                         />
                       </FormField>
-                      <FormField>
-                        <FormLabel htmlFor="appearance">Внешность (для фото)</FormLabel>
-                        <ModernTextarea
-                          id="appearance"
-                          name="appearance"
-                          value={formData.appearance}
-                          onChange={handleInputChange}
-                          placeholder="Опишите внешность персонажа для генерации фото..."
-                          rows={3}
-                        />
-                        <PromptSuggestions
-                          prompts={APPEARANCE_PROMPTS}
-                          onSelect={(val) => {
-                            const newVal = formData.appearance ? formData.appearance + ' ' + val : val;
-                            setFormData(prev => ({ ...prev, appearance: newVal }));
-                            const fakeEvent = { target: { name: 'appearance', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
-                            handleInputChange(fakeEvent);
-                          }}
-                        />
-                      </FormField>
+
+                      {/* Appearance appears only when Instructions has content */}
+                      <AnimatePresence>
+                        {formData.instructions && formData.instructions.trim().length > 0 && (
+                          <motion.div
+                            key="appearance-wrapper"
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.3 }}
+                            style={{ overflow: 'hidden' }}
+                          >
+                            <FormField>
+                              <FormLabel htmlFor="appearance">Внешность (для фото)</FormLabel>
+                              <ModernTextarea
+                                id="appearance"
+                                name="appearance"
+                                value={formData.appearance}
+                                onChange={handleInputChange}
+                                placeholder="Опишите внешность персонажа для генерации фото..."
+                                rows={3}
+                              />
+                              <PromptSuggestions
+                                prompts={APPEARANCE_PROMPTS}
+                                onSelect={(val) => {
+                                  const newVal = formData.appearance ? formData.appearance + ' ' + val : val;
+                                  setFormData(prev => ({ ...prev, appearance: newVal }));
+                                  const fakeEvent = { target: { name: 'appearance', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
+                                  handleInputChange(fakeEvent);
+                                }}
+                              />
+                            </FormField>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
+                      {/* Location appears always as per user request */}
                       <FormField>
                         <FormLabel htmlFor="location">Локация (для фото)</FormLabel>
                         <ModernTextarea
@@ -8433,7 +8463,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                     disabled={
                       isLoading ||
                       !userInfo ||
-                      (userInfo && userInfo.coins < CHARACTER_EDIT_COST) ||
                       formData.name.trim().length < 2 ||
                       formData.personality.trim().length === 0 ||
                       formData.situation.trim().length === 0 ||
@@ -8441,6 +8470,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                     }
                     onClick={(e) => {
                       e.preventDefault();
+                      console.log('Save button clicked');
                       navigateToChatAfterSaveRef.current = true;
                       formRef.current?.requestSubmit();
                     }}
@@ -8778,7 +8808,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
           {/* <BackgroundWrapper>
         <DarkVeil speed={1.1} />
       </BackgroundWrapper> */}
-        </MainContainer>
+        </MainContainer >
       </>
     );
   } catch (err) {

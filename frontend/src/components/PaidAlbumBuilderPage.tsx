@@ -2170,7 +2170,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                     };
                     const currentModelName = modelDisplayNames[selectedModel] || selectedModel;
                     
-                    const actionText = hasGeneratedPhotos ? 'Сгенерировать ещё' : 'Сгенерировать фото';
+                    const actionText = hasGeneratedPhotos ? 'Сгенерировать' : 'Сгенерировать фото';
                     const baseText = isQueueFull 
                       ? `${actionText} (${currentModelName}) (10 монет) • Очередь заполнена`
                       : `${actionText} (${currentModelName}) (10 монет)`;
