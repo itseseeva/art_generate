@@ -11,7 +11,7 @@ from diffusers import (
 from compel import Compel, ReturnedEmbeddingsType
 
 # === НАСТРОЙКИ ===
-MODEL_FILENAME = "perfectdeliberate_v50.safetensors" 
+MODEL_FILENAME = "perfectdeliberate_v70.safetensors" 
 
 DEFAULT_WIDTH = 832
 DEFAULT_HEIGHT = 1216
@@ -93,12 +93,20 @@ class Predictor(BasePredictor):
                 try:
                     print(f"Loading LoRA: {name}")
                     self.pipe.load_lora_weights(self.weights_dir, weight_name=filename, adapter_name=name)
-                    active_adapters.append(name)
-                    adapter_weights.append(weight)
+                    
+                    # Verify if adapter is actually registered
+                    present_adapters = self.pipe.get_active_adapters()
+                    if name in present_adapters:
+                        active_adapters.append(name)
+                        adapter_weights.append(weight)
+                    else:
+                        print(f"WARNING: Adapter '{name}' loaded but not found in active adapters list: {present_adapters}. Skipping.")
+                        
                 except Exception as e:
                     print(f"Failed to load LoRA {name}: {e}")
         
         if active_adapters:
+            print(f"Setting active adapters: {active_adapters}")
             self.pipe.set_adapters(active_adapters, adapter_weights=adapter_weights)
             self.lora_loaded = True
 

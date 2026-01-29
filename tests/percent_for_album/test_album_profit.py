@@ -22,7 +22,7 @@ from app.services.coins_service import CoinsService
 
 
 CREATOR_PROFIT_PERCENT = 0.15
-CREATOR_PROFIT = int(PAID_ALBUM_COST * CREATOR_PROFIT_PERCENT)  # 15% от 200 = 30 кредитов
+CREATOR_PROFIT = int(PAID_ALBUM_COST * CREATOR_PROFIT_PERCENT)  # 15% от 300 = 45 кредитов
 
 
 @pytest_asyncio.fixture
@@ -287,7 +287,7 @@ async def test_profit_calculation_is_15_percent(
     monkeypatch: pytest.MonkeyPatch,
 ):
     """
-    Тест: Проверяем точность расчета 15% от стоимости альбома (200 кредитов = 30 кредитов).
+    Тест: Проверяем точность расчета 15% от стоимости альбома (300 кредитов = 45 кредитов).
     """
     initial_creator_coins = creator_user.coins
 
@@ -310,10 +310,10 @@ async def test_profit_calculation_is_15_percent(
 
     assert response.unlocked is True
 
-    # Проверяем точный расчет: 15% от 200 = 30
+    # Проверяем точный расчет: 15% от 300 = 45
     await memory_session.refresh(creator_user)
-    assert creator_user.coins == initial_creator_coins + 30
-    assert CREATOR_PROFIT == 30  # Дополнительная проверка константы
+    assert creator_user.coins == initial_creator_coins + 45
+    assert CREATOR_PROFIT == 45  # Дополнительная проверка константы
 
 
 @pytest.mark.asyncio
@@ -329,7 +329,7 @@ async def test_profit_not_paid_if_insufficient_buyer_coins(
     poor_buyer = Users(
         email="poor@example.com",
         password_hash="hash",
-        coins=100,  # Меньше чем PAID_ALBUM_COST (200)
+        coins=100,  # Меньше чем PAID_ALBUM_COST (300)
         is_active=True,
     )
     memory_session.add(poor_buyer)

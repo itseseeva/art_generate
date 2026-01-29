@@ -1819,7 +1819,6 @@ function App() {
           onHistory={handleHistory}
           onFavorites={handleFavorites}
           onMyCharacters={handleMyCharacters}
-          onHome={handleBackToMain}
           onMessages={handleMessages}
           onBalanceHistory={handleBalanceHistory}
           onBugReport={handleBugReport}

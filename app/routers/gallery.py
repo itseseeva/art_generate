@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["paid_gallery"])
 
-PAID_ALBUM_COST = 200
+PAID_ALBUM_COST = 300
 PAID_ALBUM_LIMIT = 20
 
 
@@ -338,7 +338,7 @@ async def unlock_paid_gallery(
     CREATOR_PROFIT_PERCENT = 0.15
     creator_profit = int(
         PAID_ALBUM_COST * CREATOR_PROFIT_PERCENT
-    )  # 15% от 200 = 30 кредитов
+    )  # 15% от 300 = 45 кредитов
 
     if character_db.user_id:
         # Получаем создателя персонажа

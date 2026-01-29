@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
-import { FiPlusCircle, FiEdit, FiClock, FiHeart, FiGrid, FiHome, FiMessageSquare, FiTrendingUp, FiChevronRight, FiAlertTriangle, FiUser, FiLogIn, FiUserPlus, FiLogOut, FiDollarSign, FiRefreshCw, FiFileText, FiBarChart2 } from 'react-icons/fi';
+import { FiPlusCircle, FiEdit, FiClock, FiHeart, FiGrid, FiMessageSquare, FiTrendingUp, FiChevronRight, FiAlertTriangle, FiUser, FiLogIn, FiUserPlus, FiLogOut, FiDollarSign, FiRefreshCw, FiFileText, FiBarChart2, FiMenu } from 'react-icons/fi';
 
 import Dock, { type DockItemData } from './Dock';
 import { theme } from '../theme';
@@ -16,7 +16,6 @@ interface LeftDockSidebarProps {
   onHistory?: () => void;
   onFavorites?: () => void;
   onMyCharacters?: () => void;
-  onHome?: () => void;
   onMessages?: () => void;
   onBalanceHistory?: () => void;
   onBugReport?: () => void;
@@ -57,7 +56,7 @@ const SidebarContainer = styled.aside<{ $isCollapsed?: boolean; $isMobile?: bool
   width: ${props => props.$isCollapsed ? '0' : (props.$isMobile ? '70px' : '76px')};
   min-width: ${props => props.$isCollapsed ? '0' : (props.$isMobile ? '70px' : '76px')};
   height: 100%;
-  padding: ${props => props.$isCollapsed ? '0' : '1.5rem 0.25rem 1.5rem 0.5rem'};
+  padding: ${props => props.$isCollapsed ? '0' : '5rem 0.25rem 1.5rem 0.5rem'};
   background: rgba(8, 8, 18, 0.95);
   border-right-width: ${props => props.$isCollapsed ? '0' : '1px'};
   border-right-style: solid;
@@ -81,91 +80,6 @@ const SidebarContainer = styled.aside<{ $isCollapsed?: boolean; $isMobile?: bool
   -webkit-backdrop-filter: none !important;
   
   * {
-    filter: none !important;
-    -webkit-filter: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-`;
-
-const HomeButton = styled.button`
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: rgba(12, 12, 24, 0.85);
-  color: rgba(240, 240, 240, 1);
-  font-size: 0.8rem;
-  font-weight: 600;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition:
-    transform 0.3s ease,
-    border-color 0.3s ease,
-    box-shadow 0.3s ease,
-    background 0.3s ease;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35),
-              inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  outline: none;
-  margin: 0 auto;
-  flex-shrink: 0;
-  position: relative;
-  z-index: 10;
-  filter: none !important;
-  -webkit-filter: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  
-  * {
-    filter: none !important;
-    -webkit-filter: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-
-  &:hover {
-    transform: scale(1.05);
-    border-color: rgba(255, 255, 255, 0.15);
-    background: rgba(20, 20, 35, 0.95);
-    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4),
-                inset 0 1px 0 rgba(255, 255, 255, 0.1);
-    filter: none !important;
-    -webkit-filter: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-  
-  &:hover * {
-    filter: none !important;
-    -webkit-filter: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-
-  &:active {
-    transform: scale(0.98);
-    border-color: rgba(255, 255, 255, 0.1);
-    filter: none !important;
-    -webkit-filter: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-
-  &:focus-visible {
-    outline: none;
-    box-shadow:
-      0 0 0 2px rgba(255, 255, 255, 0.2),
-      0 15px 35px rgba(0, 0, 0, 0.4);
-    filter: none !important;
-    -webkit-filter: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-
-  &:focus {
-    outline: none;
     filter: none !important;
     -webkit-filter: none !important;
     backdrop-filter: none !important;
@@ -214,28 +128,21 @@ const DockWrapper = styled.div<{ $isMobile?: boolean }>`
 `;
 
 const ToggleArrowButton = styled.button<{ $isCollapsed?: boolean }>`
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   border-radius: 8px;
-  background: rgba(12, 12, 24, 0.85);
-  color: rgba(240, 240, 240, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  color: rgba(240, 240, 240, 0.9);
+  border: none;
   display: flex !important;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition:
-    left ${SIDEBAR_DURATION} ${SIDEBAR_EASING},
-    transform ${SIDEBAR_DURATION} ${SIDEBAR_EASING},
-    border-color 0.2s ease,
-    background 0.2s ease,
-    color 0.2s ease;
+  transition: all 0.2s ease;
   flex-shrink: 0;
   outline: none;
-  z-index: 20;
+  z-index: 10002; /* Above GlobalHeader */
   position: fixed;
-  left: ${props => props.$isCollapsed ? '-8px' : '70px'};
-  transform: ${props => props.$isCollapsed ? 'translateY(-50%) rotate(0deg)' : 'translateY(-50%) rotate(180deg)'};
   filter: none !important;
   -webkit-filter: none !important;
   backdrop-filter: none !important;
@@ -249,14 +156,9 @@ const ToggleArrowButton = styled.button<{ $isCollapsed?: boolean }>`
   }
 
   &:hover {
-    transform: ${props => props.$isCollapsed ? 'translateY(-50%) scale(1.1) rotate(0deg)' : 'translateY(-50%) scale(1.1) rotate(180deg)'};
-    border-color: rgba(255, 255, 255, 0.15);
-    background: rgba(20, 20, 35, 0.95);
-    color: rgba(240, 240, 240, 1);
-    filter: none !important;
-    -webkit-filter: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    transform: scale(1.05);
   }
   
   &:hover * {
@@ -266,32 +168,15 @@ const ToggleArrowButton = styled.button<{ $isCollapsed?: boolean }>`
     -webkit-backdrop-filter: none !important;
   }
 
+  &:focus,
+  &:focus-visible,
   &:active {
-    transform: ${props => props.$isCollapsed ? 'translateY(-50%) scale(0.95) rotate(0deg)' : 'translateY(-50%) scale(0.95) rotate(180deg)'};
     outline: none;
     box-shadow: none;
-    filter: none !important;
-    -webkit-filter: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
   }
 
-  &:focus-visible {
-    outline: none;
-    box-shadow: none;
-    filter: none !important;
-    -webkit-filter: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-  
-  &:focus {
-    outline: none;
-    box-shadow: none;
-    filter: none !important;
-    -webkit-filter: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
+  &:active {
+    transform: scale(0.95);
   }
 `;
 
@@ -343,7 +228,7 @@ const NSFWToggleLabel = styled.span<{ $isNsfw?: boolean }>`
   font-weight: 700;
   text-transform: uppercase;
   color: ${props => props.$isNsfw ? '#ff6b9d' : '#f8fafc'};
-  text-shadow: ${props => props.$isNsfw 
+  text-shadow: ${props => props.$isNsfw
     ? '0 0 10px rgba(255, 107, 157, 0.8), 0 0 20px rgba(255, 107, 157, 0.6), 0 0 30px rgba(255, 107, 157, 0.4)'
     : '0 0 8px rgba(139, 92, 246, 0.6), 0 0 16px rgba(139, 92, 246, 0.4)'};
   animation: ${props => props.$isNsfw ? 'glowPulse 2s ease-in-out infinite' : 'glowPulseBlue 2s ease-in-out infinite'};
@@ -392,7 +277,6 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   onHistory,
   onFavorites,
   onMyCharacters,
-  onHome,
   onMessages,
   onBalanceHistory,
   onBugReport,
@@ -425,7 +309,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
       onRequireAuth?.();
       return;
     }
-    
+
     if (nextChecked && !isNsfw) {
       // Показываем предупреждение при переключении на NSFW
       setPendingMode('nsfw');
@@ -636,17 +520,14 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
         title={isCollapsed ? "Развернуть панель" : "Свернуть панель"}
         $isCollapsed={isCollapsed}
         style={{
-          top: isCollapsed ? '50%' : arrowTop,
-          left: isCollapsed ? (isMobile ? '-4px' : '-8px') : (isMobile ? '64px' : '70px')
+          top: '14px',
+          left: '20px'
         }}
       >
-        <FiChevronRight size={14} />
+        <FiMenu size={24} />
       </ToggleArrowButton>
       <SidebarContainer $isCollapsed={isCollapsed} $isMobile={isMobile}>
         <SidebarContent $isCollapsed={isCollapsed} $isMobile={isMobile}>
-          <HomeButton onClick={onHome} title="Главная">
-            <FiHome size={16} />
-          </HomeButton>
           {onContentModeChange && (
             <NSFWToggleWrapper>
               <Switcher4 checked={checked} onToggle={handleToggleChange} variant="pink" />

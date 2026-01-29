@@ -173,6 +173,8 @@ const CharactersGrid = styled.div`
   @media (max-width: 768px) {
     flex: none;
     overflow-y: visible;
+    grid-template-columns: repeat(2, 1fr);
+    gap: ${theme.spacing.sm};
   }
 `;
 
@@ -216,8 +218,8 @@ const CreateCharacterCardWrapper = styled.div`
   position: relative;
   height: 300px;
   width: 100%;
-  min-width: 200px;
-  /* Обеспечиваем такой же размер как у CharacterCard */
+  min-width: 0;
+  /* Как у CharacterCard: одна ячейка в сетке, на мобильных компактнее */
   background: rgba(22, 33, 62, 0.3);
   backdrop-filter: blur(5px);
   border-radius: ${theme.borderRadius.lg};
@@ -226,12 +228,19 @@ const CreateCharacterCardWrapper = styled.div`
   overflow: hidden;
   border: 2px solid transparent;
   cursor: pointer;
+
+  @media (max-width: 768px) {
+    /* Удаляем специфичные стили для мобильных, чтобы карточка была такой же высоты как остальные */
+  }
+
+  @media (min-width: 769px) {
+    min-width: 200px;
+  }
   
   &:hover {
     transform: translateY(-2px);
     box-shadow: ${theme.colors.shadow.glow};
     
-    /* При hover сердечко становится красным */
     .heart-icon {
       color: #ef4444 !important;
     }
@@ -619,7 +628,7 @@ export const MainPage: React.FC<MainPageProps> = ({
           if (contentMode === 'safe') return char.is_nsfw !== true;
           return char.is_nsfw === true;
         });
-        
+
         // Показываем первую страницу отфильтрованных персонажей
         const firstPage = filteredCache.slice(0, PAGE_SIZE);
         setCharacters(firstPage);
@@ -658,16 +667,16 @@ export const MainPage: React.FC<MainPageProps> = ({
       const uniqueBatch = Array.from(uniqueMap.values());
 
       const allFormatted = rawBatchToCharacters(uniqueBatch, photosMap);
-      
+
       // Сохраняем всех персонажей в кэш
       allCharactersCacheRef.current = allFormatted;
       isAllCharactersLoadedRef.current = true;
-      
+
       // Сбрасываем отслеживание ID при первой загрузке или принудительном обновлении
       if (forceRefresh || characters.length === 0) {
         loadedCharacterIdsRef.current.clear();
       }
-      
+
       // Отслеживаем загруженные ID и имена
       allFormatted.forEach(char => {
         const charId = char.id.toString();
@@ -675,13 +684,13 @@ export const MainPage: React.FC<MainPageProps> = ({
         loadedCharacterIdsRef.current.add(charId);
         loadedCharacterIdsRef.current.add(`name:${charName}`);
       });
-      
+
       // Фильтруем по contentMode перед показом
       const filteredAll = allFormatted.filter((char) => {
         if (contentMode === 'safe') return char.is_nsfw !== true;
         return char.is_nsfw === true;
       });
-      
+
       // Показываем первую страницу отфильтрованных персонажей
       const firstPage = filteredAll.slice(0, PAGE_SIZE);
       setCharacters(firstPage);
@@ -718,18 +727,18 @@ export const MainPage: React.FC<MainPageProps> = ({
           if (contentMode === 'safe') return char.is_nsfw !== true;
           return char.is_nsfw === true;
         });
-        
+
         const currentCount = characters.length;
         const nextPage = filteredCache.slice(currentCount, currentCount + PAGE_SIZE);
-        
+
         if (nextPage.length === 0) {
           setHasMore(false);
           return;
         }
-        
+
         setCharacters((prev) => [...prev, ...nextPage]);
         setHasMore(currentCount + nextPage.length < filteredCache.length);
-        
+
         await loadCharacterRatings(nextPage, true);
         return;
       }
@@ -745,7 +754,7 @@ export const MainPage: React.FC<MainPageProps> = ({
 
       const photosMap = buildPhotosMapFromBatch(batch);
       setCharacterPhotos((prev) => ({ ...prev, ...photosMap }));
-      
+
       // Фильтруем дубликаты перед добавлением
       const uniqueBatch = batch.filter((char: any) => {
         const charId = (char.id ?? char.name ?? '').toString();
@@ -754,17 +763,17 @@ export const MainPage: React.FC<MainPageProps> = ({
         const nameKey = `name:${charName}`;
         return !loadedCharacterIdsRef.current.has(idKey) && !loadedCharacterIdsRef.current.has(nameKey);
       });
-      
+
       // Если все персонажи из batch уже загружены, значит больше нет новых
       if (uniqueBatch.length === 0) {
         setHasMore(false);
         return;
       }
-      
+
       setCachedRawCharacters((prev) => [...prev, ...uniqueBatch]);
 
       const formatted = rawBatchToCharacters(uniqueBatch, photosMap);
-      
+
       // Отслеживаем новые ID и имена
       formatted.forEach(char => {
         const charId = char.id.toString();
@@ -772,7 +781,7 @@ export const MainPage: React.FC<MainPageProps> = ({
         loadedCharacterIdsRef.current.add(charId);
         loadedCharacterIdsRef.current.add(`name:${charName}`);
       });
-      
+
       setCharacters((prev) => [...prev, ...formatted]);
       setHasMore(uniqueBatch.length === PAGE_SIZE);
 

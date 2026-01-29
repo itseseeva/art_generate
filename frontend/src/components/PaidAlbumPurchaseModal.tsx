@@ -217,7 +217,7 @@ export const PaidAlbumPurchaseModal: React.FC<PaidAlbumPurchaseModalProps> = ({
   if (!isOpen) return null;
 
   const normalizedSubscriptionType = subscriptionType?.toLowerCase() || 'free';
-  const PAID_ALBUM_COST = 200;
+  const PAID_ALBUM_COST = 300;
   const canAfford = userCoins >= PAID_ALBUM_COST;
   const isFree = normalizedSubscriptionType === 'free';
   const isStandard = normalizedSubscriptionType === 'standard';

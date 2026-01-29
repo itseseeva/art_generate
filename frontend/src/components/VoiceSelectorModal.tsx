@@ -795,6 +795,14 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
 
   const handleSaveVoice = () => {
     if (selectedVoice) {
+      // Останавливаем воспроизведение превью при сохранении выбора
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+        audioRef.current = null;
+      }
+      setPlayingVoiceUrl(null);
+
       // Проверяем, является ли голос премиальным
       if (isPremiumVoice(selectedVoice.name)) {
         // Проверяем подписку

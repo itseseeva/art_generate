@@ -13,6 +13,7 @@ const MessagesContainer = styled.div`
   background: transparent;
   position: relative;
   min-height: 0;
+  min-width: 0;
   height: 100%;
   max-height: 100%;
   z-index: 1;
@@ -52,6 +53,7 @@ const MessagesList = styled.div`
   flex-direction: column;
   gap: ${theme.spacing.lg};
   min-height: min-content;
+  min-width: 0;
   width: 100%;
   position: relative;
   z-index: 11;
@@ -258,8 +260,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   }, [messages, isLoading]);
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', minHeight: 0 }}>
-      <MessagesContainer ref={messagesContainerRef} style={{ position: 'relative', zIndex: 10 }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', minHeight: 0, minWidth: 0 }}>
+      <MessagesContainer ref={messagesContainerRef} style={{ position: 'relative', zIndex: 10, minWidth: 0 }}>
         <MessagesList style={{ position: 'relative', zIndex: 11 }}>
           {characterSituation && (
             <RoleSituationCard>

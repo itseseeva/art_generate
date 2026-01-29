@@ -132,7 +132,7 @@ const MobileAlbumButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   }
 `;
 
-const PAID_ALBUM_COST = 200;
+const PAID_ALBUM_COST = 300;
 
 const Container = styled.div`
   width: 100%;
@@ -294,7 +294,9 @@ const ChatMessagesArea = styled.div`
   flex: 1;
   display: flex !important;
   flex-direction: column;
-  overflow: visible;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: visible;
   min-height: 0;
   max-height: 100%;
   background: transparent;
@@ -314,6 +316,7 @@ const ChatContentWrapper = styled.div`
   display: flex !important;
   gap: ${theme.spacing.lg};
   min-height: 0;
+  min-width: 0;
   max-height: 100%;
   background: transparent;
   border: none;
@@ -3411,7 +3414,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     }
 
     if (normalizedSubscriptionType === 'free' && !paidAlbumStatus?.unlocked) {
-      setPaidAlbumError('Откройте доступ к альбому, оплатив 200 кредитов, или оформите подписку Standard/Premium.');
+      setPaidAlbumError(`Откройте доступ к альбому, оплатив ${PAID_ALBUM_COST} кредитов, или оформите подписку Standard/Premium.`);
       return;
     }
 
@@ -3991,10 +3994,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               characterName={characterForRender?.name || ''}
               characterAvatar={characterPhotos && characterPhotos.length > 0 ? characterPhotos[0] : undefined}
               voiceUrl={(() => {
-                const voiceUrl = currentCharacter?.voice_id
-                  ? `/default_character_voices/${currentCharacter.voice_id}`
-                  : currentCharacter?.voice_url;
-                return voiceUrl;
+                // Сначала используем voice_url (обязательно для user_voice_*, для дефолтов бэкенд тоже его отдаёт)
+                if (currentCharacter?.voice_url) return currentCharacter.voice_url;
+                const vid = currentCharacter?.voice_id;
+                if (vid && typeof vid === 'string' && !vid.startsWith('user_voice_'))
+                  return `/default_character_voices/${vid}`;
+                return undefined;
               })()}
               userAvatar={userInfo?.avatar_url || undefined}
               userUsername={userInfo?.username || undefined}
@@ -4305,7 +4310,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                         Расширить альбом
                       </PaidAlbumButton>
                       <PaidAlbumInfo>
-                        Доступно кредитов: {userCoins}. Разблокировка за 200 кредитов.
+                        Доступно кредитов: {userCoins}. Разблокировка за {PAID_ALBUM_COST} кредитов.
                       </PaidAlbumInfo>
                       {paidAlbumError && <PaidAlbumError>{paidAlbumError}</PaidAlbumError>}
                     </>
@@ -4359,7 +4364,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                       </PaidAlbumButton>
                     )}
                     <PaidAlbumInfo>
-                      Доступно кредитов: {userCoins}. Разблокировка за 200 кредитов.
+                      Доступно кредитов: {userCoins}. Разблокировка за {PAID_ALBUM_COST} кредитов.
                     </PaidAlbumInfo>
                     {paidAlbumError && <PaidAlbumError>{paidAlbumError}</PaidAlbumError>}
                   </>

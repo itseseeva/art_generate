@@ -2501,12 +2501,7 @@ async def update_user_character(
         # Декодируем имя, так как оно может быть URL-encoded
         decoded_name = unquote(character_name)
         
-        # ДИАГНОСТИКА: Логируем входные данные
-        logger.info(f"[UPDATE CHARACTER] Получен запрос на обновление персонажа:")
-        logger.info(f"  URL character_name: '{character_name}'")
-        logger.info(f"  Decoded name: '{decoded_name}'")
-        logger.info(f"  New name from request: '{character.name}' (repr: {repr(character.name)})")
-        logger.info(f"  Name length: URL={len(character_name)}, decoded={len(decoded_name)}, new={len(character.name)}")
+        logger.debug(f"[UPDATE CHARACTER] запрос: name='{decoded_name}'")
         
         # Check character ownership
         await check_character_ownership(decoded_name, current_user, db)
@@ -2622,7 +2617,14 @@ async def update_user_character(
         style_changed = normalize_text(character.style or "") != normalize_text(current_style)
         appearance_changed = normalize_text(character.appearance or "") != normalize_text(current_appearance)
         location_changed = normalize_text(character.location or "") != normalize_text(current_location)
-        voice_id_changed = normalize_text(character.voice_id or "") != normalize_text(current_voice_id)
+        # Если фронт не передал voice_id (пусто/None), а в БД голос уже есть — не считаем изменением
+        # (при сохранении текущий голос остаётся, списание за «изменение» было бы ложным)
+        request_voice_normalized = normalize_text(character.voice_id or "")
+        current_voice_normalized = normalize_text(current_voice_id or "")
+        if not request_voice_normalized and current_voice_normalized:
+            voice_id_changed = False
+        else:
+            voice_id_changed = request_voice_normalized != current_voice_normalized
         voice_url_changed = normalized_new_voice_url != normalized_current_voice_url
         # Проверяем изменение тегов (сравниваем отсортированные списки)
         new_tags = sorted(list(character.tags) if character.tags else [])
@@ -2665,31 +2667,10 @@ async def update_user_character(
         if all_fields_match:
             text_fields_changed = False
         
-        # Логируем детали изменений для отладки
         if text_fields_changed:
-            logger.info(f"[UPDATE CHARACTER] Обнаружены изменения текстовых полей для персонажа '{decoded_name}':")
-            if name_changed:
-                logger.info(f"  - name: '{current_name}' -> '{character.name}'")
-            if personality_changed:
-                logger.info(f"  - personality: изменено (длина: {len(current_personality)} -> {len(character.personality)})")
-            if situation_changed:
-                logger.info(f"  - situation: изменено (длина: {len(current_situation)} -> {len(character.situation)})")
-            if instructions_changed:
-                logger.info(f"  - instructions: изменено (длина: {len(current_instructions)} -> {len(user_instructions_for_comparison)})")
-            if style_changed:
-                logger.info(f"  - style: '{current_style}' -> '{character.style or ''}'")
-            if appearance_changed:
-                logger.info(f"  - appearance: '{current_appearance}' -> '{character.appearance or ''}'")
-            if location_changed:
-                logger.info(f"  - location: '{current_location}' -> '{character.location or ''}'")
-            if voice_id_changed:
-                logger.info(f"  - voice_id: '{current_voice_id}' -> '{character.voice_id or ''}'")
-            if voice_url_changed:
-                logger.info(f"  - voice_url: '{normalized_current_voice_url}' -> '{normalized_new_voice_url}'")
-            if tags_changed:
-                logger.info(f"  - tags: {current_tags_sorted} -> {new_tags}")
+            logger.debug(f"[UPDATE CHARACTER] изменения текстовых полей для '{decoded_name}'")
         else:
-            logger.info(f"[UPDATE CHARACTER] Текстовые поля персонажа '{decoded_name}' не изменились (все поля совпадают после нормализации)")
+            logger.debug(f"[UPDATE CHARACTER] текстовые поля '{decoded_name}' без изменений")
         
         # КРИТИЧНО: Списываем кредиты только если изменились текстовые поля
         # Если изменилось только фото (или ничего не изменилось), кредиты не списываются
@@ -2733,13 +2714,10 @@ async def update_user_character(
                 logger.warning(f"Не удалось записать историю баланса: {e}")
             
             logger.info(
-                f"Списано {CHARACTER_EDIT_COST} кредитов у пользователя {user_id} "
-                f"за редактирование персонажа '{decoded_name}' (изменены текстовые поля). Баланс: {old_balance} -> {db_user.coins}"
+                f"Списано {CHARACTER_EDIT_COST} кредитов за редактирование '{decoded_name}', баланс: {old_balance} -> {db_user.coins}"
             )
         else:
-            logger.info(
-                f"Текстовые поля персонажа '{decoded_name}' не изменились. Кредиты не списываются."
-            )
+            logger.debug(f"Текстовые поля '{decoded_name}' без изменений, кредиты не списываются")
         
         # Update name if changed
         if character.name != db_char.name:
@@ -2760,7 +2738,7 @@ async def update_user_character(
             from app.models.image_generation_history import ImageGenerationHistory
             from sqlalchemy import update
             
-            logger.info(f"[UPDATE CHARACTER] Переименование персонажа: '{old_character_name}' -> '{character.name}'")
+            logger.debug(f"[UPDATE CHARACTER] переименование: '{old_character_name}' -> '{character.name}'")
             
             # Обновляем ChatHistory
             await db.execute(
@@ -2783,7 +2761,7 @@ async def update_user_character(
                 .values(character_name=character.name)
             )
             
-            logger.info(f"[UPDATE CHARACTER] Обновлены связанные таблицы для персонажа '{character.name}'")
+            logger.debug(f"[UPDATE CHARACTER] связанные таблицы обновлены для '{character.name}'")
             
             db_char.name = character.name
             db_char.display_name = character.name
@@ -2791,8 +2769,7 @@ async def update_user_character(
         # Используем оригинальные instructions для сохранения
         # Если пользователь явно вставил дефолтные инструкции, они сохранятся
         instructions_to_save = original_user_instructions
-        logger.info(f"[UPDATE CHARACTER] Оригинальные instructions (длина: {len(instructions_to_save)}): {instructions_to_save[:100]}...")
-        logger.info(f"[UPDATE CHARACTER] remove_default_instructions = {character.remove_default_instructions}")
+        logger.debug(f"[UPDATE CHARACTER] instructions len={len(instructions_to_save)}, remove_default={character.remove_default_instructions}")
         
         # Формируем новый промпт из данных пользователя
         full_prompt = f"""Character: {character.name}
@@ -2815,13 +2792,13 @@ Response Style:
         # Если пользователь явно нажал кнопку удаления дефолтных инструкций,
         # не добавляем их в промпт и удаляем из instructions, если они там есть
         if character.remove_default_instructions:
-            logger.info(f"[UPDATE CHARACTER] Удаление дефолтных инструкций для персонажа '{decoded_name}'")
+            logger.debug(f"[UPDATE CHARACTER] удаление дефолтных инструкций для '{decoded_name}'")
             # Удаляем дефолтные инструкции из instructions_to_save, если они там есть
             if DEFAULT_INSTRUCTIONS_MARKER in instructions_to_save:
                 marker_index = instructions_to_save.find(DEFAULT_INSTRUCTIONS_MARKER)
                 if marker_index >= 0:
                     instructions_to_save = instructions_to_save[:marker_index].rstrip() if marker_index > 0 else ''
-                    logger.info(f"[UPDATE CHARACTER] Удалены дефолтные инструкции из поля instructions")
+                    logger.debug("[UPDATE CHARACTER] дефолтные инструкции удалены из поля")
             
             # Формируем промпт БЕЗ дефолтных инструкций в конце
             full_prompt = f"""Character: {character.name}
@@ -2840,12 +2817,10 @@ Instructions:
 Response Style:
 {character.style}"""
             # НЕ добавляем дефолтные инструкции в конец промпта
-            logger.info(f"[UPDATE CHARACTER] Промпт сформирован БЕЗ дефолтных инструкций в конце")
+            logger.debug("[UPDATE CHARACTER] промпт без дефолтных инструкций")
         else:
             # Если remove_default_instructions = False, дефолтные инструкции не добавляются автоматически
-            # (пользователь может их добавить вручную в поле instructions, если хочет)
-            # Но если они уже есть в конце промпта в БД, они останутся
-            logger.info(f"[UPDATE CHARACTER] remove_default_instructions = False, дефолтные инструкции не удаляются")
+            logger.debug("[UPDATE CHARACTER] дефолтные инструкции не удаляются")
         
         # Обновляем поля
         db_char.prompt = full_prompt
@@ -2871,25 +2846,18 @@ Response Style:
                 # Персонажи от eseeva228@gmail.com получают тег "Original"
                 if "Original" not in tags_set:
                     tags_set.add("Original")
-                    logger.info(f"[UPDATE_CHAR] Добавлен тег 'Original' для персонажа от {ORIGINAL_CREATOR_EMAIL}")
-                # Убираем "пользовательские" если он есть
                 if "пользовательские" in tags_set:
                     tags_set.discard("пользовательские")
-                    logger.info(f"[UPDATE_CHAR] Удален тег 'пользовательские' для персонажа от {ORIGINAL_CREATOR_EMAIL}")
             else:
                 # Остальные персонажи получают тег "пользовательские"
                 if "пользовательские" not in tags_set:
                     tags_set.add("пользовательские")
-                    logger.info(f"[UPDATE_CHAR] Добавлен тег 'пользовательские' для персонажа от {character_creator.email if character_creator else 'unknown'}")
-                # Убираем "Original" если он есть
                 if "Original" in tags_set:
                     tags_set.discard("Original")
-                    logger.info(f"[UPDATE_CHAR] Удален тег 'Original' для персонажа от {character_creator.email if character_creator else 'unknown'}")
         
         tags_value = list(tags_set)
         db_char.tags = tags_value
-        logger.info(f"[UPDATE_CHAR] voice_id из запроса: {character.voice_id}, voice_url из запроса: {character.voice_url}, текущий voice_id в БД: {db_char.voice_id}")
-        logger.info(f"[UPDATE_CHAR] Теги обновлены: {tags_value}")
+        logger.debug(f"[UPDATE_CHAR] voice_id req={character.voice_id}, db={db_char.voice_id}, tags={tags_value}")
         
         # КРИТИЧНО: Правильная обработка пользовательских и дефолтных голосов
         if character.voice_id:
@@ -2900,7 +2868,7 @@ Response Style:
                 db_char.voice_id = character.voice_id
                 if character.voice_url:
                     db_char.voice_url = character.voice_url
-                    logger.info(f"Установлен пользовательский голос для персонажа '{character.name}': voice_id={character.voice_id}, voice_url={character.voice_url}")
+                    logger.debug(f"Установлен пользовательский голос '{character.name}': {character.voice_id}")
                 else:
                     # Если voice_url не передан, пытаемся получить его из БД
                     from app.models.user_voice import UserVoice
@@ -2911,20 +2879,20 @@ Response Style:
                     user_voice = user_voice_result.scalar_one_or_none()
                     if user_voice:
                         db_char.voice_url = user_voice.voice_url
-                        logger.info(f"Получен voice_url из БД для пользовательского голоса: {user_voice.voice_url}")
+                        logger.debug(f"voice_url из БД для user_voice: {user_voice.voice_url}")
                     else:
                         logger.warning(f"Пользовательский голос {character.voice_id} не найден в БД")
             else:
                 # Дефолтный голос - очищаем voice_url и используем voice_id
                 db_char.voice_id = character.voice_id
                 db_char.voice_url = None
-                logger.info(f"Установлен дефолтный голос для персонажа '{character.name}': voice_id={character.voice_id}")
+                logger.debug(f"Дефолтный голос '{character.name}': {character.voice_id}")
         elif character.voice_url is not None:
             # Если voice_id не установлен, но есть voice_url - используем его
             # Это может быть внешний URL или пользовательский голос
             db_char.voice_url = character.voice_url
             db_char.voice_id = None
-            logger.info(f"Обновлен voice_url для персонажа '{character.name}': {character.voice_url}")
+            logger.debug(f"Обновлен voice_url для '{character.name}'")
         
         # Новое имя персонажа (для логирования и кэша)
         new_character_name = character.name
@@ -2935,10 +2903,9 @@ Response Style:
         # Обновляем данные пользователя после коммита только если кредиты были списаны
         if text_fields_changed:
             await db.refresh(db_user)
-            # Обновляем профиль пользователя (для обновления баланса на фронтенде)
             await emit_profile_update(user_id, db)
         
-        logger.info(f"[UPDATE_CHAR] Персонаж обновлен в БД с voice_id: {db_char.voice_id}")
+        logger.debug(f"[UPDATE_CHAR] сохранено voice_id={db_char.voice_id}")
         
         # Инвалидируем кэш персонажей (агрессивная очистка)
         # КРИТИЧНО: Очищаем кэш для старого и нового имени
@@ -2949,7 +2916,7 @@ Response Style:
         await cache_delete_pattern("characters:list:*")
         await cache_delete_pattern(f"character:*")  # Очищаем все кэши персонажей
         
-        logger.info(f"[UPDATE CHARACTER] Кэш очищен для имён: old='{old_character_name}', new='{new_character_name}', decoded='{decoded_name}'")
+        logger.debug(f"[UPDATE CHARACTER] кэш очищен: old='{old_character_name}', new='{new_character_name}'")
         
         # Инвалидируем кэш фотографий
         # КРИТИЧНО: Инвалидируем кэш для обоих имен, если имя изменилось
@@ -2972,9 +2939,9 @@ Response Style:
             db_char.voice_url = f"/default_character_voices/{db_char.voice_id}"
         
         if text_fields_changed:
-            logger.info(f"User character '{new_character_name}' (was '{old_character_name}') updated successfully by user {current_user.id}. New balance: {db_user.coins}")
+            logger.info(f"Персонаж '{new_character_name}' обновлён (user {current_user.id}), баланс: {db_user.coins}")
         else:
-            logger.info(f"User character '{new_character_name}' (was '{old_character_name}') updated successfully by user {current_user.id} (only photo changed or no text changes, no credits charged)")
+            logger.debug(f"Персонаж '{new_character_name}' обновлён без списания кредитов")
         return db_char
         
     except HTTPException:

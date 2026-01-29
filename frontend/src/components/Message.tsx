@@ -71,6 +71,8 @@ const MessageContent = styled.div<{ $isUser: boolean; $imageOnly?: boolean }>`
   };
   position: relative;
   word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
   white-space: pre-wrap;
   line-height: 1.7;
   transition: all 0.3s ease;
@@ -80,6 +82,7 @@ const MessageContent = styled.div<{ $isUser: boolean; $imageOnly?: boolean }>`
   display: block !important;
   z-index: 10;
   min-height: 40px !important;
+  min-width: 0;
 
   @media (max-width: 768px) {
     padding: ${props => props.$imageOnly ? '0 !important' : '10px 14px'};
@@ -105,6 +108,10 @@ const MessageText = styled.div`
   margin-bottom: ${theme.spacing.md};
   position: relative;
   flex: 1;
+  min-width: 0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
   /* DEBUG: Принудительные стили видимости */
   visibility: visible !important;
   opacity: 1 !important;
@@ -131,7 +138,7 @@ const ImageContainer = styled.div`
 `;
 
 const MessageImage = styled.img`
-  max-width: 600px;
+  max-width: min(600px, 100%);
   max-height: 600px;
   width: auto;
   height: auto;

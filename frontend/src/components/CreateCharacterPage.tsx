@@ -3623,13 +3623,19 @@ const PhotoOverlay = styled.div`
   opacity: 1;
   transition: opacity 0.3s ease;
   pointer-events: auto;
-  height: 60px;
-  
+  height: 96px;
+  min-height: 96px;
+  will-change: opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  contain: layout style;
+
   @media (max-width: 768px) {
     opacity: 1;
     pointer-events: auto;
     background: rgba(0, 0, 0, 0.7);
-    height: 45px;
+    height: 72px;
+    min-height: 72px;
     padding: ${theme.spacing.xs};
   }
 `;
@@ -3639,6 +3645,67 @@ const OverlayButtons = styled.div`
   gap: 0.5rem;
   width: 100%;
   justify-content: center;
+`;
+
+/** Кнопка «Добавить» (жёлтая) / «Убрать» (фиолетовая) — компактная и стильная */
+const PhotoOverlayButton = styled.button<{ $variant?: 'add' | 'remove' }>`
+  width: auto;
+  min-width: 72px;
+  padding: 0.25rem 0.5rem;
+  touch-action: manipulation;
+  background: ${props => props.$variant === 'remove'
+    ? 'rgba(139, 92, 246, 0.85)'
+    : 'rgba(234, 179, 8, 0.9)'};
+  border: 1px solid ${props => props.$variant === 'remove'
+    ? 'rgba(167, 139, 250, 0.9)'
+    : 'rgba(250, 204, 21, 0.9)'};
+  border-radius: 6px;
+  color: ${props => props.$variant === 'remove' ? '#fff' : '#1a1a1a'};
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+
+  &:hover:not(:disabled) {
+    background: ${props => props.$variant === 'remove'
+    ? 'rgba(139, 92, 246, 1)'
+    : 'rgba(250, 204, 21, 1)'};
+    border-color: ${props => props.$variant === 'remove' ? 'rgba(167, 139, 250, 1)' : 'rgba(250, 204, 21, 1)'};
+    transform: scale(1.03);
+    box-shadow: 0 2px 8px ${props => props.$variant === 'remove' ? 'rgba(139, 92, 246, 0.35)' : 'rgba(234, 179, 8, 0.35)'};
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  @media (max-width: 768px) {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.65rem;
+    min-width: 64px;
+
+    svg {
+      width: 10px;
+      height: 10px;
+    }
+  }
 `;
 
 const OverlayButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
@@ -4339,6 +4406,8 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const isMobile = useIsMobile();
   const generationSectionRef = useRef<HTMLDivElement>(null);
   const generatedPhotosRef = useRef<HTMLDivElement>(null);
+  /** Флаг: уже автоматически добавили первое фото на главную. Нужен, чтобы при генерации 2-го фото не перезаписывать список из-за устаревшего closure. */
+  const hasAutoAddedFirstPhotoRef = useRef(false);
   const [formData, setFormData] = useState({
     name: '',
     personality: '',
@@ -5114,6 +5183,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
       const result = await response.json();
       setCreatedCharacterData(result);
+      hasAutoAddedFirstPhotoRef.current = false; // сброс: первое сгенерированное фото на шаге 4 снова будет автоматически на главную
       // Восстанавливаем теги из созданного персонажа
       if (result.tags && Array.isArray(result.tags)) {
         setSelectedTags(result.tags);
@@ -5307,6 +5377,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
       const result = await response.json();
 
       setCreatedCharacterData(result);
+      hasAutoAddedFirstPhotoRef.current = false; // сброс при переходе на шаг 4 после правок
       // Синхронизируем теги с обновленным персонажем
       if (result.tags && Array.isArray(result.tags)) {
         setSelectedTags(result.tags);
@@ -5341,8 +5412,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
     window.location.reload();
   };
 
-  const togglePhotoSelection = async (photoId: string) => {
-    const targetPhoto = generatedPhotos.find(photo => photo.id === photoId);
+  const togglePhotoSelection = async (photoIdOrUrl: string) => {
+    const targetPhoto = generatedPhotos.find(
+      photo => photo.id === photoIdOrUrl || photo.url === photoIdOrUrl
+    );
     if (!targetPhoto) return;
 
     const alreadySelected = targetPhoto.isSelected;
@@ -5354,9 +5427,13 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
       }
     }
 
+    const prevSelectedPhotos = selectedPhotos;
+    const prevPreviewPhotoIndex = previewPhotoIndex;
+
+    const targetId = targetPhoto.id;
     setGeneratedPhotos(prev =>
       prev.map(photo =>
-        photo.id === photoId
+        photo.id === targetId || photo.url === photoIdOrUrl
           ? { ...photo, isSelected: !alreadySelected }
           : photo
       )
@@ -5365,36 +5442,31 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
     // Вычисляем новое состояние синхронно
     let newSelectedPhotos: any[] = [];
     if (alreadySelected) {
-      newSelectedPhotos = selectedPhotos.filter(p => p.id !== photoId);
-      // Обновляем индекс превью, если текущее фото было удалено
+      newSelectedPhotos = selectedPhotos.filter(
+        p => p.id !== targetId && p.url !== photoIdOrUrl
+      );
       if (previewPhotoIndex >= newSelectedPhotos.length && newSelectedPhotos.length > 0) {
         setPreviewPhotoIndex(newSelectedPhotos.length - 1);
       } else if (newSelectedPhotos.length === 0) {
         setPreviewPhotoIndex(0);
       }
     } else {
-      // Добавляем полный объект фото с generationTime
       const photoToAdd = {
         id: targetPhoto.id,
         url: targetPhoto.url,
         generationTime: targetPhoto.generationTime || targetPhoto.generation_time || null
       };
       newSelectedPhotos = [...selectedPhotos, photoToAdd];
-      // Переключаемся на новое добавленное фото
       setPreviewPhotoIndex(newSelectedPhotos.length - 1);
     }
 
-    // Обновляем состояние
     setSelectedPhotos(newSelectedPhotos);
 
-    // Автоматически сохраняем изменения в базу данных
-    // Используем вычисленное значение newSelectedPhotos, которое гарантированно корректно
     if (createdCharacterData && newSelectedPhotos.length > 0) {
       try {
         const token = localStorage.getItem('authToken');
         if (token) {
-          // Собираем полные данные фото из generatedPhotos для сохранения generation_time
-          const photosWithMetadata = newSelectedPhotos.map(selectedPhoto => {
+          const photosWithMetadata = newSelectedPhotos.map((selectedPhoto: any) => {
             const fullPhoto = generatedPhotos.find(photo =>
               photo.id === selectedPhoto.id ||
               photo.url === selectedPhoto.url
@@ -5402,14 +5474,9 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
             return {
               id: selectedPhoto.id,
               url: selectedPhoto.url,
-              generation_time: fullPhoto?.generationTime || fullPhoto?.generation_time || selectedPhoto.generationTime || null
+              generation_time: fullPhoto?.generationTime ?? fullPhoto?.generation_time ?? selectedPhoto.generationTime ?? null
             };
           });
-
-          const requestData = {
-            character_name: createdCharacterData.name,
-            photos: photosWithMetadata
-          };
 
           const response = await fetch(API_CONFIG.CHARACTER_SET_PHOTOS_FULL, {
             method: 'POST',
@@ -5417,45 +5484,63 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify(requestData)
+            body: JSON.stringify({
+              character_name: createdCharacterData.name,
+              photos: photosWithMetadata
+            })
           });
 
-          if (response.ok) {
-            // Даем время БД сохранить изменения
-            await new Promise(resolve => setTimeout(resolve, 1000));
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            const message = typeof errorData?.detail === 'string'
+              ? errorData.detail
+              : errorData?.detail?.msg || 'Не удалось сохранить фото в карточку';
+            setError(message);
+            setSelectedPhotos(prevSelectedPhotos);
+            setPreviewPhotoIndex(prevPreviewPhotoIndex);
+            setGeneratedPhotos(prev =>
+              prev.map(photo =>
+                photo.id === targetId || photo.url === photoIdOrUrl
+                  ? { ...photo, isSelected: alreadySelected }
+                  : photo
+              )
+            );
+            return;
+          }
 
-            // Обновляем данные персонажа
-            const characterResponse = await fetch(`/api/v1/characters/${createdCharacterData.name}?_t=${Date.now()}`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (characterResponse.ok) {
-              const updatedCharacter = await characterResponse.json();
-              setCreatedCharacterData(updatedCharacter);
-              // Синхронизируем теги с обновленным персонажем
-              if (updatedCharacter.tags && Array.isArray(updatedCharacter.tags)) {
-                setSelectedTags(updatedCharacter.tags);
-              }
+          await new Promise(resolve => setTimeout(resolve, 1000));
 
-              // Еще одна небольшая задержка перед отправкой события
-              await new Promise(resolve => setTimeout(resolve, 500));
-
-              // Отправляем событие для обновления главной страницы
-              const event = new CustomEvent('character-photos-updated', {
-                detail: { character: updatedCharacter, photos: newSelectedPhotos.map(p => p.id) }
-              });
-              window.dispatchEvent(event);
-
-              // Дополнительно отправляем событие через небольшую задержку для надежности
-              setTimeout(() => {
-                window.dispatchEvent(new CustomEvent('character-photos-updated', {
-                  detail: { character: updatedCharacter, photos: newSelectedPhotos.map(p => p.id) }
-                }));
-              }, 1000);
+          const characterResponse = await fetch(`/api/v1/characters/${createdCharacterData.name}?_t=${Date.now()}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (characterResponse.ok) {
+            const updatedCharacter = await characterResponse.json();
+            setCreatedCharacterData(updatedCharacter);
+            if (updatedCharacter.tags && Array.isArray(updatedCharacter.tags)) {
+              setSelectedTags(updatedCharacter.tags);
             }
+            await new Promise(resolve => setTimeout(resolve, 500));
+            window.dispatchEvent(new CustomEvent('character-photos-updated', {
+              detail: { character: updatedCharacter, photos: newSelectedPhotos.map((p: any) => p.id) }
+            }));
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('character-photos-updated', {
+                detail: { character: updatedCharacter, photos: newSelectedPhotos.map((p: any) => p.id) }
+              }));
+            }, 1000);
           }
         }
       } catch (error) {
-        // Игнорируем ошибки автоматического сохранения
+        setError(error instanceof Error ? error.message : 'Ошибка сохранения фото в карточку');
+        setSelectedPhotos(prevSelectedPhotos);
+        setPreviewPhotoIndex(prevPreviewPhotoIndex);
+        setGeneratedPhotos(prev =>
+          prev.map(photo =>
+            photo.id === targetId || photo.url === photoIdOrUrl
+              ? { ...photo, isSelected: alreadySelected }
+              : photo
+          )
+        );
       }
     }
   };
@@ -5846,10 +5931,12 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
         const photo = await generateSinglePhoto(currentPrompt);
         if (photo) {
-          const isFirstPhoto = generatedPhotos.length === 0;
+          // Используем ref, а не generatedPhotos.length: при генерации 2-го фото state может ещё не содержать 1-е (устаревший closure), иначе второе фото перезапишет список и «первое» пропадёт
+          const isFirstPhoto = !hasAutoAddedFirstPhotoRef.current;
 
-          // Автоматически вставляем первую сгенерированную фотографию в карточку персонажа
+          // Автоматически вставляем первую сгенерированную фотографию в карточку персонажа (только один раз за сессию)
           if (isFirstPhoto && createdCharacterData) {
+            hasAutoAddedFirstPhotoRef.current = true;
             const firstPhoto = { ...photo, isSelected: true };
             // Сначала обновляем generatedPhotos с правильным isSelected
             setGeneratedPhotos(prev => [...prev, { ...photo, isSelected: true }]);
@@ -5921,7 +6008,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
               // Игнорируем ошибки автоматического сохранения
             }
           } else {
-            // Для последующих фото просто добавляем в список
+            // Для последующих фото только добавляем в конец списка, не трогая selectedPhotos
             setGeneratedPhotos(prev => [...prev, { ...photo, isSelected: false }]);
           }
 
@@ -6527,9 +6614,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                   if (editingVoiceId === voice.id) return;
 
                                   // Выбор голоса (проверка PREMIUM при отправке формы — Создать/Сохранить)
+                                  // КРИТИЧНО: для пользовательского голоса передаём voice.id (user_voice_123), иначе бэкенд подставит дефолт "Даша.mp3"
                                   if (isUserVoice) {
                                     setSelectedVoiceUrl(voice.url);
-                                    setSelectedVoiceId('');
+                                    setSelectedVoiceId(voice.id || '');
                                     setVoiceSelectionTime(prev => ({ ...prev, [voice.url]: Date.now() }));
                                   } else {
                                     setSelectedVoiceId(voice.id);
@@ -6975,9 +7063,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                             return;
                                           }
 
+                                          // КРИТИЧНО: для пользовательского голоса передаём voice.id (user_voice_123), иначе бэкенд подставит дефолт
                                           if (isUserVoice) {
                                             setSelectedVoiceUrl(voice.url);
-                                            setSelectedVoiceId('');
+                                            setSelectedVoiceId(voice.id || '');
                                             setVoiceSelectionTime(prev => ({ ...prev, [voice.url]: Date.now() }));
                                           } else {
                                             setSelectedVoiceId(voice.id);
@@ -7314,7 +7403,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                           </>
                         )}
 
-                      {/* Общее модальное окно редактирования голоса */}
+                      {/* Общее модальное окно редактирования голоса — рендер в body, чтобы было по центру экрана */}
                       {editingVoicePhotoId && (() => {
                         const editingVoice = availableVoices.find(v =>
                           String(v.id) === String(editingVoicePhotoId) ||
@@ -7331,14 +7420,11 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                           : getVoicePhotoPath(editingVoice.name);
                         const editedName = editedVoiceNames[editingVoice.id] || editingVoice.name;
 
-                        return (
+                        const modalContent = (
                           <div
                             style={{
                               position: 'fixed',
-                              top: 0,
-                              left: 0,
-                              right: 0,
-                              bottom: 0,
+                              inset: 0,
                               background: 'rgba(0, 0, 0, 0.5)',
                               backdropFilter: 'blur(12px)',
                               WebkitBackdropFilter: 'blur(12px)',
@@ -7346,8 +7432,8 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                               alignItems: 'center',
                               justifyContent: 'center',
                               zIndex: 99999,
-                              overflowY: 'auto',
-                              padding: '24px'
+                              padding: '24px',
+                              boxSizing: 'border-box'
                             }}
                             onClick={(e) => {
                               if (e.target === e.currentTarget) {
@@ -7649,6 +7735,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                             </div>
                           </div>
                         );
+                        return createPortal(modalContent, document.body);
                       })()}
                     </FormField>
 
@@ -8000,19 +8087,14 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                             const isSelected = selectedPhotos.some(p => p.id === photo.id || p.url === photo.url);
 
                             return (
-                              <PhotoTile
-                                key={`${photo?.id || `photo-${index}`}-${index}`}
-                                onClick={(e) => {
-                                  // Открываем модальное окно только если клик был не на кнопке в overlay
-                                  const target = e.target as HTMLElement;
-                                  if (!target.closest('button') && !target.closest('[role="button"]')) {
-                                    if (photo) openPhotoModal(photo);
-                                  }
-                                }}
-                              >
+                              <PhotoTile key={`${photo?.id || `photo-${index}`}-${index}`}>
                                 <PhotoImage
                                   src={photo.url}
                                   alt={`Photo ${index + 1}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (photo) openPhotoModal(photo);
+                                  }}
                                   onError={(e) => {
                                     e.currentTarget.style.display = 'none';
                                   }}
@@ -8024,19 +8106,29 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                       : `${Math.round(photo.generationTime / 60)}м ${Math.round(photo.generationTime % 60)}с`)
                                     : '—'}
                                 </GenerationTimer>
-                                <PhotoOverlay onClick={(e) => e.stopPropagation()}>
-                                  <OverlayButtons>
-                                    <OverlayButton
-                                      $variant={isSelected ? 'secondary' : 'primary'}
-                                      disabled={!isSelected && isLimitReached}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (photo?.id) togglePhotoSelection(photo.id);
-                                      }}
-                                    >
-                                      {isSelected ? 'Убрать' : <><Plus size={14} /> Добавить</>}
-                                    </OverlayButton>
-                                  </OverlayButtons>
+                                <PhotoOverlay
+                                  data-overlay-action
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <PhotoOverlayButton
+                                    type="button"
+                                    $variant={isSelected ? 'remove' : 'add'}
+                                    disabled={!isSelected && isLimitReached}
+                                    onPointerDown={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      const idOrUrl = photo?.id || photo?.url;
+                                      if (!idOrUrl) return;
+                                      if (!isSelected && isLimitReached) return;
+                                      togglePhotoSelection(idOrUrl);
+                                    }}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                    }}
+                                  >
+                                    {isSelected ? 'Убрать' : <><Plus size={12} /> Добавить</>}
+                                  </PhotoOverlayButton>
                                 </PhotoOverlay>
                               </PhotoTile>
                             );
@@ -8561,7 +8653,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                               const isUserVoice = addedVoice.is_user_voice || false;
                               if (isUserVoice) {
                                 setSelectedVoiceUrl(addedVoice.url);
-                                setSelectedVoiceId('');
+                                setSelectedVoiceId(addedVoice.id || newVoiceId);
                                 setVoiceSelectionTime(prev => ({ ...prev, [addedVoice.url]: Date.now() }));
                               } else {
                                 setSelectedVoiceId(addedVoice.id);
@@ -8570,7 +8662,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                               }
                             } else {
                               setSelectedVoiceUrl(result.voice_url);
-                              setSelectedVoiceId('');
+                              setSelectedVoiceId(newVoiceId);
                               setVoiceSelectionTime(prev => ({ ...prev, [result.voice_url]: Date.now() }));
                             }
                           }

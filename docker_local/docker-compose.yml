@@ -31,11 +31,14 @@ services:
       retries: 3
       start_period: 10s
     networks:
-      - app_network
+      app_network:
+        aliases:
+          - redis
+          - art_generation_redis_local
     sysctls:
       - net.core.somaxconn=1024
 
-  # Celery Worker - обработка задач
+  # Celery Worker - обработка задач (подключается к Redis по имени сервиса "redis")
   celery_worker:
     build:
       context: ..
@@ -53,6 +56,7 @@ services:
     env_file:
       - ../.env
     environment:
+      # Явно задаём хост Redis (имя сервиса) — не переопределять из .env
       - REDIS_URL=redis://redis:6379/0
       - REDIS_LOCAL=redis://redis:6379/0
       - IS_DOCKER=true

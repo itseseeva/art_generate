@@ -3427,9 +3427,8 @@ const PhotoOverlay = styled.div`
   opacity: 1;
   transition: opacity 0.3s ease;
   pointer-events: auto;
-  height: 60px;
-  min-height: 60px;
-  max-height: 60px;
+  height: 96px;
+  min-height: 96px;
   will-change: opacity;
   transform: translateZ(0);
   backface-visibility: hidden;
@@ -3439,7 +3438,8 @@ const PhotoOverlay = styled.div`
     opacity: 1;
     pointer-events: auto;
     background: rgba(0, 0, 0, 0.7);
-    height: 45px;
+    height: 72px;
+    min-height: 72px;
     padding: ${theme.spacing.xs};
   }
 `;
@@ -3451,6 +3451,69 @@ const OverlayButtons = styled.div`
   justify-content: center;
   contain: layout;
   min-height: 32px;
+`;
+
+/** Кнопка «Добавить» (жёлтая) / «Убрать» (фиолетовая) — компактная и стильная */
+const PhotoOverlayButton = styled.button<{ $variant?: 'add' | 'remove' }>`
+  width: auto;
+  min-width: 72px;
+  padding: 0.25rem 0.5rem;
+  min-height: 28px;
+  touch-action: manipulation;
+  background: ${props => props.$variant === 'remove'
+    ? 'rgba(139, 92, 246, 0.85)'
+    : 'rgba(234, 179, 8, 0.9)'};
+  border: 1px solid ${props => props.$variant === 'remove'
+    ? 'rgba(167, 139, 250, 0.9)'
+    : 'rgba(250, 204, 21, 0.9)'};
+  border-radius: 6px;
+  color: ${props => props.$variant === 'remove' ? '#fff' : '#1a1a1a'};
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+
+  &:hover:not(:disabled) {
+    background: ${props => props.$variant === 'remove'
+    ? 'rgba(139, 92, 246, 1)'
+    : 'rgba(250, 204, 21, 1)'};
+    border-color: ${props => props.$variant === 'remove' ? 'rgba(167, 139, 250, 1)' : 'rgba(250, 204, 21, 1)'};
+    transform: scale(1.03);
+    box-shadow: 0 2px 8px ${props => props.$variant === 'remove' ? 'rgba(139, 92, 246, 0.35)' : 'rgba(234, 179, 8, 0.35)'};
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  @media (max-width: 768px) {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.65rem;
+    min-width: 64px;
+    min-height: 26px;
+
+    svg {
+      width: 10px;
+      height: 10px;
+    }
+  }
 `;
 
 const OverlayButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
@@ -4341,17 +4404,21 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       setGeneratedPhotos(formattedPhotos);
       initialPhotosCountRef.current = formattedPhotos.length; // Сохраняем начальное количество фото
 
-      // Инициализируем selectedPhotos из фото с isSelected: true
-      // Важно: нормализуем URL для правильного сравнения
+      // Инициализируем selectedPhotos: фото с is_main из API + фото, чей URL есть в character.photos (главные фото персонажа)
+      const mainUrlsFromCharacter = (character?.photos && Array.isArray(character.photos))
+        ? character.photos.map((u: string) => normalizeImageUrl(u)).filter(Boolean)
+        : [];
       const selected = formattedPhotos
         .filter(photo => {
-          // Проверяем isSelected и также проверяем, что фото действительно выбрано
-          return photo.isSelected === true;
+          const photoUrlNorm = normalizeImageUrl(photo.url) || photo.url;
+          const fromApi = photo.isSelected === true;
+          const fromMainPhotos = mainUrlsFromCharacter.some(mu => mu === photoUrlNorm);
+          return fromApi || fromMainPhotos;
         })
         .slice(0, MAX_MAIN_PHOTOS)
         .map(photo => ({
           id: photo.id,
-          url: normalizeImageUrl(photo.url) || photo.url // Нормализуем URL при сохранении
+          url: normalizeImageUrl(photo.url) || photo.url
         }));
 
       setSelectedPhotos(selected);
@@ -4364,7 +4431,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       setSelectedPhotos([]);
       setIsLoadingPhotos(false);
     }
-  }, [characterIdentifier]);
+  }, [characterIdentifier, character?.photos]);
 
   // Загружаем фото при изменении characterIdentifier или character prop
   useEffect(() => {
@@ -4439,7 +4506,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       );
       setSelectedPhotos(updatedSelection);
       setError(null);
-      setSuccess(null);
+      // setSuccess(null) removed to prevent layout jump
     });
 
     try {
@@ -4478,6 +4545,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       setGeneratedPhotos(previousGenerated);
       setSelectedPhotos(previousSelection);
       setError('Не удалось обновить карточку персонажа');
+      setSuccess(null);
     }
   };
 
@@ -7336,7 +7404,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                             </ExpandButton>
                           )}
 
-                          {/* Общее модальное окно редактирования голоса */}
+                          {/* Общее модальное окно редактирования голоса — рендер в body, чтобы было по центру экрана */}
                           {editingVoicePhotoId && (() => {
                             const editingVoice = availableVoices.find(v =>
                               String(v.id) === String(editingVoicePhotoId) ||
@@ -7353,14 +7421,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                               : getVoicePhotoPath(editingVoice.name);
                             const editedName = editedVoiceNames[editingVoice.id] || editingVoice.name;
 
-                            return (
+                            const modalContent = (
                               <div
                                 style={{
                                   position: 'fixed',
-                                  top: 0,
-                                  left: 0,
-                                  right: 0,
-                                  bottom: 0,
+                                  inset: 0,
                                   background: 'rgba(0, 0, 0, 0.5)',
                                   backdropFilter: 'blur(12px)',
                                   WebkitBackdropFilter: 'blur(12px)',
@@ -7368,8 +7433,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                   alignItems: 'center',
                                   justifyContent: 'center',
                                   zIndex: 99999,
-                                  overflowY: 'auto',
-                                  padding: '24px'
+                                  padding: '24px',
+                                  boxSizing: 'border-box'
                                 }}
                                 onClick={(e) => {
                                   if (e.target === e.currentTarget) {
@@ -7756,11 +7821,12 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                 </div>
                               </div>
                             );
+                            return createPortal(modalContent, document.body);
                           })()}
                         </div>
                       </FormField>
 
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: '24px' }}>
                         <motion.button
                           type="button"
                           onClick={() => setCurrentStep(2)}
@@ -7781,16 +7847,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                         >
                           ← Назад
                         </motion.button>
-                        <ContinueButton
-                          type="submit"
-                          disabled={isLoading || !userInfo || (userInfo && userInfo.coins < CHARACTER_EDIT_COST) ||
-                            formData.name.trim().length < 2 ||
-                            formData.personality.trim().length === 0 ||
-                            formData.situation.trim().length === 0 ||
-                            formData.instructions.trim().length === 0}
-                        >
-                          {isLoading ? 'Обновление...' : 'Сохранить изменения'}
-                        </ContinueButton>
                       </div>
                     </WizardStep>
                   )}
@@ -8172,22 +8228,28 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                               : `${Math.round(photo.generationTime / 60)}м ${Math.round(photo.generationTime % 60)}с`)
                                             : '—'}
                                         </GenerationTimer>
-                                        <PhotoOverlay onClick={(e) => e.stopPropagation()}>
-                                          <OverlayButtons>
-                                            <OverlayButton
-                                              $variant={isSelected ? 'secondary' : 'primary'}
-                                              disabled={!isSelected && isLimitReached}
-                                              onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                if (photo?.id) {
-                                                  togglePhotoSelection(photo.id);
-                                                }
-                                              }}
-                                            >
-                                              {isSelected ? 'Убрать' : <><Plus size={14} /> Добавить</>}
-                                            </OverlayButton>
-                                          </OverlayButtons>
+                                        <PhotoOverlay
+                                          data-overlay-action
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <PhotoOverlayButton
+                                            type="button"
+                                            $variant={isSelected ? 'remove' : 'add'}
+                                            disabled={!isSelected && isLimitReached}
+                                            onPointerDown={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              if (!photo?.id) return;
+                                              if (!isSelected && isLimitReached) return;
+                                              togglePhotoSelection(photo.id);
+                                            }}
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                            }}
+                                          >
+                                            {isSelected ? 'Убрать' : <><Plus size={12} /> Добавить</>}
+                                          </PhotoOverlayButton>
                                         </PhotoOverlay>
                                       </PhotoTile>
                                     );

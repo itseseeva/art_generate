@@ -230,13 +230,17 @@ const MessagesList = styled.div`
 
 const MessageItem = styled.div<{ $isUser?: boolean }>`
   background: ${props => props.$isUser 
-    ? 'rgba(139, 92, 246, 0.1)' 
+    ? 'rgba(139, 92, 246, 0.08)' 
     : 'rgba(50, 50, 50, 0.5)'};
   border: 1px solid ${props => props.$isUser 
-    ? 'rgba(139, 92, 246, 0.3)' 
+    ? 'rgba(139, 92, 246, 0.25)' 
     : 'rgba(100, 100, 100, 0.3)'};
   border-radius: ${theme.borderRadius.md};
-  padding: ${theme.spacing.md};
+  padding: ${theme.spacing.md} ${theme.spacing.lg};
+  border-left: 3px solid ${props => props.$isUser 
+    ? 'rgba(139, 92, 246, 0.7)' 
+    : 'transparent'};
+  line-height: 1.5;
 `;
 
 const MessageHeader = styled.div`
@@ -244,6 +248,8 @@ const MessageHeader = styled.div`
   justify-content: space-between;
   align-items: center;
   margin-bottom: ${theme.spacing.sm};
+  flex-wrap: wrap;
+  gap: ${theme.spacing.xs};
 `;
 
 const CharacterName = styled.span`
@@ -255,20 +261,37 @@ const CharacterName = styled.span`
 const MessageDate = styled.span`
   color: rgba(160, 160, 160, 1);
   font-size: ${theme.fontSize.xs};
+  white-space: nowrap;
 `;
 
 const MessageContent = styled.div`
   color: rgba(220, 220, 220, 1);
-  font-size: ${theme.fontSize.base};
+  font-size: ${theme.fontSize.sm};
   white-space: pre-wrap;
   word-wrap: break-word;
   margin-bottom: ${theme.spacing.sm};
+  line-height: 1.55;
+`;
+
+const MessageImageWrapper = styled.div`
+  margin-top: ${theme.spacing.sm};
+  display: inline-block;
 `;
 
 const MessageImage = styled.img`
-  max-width: 100%;
+  max-width: 200px;
+  max-height: 160px;
+  width: auto;
+  height: auto;
+  object-fit: cover;
   border-radius: ${theme.borderRadius.md};
-  margin-top: ${theme.spacing.sm};
+  border: 1px solid rgba(100, 100, 100, 0.3);
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+
+  &:hover {
+    opacity: 0.9;
+  }
 `;
 
 const MessageType = styled.span<{ $isUser?: boolean }>`
@@ -604,13 +627,16 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({
                     </MessageHeader>
                     <MessageContent>{msg.message_content || '(пустое сообщение)'}</MessageContent>
                     {msg.image_url && (
-                      <MessageImage 
-                        src={msg.image_url} 
-                        alt="Изображение из сообщения"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                        }}
-                      />
+                      <MessageImageWrapper>
+                        <MessageImage
+                          src={msg.image_url}
+                          alt="Изображение из сообщения"
+                          onClick={() => window.open(msg.image_url, '_blank', 'noopener')}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      </MessageImageWrapper>
                     )}
                     {msg.generation_time && (
                       <div style={{ fontSize: theme.fontSize.xs, color: 'rgba(160, 160, 160, 1)', marginTop: theme.spacing.xs }}>

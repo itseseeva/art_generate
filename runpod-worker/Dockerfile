@@ -5,6 +5,7 @@ FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04
 ENV DEBIAN_FRONTEND=noninteractive
 # Чтобы логи Python сразу летели в консоль
 ENV PYTHONUNBUFFERED=1
+ENV PORT=8000
 
 # 1. --- УСТАНОВКА СИСТЕМНЫХ ЗАВИСИМОСТЕЙ ---
 # ВАЖНО: ln -s создает команду 'python', которой не хватает tini
@@ -19,25 +20,28 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /src
 
-# 2. --- УСТАНОВКА PYTHON БИБЛИОТЕК (Кэшируется) ---
+# 2. --- Лёгкие зависимости без torch (чтобы не тянуть CUDA 12 и не переполнять слой) ---
 COPY requirements1.txt .
-RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements1.txt
+RUN python3 -m pip install --upgrade pip && \
+    python3 -m pip install --no-cache-dir \
+        "huggingface-hub==0.23.4" omegaconf einops "numpy<2.0.0" cog "runpod==0.9.10" \
+        "Pillow>=10.0.0" scipy "boto3>=1.34.0" "python-dotenv>=1.0.0"
 
-# PyTorch с CUDA 11.8 - используем extra-index-url
-RUN pip install --no-cache-dir \
-        torch torchvision torchaudio \
-        --extra-index-url https://download.pytorch.org/whl/cu118 \
-    && pip install --no-cache-dir xformers \
-    && pip install --no-cache-dir accelerate safetensors diffusers transformers
+# 3. --- PyTorch с CUDA 11.8 отдельным слоем (меньше нагрузка на overlay, меньше Errno 74) ---
+RUN python3 -m pip install --no-cache-dir \
+    torch torchvision torchaudio \
+    --extra-index-url https://download.pytorch.org/whl/cu118
 
-# 3. --- КОПИРОВАНИЕ МОДЕЛИ (ЭТОТ СЛОЙ КЭШИРУЕТСЯ!) ---
-# Мы копируем папку weights отдельно.
+# 4. --- Остальные ML-зависимости (xformers, diffusers, compel, peft) ---
+RUN python3 -m pip install --no-cache-dir \
+    xformers accelerate safetensors diffusers transformers "compel==2.0.2" "peft>=0.10.0"
+
+# Мы копируем папку weights отдельно.с
 # Если ты меняешь только код в handler.py, этот гигантский слой
 # НЕ БУДЕТ пересобираться заново. Docker возьмет его из кэша.
 COPY weights/ /src/weights/
 
-# 4. --- КОПИРОВАНИЕ КОДА ПРОЕКТА ---
+# 6. --- КОПИРОВАНИЕ КОДА ПРОЕКТА ---
 # Копируем все остальное (handler.py, predict.py).
 # Этот шаг выполняется быстро при изменении кода.
 COPY . .

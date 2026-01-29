@@ -5079,6 +5079,35 @@ async def get_cloud_save_status(task_id: str):
         )
 
 
+async def _translate_with_retry(translator, text: str, max_attempts: int = 3):
+    """Вызов translate с повторами при сетевых сбоях (Connection reset by peer и т.п.)."""
+    last_error = None
+    for attempt in range(max_attempts):
+        try:
+            return translator.translate(text)
+        except Exception as e:
+            last_error = e
+            err_str = str(e).lower()
+            is_retryable = (
+                "connection reset" in err_str
+                or "connection aborted" in err_str
+                or "connection refused" in err_str
+                or "timeout" in err_str
+                or "econnreset" in err_str
+                or (hasattr(e, "errno") and getattr(e, "errno") == 104)
+            )
+            if is_retryable and attempt < max_attempts - 1:
+                delay = 1.0 * (attempt + 1)
+                logger.warning(
+                    f"[TRANSLATE] Сетевой сбой (попытка {attempt + 1}/{max_attempts}), "
+                    f"повтор через {delay:.0f}s: {e}"
+                )
+                await asyncio.sleep(delay)
+            else:
+                raise
+    raise last_error
+
+
 @app.post("/api/v1/translate/ru-en")
 async def translate_ru_to_en(request: dict):
     """
@@ -5095,18 +5124,14 @@ async def translate_ru_to_en(request: dict):
         if not text:
             return {"translated_text": ""}
         
-        # Проверяем, содержит ли текст кириллицу
         import re
         has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', text))
         if not has_cyrillic:
-            # Если нет кириллицы, считаем что текст уже на английском
             return {"translated_text": text}
         
-        # Переводим с русского на английский
         from deep_translator import GoogleTranslator
         translator = GoogleTranslator(source='ru', target='en')
-        translated_text = translator.translate(text)
-        
+        translated_text = await _translate_with_retry(translator, text)
         return {"translated_text": translated_text}
     except Exception as e:
         logger.error(f"[TRANSLATE] Ошибка перевода ru->en: {e}")
@@ -5129,18 +5154,14 @@ async def translate_en_to_ru(request: dict):
         if not text:
             return {"translated_text": ""}
         
-        # Проверяем, содержит ли текст кириллицу
         import re
         has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', text))
         if has_cyrillic:
-            # Если есть кириллица, считаем что текст уже на русском
             return {"translated_text": text}
         
-        # Переводим с английского на русский
         from deep_translator import GoogleTranslator
         translator = GoogleTranslator(source='en', target='ru')
-        translated_text = translator.translate(text)
-        
+        translated_text = await _translate_with_retry(translator, text)
         return {"translated_text": translated_text}
     except Exception as e:
         logger.error(f"[TRANSLATE] Ошибка перевода en->ru: {e}")
