@@ -4140,7 +4140,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [generationProgress, setGenerationProgress] = useState<number | undefined>(undefined);
-  const generationQueueRef = useRef<number>(0); // Счетчик задач в очереди
+  type QueuedGeneration = { rawPrompt: string; model: 'anime-realism' | 'anime' | 'realism' };
+  const generationQueueRef = useRef<QueuedGeneration[]>([]); // Очередь: промпт и модель на момент клика
   const initialPhotosCountRef = useRef<number>(0); // Количество фото при загрузке страницы
   const customPromptRef = useRef<string>(''); // Ref для актуального промпта
   const lastAppearanceLocationRef = useRef<{ appearance: string; location: string }>({ appearance: '', location: '' }); // Ref для отслеживания предыдущих значений
@@ -4150,7 +4151,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null); // Интервал для автозаполнения прогресса
   const navigateToChatAfterSaveRef = useRef(false);
   const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime' | 'realism'>('anime-realism');
-  const selectedModelRef = useRef<'anime-realism' | 'anime' | 'realism'>('anime-realism'); // Актуальная модель при генерации (очередь/смена во время генерации)
+  const selectedModelRef = useRef<'anime-realism' | 'anime' | 'realism'>('anime-realism');
   const [isTagsExpanded, setIsTagsExpanded] = useState(false);
   const [showGenerateTooltip, setShowGenerateTooltip] = useState(false);
 
@@ -5609,30 +5610,24 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     throw new Error('Превышено время ожидания генерации');
   };
 
-  // Функция для генерации одного фото (вынесена из generatePhoto)
-  // КРИТИЧНО: Промпт передается как параметр, чтобы использовать актуальное значение
-  // на момент генерации, а не на момент постановки в очередь
-  const generateSinglePhoto = async (promptToUse?: string): Promise<{ id: string; url: string, generationTime?: number } | null> => {
+  const generateSinglePhoto = async (
+    promptToUse?: string,
+    modelToUse?: 'anime-realism' | 'anime' | 'realism'
+  ): Promise<{ id: string; url: string, generationTime?: number } | null> => {
     const token = authManager.getToken();
     if (!token) throw new Error('Необходимо войти в систему');
 
-    // КРИТИЧНО: Если промпт передан как параметр, используем его (актуальное значение)
-    // Если не передан, получаем актуальное значение из состояния
     let prompt = promptToUse;
     if (!prompt) {
-      // Получаем актуальное значение из состояния
       const trimmedCustomPrompt = customPrompt.trim();
       if (trimmedCustomPrompt) {
-        // Пользователь ввел свой промпт - используем его
         prompt = trimmedCustomPrompt;
       } else {
-        // Пользователь очистил промпт - используем дефолтный из appearance и location
         const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
         prompt = parts.length > 0 ? parts.join(' | ') : '';
       }
     }
 
-    // Переводим промпт на английский перед отправкой
     prompt = await translateToEnglish(prompt);
 
     const effectiveSettings = {
@@ -5644,6 +5639,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       negative_prompt: generationSettings?.negative_prompt
     };
 
+    const effectiveModel = modelToUse ?? selectedModelRef.current;
     const requestBody: any = {
       character: formData.name || 'character',
       prompt: prompt,
@@ -5653,7 +5649,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       steps: effectiveSettings.steps,
       cfg_scale: effectiveSettings.cfg_scale,
       use_default_prompts: false,
-      model: selectedModelRef.current
+      model: effectiveModel
     };
 
     if (userInfo) {
@@ -5736,8 +5732,84 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   };
 
 
+  const getRawPromptForGeneration = (): string => {
+    let raw = (customPromptRef.current || customPrompt).trim();
+    if (!raw) {
+      const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
+      raw = parts.length > 0 ? parts.join(' | ') : '';
+    }
+    return raw;
+  };
+
+  const processGeneration = async (
+    rawPrompt: string,
+    model: 'anime-realism' | 'anime' | 'realism'
+  ) => {
+    try {
+      let currentPrompt = rawPrompt.trim();
+      if (!currentPrompt) {
+        const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
+        currentPrompt = parts.length > 0 ? parts.join(' | ') : '';
+      }
+      const photo = await generateSinglePhoto(currentPrompt, model);
+      if (photo) {
+        setGeneratedPhotos(prev => {
+          const existingIds = new Set(prev.map(p => p.id));
+          if (existingIds.has(photo.id)) return prev;
+          return [{ ...photo, isSelected: false }, ...prev];
+        });
+        setSuccess('Фото успешно сгенерировано!');
+      }
+      setGenerationProgress(100);
+      await checkAuth();
+      window.dispatchEvent(new Event('balance-update'));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка генерации фото');
+    } finally {
+      setIsGeneratingPhoto(false);
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+      generationStartTimeRef.current = null;
+      setGenerationProgress(0);
+      const queue = generationQueueRef.current;
+      if (queue.length > 0) {
+        const next = queue.shift()!;
+        setTimeout(() => {
+          setIsGeneratingPhoto(true);
+          setError(null);
+          if (progressIntervalRef.current) {
+            clearInterval(progressIntervalRef.current);
+            progressIntervalRef.current = null;
+          }
+          generationStartTimeRef.current = null;
+          setGenerationProgress(0);
+          if (isMobile && generationSectionRef.current) {
+            generationSectionRef.current.scrollIntoView({ behavior: 'smooth' });
+          }
+          processGeneration(next.rawPrompt, next.model);
+        }, 500);
+      }
+    }
+  };
+
+  const runGeneration = (rawPrompt: string, model: 'anime-realism' | 'anime' | 'realism') => {
+    setIsGeneratingPhoto(true);
+    setError(null);
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+    generationStartTimeRef.current = null;
+    setGenerationProgress(0);
+    if (isMobile && generationSectionRef.current) {
+      generationSectionRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+    processGeneration(rawPrompt, model);
+  };
+
   const generatePhoto = async () => {
-    // Определяем тип подписки и максимальное количество фото
     const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type;
     let subscriptionType = 'free';
     if (rawSubscriptionType) {
@@ -5745,120 +5817,32 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         ? rawSubscriptionType.toLowerCase().trim()
         : String(rawSubscriptionType).toLowerCase().trim();
     }
-
-    let queueLimit;
+    let queueLimit: number;
     if (subscriptionType === 'premium') {
-      queueLimit = 5; // PREMIUM: 5 фото одновременно
+      queueLimit = 5;
     } else if (subscriptionType === 'standard') {
-      queueLimit = 3; // STANDARD: 3 фото одновременно
+      queueLimit = 3;
     } else {
-      queueLimit = 1; // FREE/BASE: только 1 фото одновременно
+      queueLimit = 1;
     }
-
-    // Проверяем кредиты (10 монет за одно фото)
     if (!userInfo || (userInfo.coins || 0) < 10) {
       setError('Недостаточно монет! Нужно 10 монет для генерации одного фото.');
       return;
     }
-
-    // Проверяем лимит очереди (текущая генерация + очередь)
-    const queueCount = generationQueueRef.current || 0;
+    const queue = generationQueueRef.current;
+    const queueCount = queue.length;
     const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
-
     if (activeGenerations >= queueLimit) {
       setError(`Очередь генерации заполнена! Максимум ${queueLimit} задач одновременно (${subscriptionType === 'premium' ? 'PREMIUM' : 'STANDARD'}). Дождитесь завершения текущих генераций.`);
       return;
     }
-
-    // Если уже идет генерация, добавляем в очередь
-    // КРИТИЧНО: Промпт будет получен заново при фактической генерации из актуального состояния
+    const rawPrompt = getRawPromptForGeneration();
+    const model = selectedModel;
     if (isGeneratingPhoto) {
-      generationQueueRef.current += 1;
+      queue.push({ rawPrompt, model });
       return;
     }
-
-    // Генерируем одно фото сразу
-    setIsGeneratingPhoto(true);
-    setError(null);
-    // Останавливаем предыдущее автозаполнение, если есть
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-      progressIntervalRef.current = null;
-    }
-    generationStartTimeRef.current = null;
-    setGenerationProgress(0);
-
-    // Плавный скролл к генерации на мобилках
-    if (isMobile && generationSectionRef.current) {
-      generationSectionRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-
-    const processGeneration = async () => {
-      try {
-        // КРИТИЧНО: Получаем актуальный промпт из ref непосредственно перед генерацией
-        // Ref всегда содержит актуальное значение, даже если state еще не обновился
-        let currentPrompt = '';
-        const trimmedCustomPromptFromRef = customPromptRef.current.trim();
-        if (trimmedCustomPromptFromRef) {
-          currentPrompt = trimmedCustomPromptFromRef;
-        } else {
-          // Если ref пустой, пробуем получить из state (на случай если ref не обновился)
-          const trimmedCustomPrompt = customPrompt.trim();
-          if (trimmedCustomPrompt) {
-            currentPrompt = trimmedCustomPrompt;
-          } else {
-            const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
-            currentPrompt = parts.length > 0 ? parts.join(' | ') : '';
-          }
-        }
-
-
-
-
-        const photo = await generateSinglePhoto(currentPrompt);
-        if (photo) {
-          setGeneratedPhotos(prev => {
-            // Проверяем, нет ли уже фото с таким же id
-            const existingIds = new Set(prev.map(p => p.id));
-            if (existingIds.has(photo.id)) {
-
-              return prev;
-            }
-            return [{ ...photo, isSelected: false }, ...prev];
-          });
-          setSuccess('Фото успешно сгенерировано!');
-        }
-        setGenerationProgress(100);
-
-        // Обновляем информацию о пользователе
-        await checkAuth();
-        // Обновляем баланс в хедере после списания за генерацию фото
-        window.dispatchEvent(new Event('balance-update'));
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Ошибка генерации фото');
-      } finally {
-        setIsGeneratingPhoto(false);
-        // Останавливаем автозаполнение прогресса
-        if (progressIntervalRef.current) {
-          clearInterval(progressIntervalRef.current);
-          progressIntervalRef.current = null;
-        }
-        generationStartTimeRef.current = null;
-        setGenerationProgress(0);
-
-        // Если есть задачи в очереди, запускаем следующую
-        // КРИТИЧНО: При рекурсивном вызове промпт будет получен заново из актуального состояния
-        if (generationQueueRef.current > 0) {
-          generationQueueRef.current -= 1;
-          // Небольшая задержка перед следующей генерацией
-          setTimeout(() => {
-            generatePhoto();
-          }, 500);
-        }
-      }
-    };
-
-    processGeneration();
+    runGeneration(rawPrompt, model);
   };
 
 
@@ -7856,7 +7840,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                         </div>
                       </FormField>
 
-                      <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: '24px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px' }}>
                         <motion.button
                           type="button"
                           onClick={() => setCurrentStep(2)}
@@ -7876,6 +7860,27 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                           whileTap={{ scale: 0.95 }}
                         >
                           ← Назад
+                        </motion.button>
+                        <motion.button
+                          type="submit"
+                          disabled={isLoading}
+                          style={{
+                            padding: '12px 24px',
+                            background: isLoading ? 'rgba(60, 60, 80, 0.5)' : 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                            border: '1px solid',
+                            borderColor: isLoading ? 'rgba(100, 100, 120, 0.3)' : 'rgba(139, 92, 246, 0.6)',
+                            borderRadius: '12px',
+                            color: isLoading ? '#71717a' : '#ffffff',
+                            fontSize: '14px',
+                            fontWeight: 600,
+                            cursor: isLoading ? 'not-allowed' : 'pointer',
+                            transition: 'all 0.3s ease',
+                            fontFamily: 'Inter, sans-serif'
+                          }}
+                          whileHover={!isLoading ? { scale: 1.05, y: -2 } : {}}
+                          whileTap={!isLoading ? { scale: 0.95 } : {}}
+                        >
+                          {isLoading ? 'Сохранение...' : 'Далее →'}
                         </motion.button>
                       </div>
                     </WizardStep>
@@ -8030,7 +8035,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                   } else if (subscriptionType === 'standard') {
                                     queueLimit = 3;
                                   }
-                                  const queueCount = generationQueueRef.current || 0;
+                                  const queueCount = generationQueueRef.current?.length ?? 0;
                                   const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
                                   const isQueueFull = activeGenerations >= queueLimit;
                                   return isQueueFull || userInfo.coins < 10;
@@ -8066,7 +8071,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                     } else if (subscriptionType === 'standard') {
                                       queueLimit = 3;
                                     }
-                                    const queueCount = generationQueueRef.current || 0;
+                                    const queueCount = generationQueueRef.current?.length ?? 0;
                                     const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
 
                                     if (activeGenerations > 0) {
@@ -8184,7 +8189,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                               } else if (subscriptionType === 'standard') {
                                 queueLimit = 3;
                               }
-                              const queueCount = generationQueueRef.current || 0;
+                              const queueCount = generationQueueRef.current?.length ?? 0;
                               const activeGenerations = Math.min((isGeneratingPhoto ? 1 : 0) + queueCount, queueLimit);
                               if (activeGenerations > 0 && queueLimit > 0) {
                                 return (

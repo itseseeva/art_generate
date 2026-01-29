@@ -4621,9 +4621,10 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     };
   }, [isDraggingPhoto, dragStart, photoPreview]);
 
-  const generationQueueRef = React.useRef<number>(0); // Счетчик задач в очереди
+  type QueuedGeneration = { rawPrompt: string; model: 'anime-realism' | 'anime' | 'realism' };
+  const generationQueueRef = React.useRef<QueuedGeneration[]>([]); // Очередь: промпт и модель на момент клика
   const customPromptRef = React.useRef<string>(''); // Ref для актуального промпта
-  const selectedModelRef = React.useRef<'anime-realism' | 'anime' | 'realism'>('anime-realism'); // Актуальная модель при генерации (очередь/смена во время генерации)
+  const selectedModelRef = React.useRef<'anime-realism' | 'anime' | 'realism'>('anime-realism');
   const audioRef = useRef<HTMLAudioElement | null>(null); // Ref для управления аудио
 
   useEffect(() => {
@@ -5685,21 +5686,16 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
 
 
-  // Функция для генерации одного фото
-  // КРИТИЧНО: Промпт передается как параметр, чтобы использовать актуальное значение
-  // на момент генерации, а не на момент постановки в очередь
-  const generateSinglePhoto = async (promptToUse?: string): Promise<{ id: string; url: string, generationTime?: number } | null> => {
+  const generateSinglePhoto = async (
+    promptToUse?: string,
+    modelToUse?: 'anime-realism' | 'anime' | 'realism'
+  ): Promise<{ id: string; url: string, generationTime?: number } | null> => {
     const token = localStorage.getItem('authToken');
     if (!token) throw new Error('Необходимо войти в систему');
 
-    // КРИТИЧНО: Если промпт передан как параметр, используем его (актуальное значение)
-    // Если не передан, получаем актуальное значение из состояния
     let prompt = promptToUse;
     if (!prompt) {
-      // Получаем актуальное значение из состояния
       prompt = customPrompt.trim();
-
-      // Если промпт пустой, используем fallback
       if (!prompt) {
         const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
         prompt = parts.length > 0 ? parts.join(' | ') : '';
@@ -5710,12 +5706,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
       throw new Error('Заполните поля "Внешность" и "Локация" или введите промпт вручную');
     }
 
-
-
-
-    // Переводим промпт на английский перед отправкой
     prompt = await translateToEnglish(prompt);
-
 
     const effectiveSettings = {
       steps: generationSettings?.steps || 20,
@@ -5726,6 +5717,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
       negative_prompt: generationSettings?.negative_prompt || 'blurry, low quality, distorted, bad anatomy'
     };
 
+    const effectiveModel = modelToUse ?? selectedModelRef.current;
     const requestBody: any = {
       character: createdCharacterData?.name || formData.name || 'character',
       prompt: prompt,
@@ -5735,7 +5727,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
       steps: effectiveSettings.steps,
       cfg_scale: effectiveSettings.cfg_scale,
       use_default_prompts: false,
-      model: selectedModelRef.current,
+      model: effectiveModel,
       user_id: userInfo?.id,
       skip_chat_history: true  // Не сохраняем в ChatHistory для генераций со страницы создания
     };
@@ -5856,80 +5848,26 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
     };
   };
 
-  const generatePhoto = async () => {
-    // Определяем тип подписки и максимальное количество фото
-    // Определяем тип подписки для лимитов
-    const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
-    let subscriptionType = 'free';
-    if (rawSubscriptionType) {
-      subscriptionType = typeof rawSubscriptionType === 'string'
-        ? rawSubscriptionType.toLowerCase().trim()
-        : String(rawSubscriptionType).toLowerCase().trim();
+  const getRawPromptForGeneration = (): string => {
+    let raw = (customPromptRef.current || customPrompt).trim();
+    if (!raw) {
+      const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
+      raw = parts.length > 0 ? parts.join(' | ') : '';
     }
+    return raw;
+  };
 
-    let queueLimit = 1;
-    if (subscriptionType === 'premium') {
-      queueLimit = 5;
-    } else if (subscriptionType === 'standard') {
-      queueLimit = 3;
-    }
-
-    // Проверяем кредиты (10 монет за одно фото)
-    if (!userInfo || userInfo.coins < 10) {
-      setError('Недостаточно монет! Нужно 10 монет для генерации одного фото.');
-      return;
-    }
-
-    // Проверяем лимит очереди (текущая генерация + очередь)
-    const queueCount = generationQueueRef.current || 0;
-    const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
-
-    if (activeGenerations >= queueLimit) {
-      setError(`Очередь генерации заполнена! Максимум ${queueLimit} задач одновременно для вашего тарифа (${subscriptionType.toUpperCase()}). Дождитесь завершения текущих генераций.`);
-      return;
-    }
-
-    // Если уже идет генерация, добавляем в очередь
-    // КРИТИЧНО: Промпт будет получен заново при фактической генерации из актуального состояния
-    if (isGeneratingPhoto) {
-      generationQueueRef.current += 1;
-      return;
-    }
-
-    // Генерируем одно фото сразу
-    setIsGeneratingPhoto(true);
-    setError(null);
-    setGenerationProgress(undefined);
-
-    // Прокручиваем контейнер вниз, чтобы видеть прогресс-бар
-    setTimeout(() => {
-      if (generationSectionRef.current) {
-        // Прокручиваем контейнер к самому низу
-        generationSectionRef.current.scrollTo({
-          top: generationSectionRef.current.scrollHeight,
-          behavior: 'smooth'
-        });
+  const processGeneration = async (
+    rawPrompt: string,
+    model: 'anime-realism' | 'anime' | 'realism'
+  ) => {
+    try {
+      let currentPrompt = rawPrompt.trim();
+      if (!currentPrompt) {
+        const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
+        currentPrompt = parts.length > 0 ? parts.join(' | ') : '';
       }
-    }, 100);
-
-    const processGeneration = async () => {
-      try {
-        // КРИТИЧНО: Получаем актуальный промпт из ref непосредственно перед генерацией
-        // Ref всегда содержит актуальное значение, даже если state еще не обновился
-        let currentPrompt = customPromptRef.current.trim();
-        if (!currentPrompt) {
-          // Если ref пустой, пробуем получить из state (на случай если ref не обновился)
-          currentPrompt = customPrompt.trim();
-          if (!currentPrompt) {
-            const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
-            currentPrompt = parts.length > 0 ? parts.join(' | ') : '';
-          }
-        }
-
-
-
-
-        const photo = await generateSinglePhoto(currentPrompt);
+      const photo = await generateSinglePhoto(currentPrompt, model);
         if (photo) {
           // Используем ref, а не generatedPhotos.length: при генерации 2-го фото state может ещё не содержать 1-е (устаревший closure), иначе второе фото перезапишет список и «первое» пропадёт
           const isFirstPhoto = !hasAutoAddedFirstPhotoRef.current;
@@ -6056,20 +5994,74 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
       } finally {
         setIsGeneratingPhoto(false);
         setGenerationProgress(undefined);
-
-        // Если есть задачи в очереди, запускаем следующую
-        // КРИТИЧНО: При рекурсивном вызове промпт будет получен заново из актуального состояния
-        if (generationQueueRef.current > 0) {
-          generationQueueRef.current -= 1;
-          // Небольшая задержка перед следующей генерацией
+        const queue = generationQueueRef.current;
+        if (queue.length > 0) {
+          const next = queue.shift()!;
           setTimeout(() => {
-            generatePhoto();
+            setIsGeneratingPhoto(true);
+            setError(null);
+            setGenerationProgress(undefined);
+            setTimeout(() => {
+              if (generationSectionRef.current) {
+                generationSectionRef.current.scrollTo({
+                  top: generationSectionRef.current.scrollHeight,
+                  behavior: 'smooth'
+                });
+              }
+            }, 100);
+            processGeneration(next.rawPrompt, next.model);
           }, 500);
         }
       }
-    };
+  };
 
-    processGeneration();
+  const runGeneration = (rawPrompt: string, model: 'anime-realism' | 'anime' | 'realism') => {
+    setIsGeneratingPhoto(true);
+    setError(null);
+    setGenerationProgress(undefined);
+    setTimeout(() => {
+      if (generationSectionRef.current) {
+        generationSectionRef.current.scrollTo({
+          top: generationSectionRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+      }
+    }, 100);
+    processGeneration(rawPrompt, model);
+  };
+
+  const generatePhoto = async () => {
+    const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
+    let subscriptionType = 'free';
+    if (rawSubscriptionType) {
+      subscriptionType = typeof rawSubscriptionType === 'string'
+        ? rawSubscriptionType.toLowerCase().trim()
+        : String(rawSubscriptionType).toLowerCase().trim();
+    }
+    let queueLimit = 1;
+    if (subscriptionType === 'premium') {
+      queueLimit = 5;
+    } else if (subscriptionType === 'standard') {
+      queueLimit = 3;
+    }
+    if (!userInfo || userInfo.coins < 10) {
+      setError('Недостаточно монет! Нужно 10 монет для генерации одного фото.');
+      return;
+    }
+    const queue = generationQueueRef.current;
+    const queueCount = queue.length;
+    const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
+    if (activeGenerations >= queueLimit) {
+      setError(`Очередь генерации заполнена! Максимум ${queueLimit} задач одновременно для вашего тарифа (${subscriptionType.toUpperCase()}). Дождитесь завершения текущих генераций.`);
+      return;
+    }
+    const rawPrompt = getRawPromptForGeneration();
+    const model = selectedModel;
+    if (isGeneratingPhoto) {
+      queue.push({ rawPrompt, model });
+      return;
+    }
+    runGeneration(rawPrompt, model);
   };
 
 
@@ -7933,7 +7925,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                             } else if (subscriptionType === 'standard') {
                               queueLimit = 3;
                             }
-                            const queueCount = generationQueueRef.current || 0;
+                            const queueCount = generationQueueRef.current?.length ?? 0;
                             const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
                             const isQueueFull = activeGenerations >= queueLimit;
                             return isQueueFull || userInfo.coins < 10;
@@ -7968,7 +7960,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                               } else if (subscriptionType === 'standard') {
                                 queueLimit = 3;
                               }
-                              const queueCount = generationQueueRef.current || 0;
+                              const queueCount = generationQueueRef.current?.length ?? 0;
                               const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
 
                               if (activeGenerations > 0) {
@@ -8047,7 +8039,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         } else if (subscriptionType === 'standard') {
                           queueLimit = 3;
                         }
-                        const queueCount = generationQueueRef.current || 0;
+                        const queueCount = generationQueueRef.current?.length ?? 0;
                         const activeGenerations = Math.min((isGeneratingPhoto ? 1 : 0) + queueCount, queueLimit);
                         if (activeGenerations > 0 && queueLimit > 0) {
                           return (

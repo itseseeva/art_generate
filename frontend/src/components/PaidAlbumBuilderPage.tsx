@@ -1358,7 +1358,9 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
   const [addedPhotoId, setAddedPhotoId] = useState<string | null>(null);
   const fakeProgressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fakeProgressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const generationQueueRef = useRef<number>(0); // Счетчик задач в очереди
+  type QueuedGeneration = { rawPrompt: string; model: 'anime-realism' | 'anime' | 'realism' };
+  const generationQueueRef = useRef<QueuedGeneration[]>([]); // Очередь: промпт и модель на момент клика
+  const promptRef = useRef<string>(''); // Актуальный промпт при быстром вводе + генерация
 
   // Check subscription and load userInfo
   useEffect(() => {
@@ -1401,6 +1403,10 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
 
     checkSubscription();
   }, []);
+
+  useEffect(() => {
+    promptRef.current = prompt;
+  }, [prompt]);
 
   const startFakeProgress = useCallback(() => {
     if (fakeProgressIntervalRef.current) {
@@ -1468,6 +1474,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         const initialParts = [initialAppearance, initialLocation].filter(p => p && p.trim());
         const initialPrompt = initialParts.length > 0 ? initialParts.join(' | ') : '';
         if (initialPrompt) {
+          promptRef.current = initialPrompt;
           setPrompt(initialPrompt);
         }
       }
@@ -1500,6 +1507,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
           const defaultPrompt = parts.length > 0 ? parts.join(' | ') : '';
           
           if (defaultPrompt) {
+            promptRef.current = defaultPrompt;
             setPrompt(defaultPrompt);
             setPromptLoadedFromDB(true);
           }
@@ -1528,6 +1536,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
           const defaultPrompt = parts.length > 0 ? parts.join(' | ') : '';
           
           if (defaultPrompt) {
+            promptRef.current = defaultPrompt;
             setPrompt(defaultPrompt);
             setPromptLoadedFromDB(true);
           }
@@ -1628,7 +1637,10 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
     throw new Error('Превышено время ожидания генерации');
   };
 
-  const generateSinglePhoto = async (effectivePrompt: string): Promise<PaidAlbumImage | null> => {
+  const generateSinglePhoto = async (
+    effectivePrompt: string,
+    model: 'anime-realism' | 'anime' | 'realism'
+  ): Promise<PaidAlbumImage | null> => {
     const token = localStorage.getItem('authToken');
     if (!token) throw new Error('Необходимо войти в систему');
 
@@ -1646,7 +1658,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         character: character.name,
         prompt: effectivePrompt,
         use_default_prompts: false,
-        model: selectedModel,
+        model,
         width: 832,
         height: 1216,
         steps: 20,
@@ -1678,120 +1690,114 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
     }
   };
 
-  const handleGeneratePhoto = async () => {
-    // Определяем тип подписки и максимальное количество задач в очереди
-    const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userSubscription;
-    let subscriptionType = 'free';
-    
-    if (rawSubscriptionType) {
-      if (typeof rawSubscriptionType === 'string') {
-        subscriptionType = rawSubscriptionType.toLowerCase().trim();
+  const getRawPromptForGeneration = (): string => {
+    let raw = (promptRef.current ?? prompt).trim();
+    if (!raw) {
+      const appearance = character?.character_appearance || character?.appearance || '';
+      const location = character?.location || '';
+      const parts = [appearance, location].filter(p => p && p.trim());
+      raw = parts.length > 0 ? parts.join(' | ') : '';
+    }
+    return raw;
+  };
+
+  const processGeneration = async (
+    rawPrompt: string,
+    model: 'anime-realism' | 'anime' | 'realism'
+  ) => {
+    let generationFailed = false;
+    try {
+      let effectivePrompt = rawPrompt.trim();
+      if (!effectivePrompt) {
+        const appearance = character?.character_appearance || character?.appearance || '';
+        const location = character?.location || '';
+        const parts = [appearance, location].filter(p => p && p.trim());
+        effectivePrompt = parts.length > 0 ? parts.join(' | ') : '';
+      }
+      effectivePrompt = await translateToEnglish(effectivePrompt);
+      const image = await generateSinglePhoto(effectivePrompt, model);
+      stopFakeProgress(false);
+      if (image) {
+        setGeneratedPhotos(prev => [image, ...prev]);
+        try {
+          const token = localStorage.getItem('authToken');
+          if (token) {
+            const response = await fetch('/api/v1/auth/me/', {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.ok) {
+              const userData = await response.json();
+              setUserInfo({
+                coins: userData.coins || 0,
+                subscription: userData.subscription,
+                subscription_type: userData.subscription_type
+              });
+            }
+          }
+        } catch {
+          /* ignore */
+        }
       } else {
-        subscriptionType = String(rawSubscriptionType).toLowerCase().trim();
+        throw new Error('Не удалось получить изображение');
+      }
+    } catch (generateError) {
+      generationFailed = true;
+      setError(generateError instanceof Error ? generateError.message : 'Не удалось сгенерировать фото');
+    } finally {
+      setIsGenerating(false);
+      stopFakeProgress(generationFailed);
+      const queue = generationQueueRef.current;
+      if (queue.length > 0) {
+        const next = queue.shift()!;
+        setTimeout(() => {
+          setIsGenerating(true);
+          setError(null);
+          startFakeProgress();
+          processGeneration(next.rawPrompt, next.model);
+        }, 500);
       }
     }
-    
-    let queueLimit;
-    if (subscriptionType === 'premium') {
-      queueLimit = 5; // PREMIUM: 5 фото одновременно
-    } else if (subscriptionType === 'standard') {
-      queueLimit = 3; // STANDARD: 3 фото одновременно
-    } else {
-      queueLimit = 1; // FREE/BASE: только 1 фото одновременно
+  };
+
+  const runGeneration = (rawPrompt: string, model: 'anime-realism' | 'anime' | 'realism') => {
+    setIsGenerating(true);
+    setError(null);
+    startFakeProgress();
+    processGeneration(rawPrompt, model);
+  };
+
+  const handleGeneratePhoto = async () => {
+    const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userSubscription;
+    let subscriptionType = 'free';
+    if (rawSubscriptionType) {
+      subscriptionType = (typeof rawSubscriptionType === 'string' ? rawSubscriptionType : String(rawSubscriptionType)).toLowerCase().trim();
     }
-    
-    // Проверяем кредиты (10 монет за одно фото)
+    let queueLimit: number;
+    if (subscriptionType === 'premium') {
+      queueLimit = 5;
+    } else if (subscriptionType === 'standard') {
+      queueLimit = 3;
+    } else {
+      queueLimit = 1;
+    }
     if (!userInfo || userInfo.coins < 10) {
       setError('Недостаточно монет! Нужно 10 монет для генерации одного фото.');
       return;
     }
-
-    // Проверяем лимит очереди (текущая генерация + очередь)
-    const queueCount = generationQueueRef.current || 0;
+    const queue = generationQueueRef.current;
+    const queueCount = queue.length;
     const activeGenerations = (isGenerating ? 1 : 0) + queueCount;
-    
     if (activeGenerations >= queueLimit) {
       setError(`Очередь генерации заполнена! Максимум ${queueLimit} задач одновременно (${subscriptionType === 'premium' ? 'PREMIUM' : 'STANDARD'}). Дождитесь завершения текущих генераций.`);
       return;
     }
-
-    // Если уже идет генерация, добавляем в очередь
+    const rawPrompt = getRawPromptForGeneration();
+    const model = selectedModel;
     if (isGenerating) {
-      generationQueueRef.current += 1;
+      queue.push({ rawPrompt, model });
       return;
     }
-
-    // Генерируем одно фото сразу
-    setIsGenerating(true);
-    setError(null);
-    startFakeProgress();
-
-    const processGeneration = async () => {
-      let generationFailed = false;
-      try {
-        let effectivePrompt = prompt.trim();
-        if (!effectivePrompt) {
-          const appearance = character?.character_appearance || character?.appearance || '';
-          const location = character?.location || '';
-          const parts = [appearance, location].filter(p => p && p.trim());
-          effectivePrompt = parts.length > 0 ? parts.join(' | ') : '';
-        }
-        
-        effectivePrompt = await translateToEnglish(effectivePrompt);
-        
-        const image = await generateSinglePhoto(effectivePrompt);
-        
-        stopFakeProgress(false);
-        
-        if (image) {
-          setGeneratedPhotos(prev => [image, ...prev]);
-          
-          // Обновляем информацию о пользователе (баланс)
-          const checkSubscription = async () => {
-            try {
-              const token = localStorage.getItem('authToken');
-              if (token) {
-                const response = await fetch('/api/v1/auth/me/', {
-                  headers: {
-                    'Authorization': `Bearer ${token}`
-                  }
-                });
-                if (response.ok) {
-                  const userData = await response.json();
-                  setUserInfo({
-                    coins: userData.coins || 0,
-                    subscription: userData.subscription,
-                    subscription_type: userData.subscription_type
-                  });
-                }
-              }
-            } catch (error) {
-              // Ignore
-            }
-          };
-          await checkSubscription();
-        } else {
-          throw new Error('Не удалось получить изображение');
-        }
-      } catch (generateError) {
-        generationFailed = true;
-        setError(generateError instanceof Error ? generateError.message : 'Не удалось сгенерировать фото');
-      } finally {
-        setIsGenerating(false);
-        stopFakeProgress(generationFailed);
-        
-        // Если есть задачи в очереди, запускаем следующую
-        if (generationQueueRef.current > 0) {
-          generationQueueRef.current -= 1;
-          // Небольшая задержка перед следующей генерацией
-          setTimeout(() => {
-            handleGeneratePhoto();
-          }, 500);
-        }
-      }
-    };
-
-    processGeneration();
+    runGeneration(rawPrompt, model);
   };
 
   const handleRemovePhoto = async (photo: PaidAlbumImage) => {
@@ -2041,7 +2047,11 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
               <PromptWrapper>
                 <PromptTextarea
                   value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setPrompt(v);
+                    promptRef.current = v;
+                  }}
                   placeholder="Опишите изображение, которое хотите получить..."
                 />
                 <MagicIcon>
@@ -2084,9 +2094,11 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                         $category="neutral"
                         onClick={(e) => {
                           e.preventDefault();
-                          const separator = prompt.length > 0 && !prompt.endsWith(', ') && !prompt.endsWith(',') ? ', ' : '';
-                          const newValue = prompt + separator + tag.value;
+                          const base = promptRef.current || prompt;
+                          const separator = base.length > 0 && !base.endsWith(', ') && !base.endsWith(',') ? ', ' : '';
+                          const newValue = base + separator + tag.value;
                           setPrompt(newValue);
+                          promptRef.current = newValue;
                         }}
                       >
                         <Plus size={8} /> {tag.label}
@@ -2128,7 +2140,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                   } else {
                     queueLimit = 1; // FREE/BASE: только 1 фото одновременно
                   }
-                  const queueCount = generationQueueRef.current || 0;
+                  const queueCount = generationQueueRef.current?.length ?? 0;
                   const activeGenerations = (isGenerating ? 1 : 0) + queueCount;
                   const hasEnoughCoins = (userInfo?.coins || 0) >= 10;
                   const isQueueFull = activeGenerations >= queueLimit;
@@ -2151,7 +2163,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                   } else {
                     queueLimit = 1; // FREE/BASE: только 1 фото одновременно
                   }
-                  const queueCount = generationQueueRef.current || 0;
+                  const queueCount = generationQueueRef.current?.length ?? 0;
                   const activeGenerations = (isGenerating ? 1 : 0) + queueCount;
                   const isQueueFull = activeGenerations >= queueLimit;
                   
@@ -2300,7 +2312,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                 } else {
                   queueLimit = 1; // FREE/BASE: только 1 фото одновременно
                 }
-                const queueCount = generationQueueRef.current || 0;
+                const queueCount = generationQueueRef.current?.length ?? 0;
                 const activeGenerations = Math.min((isGenerating ? 1 : 0) + queueCount, queueLimit);
                 if (activeGenerations > 0 && queueLimit > 0) {
                   return (
