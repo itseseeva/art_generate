@@ -292,9 +292,14 @@ async def chat_with_character(
                 )
                 subscription = subscription_query.scalar_one_or_none()
                 if subscription and subscription.is_active:
-                    # КРИТИЧЕСКИ ВАЖНО: сохраняем историю для STANDARD и PREMIUM подписок одинаково
-                    # PREMIUM должен работать так же, как STANDARD
-                    can_save_session = subscription.subscription_type in [SubscriptionType.STANDARD, SubscriptionType.PREMIUM]
+                    # КРИТИЧЕСКИ ВАЖНО: сохраняем историю для ВСЕХ подписок, включая FREE
+                    # PREMIUM должен работать так же, как STANDARD и FREE
+                    can_save_session = subscription.subscription_type in [
+                        SubscriptionType.FREE, 
+                        SubscriptionType.STANDARD, 
+                        SubscriptionType.PREMIUM, 
+                        SubscriptionType.PRO
+                    ]
                     logger.info(f"[CHAT] Пользователь {current_user.id}: подписка={subscription.subscription_type.value}, is_active={subscription.is_active}, can_save_session={can_save_session}")
                 else:
                     logger.warning(f"[CHAT] Пользователь {current_user.id}: подписка отсутствует или неактивна (subscription={subscription})")
@@ -631,7 +636,12 @@ async def chat_with_character_stream(
                         )
                         subscription = subscription_query.scalar_one_or_none()
                         if subscription and subscription.is_active:
-                            can_save_session = subscription.subscription_type in [SubscriptionType.STANDARD, SubscriptionType.PREMIUM]
+                            can_save_session = subscription.subscription_type in [
+                                SubscriptionType.FREE, 
+                                SubscriptionType.STANDARD, 
+                                SubscriptionType.PREMIUM, 
+                                SubscriptionType.PRO
+                            ]
                     
                     if can_save_session and full_response:
                         if not chat_session:

@@ -96,26 +96,38 @@ class YandexCloudStorageService:
         
         # Используем новые стандартные названия переменных
         # Fallback на старые для обратной совместимости
+        # Также очищаем от кавычек, если они есть
         self.bucket_name = (
             os.getenv("YANDEX_BUCKET_NAME") or
             os.getenv("BUCKET_NAME")
         )
+        if self.bucket_name:
+            self.bucket_name = self.bucket_name.strip("'").strip('"')
+
         self.access_key = (
             os.getenv("YANDEX_ACCESS_KEY") or
             os.getenv("YANDEX_KEY") or
             os.getenv("YANDEX-KEY") or
             os.getenv("AWS_ACCESS_KEY_ID")
         )
+        if self.access_key:
+            self.access_key = self.access_key.strip("'").strip('"')
+
         self.secret_key = (
             os.getenv("YANDEX_SECRET_KEY") or
             os.getenv("SECRET_KEY") or
             os.getenv("AWS_SECRET_ACCESS_KEY")
         )
+        if self.secret_key:
+            self.secret_key = self.secret_key.strip("'").strip('"')
+
         self.endpoint_url = (
             os.getenv("YANDEX_ENDPOINT_URL") or
             os.getenv("ENDPOINT_URL") or
             "https://storage.yandexcloud.net"
         )
+        if self.endpoint_url:
+            self.endpoint_url = self.endpoint_url.strip("'").strip('"')
         
         # Логируем наличие переменных (без значений для безопасности)
         logger.info(

@@ -3159,7 +3159,56 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       return;
     }
 
-
+    // Проверяем, есть ли сохраненная история после оплаты в localStorage
+    try {
+      const savedHistory = localStorage.getItem('pending_chat_history');
+      if (savedHistory) {
+        const historyData = JSON.parse(savedHistory);
+        
+        // Проверяем, что история не старше 1 часа (защита от устаревших данных)
+        const maxAge = 60 * 60 * 1000; // 1 час в миллисекундах
+        const age = Date.now() - (historyData.timestamp || 0);
+        
+        if (age > maxAge) {
+          console.log('[CHAT_RESTORE] История устарела, очищаем localStorage');
+          localStorage.removeItem('pending_chat_history');
+        } else {
+          // Проверяем, что это история для бустера (не для других типов оплаты)
+          if (historyData.type !== 'booster_payment') {
+            console.log('[CHAT_RESTORE] Неизвестный тип истории, игнорируем');
+            localStorage.removeItem('pending_chat_history');
+          } else {
+            // Проверяем, что история для текущего персонажа
+            const savedCharacterId = historyData.characterId;
+            const currentCharacterId = expectedCharacter?.id || expectedCharacter?.name || currentCharacter?.id || currentCharacter?.name;
+            
+            if (savedCharacterId === currentCharacterId || savedCharacterId === identifier) {
+              console.log('[CHAT_RESTORE] Восстановление истории чата из localStorage:', historyData);
+              
+              // Восстанавливаем сообщения
+              const restoredMessages: Message[] = historyData.messages.map((msg: any) => ({
+                ...msg,
+                timestamp: new Date(msg.timestamp)
+              }));
+              
+              setMessages(restoredMessages);
+              
+              // Очищаем localStorage после успешного восстановления
+              localStorage.removeItem('pending_chat_history');
+              console.log('[CHAT_RESTORE] История успешно восстановлена и очищена из localStorage');
+              
+              isLoadingHistoryRef.current = null;
+              return; // Не загружаем историю с сервера, используем восстановленную
+            } else {
+              console.log('[CHAT_RESTORE] История для другого персонажа, игнорируем');
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[CHAT_RESTORE] Ошибка восстановления истории:', e);
+      // Продолжаем загрузку с сервера при ошибке
+    }
 
     // Отмечаем, что начинаем загрузку истории для этого персонажа
     // Сохраняем identifier в начале для проверки в конце
@@ -5037,6 +5086,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             ? 'out_of_limits'
             : 'booster'
         }
+        chatHistory={messages}
+        characterId={currentCharacter?.id || currentCharacter?.name}
       />
 
 

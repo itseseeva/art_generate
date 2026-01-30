@@ -1873,12 +1873,19 @@ async def _write_chat_history(
             )
             subscription = subscription_query.scalar_one_or_none()
             if subscription and subscription.is_active:
-                # КРИТИЧЕСКИ ВАЖНО: сохраняем историю для STANDARD и PREMIUM подписок одинаково
-                # PREMIUM должен работать так же, как STANDARD - никаких различий в обработке
-                can_save_session = subscription.subscription_type in [SubscriptionType.STANDARD, SubscriptionType.PREMIUM]
-                logger.info(f"[HISTORY] Пользователь {user_id_int}: подписка={subscription.subscription_type.value}, is_active={subscription.is_active}, can_save_session={can_save_session}")
-                if subscription.subscription_type == SubscriptionType.PREMIUM:
-                    logger.info(f"[HISTORY] PREMIUM подписка обнаружена для user_id={user_id_int} - история должна сохраняться так же, как для STANDARD")
+                # КРИТИЧЕСКИ ВАЖНО: сохраняем историю для ВСЕХ типов подписок, включая FREE
+                # FREE, STANDARD, PREMIUM, PRO - все должны иметь историю
+                # Используем более надежную проверку (проверяем и Enum, и значение)
+                current_type = subscription.subscription_type
+                current_type_value = current_type.value if hasattr(current_type, 'value') else str(current_type).lower()
+                
+                can_save_session = True # Разрешаем всем по умолчанию, если подписка активна
+                
+                # Логируем для отладки
+                logger.info(f"[HISTORY] Пользователь {user_id_int}: подписка={current_type_value}, raw={subscription.subscription_type}, is_active={subscription.is_active}, can_save_session={can_save_session}")
+                
+                if current_type == SubscriptionType.FREE or current_type_value == 'free':
+                     logger.info(f"[HISTORY] FREE подписка обнаружена для user_id={user_id_int} - история должна сохраняться")
             else:
                 logger.warning(f"[HISTORY] Пользователь {user_id_int}: подписка отсутствует или неактивна (subscription={subscription})")
         else:
@@ -2002,12 +2009,13 @@ async def _write_chat_history(
             logger.warning(f"[HISTORY] Пропуск сохранения ChatSession/ChatMessageDB: подписка FREE или отсутствует (user_id={user_id_int}, can_save_session={can_save_session})")
 
         # Также сохраняем в ChatHistory для истории чата
-        # КРИТИЧЕСКИ ВАЖНО: сохраняем для STANDARD и PREMIUM подписок одинаково
-        # PREMIUM должен работать так же, как STANDARD - никаких различий в обработке
+        # КРИТИЧЕСКИ ВАЖНО: сохраняем для ВСЕХ подписок (включая FREE)
+        # Это нужно для восстановления истории после оплаты бустера
         # ВАЖНО: Если chat_session не был создан (например, при сохранении через галерею),
         # создаем его сейчас, чтобы можно было сохранить ChatHistory
-        if user_id_int and can_save_session:
-            # Если chat_session не был создан выше, создаем его сейчас
+        if user_id_int:  # Сохраняем для ВСЕХ авторизованных пользователей
+            # Если chat_session не был создан выше (для FREE подписки), создаем его сейчас
+            # Для FREE подписки ChatSession нужен только для сохранения ChatHistory
             if not chat_session:
                 try:
                     # Пытаемся найти существующую сессию или создать новую
@@ -2032,7 +2040,7 @@ async def _write_chat_history(
                             db.add(chat_session)
                             await db.commit()
                             await db.refresh(chat_session)
-                            logger.info(f"[HISTORY] Создан ChatSession для сохранения ChatHistory: session_id={chat_session.id}")
+                            logger.info(f"[HISTORY] Создан ChatSession для FREE подписки (только для ChatHistory): session_id={chat_session.id}")
                 except Exception as session_error:
                     logger.warning(f"[HISTORY] Не удалось создать ChatSession для ChatHistory: {session_error}")
             

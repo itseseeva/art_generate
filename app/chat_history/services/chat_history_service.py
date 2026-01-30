@@ -30,9 +30,14 @@ class ChatHistoryService:
         if not subscription or not subscription.is_active:
             return False
         
-        # КРИТИЧЕСКИ ВАЖНО: История доступна для STANDARD и PREMIUM подписок одинаково
-        # PREMIUM должен работать так же, как STANDARD
-        can_save = subscription.subscription_type in [SubscriptionType.STANDARD, SubscriptionType.PREMIUM]
+        # КРИТИЧЕСКИ ВАЖНО: История должна быть доступна для ВСЕХ подписок, включая FREE
+        # PREMIUM должен работать так же, как STANDARD и FREE
+        can_save = subscription.subscription_type in [
+            SubscriptionType.FREE, 
+            SubscriptionType.STANDARD, 
+            SubscriptionType.PREMIUM, 
+            SubscriptionType.PRO
+        ]
         return can_save
     
     async def save_message(self, user_id: int, character_name: str, session_id: str, 
@@ -240,13 +245,15 @@ class ChatHistoryService:
             
             # КРИТИЧЕСКИ ВАЖНО: для FREE подписки не возвращаем персонажей
             # Для STANDARD и PREMIUM подписок возвращаем персонажей с незаконченными диалогами
+            # КРИТИЧЕСКИ ВАЖНО: для FREE подписки ТЕПЕРЬ ВОЗВРАЩАЕМ персонажей
+            # Для всех подписок возвращаем персонажей с незаконченными диалогами
             if not subscription:
                 print(f"[DEBUG] Пользователь {user_id}: подписка отсутствует - возвращаем пустой список")
                 return []
             
-            if subscription.subscription_type == SubscriptionType.FREE:
-                print(f"[DEBUG] Пользователь {user_id} имеет FREE подписку - возвращаем пустой список")
-                return []
+            # if subscription.subscription_type == SubscriptionType.FREE:
+            #     print(f"[DEBUG] Пользователь {user_id} имеет FREE подписку - возвращаем пустой список")
+            #     return []
             
             if not subscription.is_active:
                 print(f"[DEBUG] Пользователь {user_id} имеет неактивную подписку {subscription_type_value} - возвращаем пустой список")

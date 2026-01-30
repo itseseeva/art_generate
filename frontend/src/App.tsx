@@ -262,6 +262,8 @@ function App() {
       return;
     } else if (path.includes('/chat')) {
       const characterId = urlParams.get('character');
+      const paymentSuccess = urlParams.get('payment') === 'success';
+      
       if (characterId) {
         // КРИТИЧНО: Показываем спиннер пока персонаж загружается
         setIsLoadingCharacter(true);
@@ -272,7 +274,17 @@ function App() {
           if (char) {
 
             setSelectedCharacter(char);
-            window.history.replaceState({ page: 'chat', character: characterId }, '', path);
+            
+            // Если оплата успешна, очищаем параметр из URL
+            if (paymentSuccess) {
+              window.history.replaceState(
+                { page: 'chat', character: characterId }, 
+                '', 
+                `/chat?character=${characterId}`
+              );
+            } else {
+              window.history.replaceState({ page: 'chat', character: characterId }, '', path);
+            }
           } else {
 
             // Если не удалось загрузить, остаемся на главной

@@ -26,6 +26,7 @@ class CreateKassaPaymentRequest(BaseModel):
 	package_id: str | None = None  # ID пакета кредитов
 	payment_type: str = Field(default="subscription", description="subscription, topup или booster")
 	payment_method: str = Field(default="bank_card", description="sbp, sberbank, tinkoff_bank, yoo_money, bank_card")
+	character_id: str | None = None  # ID персонажа для возврата в чат после оплаты бустера
 
 
 class CreateKassaPaymentResponse(BaseModel):
@@ -76,6 +77,17 @@ async def create_kassa_payment(
 	# СБП не поддерживает двухстадийную оплату, поэтому capture всегда true
 	capture = True if payload.payment_method == "sbp" else cfg["capture"]
 
+	# Определяем return_url в зависимости от типа платежа
+	# Для бустера возвращаем пользователя обратно в чат с персонажем
+	if payload.payment_type == "booster" and payload.character_id:
+		base_url = cfg["return_url"].replace("/shop", "")
+		return_url = f"{base_url}/chat?character={payload.character_id}&payment=success"
+	elif payload.payment_type == "booster":
+		# Если character_id не передан, возвращаем на главную
+		return_url = cfg["return_url"].replace("/shop", "/?payment=success")
+	else:
+		return_url = cfg["return_url"]
+
 	req_body = {
 		"amount": {
 			"value": f"{payload.amount:.2f}",
@@ -83,7 +95,7 @@ async def create_kassa_payment(
 		},
 		"confirmation": {
 			"type": "redirect",
-			"return_url": cfg["return_url"],
+			"return_url": return_url,
 		},
 		"capture": capture,
 		"description": payload.description,

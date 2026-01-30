@@ -429,6 +429,19 @@ interface BoosterOfferModalProps {
   limitType: 'messages' | 'photos';
   /** 'booster' — предложение буста за 69 ₽; 'out_of_limits' — лимиты кончились после буста, кнопки Магазин и Подписка */
   variant?: 'booster' | 'out_of_limits';
+  /** Текущая история чата для сохранения перед оплатой */
+  chatHistory?: Array<{
+    id: string;
+    type: 'user' | 'assistant';
+    content: string;
+    timestamp: Date;
+    imageUrl?: string;
+    generationTime?: number;
+    isGenerating?: boolean;
+    progress?: number;
+  }>;
+  /** ID/имя персонажа для сохранения контекста */
+  characterId?: string;
 }
 
 const OFFER_DURATION = 30 * 60; // 30 минут
@@ -437,7 +450,9 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
   isOpen,
   onClose,
   limitType,
-  variant = 'booster'
+  variant = 'booster',
+  chatHistory,
+  characterId
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState(OFFER_DURATION);
@@ -487,6 +502,21 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
         alert('Необходимо авторизоваться');
         return;
       }
+      
+      // Сохраняем историю чата и текущий URL в localStorage перед переходом на оплату
+      if (chatHistory && chatHistory.length > 0 && characterId) {
+        const currentUrl = window.location.pathname + window.location.search;
+        const chatHistoryData = {
+          messages: chatHistory,
+          characterId: characterId,
+          returnUrl: currentUrl,
+          timestamp: Date.now(),
+          type: 'booster_payment'
+        };
+        localStorage.setItem('pending_chat_history', JSON.stringify(chatHistoryData));
+        console.log('[BOOSTER_PAYMENT] История чата сохранена в localStorage:', chatHistoryData);
+      }
+      
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/kassa/create_payment/`, {
         method: 'POST',
         headers: {
@@ -497,7 +527,8 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
           amount: 69,
           description: 'Бустер: 30 сообщений + 10 генераций',
           payment_type: 'booster',
-          payment_method: 'sbp'
+          payment_method: 'sbp',
+          character_id: characterId || undefined
         })
       });
       if (!response.ok) throw new Error('Ошибка создания платежа');
