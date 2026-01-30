@@ -724,7 +724,7 @@ const TagsContainer = styled.div<{ $isVisible: boolean }>`
   transition: opacity 0.3s ease, visibility 0.3s ease;
 `;
 
-const TagsContainerBottom = styled.div`
+const TagsContainerBottom = styled.div<{ $visible?: boolean }>`
   position: absolute;
   bottom: 0;
   left: 0;
@@ -735,6 +735,9 @@ const TagsContainerBottom = styled.div`
   padding: ${theme.spacing.xs} ${theme.spacing.sm};
   z-index: 101;
   pointer-events: none;
+  opacity: ${props => (props.$visible !== false ? 1 : 0)};
+  visibility: ${props => (props.$visible !== false ? 'visible' : 'hidden')};
+  transition: opacity 0.25s ease, visibility 0.25s ease;
   
   * {
     pointer-events: auto;
@@ -2366,7 +2369,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             </ContentOverlay>
 
             {character.tags && character.tags.length > 0 && (
-              <TagsContainerBottom>
+              <TagsContainerBottom $visible={!isHovered && !showOverlay}>
                 {character.tags.slice(0, 3).map((tag, idx) => (
                   <Tag key={idx}>{tag}</Tag>
                 ))}

@@ -222,50 +222,49 @@ const NSFWToggleWrapper = styled.div`
   width: 100%;
 `;
 
+const rainbowColors = [
+  '#ff3366', '#ff6633', '#ffaa33', '#aaff33', '#33ffaa', '#33aaff', '#6633ff', '#ff33aa'
+];
+
 const NSFWToggleLabel = styled.span<{ $isNsfw?: boolean }>`
   font-size: 0.7rem;
   letter-spacing: 0.08em;
   font-weight: 700;
   text-transform: uppercase;
-  color: ${props => props.$isNsfw ? '#ff6b9d' : '#f8fafc'};
-  text-shadow: ${props => props.$isNsfw
-    ? '0 0 10px rgba(255, 107, 157, 0.8), 0 0 20px rgba(255, 107, 157, 0.6), 0 0 30px rgba(255, 107, 157, 0.4)'
-    : '0 0 8px rgba(139, 92, 246, 0.6), 0 0 16px rgba(139, 92, 246, 0.4)'};
-  animation: ${props => props.$isNsfw ? 'glowPulse 2s ease-in-out infinite' : 'glowPulseBlue 2s ease-in-out infinite'};
+  animation: ${props => props.$isNsfw ? 'rainbowGlow 3s ease-in-out infinite' : 'rainbowGlow 4s ease-in-out infinite'};
   
-  @keyframes glowPulse {
-    0%, 100% {
-      text-shadow: 
-        0 0 10px rgba(255, 107, 157, 0.8),
-        0 0 20px rgba(255, 107, 157, 0.6),
-        0 0 30px rgba(255, 107, 157, 0.4),
-        0 0 40px rgba(255, 107, 157, 0.2);
-      color: #ff6b9d;
+  @keyframes rainbowGlow {
+    0% {
+      color: ${rainbowColors[0]};
+      text-shadow: 0 0 12px ${rainbowColors[0]}b3, 0 0 24px ${rainbowColors[0]}80, 0 0 36px ${rainbowColors[0]}4d;
     }
-    50% {
-      text-shadow: 
-        0 0 15px rgba(255, 107, 157, 1),
-        0 0 25px rgba(255, 107, 157, 0.8),
-        0 0 35px rgba(255, 107, 157, 0.6),
-        0 0 45px rgba(255, 107, 157, 0.4);
-      color: #ff8fb3;
+    14% {
+      color: ${rainbowColors[1]};
+      text-shadow: 0 0 12px ${rainbowColors[1]}b3, 0 0 24px ${rainbowColors[1]}80, 0 0 36px ${rainbowColors[1]}4d;
     }
-  }
-  
-  @keyframes glowPulseBlue {
-    0%, 100% {
-      text-shadow: 
-        0 0 8px rgba(139, 92, 246, 0.6),
-        0 0 16px rgba(139, 92, 246, 0.4),
-        0 0 24px rgba(139, 92, 246, 0.2);
-      color: #f8fafc;
+    28% {
+      color: ${rainbowColors[2]};
+      text-shadow: 0 0 12px ${rainbowColors[2]}b3, 0 0 24px ${rainbowColors[2]}80, 0 0 36px ${rainbowColors[2]}4d;
     }
-    50% {
-      text-shadow: 
-        0 0 12px rgba(139, 92, 246, 0.8),
-        0 0 20px rgba(139, 92, 246, 0.6),
-        0 0 28px rgba(139, 92, 246, 0.4);
-      color: #e0e7ff;
+    42% {
+      color: ${rainbowColors[3]};
+      text-shadow: 0 0 12px ${rainbowColors[3]}b3, 0 0 24px ${rainbowColors[3]}80, 0 0 36px ${rainbowColors[3]}4d;
+    }
+    57% {
+      color: ${rainbowColors[4]};
+      text-shadow: 0 0 12px ${rainbowColors[4]}b3, 0 0 24px ${rainbowColors[4]}80, 0 0 36px ${rainbowColors[4]}4d;
+    }
+    71% {
+      color: ${rainbowColors[5]};
+      text-shadow: 0 0 12px ${rainbowColors[5]}b3, 0 0 24px ${rainbowColors[5]}80, 0 0 36px ${rainbowColors[5]}4d;
+    }
+    85% {
+      color: ${rainbowColors[6]};
+      text-shadow: 0 0 12px ${rainbowColors[6]}b3, 0 0 24px ${rainbowColors[6]}80, 0 0 36px ${rainbowColors[6]}4d;
+    }
+    100% {
+      color: ${rainbowColors[0]};
+      text-shadow: 0 0 12px ${rainbowColors[0]}b3, 0 0 24px ${rainbowColors[0]}80, 0 0 36px ${rainbowColors[0]}4d;
     }
   }
 `;
