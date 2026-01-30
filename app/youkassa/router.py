@@ -384,8 +384,25 @@ async def process_yookassa_webhook(
 			# Получаем подписку пользователя
 			subscription = await service.get_user_subscription(user_id)
 			if not subscription:
-				logger.error(f"[YOOKASSA WEBHOOK] No subscription found for user {user_id}")
-				raise HTTPException(status_code=404, detail="Subscription not found")
+				# Если подписки нет, создаем FREE подписку автоматически
+				logger.warning(f"[YOOKASSA WEBHOOK] No subscription found for user {user_id}, creating FREE subscription")
+				from app.models.subscription import SubscriptionType
+				from app.models.user_subscription import UserSubscription
+				from datetime import datetime, timezone
+				
+				subscription = UserSubscription(
+					user_id=user_id,
+					subscription_type=SubscriptionType.FREE,
+					is_active=True,
+					activated_at=datetime.now(timezone.utc),
+					monthly_messages=0,  # Будет увеличено ниже
+					monthly_photos=0,  # Будет увеличено ниже
+					used_messages=0,
+					used_photos=0
+				)
+				db.add(subscription)
+				await db.flush()
+				logger.info(f"[YOOKASSA WEBHOOK] Created FREE subscription for user {user_id}")
 			
 			# Увеличиваем лимиты: +30 сообщений, +10 генераций
 			subscription.monthly_messages = (subscription.monthly_messages or 0) + 30
