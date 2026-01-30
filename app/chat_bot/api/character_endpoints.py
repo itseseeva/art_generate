@@ -620,7 +620,8 @@ async def get_available_voices(
                 "is_public": False,
                 "user_voice_id": user_voice.id,
                 "is_owner": True,  # Владелец голоса
-                "creator_username": current_user.username if current_user else None
+                "creator_username": current_user.username if current_user else None,
+                "creator_id": current_user.id if current_user else None
             })
         
         # Добавляем публичные голоса всех пользователей

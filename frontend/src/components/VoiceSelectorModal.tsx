@@ -896,12 +896,24 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
                   >
                     <VoiceName>{voice.name}</VoiceName>
                     {voice.is_user_voice && voice.creator_username && (
-                      <div style={{
-                        fontSize: theme.fontSize.xs,
-                        color: 'rgba(255, 255, 255, 0.5)',
-                        marginTop: '-8px',
-                        marginBottom: theme.spacing.xs
-                      }}>
+                      <div
+                        style={{
+                          fontSize: theme.fontSize.xs,
+                          color: 'rgba(255, 255, 255, 0.5)',
+                          marginTop: '-8px',
+                          marginBottom: theme.spacing.xs,
+                          cursor: voice.creator_id ? 'pointer' : 'default',
+                          textDecoration: voice.creator_id ? 'underline' : 'none'
+                        }}
+                        onClick={(e) => {
+                          if (voice.creator_id) {
+                            e.stopPropagation();
+                            window.dispatchEvent(new CustomEvent('navigate-to-profile', {
+                              detail: { userId: voice.creator_id }
+                            }));
+                          }
+                        }}
+                      >
                         @{voice.creator_username}
                       </div>
                     )}

@@ -566,8 +566,19 @@ function App() {
       setCurrentPage('admin-logs');
       window.history.pushState({ page: 'admin-logs' }, '', '/admin-logs');
     };
+
+    const handleNavigateToProfile = (event: CustomEvent) => {
+      const userId = event.detail?.userId;
+      handleProfile(userId);
+    };
+
     window.addEventListener('navigate-to-admin-logs', handleNavigateToAdminLogs);
-    return () => window.removeEventListener('navigate-to-admin-logs', handleNavigateToAdminLogs);
+    window.addEventListener('navigate-to-profile', handleNavigateToProfile as EventListener);
+
+    return () => {
+      window.removeEventListener('navigate-to-admin-logs', handleNavigateToAdminLogs);
+      window.removeEventListener('navigate-to-profile', handleNavigateToProfile as EventListener);
+    };
   }, []);
 
   // Обработка OAuth callback - сохранение токенов из URL
