@@ -5,12 +5,12 @@ import Dock from './Dock';
 import type { DockItemData } from './Dock';
 import { FiSend } from 'react-icons/fi';
 import { 
-  Image, 
   Trash2, 
   HelpCircle, 
   MessageSquare, 
   Heart, 
-  Bot 
+  Bot,
+  Camera
 } from 'lucide-react';
 
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -35,8 +35,8 @@ const InputWrapper = styled.div<{ $isMobile?: boolean }>`
   flex-direction: ${props => props.$isMobile ? 'column' : 'row'};
   gap: ${theme.spacing.md};
   align-items: ${props => props.$isMobile ? 'stretch' : 'flex-end'};
-  max-width: ${props => props.$isMobile ? '100%' : '1000px'}; /* Ограничим ширину на десктопе для эстетики */
-  margin: 0 auto;
+  max-width: ${props => props.$isMobile ? '100%' : '1135px'}; /* Шире на ~15% (было 20%, минус 5%) */
+  margin: ${props => props.$isMobile ? '0 auto' : '0 auto 0 15%'}; /* Сдвиг вправо на 15% (было 20%, минус 5%) */
   width: 100%;
   background: transparent;
   border: none;
@@ -285,6 +285,16 @@ const IconButton = styled.button<{ $disabled?: boolean }>`
   }
 `;
 
+const DockAndCountersRow = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 1rem;
+  margin-left: 1rem;
+  height: fit-content;
+  align-self: center;
+`;
+
 const DockWrapper = styled.div`
   display: flex;
   justify-content: center;
@@ -297,7 +307,58 @@ const DockWrapper = styled.div`
   border-radius: 16px;
   opacity: 1;
   height: fit-content;
-  align-self: flex-end;
+`;
+
+const ResourceCountersContainer = styled.div`
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  padding: 0;
+  height: fit-content;
+  background: transparent;
+`;
+
+const ResourceCounter = styled.div<{ $color?: string }>`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: white;
+`;
+
+const AnimatedCounterIcon = styled.div<{ $color: string; $glowColor: string }>`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  svg {
+    width: 22px;
+    height: 22px;
+    stroke-width: 2.2;
+    color: ${props => props.$color};
+    filter: drop-shadow(0 0 8px ${props => props.$glowColor});
+    animation: counter-icon-pulse 2.5s ease-in-out infinite;
+  }
+  
+  @keyframes counter-icon-pulse {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.92;
+      transform: scale(1.08);
+    }
+  }
+`;
+
+const CounterValue = styled.span<{ $warning?: boolean }>`
+  font-family: 'Courier New', monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  color: ${props => props.$warning ? '#fbbf24' : '#a78bfa'};
+  text-shadow: 0 0 8px ${props => props.$warning ? 'rgba(251, 191, 36, 0.4)' : 'rgba(167, 139, 250, 0.4)'};
 `;
 
 const PremiumIconWrapper = styled.div<{ $disabled?: boolean; $color?: string; $isImage?: boolean }>`
@@ -417,6 +478,10 @@ interface MessageInputProps {
   isPremium?: boolean;
   onLanguageChange?: (language: 'ru' | 'en') => void;
   onSelectModel?: () => void;
+  /** Счётчики лимитов (только для FREE): сообщения и генерации */
+  messagesRemaining?: number;
+  photosRemaining?: number;
+  subscriptionType?: 'free' | 'base' | 'standard' | 'premium';
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
@@ -433,7 +498,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   targetLanguage = 'ru',
   isPremium = false,
   onLanguageChange,
-  onSelectModel
+  onSelectModel,
+  messagesRemaining,
+  photosRemaining,
+  subscriptionType = 'free'
 }) => {
   const isMobile = useIsMobile();
   const [message, setMessage] = useState('');
@@ -496,7 +564,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           $isImage={true}
           data-disabled={disableImageGeneration || !onGenerateImage}
         >
-          <Image strokeWidth={2.5} />
+          <Camera strokeWidth={2.5} />
         </PremiumIconWrapper>
       ),
       label: 'Сгенерировать изображение',
@@ -671,7 +739,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                     title="Сгенерировать фото"
                   >
                     <MobileButtonLabel>Фото</MobileButtonLabel>
-                    <Image size={22} strokeWidth={2.5} />
+                    <Camera size={22} strokeWidth={2.5} />
                   </MobileIconButton>
                 )}
                 {onShowHelp && (
@@ -701,16 +769,42 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               </MobileButtons>
             </MobileActions>
           ) : (
-            <DockWrapper>
-              <Dock 
-                items={dockItems}
-                baseItemSize={40} /* Чуть меньше размер, так как основная кнопка ушла */
-                magnification={50}
-                distance={100}
-                panelHeight={50}
-                dockHeight={60}
-              />
-            </DockWrapper>
+            <DockAndCountersRow>
+              <DockWrapper>
+                <Dock 
+                  items={dockItems}
+                  baseItemSize={40}
+                  magnification={50}
+                  distance={100}
+                  panelHeight={50}
+                  dockHeight={60}
+                />
+              </DockWrapper>
+              {subscriptionType === 'free' && (
+                <ResourceCountersContainer>
+                  {messagesRemaining !== undefined && messagesRemaining !== null && messagesRemaining >= 0 && (
+                    <ResourceCounter>
+                      <AnimatedCounterIcon $color="#a78bfa" $glowColor="rgba(167, 139, 250, 0.7)">
+                        <MessageSquare />
+                      </AnimatedCounterIcon>
+                      <CounterValue $warning={messagesRemaining <= 3}>
+                        {messagesRemaining}
+                      </CounterValue>
+                    </ResourceCounter>
+                  )}
+                  {photosRemaining !== undefined && photosRemaining !== null && photosRemaining >= 0 && (
+                    <ResourceCounter>
+                      <AnimatedCounterIcon $color="#3b82f6" $glowColor="rgba(59, 130, 246, 0.7)">
+                        <Camera />
+                      </AnimatedCounterIcon>
+                      <CounterValue $warning={photosRemaining <= 2}>
+                        {photosRemaining}
+                      </CounterValue>
+                    </ResourceCounter>
+                  )}
+                </ResourceCountersContainer>
+              )}
+            </DockAndCountersRow>
           )}
         </InputWrapper>
       </form>

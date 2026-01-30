@@ -166,6 +166,8 @@ class ProfitActivateService:
                 user_id=user_id,
                 subscription_type=SubscriptionType.FREE,
                 status=SubscriptionStatus.ACTIVE,
+                monthly_messages=10,
+                used_messages=0,
             )
             self.db.add(subscription)
             await self.db.flush()
@@ -651,11 +653,14 @@ class ProfitActivateService:
                 "status": "inactive",
                 "monthly_credits": 0,
                 "monthly_photos": 0,
+                "monthly_messages": 10,
                 "max_message_length": 0,
                 "used_credits": 0,
                 "used_photos": 0,
+                "used_messages": 0,
                 "credits_remaining": 0,
                 "photos_remaining": 0,
+                "messages_remaining": 10,
                 "days_left": 0,
                 "is_active": False,
                 "expires_at": None,
@@ -677,11 +682,14 @@ class ProfitActivateService:
                 "status": "inactive",
                 "monthly_credits": 0,
                 "monthly_photos": 0,
+                "monthly_messages": 10,
                 "max_message_length": 0,
                 "used_credits": 0,
                 "used_photos": 0,
+                "used_messages": 0,
                 "credits_remaining": 0,
                 "photos_remaining": 0,
+                "messages_remaining": 10,
                 "days_left": 0,
                 "is_active": False,
                 "expires_at": None,
@@ -702,11 +710,14 @@ class ProfitActivateService:
             "status": subscription.status.value,
             "monthly_credits": subscription.monthly_credits,
             "monthly_photos": subscription.monthly_photos,
+            "monthly_messages": subscription.monthly_messages,
             "max_message_length": subscription.max_message_length,
             "used_credits": subscription.used_credits,
             "used_photos": subscription.used_photos,
+            "used_messages": subscription.used_messages,
             "credits_remaining": subscription.credits_remaining,
             "photos_remaining": subscription.photos_remaining,
+            "messages_remaining": subscription.messages_remaining if subscription.monthly_messages > 0 else None,
             "days_left": subscription.days_until_expiry,
             "is_active": subscription.is_active,
             "expires_at": subscription.expires_at.isoformat() if subscription.expires_at else None,
@@ -738,8 +749,29 @@ class ProfitActivateService:
         return subscription.can_generate_photo()
     
     async def use_message_credits(self, user_id: int) -> bool:
-        """Тратит кредиты за отправку сообщения."""
-        return await self.use_credits_amount(user_id, 2)
+        """
+        Тратит кредиты за отправку сообщения.
+        Для FREE также увеличивает used_messages (лимит 10 сообщений).
+        """
+        subscription = await self._ensure_subscription(user_id)
+        if subscription.should_reset_limits():
+            subscription.reset_monthly_limits()
+            await self.db.flush()
+        if not subscription.can_use_credits(2):
+            return False
+        if not subscription.can_send_message(0):
+            return False
+        success = subscription.use_credits(2)
+        if not success:
+            return False
+        if subscription.subscription_type == SubscriptionType.FREE and subscription.monthly_messages > 0:
+            subscription.used_messages = (subscription.used_messages or 0) + 1
+        await self.db.commit()
+        await self.db.refresh(subscription)
+        await cache_delete(key_subscription(user_id))
+        await cache_delete(key_subscription_stats(user_id))
+        await emit_profile_update(user_id, self.db)
+        return True
     
     async def use_photo_generation(self, user_id: int, commit: bool = True) -> bool:
         """
@@ -748,6 +780,8 @@ class ProfitActivateService:
         Для FREE: списывает лимит подписки или кредиты.
         """
         subscription = await self._ensure_subscription(user_id)
+        logger.info(f"[PHOTO_COUNTER] До списания: user_id={user_id}, subscription_type={subscription.subscription_type.value}, monthly_photos={subscription.monthly_photos}, used_photos={subscription.used_photos}, photos_remaining={subscription.photos_remaining}")
+        
         if subscription.should_reset_limits():
             subscription.reset_monthly_limits()
             if commit:
@@ -758,6 +792,7 @@ class ProfitActivateService:
         
         success = subscription.use_photo_generation()
         if success:
+            logger.info(f"[PHOTO_COUNTER] После списания: user_id={user_id}, used_photos={subscription.used_photos}, photos_remaining={subscription.photos_remaining}, commit={commit}")
             if commit:
                 await self.db.commit()
                 await self.db.refresh(subscription)
@@ -765,8 +800,12 @@ class ProfitActivateService:
                 await cache_delete(key_subscription(user_id))
                 await cache_delete(key_subscription_stats(user_id))
                 await emit_profile_update(user_id, self.db)
+                logger.info(f"[PHOTO_COUNTER] Кэш инвалидирован для user_id={user_id}")
             else:
                 await self.db.flush()
+                logger.info(f"[PHOTO_COUNTER] Flush выполнен (без commit) для user_id={user_id}")
+        else:
+            logger.warning(f"[PHOTO_COUNTER] Не удалось списать генерацию для user_id={user_id}")
         
         return success
     

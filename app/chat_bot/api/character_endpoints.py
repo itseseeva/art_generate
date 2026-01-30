@@ -357,39 +357,50 @@ async def charge_for_photo_generation(user_id: int, db: AsyncSession, character_
             detail=f"Недостаточно монет. Для генерации фотографий требуется {PHOTO_GENERATION_COST} монет."
         )
 
-    # Списываем кредиты с баланса пользователя
-    await coins_service.spend_coins(user_id, PHOTO_GENERATION_COST, commit=False)
-
-    # Для FREE проверяем и списываем лимит подписки, для STANDARD/PREMIUM - ничего не делаем
+    # Получаем подписку для определения типа
     subscription = await subscription_service.get_user_subscription(user_id)
-    if subscription and subscription.subscription_type.value == "free":
-        if await subscription_service.can_user_generate_photo(user_id):
-            photo_spent = await subscription_service.use_photo_generation(user_id, commit=False)
-            if not photo_spent:
-                logger.warning(
-                    "Не удалось списать лимит генераций подписки у пользователя %s", user_id
-                )
-                raise HTTPException(
-                    status_code=403,
-                    detail="Не удалось списать лимит генераций подписки. Попробуйте позже."
-                )
+    subscription_type = subscription.subscription_type.value if subscription else "free"
+    
+    # Для FREE: списываем только лимит генераций, БЕЗ монет
+    if subscription_type == "free":
+        if not await subscription_service.can_user_generate_photo(user_id):
+            raise HTTPException(
+                status_code=403,
+                detail="Лимит генераций фото исчерпан (5). Оформите подписку для продолжения генерации."
+            )
+        photo_spent = await subscription_service.use_photo_generation(user_id, commit=False)
+        if not photo_spent:
+            logger.warning(
+                "Не удалось списать лимит генераций подписки у пользователя %s", user_id
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="Не удалось списать лимит генераций подписки. Попробуйте позже."
+            )
+        logger.info(f"[FREE] Списан лимит генераций для user_id={user_id}, персонаж '{character_name}' (монеты НЕ списаны)")
+    
+    # Для STANDARD/PREMIUM: списываем монеты
     else:
-        logger.info(
-            "У пользователя %s закончился лимит генераций подписки, продолжаем за счет монет",
-            user_id,
-        )
-
-    # Записываем историю баланса
-    try:
-        from app.utils.balance_history import record_balance_change
-        await record_balance_change(
-            db=db,
-            user_id=user_id,
-            amount=-PHOTO_GENERATION_COST,
-            reason=f"Генерация фото для персонажа '{character_name}'"
-        )
-    except Exception as e:
-        logger.warning(f"Не удалось записать историю баланса: {e}")
+        coins_spent = await coins_service.spend_coins(user_id, PHOTO_GENERATION_COST, commit=False)
+        if not coins_spent:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Не удалось списать {PHOTO_GENERATION_COST} монет за генерацию фото."
+            )
+        
+        # Записываем историю баланса
+        try:
+            from app.utils.balance_history import record_balance_change
+            await record_balance_change(
+                db=db,
+                user_id=user_id,
+                amount=-PHOTO_GENERATION_COST,
+                reason=f"Генерация фото для персонажа '{character_name}'"
+            )
+        except Exception as e:
+            logger.warning(f"Не удалось записать историю баланса: {e}")
+        
+        logger.info(f"[{subscription_type.upper()}] Списано {PHOTO_GENERATION_COST} монет для user_id={user_id}, персонаж '{character_name}'")
 
     await db.flush()
 
@@ -3283,6 +3294,11 @@ async def generate_character_photo(
         
         await db.commit()
         await db.refresh(current_user)
+        
+        # Инвалидируем кэш stats после изменения used_photos
+        from app.utils.redis_cache import key_subscription, key_subscription_stats
+        await cache_delete(key_subscription(current_user.id))
+        await cache_delete(key_subscription_stats(current_user.id))
         
         # КРИТИЧЕСКИ ВАЖНО: Инвалидируем кэш фото персонажа
         await cache_delete(key_character_photos(character.id))

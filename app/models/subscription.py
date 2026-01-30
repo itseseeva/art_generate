@@ -88,11 +88,13 @@ class UserSubscription(Base):
     # Лимиты подписки
     monthly_credits = Column(Integer, nullable=False, default=100)  # Для FREE/BASE: 100 кредитов
     monthly_photos = Column(Integer, nullable=False, default=5)  # Для FREE/BASE: 5 генераций фото
+    monthly_messages = Column(Integer, nullable=False, default=0)  # Для FREE: 10 сообщений; 0 = без лимита
     max_message_length = Column(Integer, nullable=False, default=100)  # Максимальная длина сообщения
     
     # Использование в текущем месяце
     used_credits = Column(Integer, nullable=False, default=0)
     used_photos = Column(Integer, nullable=False, default=0)
+    used_messages = Column(Integer, nullable=False, default=0)  # Для FREE: счётчик сообщений (лимит 10)
     
     # Даты
     activated_at = Column(DateTime, nullable=False, default=func.now())
@@ -138,6 +140,13 @@ class UserSubscription(Base):
         """Возвращает оставшиеся генерации фото."""
         return max(0, self.monthly_photos - self.used_photos)
     
+    @property
+    def messages_remaining(self) -> int:
+        """Возвращает оставшиеся сообщения (для FREE при monthly_messages > 0)."""
+        if self.monthly_messages <= 0:
+            return -1  # без лимита
+        return max(0, self.monthly_messages - self.used_messages)
+    
     def can_use_credits(self, amount: int) -> bool:
         """Проверяет, может ли пользователь потратить указанное количество кредитов."""
         return self.is_active and self.credits_remaining >= amount
@@ -145,7 +154,7 @@ class UserSubscription(Base):
     def can_generate_photo(self) -> bool:
         """
         Проверяет, может ли пользователь сгенерировать фото.
-        Для FREE: проверяет оставшиеся генерации фото ИЛИ кредиты.
+        Для FREE: проверяет оставшиеся генерации фото (лимит 5).
         Для STANDARD и PREMIUM: только проверяет активность подписки (кредиты проверяются отдельно через user.coins).
         """
         if not self.is_active:
@@ -155,16 +164,19 @@ class UserSubscription(Base):
         if self.subscription_type in (SubscriptionType.STANDARD, SubscriptionType.PREMIUM):
             return True  # Достаточно активной подписки, кредиты проверяются через user.coins
         
-        # Для FREE - проверяем оставшиеся генерации фото ИЛИ кредиты
-        if self.photos_remaining > 0:
-            return True
-        
-        # Если нет генераций фото, но есть кредиты - можно использовать кредиты
-        return self.credits_remaining >= PHOTO_GENERATION_CREDITS_COST
+        # Для FREE - проверяем только оставшиеся генерации фото (лимит 5)
+        return self.photos_remaining > 0
     
     def can_send_message(self, message_length: int) -> bool:
-        """Проверяет, может ли пользователь отправить сообщение заданной длины."""
-        return self.is_active and message_length <= self.max_message_length
+        """
+        Проверяет, может ли пользователь отправить сообщение заданной длины.
+        Для FREE: также проверяет лимит 10 сообщений (used_messages < monthly_messages).
+        """
+        if not self.is_active or message_length > self.max_message_length:
+            return False
+        if self.monthly_messages > 0 and self.used_messages >= self.monthly_messages:
+            return False
+        return True
     
     def use_credits(self, amount: int) -> bool:
         """Тратит кредиты пользователя."""
@@ -178,7 +190,7 @@ class UserSubscription(Base):
         """
         Тратит одну генерацию фото.
         Для STANDARD и PREMIUM: ничего не делает (кредиты списываются с user.coins отдельно).
-        Для FREE: использует оставшиеся генерации фото, если нет - списывает кредиты.
+        Для FREE: увеличивает счётчик used_photos (лимит 5 генераций).
         """
         if not self.can_generate_photo():
             return False
@@ -187,13 +199,13 @@ class UserSubscription(Base):
         if self.subscription_type in (SubscriptionType.STANDARD, SubscriptionType.PREMIUM):
             return True  # Кредиты уже списаны через coins_service.spend_coins()
         
-        # Для FREE - сначала используем оставшиеся генерации фото
+        # Для FREE - увеличиваем счётчик генераций (лимит 5)
         if self.photos_remaining > 0:
             self.used_photos += 1
             return True
         
-        # Если нет генераций фото, но есть кредиты - используем кредиты
-        return self.use_credits(PHOTO_GENERATION_CREDITS_COST)
+        # Если лимит исчерпан - возвращаем False (больше генерировать нельзя)
+        return False
     
     def reset_monthly_limits(self):
         """Сбрасывает месячные лимиты."""
@@ -218,11 +230,14 @@ class UserSubscription(Base):
             "status": self.status.value,
             "monthly_credits": self.monthly_credits,
             "monthly_photos": self.monthly_photos,
+            "monthly_messages": self.monthly_messages,
             "max_message_length": self.max_message_length,
             "used_credits": self.used_credits,
             "used_photos": self.used_photos,
+            "used_messages": self.used_messages,
             "credits_remaining": self.credits_remaining,
             "photos_remaining": self.photos_remaining,
+            "messages_remaining": self.messages_remaining if self.monthly_messages > 0 else None,
             "activated_at": self.activated_at.isoformat() if self.activated_at else None,
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
             "last_reset_at": self.last_reset_at.isoformat() if self.last_reset_at else None,

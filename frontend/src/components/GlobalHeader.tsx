@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { theme } from '../theme';
 import { authManager } from '../utils/auth';
-import { ShoppingBag, User, Coins, DollarSign, LogOut, LogIn, UserPlus, X, ClipboardList } from 'lucide-react';
+import { ShoppingBag, User, Coins, DollarSign, LogOut, LogIn, UserPlus, X, ClipboardList, CheckCircle } from 'lucide-react';
 import { generationTracker } from '../utils/generationTracker';
 
 const HeaderContainer = styled.div`
@@ -284,83 +284,109 @@ const ProfileButton = styled.div<{ $isAuthenticated?: boolean }>`
   }
 `;
 
-const slideDown = keyframes`
+const slideIn = keyframes`
   from {
-    transform: translateY(-100%);
+    transform: translateX(100%);
     opacity: 0;
   }
   to {
-    transform: translateY(0);
+    transform: translateX(0);
     opacity: 1;
+  }
+`;
+
+const pulse = keyframes`
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7), 0 4px 20px rgba(0, 0, 0, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(76, 175, 80, 0), 0 4px 20px rgba(0, 0, 0, 0.5);
   }
 `;
 
 const NotificationContainer = styled.div`
   position: fixed;
-  top: 70px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10000;
-  animation: ${slideDown} 0.3s ease-out;
+  top: 60px;
+  right: 20px;
+  z-index: 99999;
+  animation: ${slideIn} 0.4s ease-out;
   
   @media (max-width: 768px) {
-    top: 60px;
-    left: 1rem;
-    right: 1rem;
-    transform: none;
+    top: 50px;
+    right: 0.5rem;
+    left: 0.5rem;
   }
 `;
 
 const Notification = styled.div`
-  background: rgba(30, 30, 30, 0.95);
-  border: 2px solid rgba(100, 100, 100, 0.3);
+  background: linear-gradient(135deg, rgba(46, 125, 50, 0.95) 0%, rgba(27, 94, 32, 0.95) 100%);
+  border: 2px solid rgba(76, 175, 80, 0.8);
   border-radius: 12px;
-  padding: 1rem 1.5rem;
+  padding: 0.75rem 1rem;
   display: flex;
   align-items: center;
-  gap: 1rem;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  gap: 0.75rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(10px);
-  min-width: 300px;
-  max-width: 500px;
-  color: rgba(255, 255, 255, 0.9);
+  min-width: 280px;
+  max-width: 400px;
+  color: rgba(255, 255, 255, 1);
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
+  animation: ${pulse} 2s infinite;
+  
+  @media (max-width: 768px) {
+    min-width: auto;
+    max-width: none;
+    padding: 0.6rem 0.8rem;
+  }
 `;
 
 const NotificationText = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.15rem;
+  min-width: 0;
 `;
 
 const NotificationTitle = styled.div`
   font-weight: 700;
-  font-size: 1rem;
+  font-size: 0.85rem;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 `;
 
 const NotificationMessage = styled.div`
   font-weight: 500;
-  font-size: 0.85rem;
-  opacity: 0.9;
+  font-size: 0.75rem;
+  opacity: 0.95;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+  
+  @media (max-width: 768px) {
+    max-width: none;
+    white-space: normal;
+  }
 `;
 
 const NotificationButton = styled.button`
-  background: rgba(60, 60, 60, 0.8);
-  border: 1px solid rgba(100, 100, 100, 0.5);
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 8px;
-  padding: 0.5rem 1rem;
-  color: rgba(255, 255, 255, 0.9);
-  font-weight: 600;
-  font-size: 0.85rem;
+  padding: 0.4rem 0.8rem;
+  color: rgba(255, 255, 255, 1);
+  font-weight: 700;
+  font-size: 0.8rem;
   cursor: pointer;
   transition: all 0.2s ease;
+  white-space: nowrap;
   
   &:hover {
-    background: rgba(80, 80, 80, 0.9);
-    border-color: rgba(120, 120, 120, 0.7);
-    color: rgba(255, 255, 255, 1);
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.6);
+    transform: scale(1.05);
   }
 `;
 
@@ -393,6 +419,8 @@ interface GlobalHeaderProps {
   leftContent?: React.ReactNode;
   refreshTrigger?: number;
   currentCharacterId?: string | number;
+  /** true только когда хедер рендерится внутри ChatContainer; иначе считаем, что пользователь не в чате и показываем уведомление о готовности фото */
+  isOnChatPage?: boolean;
 }
 
 export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
@@ -405,7 +433,8 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   onHome,
   leftContent,
   refreshTrigger,
-  currentCharacterId
+  currentCharacterId,
+  isOnChatPage: isOnChatPageProp
 }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userInfo, setUserInfo] = useState<{ username: string, coins: number, avatar_url?: string, is_admin?: boolean } | null>(null);
@@ -501,25 +530,25 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   // Подписка на уведомления о готовности генерации
   useEffect(() => {
     const unsubscribe = generationTracker.addListener((taskId, imageUrl, characterName, characterId) => {
-      // Проверяем, что пользователь не находится на странице чата с ЭТИМ ЖЕ персонажем
-      const isOnChatPage = window.location.pathname.includes('/chat');
+      // Считаем "в чате" только когда проп явно true (ChatContainer); иначе показываем уведомление при выходе из чата
+      const isOnChatPage = isOnChatPageProp === true;
       const isSameCharacter = currentCharacterId && characterId && String(currentCharacterId) === String(characterId);
 
       // Показываем уведомление если пользователь не на странице чата ИЛИ если это другой персонаж
       if (!isOnChatPage || !isSameCharacter) {
         setNotification({ taskId, imageUrl, characterName, characterId });
 
-        // Автоматически скрываем уведомление через 10 секунд
+        // Автоматически скрываем уведомление через 15 секунд
         setTimeout(() => {
           setNotification(null);
-        }, 15000); // Увеличиваем до 15 секунд, чтобы пользователь успел заметить
+        }, 15000);
       }
     });
 
     return () => {
       unsubscribe();
     };
-  }, [currentCharacterId]); // Переподписываемся при смене персонажа
+  }, [currentCharacterId, isOnChatPageProp]);
 
   const handleNotificationClick = async () => {
     // Переходим в чат с персонажем, если указан
@@ -591,19 +620,20 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
       {notification && (
         <NotificationContainer>
           <Notification>
+            <CheckCircle size={24} style={{ flexShrink: 0 }} />
             <NotificationText>
-              <NotificationTitle>Генерация завершена!</NotificationTitle>
+              <NotificationTitle>Фото готово!</NotificationTitle>
               <NotificationMessage>
                 {notification.characterName
-                  ? `Ваше фото для персонажа "${notification.characterName}" готово`
-                  : 'Ваше фото готово'}
+                  ? `Персонаж: ${notification.characterName}`
+                  : 'Ваше изображение готово'}
               </NotificationMessage>
             </NotificationText>
             <NotificationButton onClick={handleNotificationClick}>
-              Перейти в чат
+              Открыть
             </NotificationButton>
             <CloseButton onClick={handleCloseNotification}>
-              <X size={18} />
+              <X size={16} />
             </CloseButton>
           </Notification>
         </NotificationContainer>

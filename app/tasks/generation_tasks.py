@@ -324,7 +324,11 @@ def generate_image_task(
 
 
 async def _spend_photo_resources(user_id: int) -> None:
-    """Списывает монеты и лимит подписки за генерацию фото."""
+    """
+    Списывает ресурсы за генерацию фото в зависимости от типа подписки.
+    - FREE: списывает только лимит генераций (used_photos), БЕЗ списания монет
+    - STANDARD/PREMIUM: списывает монеты (10 кредитов)
+    """
     # Ленивый импорт
     from app.database.db import engine
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -344,33 +348,55 @@ async def _spend_photo_resources(user_id: int) -> None:
         subscription_service = ProfitActivateService(db_session)
         
         try:
-            coins_spent = await coins_service.spend_coins(user_id, 10, commit=False)
-            if not coins_spent:
-                logger.error(f"[CELERY] Не удалось списать монеты для пользователя {user_id}")
+            # Получаем подписку пользователя для проверки типа
+            subscription = await subscription_service.get_user_subscription(user_id)
+            
+            if not subscription:
+                logger.error(f"[CELERY] Подписка не найдена для пользователя {user_id}")
                 return
             
-            # Записываем историю баланса
-            try:
-                from app.utils.balance_history import record_balance_change
-                await record_balance_change(
-                    db=db_session,
-                    user_id=user_id,
-                    amount=-10,
-                    reason="Генерация фото через Celery задачу"
-                )
-            except Exception as e:
-                logger.warning(f"Не удалось записать историю баланса: {e}")
+            subscription_type = subscription.subscription_type.value
+            logger.info(f"[CELERY] Списание ресурсов для user_id={user_id}, subscription_type={subscription_type}")
             
-            photo_spent = await subscription_service.use_photo_generation(user_id, commit=False)
-            if not photo_spent:
-                logger.error(f"[CELERY] Недостаточно лимита подписки для пользователя {user_id}")
-                await db_session.rollback()
-                return
+            # Для FREE: списываем только лимит генераций, БЕЗ монет
+            if subscription_type == "free":
+                photo_spent = await subscription_service.use_photo_generation(user_id, commit=False)
+                if not photo_spent:
+                    logger.error(f"[CELERY] FREE: Недостаточно лимита генераций для пользователя {user_id}")
+                    await db_session.rollback()
+                    return
+                logger.info(f"[CELERY] FREE: Списан лимит генераций для user_id={user_id} (монеты НЕ списаны)")
+            
+            # Для STANDARD/PREMIUM: списываем монеты
+            else:
+                coins_spent = await coins_service.spend_coins(user_id, 10, commit=False)
+                if not coins_spent:
+                    logger.error(f"[CELERY] {subscription_type.upper()}: Не удалось списать монеты для пользователя {user_id}")
+                    await db_session.rollback()
+                    return
+                
+                # Записываем историю баланса
+                try:
+                    from app.utils.balance_history import record_balance_change
+                    await record_balance_change(
+                        db=db_session,
+                        user_id=user_id,
+                        amount=-10,
+                        reason=f"Генерация фото для персонажа (Celery)"
+                    )
+                except Exception as e:
+                    logger.warning(f"Не удалось записать историю баланса: {e}")
+                
+                logger.info(f"[CELERY] {subscription_type.upper()}: Списано 10 монет для user_id={user_id}")
             
             await db_session.commit()
             
-            coins_left = await coins_service.get_user_coins(user_id)
-            # Убираем детальное логирование списания монет
+            # Инвалидируем кэш stats после изменения used_photos или coins
+            from app.utils.redis_cache import cache_delete, key_subscription, key_subscription_stats
+            await cache_delete(key_subscription(user_id))
+            await cache_delete(key_subscription_stats(user_id))
+            
+            logger.info(f"[CELERY] Ресурсы успешно списаны для user_id={user_id}")
         except Exception as exc:
             await db_session.rollback()
             logger.error(f"[CELERY] Ошибка списания ресурсов за генерацию фото: {exc}")

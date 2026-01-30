@@ -24,7 +24,7 @@ class CreateKassaPaymentRequest(BaseModel):
 	plan: str | None = None  # 'standard' | 'premium'
 	months: int = Field(default=1, ge=1, le=12, description="Количество месяцев подписки")
 	package_id: str | None = None  # ID пакета кредитов
-	payment_type: str = Field(default="subscription", description="subscription или topup")
+	payment_type: str = Field(default="subscription", description="subscription, topup или booster")
 	payment_method: str = Field(default="bank_card", description="sbp, sberbank, tinkoff_bank, yoo_money, bank_card")
 
 
@@ -69,6 +69,8 @@ async def create_kassa_payment(
 		metadata["months"] = str(payload.months)
 	elif payload.payment_type == "topup" and payload.package_id:
 		metadata["package_id"] = payload.package_id
+	elif payload.payment_type == "booster":
+		metadata["booster_type"] = "messages_photos"  # 30 сообщений + 10 генераций
 
 	# Определяем capture в зависимости от метода оплаты
 	# СБП не поддерживает двухстадийную оплату, поэтому capture всегда true
@@ -242,10 +244,11 @@ async def process_yookassa_webhook(
 		plan = metadata.get("plan")
 		months = int(metadata.get("months", 1))
 		package_id = metadata.get("package_id")
+		booster_type = metadata.get("booster_type")
 		
 		logger.info(
 			f"[YOOKASSA WEBHOOK] Parsed metadata: user_id={user_id}, "
-			f"payment_type={payment_type}, plan={plan}, months={months}, package_id={package_id}"
+			f"payment_type={payment_type}, plan={plan}, months={months}, package_id={package_id}, booster_type={booster_type}"
 		)
 		
 		# Проверяем идемпотентность
@@ -356,6 +359,52 @@ async def process_yookassa_webhook(
 			await db.commit()
 			
 			return {"status": "ok", "type": "subscription", "plan": plan}
+		
+		elif payment_type == "booster" and booster_type == "messages_photos":
+			# Начисление 30 сообщений + 10 генераций для FREE пользователей
+			logger.info(f"[YOOKASSA WEBHOOK] Processing booster: user_id={user_id}, amount={amount}")
+			
+			# Проверяем сумму (должна быть 69 руб)
+			if amount < 65:  # С учетом возможных комиссий
+				logger.error(f"[YOOKASSA WEBHOOK] Booster amount too low: {amount} < 65")
+				raise HTTPException(status_code=400, detail=f"Booster amount too low: {amount}")
+			
+			# Получаем подписку пользователя
+			subscription = await service.get_user_subscription(user_id)
+			if not subscription:
+				logger.error(f"[YOOKASSA WEBHOOK] No subscription found for user {user_id}")
+				raise HTTPException(status_code=404, detail="Subscription not found")
+			
+			# Увеличиваем лимиты: +30 сообщений, +10 генераций
+			subscription.monthly_messages = (subscription.monthly_messages or 0) + 30
+			subscription.monthly_photos = (subscription.monthly_photos or 0) + 10
+			
+			await db.flush()
+			
+			# Инвалидируем кэш
+			from app.utils.redis_cache import cache_delete, key_subscription, key_subscription_stats
+			from app.services.profit_activate import emit_profile_update
+			await cache_delete(key_subscription(user_id))
+			await cache_delete(key_subscription_stats(user_id))
+			await emit_profile_update(user_id, db)
+			
+			logger.info(
+				f"[YOOKASSA WEBHOOK] ✅ Booster applied: user_id={user_id}, "
+				f"new_messages_limit={subscription.monthly_messages}, "
+				f"new_photos_limit={subscription.monthly_photos}"
+			)
+			
+			transaction.processed = True
+			await db.commit()
+			
+			return {
+				"status": "ok",
+				"type": "booster",
+				"messages_added": 30,
+				"photos_added": 10,
+				"new_messages_limit": subscription.monthly_messages,
+				"new_photos_limit": subscription.monthly_photos
+			}
 		
 		else:
 			logger.error(f"[YOOKASSA WEBHOOK] Invalid payment data: type={payment_type}, plan={plan}, package={package_id}")

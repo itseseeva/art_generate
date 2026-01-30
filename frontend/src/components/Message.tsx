@@ -1073,10 +1073,12 @@ const MessageComponent: React.FC<MessageProps> = ({
   }, []);
 
   // Проверяем, добавлено ли фото уже в альбом при загрузке компонента
+  // Только для владельцев персонажа - остальным эта проверка не нужна
   useEffect(() => {
     const checkIfPhotoInAlbum = async () => {
       const hasValidImageUrl = message.imageUrl && message.imageUrl.trim() !== '' && message.imageUrl !== 'null' && message.imageUrl !== 'undefined';
-      if (!hasValidImageUrl || !characterName || !isAuthenticated || !onAddToPaidAlbum) {
+      // Добавляем проверку isCharacterOwner - только владельцы могут добавлять фото в альбом
+      if (!hasValidImageUrl || !characterName || !isAuthenticated || !onAddToPaidAlbum || !isCharacterOwner) {
         return;
       }
 
@@ -1139,7 +1141,7 @@ const MessageComponent: React.FC<MessageProps> = ({
     };
 
     checkIfPhotoInAlbum();
-  }, [message.imageUrl, characterName, isAuthenticated, onAddToPaidAlbum, normalizeUrl]);
+  }, [message.imageUrl, characterName, isAuthenticated, onAddToPaidAlbum, isCharacterOwner, normalizeUrl]);
 
   const handleAddToPaidAlbumClick = async (e: React.MouseEvent) => {
     e.stopPropagation();

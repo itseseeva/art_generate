@@ -410,7 +410,15 @@ export const ShopPage: React.FC<any> = ({
   userInfo: propUserInfo,
   onProfile
 }) => {
-  const [viewMode, setViewMode] = useState<'subscription' | 'credits'>('subscription');
+  const [viewMode, setViewMode] = useState<'subscription' | 'credits'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      if (tab === 'credits') return 'credits';
+      if (tab === 'subscription') return 'subscription';
+    }
+    return 'subscription';
+  });
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('3_months');
   const [stats, setStats] = useState<SubscriptionStats | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(propIsAuthenticated || false);
@@ -809,10 +817,10 @@ export const ShopPage: React.FC<any> = ({
 
             <FeaturesList>
               <FeatureItem><FiCheck style={{ color: '#888' }} /> 100 кредитов</FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#888' }} /> Ограничение сообщений: 10</FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#888' }} /> 5 генераций фото</FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#888' }} /> Доступ ко всем персонажам</FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#888' }} /> Возможность создать своих персонажей</FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#888' }} /> Премиум модель с ограничением на 20 сообщений</FeatureItem>
             </FeaturesList>
 
             <CheckoutButton

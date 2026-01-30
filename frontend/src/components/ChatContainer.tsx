@@ -22,6 +22,7 @@ import { API_CONFIG } from '../config/api';
 import { ModelSelectorModal } from './ModelSelectorModal';
 import { ModelAccessDeniedModal } from './ModelAccessDeniedModal';
 import { generationTracker } from '../utils/generationTracker';
+import { BoosterOfferModal } from './BoosterOfferModal';
 
 const MobileAlbumButtonsContainer = styled.div`
   display: none;
@@ -1042,6 +1043,45 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const [characterPhotos, setCharacterPhotos] = useState<string[]>([]);
   const [isCharacterFavorite, setIsCharacterFavorite] = useState<boolean>(false);
   const [isModelSelectorOpen, setIsModelSelectorOpen] = useState(false);
+  const [isBoosterOfferOpen, setIsBoosterOfferOpen] = useState(false);
+  const [boosterLimitType, setBoosterLimitType] = useState<'messages' | 'photos'>('messages');
+  const SUBSCRIPTION_STATS_KEY = 'chat_subscription_stats';
+
+  const [subscriptionStats, setSubscriptionStatsState] = useState<{
+    monthly_messages?: number;
+    used_messages?: number;
+    monthly_photos?: number;
+    used_photos?: number;
+  } | null>(() => {
+    try {
+      const s = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(SUBSCRIPTION_STATS_KEY) : null;
+      const parsed = s ? JSON.parse(s) : null;
+      console.log('[SUBSCRIPTION_INIT] Загружены данные из sessionStorage:', parsed);
+      return parsed;
+    } catch {
+      console.log('[SUBSCRIPTION_INIT] Ошибка чтения из sessionStorage');
+      return null;
+    }
+  });
+
+  const setSubscriptionStats = useCallback((update: React.SetStateAction<typeof subscriptionStats>) => {
+    setSubscriptionStatsState(prev => {
+      const next = typeof update === 'function' ? (update as (p: typeof prev) => typeof prev)(prev) : update;
+      console.log('[SUBSCRIPTION_UPDATE] Обновление stats:', { prev, next });
+      try {
+        if (next) {
+          sessionStorage.setItem(SUBSCRIPTION_STATS_KEY, JSON.stringify(next));
+          console.log('[SUBSCRIPTION_UPDATE] Сохранено в sessionStorage:', next);
+        } else {
+          sessionStorage.removeItem(SUBSCRIPTION_STATS_KEY);
+          console.log('[SUBSCRIPTION_UPDATE] Удалено из sessionStorage');
+        }
+      } catch (e) {
+        console.error('[SUBSCRIPTION_UPDATE] Ошибка записи в sessionStorage:', e);
+      }
+      return next;
+    });
+  }, []);
 
   const [selectedChatModel, setSelectedChatModel] = useState<string>(() => {
     const saved = localStorage.getItem('selectedChatModel');
@@ -1076,11 +1116,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     localStorage.setItem('targetLanguage', targetLanguage);
   }, [targetLanguage]);
 
-  // Загружаем тип подписки из API
+  // Загружаем статистику подписки и тип подписки при авторизации и изменении баланса
   useEffect(() => {
-    const loadSubscriptionType = async () => {
+    const loadSubscriptionData = async () => {
       if (!isAuthenticated) {
         setFetchedSubscriptionType('free');
+        setSubscriptionStats(null);
         return;
       }
 
@@ -1088,6 +1129,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         const token = authManager.getToken();
         if (!token) {
           setFetchedSubscriptionType('free');
+          setSubscriptionStats(null);
           return;
         }
 
@@ -1099,18 +1141,43 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
         if (response.ok) {
           const statsData = await response.json();
+          console.log('[SUBSCRIPTION_FETCH] Получены данные с бэкенда:', statsData);
           const subType = statsData?.subscription_type || 'free';
           setFetchedSubscriptionType(subType);
+          
+          // Мерджим с существующими данными, используя Math.max для used полей
+          setSubscriptionStats((prev) => {
+            if (!prev) {
+              console.log('[SUBSCRIPTION_FETCH] Нет предыдущих данных, используем данные с сервера');
+              return statsData;
+            }
+            const prevUsedMessages = prev.used_messages ?? 0;
+            const prevUsedPhotos = prev.used_photos ?? 0;
+            const serverUsedMessages = statsData.used_messages ?? 0;
+            const serverUsedPhotos = statsData.used_photos ?? 0;
+            const merged = {
+              ...statsData,
+              used_messages: Math.max(serverUsedMessages, prevUsedMessages),
+              used_photos: Math.max(serverUsedPhotos, prevUsedPhotos)
+            };
+            console.log('[SUBSCRIPTION_FETCH] Мердж данных:', { 
+              prev: { used_messages: prevUsedMessages, used_photos: prevUsedPhotos },
+              server: { used_messages: serverUsedMessages, used_photos: serverUsedPhotos },
+              result: { used_messages: merged.used_messages, used_photos: merged.used_photos }
+            });
+            return merged;
+          });
         } else {
+          console.log('[SUBSCRIPTION_FETCH] Ответ не OK, статус:', response.status);
           setFetchedSubscriptionType('free');
         }
       } catch (error) {
-
+        console.error('Ошибка загрузки статистики подписки:', error);
         setFetchedSubscriptionType('free');
       }
     };
 
-    loadSubscriptionType();
+    loadSubscriptionData();
   }, [isAuthenticated, balanceRefreshTrigger]);
 
   // Используем переданный subscriptionType или загруженный из API
@@ -1288,6 +1355,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       setBalanceRefreshTrigger(prev => prev + 1);
       // Диспатчим событие обновления баланса
       window.dispatchEvent(new Event('balance-update'));
+      // Обновляем статистику подписки
+      await loadSubscriptionStats();
     }
     notifyUsageUpdate();
     if (currentCharacter?.raw?.name || currentCharacter?.name) {
@@ -1544,6 +1613,49 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     };
   }, []);
 
+  const loadSubscriptionStats = async () => {
+    try {
+      const token = authManager.getToken();
+      if (!token) {
+        console.log('[LOAD_STATS] Нет токена, выход');
+        return;
+      }
+
+      console.log('[LOAD_STATS] Запрос к /api/v1/profit/stats/');
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/profit/stats/`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const stats = await response.json();
+        console.log('[LOAD_STATS] Получены данные:', stats);
+        setSubscriptionStats((prev) => {
+          if (!prev) {
+            console.log('[LOAD_STATS] Нет предыдущих данных, используем сервер');
+            return stats;
+          }
+          const prevUsedMessages = prev.used_messages ?? 0;
+          const prevUsedPhotos = prev.used_photos ?? 0;
+          const serverUsedMessages = stats.used_messages ?? 0;
+          const serverUsedPhotos = stats.used_photos ?? 0;
+          const merged = {
+            ...stats,
+            used_messages: Math.max(serverUsedMessages, prevUsedMessages),
+            used_photos: Math.max(serverUsedPhotos, prevUsedPhotos)
+          };
+          console.log('[LOAD_STATS] Мердж:', { prev: prevUsedMessages, server: serverUsedMessages, result: merged.used_messages });
+          return merged;
+        });
+      } else {
+        console.log('[LOAD_STATS] Ответ не OK, статус:', response.status);
+      }
+    } catch (error) {
+      console.error('[LOAD_STATS] Ошибка загрузки статистики подписки:', error);
+    }
+  };
+
   const checkAuth = async (): Promise<UserInfo | null> => {
     try {
       const token = authManager.getToken();
@@ -1551,6 +1663,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         // Нет токена - пользователь не авторизован
         setIsAuthenticated(false);
         setUserInfo(null);
+        setSubscriptionStats(null);
         return null;
       }
 
@@ -1571,12 +1684,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         };
         setUserInfo(info);
         setIsAuthenticated(true);
+        
+        // Загружаем статистику подписки
+        await loadSubscriptionStats();
+        
         return info;
       } else {
         // Токен недействителен
         authManager.clearTokens();
         setIsAuthenticated(false);
         setUserInfo(null);
+        setSubscriptionStats(null);
         return null;
       }
     } catch (error) {
@@ -1587,6 +1705,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       authManager.clearTokens();
       setIsAuthenticated(false);
       setUserInfo(null);
+      setSubscriptionStats(null);
       return null;
     }
   };
@@ -2062,6 +2181,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
             }
 
+            // Обновляем счётчики после успешной генерации
+            await loadSubscriptionStats();
             break;
           }
         } else if (statusData.status === 'FAILURE' || statusData.status === 'ERROR') {
@@ -2078,6 +2199,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             return newSet;
           });
           generationStartTimesRef.current.delete(messageId);
+          await loadSubscriptionStats();
           return;
         }
 
@@ -2155,6 +2277,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       return;
     }
 
+    // Проверяем лимиты для FREE пользователей: модалка только когда лимит реально 0
+    if (normalizedSubscriptionType === 'free' && subscriptionStats) {
+      const photosRemaining = Math.max(0, (subscriptionStats.monthly_photos ?? 5) - (subscriptionStats.used_photos ?? 0));
+      
+      if (photosRemaining === 0) {
+        setBoosterLimitType('photos');
+        setIsBoosterOfferOpen(true);
+        return;
+      }
+    }
+
     // Промпт для генерации фото не должен попадать в чат - это только для генерации изображения
     // Создаем только сообщение ассистента с прогрессом генерации
 
@@ -2170,6 +2303,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
     // Добавляем генерацию в очередь активных
     setActiveGenerations(prev => new Set(prev).add(assistantMessageId));
+
+    // Оптимистичное обновление счётчика генераций для FREE
+    if (normalizedSubscriptionType === 'free') {
+      setSubscriptionStats(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          used_photos: (prev.used_photos ?? 0) + 1
+        };
+      });
+    }
 
     // УБРАН ФЕЙКОВЫЙ ПРОГРЕСС - используем только реальный из RunPod API
     setIsLoading(true);
@@ -2502,11 +2646,25 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       generationFailed = true;
       stopPlaceholderProgress(assistantMessageId);
       const errorMessage = error instanceof Error ? error.message : 'Ошибка генерации изображения';
-      setError(errorMessage);
+      const isPhotoLimit = /лимит генераций|лимита подписки для генерации|недостаточно монет для генерации/i.test(errorMessage);
+      if (isPhotoLimit) {
+        setBoosterLimitType('photos');
+        setIsBoosterOfferOpen(true);
+        setError(null);
+      } else {
+        setError(errorMessage);
+      }
       setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
 
-      // Очищаем время начала генерации при ошибке
       generationStartTimesRef.current.delete(assistantMessageId);
+
+      if (normalizedSubscriptionType === 'free') {
+        setSubscriptionStats(prev => {
+          if (!prev) return prev;
+          const current = prev.used_photos ?? 0;
+          return { ...prev, used_photos: Math.max(0, current - 1) };
+        });
+      }
     } finally {
       // Удаляем генерацию из очереди активных
       setActiveGenerations(prev => {
@@ -2538,6 +2696,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       if (!userInfo) {
         setAuthMode('login');
         setIsAuthModalOpen(true);
+        return;
+      }
+    }
+
+    // Проверяем лимиты для FREE пользователей: модалка только когда лимит реально 0
+    if (normalizedSubscriptionType === 'free' && subscriptionStats) {
+      const messagesRemaining = Math.max(0, (subscriptionStats.monthly_messages ?? 10) - (subscriptionStats.used_messages ?? 0));
+      
+      if (messagesRemaining === 0) {
+        setBoosterLimitType('messages');
+        setIsBoosterOfferOpen(true);
         return;
       }
     }
@@ -2638,6 +2807,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         requestBody.model = selectedChatModel;
       }
 
+      // Оптимистичное обновление счётчиков для FREE: число меняется сразу при действии
+      if (normalizedSubscriptionType === 'free') {
+        setSubscriptionStats(prev => {
+          if (!prev) return prev;
+          const next = { ...prev };
+          if (originalMessage.trim()) next.used_messages = (next.used_messages ?? 0) + 1;
+          if (generateImage) next.used_photos = (next.used_photos ?? 0) + 1;
+          return next;
+        });
+      }
+
       const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
         method: 'POST',
         headers,
@@ -2664,15 +2844,23 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
         // Обработка 403 - недостаточно ресурсов
         if (response.status === 403) {
-          const errorData = await response.json().catch(() => ({ detail: 'Недостаточно кредитов подписки или монет для отправки сообщения! Нужно 2 кредита или 2 монеты.' }));
-          setError(errorData.detail || 'Недостаточно кредитов подписки или монет для отправки сообщения! Нужно 2 кредита или 2 монеты.');
-          // Удаляем сообщения пользователя (если было) и ассистента
+          const errorData = await response.json().catch(() => ({ detail: '' }));
+          const detail = (errorData.detail || '').toString();
+          const isMessageLimit = /лимит сообщений исчерпан/i.test(detail);
+          const isPhotoLimit = /лимит генераций|лимита подписки для генерации/i.test(detail);
+
+          if (isMessageLimit || isPhotoLimit) {
+            setBoosterLimitType(isPhotoLimit ? 'photos' : 'messages');
+            setIsBoosterOfferOpen(true);
+            setError(null);
+          } else {
+            setError(detail || 'Недостаточно кредитов подписки или монет для отправки сообщения! Нужно 2 кредита или 2 монеты.');
+            await refreshUserStats();
+          }
           setMessages(prev => prev.filter(msg =>
             (userMessage ? msg.id !== userMessage.id : true) && msg.id !== assistantMessageId
           ));
           setIsLoading(false);
-          // Обновляем баланс пользователя
-          await refreshUserStats();
           return;
         }
 
@@ -2699,7 +2887,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       }
       if (contentType && contentType.includes('text/event-stream')) {
         // Обрабатываем SSE поток
-        // ВАЖНО: Сохраняем generateImage в локальную константу для замыкания
+        // Сразу передаём клон потока трекеру — он получит task_id даже если пользователь выйдет из чата
+        if (generateImage) {
+          const characterName = currentCharacter?.raw?.name || currentCharacter?.name;
+          const characterId = currentCharacter?.raw?.id || currentCharacter?.id;
+          generationTracker.trackStreamForTaskId(response.clone(), {
+            characterName: characterName || undefined,
+            characterId: characterId || undefined,
+            token: authToken || undefined,
+            messageId: assistantMessageId
+          });
+        }
         const isImageGeneration = generateImage;
         const reader = response.body?.getReader();
         const decoder = new TextDecoder();
@@ -2903,15 +3101,25 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         }
       }
 
-      // Обновляем информацию о пользователе после отправки сообщения
-      if (isAuthenticated) {
-        await refreshUserStats();
-      }
+      // После успешной отправки не вызываем refreshUserStats() — счётчики уже обновлены
+      // оптимистично, а повторный запрос к /api/v1/profit/stats/ часто возвращает старые
+      // данные (кэш/реплика) и «откатывает» отображение. При ошибке откат делаем в catch.
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Ошибка отправки сообщения';
+      const isMessageLimit = /лимит сообщений исчерпан/i.test(errorMessage);
+      const isPhotoLimit = /лимит генераций|лимита подписки для генерации/i.test(errorMessage);
 
-      setError(error instanceof Error ? error.message : 'Ошибка отправки сообщения');
+      if (isMessageLimit || isPhotoLimit) {
+        setBoosterLimitType(isPhotoLimit ? 'photos' : 'messages');
+        setIsBoosterOfferOpen(true);
+        setError(null);
+      } else {
+        setError(errorMessage);
+        if (normalizedSubscriptionType === 'free') {
+          await loadSubscriptionStats();
+        }
+      }
 
-      // Удаляем сообщение ассистента при ошибке
       setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
 
       // Если была генерация изображения, удаляем из очереди
@@ -3935,6 +4143,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           onBalance={() => alert('Баланс пользователя')}
           refreshTrigger={balanceRefreshTrigger}
           currentCharacterId={currentCharacter?.id}
+          isOnChatPage={true}
         />
 
         {/* Кнопки альбома для мобильных устройств - под хедером */}
@@ -4030,6 +4239,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               onLanguageChange={handleLanguageChange}
               isPremium={normalizedSubscriptionType === 'premium'}
               onSelectModel={() => setIsModelSelectorOpen(true)}
+              messagesRemaining={
+                normalizedSubscriptionType === 'free'
+                  ? Math.max(0, (subscriptionStats?.monthly_messages ?? 10) - (subscriptionStats?.used_messages ?? 0))
+                  : undefined
+              }
+              photosRemaining={
+                normalizedSubscriptionType === 'free'
+                  ? Math.max(0, (subscriptionStats?.monthly_photos ?? 5) - (subscriptionStats?.used_photos ?? 0))
+                  : undefined
+              }
+              subscriptionType={normalizedSubscriptionType}
               onGenerateImage={() => {
                 // Открываем модалку с предзаполненным промптом из данных персонажа (проверяем несколько источников)
                 const characterForData = currentCharacter || initialCharacter;
@@ -4805,6 +5025,19 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           onOpenPremiumModal={() => setIsUpgradeModalOpen(true)}
         />
       )}
+
+      <BoosterOfferModal
+        isOpen={isBoosterOfferOpen}
+        onClose={() => setIsBoosterOfferOpen(false)}
+        limitType={boosterLimitType}
+        variant={
+          subscriptionStats &&
+          ((subscriptionStats.monthly_messages ?? 10) > 10 ||
+            (subscriptionStats.monthly_photos ?? 5) > 5)
+            ? 'out_of_limits'
+            : 'booster'
+        }
+      />
 
 
     </Container>

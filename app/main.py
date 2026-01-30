@@ -2262,10 +2262,24 @@ async def spend_message_resources_async(user_id: int, use_credits: bool) -> None
                     logger.info(f"[STREAM] Списаны кредиты подписки за сообщение пользователя {user_id}")
             else:
                 from app.services.coins_service import CoinsService
+                from app.models.subscription import SubscriptionType
+                from app.utils.redis_cache import cache_delete, key_subscription, key_subscription_stats
+                from app.services.profit_activate import emit_profile_update
                 coins_service = CoinsService(db)
                 coins_spent = await coins_service.spend_coins_for_message(user_id, commit=False)
                 if coins_spent:
-                    # Записываем историю баланса
+                    subscription_service = ProfitActivateService(db)
+                    sub = await subscription_service.get_user_subscription(user_id)
+                    if (
+                        sub
+                        and sub.subscription_type == SubscriptionType.FREE
+                        and getattr(sub, "monthly_messages", 0) > 0
+                    ):
+                        sub.used_messages = (getattr(sub, "used_messages", 0) or 0) + 1
+                        await db.flush()
+                        await cache_delete(key_subscription(user_id))
+                        await cache_delete(key_subscription_stats(user_id))
+                        await emit_profile_update(user_id, db)
                     try:
                         from app.utils.balance_history import record_balance_change
                         await record_balance_change(
@@ -2315,44 +2329,58 @@ async def spend_photo_resources(user_id: int) -> None:
                     )
 
         try:
-            # Списываем кредиты с баланса пользователя
-            coins_spent = await coins_service.spend_coins(user_id, 10, commit=False)
-            if not coins_spent:
-                raise HTTPException(
-                    status_code=403,
-                    detail="Не удалось списать монеты за генерацию изображения."
-                )
-
-            # Для FREE списываем лимит подписки, для STANDARD/PREMIUM - ничего не делаем
-            if subscription and subscription.subscription_type.value == "free":
+            # Списание ресурсов зависит от типа подписки
+            subscription_type = subscription.subscription_type.value if subscription else "free"
+            
+            # Для FREE: списываем только лимит генераций, БЕЗ монет
+            if subscription_type == "free":
                 photo_spent = await subscription_service.use_photo_generation(user_id, commit=False)
                 if not photo_spent:
                     raise HTTPException(
                         status_code=403,
-                        detail="Недостаточно лимита подписки для генерации изображения."
+                        detail="Лимит генераций фото исчерпан (5). Оформите подписку для продолжения генерации."
                     )
+                logger.info(f"[FREE] Списан лимит генераций для user_id={user_id} (монеты НЕ списаны)")
             
-            # Записываем историю баланса
-            try:
-                from app.utils.balance_history import record_balance_change
-                await record_balance_change(
-                    db=db,
-                    user_id=user_id,
-                    amount=-10,
-                    reason="Генерация изображения через API"
-                )
-            except Exception as e:
-                logger.warning(f"Не удалось записать историю баланса: {e}")
+            # Для STANDARD/PREMIUM: списываем монеты (10 кредитов)
+            else:
+                coins_spent = await coins_service.spend_coins(user_id, 10, commit=False)
+                if not coins_spent:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Недостаточно монет для генерации изображения (требуется 10 монет)."
+                    )
+                
+                # Записываем историю баланса
+                try:
+                    from app.utils.balance_history import record_balance_change
+                    await record_balance_change(
+                        db=db,
+                        user_id=user_id,
+                        amount=-10,
+                        reason="Генерация изображения через API"
+                    )
+                except Exception as e:
+                    logger.warning(f"Не удалось записать историю баланса: {e}")
+                
+                logger.info(f"[{subscription_type.upper()}] Списано 10 монет для user_id={user_id}")
 
             await db.commit()
+            
+            # Инвалидируем кэш stats после изменения used_photos или coins
+            from app.utils.redis_cache import cache_delete, key_subscription, key_subscription_stats
+            await cache_delete(key_subscription(user_id))
+            await cache_delete(key_subscription_stats(user_id))
+            
             await emit_profile_update(user_id, db)
 
-            coins_left = await coins_service.get_user_coins(user_id)
-            logger.info(
-                "[OK] Потрачено 10 монет за генерацию фото для пользователя %s. Осталось монет: %s",
-                user_id,
-                coins_left,
-            )
+            if subscription_type != "free":
+                coins_left = await coins_service.get_user_coins(user_id)
+                logger.info(
+                    "[OK] Потрачено 10 монет за генерацию фото для пользователя %s. Осталось монет: %s",
+                    user_id,
+                    coins_left,
+                )
         except HTTPException as exc:
             await db.rollback()
             raise exc
@@ -2531,6 +2559,18 @@ async def chat_endpoint(
                         subscription.monthly_credits if subscription else 0,
                     )
                 else:
+                    # FREE: при исчерпании лимита 10 сообщений не разрешаем fallback на монеты
+                    from app.models.subscription import SubscriptionType as SubType
+                    if (
+                        subscription
+                        and subscription.subscription_type == SubType.FREE
+                        and getattr(subscription, "monthly_messages", 0) > 0
+                        and getattr(subscription, "used_messages", 0) >= getattr(subscription, "monthly_messages", 0)
+                    ):
+                        raise HTTPException(
+                            status_code=403,
+                            detail="Лимит сообщений исчерпан (10). Оформите подписку для продолжения общения.",
+                        )
                     # Если кредиты подписки закончились, проверяем монеты (fallback)
                     from app.services.coins_service import CoinsService
                     from app.models.user import Users
@@ -3192,11 +3232,25 @@ async def chat_endpoint(
                 else:
                     # Списываем монеты (fallback)
                     from app.services.coins_service import CoinsService
+                    from app.models.subscription import SubscriptionType
+                    from app.utils.redis_cache import cache_delete, key_subscription, key_subscription_stats
+                    from app.services.profit_activate import emit_profile_update
                     coins_service = CoinsService(db)
                     coins_spent = await coins_service.spend_coins_for_message(coins_user_id, commit=False)
                     
                     if coins_spent:
-                        # Записываем историю баланса
+                        sub_svc = ProfitActivateService(db)
+                        sub = await sub_svc.get_user_subscription(coins_user_id)
+                        if (
+                            sub
+                            and sub.subscription_type == SubscriptionType.FREE
+                            and getattr(sub, "monthly_messages", 0) > 0
+                        ):
+                            sub.used_messages = (getattr(sub, "used_messages", 0) or 0) + 1
+                            await db.flush()
+                            await cache_delete(key_subscription(coins_user_id))
+                            await cache_delete(key_subscription_stats(coins_user_id))
+                            await emit_profile_update(coins_user_id, db)
                         try:
                             from app.utils.balance_history import record_balance_change
                             await record_balance_change(
@@ -4256,30 +4310,55 @@ async def generate_image(
                 priority=task_priority
             )
                     
-            # ВАЖНО: Тратим монеты СРАЗУ при запуске задачи
+            # ВАЖНО: Тратим ресурсы СРАЗУ при запуске задачи (в зависимости от типа подписки)
             if user_id:
                 from app.services.coins_service import CoinsService
+                from app.services.profit_activate import ProfitActivateService
                 from app.database.db import async_session_maker
                 from app.chat_bot.api.character_endpoints import PHOTO_GENERATION_COST
                 
                 async with async_session_maker() as db:
-                    coins_service = CoinsService(db)
-                    await coins_service.spend_coins(user_id, PHOTO_GENERATION_COST, commit=False)
+                    subscription_service = ProfitActivateService(db)
+                    subscription = await subscription_service.get_user_subscription(user_id)
+                    subscription_type_value = subscription.subscription_type.value if subscription else "free"
                     
-                    # Записываем историю баланса
-                    try:
-                        from app.utils.balance_history import record_balance_change
-                        character_name_for_history = character_data_for_history.get("name", "неизвестный") if character_data_for_history else "неизвестный"
-                        await record_balance_change(
-                            db=db,
-                            user_id=user_id,
-                            amount=-PHOTO_GENERATION_COST,
-                            reason=f"Генерация фото для персонажа '{character_name_for_history}' (Celery)"
-                        )
-                    except Exception as e:
-                        logger.warning(f"Не удалось записать историю баланса: {e}")
+                    # Для FREE: списываем только лимит генераций, БЕЗ монет
+                    if subscription_type_value == "free":
+                        photo_spent = await subscription_service.use_photo_generation(user_id, commit=False)
+                        if not photo_spent:
+                            logger.error(f"[FREE] Недостаточно лимита генераций для пользователя {user_id}")
+                            raise HTTPException(
+                                status_code=403,
+                                detail="Лимит генераций фото исчерпан (5). Оформите подписку для продолжения генерации."
+                            )
+                        logger.info(f"[FREE] Списан лимит генераций для user_id={user_id} (монеты НЕ списаны)")
+                    
+                    # Для STANDARD/PREMIUM: списываем монеты
+                    else:
+                        coins_service = CoinsService(db)
+                        await coins_service.spend_coins(user_id, PHOTO_GENERATION_COST, commit=False)
+                        
+                        # Записываем историю баланса
+                        try:
+                            from app.utils.balance_history import record_balance_change
+                            character_name_for_history = character_data_for_history.get("name", "неизвестный") if character_data_for_history else "неизвестный"
+                            await record_balance_change(
+                                db=db,
+                                user_id=user_id,
+                                amount=-PHOTO_GENERATION_COST,
+                                reason=f"Генерация фото для персонажа '{character_name_for_history}' (Celery)"
+                            )
+                        except Exception as e:
+                            logger.warning(f"Не удалось записать историю баланса: {e}")
+                        
+                        logger.info(f"[{subscription_type_value.upper()}] Списано {PHOTO_GENERATION_COST} монет для user_id={user_id}")
                     
                     await db.commit()
+                    
+                    # Инвалидируем кэш stats после изменения used_photos или coins
+                    from app.utils.redis_cache import cache_delete, key_subscription, key_subscription_stats
+                    await cache_delete(key_subscription(user_id))
+                    await cache_delete(key_subscription_stats(user_id))
                     
             
             # ВАЖНО: Создаем записи в ChatHistory СРАЗУ, чтобы промпт был виден

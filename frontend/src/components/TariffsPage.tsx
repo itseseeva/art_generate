@@ -683,14 +683,15 @@ export const TariffsPage: React.FC = () => {
             <Price>Бесплатно</Price>
             <FeatureList>
               <Feature>100 кредитов</Feature>
+              <Feature>10 сообщений</Feature>
               <Feature>5 генераций фото</Feature>
               <Feature>Доступ ко всем персонажам</Feature>
               <Feature>Возможность создать своих персонажей</Feature>
-              <Feature>Премиум модель с ограничением на 20 сообщений</Feature>
             </FeatureList>
             <ActivateButton disabled>
               Доступна при регистрации
             </ActivateButton>
+
           </Card>
 
           <Card $highlight>

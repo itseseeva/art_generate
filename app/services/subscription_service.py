@@ -109,7 +109,8 @@ class SubscriptionService:
             print(f"[ERROR] DEBUG: Неподдерживаемый тип подписки: {subscription_type}")
             raise ValueError(f"Неподдерживаемый тип подписки: {subscription_type}")
         
-        print(f"[OK] DEBUG: Параметры подписки - кредиты: {monthly_credits}, фото: {monthly_photos}, длина: {max_message_length}")
+        monthly_messages = 10 if normalized_enum == SubscriptionType.FREE else 0
+        print(f"[OK] DEBUG: Параметры подписки - кредиты: {monthly_credits}, фото: {monthly_photos}, сообщения: {monthly_messages}, длина: {max_message_length}")
         
         # Проверяем, есть ли уже подписка
         existing_subscription = await self.get_user_subscription(user_id)
@@ -138,8 +139,10 @@ class SubscriptionService:
             existing_subscription.monthly_photos = total_photos_available
             
             existing_subscription.max_message_length = max_message_length
+            existing_subscription.monthly_messages = monthly_messages
             existing_subscription.used_credits = 0  # Сбрасываем, т.к. остатки идут на баланс
             existing_subscription.used_photos = 0  # Сбрасываем, получаем полный новый лимит + остатки
+            existing_subscription.used_messages = 0
             existing_subscription.activated_at = datetime.utcnow()
             existing_subscription.expires_at = datetime.utcnow() + timedelta(days=30)
             existing_subscription.last_reset_at = datetime.utcnow()
@@ -168,9 +171,11 @@ class SubscriptionService:
             status=SubscriptionStatus.ACTIVE,
             monthly_credits=monthly_credits,
             monthly_photos=monthly_photos,
+            monthly_messages=monthly_messages,
             max_message_length=max_message_length,
             used_credits=0,
             used_photos=0,
+            used_messages=0,
             activated_at=datetime.utcnow(),
             expires_at=datetime.utcnow() + timedelta(days=30),
             last_reset_at=datetime.utcnow()
