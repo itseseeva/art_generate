@@ -69,8 +69,30 @@ def get_model_for_subscription(subscription_type: Optional[SubscriptionType]) ->
     Returns:
         Название модели для использования
     """
-    # Все пользователи получают DeepSeek Chat V3
-    return "deepseek/deepseek-chat-v3-0324"
+    # Импортируем здесь, чтобы избежать циклических импортов
+    import asyncio
+    from app.utils.model_manager import get_active_model
+    
+    # Получаем активную модель из Redis
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # Если event loop уже запущен, создаем задачу
+            # Это синхронная функция, поэтому используем run_until_complete с новым loop
+            new_loop = asyncio.new_event_loop()
+            try:
+                model = new_loop.run_until_complete(get_active_model())
+            finally:
+                new_loop.close()
+        else:
+            model = loop.run_until_complete(get_active_model())
+        return model
+    except Exception as e:
+        logger.error(f"[OPENROUTER] Ошибка при получении активной модели: {e}")
+        # Fallback на primary модель при ошибке
+        from app.utils.model_manager import PRIMARY_MODEL
+        return PRIMARY_MODEL
+
 
 
 class OpenRouterService:
@@ -688,6 +710,15 @@ class OpenRouterService:
                                     if is_rate_limit:
                                         # Логируем кратко и отправляем уведомление в Telegram
                                         logger.warning(f"[OPENROUTER STREAM] ⚠️ Rate limit для модели {model_to_use}")
+                                        
+                                        # АВТОМАТИЧЕСКОЕ ПЕРЕКЛЮЧЕНИЕ НА FALLBACK МОДЕЛЬ
+                                        from app.utils.model_manager import PRIMARY_MODEL, switch_to_fallback
+                                        if model_to_use == PRIMARY_MODEL:
+                                            try:
+                                                await switch_to_fallback()
+                                                logger.warning(f"[OPENROUTER STREAM] Автоматически переключено на fallback модель")
+                                            except Exception as switch_error:
+                                                logger.error(f"[OPENROUTER STREAM] Ошибка переключения на fallback: {switch_error}")
                                         
                                         # Отправляем уведомление в Telegram (ждем выполнения)
                                         alert_message = (

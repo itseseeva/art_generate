@@ -251,6 +251,11 @@ celery_app.conf.update(
             'schedule': crontab(hour=4, minute=0),  # Каждый день в 04:00 UTC
             'options': {'queue': 'low_priority'}
         },
+        'check-primary-model-every-2-hours': {
+            'task': 'app.tasks.periodic_tasks.check_primary_model_availability_task',
+            'schedule': crontab(minute=0, hour='*/2'),  # Каждые 2 часа
+            'options': {'queue': 'low_priority'}
+        },
     },
 )
 

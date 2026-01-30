@@ -362,3 +362,125 @@ def cleanup_old_voices_task(self) -> Dict[str, Any]:
             "success": False, 
             "error": str(e)
         }
+
+
+@celery_app.task(
+    bind=True,
+    base=CallbackTask,
+    name="app.tasks.periodic_tasks.check_primary_model_availability_task"
+)
+def check_primary_model_availability_task(self) -> Dict[str, Any]:
+    """
+    Проверяет доступность primary модели (sao10k/l3-euryale-70b) каждые 2 часа.
+    Если модель доступна и сейчас используется fallback - переключает обратно на primary.
+    
+    Returns:
+        Dict с результатами проверки
+    """
+    try:
+        import asyncio
+        from app.utils.model_manager import (
+            PRIMARY_MODEL, 
+            FALLBACK_MODEL, 
+            is_using_fallback, 
+            switch_to_primary,
+            get_active_model
+        )
+        from app.chat_bot.services.openrouter_service import OpenRouterService
+        
+        async def check_model():
+            # Проверяем текущую активную модель
+            current_model = await get_active_model()
+            logger.info(f"[MODEL_CHECK] Текущая активная модель: {current_model}")
+            
+            # Если уже используется primary модель - ничего не делаем
+            if current_model == PRIMARY_MODEL:
+                logger.info(f"[MODEL_CHECK] Primary модель уже активна, проверка не требуется")
+                return {
+                    "checked": False,
+                    "reason": "Primary модель уже активна",
+                    "current_model": current_model
+                }
+            
+            # Если используется fallback - проверяем доступность primary
+            logger.info(f"[MODEL_CHECK] Используется fallback модель, проверяю доступность {PRIMARY_MODEL}...")
+            
+            # Создаем тестовый запрос к primary модели
+            service = OpenRouterService()
+            try:
+                test_messages = [
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": "Hi"}
+                ]
+                
+                # Делаем короткий тестовый запрос
+                response = await service.generate_text(
+                    messages=test_messages,
+                    max_tokens=10,
+                    model=PRIMARY_MODEL  # Явно указываем primary модель для теста
+                )
+                
+                # Проверяем результат
+                if response and response != "__CONNECTION_ERROR__":
+                    # Модель работает! Переключаемся обратно
+                    logger.info(f"[MODEL_CHECK] ✅ {PRIMARY_MODEL} доступна, переключаюсь обратно")
+                    await switch_to_primary()
+                    return {
+                        "checked": True,
+                        "available": True,
+                        "switched": True,
+                        "model": PRIMARY_MODEL
+                    }
+                else:
+                    # Модель всё ещё недоступна
+                    logger.warning(f"[MODEL_CHECK] ⚠️ {PRIMARY_MODEL} всё ещё недоступна")
+                    return {
+                        "checked": True,
+                        "available": False,
+                        "switched": False,
+                        "model": FALLBACK_MODEL
+                    }
+                    
+            except Exception as e:
+                error_str = str(e).lower()
+                # Проверяем, является ли это rate limit ошибкой
+                if "rate" in error_str or "429" in error_str:
+                    logger.warning(f"[MODEL_CHECK] ⚠️ {PRIMARY_MODEL} всё ещё имеет rate limit")
+                    return {
+                        "checked": True,
+                        "available": False,
+                        "switched": False,
+                        "error": "Rate limit still active",
+                        "model": FALLBACK_MODEL
+                    }
+                else:
+                    logger.error(f"[MODEL_CHECK] Ошибка при проверке модели: {e}")
+                    return {
+                        "checked": True,
+                        "available": False,
+                        "switched": False,
+                        "error": str(e),
+                        "model": FALLBACK_MODEL
+                    }
+            finally:
+                await service.close()
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(check_model())
+        finally:
+            loop.close()
+        
+        logger.info(f"[MODEL_CHECK] Проверка завершена: {result}")
+        return {
+            "success": True,
+            "result": result
+        }
+        
+    except Exception as exc:
+        logger.error(f"[MODEL_CHECK] Критическая ошибка проверки: {exc}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(exc)
+        }
