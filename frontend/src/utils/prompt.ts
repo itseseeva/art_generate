@@ -10,8 +10,11 @@ export type PromptFetchResult = {
   errorMessage: string | null;
 };
 
-const buildPromptEndpoint = (imageUrl: string): string => 
-  `${API_CONFIG.BASE_URL}/api/v1/chat-history/prompt-by-image?image_url=${encodeURIComponent(imageUrl)}`;
+const buildPromptEndpoint = (imageUrl: string, characterName?: string | null): string => {
+  const params = new URLSearchParams({ image_url: imageUrl });
+  if (characterName && characterName.trim()) params.set('character_name', characterName.trim());
+  return `${API_CONFIG.BASE_URL}/api/v1/chat-history/prompt-by-image?${params.toString()}`;
+};
 
 const parsePromptResponse = async (response: Response): Promise<PromptFetchResult> => {
   try {
@@ -50,7 +53,10 @@ const parsePromptResponse = async (response: Response): Promise<PromptFetchResul
   }
 };
 
-export const fetchPromptByImage = async (imageUrl: string): Promise<PromptFetchResult> => {
+export const fetchPromptByImage = async (
+  imageUrl: string,
+  characterName?: string | null
+): Promise<PromptFetchResult> => {
   if (!imageUrl) {
     return {
       hasPrompt: false,
@@ -62,7 +68,7 @@ export const fetchPromptByImage = async (imageUrl: string): Promise<PromptFetchR
     };
   }
 
-  const endpoint = buildPromptEndpoint(imageUrl);
+  const endpoint = buildPromptEndpoint(imageUrl, characterName);
 
   try {
     // Промпт доступен для всех, включая неавторизованных пользователей

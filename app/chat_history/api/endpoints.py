@@ -267,13 +267,16 @@ async def get_history_stats(
 @router.get("/prompt-by-image")
 async def get_prompt_by_image(
     image_url: str,
+    character_name: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user: Optional[Users] = Depends(get_current_user_optional)
 ):
     """Получает промпт для изображения по его URL с кэшированием.
 
     Доступно для всех пользователей, включая неавторизованных.
-    Приоритет: сначала ищем в истории текущего пользователя (если авторизован), затем среди всех пользователей.
+    Приоритет: сначала ищем в истории по URL/идентификатору файла, затем среди всех пользователей.
+    Если передан character_name и по URL ничего не найдено (например, фото с главной из paid_gallery),
+    делаем fallback: возвращаем последний известный промпт для этого персонажа.
     """
     try:
         from app.models.chat_history import ChatHistory
@@ -577,27 +580,69 @@ async def get_prompt_by_image(
             
             return result
 
-        # Дополнительная диагностика: проверяем, есть ли вообще записи для этого пользователя
-        from sqlalchemy.orm import load_only
-        debug_stmt = (
-            select(ChatHistory)
-            .options(load_only(
-                ChatHistory.id,
-                ChatHistory.user_id,
-                ChatHistory.character_name,
-                ChatHistory.session_id,
-                ChatHistory.message_type,
-                ChatHistory.message_content,
-                ChatHistory.image_url,
-                ChatHistory.image_filename,
-                ChatHistory.created_at
-            ))
-            .where(ChatHistory.user_id == user_id)
-            .order_by(ChatHistory.created_at.desc())
-            .limit(10)
-        )
-        debug_result = await db.execute(debug_stmt)
-        debug_records = debug_result.scalars().all()
+        # Fallback для главной страницы: если URL из paid_gallery/static (не совпадает с БД),
+        # и передан character_name — возвращаем последний известный промпт для этого персонажа.
+        if character_name and character_name.strip():
+            is_static_like_url = (
+                "/paid_gallery/" in normalized_url
+                or "/static/photos/" in normalized_url
+            )
+            if is_static_like_url:
+                try:
+                    from app.models.image_generation_history import ImageGenerationHistory
+                    from sqlalchemy import or_
+                    fallback_stmt = (
+                        select(ImageGenerationHistory)
+                        .where(
+                            ImageGenerationHistory.character_name.ilike(character_name.strip()),
+                            ImageGenerationHistory.image_url.is_not(None),
+                            ImageGenerationHistory.image_url != "",
+                            or_(
+                                ImageGenerationHistory.admin_prompt.is_not(None),
+                                ImageGenerationHistory.prompt.is_not(None),
+                            ),
+                        )
+                        .order_by(ImageGenerationHistory.created_at.desc())
+                        .limit(1)
+                    )
+                    fallback_record = (await db.execute(fallback_stmt)).scalars().first()
+                    if fallback_record:
+                        clean_prompt = fallback_record.admin_prompt or fallback_record.prompt
+                        if clean_prompt:
+                            try:
+                                import json
+                                if clean_prompt.strip().startswith("{"):
+                                    data = json.loads(clean_prompt)
+                                    if isinstance(data, dict) and "prompt" in data:
+                                        clean_prompt = data["prompt"]
+                            except Exception:
+                                pass
+                            try:
+                                import re
+                                has_cyrillic = bool(re.search(r"[а-яёА-ЯЁ]", clean_prompt))
+                                if not has_cyrillic:
+                                    from deep_translator import GoogleTranslator
+                                    translator = GoogleTranslator(source="en", target="ru")
+                                    if len(clean_prompt) > 4000:
+                                        parts = clean_prompt.split("\n")
+                                        translated_parts = [translator.translate(p) for p in parts if p.strip()]
+                                        clean_prompt = "\n".join(translated_parts)
+                                    else:
+                                        clean_prompt = translator.translate(clean_prompt)
+                            except (ImportError, Exception) as translate_err:
+                                logger.warning(f"[PROMPT FALLBACK] Ошибка перевода: {translate_err}")
+                            fallback_cache_key = f"{cache_key}|char:{character_name.strip().lower()}"
+                            result = {
+                                "success": True,
+                                "prompt": clean_prompt,
+                                "character_name": fallback_record.character_name,
+                                "generation_time": fallback_record.generation_time,
+                            }
+                            await cache_set(fallback_cache_key, result, ttl_seconds=TTL_IMAGE_METADATA, timeout=0.5)
+                            return result
+                except Exception as fallback_err:
+                    logger.warning(f"[PROMPT FALLBACK] Ошибка fallback по character_name: {fallback_err}")
+
         return {
             "success": False,
             "prompt": None,

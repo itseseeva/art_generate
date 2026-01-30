@@ -2039,8 +2039,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     }
   };
 
-  // Функция для загрузки промпта для текущего фото
-  const loadPromptForPhoto = async (photoUrl: string) => {
+  // Функция для загрузки промпта для текущего фото (characterName — для fallback на главной при URL из paid_gallery/static)
+  const loadPromptForPhoto = async (photoUrl: string, characterName?: string | null) => {
     if (!photoUrl) {
       setPromptError('URL изображения отсутствует');
       return;
@@ -2051,7 +2051,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     setPromptText(null);
 
     try {
-      const result = await fetchPromptByImage(photoUrl);
+      const result = await fetchPromptByImage(photoUrl, characterName);
       if (result.hasPrompt && result.prompt) {
         setPromptText(result.prompt);
       } else {
@@ -2076,7 +2076,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     setModalPhotoUrl(currentPhotoUrl);
     setIsPromptModalOpen(true);
     setIsPromptVisible(true);
-    await loadPromptForPhoto(currentPhotoUrl);
+    await loadPromptForPhoto(currentPhotoUrl, character?.name);
   };
 
   // Обработчик закрытия модального окна промпта
