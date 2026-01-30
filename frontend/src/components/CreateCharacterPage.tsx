@@ -7747,6 +7747,89 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                   </div>
                                 )}
                               </div>
+
+                              {/* Редактирование названия */}
+                              <div style={{ marginBottom: '20px' }}>
+                                <label style={{ display: 'block', color: '#e4e4e7', marginBottom: '8px', fontSize: '14px' }}>
+                                  Название голоса
+                                </label>
+                                <input
+                                  type="text"
+                                  value={editedVoiceNames[editingVoice.id] || editingVoice.name}
+                                  onChange={(e) => {
+                                    setEditedVoiceNames(prev => ({
+                                      ...prev,
+                                      [editingVoice.id]: e.target.value
+                                    }));
+                                  }}
+                                  style={{
+                                    width: '100%',
+                                    padding: '10px',
+                                    background: 'rgba(10, 10, 10, 0.8)',
+                                    border: '1px solid rgba(139, 92, 246, 0.6)',
+                                    borderRadius: '6px',
+                                    color: '#e4e4e7',
+                                    fontSize: '14px',
+                                    outline: 'none',
+                                    marginBottom: '8px'
+                                  }}
+                                  placeholder="Введите название голоса"
+                                />
+                                <button
+                                  onClick={async () => {
+                                    const newName = editedVoiceNames[editingVoice.id];
+                                    if (editingVoice.user_voice_id && newName && newName !== editingVoice.name) {
+                                      try {
+                                        const formData = new FormData();
+                                        formData.append('name', newName);
+                                        const token = localStorage.getItem('authToken');
+                                        const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${editingVoice.user_voice_id}`, {
+                                          method: 'PATCH',
+                                          headers: {
+                                            'Authorization': `Bearer ${token}`
+                                          },
+                                          body: formData
+                                        });
+
+                                        if (response.ok) {
+                                          const token = localStorage.getItem('authToken');
+                                          const voicesResponse = await fetch('/api/v1/characters/available-voices', {
+                                            headers: {
+                                              'Authorization': `Bearer ${token}`
+                                            }
+                                          });
+                                          if (voicesResponse.ok) {
+                                            const voicesData = await voicesResponse.json();
+                                            setAvailableVoices(voicesData);
+                                          }
+                                          alert('Название голоса сохранено');
+                                        } else {
+                                          const error = await response.json();
+                                          alert('Ошибка изменения названия: ' + (error.detail || 'Неизвестная ошибка'));
+                                        }
+                                      } catch (err) {
+                                        alert('Не удалось изменить название. Проверьте консоль для деталей.');
+                                      }
+                                    }
+                                  }}
+                                  disabled={!editedVoiceNames[editingVoice.id] || editedVoiceNames[editingVoice.id] === editingVoice.name}
+                                  style={{
+                                    width: '100%',
+                                    padding: '8px',
+                                    background: (!editedVoiceNames[editingVoice.id] || editedVoiceNames[editingVoice.id] === editingVoice.name)
+                                      ? 'rgba(60, 60, 60, 0.5)'
+                                      : 'rgba(139, 92, 246, 0.8)',
+                                    border: `1px solid ${(!editedVoiceNames[editingVoice.id] || editedVoiceNames[editingVoice.id] === editingVoice.name) ? 'rgba(60, 60, 60, 0.3)' : 'rgba(139, 92, 246, 0.6)'}`,
+                                    borderRadius: '6px',
+                                    color: (!editedVoiceNames[editingVoice.id] || editedVoiceNames[editingVoice.id] === editingVoice.name) ? '#888' : 'white',
+                                    cursor: (!editedVoiceNames[editingVoice.id] || editedVoiceNames[editingVoice.id] === editingVoice.name) ? 'not-allowed' : 'pointer',
+                                    fontSize: '14px',
+                                    fontWeight: '500'
+                                  }}
+                                >
+                                  Сохранить название
+                                </button>
+                              </div>
                             </div>
                           </div>
                         );

@@ -7793,10 +7793,65 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                         borderRadius: '6px',
                                         color: '#e4e4e7',
                                         fontSize: '14px',
-                                        outline: 'none'
+                                        outline: 'none',
+                                        marginBottom: '8px'
                                       }}
                                       placeholder="Введите название голоса"
                                     />
+                                    <button
+                                      onClick={async () => {
+                                        if (editingVoice.user_voice_id && editedName && editedName !== editingVoice.name) {
+                                          try {
+                                            const formData = new FormData();
+                                            formData.append('name', editedName);
+                                            const token = localStorage.getItem('authToken');
+                                            const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${editingVoice.user_voice_id}`, {
+                                              method: 'PATCH',
+                                              headers: {
+                                                'Authorization': `Bearer ${token}`
+                                              },
+                                              body: formData
+                                            });
+
+                                            if (response.ok) {
+                                              const token = localStorage.getItem('authToken');
+                                              const voicesResponse = await fetch('/api/v1/characters/available-voices', {
+                                                headers: {
+                                                  'Authorization': `Bearer ${token}`
+                                                }
+                                              });
+                                              if (voicesResponse.ok) {
+                                                const voicesData = await voicesResponse.json();
+                                                setAvailableVoices(voicesData);
+                                              }
+                                              // Опционально: показать уведомление об успехе
+                                              alert('Название голоса сохранено');
+                                            } else {
+                                              const error = await response.json();
+                                              alert('Ошибка изменения названия: ' + (error.detail || 'Неизвестная ошибка'));
+                                            }
+                                          } catch (err) {
+                                            alert('Не удалось изменить название. Проверьте консоль для деталей.');
+                                          }
+                                        }
+                                      }}
+                                      disabled={!editedName || editedName === editingVoice.name}
+                                      style={{
+                                        width: '100%',
+                                        padding: '8px',
+                                        background: (!editedName || editedName === editingVoice.name)
+                                          ? 'rgba(60, 60, 60, 0.5)'
+                                          : 'rgba(139, 92, 246, 0.8)',
+                                        border: `1px solid ${(!editedName || editedName === editingVoice.name) ? 'rgba(60, 60, 60, 0.3)' : 'rgba(139, 92, 246, 0.6)'}`,
+                                        borderRadius: '6px',
+                                        color: (!editedName || editedName === editingVoice.name) ? '#888' : 'white',
+                                        cursor: (!editedName || editedName === editingVoice.name) ? 'not-allowed' : 'pointer',
+                                        fontSize: '14px',
+                                        fontWeight: '500'
+                                      }}
+                                    >
+                                      Сохранить название
+                                    </button>
                                   </div>
 
                                   {/* Кнопка публичности */}
