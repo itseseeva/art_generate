@@ -1060,6 +1060,8 @@ function App() {
             onBackToMain={handleBackToMain}
             onBackToAlbum={() => handlePaidAlbum(selectedCharacter)}
             onBackToChat={() => setCurrentPage('chat')}
+            onShop={handleShop}
+            onProfile={handleProfile}
           />
         ) : null;
       case 'photo-generation':

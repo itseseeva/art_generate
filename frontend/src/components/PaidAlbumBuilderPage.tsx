@@ -12,6 +12,7 @@ import { Sparkles, Plus, X, ArrowLeft, Save, Wand2, Settings, Upload } from 'luc
 import { FiSettings } from 'react-icons/fi';
 import DarkVeil from '../../@/components/DarkVeil';
 import { PromptGlassModal } from './PromptGlassModal';
+import { GlobalHeader } from './GlobalHeader';
 
 // Animations
 const shimmer = keyframes`
@@ -61,6 +62,14 @@ const ContentWrapper = styled.div`
   @media (max-width: 768px) {
     padding: 1rem;
   }
+`;
+
+const HeaderWrapper = styled.div`
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  width: 100%;
+  background: transparent;
 `;
 
 const Header = styled.header`
@@ -1320,6 +1329,8 @@ interface PaidAlbumBuilderPageProps {
   onBackToAlbum: () => void;
   onBackToMain: () => void;
   onBackToChat?: () => void;
+  onShop?: () => void;
+  onProfile?: () => void;
   canEditAlbum?: boolean;
   onUpgradeSubscription?: () => void;
 }
@@ -1331,6 +1342,8 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
   onBackToAlbum,
   onBackToMain,
   onBackToChat,
+  onShop,
+  onProfile,
   canEditAlbum = false,
   onUpgradeSubscription
 }) => {
@@ -1972,6 +1985,13 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
 
   return (
     <PageContainer>
+      <HeaderWrapper>
+        <GlobalHeader
+          onHome={onBackToMain}
+          onShop={onShop}
+          onProfile={onProfile}
+        />
+      </HeaderWrapper>
       <BackgroundWrapper>
         <DarkVeil speed={1.1} />
       </BackgroundWrapper>
