@@ -69,8 +69,8 @@ def get_model_for_subscription(subscription_type: Optional[SubscriptionType]) ->
     Returns:
         Название модели для использования
     """
-    # Все пользователи получают L3 Euryale 70B
-    return "sao10k/l3-euryale-70b"
+    # Все пользователи получают DeepSeek Chat V3
+    return "deepseek/deepseek-chat-v3-0324"
 
 
 class OpenRouterService:

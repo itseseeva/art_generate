@@ -15,20 +15,20 @@ interface AuthModalProps {
  * Это сделано для того, чтобы иметь одну централизованную страницу аутентификации
  * вместо множества модальных окон по всему приложению.
  */
-export const AuthModal: React.FC<AuthModalProps> = ({ 
-  isOpen, 
-  onClose, 
-  onAuthSuccess, 
-  mode = 'login', 
-  onGoogleLogin 
+export const AuthModal: React.FC<AuthModalProps> = ({
+  isOpen,
+  onClose,
+  onAuthSuccess,
+  mode = 'login',
+  onGoogleLogin
 }) => {
   // Редирект на страницу /auth вместо показа модального окна
   React.useEffect(() => {
     if (isOpen) {
       // Определяем URL в зависимости от mode
-      const authUrl = mode === 'register' ? '/auth?tab=register' : '/auth';
+      const authUrl = mode === 'register' ? '/register' : '/login';
       window.location.href = authUrl;
-      
+
       // Закрываем модальное окно (если компонент ещё смонтирован)
       if (onClose) {
         onClose();

@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { FiMail, FiLock, FiEye, FiEyeOff, FiUser, FiMessageSquare, FiImage, FiZap, FiCpu } from 'react-icons/fi';
 import { FcGoogle } from 'react-icons/fc';
 import DarkVeil from '../../@/components/DarkVeil';
+import { GlobalHeader } from './GlobalHeader';
 
 const PageContainer = styled.div`
   min-height: 100vh;
@@ -423,6 +424,10 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onVerifyCode, o
 
   return (
     <PageContainer>
+      <GlobalHeader
+        onLogin={onLogin}
+        onHome={() => window.location.href = '/'}
+      />
       <BackgroundWrapper>
         <DarkVeil />
       </BackgroundWrapper>
