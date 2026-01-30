@@ -106,7 +106,8 @@ const FavoriteButton = styled.button<{ $isFavorite: boolean }>`
   justify-content: center;
   cursor: pointer;
   transition: all ${theme.transition.fast};
-  z-index: 11;
+  z-index: 1001;
+  pointer-events: auto;
   outline: none !important;
   box-shadow: ${props => props.$isFavorite ? '0 0 8px rgba(255, 59, 48, 0.3)' : 'none'};
   opacity: 0;
@@ -2247,8 +2248,14 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             {/* На странице favorites всегда показываем кнопку, даже если идет проверка */}
             {(isFavoriteProp !== undefined || !isChecking) && (
               <FavoriteButton
+                type="button"
+                data-button="favorite"
                 $isFavorite={isFavorite}
-                onClick={toggleFavorite}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  toggleFavorite(e);
+                }}
                 aria-label={isFavorite ? 'Удалить из избранного' : 'Добавить в избранное'}
               >
                 <FiHeart />
@@ -2386,6 +2393,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                   target.closest('[class*="RatingButton"]') ||
                   target.closest('[class*="Switcher"]') ||
                   target.closest('[class*="FavoriteButton"]') ||
+                  target.closest('[data-button="favorite"]') ||
                   target.closest('[class*="ActionButton"]') ||
                   target.closest('[class*="RoleplaySituationButton"]')
                 ) {
@@ -2406,6 +2414,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                   target.closest('[class*="RatingButton"]') ||
                   target.closest('[class*="Switcher"]') ||
                   target.closest('[class*="FavoriteButton"]') ||
+                  target.closest('[data-button="favorite"]') ||
                   target.closest('[class*="ActionButton"]') ||
                   target.closest('[class*="RoleplaySituationButton"]')
                 ) {
@@ -2419,7 +2428,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                 left: 0,
                 right: 0,
                 bottom: 0,
-                zIndex: 2, // Ниже кнопок (z-index: 11+), но выше контента
+                zIndex: 2,
                 pointerEvents: 'auto',
                 cursor: 'pointer'
               }}
