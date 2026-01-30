@@ -183,6 +183,13 @@ const GalleryButtonWrapper = styled.div`
   display: inline-block;
 `;
 
+const GalleryCostHint = styled.span`
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+`;
+
 interface ProfilePageProps {
   onBackToMain: () => void;
   onShop?: () => void;
@@ -2492,6 +2499,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       >
                         Галерея пользователя
                       </button>
+                      <GalleryCostHint>Открытие галереи чужого пользователя стоит 500 кредитов</GalleryCostHint>
                       <FreeSubscriptionTooltip $show={showFreeSubscriptionTooltip}>
                         Для доступа нужна подписка Standard или Premium
                       </FreeSubscriptionTooltip>
