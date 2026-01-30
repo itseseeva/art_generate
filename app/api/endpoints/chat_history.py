@@ -216,6 +216,48 @@ async def get_prompt_by_image(
             )
             message = (await db.execute(stmt)).scalars().first()
         
+        # Если не найдено по точному URL, пробуем найти по имени файла (fallback)
+        if not message:
+            try:
+                from urllib.parse import urlparse
+                import os
+                
+                # Пытаемся извлечь имя файла из URL
+                parsed_path = urlparse(normalized_url).path
+                filename = os.path.basename(parsed_path)
+                
+                # Проверяем, что это похоже на файл (есть расширение)
+                if filename and '.' in filename:
+                    logger.info(f"[PROMPT] Промпт не найден по URL, пробуем по имени файла: {filename}")
+                    
+                    # Сначала ищем у текущего пользователя
+                    if current_user:
+                        stmt = (
+                            select(ChatHistory)
+                            .where(
+                                ChatHistory.image_filename == filename,
+                                ChatHistory.user_id == user_id
+                            )
+                            .order_by(ChatHistory.created_at.desc())
+                            .limit(1)
+                        )
+                        message = (await db.execute(stmt)).scalars().first()
+                    
+                    # Если не нашли, ищем у всех
+                    if not message:
+                        stmt = (
+                            select(ChatHistory)
+                            .where(ChatHistory.image_filename == filename)
+                            .order_by(ChatHistory.created_at.desc())
+                            .limit(1)
+                        )
+                        message = (await db.execute(stmt)).scalars().first()
+                        
+                    if message:
+                        logger.info(f"[PROMPT] Промпт найден по имени файла: {filename}")
+            except Exception as e:
+                logger.error(f"[PROMPT] Ошибка при поиске по имени файла: {str(e)}")
+        
         if message:
             logger.info(f"[PROMPT] Промпт найден: message_id={message.id}, image_url={message.image_url}, user_id={message.user_id}, prompt_length={len(message.message_content) if message.message_content else 0}")
 
