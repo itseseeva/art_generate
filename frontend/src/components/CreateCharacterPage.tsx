@@ -7414,7 +7414,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                             ? (editingVoice.photo_url.startsWith('http') ? editingVoice.photo_url : `${API_CONFIG.BASE_URL}${editingVoice.photo_url}`)
                             : defaultPlaceholder)
                           : getVoicePhotoPath(editingVoice.name);
-                        const editedName = editedVoiceNames[editingVoice.id] || editingVoice.name;
+                        const editedName = editedVoiceNames[editingVoice.id] !== undefined ? editedVoiceNames[editingVoice.id] : editingVoice.name;
 
                         const modalContent = (
                           <div
@@ -7755,7 +7755,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                 </label>
                                 <input
                                   type="text"
-                                  value={editedVoiceNames[editingVoice.id] || editingVoice.name}
+                                  value={editedVoiceNames[editingVoice.id] !== undefined ? editedVoiceNames[editingVoice.id] : editingVoice.name}
                                   onChange={(e) => {
                                     setEditedVoiceNames(prev => ({
                                       ...prev,
@@ -7781,9 +7781,9 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                     if (editingVoice.user_voice_id && newName && newName !== editingVoice.name) {
                                       try {
                                         const formData = new FormData();
-                                        formData.append('name', newName);
+                                        formData.append('voice_name', newName);
                                         const token = localStorage.getItem('authToken');
-                                        const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${editingVoice.user_voice_id}`, {
+                                        const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${editingVoice.user_voice_id}/name`, {
                                           method: 'PATCH',
                                           headers: {
                                             'Authorization': `Bearer ${token}`
@@ -7802,7 +7802,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                             const voicesData = await voicesResponse.json();
                                             setAvailableVoices(voicesData);
                                           }
-                                          alert('Название голоса сохранено');
+                                          setEditingVoicePhotoId(null);
                                         } else {
                                           const error = await response.json();
                                           alert('Ошибка изменения названия: ' + (error.detail || 'Неизвестная ошибка'));

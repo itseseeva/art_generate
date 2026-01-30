@@ -7437,7 +7437,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                 ? (editingVoice.photo_url.startsWith('http') ? editingVoice.photo_url : `${API_CONFIG.BASE_URL}${editingVoice.photo_url}`)
                                 : defaultPlaceholder)
                               : getVoicePhotoPath(editingVoice.name);
-                            const editedName = editedVoiceNames[editingVoice.id] || editingVoice.name;
+                            const editedName = editedVoiceNames[editingVoice.id] !== undefined ? editedVoiceNames[editingVoice.id] : editingVoice.name;
 
                             const modalContent = (
                               <div
@@ -7803,9 +7803,9 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                         if (editingVoice.user_voice_id && editedName && editedName !== editingVoice.name) {
                                           try {
                                             const formData = new FormData();
-                                            formData.append('name', editedName);
+                                            formData.append('voice_name', editedName);
                                             const token = localStorage.getItem('authToken');
-                                            const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${editingVoice.user_voice_id}`, {
+                                            const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${editingVoice.user_voice_id}/name`, {
                                               method: 'PATCH',
                                               headers: {
                                                 'Authorization': `Bearer ${token}`
@@ -7824,8 +7824,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                                 const voicesData = await voicesResponse.json();
                                                 setAvailableVoices(voicesData);
                                               }
-                                              // Опционально: показать уведомление об успехе
-                                              alert('Название голоса сохранено');
+                                              setEditingVoicePhotoId(null);
                                             } else {
                                               const error = await response.json();
                                               alert('Ошибка изменения названия: ' + (error.detail || 'Неизвестная ошибка'));
