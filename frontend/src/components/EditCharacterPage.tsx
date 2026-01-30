@@ -6609,6 +6609,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                     )}
                                     {((isUserVoice && (isOwner || isAdmin || userInfo?.is_admin)) || (!isUserVoice && (isAdmin || userInfo?.is_admin))) && (
                                       <EditButton
+                                        type="button"
                                         className="edit-voice-button"
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -6628,6 +6629,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                     )}
                                     {((isUserVoice && (isOwner || isAdmin || userInfo?.is_admin)) || (!isUserVoice && (isAdmin || userInfo?.is_admin))) && (
                                       <DeleteButton
+                                        type="button"
                                         className="delete-voice-button"
                                         onClick={async (e) => {
                                           e.stopPropagation();
@@ -7065,6 +7067,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                       />
                                       {((isUserVoice && (isOwner || isAdmin || userInfo?.is_admin)) || (!isUserVoice && (isAdmin || userInfo?.is_admin))) && (
                                         <EditButton
+                                          type="button"
                                           className="edit-voice-button"
                                           onClick={(e) => {
                                             e.stopPropagation();
@@ -7083,6 +7086,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                       )}
                                       {((isUserVoice && (isOwner || isAdmin || userInfo?.is_admin)) || (!isUserVoice && (isAdmin || userInfo?.is_admin))) && (
                                         <DeleteButton
+                                          type="button"
                                           className="delete-voice-button"
                                           onClick={async (e) => {
                                             e.stopPropagation();
@@ -7582,13 +7586,32 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                                     const img = new Image();
                                                     img.crossOrigin = 'anonymous';
                                                     img.onload = async () => {
-                                                      const previewSize = 120;
+                                                      const previewSize = 114;
                                                       const finalSize = size;
                                                       const scale = finalSize / previewSize;
 
-                                                      const imgScale = Math.max(finalSize / img.width, finalSize / img.height);
-                                                      const imgW = img.width * imgScale;
-                                                      const imgH = img.height * imgScale;
+                                                      // Calculate effective DOM dimensions based on CSS constraints
+                                                      let domW = img.width;
+                                                      let domH = img.height;
+
+                                                      // Max constraint (200%)
+                                                      const maxDim = previewSize * 2;
+                                                      if (domW > maxDim || domH > maxDim) {
+                                                        const maxScale = Math.min(maxDim / domW, maxDim / domH);
+                                                        domW *= maxScale;
+                                                        domH *= maxScale;
+                                                      }
+
+                                                      // Min constraint (100%) - wins over max
+                                                      const minDim = previewSize;
+                                                      if (domW < minDim || domH < minDim) {
+                                                        const minScale = Math.max(minDim / domW, minDim / domH);
+                                                        domW *= minScale;
+                                                        domH *= minScale;
+                                                      }
+
+                                                      const imgW = domW * scale;
+                                                      const imgH = domH * scale;
 
                                                       const baseX = (finalSize - imgW) / 2;
                                                       const baseY = (finalSize - imgH) / 2;

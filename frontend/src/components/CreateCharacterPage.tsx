@@ -5868,151 +5868,151 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         currentPrompt = parts.length > 0 ? parts.join(' | ') : '';
       }
       const photo = await generateSinglePhoto(currentPrompt, model);
-        if (photo) {
-          // Используем ref, а не generatedPhotos.length: при генерации 2-го фото state может ещё не содержать 1-е (устаревший closure), иначе второе фото перезапишет список и «первое» пропадёт
-          const isFirstPhoto = !hasAutoAddedFirstPhotoRef.current;
+      if (photo) {
+        // Используем ref, а не generatedPhotos.length: при генерации 2-го фото state может ещё не содержать 1-е (устаревший closure), иначе второе фото перезапишет список и «первое» пропадёт
+        const isFirstPhoto = !hasAutoAddedFirstPhotoRef.current;
 
-          // Автоматически вставляем первую сгенерированную фотографию в карточку персонажа (только один раз за сессию)
-          if (isFirstPhoto && createdCharacterData) {
-            hasAutoAddedFirstPhotoRef.current = true;
-            const firstPhoto = { ...photo, isSelected: true };
-            // Сначала обновляем generatedPhotos с правильным isSelected
-            setGeneratedPhotos(prev => [...prev, { ...photo, isSelected: true }]);
-            setSelectedPhotos([firstPhoto]);
-            setPreviewPhotoIndex(0); // Устанавливаем индекс на первое фото
+        // Автоматически вставляем первую сгенерированную фотографию в карточку персонажа (только один раз за сессию)
+        if (isFirstPhoto && createdCharacterData) {
+          hasAutoAddedFirstPhotoRef.current = true;
+          const firstPhoto = { ...photo, isSelected: true };
+          // Сначала обновляем generatedPhotos с правильным isSelected
+          setGeneratedPhotos(prev => [...prev, { ...photo, isSelected: true }]);
+          setSelectedPhotos([firstPhoto]);
+          setPreviewPhotoIndex(0); // Устанавливаем индекс на первое фото
 
-            // Автоматически сохраняем первое фото в базу данных
-            try {
-              const token = localStorage.getItem('authToken');
-              if (token) {
-                const response = await fetch(API_CONFIG.CHARACTER_SET_PHOTOS_FULL, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                  },
-                  body: JSON.stringify({
-                    character_name: createdCharacterData.name,
-                    photos: [{
-                      id: photo.id,
-                      url: photo.url
-                    }]
-                  })
-                });
-
-                if (response.ok) {
-                  const result = await response.json();
-
-                  // Даем время БД сохранить изменения
-                  await new Promise(resolve => setTimeout(resolve, 1500));
-
-                  // Обновляем данные персонажа с принудительным обновлением кэша
-                  const characterResponse = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${createdCharacterData.name}?force_refresh=true&_t=${Date.now()}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                  });
-                  if (characterResponse.ok) {
-                    const updatedCharacter = await characterResponse.json();
-                    setCreatedCharacterData(updatedCharacter);
-                    // Синхронизируем теги с обновленным персонажем
-                    if (updatedCharacter.tags && Array.isArray(updatedCharacter.tags)) {
-                      setSelectedTags(updatedCharacter.tags);
-                    }
-
-                    // Еще одна небольшая задержка перед отправкой события
-                    await new Promise(resolve => setTimeout(resolve, 500));
-
-                    // Отправляем событие для обновления главной страницы
-                    const event = new CustomEvent('character-photos-updated', {
-                      detail: { character: updatedCharacter, photos: [photo.id] }
-                    });
-                    window.dispatchEvent(event);
-
-                    // Дополнительно отправляем событие через небольшую задержку для надежности
-                    setTimeout(() => {
-                      window.dispatchEvent(new CustomEvent('character-photos-updated', {
-                        detail: { character: updatedCharacter, photos: [photo.id] }
-                      }));
-                      // Также отправляем событие создания персонажа для полного обновления
-                      window.dispatchEvent(new CustomEvent('character-created', {
-                        detail: { character: updatedCharacter }
-                      }));
-                    }, 1500);
-                  }
-                } else {
-                  const errorData = await response.json().catch(() => ({}));
-                }
-              }
-            } catch (error) {
-              // Игнорируем ошибки автоматического сохранения
-            }
-          } else {
-            // Для последующих фото только добавляем в конец списка, не трогая selectedPhotos
-            setGeneratedPhotos(prev => [...prev, { ...photo, isSelected: false }]);
-          }
-
-          if (createdCharacterData && !isFirstPhoto) {
-            // Для последующих фото автоматически переключаемся на новое фото в превью
-            // Собираем все фото для определения индекса
-            const allPhotos: Array<{ url: string; id?: string }> = [];
-            if (selectedPhotos.length > 0) {
-              allPhotos.push(...selectedPhotos);
-            }
-            if (createdCharacterData?.photos && Array.isArray(createdCharacterData.photos)) {
-              createdCharacterData.photos.forEach((p: any) => {
-                if (p?.url && !allPhotos.some(ap => ap.url === p.url)) {
-                  allPhotos.push({ url: p.url, id: p.id });
-                }
+          // Автоматически сохраняем первое фото в базу данных
+          try {
+            const token = localStorage.getItem('authToken');
+            if (token) {
+              const response = await fetch(API_CONFIG.CHARACTER_SET_PHOTOS_FULL, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  character_name: createdCharacterData.name,
+                  photos: [{
+                    id: photo.id,
+                    url: photo.url
+                  }]
+                })
               });
+
+              if (response.ok) {
+                const result = await response.json();
+
+                // Даем время БД сохранить изменения
+                await new Promise(resolve => setTimeout(resolve, 1500));
+
+                // Обновляем данные персонажа с принудительным обновлением кэша
+                const characterResponse = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${createdCharacterData.name}?force_refresh=true&_t=${Date.now()}`, {
+                  headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (characterResponse.ok) {
+                  const updatedCharacter = await characterResponse.json();
+                  setCreatedCharacterData(updatedCharacter);
+                  // Синхронизируем теги с обновленным персонажем
+                  if (updatedCharacter.tags && Array.isArray(updatedCharacter.tags)) {
+                    setSelectedTags(updatedCharacter.tags);
+                  }
+
+                  // Еще одна небольшая задержка перед отправкой события
+                  await new Promise(resolve => setTimeout(resolve, 500));
+
+                  // Отправляем событие для обновления главной страницы
+                  const event = new CustomEvent('character-photos-updated', {
+                    detail: { character: updatedCharacter, photos: [photo.id] }
+                  });
+                  window.dispatchEvent(event);
+
+                  // Дополнительно отправляем событие через небольшую задержку для надежности
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('character-photos-updated', {
+                      detail: { character: updatedCharacter, photos: [photo.id] }
+                    }));
+                    // Также отправляем событие создания персонажа для полного обновления
+                    window.dispatchEvent(new CustomEvent('character-created', {
+                      detail: { character: updatedCharacter }
+                    }));
+                  }, 1500);
+                }
+              } else {
+                const errorData = await response.json().catch(() => ({}));
+              }
             }
-            // Добавляем новое фото
-            allPhotos.push({ url: photo.url, id: photo.id });
-            // Переключаемся на последнее фото
-            setPreviewPhotoIndex(allPhotos.length - 1);
+          } catch (error) {
+            // Игнорируем ошибки автоматического сохранения
           }
+        } else {
+          // Для последующих фото только добавляем в конец списка, не трогая selectedPhotos
+          setGeneratedPhotos(prev => [...prev, { ...photo, isSelected: false }]);
+        }
 
-          setSuccess('Фото успешно сгенерировано!');
+        if (createdCharacterData && !isFirstPhoto) {
+          // Для последующих фото автоматически переключаемся на новое фото в превью
+          // Собираем все фото для определения индекса
+          const allPhotos: Array<{ url: string; id?: string }> = [];
+          if (selectedPhotos.length > 0) {
+            allPhotos.push(...selectedPhotos);
+          }
+          if (createdCharacterData?.photos && Array.isArray(createdCharacterData.photos)) {
+            createdCharacterData.photos.forEach((p: any) => {
+              if (p?.url && !allPhotos.some(ap => ap.url === p.url)) {
+                allPhotos.push({ url: p.url, id: p.id });
+              }
+            });
+          }
+          // Добавляем новое фото
+          allPhotos.push({ url: photo.url, id: photo.id });
+          // Переключаемся на последнее фото
+          setPreviewPhotoIndex(allPhotos.length - 1);
+        }
 
-          // Прокручиваем контейнер к новому фото после добавления
+        setSuccess('Фото успешно сгенерировано!');
+
+        // Прокручиваем контейнер к новому фото после добавления
+        setTimeout(() => {
+          if (generationSectionRef.current) {
+            // Прокручиваем контейнер к самому низу, чтобы видеть новое фото
+            generationSectionRef.current.scrollTo({
+              top: generationSectionRef.current.scrollHeight,
+              behavior: 'smooth'
+            });
+          }
+        }, 300);
+      }
+      setGenerationProgress(100);
+
+      // Обновляем информацию о пользователе
+      await checkAuth();
+      // Обновляем баланс в хедере после списания за генерацию фото
+      window.dispatchEvent(new Event('balance-update'));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка генерации фото');
+    } finally {
+      setIsGeneratingPhoto(false);
+      setGenerationProgress(undefined);
+      const queue = generationQueueRef.current;
+      if (queue.length > 0) {
+        const next = queue.shift()!;
+        setTimeout(() => {
+          setIsGeneratingPhoto(true);
+          setError(null);
+          setGenerationProgress(undefined);
           setTimeout(() => {
             if (generationSectionRef.current) {
-              // Прокручиваем контейнер к самому низу, чтобы видеть новое фото
               generationSectionRef.current.scrollTo({
                 top: generationSectionRef.current.scrollHeight,
                 behavior: 'smooth'
               });
             }
-          }, 300);
-        }
-        setGenerationProgress(100);
-
-        // Обновляем информацию о пользователе
-        await checkAuth();
-        // Обновляем баланс в хедере после списания за генерацию фото
-        window.dispatchEvent(new Event('balance-update'));
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Ошибка генерации фото');
-      } finally {
-        setIsGeneratingPhoto(false);
-        setGenerationProgress(undefined);
-        const queue = generationQueueRef.current;
-        if (queue.length > 0) {
-          const next = queue.shift()!;
-          setTimeout(() => {
-            setIsGeneratingPhoto(true);
-            setError(null);
-            setGenerationProgress(undefined);
-            setTimeout(() => {
-              if (generationSectionRef.current) {
-                generationSectionRef.current.scrollTo({
-                  top: generationSectionRef.current.scrollHeight,
-                  behavior: 'smooth'
-                });
-              }
-            }, 100);
-            processGeneration(next.rawPrompt, next.model);
-          }, 500);
-        }
+          }, 100);
+          processGeneration(next.rawPrompt, next.model);
+        }, 500);
       }
+    }
   };
 
   const runGeneration = (rawPrompt: string, model: 'anime-realism' | 'anime' | 'realism') => {
@@ -6687,6 +6687,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                 )}
                                 {((isUserVoice && (isOwner || isAdmin || userInfo?.is_admin)) || (!isUserVoice && (isAdmin || userInfo?.is_admin))) && (
                                   <EditButton
+                                    type="button"
                                     className="edit-voice-button"
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -6706,6 +6707,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                 )}
                                 {((isUserVoice && (isOwner || isAdmin || userInfo?.is_admin)) || (!isUserVoice && (isAdmin || userInfo?.is_admin))) && (
                                   <DeleteButton
+                                    type="button"
                                     className="delete-voice-button"
                                     onClick={async (e) => {
                                       e.stopPropagation();
@@ -7136,6 +7138,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                         )}
                                         {((isUserVoice && (isOwner || isAdmin || userInfo?.is_admin)) || (!isUserVoice && (isAdmin || userInfo?.is_admin))) && (
                                           <EditButton
+                                            type="button"
                                             className="edit-voice-button"
                                             onClick={(e) => {
                                               e.stopPropagation();
@@ -7155,6 +7158,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                         )}
                                         {((isUserVoice && (isOwner || isAdmin || userInfo?.is_admin)) || (!isUserVoice && (isAdmin || userInfo?.is_admin))) && (
                                           <DeleteButton
+                                            type="button"
                                             className="delete-voice-button"
                                             onClick={async (e) => {
                                               e.stopPropagation();
@@ -7559,13 +7563,32 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                                 const img = new Image();
                                                 img.crossOrigin = 'anonymous';
                                                 img.onload = async () => {
-                                                  const previewSize = 120;
+                                                  const previewSize = 114;
                                                   const finalSize = size;
                                                   const scale = finalSize / previewSize;
 
-                                                  const imgScale = Math.max(finalSize / img.width, finalSize / img.height);
-                                                  const imgW = img.width * imgScale;
-                                                  const imgH = img.height * imgScale;
+                                                  // Calculate effective DOM dimensions based on CSS constraints
+                                                  let domW = img.width;
+                                                  let domH = img.height;
+
+                                                  // Max constraint (200%)
+                                                  const maxDim = previewSize * 2;
+                                                  if (domW > maxDim || domH > maxDim) {
+                                                    const maxScale = Math.min(maxDim / domW, maxDim / domH);
+                                                    domW *= maxScale;
+                                                    domH *= maxScale;
+                                                  }
+
+                                                  // Min constraint (100%) - wins over max
+                                                  const minDim = previewSize;
+                                                  if (domW < minDim || domH < minDim) {
+                                                    const minScale = Math.max(minDim / domW, minDim / domH);
+                                                    domW *= minScale;
+                                                    domH *= minScale;
+                                                  }
+
+                                                  const imgW = domW * scale;
+                                                  const imgH = domH * scale;
 
                                                   const baseX = (finalSize - imgW) / 2;
                                                   const baseY = (finalSize - imgH) / 2;
