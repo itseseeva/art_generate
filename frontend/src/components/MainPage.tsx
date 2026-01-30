@@ -423,6 +423,7 @@ export const MainPage: React.FC<MainPageProps> = ({
   const loadedCharacterIdsRef = useRef<Set<string>>(new Set()); // Для отслеживания уже загруженных ID
   const allCharactersCacheRef = useRef<Character[]>([]); // Кэш всех загруженных персонажей для клиентской пагинации
   const isAllCharactersLoadedRef = useRef<boolean>(false); // Флаг, что все персонажи загружены
+  const displayedFromCacheCountRef = useRef<number>(0); // Сколько элементов из отфильтрованного кэша уже показано (избегаем дубликатов при скролле)
 
   const toggleTag = (tag: string) => {
     setSelectedTags((prev) => {
@@ -444,6 +445,7 @@ export const MainPage: React.FC<MainPageProps> = ({
         return char.is_nsfw === true;
       });
       const firstPage = filteredCache.slice(0, PAGE_SIZE);
+      displayedFromCacheCountRef.current = firstPage.length;
       setCharacters(firstPage);
       setHasMore(filteredCache.length > PAGE_SIZE);
     } else {
@@ -631,6 +633,7 @@ export const MainPage: React.FC<MainPageProps> = ({
 
         // Показываем первую страницу отфильтрованных персонажей
         const firstPage = filteredCache.slice(0, PAGE_SIZE);
+        displayedFromCacheCountRef.current = firstPage.length;
         setCharacters(firstPage);
         setHasMore(filteredCache.length > PAGE_SIZE);
         setIsLoadingCharacters(false);
@@ -646,6 +649,7 @@ export const MainPage: React.FC<MainPageProps> = ({
         allCharactersCacheRef.current = [];
         isAllCharactersLoadedRef.current = false;
         loadedCharacterIdsRef.current.clear();
+        displayedFromCacheCountRef.current = 0;
         setHasMore(false);
         return;
       }
@@ -693,6 +697,7 @@ export const MainPage: React.FC<MainPageProps> = ({
 
       // Показываем первую страницу отфильтрованных персонажей
       const firstPage = filteredAll.slice(0, PAGE_SIZE);
+      displayedFromCacheCountRef.current = firstPage.length;
       setCharacters(firstPage);
       setHasMore(filteredAll.length > PAGE_SIZE);
 
@@ -707,6 +712,7 @@ export const MainPage: React.FC<MainPageProps> = ({
       allCharactersCacheRef.current = [];
       isAllCharactersLoadedRef.current = false;
       loadedCharacterIdsRef.current.clear();
+      displayedFromCacheCountRef.current = 0;
       setHasMore(false);
     } finally {
       setIsLoadingCharacters(false);
@@ -728,16 +734,17 @@ export const MainPage: React.FC<MainPageProps> = ({
           return char.is_nsfw === true;
         });
 
-        const currentCount = characters.length;
-        const nextPage = filteredCache.slice(currentCount, currentCount + PAGE_SIZE);
+        const start = displayedFromCacheCountRef.current;
+        const nextPage = filteredCache.slice(start, start + PAGE_SIZE);
 
         if (nextPage.length === 0) {
           setHasMore(false);
           return;
         }
 
+        displayedFromCacheCountRef.current = start + nextPage.length;
         setCharacters((prev) => [...prev, ...nextPage]);
-        setHasMore(currentCount + nextPage.length < filteredCache.length);
+        setHasMore(displayedFromCacheCountRef.current < filteredCache.length);
 
         await loadCharacterRatings(nextPage, true);
         return;

@@ -180,20 +180,88 @@ async def get_prompt_by_image(
 
         logger = logging.getLogger(__name__)
         user_id = current_user.id if current_user else None
-        logger.info(
-            "[PROMPT] Поиск промпта для изображения: %s (user_id=%s)",
-            image_url,
-            user_id or "неавторизован"
-        )
-
+        
+        # --- LOGGING CAPTURE ---
+        debug_logs = []
+        def log_debug(msg):
+            logger.info(msg)
+            debug_logs.append(msg)
+        
+        log_debug(f"--- [PROMPT_DEBUG] START SEARCH ---")
+        log_debug(f"[PROMPT_DEBUG] Incoming image_url: '{image_url}'")
+        log_debug(f"[PROMPT_DEBUG] User ID: {user_id}")
+        
         # Нормализуем URL точно так же, как при сохранении
         normalized_url = image_url.split('?')[0].split('#')[0] if image_url else image_url
+        log_debug(f"[PROMPT_DEBUG] Normalized URL: '{normalized_url}'")
         
-        logger.info(f"[PROMPT] Ищем промпт по точному совпадению: normalized_url={normalized_url}, user_id={user_id or 'неавторизован'}")
-        
-        # Сначала ищем промпт у текущего пользователя (приоритет), если пользователь авторизован
+        # --- 1. ImageGenerationHistory Search ---
+        try:
+            from app.models.image_generation_history import ImageGenerationHistory
+            
+            # 1.1 Точное совпадение URL
+            log_debug(f"[PROMPT_DEBUG] 1. Searching ImageGenerationHistory by Exact URL...")
+            hist_stmt = select(ImageGenerationHistory).where(ImageGenerationHistory.image_url == normalized_url)
+            if current_user:
+                hist_stmt = hist_stmt.order_by(ImageGenerationHistory.user_id == user_id, ImageGenerationHistory.created_at.desc())
+            else:
+                hist_stmt = hist_stmt.order_by(ImageGenerationHistory.created_at.desc())
+            
+            hist_record = (await db.execute(hist_stmt.limit(1))).scalars().first()
+            if hist_record:
+                 log_debug(f"[PROMPT_DEBUG] FOUND in ImageGenerationHistory (Exact match). ID: {hist_record.id}, Prompt Len: {len(hist_record.prompt or '')}")
+            else:
+                 log_debug(f"[PROMPT_DEBUG] NOT FOUND in ImageGenerationHistory (Exact match).")
+
+            # 1.2 По имени файла (User then Global)
+            if not hist_record:
+                from urllib.parse import urlparse
+                import os
+                parsed_path = urlparse(normalized_url).path
+                filename = os.path.basename(parsed_path)
+                log_debug(f"[PROMPT_DEBUG] Extracted Filename: '{filename}'")
+                
+                if filename and '.' in filename:
+                    log_debug(f"[PROMPT_DEBUG] 1. Searching ImageGenerationHistory by LIKE %{filename}...")
+                    like_stmt = select(ImageGenerationHistory).where(ImageGenerationHistory.image_url.like(f"%{filename}"))
+                    if current_user:
+                        like_stmt = like_stmt.order_by(ImageGenerationHistory.user_id == user_id, ImageGenerationHistory.created_at.desc())
+                    else:
+                        like_stmt = like_stmt.order_by(ImageGenerationHistory.created_at.desc())
+                        
+                    hist_record = (await db.execute(like_stmt.limit(1))).scalars().first()
+                    if hist_record:
+                         log_debug(f"[PROMPT_DEBUG] FOUND in ImageGenerationHistory (LIKE match). ID: {hist_record.id}")
+                    else:
+                         log_debug(f"[PROMPT_DEBUG] NOT FOUND in ImageGenerationHistory (LIKE match).")
+            
+            if hist_record and hist_record.prompt:
+                # Очищаем промпт от JSON
+                clean_prompt = hist_record.prompt
+                try:
+                    import json
+                    if clean_prompt.strip().startswith('{'):
+                         data = json.loads(clean_prompt)
+                         if isinstance(data, dict) and 'prompt' in data:
+                             clean_prompt = data['prompt']
+                except:
+                    pass
+                log_debug(f"[PROMPT_DEBUG] Returning prompt from ImageGenerationHistory.")
+                return {
+                    "success": True,
+                    "prompt": clean_prompt,
+                    "character_name": hist_record.character_name,
+                    "debug_logs": debug_logs
+                }
+        except Exception as e:
+            log_debug(f"[PROMPT_DEBUG] ERROR in ImageGenerationHistory search: {e}")
+
+        # --- 2. ChatHistory Search (Fallback) ---
         message = None
+        
+        # 2.1 Точное совпадение URL (User)
         if current_user:
+            log_debug(f"[PROMPT_DEBUG] 2.1 Searching ChatHistory (Exact URL, User {user_id})...")
             stmt = (
                 select(ChatHistory)
                 .where(
@@ -205,9 +273,9 @@ async def get_prompt_by_image(
             )
             message = (await db.execute(stmt)).scalars().first()
         
-        # Если не найдено у текущего пользователя (или пользователь не авторизован), ищем среди всех пользователей (fallback)
+        # 2.2 Точное совпадение URL (Global)
         if not message:
-            logger.info(f"[PROMPT] Промпт не найден у текущего пользователя, ищем среди всех пользователей")
+            log_debug(f"[PROMPT_DEBUG] 2.2 Searching ChatHistory (Exact URL, Global)...")
             stmt = (
                 select(ChatHistory)
                 .where(ChatHistory.image_url == normalized_url)
@@ -216,21 +284,18 @@ async def get_prompt_by_image(
             )
             message = (await db.execute(stmt)).scalars().first()
         
-        # Если не найдено по точному URL, пробуем найти по имени файла (fallback)
+        # 2.3 По имени файла
         if not message:
             try:
                 from urllib.parse import urlparse
                 import os
-                
-                # Пытаемся извлечь имя файла из URL
                 parsed_path = urlparse(normalized_url).path
                 filename = os.path.basename(parsed_path)
                 
-                # Проверяем, что это похоже на файл (есть расширение)
                 if filename and '.' in filename:
-                    logger.info(f"[PROMPT] Промпт не найден по URL, пробуем по имени файла: {filename}")
+                    log_debug(f"[PROMPT_DEBUG] 2.3 Searching ChatHistory (Filename '{filename}')...")
                     
-                    # Сначала ищем у текущего пользователя
+                    # 2.3.1 User
                     if current_user:
                         stmt = (
                             select(ChatHistory)
@@ -243,7 +308,7 @@ async def get_prompt_by_image(
                         )
                         message = (await db.execute(stmt)).scalars().first()
                     
-                    # Если не нашли, ищем у всех
+                    # 2.3.2 Global
                     if not message:
                         stmt = (
                             select(ChatHistory)
@@ -252,27 +317,71 @@ async def get_prompt_by_image(
                             .limit(1)
                         )
                         message = (await db.execute(stmt)).scalars().first()
+                    
+                    # 2.3.3 LIKE Match (Legacy)
+                    if not message:
+                        log_debug(f"[PROMPT_DEBUG] 2.3.3 Searching ChatHistory (LIKE match)...")
+                        if current_user:
+                            stmt = (
+                                select(ChatHistory)
+                                .where(
+                                    ChatHistory.image_url.like(f"%{filename}"),
+                                    ChatHistory.user_id == user_id
+                                )
+                                .order_by(ChatHistory.created_at.desc())
+                                .limit(1)
+                            )
+                            message = (await db.execute(stmt)).scalars().first()
+                        
+                        if not message:
+                            stmt = (
+                                select(ChatHistory)
+                                .where(ChatHistory.image_url.like(f"%{filename}"))
+                                .order_by(ChatHistory.created_at.desc())
+                                .limit(1)
+                            )
+                            message = (await db.execute(stmt)).scalars().first()
                         
                     if message:
-                        logger.info(f"[PROMPT] Промпт найден по имени файла: {filename}")
+                        log_debug(f"[PROMPT_DEBUG] FOUND in ChatHistory via Filename/Like.")
             except Exception as e:
-                logger.error(f"[PROMPT] Ошибка при поиске по имени файла: {str(e)}")
+                log_debug(f"[PROMPT_DEBUG] Error in Filename search: {str(e)}")
         
         if message:
-            logger.info(f"[PROMPT] Промпт найден: message_id={message.id}, image_url={message.image_url}, user_id={message.user_id}, prompt_length={len(message.message_content) if message.message_content else 0}")
+            log_debug(f"[PROMPT_DEBUG] ChatHistory Match Found. ID: {message.id}, Type: {message.message_type}, ContentLen: {len(message.message_content or '')}")
+            
+            prompt_content = message.message_content
+            
+            # --- 3. Sibling Lookup ---
+            if message.message_type == 'assistant' and (not prompt_content or prompt_content == "Generating..." or prompt_content == "🖼️ Генерирую фото..."):
+                log_debug(f"[PROMPT_DEBUG] 3. Sibling Lookup Triggered. SessionID: {message.session_id}")
+                try:
+                    user_stmt = (
+                        select(ChatHistory)
+                        .where(
+                            ChatHistory.session_id == message.session_id,
+                            ChatHistory.message_type == 'user'
+                        )
+                        .order_by(ChatHistory.created_at.desc())
+                        .limit(1)
+                    )
+                    user_message = (await db.execute(user_stmt)).scalars().first()
+                    if user_message and user_message.message_content:
+                        log_debug(f"[PROMPT_DEBUG] Sibling User Message FOUND. ID: {user_message.id}")
+                        prompt_content = user_message.message_content
+                    else:
+                        log_debug(f"[PROMPT_DEBUG] Sibling User Message NOT FOUND.")
+                except Exception as sibling_err:
+                    log_debug(f"[PROMPT_DEBUG] Error in Sibling Lookup: {sibling_err}")
 
-        if message:
-            logger.info(
-                "[PROMPT] Промпт найден: character_name=%s, user_id=%s, image_url=%s",
-                message.character_name,
-                message.user_id,
-                message.image_url,
-            )
             return {
                 "success": True,
-                "prompt": message.message_content,
-                "character_name": message.character_name
+                "prompt": prompt_content,
+                "character_name": message.character_name,
+                "debug_logs": debug_logs
             }
+        
+        log_debug(f"[PROMPT_DEBUG] FAILURE: Prompt not found anywhere for {normalized_url}")
 
         # Дополнительная диагностика: проверяем, есть ли вообще записи для этого пользователя
         from sqlalchemy.orm import load_only
@@ -295,35 +404,31 @@ async def get_prompt_by_image(
         )
         debug_result = await db.execute(debug_stmt)
         debug_records = debug_result.scalars().all()
-        logger.warning(
-            "[PROMPT] Промпт не найден для изображения: %s (нормализованный: %s). "
-            "Всего записей для user_id=%s: %d",
-            image_url,
-            normalized_url,
-            user_id,
-            len(debug_records)
-        )
+        log_debug(f"[PROMPT] Всего записей для user_id={user_id}: {len(debug_records)}")
+        
         if debug_records:
-            example_urls = [(r.image_url, r.created_at, r.message_content[:50] if r.message_content else None) for r in debug_records[:5] if r.image_url]
-            logger.warning(
-                "[PROMPT] Последние 5 записей из базы для user_id=%s: %s",
-                user_id,
-                example_urls,
-            )
+            example_urls = [(r.image_url, r.created_at) for r in debug_records[:5] if r.image_url]
+            log_debug(f"[PROMPT] Последние 5 URL: {example_urls}")
+            
             # Проверяем, есть ли запись с похожим URL
             for record in debug_records:
                 if record.image_url and normalized_url in record.image_url:
-                    logger.warning(f"[PROMPT] НАЙДЕНА ПОХОЖАЯ ЗАПИСЬ! record.image_url={record.image_url}, normalized_url={normalized_url}, match={normalized_url in record.image_url}")
+                    log_debug(f"[PROMPT] НАЙДЕНА ПОХОЖАЯ ЗАПИСЬ! record.image_url={record.image_url}")
                 elif record.image_url and record.image_url in normalized_url:
-                    logger.warning(f"[PROMPT] НАЙДЕНА ПОХОЖАЯ ЗАПИСЬ (обратное)! record.image_url={record.image_url}, normalized_url={normalized_url}, match={record.image_url in normalized_url}")
+                    log_debug(f"[PROMPT] НАЙДЕНА ПОХОЖАЯ ЗАПИСЬ (обратное)! record.image_url={record.image_url}")
+                    
         return {
             "success": False,
             "prompt": None,
-            "message": "Промпт не найден для этого изображения"
+            "message": "Промпт не найден для этого изображения",
+            "debug_logs": debug_logs
         }
     except Exception as e:
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.error(f"[PROMPT] Ошибка получения промпта: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Ошибка получения промпта: {str(e)}")
+        import traceback
+        error_msg = f"[PROMPT] Ошибка получения промпта: {str(e)}\n{traceback.format_exc()}"
+        logger.error(error_msg)
+        return {
+            "success": False,
+            "message": f"Ошибка сервера: {str(e)}",
+            "debug_logs": [error_msg]
+        }

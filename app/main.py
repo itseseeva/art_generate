@@ -4931,6 +4931,13 @@ async def get_generation_status(
                             # Нормализуем URL
                             normalized_url = image_url.split('?')[0].split('#')[0]
                             
+                            # Извлекаем имя файла из URL
+                            filename = None
+                            if normalized_url:
+                                parts = normalized_url.split('/')
+                                if parts:
+                                    filename = parts[-1]
+                            
                             # Обновляем ChatHistory только если skip_chat_history = False
                             if not metadata.get("skip_chat_history", False):
                                 # Ищем запись в истории, которая была создана как заглушка
@@ -4942,6 +4949,7 @@ async def get_generation_status(
                                     .values(
                                         message_content="",
                                         image_url=normalized_url,
+                                        image_filename=filename,
                                         generation_time=generation_time
                                     )
                                 )

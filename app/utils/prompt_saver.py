@@ -69,6 +69,15 @@ async def save_prompt_to_history(
             else:
                 # Создаем новую запись с task_id
                 normalized_url = image_url.split('?')[0].split('#')[0] if image_url else None
+                
+                # Извлекаем имя файла
+                image_filename = None
+                if normalized_url:
+                    from urllib.parse import urlparse
+                    import os
+                    parsed_path = urlparse(normalized_url).path
+                    image_filename = os.path.basename(parsed_path)
+
                 chat_message = ChatHistory(
                     user_id=user_id,
                     character_name=character_name,
@@ -76,7 +85,7 @@ async def save_prompt_to_history(
                     message_type="user",
                     message_content=prompt,
                     image_url=normalized_url,
-                    image_filename=None
+                    image_filename=image_filename
                 )
                 db.add(chat_message)
                 logger.info(
@@ -126,6 +135,14 @@ async def save_prompt_to_history(
                 )
             else:
                 # Создаем новую запись
+                # Извлекаем имя файла
+                image_filename = None
+                if normalized_url:
+                    from urllib.parse import urlparse
+                    import os
+                    parsed_path = urlparse(normalized_url).path
+                    image_filename = os.path.basename(parsed_path)
+
                 chat_message = ChatHistory(
                     user_id=user_id,
                     character_name=character_name,
@@ -133,7 +150,7 @@ async def save_prompt_to_history(
                     message_type="user",
                     message_content=prompt,
                     image_url=normalized_url,
-                    image_filename=None
+                    image_filename=image_filename
                 )
                 db.add(chat_message)
                 logger.info(

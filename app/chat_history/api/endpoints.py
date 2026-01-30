@@ -337,41 +337,21 @@ async def get_prompt_by_image(
                 """Извлекает идентификатор файла из URL в базе"""
                 return extract_file_identifier(normalize_db_url(url))
             
-            # Пробуем найти по точному совпадению нормализованного URL
-            # Сначала пробуем точное совпадение, затем ищем среди записей пользователя
-            # Для админов ищем по всем пользователям, для обычных пользователей - только по своему user_id
-            
-            # Ищем по идентификатору файла (имя файла после /generated/), игнорируя домен
-            # Для неавторизованных пользователей ищем среди всех записей
-            if current_user and current_user.is_admin:
-                image_history_stmt = (
-                    select(ImageGenerationHistory)
-                    .where(
-                        ImageGenerationHistory.image_url.is_not(None),
-                        ImageGenerationHistory.image_url != ""
-                    )
-                    .order_by(ImageGenerationHistory.created_at.desc())
+            # Ищем по идентификатору файла (имя файла после /generated/), игнорируя домен.
+            # Промпт к изображению доступен всем: ищем по всем записям (любой пользователь может видеть промпт к любому фото).
+            # При нескольких совпадениях приоритет: запись текущего пользователя, затем по дате создания.
+            from sqlalchemy import case
+            order_criteria = [ImageGenerationHistory.created_at.desc()]
+            if current_user:
+                order_criteria.insert(0, case((ImageGenerationHistory.user_id == user_id, 1), else_=0).desc())
+            image_history_stmt = (
+                select(ImageGenerationHistory)
+                .where(
+                    ImageGenerationHistory.image_url.is_not(None),
+                    ImageGenerationHistory.image_url != ""
                 )
-            elif current_user:
-                image_history_stmt = (
-                    select(ImageGenerationHistory)
-                    .where(
-                        ImageGenerationHistory.image_url.is_not(None),
-                        ImageGenerationHistory.image_url != "",
-                        ImageGenerationHistory.user_id == user_id
-                    )
-                    .order_by(ImageGenerationHistory.created_at.desc())
-                )
-            else:
-                # Для неавторизованных пользователей ищем среди всех записей
-                image_history_stmt = (
-                    select(ImageGenerationHistory)
-                    .where(
-                        ImageGenerationHistory.image_url.is_not(None),
-                        ImageGenerationHistory.image_url != ""
-                    )
-                    .order_by(ImageGenerationHistory.created_at.desc())
-                )
+                .order_by(*order_criteria)
+            )
             
             image_history_records = (await db.execute(image_history_stmt)).scalars().all()
             image_history_record = None
