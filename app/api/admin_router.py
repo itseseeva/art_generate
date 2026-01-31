@@ -616,6 +616,7 @@ async def get_users_table(
         from sqlalchemy.orm import selectinload
         from app.models.chat_history import ChatHistory
         from app.models.image_generation_history import ImageGenerationHistory
+        from app.models.payment_transaction import PaymentTransaction
         
         # Получаем пользователей
         query = select(Users).order_by(Users.created_at.desc())
@@ -714,6 +715,24 @@ async def get_users_table(
                 except Exception:
                     pass
             
+            # Проверяем, купил ли пользователь бустер за 69 рублей
+            purchased_booster = False
+            try:
+                booster_result = await db.execute(
+                    select(func.count(PaymentTransaction.id)).where(
+                        and_(
+                            PaymentTransaction.user_id == user.id,
+                            PaymentTransaction.payment_type == "booster",
+                            PaymentTransaction.processed == True
+                        )
+                    )
+                )
+                booster_count = booster_result.scalar() or 0
+                purchased_booster = booster_count > 0
+            except Exception as e:
+                logger.warning(f"[ADMIN] Ошибка проверки покупки бустера для user_id={user.id}: {e}")
+                purchased_booster = False
+            
             users_table.append({
                 "id": user.id,
                 "user": user.email or user.username or f"User {user.id}",
@@ -722,7 +741,8 @@ async def get_users_table(
                 "messages_count": messages_count,
                 "subscription_type": subscription_type,
                 "photos_count": photos_count,
-                "last_login": last_login
+                "last_login": last_login,
+                "purchased_booster": purchased_booster
             })
         
         return {

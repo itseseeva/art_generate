@@ -229,16 +229,16 @@ const MessagesList = styled.div`
 `;
 
 const MessageItem = styled.div<{ $isUser?: boolean }>`
-  background: ${props => props.$isUser 
-    ? 'rgba(139, 92, 246, 0.08)' 
+  background: ${props => props.$isUser
+    ? 'rgba(139, 92, 246, 0.08)'
     : 'rgba(50, 50, 50, 0.5)'};
-  border: 1px solid ${props => props.$isUser 
-    ? 'rgba(139, 92, 246, 0.25)' 
+  border: 1px solid ${props => props.$isUser
+    ? 'rgba(139, 92, 246, 0.25)'
     : 'rgba(100, 100, 100, 0.3)'};
   border-radius: ${theme.borderRadius.md};
   padding: ${theme.spacing.md} ${theme.spacing.lg};
-  border-left: 3px solid ${props => props.$isUser 
-    ? 'rgba(139, 92, 246, 0.7)' 
+  border-left: 3px solid ${props => props.$isUser
+    ? 'rgba(139, 92, 246, 0.7)'
     : 'transparent'};
   line-height: 1.5;
 `;
@@ -300,11 +300,11 @@ const MessageType = styled.span<{ $isUser?: boolean }>`
   border-radius: ${theme.borderRadius.sm};
   font-size: ${theme.fontSize.xs};
   font-weight: 600;
-  background: ${props => props.$isUser 
-    ? 'rgba(139, 92, 246, 0.3)' 
+  background: ${props => props.$isUser
+    ? 'rgba(139, 92, 246, 0.3)'
     : 'rgba(100, 100, 100, 0.3)'};
-  color: ${props => props.$isUser 
-    ? 'rgba(167, 139, 250, 1)' 
+  color: ${props => props.$isUser
+    ? 'rgba(167, 139, 250, 1)'
     : 'rgba(200, 200, 200, 1)'};
   margin-bottom: ${theme.spacing.xs};
 `;
@@ -324,6 +324,7 @@ interface UserTableItem {
   subscription_type: string;
   photos_count: number;
   last_login: string | null;
+  purchased_booster?: boolean;
 }
 
 interface AdminStats {
@@ -445,7 +446,7 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({
     setMessagesError(null);
     setSelectedUserId(userId);
     setSelectedUsername(username);
-    
+
     try {
       const response = await authManager.fetchWithAuth(`/api/v1/admin/users/${userId}/messages?limit=1000`);
       if (!response.ok) {
@@ -558,20 +559,21 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({
                       <TableHeaderCell>Сообщений</TableHeaderCell>
                       <TableHeaderCell>Подписка</TableHeaderCell>
                       <TableHeaderCell>Фото</TableHeaderCell>
+                      <TableHeaderCell>Бустер 69₽</TableHeaderCell>
                       <TableHeaderCell>Последний вход</TableHeaderCell>
                     </tr>
                   </TableHeader>
                   <TableBody>
                     {usersTable.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} style={{ textAlign: 'center', padding: theme.spacing.xl }}>
+                        <TableCell colSpan={6} style={{ textAlign: 'center', padding: theme.spacing.xl }}>
                           Нет данных
                         </TableCell>
                       </TableRow>
                     ) : (
                       usersTable.map((user) => (
-                        <TableRow 
-                          key={user.id} 
+                        <TableRow
+                          key={user.id}
                           $clickable={true}
                           onClick={() => handleUserClick(user)}
                         >
@@ -579,6 +581,7 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({
                           <TableCell>{user.messages_count}</TableCell>
                           <TableCell>{user.subscription_type}</TableCell>
                           <TableCell>{user.photos_count}</TableCell>
+                          <TableCell>{user.purchased_booster ? '✅ Да' : '❌ Нет'}</TableCell>
                           <TableCell>{formatDate(user.last_login)}</TableCell>
                         </TableRow>
                       ))
@@ -593,7 +596,7 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({
       <BackgroundWrapper>
         <DarkVeil speed={1.1} />
       </BackgroundWrapper>
-      
+
       {selectedUserId !== null && (
         <ModalOverlay onClick={closeModal}>
           <ModalContent onClick={(e) => e.stopPropagation()}>
@@ -603,7 +606,7 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({
                 <FiX size={20} />
               </CloseButton>
             </ModalHeader>
-            
+
             {isLoadingMessages ? (
               <LoadingSpinner size="md" text="Загрузка сообщений..." />
             ) : messagesError ? (
