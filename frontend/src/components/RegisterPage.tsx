@@ -44,17 +44,7 @@ const LeftSection = styled.div`
   }
 `;
 
-const Logo = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 60px;
-  
-  img {
-    height: 80px;
-    width: auto;
-  }
-`;
+
 
 const MainHeading = styled.h1`
   font-size: 48px;
@@ -433,12 +423,13 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onVerifyCode, o
       </BackgroundWrapper>
 
       <LeftSection>
-        <Logo>
-          <img src="/logo-header.png" alt="Cherry Lust" />
-        </Logo>
+
 
         <MainHeading>
-          Получи свои первые <span>200 монет</span><br />
+          Получи свои первые <br />
+          <span>5 сообщений</span>, <br />
+          <span>5 фото генераций</span> и <br />
+          <span>5 голосовых генераций</span> <br />
           при регистрации
         </MainHeading>
 

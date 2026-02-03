@@ -28,6 +28,7 @@ import {
   FiHome as HomeIcon,
   FiHeart as HeartIcon,
   FiUserPlus as UserPlusIcon,
+  FiMic as MicIcon,
   FiEdit as EditIcon,
   FiLogIn as LogInIcon,
   FiLogOut as LogOutIcon,
@@ -85,50 +86,6 @@ const forgetUnlockedUserGallery = (userId: number): number[] => {
   return updated;
 };
 
-interface InsufficientCreditsNotificationProps {
-  onClose: () => void;
-  onOpenShop?: () => void;
-  hasShopButton?: boolean;
-}
-
-const InsufficientCreditsNotification: React.FC<InsufficientCreditsNotificationProps> = ({
-  onClose,
-  onOpenShop,
-  hasShopButton
-}) => {
-  useEffect(() => {
-    
-  }, []);
-
-  return (
-    <>
-      <NotificationOverlay onClick={onClose} />
-      <NotificationContainer $isClosing={false}>
-        <NotificationContent>
-          <IconWrapper>
-            <AlertIcon />
-          </IconWrapper>
-          <NotificationTitle>Упс! Недостаточно кредитов</NotificationTitle>
-          <NotificationMessage>
-            Для открытия галереи пользователя необходимо 500 кредитов. 
-            У вас недостаточно средств для покупки доступа.
-          </NotificationMessage>
-          <NotificationButtonGroup>
-            {hasShopButton && (
-              <NotificationButton onClick={onOpenShop}>
-                <ShopIcon />
-                Перейти в магазин
-              </NotificationButton>
-            )}
-            <NotificationCancelButton onClick={onClose}>
-              Отмена
-            </NotificationCancelButton>
-          </NotificationButtonGroup>
-        </NotificationContent>
-      </NotificationContainer>
-    </>
-  );
-};
 
 // Компонент уведомления снизу от кнопки
 const FreeSubscriptionTooltip = styled.div<{ $show: boolean }>`
@@ -192,7 +149,6 @@ const GalleryCostHint = styled.span`
 
 interface ProfilePageProps {
   onBackToMain: () => void;
-  onShop?: () => void;
   onCreateCharacter?: () => void;
   onEditCharacters?: () => void;
   onOpenUserGallery?: (userId?: number) => void;
@@ -202,11 +158,11 @@ interface ProfilePageProps {
   onMyCharacters?: () => void;
   onMessages?: () => void;
   onHistory?: () => void;
-  onBalanceHistory?: () => void;
   onCharacterSelect?: (character: any) => void;
   onLogout?: () => void;
   onPaidAlbum?: (character: any) => void;
-  userId?: number; // ID пользователя, профиль которого показывается (если не указан - показывается свой профиль)
+  onShop?: () => void;
+  userId?: number;
 }
 
 interface UserInfoResponse {
@@ -216,16 +172,17 @@ interface UserInfoResponse {
   avatar_url?: string | null;
   is_active: boolean;
   is_admin?: boolean;
-  coins: number;
   created_at?: string;
   subscription?: {
     subscription_type?: string;
     status?: string;
-    monthly_credits?: number;
     monthly_photos?: number;
     max_message_length?: number;
-    used_credits?: number;
     used_photos?: number;
+    images_limit?: number;
+    images_used?: number;
+    voice_limit?: number;
+    voice_used?: number;
     activated_at?: string;
     expires_at?: string;
   } | null;
@@ -233,11 +190,14 @@ interface UserInfoResponse {
 
 interface SubscriptionStats {
   subscription_type: string | null;
-  monthly_credits: number;
   monthly_photos: number;
-  used_credits: number;
   used_photos: number;
-  credits_remaining: number;
+  images_limit?: number;
+  images_used?: number;
+  voice_limit?: number;
+  voice_used?: number;
+  characters_count?: number;
+  characters_limit?: number | null;
   photos_remaining: number;
   days_left: number | null;
   is_active: boolean;
@@ -854,7 +814,7 @@ const NotificationContainer = styled.div<{ $isClosing: boolean }>`
 `;
 
 const NotificationContent = styled.div<{ $variant?: 'error' | 'warning' }>`
-  background: ${props => props.$variant === 'warning' 
+  background: ${props => props.$variant === 'warning'
     ? 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)'
     : 'linear-gradient(135deg, rgb(244, 63, 94), rgb(220, 38, 38))'};
   border: ${props => props.$variant === 'warning'
@@ -879,8 +839,8 @@ const NotificationContent = styled.div<{ $variant?: 'error' | 'warning' }>`
     right: 0;
     bottom: 0;
     background: ${props => props.$variant === 'warning'
-      ? 'radial-gradient(circle at top right, rgba(255, 255, 255, 0.05), transparent 70%)'
-      : 'radial-gradient(circle at top right, rgba(255, 255, 255, 0.1), transparent 70%)'};
+    ? 'radial-gradient(circle at top right, rgba(255, 255, 255, 0.05), transparent 70%)'
+    : 'radial-gradient(circle at top right, rgba(255, 255, 255, 0.1), transparent 70%)'};
     pointer-events: none;
   }
 `;
@@ -912,7 +872,7 @@ const NotificationTitle = styled.h3<{ $variant?: 'error' | 'warning' }>`
   font-size: ${theme.fontSize['2xl']};
   font-weight: 800;
   color: ${props => props.$variant === 'warning' ? '#ffffff' : 'white'};
-  text-shadow: ${props => props.$variant === 'warning' 
+  text-shadow: ${props => props.$variant === 'warning'
     ? '0 2px 8px rgba(0, 0, 0, 0.6)'
     : '0 2px 8px rgba(0, 0, 0, 0.4)'};
   position: relative;
@@ -923,7 +883,7 @@ const NotificationTitle = styled.h3<{ $variant?: 'error' | 'warning' }>`
 const NotificationMessage = styled.p<{ $variant?: 'error' | 'warning' }>`
   margin: 0 0 ${theme.spacing.xl} 0;
   font-size: ${theme.fontSize.lg};
-  color: ${props => props.$variant === 'warning' 
+  color: ${props => props.$variant === 'warning'
     ? 'rgba(255, 255, 255, 0.9)'
     : 'rgba(255, 255, 255, 0.95)'};
   line-height: 1.7;
@@ -1006,16 +966,16 @@ const NotificationCancelButton = styled.button<{ $variant?: 'error' | 'warning' 
   
   &:hover {
     background: ${props => props.$variant === 'warning'
-      ? 'rgba(80, 80, 80, 0.8)'
-      : 'rgba(255, 255, 255, 0.25)'};
+    ? 'rgba(80, 80, 80, 0.8)'
+    : 'rgba(255, 255, 255, 0.25)'};
     border-color: ${props => props.$variant === 'warning'
-      ? 'rgba(150, 150, 150, 0.5)'
-      : 'rgba(255, 255, 255, 0.5)'};
+    ? 'rgba(150, 150, 150, 0.5)'
+    : 'rgba(255, 255, 255, 0.5)'};
     color: white;
     transform: translateY(-2px);
     box-shadow: ${props => props.$variant === 'warning'
-      ? '0 6px 20px rgba(0, 0, 0, 0.4)'
-      : '0 6px 20px rgba(0, 0, 0, 0.3)'};
+    ? '0 6px 20px rgba(0, 0, 0, 0.4)'
+    : '0 6px 20px rgba(0, 0, 0, 0.3)'};
   }
   
   &:active {
@@ -1127,7 +1087,7 @@ const EditMessage = styled.div<{ $error?: boolean }>`
   border-radius: ${theme.borderRadius.lg};
   font-size: ${theme.fontSize.sm};
   background: ${props => props.$error ? 'rgba(239, 68, 68, 0.1)' : 'rgba(34, 197, 94, 0.1)'};
-  color: ${props => props.$error ? theme.colors.error : theme.colors.status.success};
+  color: ${props => props.$error ? theme.colors.status.error : theme.colors.status.success};
 `;
 
 const getInitials = (username?: string | null, email?: string): string => {
@@ -1189,13 +1149,13 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, onUpdate })
 
   const handleRequestPasswordChange = async () => {
     if (!oldPassword.trim() || !newPassword.trim() || !confirmPassword.trim()) return;
-    
+
     // Проверяем, что новый пароль и повтор совпадают
     if (newPassword !== confirmPassword) {
       setMessage({ text: 'Новый пароль и повтор не совпадают', error: true });
       return;
     }
-    
+
     setIsLoading(true);
     setMessage(null);
     try {
@@ -1255,7 +1215,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, onUpdate })
   return (
     <EditForm>
       {message && <EditMessage $error={message.error}>{message.text}</EditMessage>}
-      
+
       <EditField>
         <EditLabel>Имя пользователя</EditLabel>
         <EditInput
@@ -1325,8 +1285,8 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, onUpdate })
               <EditButton onClick={handleConfirmPasswordChange} disabled={isLoading || !passwordVerificationCode.trim() || passwordVerificationCode.length !== 6}>
                 Подтвердить
               </EditButton>
-              <EditButton onClick={() => { 
-                setPasswordChangeStep('form'); 
+              <EditButton onClick={() => {
+                setPasswordChangeStep('form');
                 setPasswordVerificationCode('');
                 setOldPassword('');
                 setNewPassword('');
@@ -1344,7 +1304,6 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, onUpdate })
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({
   onBackToMain,
-  onShop,
   onCreateCharacter,
   onEditCharacters,
   onOpenUserGallery,
@@ -1354,13 +1313,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   onMyCharacters,
   onMessages,
   onHistory,
-  onBalanceHistory,
   onCharacterSelect,
   onLogout,
   onPaidAlbum,
   userId: profileUserId
 }) => {
-  
+
   const [userInfo, setUserInfo] = useState<UserInfoResponse | null>(null);
   const [stats, setStats] = useState<SubscriptionStats | null>(null);
   const [isLoading, setIsLoading] = useState(() => {
@@ -1369,7 +1327,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     return !!token;
   });
   const [error, setError] = useState<string | null>(null);
-  const [balanceRefreshTrigger, setBalanceRefreshTrigger] = useState(0);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [showFreeSubscriptionTooltip, setShowFreeSubscriptionTooltip] = useState(false);
   const galleryButtonRef = useRef<HTMLButtonElement>(null);
@@ -1379,9 +1336,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [currentUserId, setCurrentUserId] = useState<number | null>(null); // ID текущего авторизованного пользователя
   const [isLoadingGallery, setIsLoadingGallery] = useState(false);
   const [generatedPhotosCount, setGeneratedPhotosCount] = useState<number>(0); // Количество сгенерированных фото для чужого профиля
-  const [currentUserCoins, setCurrentUserCoins] = useState<number | null>(null);
   const [hasUnlockedGallery, setHasUnlockedGallery] = useState(false);
-  const [showInsufficientCreditsNotification, setShowInsufficientCreditsNotification] = useState(false);
   const [profileStats, setProfileStats] = useState<{
     characters_count: number;
     messages_count: number;
@@ -1395,12 +1350,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
   const isViewingOwnProfile = !profileUserId || (currentUserId !== null && profileUserId === currentUserId);
   const isMobile = useIsMobile();
-  
+
   // Загрузка избранных персонажей
   const loadFavorites = useCallback(async () => {
     try {
       const response = await authManager.fetchWithAuth(API_CONFIG.FAVORITES);
-      
+
       if (response.ok) {
         const favorites = await response.json();
         // Извлекаем ID избранных персонажей
@@ -1418,19 +1373,19 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       setFavoriteCharacterIds(new Set());
     }
   }, []);
-  
+
   // Загружаем избранные при монтировании
   useEffect(() => {
     loadFavorites();
   }, [loadFavorites]);
-  
-  
+
+
   // Загрузка персонажей пользователя
   const loadUserCharacters = useCallback(async () => {
     try {
       // Определяем ID пользователя, чьих персонажей нужно загрузить
       let targetUserId: number | null = null;
-      
+
       // Если передан profileUserId, используем его (для чужого профиля)
       if (profileUserId) {
         targetUserId = profileUserId;
@@ -1448,14 +1403,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
           const userData = await userResponse.json();
           targetUserId = userData?.id;
-          
+
           // Сохраняем currentUserId для будущих вызовов
           if (targetUserId) {
             setCurrentUserId(targetUserId);
           }
         }
       }
-      
+
       if (!targetUserId) {
         setUserCharacters([]);
         return;
@@ -1474,28 +1429,28 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
       if (response.ok) {
         const charactersData = await response.json();
-        
+
         if (!Array.isArray(charactersData)) {
           setUserCharacters([]);
           return;
         }
-        
+
         // Если использовали /my-characters, персонажи уже отфильтрованы
         // Если использовали общий эндпоинт, фильтруем по user_id
         const myCharacters = !profileUserId && currentUserId === targetUserId
           ? charactersData  // Уже отфильтрованы
           : charactersData.filter((char: any) => {
-              if (!char || !char.id) {
-                return false;
-              }
-              // Проверяем оба варианта: user_id и creator_id (на случай разных версий API)
-              const charUserId = char.user_id || char.creator_id;
-              return charUserId !== null && charUserId !== undefined && Number(charUserId) === Number(targetUserId);
-            });
-        
+            if (!char || !char.id) {
+              return false;
+            }
+            // Проверяем оба варианта: user_id и creator_id (на случай разных версий API)
+            const charUserId = char.user_id || char.creator_id;
+            return charUserId !== null && charUserId !== undefined && Number(charUserId) === Number(targetUserId);
+          });
+
         // Загружаем фото из main_photos
         const photosMap: Record<string, string[]> = {};
-        
+
         for (const char of myCharacters) {
           if (!char) {
             continue;
@@ -1507,7 +1462,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           // Поэтому создаем ключ по name, но также сохраняем по display_name для совместимости
           const charName = char.name;
           const charDisplayName = char.display_name;
-          
+
           if (!charName && !charDisplayName) {
             continue;
           }
@@ -1593,7 +1548,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             }
           }
         }
-        
+
         // Дополнительно пытаемся загрузить из API endpoint для персонажей без фото
         try {
           const photosResponse = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/photos`);
@@ -1622,16 +1577,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         } catch (apiError) {
           // Игнорируем ошибки при загрузке фото из API
         }
-        
+
         // Фильтруем персонажей с валидным id (та же фильтрация, что и для formattedCharacters)
         const filteredCharacters = myCharacters.filter((char: any) => char && char.id != null);
-        
-        
+
+
         // Сохраняем raw данные персонажей (только отфильтрованные, чтобы индексы совпадали с userCharacters)
         setRawCharactersData(filteredCharacters);
         // Сохраняем photosMap в состояние
         setPhotosMap(photosMap);
-        
+
         // Сохраняем персонажей (используем rawCharactersData для отображения)
         setUserCharacters(filteredCharacters);
       } else {
@@ -1661,7 +1616,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     setHasUnlockedGallery(unlocked.includes(profileUserId));
   }, [profileUserId]);
 
-  
+
 
   const clearRealtimeConnection = useCallback(() => {
     if (wsRef.current) {
@@ -1679,34 +1634,33 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const fetchUserInfo = useCallback(async () => {
     // Если передан profileUserId, загружаем данные этого пользователя
     // Иначе загружаем данные текущего пользователя
-    const url = profileUserId 
+    const url = profileUserId
       ? `${API_CONFIG.BASE_URL}/api/v1/auth/users/${profileUserId}/`
       : `${API_CONFIG.BASE_URL}/api/v1/auth/me/`;
-    
+
     const response = await authManager.fetchWithAuth(url);
 
     if (!response.ok) {
       const errorText = await response.text();
-      
+
       throw new Error('Не удалось загрузить данные пользователя');
     }
 
     const data = await response.json();
     if (!data) {
-        throw new Error('Пустой ответ от сервера');
+      throw new Error('Пустой ответ от сервера');
     }
-    
-    
-    
+
+
+
     setUserInfo(data as UserInfoResponse);
-    
+
     // Если это свой профиль, сохраняем ID текущего пользователя
     if (!profileUserId) {
       const userId = data.id;
       setCurrentUserId(userId);
-      setCurrentUserCoins(typeof data.coins === 'number' ? data.coins : null);
     }
-    
+
     return data as UserInfoResponse;
   }, [profileUserId]);
 
@@ -1730,10 +1684,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       }
       const data = await response.json();
       setCurrentUserId(data.id);
-      setCurrentUserCoins(typeof data.coins === 'number' ? data.coins : null);
       return data as UserInfoResponse;
     } catch (error) {
-      
+
       return null;
     }
   }, []);
@@ -1748,7 +1701,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       }
     } catch (error) {
       // Игнорируем ошибки при загрузке количества фото
-      
+
     }
   }, []);
 
@@ -1765,7 +1718,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         });
       }
     } catch (error) {
-      
+
     }
   }, []);
 
@@ -1807,7 +1760,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         setHasUnlockedGallery(false);
       }
     } catch (error) {
-      
+
     }
   }, []);
 
@@ -1825,60 +1778,20 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       }
 
       if (response.status === 403) {
-        
+
         forgetUnlockedUserGallery(profileUserId);
         setHasUnlockedGallery(false);
         return false;
       }
 
-      
+
       return false;
     } catch (error) {
-      
+
       return false;
     }
   }, [profileUserId]);
 
-  useEffect(() => {
-    if (!authToken) {
-      return;
-    }
-
-    let isMounted = true;
-
-    const handleBalanceUpdate = async () => {
-      if (!isMounted) {
-        return;
-      }
-      const currentProfile = await fetchCurrentUserProfile();
-      if (!currentProfile || !isMounted) {
-        return;
-      }
-
-      if (!profileUserId || profileUserId === currentProfile.id) {
-        setUserInfo((prev) => {
-          if (!prev) {
-            return prev;
-          }
-          return {
-            ...prev,
-            coins: currentProfile.coins
-          };
-        });
-      }
-
-      if (profileUserId && profileUserId !== currentProfile.id) {
-        await verifyGalleryAccess();
-      }
-    };
-
-    window.addEventListener('balance-update', handleBalanceUpdate);
-
-    return () => {
-      isMounted = false;
-      window.removeEventListener('balance-update', handleBalanceUpdate);
-    };
-  }, [authToken, profileUserId, fetchCurrentUserProfile, verifyGalleryAccess]);
 
   const handleOpenUserGallery = useCallback(async () => {
     if (!profileUserId || isViewingOwnProfile) {
@@ -1892,15 +1805,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     // а не fetchUserInfo, который может загружать данные чужого пользователя
     let currentStats = stats;
     let currentUserInfo = userInfo;
-    
+
     if (!currentStats) {
       try {
         currentStats = await fetchSubscriptionStats();
       } catch (error) {
-        
+
       }
     }
-    
+
     // Всегда загружаем данные текущего пользователя через /api/v1/auth/me/
     // чтобы получить правильную информацию о подписке
     if (!currentUserInfo?.subscription?.subscription_type || currentUserInfo?.id !== currentUserId) {
@@ -1909,18 +1822,18 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         if (response.ok) {
           const meData = await response.json();
           currentUserInfo = meData;
-          
+
         }
       } catch (error) {
-        
+
       }
     }
 
     // Проверяем подписку перед разблокировкой
     const subscriptionTypeRaw = currentStats?.subscription_type || currentUserInfo?.subscription?.subscription_type || '';
     const currentSubscription = subscriptionTypeRaw ? subscriptionTypeRaw.toLowerCase() : '';
-    
-    
+
+
     // Проверяем, что подписка есть и она STANDARD или PREMIUM
     const allowedSubscriptions = ['standard', 'premium'];
     if (!currentSubscription || !allowedSubscriptions.includes(currentSubscription)) {
@@ -1933,18 +1846,18 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     }
 
     if (hasUnlockedGallery) {
-      
+
       const hasServerAccess = await verifyGalleryAccess();
       if (hasServerAccess) {
-        
+
         onOpenUserGallery?.(profileUserId);
         return;
       }
 
-      
+
     }
-    
-    
+
+
 
     setIsLoadingGallery(true);
     try {
@@ -1953,70 +1866,36 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       const updatedProfile = await fetchCurrentUserProfile();
       rememberUnlockedUserGallery(profileUserId);
       setHasUnlockedGallery(true);
-      
+
       // Диспатчим событие обновления баланса с данными
-      if (updatedProfile && updatedProfile.coins !== undefined) {
-        
-        window.dispatchEvent(new CustomEvent('balance-update', { detail: { coins: updatedProfile.coins } }));
-      } else {
-        setTimeout(() => {
-          
-          window.dispatchEvent(new Event('balance-update'));
-        }, 100);
-      }
+      setTimeout(() => {
+        window.dispatchEvent(new Event('balance-update'));
+      }, 100);
 
       if (onOpenUserGallery) {
-        // Передаем profileUserId чтобы открыть галерею именно этого пользователя
         onOpenUserGallery(profileUserId);
       }
-    } catch (error: any) {
-      
-      // Если ошибка связана с недостатком кредитов (400 статус или сообщение содержит ключевые слова), показываем стильное уведомление
-      const isInsufficientCredits = error.status === 400 || 
-        (error.message && (
-          error.message.toLowerCase().includes('кредит') || 
-          error.message.toLowerCase().includes('баланс') || 
-          error.message.toLowerCase().includes('недостаточно') ||
-          error.message.toLowerCase().includes('insufficient') ||
-          error.message.toLowerCase().includes('balance')
+    } catch (err: any) {
+      const isSubscriptionError = err.status === 403 ||
+        (err.message && (
+          err.message.toLowerCase().includes('подписк') ||
+          err.message.toLowerCase().includes('subscription') ||
+          err.message.toLowerCase().includes('standard') ||
+          err.message.toLowerCase().includes('premium')
         ));
-      
-      // Если ошибка связана с подпиской (403 статус)
-      const isSubscriptionError = error.status === 403 || 
-        (error.message && (
-          error.message.toLowerCase().includes('подписк') ||
-          error.message.toLowerCase().includes('subscription') ||
-          error.message.toLowerCase().includes('standard') ||
-          error.message.toLowerCase().includes('premium')
-        ));
-      
+
       if (isSubscriptionError) {
-        // Показываем модальное окно для ошибок подписки
-        setIsFreeSubscriptionModalOpen(true);
-      } else if (isInsufficientCredits) {
-        
-        setShowInsufficientCreditsNotification(true);
-      } else {
-        // Для других ошибок показываем уведомление о недостатке кредитов
-        
-        setShowInsufficientCreditsNotification(true);
+        console.warn('Subscription error:', err);
       }
-    } finally {
       setIsLoadingGallery(false);
     }
   }, [
-    authToken,
-    profileUserId,
-    unlockUserGallery,
-    onOpenUserGallery,
     hasUnlockedGallery,
-    currentUserCoins,
     fetchCurrentUserProfile,
     isViewingOwnProfile,
     verifyGalleryAccess,
     stats,
-    userInfo,
-    onShop
+    userInfo
   ]);
 
 
@@ -2044,33 +1923,33 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     setError(null);
 
     try {
-    // Если это чужой профиль, сначала загружаем ID текущего пользователя
-    let myUserId: number | null = null;
-    if (profileUserId) {
+      // Если это чужой профиль, сначала загружаем ID текущего пользователя
+      let myUserId: number | null = null;
+      if (profileUserId) {
         try {
-      const myProfileData = await fetchCurrentUserProfile();
-      myUserId = myProfileData?.id ?? null;
+          const myProfileData = await fetchCurrentUserProfile();
+          myUserId = myProfileData?.id ?? null;
         } catch (error) {
-          
+
           // Продолжаем загрузку даже если не удалось получить ID текущего пользователя
         }
-    }
-
-    const results = await Promise.allSettled([
-      fetchUserInfo(),
-      fetchSubscriptionStats(), // Всегда загружаем статистику текущего пользователя (нужна для проверки подписки при разблокировке галереи)
-      profileUserId ? Promise.resolve(null) : loadPhotosCount(), // Фото только для своего профиля
-      isViewingOwnProfile ? fetchProfileStats() : Promise.resolve(null) // Расширенная статистика только для своего профиля
-    ]);
-
-    // Если это чужой профиль, загружаем количество сгенерированных фото
-    if (profileUserId && myUserId && profileUserId !== myUserId) {
-      try {
-        await loadGeneratedPhotosCount(profileUserId);
-      } catch (error) {
-        
       }
-    }
+
+      const results = await Promise.allSettled([
+        fetchUserInfo(),
+        fetchSubscriptionStats(), // Всегда загружаем статистику текущего пользователя (нужна для проверки подписки при разблокировке галереи)
+        profileUserId ? Promise.resolve(null) : loadPhotosCount(), // Фото только для своего профиля
+        isViewingOwnProfile ? fetchProfileStats() : Promise.resolve(null) // Расширенная статистика только для своего профиля
+      ]);
+
+      // Если это чужой профиль, загружаем количество сгенерированных фото
+      if (profileUserId && myUserId && profileUserId !== myUserId) {
+        try {
+          await loadGeneratedPhotosCount(profileUserId);
+        } catch (error) {
+
+        }
+      }
 
       // Проверяем результат загрузки userInfo (первый промис)
       const userInfoResult = results[0];
@@ -2085,27 +1964,21 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         if (otherRejectedResult && otherRejectedResult.status === 'rejected') {
           const reason = otherRejectedResult.reason;
           // Показываем предупреждение, но не критическую ошибку
-          
+
         }
-      setError(null);
-      setBalanceRefreshTrigger((prev) => prev + 1);
+        setError(null);
       } else {
         // Если userInfo не загружен, но и ошибки нет
         setError('Не удалось загрузить данные профиля');
         setUserInfo(null);
-    }
+      }
     } catch (error) {
-      
+
       setError(error instanceof Error ? error.message : 'Не удалось загрузить данные профиля');
     } finally {
-    setIsLoading(false);
+      setIsLoading(false);
     }
   }, [fetchSubscriptionStats, fetchUserInfo, loadPhotosCount, profileUserId, currentUserId, loadGeneratedPhotosCount, fetchCurrentUserProfile, fetchProfileStats, isViewingOwnProfile]);
-
-  // Логируем изменения profileUserId
-  useEffect(() => {
-    
-  }, [profileUserId]);
 
   // Загружаем персонажей пользователя (для своего и чужого профиля)
   useEffect(() => {
@@ -2122,7 +1995,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       setRawCharactersData([]);
     }
   }, [authToken, loadUserCharacters, profileUserId, currentUserId]);
-  
+
   // Дополнительный useEffect для загрузки персонажей после установки currentUserId
   useEffect(() => {
     if (authToken && !profileUserId && currentUserId !== null) {
@@ -2147,7 +2020,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     const connectionId = connectionIdRef.current + 1;
     connectionIdRef.current = connectionId;
     // Формируем WebSocket URL на основе текущего домена
-    const wsHost = API_CONFIG.BASE_URL 
+    const wsHost = API_CONFIG.BASE_URL
       ? API_CONFIG.BASE_URL.replace(/^https?:\/\//, '').replace(/\/$/, '')
       : window.location.host;
     const wsUrl = `${protocol}://${wsHost}/api/v1/profile/ws?token=${encodeURIComponent(authToken)}`;
@@ -2179,27 +2052,17 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
         setError(null);
         setIsLoading(false);
-        setBalanceRefreshTrigger((prev) => prev + 1);
       } catch (parseError) {
-        
         setError('Не удалось обработать обновление профиля');
       }
     };
 
-    socket.onerror = () => {
-      // Тихая обработка ошибки WebSocket без логирования
-    };
+    socket.onerror = () => { };
 
     socket.onclose = () => {
-      if (connectionId !== connectionIdRef.current) {
-        return;
-      }
-
+      if (connectionId !== connectionIdRef.current) return;
       wsRef.current = null;
-      if (!authToken) {
-        return;
-      }
-
+      if (!authToken) return;
       if (reconnectTimeoutRef.current !== null) {
         window.clearTimeout(reconnectTimeoutRef.current);
       }
@@ -2209,86 +2072,26 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     };
   }, [authToken, clearRealtimeConnection, isViewingOwnProfile]);
 
+  // Загружаем данные профиля при монтировании и изменении profileUserId
   useEffect(() => {
-    const handleStorage = () => {
-      setAuthToken(localStorage.getItem('authToken'));
-    };
-
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
-  }, []);
-
-  useEffect(() => {
-    if (authToken) {
-      if (isViewingOwnProfile) {
-        startRealtimeConnection();
-      } else {
-        clearRealtimeConnection();
-      }
-      loadProfileData();
-    } else {
-      clearRealtimeConnection();
-      setUserInfo(null);
-      setStats(null);
-      setIsLoading(false);
-      setError(null);
-    }
+    loadProfileData();
+    startRealtimeConnection();
 
     return () => {
       clearRealtimeConnection();
     };
-  }, [authToken, clearRealtimeConnection, loadProfileData, startRealtimeConnection, isViewingOwnProfile]);
-
-  useEffect(() => {
-    if (!hasAuthToken) {
-      return;
-    }
-
-    const handler = () => {
-      loadProfileData();
-    };
-
-    window.addEventListener('subscription-update', handler);
-    return () => window.removeEventListener('subscription-update', handler);
-  }, [hasAuthToken, loadProfileData]);
-
-  // Синхронизация состояния авторизации
-  useEffect(() => {
-    const unsubscribe = authManager.subscribeAuthChanges((state) => {
-      if (!state.isAuthenticated) {
-        // Если пользователь вышел, очищаем данные
-        setUserInfo(null);
-        setStats(null);
-        setUserCharacters([]);
-        setPhotosCount(0);
-        setGeneratedPhotosCount(0);
-        clearRealtimeConnection();
-      } else {
-        // Если пользователь вошел, перезагружаем данные
-        loadProfileData();
-        loadUserCharacters();
-      }
-    });
-
-    return unsubscribe;
-  }, [loadProfileData, loadUserCharacters, clearRealtimeConnection]);
-
-  // Для своего профиля используем stats, для чужого - только userInfo
-  // КРИТИЧНО: stats содержит данные ТЕКУЩЕГО пользователя, а не того, чей профиль просматривается
-  const subscriptionType = isViewingOwnProfile 
-    ? (stats?.subscription_type ?? userInfo?.subscription?.subscription_type ?? '—')
-    : (userInfo?.subscription?.subscription_type ?? '—');
-  const photosRemaining = isViewingOwnProfile
-    ? (stats?.photos_remaining ?? userInfo?.subscription?.monthly_photos ?? 0)
-    : (userInfo?.subscription?.monthly_photos ?? 0);
-  const coinBalance = userInfo?.coins ?? 0;
+  }, [loadProfileData, startRealtimeConnection, clearRealtimeConnection]);
 
   const renderContent = () => {
+    const subscriptionType = isViewingOwnProfile
+      ? (stats?.subscription_type ?? userInfo?.subscription?.subscription_type ?? '—')
+      : (userInfo?.subscription?.subscription_type ?? '—');
+
     if (!hasAuthToken) {
       return (
         <div className="w-full min-h-screen bg-black p-6 md:p-8 flex items-center justify-center">
           <div className="p-6 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 backdrop-blur-md max-w-md text-center">
-          Для просмотра профиля необходимо войти в систему.
+            Для просмотра профиля необходимо войти в систему.
           </div>
         </div>
       );
@@ -2320,7 +2123,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             >
               <div className="flex items-center gap-4 mb-6">
                 <button
-                    onClick={() => setShowSettingsPage(false)}
+                  onClick={() => setShowSettingsPage(false)}
                   className="p-2 bg-white/10 hover:bg-white/20 rounded-lg border border-white/10 transition-colors"
                 >
                   <ArrowLeftIcon className="w-5 h-5 text-white" />
@@ -2330,7 +2133,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   <p className="text-white/60 text-sm mt-1">Изменить данные учетной записи</p>
                 </div>
               </div>
-            <EditProfileForm userInfo={userInfo} onUpdate={loadProfileData} />
+              <EditProfileForm userInfo={userInfo} onUpdate={loadProfileData} />
             </motion.div>
           </div>
         </div>
@@ -2342,18 +2145,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       return (
         <div className="w-full min-h-screen bg-black p-6 md:p-8 flex items-center justify-center">
           <div className="p-6 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 backdrop-blur-md max-w-md text-center">
-          Не удалось загрузить данные профиля. Пожалуйста, обновите страницу.
+            Не удалось загрузить данные профиля. Пожалуйста, обновите страницу.
           </div>
         </div>
       );
     }
 
     const recentActivities = [
-      { action: 'Использовано', item: `${stats?.used_credits ?? 0} кредитов`, time: 'Сегодня', type: 'credits' },
       { action: 'Создано', item: `${stats?.used_photos ?? 0} изображений`, time: 'На этой неделе', type: 'photos' },
-      { action: 'Пополнен', item: `баланс на ${coinBalance} монет`, time: 'Недавно', type: 'coins' },
     ].filter(activity => {
-      if (activity.type === 'credits') return (stats?.used_credits ?? 0) > 0;
       if (activity.type === 'photos') return (stats?.used_photos ?? 0) > 0;
       return true;
     });
@@ -2361,8 +2161,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
     const subscriptionTypeUpper = subscriptionType && subscriptionType !== '—' ? subscriptionType.toUpperCase() : null;
     const isPremium = subscriptionTypeUpper === 'PREMIUM';
-    const progressPercentage = stats?.monthly_credits 
-      ? Math.min(100, Math.round((stats.used_credits / stats.monthly_credits) * 100))
+    const progressPercentage = stats?.monthly_photos
+      ? Math.min(100, Math.round((stats.used_photos / stats.monthly_photos) * 100))
       : 0;
 
     return (
@@ -2383,71 +2183,70 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           >
             <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
               <div className="relative">
-                <div className={`w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden border-2 ${
-                  isPremium 
-                    ? 'border-yellow-400/50 shadow-[0_0_20px_rgba(250,204,21,0.3)]' 
-                    : 'border-pink-500/50 shadow-[0_0_20px_rgba(236,72,153,0.3)]'
-                } relative ${isViewingOwnProfile ? 'cursor-pointer' : ''}`}>
-              {userInfo?.avatar_url ? (
-                    <img 
-                      src={userInfo.avatar_url} 
-                      alt="Avatar" 
+                <div className={`w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden border-2 ${isPremium
+                  ? 'border-yellow-400/50 shadow-[0_0_20px_rgba(250,204,21,0.3)]'
+                  : 'border-pink-500/50 shadow-[0_0_20px_rgba(236,72,153,0.3)]'
+                  } relative ${isViewingOwnProfile ? 'cursor-pointer' : ''}`}>
+                  {userInfo?.avatar_url ? (
+                    <img
+                      src={userInfo.avatar_url}
+                      alt="Avatar"
                       className="w-full h-full object-cover"
                       onError={(e) => {
                         e.currentTarget.style.display = 'none';
                       }}
                     />
-              ) : userInfo?.username || userInfo?.email ? (
+                  ) : userInfo?.username || userInfo?.email ? (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-500/20 to-purple-500/20 text-3xl md:text-4xl font-bold text-white">
                       {getInitials(userInfo.username, userInfo.email)}
                     </div>
-              ) : (
+                  ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-500/20 to-purple-500/20">
                       <User className="w-12 h-12 text-white/70" />
                     </div>
-              )}
-              {isViewingOwnProfile && (
+                  )}
+                  {isViewingOwnProfile && (
                     <input
-                  id="avatar-upload"
-                  type="file"
-                  accept="image/*"
-                  onChange={async (e) => {
-                  if (isUploadingRef.current) {
-                    e.target.value = '';
-                    return;
-                  }
-                  const file = e.target.files?.[0];
-                  if (!file || !authToken) {
-                    e.target.value = '';
-                    return;
-                  }
-                  isUploadingRef.current = true;
-                  
-                  const formData = new FormData();
-                  formData.append('avatar', file);
-                  try {
-                    const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/avatar/`, {
-                      method: 'POST',
+                      id="avatar-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        if (isUploadingRef.current) {
+                          e.target.value = '';
+                          return;
+                        }
+                        const file = e.target.files?.[0];
+                        if (!file || !authToken) {
+                          e.target.value = '';
+                          return;
+                        }
+                        isUploadingRef.current = true;
+
+                        const formData = new FormData();
+                        formData.append('avatar', file);
+                        try {
+                          const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/avatar/`, {
+                            method: 'POST',
                             headers: { Authorization: `Bearer ${authToken}` },
-                      body: formData
-                    });
-                    if (response.ok) {
-                      const data = await response.json();
-                      
-                      setUserInfo(prev => prev ? { ...prev, avatar_url: data.avatar_url } : null);
-                    } else {
-                      const errorData = await response.json().catch(() => ({ detail: 'Неизвестная ошибка' }));
-                      
-                      setError(errorData.detail || 'Не удалось загрузить фото');
-                    }
-                  } catch (err) {
-                    
-                    setError('Ошибка при загрузке фото');
-                  } finally {
-                    isUploadingRef.current = false;
-                    e.target.value = '';
-                  }
-                  }}
+                            body: formData
+                          });
+                          if (response.ok) {
+                            const data = await response.json();
+
+                            setUserInfo(prev => prev ? { ...prev, avatar_url: data.avatar_url } : null);
+                          } else {
+                            const errorData = await response.json().catch(() => ({ detail: 'Неизвестная ошибка' }));
+
+                            setError(errorData.detail || 'Не удалось загрузить фото');
+                          }
+                        } catch (err) {
+
+                          setError('Ошибка при загрузке фото');
+                        } finally {
+                          isUploadingRef.current = false;
+                          e.target.value = '';
+                        }
+                      }}
                       className="absolute inset-0 opacity-0 cursor-pointer"
                     />
                   )}
@@ -2458,11 +2257,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 <p className="text-white/60 mb-4">{userInfo?.email || '—'}</p>
                 <div className="flex items-center gap-3 flex-wrap">
                   {subscriptionTypeUpper && (
-                    <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm ${
-                      isPremium
-                        ? 'bg-gradient-to-r from-yellow-400/20 to-yellow-600/20 text-yellow-300 border border-yellow-400/30 shadow-[0_0_15px_rgba(250,204,21,0.2)]'
-                        : 'bg-gradient-to-r from-pink-500/20 to-rose-500/20 text-pink-300 border border-pink-500/30 shadow-[0_0_15px_rgba(236,72,153,0.2)]'
-                    }`}>
+                    <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm ${isPremium
+                      ? 'bg-gradient-to-r from-yellow-400/20 to-yellow-600/20 text-yellow-300 border border-yellow-400/30 shadow-[0_0_15px_rgba(250,204,21,0.2)]'
+                      : 'bg-gradient-to-r from-pink-500/20 to-rose-500/20 text-pink-300 border border-pink-500/30 shadow-[0_0_15px_rgba(236,72,153,0.2)]'
+                      }`}>
                       <Crown className={`w-4 h-4 ${isPremium ? 'text-yellow-400' : 'text-pink-400'}`} />
                       {subscriptionTypeUpper}
                     </div>
@@ -2499,7 +2297,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       >
                         Галерея пользователя
                       </button>
-                      <GalleryCostHint>Открытие галереи чужого пользователя стоит 500 кредитов</GalleryCostHint>
                       <FreeSubscriptionTooltip $show={showFreeSubscriptionTooltip}>
                         Для доступа нужна подписка Standard или Premium
                       </FreeSubscriptionTooltip>
@@ -2511,33 +2308,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           </motion.div>
 
           {/* Блок 2 (1x1): Виджет баланса - только для своего профиля */}
-          {isViewingOwnProfile && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-              className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 hover:border-pink-500/30 transition-all duration-300 shadow-lg shadow-pink-500/5 flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-lg bg-pink-500/20 flex items-center justify-center border border-pink-500/30">
-                    <Coins className="w-5 h-5 text-pink-400" />
-                  </div>
-                  <span className="text-white/60 text-sm">Баланс</span>
-                </div>
-                <div className="text-4xl font-bold text-white mb-2">{coinBalance}</div>
-                <div className="text-white/40 text-xs">кредитов</div>
-              </div>
-                    {onShop && (
-                <button
-                  onClick={onShop}
-                  className="mt-4 w-full px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-600 rounded-lg text-white font-semibold hover:from-pink-600 hover:to-rose-700 transition-all duration-200 shadow-lg shadow-pink-500/25"
-                >
-                  Пополнить
-                </button>
-              )}
-            </motion.div>
-          )}
+
 
           {/* Блок 3 (1x1): Прогресс подписки - только для своего профиля */}
           {isViewingOwnProfile && (
@@ -2545,48 +2316,97 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 hover:border-pink-500/30 transition-all duration-300 shadow-lg shadow-pink-500/5"
+              className="md:col-span-1 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 hover:border-pink-500/30 transition-all duration-300 shadow-lg shadow-pink-500/5"
             >
-              <div className="mb-4">
-                <span className="text-white/60 text-sm">Использовано кредитов</span>
-                <div className="text-2xl font-bold text-white mt-2">
-                  {stats?.used_credits ?? 0} / {stats?.monthly_credits ?? 0}
+              <div className="flex flex-col gap-4">
+                {/* Photo Generation */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-pink-500/20 flex items-center justify-center border border-pink-500/30">
+                        <ImageIcon className="w-4 h-4 text-pink-400" />
+                      </div>
+                      <span className="text-white/60 text-sm">Генерация фото</span>
+                    </div>
+                    <span className="text-white font-bold text-sm">
+                      {Math.min(stats?.images_used ?? 0, stats?.images_limit ?? 0)} / {stats?.images_limit ?? 0}
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(100, ((stats?.images_used ?? 0) / (stats?.images_limit || 1)) * 100)}%` }}
+                      transition={{ duration: 1, delay: 0.3 }}
+                      className={`h-full rounded-full ${isPremium
+                        ? 'bg-gradient-to-r from-yellow-400 to-yellow-600'
+                        : 'bg-gradient-to-r from-pink-500 to-rose-600'
+                        }`}
+                    />
+                  </div>
+                </div>
+
+                {/* Voice Messages */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
+                        <MicIcon className="w-4 h-4 text-blue-400" />
+                      </div>
+                      <span className="text-white/60 text-sm">Голосовые сообщения</span>
+                    </div>
+                    <span className="text-white font-bold text-sm">
+                      {Math.min(stats?.voice_used ?? 0, stats?.voice_limit ?? 0)} / {stats?.voice_limit ?? 0}
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(100, ((stats?.voice_used ?? 0) / (stats?.voice_limit || 1)) * 100)}%` }}
+                      transition={{ duration: 1, delay: 0.4 }}
+                      className={`h-full rounded-full ${isPremium
+                        ? 'bg-gradient-to-r from-yellow-400 to-yellow-600'
+                        : 'bg-gradient-to-r from-blue-400 to-blue-600'
+                        }`}
+                    />
+                  </div>
+                </div>
+
+                {/* Characters Created */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center border border-purple-500/30">
+                        <UserPlusIcon className="w-4 h-4 text-purple-400" />
+                      </div>
+                      <span className="text-white/60 text-sm">Создано персонажей</span>
+                    </div>
+                    <span className="text-white font-bold text-sm">
+                      {stats?.characters_limit === null
+                        ? `${stats?.characters_count ?? 0} (Без ограничений)`
+                        : `${stats?.characters_count ?? 0} / ${stats?.characters_limit ?? 0}`
+                      }
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{
+                        width: stats?.characters_limit === null
+                          ? '100%'
+                          : `${Math.min(100, ((stats?.characters_count ?? 0) / (stats?.characters_limit || 1)) * 100)}%`
+                      }}
+                      transition={{ duration: 1, delay: 0.5 }}
+                      className={`h-full rounded-full ${isPremium
+                        ? 'bg-gradient-to-r from-yellow-400 to-yellow-600'
+                        : 'bg-gradient-to-r from-purple-400 to-purple-600'
+                        }`}
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${progressPercentage}%` }}
-                  transition={{ duration: 1, delay: 0.3 }}
-                  className={`h-full rounded-full ${
-                    isPremium
-                      ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 shadow-[0_0_10px_rgba(250,204,21,0.5)]'
-                      : 'bg-gradient-to-r from-pink-500 to-rose-600 shadow-[0_0_10px_rgba(236,72,153,0.5)]'
-                  }`}
-                />
-              </div>
-              <div className="text-white/40 text-xs mt-2">{progressPercentage}% использовано</div>
             </motion.div>
           )}
 
-          {/* Блок 4 (1x1): История транзакций - только для своего профиля */}
-          {isViewingOwnProfile && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-              className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 hover:border-blue-500/30 transition-all duration-300 shadow-lg shadow-blue-500/5 cursor-pointer group"
-              onClick={onBalanceHistory}
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center border border-blue-500/30 group-hover:bg-blue-500/30 transition-colors">
-                  <History className="w-5 h-5 text-blue-400" />
-                </div>
-                <span className="text-white/60 text-sm">История транзакций</span>
-              </div>
-              <div className="text-white/40 text-xs">Просмотр всех операций</div>
-            </motion.div>
-          )}
 
           {/* Блок 5 (1x1): Выход - только для своего профиля */}
           {isViewingOwnProfile && (
@@ -2628,17 +2448,17 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     const charName = rawChar.name || rawChar.display_name || 'Unknown';
                     const normalizedId = (rawChar.id ?? charName).toString();
                     const normalizedKey = charName.toLowerCase();
-                    
+
                     // Используем name в первую очередь для ключа, как на главной странице
                     const keyForPhotos = rawChar.name ? rawChar.name.toLowerCase() : (rawChar.display_name || '').toLowerCase();
                     const photos = photosMap[keyForPhotos] || [];
                     // Если не нашли по name, пробуем по display_name
                     const fallbackKey = rawChar.display_name ? rawChar.display_name.toLowerCase() : null;
-                    const fallbackPhotos = photos.length === 0 && fallbackKey && fallbackKey !== keyForPhotos 
+                    const fallbackPhotos = photos.length === 0 && fallbackKey && fallbackKey !== keyForPhotos
                       ? (photosMap[fallbackKey] || [])
                       : [];
                     const finalPhotos = photos.length > 0 ? photos : fallbackPhotos;
-                    
+
                     const character = {
                       id: normalizedId,
                       name: charName,
@@ -2653,13 +2473,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       is_nsfw: rawChar.is_nsfw === true,
                       raw: rawChar,
                     };
-                    
+
                     // Проверяем, находится ли персонаж в избранном
-                    const characterId = typeof character.id === 'number' 
-                      ? character.id 
+                    const characterId = typeof character.id === 'number'
+                      ? character.id
                       : parseInt(character.id, 10);
                     const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
-                    
+
                     return (
                       <CharacterCard
                         key={character.id}
@@ -2667,17 +2487,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                         onClick={onCharacterSelect}
                         isAuthenticated={!!authToken}
                         onPhotoGeneration={onOpenUserGallery ? (char) => {
-                          // Открываем галерею пользователя для генерации фото
                           const userId = profileUserId || currentUserId || undefined;
                           if (userId) {
                             onOpenUserGallery(userId);
                           }
                         } : undefined}
                         onPaidAlbum={onPaidAlbum ? (char) => {
-                          // Открываем альбом персонажа
                           onPaidAlbum(char);
                         } : undefined}
-                        showPromptButton={true}
                         isFavorite={isFavorite}
                         onFavoriteToggle={loadFavorites}
                       />
@@ -2699,7 +2516,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       </BackgroundWrapper>
       <div className="content-area vertical flex-1 flex flex-col">
         <GlobalHeader
-          onShop={onShop}
           onLogin={() => {
             setAuthMode('login');
             setIsAuthModalOpen(true);
@@ -2719,8 +2535,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             }
           }}
           onProfile={onProfile ? () => {
-            // При клике на профиль открываем свой профиль (без userId)
-            // Вызываем onProfile без параметров, чтобы открыть свой профиль
             onProfile();
           } : undefined}
           onHome={() => {
@@ -2730,8 +2544,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               window.location.href = '/';
             }
           }}
-          onBalance={() => {}}
-          refreshTrigger={balanceRefreshTrigger}
+          onBalance={() => { }}
         />
 
         <div className="flex-1 overflow-y-auto">{renderContent()}</div>
@@ -2741,7 +2554,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         <AuthModal
           isOpen={isAuthModalOpen}
           mode={authMode}
-          onModeChange={setAuthMode}
           onClose={() => {
             setIsAuthModalOpen(false);
             setAuthMode('login');
@@ -2755,25 +2567,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         />
       )}
 
-      {showInsufficientCreditsNotification && (
-        <>
-          {}
-          <InsufficientCreditsNotification
-            onClose={() => {
-              
-              setShowInsufficientCreditsNotification(false);
-            }}
-            onOpenShop={() => {
-              
-              setShowInsufficientCreditsNotification(false);
-              if (onShop) {
-                onShop();
-              }
-            }}
-            hasShopButton={!!onShop}
-          />
-        </>
-      )}
     </MainContainer>
   );
 };

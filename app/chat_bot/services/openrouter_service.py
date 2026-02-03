@@ -59,38 +59,20 @@ async def send_telegram_alert(message: str) -> None:
         logger.error(f"[TELEGRAM] Ошибка при отправке уведомления: {e}")
 
 
-def get_model_for_subscription(subscription_type: Optional[SubscriptionType]) -> str:
+async def get_model_for_subscription(subscription_type: Optional[SubscriptionType]) -> str:
     """
-    Возвращает модель на основе типа подписки.
-    
-    Args:
-        subscription_type: Тип подписки пользователя
-        
-    Returns:
-        Название модели для использования
+    Выбирает модель на основе подписки пользователя.
+    Теперь учитывает динамическое переключение моделей (fallback).
     """
     # Импортируем здесь, чтобы избежать циклических импортов
-    import asyncio
-    from app.utils.model_manager import get_active_model
+    from app.utils.model_manager import get_active_model, PRIMARY_MODEL
     
-    # Получаем активную модель из Redis
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # Если event loop уже запущен, создаем задачу
-            # Это синхронная функция, поэтому используем run_until_complete с новым loop
-            new_loop = asyncio.new_event_loop()
-            try:
-                model = new_loop.run_until_complete(get_active_model())
-            finally:
-                new_loop.close()
-        else:
-            model = loop.run_until_complete(get_active_model())
+        # Теперь просто await, так как функция вызывается из async контекста
+        model = await get_active_model()
         return model
     except Exception as e:
         logger.error(f"[OPENROUTER] Ошибка при получении активной модели: {e}")
-        # Fallback на primary модель при ошибке
-        from app.utils.model_manager import PRIMARY_MODEL
         return PRIMARY_MODEL
 
 
@@ -239,11 +221,18 @@ class OpenRouterService:
             ]
             if model in allowed_models:
                 model_to_use = model
+                
+                 # Check for fallback override
+                from app.utils.model_manager import is_using_fallback, PRIMARY_MODEL, FALLBACK_MODEL
+                ignore_fallback = kwargs.get("ignore_fallback", False)
+                if model_to_use == PRIMARY_MODEL and await is_using_fallback() and not ignore_fallback:
+                    logger.warning(f"[OPENROUTER] Override requested model {model_to_use} with fallback {FALLBACK_MODEL} due to active fallback mode")
+                    model_to_use = FALLBACK_MODEL
             else:
-                logger.warning(f"[OPENROUTER] Disallowed model: {model}, using default")
-                model_to_use = get_model_for_subscription(subscription_type)
+                logger.warning(f"[OPENROUTER] Disallowed model: {model}, using default for subscription")
+                model_to_use = await get_model_for_subscription(subscription_type)
         else:
-            model_to_use = get_model_for_subscription(subscription_type)
+            model_to_use = await get_model_for_subscription(subscription_type)
         
         # ПРИМЕНЯЕМ СПЕЦИФИЧНЫЕ НАСТРОЙКИ ДЛЯ МОДЕЛИ CYDONIA
         if model_to_use == "thedrummer/cydonia-24b-v4.1":
@@ -507,22 +496,28 @@ class OpenRouterService:
         )
         
         # Выбираем модель: если передан явно - используем её, иначе на основе подписки
-        if model:
+        if model and isinstance(model, str):
             # Проверяем, что модель разрешена для использования
             allowed_models = [
                 "sao10k/l3-euryale-70b",
                 "thedrummer/cydonia-24b-v4.1",
                 "deepseek/deepseek-chat-v3-0324"
             ]
-            if model not in allowed_models:
-                logger.warning(f"[OPENROUTER STREAM] Disallowed model: {model}, using default")
-                model_to_use = get_model_for_subscription(subscription_type)
-            else:
+            if model in allowed_models:
                 model_to_use = model
-                # Using selected model
+                
+                # Check for fallback override
+                from app.utils.model_manager import is_using_fallback, PRIMARY_MODEL, FALLBACK_MODEL
+                ignore_fallback = kwargs.get("ignore_fallback", False)
+                if model_to_use == PRIMARY_MODEL and await is_using_fallback() and not ignore_fallback:
+                    logger.warning(f"[OPENROUTER STREAM] Override requested model {model_to_use} with fallback {FALLBACK_MODEL} due to active fallback mode")
+                    model_to_use = FALLBACK_MODEL
+            else:
+                logger.warning(f"[OPENROUTER STREAM] Disallowed/Unknown model: {model}, using default for subscription")
+                model_to_use = await get_model_for_subscription(subscription_type)
         else:
-            # Выбираем модель на основе подписки
-            model_to_use = get_model_for_subscription(subscription_type)
+            # Выбираем модель на основе подписки (если model была None или не строкой)
+            model_to_use = await get_model_for_subscription(subscription_type)
         
         # ПРИМЕНЯЕМ СПЕЦИФИЧНЫЕ НАСТРОЙКИ ДЛЯ МОДЕЛИ CYDONIA
         if model_to_use == "thedrummer/cydonia-24b-v4.1":
@@ -642,6 +637,10 @@ class OpenRouterService:
                 # Читаем поток SSE (Server-Sent Events)
                 buffer = ""
                 content_received = False
+                stream_chunk_count = 0
+                stream_total_chars = 0
+                stream_full_content = ""
+
                 async for chunk in response.content.iter_any():
                     content_received = True
                     if not chunk:
@@ -668,20 +667,20 @@ class OpenRouterService:
                             # Проверяем на [DONE] маркер
                             if data_str.strip() == '[DONE]':
                                 # Логируем завершение стриминга с деталями
-                                chunk_count = getattr(self, '_stream_chunk_count', 0)
-                                total_chars = getattr(self, '_stream_total_chars', 0)
+                                from app.chat_bot.utils.context_manager import count_message_tokens
+                                try:
+                                    total_tokens = count_message_tokens({"role": "assistant", "content": stream_full_content})
+                                except Exception:
+                                    total_tokens = stream_total_chars // 4  # Fallback estimate
+                                
                                 logger.info(
                                     f"\n{'='*80}\n"
                                     f"[API STREAM] ✅ Стриминг завершен:\n"
-                                    f"  ├─ Чанков получено: {chunk_count}\n"
-                                    f"  └─ Символов в ответе: {total_chars}\n"
+                                    f"  ├─ Чанков получено: {stream_chunk_count}\n"
+                                    f"  ├─ Токенов (estimate): {total_tokens}\n"
+                                    f"  └─ Символов в ответе: {stream_total_chars}\n"
                                     f"{'='*80}"
                                 )
-                                # Сбрасываем счетчик чанков
-                                if hasattr(self, '_stream_chunk_count'):
-                                    delattr(self, '_stream_chunk_count')
-                                if hasattr(self, '_stream_total_chars'):
-                                    delattr(self, '_stream_total_chars')
                                 return
                             
                             try:
@@ -748,11 +747,9 @@ class OpenRouterService:
                                     
                                     if content:
                                         # Подсчитываем чанки и символы
-                                        if not hasattr(self, '_stream_chunk_count'):
-                                            self._stream_chunk_count = 0
-                                            self._stream_total_chars = 0
-                                        self._stream_chunk_count += 1
-                                        self._stream_total_chars += len(content)
+                                        stream_chunk_count += 1
+                                        stream_total_chars += len(content)
+                                        stream_full_content += content
                                         yield content
                                         
                             except json.JSONDecodeError as e:

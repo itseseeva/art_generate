@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styled, { keyframes, css } from 'styled-components';
 import { motion, AnimatePresence } from 'motion/react';
-import { MessageSquare, Image, X } from 'lucide-react';
+import { MessageSquare, Image, X, Sparkles, Mic, Crown } from 'lucide-react';
 import { API_CONFIG } from '../config/api';
 
 const fadeIn = keyframes`
@@ -35,11 +35,11 @@ const Overlay = styled(motion.div)`
   justify-content: center;
   z-index: 10000;
   padding: 1rem;
-  animation: ${fadeIn} 0.3s ease;
+
 `;
 
 const ModalContainer = styled(motion.div)`
-  background: linear-gradient(160deg, #0f0f14 0%, #1a1a24 50%, #14141c 100%);
+  background: linear-gradient(160deg, #0a0a0d 0%, #12121a 50%, #0d0d12 100%);
   border-radius: 24px;
   padding: 2rem;
   max-width: 480px;
@@ -47,14 +47,75 @@ const ModalContainer = styled(motion.div)`
   position: relative;
   border: 1px solid rgba(236, 72, 153, 0.25);
   box-shadow:
-    0 0 0 1px rgba(168, 85, 247, 0.15),
-    0 25px 80px rgba(0, 0, 0, 0.6),
-    0 0 60px rgba(236, 72, 153, 0.12);
-  animation: ${slideUp} 0.4s ease;
+    0 15px 50px rgba(0, 0, 0, 0.7),
+    0 0 30px rgba(139, 92, 246, 0.05);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+
 
   @media (max-width: 520px) {
     padding: 1.5rem;
     max-width: 95%;
+  }
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(45deg, #ec4899, #8b5cf6, #ec4899);
+    border-radius: 26px;
+    z-index: -1;
+    opacity: 0.15;
+    background-size: 200%;
+    animation: ${shimmer} 3s linear infinite;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+`;
+
+const AdminTools = styled.div`
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+`;
+
+const AdminTitle = styled.div`
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fca5a5;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-align: center;
+  margin-bottom: 0.25rem;
+`;
+
+const AdminButton = styled.button`
+  width: 100%;
+  padding: 0.6rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.5);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 `;
 
@@ -201,8 +262,10 @@ const Title = styled.h2`
   text-align: center;
   background: linear-gradient(120deg, #f472b6 0%, #ec4899 30%, #c084fc 70%, #a855f7 100%);
   -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
   background-clip: text;
+  color: transparent;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 
   @media (max-width: 520px) {
     font-size: 1.3rem;
@@ -224,8 +287,10 @@ const Subtitle = styled.p`
   );
   background-size: 200% auto;
   -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
   background-clip: text;
+  color: transparent;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   animation: ${shimmer} 15s linear infinite;
 `;
 
@@ -251,13 +316,33 @@ const MessageHighlight = styled.span`
   );
   background-size: 200% auto;
   -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
   background-clip: text;
+  color: transparent;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  animation: ${shimmer} 12s linear infinite;
+`;
+
+const GlossyText = styled.strong`
+  font-weight: 700;
+  background: linear-gradient(
+    90deg,
+    #fde047 0%,
+    #f472b6 30%,
+    #c084fc 60%,
+    #fde047 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   animation: ${shimmer} 12s linear infinite;
 `;
 
 const OfferBox = styled.div`
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.02);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(168, 85, 247, 0.25);
   border-radius: 16px;
@@ -305,8 +390,8 @@ const OfferItem = styled.div`
 `;
 
 const SbpLogo = styled.img`
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
   object-fit: contain;
 `;
 
@@ -326,7 +411,7 @@ const ButtonPrice = styled.span`
 
 const PayButton = styled.button`
   width: 100%;
-  padding: 1rem 2rem;
+  padding: 0.7rem 2rem;
   font-size: 1.05rem;
   font-weight: 700;
   color: white;
@@ -398,7 +483,7 @@ const ButtonsRow = styled.div`
 
 const ActionButton = styled.button`
   width: 100%;
-  padding: 1rem 2rem;
+  padding: 0.7rem 2rem;
   font-size: 1.05rem;
   font-weight: 700;
   color: white;
@@ -426,9 +511,9 @@ const ActionButton = styled.button`
 interface BoosterOfferModalProps {
   isOpen: boolean;
   onClose: () => void;
-  limitType: 'messages' | 'photos';
-  /** 'booster' — предложение буста за 69 ₽; 'out_of_limits' — лимиты кончились после буста, кнопки Магазин и Подписка */
-  variant?: 'booster' | 'out_of_limits';
+  limitType: 'messages' | 'photos' | 'voice';
+  /** 'booster' — предложение буста за 69 ₽; 'out_of_limits' — лимиты кончились после буста, кнопки Магазин и Подписка; 'info' — показать информацию о бустере; 'album_access' — уведомление о доступе к альбому */
+  variant?: 'booster' | 'out_of_limits' | 'info' | 'album_access';
   /** Текущая история чата для сохранения перед оплатой */
   chatHistory?: Array<{
     id: string;
@@ -442,6 +527,10 @@ interface BoosterOfferModalProps {
   }>;
   /** ID/имя персонажа для сохранения контекста */
   characterId?: string;
+  /** ID пользователя для привязки таймера */
+  userId?: number;
+  /** Является ли пользователь администратором */
+  isAdmin?: boolean;
 }
 
 const OFFER_DURATION = 30 * 60; // 30 минут
@@ -452,21 +541,25 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
   limitType,
   variant = 'booster',
   chatHistory,
-  characterId
+  characterId,
+  userId,
+  isAdmin
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState(OFFER_DURATION);
   const [offerExpired, setOfferExpired] = useState(false);
   const isOutOfLimits = variant === 'out_of_limits';
+  const isInfoMode = variant === 'info';
+  const isAlbumAccess = variant === 'album_access';
 
   useEffect(() => {
-    if (!isOpen || isOutOfLimits) {
+    if (!isOpen || isOutOfLimits || isInfoMode || isAlbumAccess) {
       setTimeLeft(OFFER_DURATION);
       setOfferExpired(false);
       return;
     }
 
-    const storageKey = `booster_offer_start_${limitType}`;
+    const storageKey = `booster_offer_start_${limitType}${userId ? `_${userId}` : ''}`;
     const savedStartTime = localStorage.getItem(storageKey);
     let startTime: number;
     if (savedStartTime) {
@@ -491,7 +584,7 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
       if (newRemaining === 0) setOfferExpired(true);
     }, 1000);
     return () => clearInterval(interval);
-  }, [isOpen, limitType, isOutOfLimits]);
+  }, [isOpen, limitType, isOutOfLimits, userId]);
 
   const handlePurchase = async () => {
     if (offerExpired) return;
@@ -502,7 +595,7 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
         alert('Необходимо авторизоваться');
         return;
       }
-      
+
       // Сохраняем историю чата и текущий URL в localStorage перед переходом на оплату
       if (chatHistory && chatHistory.length > 0 && characterId) {
         const currentUrl = window.location.pathname + window.location.search;
@@ -516,7 +609,7 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
         localStorage.setItem('pending_chat_history', JSON.stringify(chatHistoryData));
         console.log('[BOOSTER_PAYMENT] История чата сохранена в localStorage:', chatHistoryData);
       }
-      
+
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/kassa/create_payment/`, {
         method: 'POST',
         headers: {
@@ -525,7 +618,7 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
         },
         body: JSON.stringify({
           amount: 69,
-          description: 'Бустер: 30 сообщений + 10 генераций',
+          description: 'Бустер: 30 сообщений + 10 фото + 10 голосовых',
           payment_type: 'booster',
           payment_method: 'sbp',
           character_id: characterId || undefined
@@ -533,12 +626,35 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
       });
       if (!response.ok) throw new Error('Ошибка создания платежа');
       const data = await response.json();
-      const storageKey = `booster_offer_start_${limitType}`;
+      const storageKey = `booster_offer_start_${limitType}${userId ? `_${userId}` : ''}`;
       localStorage.removeItem(storageKey);
       window.location.href = data.confirmation_url;
     } catch (error) {
       console.error('Ошибка при создании платежа:', error);
       alert('Произошла ошибка. Попробуйте позже.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAdminGrantBooster = async () => {
+    if (!userId || !isAdmin) return;
+    setIsLoading(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/admin/grant-booster/${userId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!response.ok) throw new Error('Ошибка начисления бустера');
+      alert('Бустер успешно начислен (Admin Mode)');
+      onClose();
+      // Можно было бы обновить стейт здесь, но бэкенд шлет WebSocket обновление
+    } catch (error) {
+      console.error('Ошибка при начислении бустера:', error);
+      alert('Ошибка при начислении бустера');
     } finally {
       setIsLoading(false);
     }
@@ -554,25 +670,69 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
   // Минутная стрелка: полный оборот за 30 минут (360° / 30 мин = 12° в минуту)
   const minutesLeft = timeLeft / 60;
   const minuteRotation = (30 - minutesLeft) * 12; // Начинаем с 12 часов и движемся по часовой
-  
+
   // Секундная стрелка: полный оборот за 60 секунд (6° в секунду)
   const secondsLeft = timeLeft % 60;
   const secondRotation = (60 - secondsLeft) * 6;
 
   if (!isOpen) return null;
 
-  const messageText = isOutOfLimits
-    ? (limitType === 'messages'
+  const messageText = isAlbumAccess
+    ? 'Для просмотра этого альбома необходима подписка STANDARD или PREMIUM.\n\nPREMIUM открывает все альбомы персонажей сразу!'
+    : isOutOfLimits
+      ? (limitType === 'messages'
         ? 'Сообщения снова закончились. Оформи подписку или пополни кредиты в магазине.'
-        : 'Генерации снова закончились. Оформи подписку или пополни кредиты в магазине.')
-    : (limitType === 'messages'
+        : limitType === 'photos'
+          ? 'Генерации снова закончились. Оформи подписку или пополни кредиты в магазине.'
+          : 'Голосовые генерации снова закончились. Оформи подписку или пополни кредиты в магазине.')
+      : (limitType === 'messages'
         ? 'Твои бесплатные сообщения закончились, но я не хочу прерывать нашу игру.'
-        : 'Твои бесплатные генерации закончились, но я не хочу прерывать нашу игру.');
+        : limitType === 'photos'
+          ? 'Твои бесплатные генерации закончились, но я не хочу прерывать нашу игру.'
+          : 'Твои бесплатные голосовые генерации закончились, но я не хочу прерывать нашу игру.');
 
   const handleGoToSubscription = () => {
     onClose();
-    window.location.href = '/shop?tab=subscription';
+    window.location.href = isOutOfLimits ? '/shop' : '/shop?tab=subscription';
   };
+
+  const handleStandardPurchase = async () => {
+    setIsLoading(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        alert('Необходимо авторизоваться');
+        return;
+      }
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/kassa/create_payment/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          amount: 449,
+          description: 'Оплата подписки STANDARD на 30 дней',
+          plan: 'standard',
+          payment_type: 'subscription',
+          payment_method: 'sbp'
+        })
+      });
+
+      if (!response.ok) throw new Error('Ошибка создания платежа');
+
+      const data = await response.json();
+      window.location.href = data.confirmation_url;
+    } catch (error) {
+      console.error('Ошибка при создании платежа:', error);
+      alert('Произошла ошибка. Попробуйте позже.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
 
   return (
     <AnimatePresence>
@@ -593,7 +753,7 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
               <X size={20} strokeWidth={2.5} />
             </CloseButton>
 
-            {!isOutOfLimits && (
+            {!isOutOfLimits && !isAlbumAccess && (
               <ClockContainer>
                 <ClockFace $expired={offerExpired}>
                   <ClockMark $rotation={90} />
@@ -609,20 +769,27 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
             )}
 
             <Title>
-              {isOutOfLimits ? 'Лимиты закончились' : 'Кажется, нам только стало интересно...'}
+              {isAlbumAccess ? 'Доступ к альбому' : isOutOfLimits ? 'Лимиты закончились' : 'Кажется, нам только стало интересно...'}
             </Title>
             <Subtitle>
-              {isOutOfLimits ? 'Продолжи общение' : 'Специальное предложение только для тебя'}
+              {isAlbumAccess ? 'Только для подписчиков' : isOutOfLimits ? 'Продолжи общение' : 'Специальное предложение только для тебя'}
             </Subtitle>
 
             <Message>
-              {messageText}
-              {!isOutOfLimits && (
+              {isInfoMode
+                ? 'Получи дополнительные возможности для продолжения общения!'
+                : messageText.split('\n').map((line, i) => (
+                  <React.Fragment key={i}>
+                    {line}
+                    {i < messageText.split('\n').length - 1 && <br />}
+                  </React.Fragment>
+                ))}
+              {!isOutOfLimits && !isInfoMode && !isAlbumAccess && (
                 <MessageHighlight>Специально для тебя — секретный доступ:</MessageHighlight>
               )}
             </Message>
 
-            {!isOutOfLimits && (
+            {!isOutOfLimits && !isInfoMode && !isAlbumAccess && (
               <OfferBox>
                 <OfferTitle>Держи ещё:</OfferTitle>
                 <OfferItems>
@@ -632,37 +799,138 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
                   </OfferItem>
                   <OfferItem>
                     <Image strokeWidth={2.2} />
-                    <span>10</span> генераций
+                    <span>10</span> фото
+                  </OfferItem>
+                  <OfferItem>
+                    <Mic strokeWidth={2.2} />
+                    <span>10</span> голосовых
                   </OfferItem>
                 </OfferItems>
               </OfferBox>
             )}
 
-            {isOutOfLimits ? (
+            {isInfoMode && (
+              <OfferBox>
+                <OfferTitle>Бустер включает:</OfferTitle>
+                <OfferItems>
+                  <OfferItem>
+                    <MessageSquare strokeWidth={2.2} />
+                    <span>30</span> сообщений
+                  </OfferItem>
+                  <OfferItem>
+                    <Image strokeWidth={2.2} />
+                    <span>10</span> фото
+                  </OfferItem>
+                  <OfferItem>
+                    <Mic strokeWidth={2.2} />
+                    <span>10</span> голосовых
+                  </OfferItem>
+                </OfferItems>
+              </OfferBox>
+            )}
+
+            {isOutOfLimits || isAlbumAccess ? (
               <>
                 <ButtonsRow>
                   <ActionButton onClick={handleGoToSubscription}>
-                    Оформить подписку
+                    {isOutOfLimits ? 'В магазин' : 'Оформить подписку'}
                   </ActionButton>
                 </ButtonsRow>
                 <DeclineButton onClick={onClose}>Позже</DeclineButton>
               </>
             ) : (
               <>
-                <PayButton onClick={handlePurchase} disabled={isLoading || offerExpired}>
-                  {offerExpired ? (
+                <PayButton
+                  onClick={handlePurchase}
+                  disabled={isLoading || (!isInfoMode && offerExpired)}
+                >
+                  {(!isInfoMode && offerExpired) ? (
                     'Предложение истекло'
                   ) : isLoading ? (
                     'Создание платежа...'
                   ) : (
                     <ButtonContent>
                       <SbpLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
-                      <span>СБП</span>
                       <ButtonPrice>69 ₽</ButtonPrice>
                     </ButtonContent>
                   )}
                 </PayButton>
-                <DeclineButton onClick={onClose}>Может быть позже</DeclineButton>
+
+                <div style={{
+                  textAlign: 'center',
+                  color: 'rgba(255, 255, 255, 0.5)',
+                  fontSize: '0.8rem',
+                  margin: '0.5rem 0',
+                  fontWeight: 600
+                }}>
+                  ИЛИ
+                </div>
+
+                <OfferBox style={{ marginTop: '0', marginBottom: '1rem', padding: '1rem', position: 'relative' }}>
+                  <div style={{
+                    position: 'absolute',
+                    top: '-14px',
+                    right: '-8px',
+                    transform: 'rotate(12deg)',
+                    filter: 'drop-shadow(0 0 10px rgba(253, 224, 71, 0.4))'
+                  }}>
+                    <Crown size={34} color="#fde047" fill="rgba(253, 224, 71, 0.2)" strokeWidth={2} />
+                  </div>
+                  <OfferItems style={{ marginBottom: '1rem' }}>
+                    <OfferItem>
+                      <Image strokeWidth={2.2} />
+                      <GlossyText style={{ fontSize: '1.2rem' }}>100 фото</GlossyText>
+                    </OfferItem>
+                    <OfferItem>
+                      <Mic strokeWidth={2.2} />
+                      <GlossyText style={{ fontSize: '1.2rem' }}>100 голосовых</GlossyText>
+                    </OfferItem>
+                  </OfferItems>
+                  <div style={{
+                    fontSize: '0.9rem',
+                    color: '#d1d1d1',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem',
+                    fontWeight: 500,
+                    borderTop: '1px solid rgba(255,255,255,0.1)',
+                    paddingTop: '1rem'
+                  }}>
+                    <GlossyText style={{ fontSize: '1rem' }}>Безлимитные сообщения</GlossyText>
+                    <GlossyText>Расширенная память</GlossyText>
+                    <GlossyText>Доступ к текстовым Premium моделям</GlossyText>
+                    <GlossyText>Доступ ко всем альбомам</GlossyText>
+                  </div>
+                </OfferBox>
+
+                <PayButton
+                  onClick={handleStandardPurchase}
+                  style={{
+                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                    marginTop: '0',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0'
+                  }}
+                >
+                  <ButtonContent style={{ marginBottom: '0' }}>
+                    <SbpLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
+                    <ButtonPrice style={{ color: '#a855f7', textShadow: '0 0 10px rgba(168, 85, 247, 0.4)' }}>449 ₽</ButtonPrice>
+                  </ButtonContent>
+                </PayButton>
+
+                {isAdmin && (
+                  <AdminTools>
+                    <AdminTitle>Панель администратора</AdminTitle>
+                    <AdminButton onClick={handleAdminGrantBooster} disabled={isLoading}>
+                      {isLoading ? 'Загрузка...' : 'Начислить Бустер (Тест)'}
+                    </AdminButton>
+                  </AdminTools>
+                )}
+
+                <DeclineButton onClick={onClose}>Позже</DeclineButton>
               </>
             )}
           </ModalContainer>

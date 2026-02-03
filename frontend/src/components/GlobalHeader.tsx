@@ -649,16 +649,9 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
           </ShopButton>
         )}
         {isAuthenticated && (
-          <>
-            <BalanceContainer onClick={onBalance || handleShop}>
-              <CoinIcon />
-              <BalanceAmount>{userInfo?.coins || 0}</BalanceAmount>
-            </BalanceContainer>
-
-            <ShopButton onClick={handleShop}>
-              <DollarSign size={20} />
-            </ShopButton>
-          </>
+          <ShopButton onClick={handleShop}>
+            <DollarSign size={20} />
+          </ShopButton>
         )}
 
         {!isAuthenticated && (

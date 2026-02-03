@@ -21,6 +21,19 @@ DEFAULT_PREVIEW_TEXT = (
 )
 
 
+def calculate_voice_cost(text: str) -> int:
+    """
+    Рассчитывает стоимость генерации голоса в единицах квоты.
+    1 единица = до 500 символов.
+    Пример: 100 симв -> 1 ед, 600 симв -> 2 ед.
+    """
+    import math
+    if not text:
+        return 0
+    return math.ceil(len(text) / 500)
+
+
+
 def _get_fish_client() -> Optional[FishAudio]:
     """
     Создает и возвращает клиент Fish Audio.

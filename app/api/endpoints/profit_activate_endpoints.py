@@ -81,7 +81,12 @@ async def activate_subscription(
                 days_left=subscription.days_until_expiry,
                 is_active=subscription.is_active,
                 expires_at=subscription.expires_at,
-                last_reset_at=subscription.last_reset_at
+                last_reset_at=subscription.last_reset_at,
+                # Новые лимиты
+                images_limit=subscription.images_limit,
+                images_used=subscription.images_used,
+                voice_limit=subscription.voice_limit,
+                voice_used=subscription.voice_used
             )
         )
     except HTTPException:

@@ -359,15 +359,6 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
     },
   ];
 
-  // Добавляем кнопку истории баланса для авторизованных пользователей
-  if (isAuthenticated && onBalanceHistory) {
-    mainBottomDockItems.push({
-      icon: <FiTrendingUp size={18} />,
-      label: 'Списания',
-      onClick: () => onBalanceHistory?.(),
-      className: 'dock-item-balance',
-    });
-  }
 
   // Для авторизованных пользователей добавляем Messages
   if (isAuthenticated) {

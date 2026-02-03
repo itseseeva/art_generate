@@ -325,69 +325,36 @@ def generate_image_task(
 
 async def _spend_photo_resources(user_id: int) -> None:
     """
-    Списывает ресурсы за генерацию фото в зависимости от типа подписки.
-    - FREE: списывает только лимит генераций (used_photos), БЕЗ списания монет
-    - STANDARD/PREMIUM: списывает монеты (10 кредитов)
+    Списывает ресурсы за генерацию фото.
+    Использует новую единую логику через подписку (images_used).
+    Монеты НЕ списываются.
     """
     # Ленивый импорт
     from app.database.db import engine
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
     
     # Создаем новую сессию БД для текущего event loop
-    # Это необходимо, так как в Celery worker может быть другой event loop
     async_session_factory = async_sessionmaker(
         engine, expire_on_commit=False, class_=AsyncSession
     )
     
     async with async_session_factory() as db_session:
         # Ленивый импорт
-        from app.services.coins_service import CoinsService
         from app.services.profit_activate import ProfitActivateService
         
-        coins_service = CoinsService(db_session)
         subscription_service = ProfitActivateService(db_session)
         
         try:
-            # Получаем подписку пользователя для проверки типа
-            subscription = await subscription_service.get_user_subscription(user_id)
+            # Списываем лимит генераций
+            # (Для FREE, STANDARD, PREMIUM единая логика через images_used)
+            photo_spent = await subscription_service.use_photo_generation(user_id, commit=False)
             
-            if not subscription:
-                logger.error(f"[CELERY] Подписка не найдена для пользователя {user_id}")
+            if not photo_spent:
+                logger.error(f"[CELERY] Недостаточно лимита генераций для пользователя {user_id}")
+                await db_session.rollback()
                 return
             
-            subscription_type = subscription.subscription_type.value
-            logger.info(f"[CELERY] Списание ресурсов для user_id={user_id}, subscription_type={subscription_type}")
-            
-            # Для FREE: списываем только лимит генераций, БЕЗ монет
-            if subscription_type == "free":
-                photo_spent = await subscription_service.use_photo_generation(user_id, commit=False)
-                if not photo_spent:
-                    logger.error(f"[CELERY] FREE: Недостаточно лимита генераций для пользователя {user_id}")
-                    await db_session.rollback()
-                    return
-                logger.info(f"[CELERY] FREE: Списан лимит генераций для user_id={user_id} (монеты НЕ списаны)")
-            
-            # Для STANDARD/PREMIUM: списываем монеты
-            else:
-                coins_spent = await coins_service.spend_coins(user_id, 10, commit=False)
-                if not coins_spent:
-                    logger.error(f"[CELERY] {subscription_type.upper()}: Не удалось списать монеты для пользователя {user_id}")
-                    await db_session.rollback()
-                    return
-                
-                # Записываем историю баланса
-                try:
-                    from app.utils.balance_history import record_balance_change
-                    await record_balance_change(
-                        db=db_session,
-                        user_id=user_id,
-                        amount=-10,
-                        reason=f"Генерация фото для персонажа (Celery)"
-                    )
-                except Exception as e:
-                    logger.warning(f"Не удалось записать историю баланса: {e}")
-                
-                logger.info(f"[CELERY] {subscription_type.upper()}: Списано 10 монет для user_id={user_id}")
+            logger.info(f"[CELERY] Списан лимит генераций для user_id={user_id}")
             
             await db_session.commit()
             
@@ -395,6 +362,14 @@ async def _spend_photo_resources(user_id: int) -> None:
             from app.utils.redis_cache import cache_delete, key_subscription, key_subscription_stats
             await cache_delete(key_subscription(user_id))
             await cache_delete(key_subscription_stats(user_id))
+            
+            # Отправляем WebSocket событие для обновления профиля в реальном времени
+            from app.services.profit_activate import emit_profile_update
+            try:
+                await emit_profile_update(user_id, db_session)
+                logger.info(f"[CELERY] WebSocket событие отправлено для user_id={user_id}")
+            except Exception as ws_error:
+                logger.warning(f"[CELERY] Не удалось отправить WebSocket событие: {ws_error}")
             
             logger.info(f"[CELERY] Ресурсы успешно списаны для user_id={user_id}")
         except Exception as exc:

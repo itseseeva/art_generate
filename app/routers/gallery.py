@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["paid_gallery"])
 
-PAID_ALBUM_COST = 300
+# Albums are now free for Standard and Premium subscriptions
 PAID_ALBUM_LIMIT = 20
 
 
@@ -153,18 +153,18 @@ async def get_paid_album_status(
     is_unlocked = await _is_album_unlocked(db, current_user.id, slug)
     is_admin = bool(current_user.is_admin) if current_user.is_admin is not None else False
     
-    # Проверяем подписку PREMIUM - для них все альбомы доступны
-    is_premium = False
+    # Проверяем подписку STANDARD/PREMIUM - для них все альбомы доступны
+    has_subscription_access = False
     from app.services.subscription_service import SubscriptionService
     subscription_service = SubscriptionService(db)
     subscription = await subscription_service.get_user_subscription(current_user.id)
     
     if subscription and subscription.is_active:
         subscription_type = subscription.subscription_type.value.lower()
-        if subscription_type == 'premium':
-            is_premium = True
+        if subscription_type in ['standard', 'premium']:
+            has_subscription_access = True
     
-    unlocked = bool(is_unlocked or is_owner or is_admin or is_premium)
+    unlocked = bool(is_unlocked or is_owner or is_admin or has_subscription_access)
     photos_count = await _get_paid_album_photos_count(db, character_db, slug)
 
     return PaidAlbumStatusResponse(
@@ -182,7 +182,7 @@ async def unlock_paid_gallery(
     db: AsyncSession = Depends(get_db),
     current_user: Users = Depends(get_current_user),
 ) -> PaidAlbumUnlockResponse:
-    """Списывает монеты и открывает доступ к платному альбому персонажа."""
+    """Открывает доступ к платному альбому персонажа для пользователей с подпиской Standard/Premium."""
     character_db = await _get_character_by_slug(db, payload.character_name)
     if not character_db:
         raise HTTPException(status_code=404, detail="Персонаж не найден")
@@ -190,7 +190,7 @@ async def unlock_paid_gallery(
     slug = _character_slug(character_db.name)
     is_owner = bool(character_db.user_id) and character_db.user_id == current_user.id
 
-    # Владельцу или админу альбом доступен без оплаты
+    # Владельцу или админу альбом доступен без ограничений
     if is_owner or current_user.is_admin:
         existed = await _is_album_unlocked(db, current_user.id, slug)
         if not existed:
@@ -221,230 +221,55 @@ async def unlock_paid_gallery(
             coins=coins_balance,
         )
 
-    # Проверяем подписку PREMIUM - для них альбомы бесплатны
+    # Проверяем подписку STANDARD/PREMIUM - для них альбомы бесплатны
     from app.services.subscription_service import SubscriptionService
     subscription_service = SubscriptionService(db)
     subscription = await subscription_service.get_user_subscription(current_user.id)
     
-    is_premium = False
+    has_subscription_access = False
     if subscription and subscription.is_active:
         subscription_type = subscription.subscription_type.value.lower()
-        if subscription_type == 'premium':
-            is_premium = True
+        if subscription_type in ['standard', 'premium']:
+            has_subscription_access = True
     
-    # Для PREMIUM подписки альбомы бесплатны
-    if is_premium:
-        existed = await _is_album_unlocked(db, current_user.id, slug)
-        if not existed:
-            db.add(
-                PaidAlbumUnlock(
-                    user_id=current_user.id,
-                    character_name=character_db.name,
-                    character_slug=slug,
-                )
-            )
-            await db.commit()
-        
-        coins_service = CoinsService(db)
-        coins_balance = await coins_service.get_user_coins(current_user.id) or 0
-        return PaidAlbumUnlockResponse(
-            unlocked=True,
-            character=character_db.name,
-            coins=coins_balance,
+    # Для FREE пользователей альбомы недоступны
+    if not has_subscription_access:
+        raise HTTPException(
+            status_code=403,
+            detail="Для доступа к платным альбомам необходима подписка Standard или Premium"
         )
-
+    
+    # Для STANDARD/PREMIUM подписки альбомы бесплатны - просто разблокируем
     photos_count = await _get_paid_album_photos_count(db, character_db, slug)
     if photos_count == 0:
         raise HTTPException(
             status_code=400,
-            detail="В альбоме пока что нет фотографий. Покупка недоступна.",
+            detail="В альбоме пока что нет фотографий.",
         )
-
+    
+    existed = await _is_album_unlocked(db, current_user.id, slug)
+    if not existed:
+        db.add(
+            PaidAlbumUnlock(
+                user_id=current_user.id,
+                character_name=character_db.name,
+                character_slug=slug,
+            )
+        )
+        await db.commit()
+        
+        logger.info(
+            f"[PAID_ALBUM_UNLOCK] Пользователь {current_user.id} "
+            f"разблокировал альбом {character_db.name} "
+            f"с подпиской {subscription_type.upper()}"
+        )
+    
     coins_service = CoinsService(db)
-    
-    # Получаем актуальный баланс напрямую из БД
-    from sqlalchemy import select
-    initial_result = await db.execute(
-        select(Users.coins).where(Users.id == current_user.id)
-    )
-    initial_balance = initial_result.scalar_one_or_none() or 0
-    
-    logger = logging.getLogger(__name__)
-    logger.info(
-        f"[PAID_ALBUM_UNLOCK] Пользователь {current_user.id} "
-        f"пытается разблокировать альбом {character_db.name}. "
-        f"Баланс до списания: {initial_balance}, стоимость: {PAID_ALBUM_COST}"
-    )
-    
-    if initial_balance < PAID_ALBUM_COST:
-        raise HTTPException(
-            status_code=400,
-            detail="Недостаточно кредитов для разблокировки альбома"
-        )
-
-    # Списываем монеты напрямую через SQL UPDATE
-    from sqlalchemy import update
-    update_result = await db.execute(
-        update(Users)
-        .where(Users.id == current_user.id)
-        .values(coins=Users.coins - PAID_ALBUM_COST)
-    )
-    
-    if update_result.rowcount == 0:
-        raise HTTPException(
-            status_code=500,
-            detail="Не удалось списать кредиты, пользователь не найден"
-        )
-    
-    # Применяем изменения в транзакции
-    await db.flush()
-    
-    # Получаем баланс напрямую из БД после flush
-    after_result = await db.execute(
-        select(Users.coins).where(Users.id == current_user.id)
-    )
-    balance_after_spend = after_result.scalar_one_or_none() or 0
-    expected_balance = initial_balance - PAID_ALBUM_COST
-    
-    logger.info(
-        f"[PAID_ALBUM_UNLOCK] После списания. "
-        f"Ожидаемый баланс: {expected_balance}, "
-        f"фактический: {balance_after_spend}"
-    )
-    
-    if balance_after_spend != expected_balance:
-        await db.rollback()
-        logger.error(
-            f"[PAID_ALBUM_UNLOCK] ОШИБКА: Баланс не совпадает! "
-            f"Ожидалось: {expected_balance}, получено: {balance_after_spend}"
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="Ошибка при списании кредитов. Транзакция отменена."
-        )
-    
-    if balance_after_spend < 0:
-        await db.rollback()
-        logger.error(
-            f"[PAID_ALBUM_UNLOCK] ОШИБКА: Отрицательный баланс! "
-            f"Баланс: {balance_after_spend}"
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="Ошибка: отрицательный баланс после списания"
-        )
-
-    # Начисляем 15% создателю персонажа (если персонаж имеет создателя)
-    CREATOR_PROFIT_PERCENT = 0.15
-    creator_profit = int(
-        PAID_ALBUM_COST * CREATOR_PROFIT_PERCENT
-    )  # 15% от 300 = 45 кредитов
-
-    if character_db.user_id:
-        # Получаем создателя персонажа
-        creator_result = await db.execute(
-            select(Users).where(Users.id == character_db.user_id)
-        )
-        creator = creator_result.scalar_one_or_none()
-
-        if creator:
-            # Получаем баланс создателя до начисления напрямую из БД
-            creator_initial_result = await db.execute(
-                select(Users.coins).where(Users.id == creator.id)
-            )
-            creator_initial_balance = creator_initial_result.scalar_one_or_none() or 0
-            
-            # Начисляем 15% создателю напрямую через SQL UPDATE
-            from sqlalchemy import update
-            await db.execute(
-                update(Users)
-                .where(Users.id == creator.id)
-                .values(coins=Users.coins + creator_profit)
-            )
-            
-            # Применяем изменения
-            await db.flush()
-            
-            # Проверяем баланс создателя после начисления
-            creator_result_after = await db.execute(
-                select(Users.coins).where(Users.id == creator.id)
-            )
-            creator_balance_after = creator_result_after.scalar_one_or_none() or 0
-            creator_expected_balance = creator_initial_balance + creator_profit
-            
-            logger.info(
-                f"[PAID_ALBUM_PROFIT] Пользователь {current_user.id} "
-                f"купил альбом персонажа {character_db.name}. "
-                f"Создателю {creator.id} начислено {creator_profit} "
-                f"кредитов (15% от {PAID_ALBUM_COST}). "
-                f"Баланс создателя: {creator_initial_balance} -> {creator_balance_after} "
-                f"(ожидалось: {creator_expected_balance})"
-            )
-            
-            if creator_balance_after != creator_expected_balance:
-                logger.error(
-                    f"[PAID_ALBUM_PROFIT] ОШИБКА: Баланс создателя не совпадает! "
-                    f"Ожидалось: {creator_expected_balance}, получено: {creator_balance_after}"
-                )
-
-    db.add(
-        PaidAlbumUnlock(
-            user_id=current_user.id,
-            character_name=character_db.name,
-            character_slug=slug,
-        )
-    )
-    
-    # Записываем историю баланса для покупателя
-    try:
-        from app.utils.balance_history import record_balance_change
-        await record_balance_change(
-            db=db,
-            user_id=current_user.id,
-            amount=-PAID_ALBUM_COST,
-            reason=f"Разблокировка платного альбома персонажа '{character_db.name}'"
-        )
-    except Exception as e:
-        logger.warning(f"Не удалось записать историю баланса для покупателя: {e}")
-    
-    # Записываем историю баланса для создателя (если есть)
-    if character_db.user_id and creator:
-        try:
-            from app.utils.balance_history import record_balance_change
-            await record_balance_change(
-                db=db,
-                user_id=creator.id,
-                amount=creator_profit,
-                reason=f"Доход от продажи альбома персонажа '{character_db.name}' (15%)"
-            )
-        except Exception as e:
-            logger.warning(f"Не удалось записать историю баланса для создателя: {e}")
-    
-    # Коммитим все изменения (списание у покупателя, начисление создателю, запись о разблокировке)
-    await db.commit()
-    
-    # Инвалидируем кэш пользователя
-    from app.utils.redis_cache import cache_delete, key_user_coins
-    await cache_delete(key_user_coins(current_user.id))
-    
-    # Отправляем событие обновления профиля
-    from app.services.profit_activate import emit_profile_update
-    await emit_profile_update(current_user.id, db)
-    
-    # Получаем финальный баланс после коммита
-    final_balance = await coins_service.get_user_coins(current_user.id) or 0
-    
-    logger.info(
-        f"[PAID_ALBUM_UNLOCK] Успешно разблокирован альбом {character_db.name} "
-        f"пользователем {current_user.id}. "
-        f"Финальный баланс: {final_balance} "
-        f"(было: {initial_balance}, списано: {PAID_ALBUM_COST})"
-    )
-    
+    coins_balance = await coins_service.get_user_coins(current_user.id) or 0
     return PaidAlbumUnlockResponse(
         unlocked=True,
         character=character_db.name,
-        coins=final_balance,
+        coins=coins_balance,
     )
 
 
@@ -549,8 +374,8 @@ async def list_paid_gallery(
     is_owner = bool(character_db.user_id) and character_db.user_id == current_user.id
     unlocked = await _is_album_unlocked(db, current_user.id, slug)
 
-    # Проверяем подписку PREMIUM - для них все альбомы доступны бесплатно
-    is_premium = False
+    # Проверяем подписку STANDARD/PREMIUM - для них все альбомы доступны бесплатно
+    has_subscription_access = False
     if not (unlocked or is_owner or current_user.is_admin):
         from app.services.subscription_service import SubscriptionService
         subscription_service = SubscriptionService(db)
@@ -558,10 +383,10 @@ async def list_paid_gallery(
         
         if subscription and subscription.is_active:
             subscription_type = subscription.subscription_type.value.lower()
-            if subscription_type == 'premium':
-                is_premium = True
+            if subscription_type in ['standard', 'premium']:
+                has_subscription_access = True
 
-    if not (unlocked or is_owner or current_user.is_admin or is_premium):
+    if not (unlocked or is_owner or current_user.is_admin or has_subscription_access):
         logger.warning(f"[PAID_ALBUM] Пользователь {current_user.id} не имеет доступа к альбому {character_db.name}")
         raise HTTPException(status_code=403, detail="Сначала разблокируйте платный альбом персонажа")
 

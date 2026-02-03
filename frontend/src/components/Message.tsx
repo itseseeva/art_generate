@@ -266,20 +266,21 @@ const AvatarImage = styled.img`
   border-radius: ${theme.borderRadius.full};
 `;
 
-const CreditCost = styled.span`
-  font-size: 10px;
-  opacity: 0;
-  max-height: 0;
-  overflow: hidden;
-  font-weight: 500;
-  color: #ec4899;
-  transition: all 0.2s ease-in-out;
+const CreditCost = styled.div`
+  font-size: 11px;
+  font-weight: 700;
+  color: #fbbf24;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  text-shadow: 0 0 8px rgba(251, 191, 36, 0.4);
 `;
 
 const VoiceButton = styled.button`
-  background: rgba(236, 72, 153, 0.15);
-  border: 1px solid rgba(236, 72, 153, 0.3);
-  color: #ec4899;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
   padding: 8px 12px;
   display: flex !important;
@@ -288,10 +289,9 @@ const VoiceButton = styled.button`
   justify-content: center;
   gap: 0;
   border-radius: 12px;
-  transition: all 0.2s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   font-size: 13px;
-  font-weight: 600;
-  backdrop-filter: blur(5px);
+  font-weight: 500;
   min-width: 150px;
   /* DEBUG: Принудительные стили видимости */
   visibility: visible !important;
@@ -300,30 +300,38 @@ const VoiceButton = styled.button`
   z-index: 10 !important;
   
   &:hover:not(:disabled) {
-    background: rgba(236, 72, 153, 0.25);
-    border-color: rgba(236, 72, 153, 0.5);
+    background: rgba(236, 72, 153, 0.1);
+    color: #ec4899;
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(236, 72, 153, 0.2);
-
-    ${CreditCost} {
-      opacity: 0.8;
-      max-height: 20px;
-      margin-top: 4px;
-    }
+    text-shadow: 0 0 10px rgba(236, 72, 153, 0.5);
   }
   
   &:active:not(:disabled) {
     transform: translateY(0);
+    outline: none;
+    border: none;
+  }
+
+  &:focus {
+    outline: none;
+    border: none;
   }
   
   &:disabled {
-    opacity: 0.6;
+    opacity: 0.4;
     cursor: not-allowed;
   }
 
   svg {
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
+    margin-bottom: 2px;
+    transition: all 0.3s ease;
+  }
+
+  &:hover svg {
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 5px rgba(236, 72, 153, 0.6));
   }
 `;
 
@@ -373,29 +381,39 @@ const WaveformBar = styled.div<{ $delay: number; $isPremium?: boolean }>`
 
 const RepeatButton = styled(VoiceButton)`
   position: relative;
-  background: rgba(16, 185, 129, 0.15);
-  border: 1px solid rgba(16, 185, 129, 0.3);
-  color: #10b981;
+  background: transparent;
+  border: none;
   min-width: 120px;
   overflow: visible;
+  color: rgba(255, 255, 255, 0.7);
   
   &:hover:not(:disabled) {
-    background: rgba(16, 185, 129, 0.25);
-    border-color: rgba(16, 185, 129, 0.5);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+    box-shadow: none;
+    text-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+  }
+
+  &:hover svg {
+    filter: drop-shadow(0 0 5px rgba(16, 185, 129, 0.6));
   }
 `;
 
 const SelectVoiceButton = styled(VoiceButton)`
-  background: rgba(59, 130, 246, 0.15);
-  border: 1px solid rgba(59, 130, 246, 0.3);
-  color: #3b82f6;
+  background: transparent;
+  border: none;
   min-width: 120px;
+  color: rgba(255, 255, 255, 0.7);
   
   &:hover:not(:disabled) {
-    background: rgba(59, 130, 246, 0.25);
-    border-color: rgba(59, 130, 246, 0.5);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+    box-shadow: none;
+    text-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+  }
+
+  &:hover svg {
+    filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.6));
   }
 `;
 
@@ -410,6 +428,7 @@ const MessageButtonsRow = styled.div`
   position: relative !important;
   z-index: 100 !important;
   min-height: 40px !important;
+  align-items: flex-start;
 `;
 
 // Удалены FullscreenOverlay и FullscreenImage, теперь используем ModalOverlay и ModalImage
@@ -723,17 +742,18 @@ interface MessageProps {
   selectedVoiceId?: string | null;
   selectedVoiceUrl?: string | null;
   onSelectVoice?: (voiceId: string | null, voiceUrl: string | null) => void;
+  onOutOfLimits?: (type: 'messages' | 'photos' | 'voice') => void;
 }
 
 const TypingCursor = styled.span`
   display: inline-block;
   width: 8px;
   height: 18px;
-  background-color: ${theme.colors.primary || '#8b5cf6'};
+  background-color: ${theme.colors.accent.primary || '#8b5cf6'};
   margin-left: 4px;
   vertical-align: middle;
   border-radius: 2px;
-  box-shadow: 0 0 8px ${theme.colors.primary || '#8b5cf6'};
+  box-shadow: 0 0 8px ${theme.colors.accent.primary || '#8b5cf6'};
   animation: blink 1s infinite;
 
   @keyframes blink {
@@ -760,7 +780,8 @@ const MessageComponent: React.FC<MessageProps> = ({
   onShop,
   selectedVoiceId: propSelectedVoiceId,
   selectedVoiceUrl: propSelectedVoiceUrl,
-  onSelectVoice
+  onSelectVoice,
+  onOutOfLimits
 }) => {
   // Функция для получения первой буквы из username или email
   const getUserInitial = (): string => {
@@ -798,11 +819,12 @@ const MessageComponent: React.FC<MessageProps> = ({
   const [isVoiceLoading, setIsVoiceLoading] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [showSubscriptionWarning, setShowSubscriptionWarning] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [promptError, setPromptError] = useState<string | null>(null);
   const [errorModalMessage, setErrorModalMessage] = useState<string | null>(null);
   const [isVoiceSelectorOpen, setIsVoiceSelectorOpen] = useState(false);
-  
+
   // Используем переданные из ChatContainer значения или локальные (для обратной совместимости)
   const selectedVoiceId = propSelectedVoiceId ?? null;
   const selectedVoiceUrl = propSelectedVoiceUrl ?? null;
@@ -834,7 +856,7 @@ const MessageComponent: React.FC<MessageProps> = ({
   useEffect(() => {
     const storageKey = getStorageKey();
     let savedAudioUrl = localStorage.getItem(storageKey);
-    
+
     // Если не найден по основному ключу, пробуем найти по message.id (fallback для старых записей)
     if (!savedAudioUrl && message.id) {
       const fallbackKey = `audio_url_${message.id}`;
@@ -845,7 +867,7 @@ const MessageComponent: React.FC<MessageProps> = ({
         localStorage.removeItem(fallbackKey);
       }
     }
-    
+
     if (savedAudioUrl) {
       setAudioUrl(savedAudioUrl);
     } else {
@@ -864,6 +886,20 @@ const MessageComponent: React.FC<MessageProps> = ({
     if (e) {
       e.stopPropagation();
     }
+
+    // Проверка подписки перед генерацией
+    const subType = userInfo?.subscription_type || userInfo?.subscription?.subscription_type || 'free';
+    const normalizedType = subType.toLowerCase();
+    const isStandardOrPremium = ['standard', 'premium'].includes(normalizedType);
+    const isFree = ['free', 'base'].includes(normalizedType);
+
+    // Разрешаем STANDARD, PREMIUM и теперь FREE (у них есть стартовые 5 генераций)
+    if (!isStandardOrPremium && !isFree) {
+      setShowSubscriptionWarning(true);
+      setTimeout(() => setShowSubscriptionWarning(false), 3000);
+      return;
+    }
+
     if (!message.content || isVoiceLoading) return;
 
     // Logic moved to Repeat button
@@ -883,7 +919,7 @@ const MessageComponent: React.FC<MessageProps> = ({
 
       // Определяем какой голос использовать: переданный параметр, выбранный в модальном окне или текущий
       let finalVoiceUrl: string | null = null;
-      
+
       // Сначала проверяем переданные параметры функции (для обратной совместимости)
       if (paramVoiceId !== undefined && paramVoiceId !== null) {
         finalVoiceUrl = `/default_character_voices/${paramVoiceId}`;
@@ -915,7 +951,19 @@ const MessageComponent: React.FC<MessageProps> = ({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Ошибка генерации голоса');
+        const detail = (errorData.detail || '').toString();
+
+        // КРИТИЧЕСКИ ВАЖНО: Если это ошибка лимита голоса, вызываем onOutOfLimits
+        const isVoiceLimit = /лимит|недостаточно квоты|подписка для генерации голоса/i.test(detail);
+        if (response.status === 403 && isVoiceLimit) {
+          if (onOutOfLimits) {
+            onOutOfLimits('voice');
+            setIsVoiceLoading(false);
+            return;
+          }
+        }
+
+        throw new Error(detail || 'Ошибка генерации голоса');
       }
 
       const data = await response.json();
@@ -923,13 +971,13 @@ const MessageComponent: React.FC<MessageProps> = ({
         // Формируем полный URL для аудио
         // Если BASE_URL пустой (относительный путь), используем data.audio_url как есть
         // Если BASE_URL задан, добавляем его к audio_url
-        const fullAudioUrl = API_CONFIG.BASE_URL 
-          ? `${API_CONFIG.BASE_URL}${data.audio_url}` 
+        const fullAudioUrl = API_CONFIG.BASE_URL
+          ? `${API_CONFIG.BASE_URL}${data.audio_url}`
           : data.audio_url;
-        
-        
+
+
         setAudioUrl(fullAudioUrl);
-        
+
         // Сохраняем audioUrl в localStorage для восстановления после обновления страницы
         // Используем стабильный ключ на основе characterName и content
         const storageKey = getStorageKey();
@@ -938,6 +986,11 @@ const MessageComponent: React.FC<MessageProps> = ({
         // Обновляем баланс пользователя если он вернулся в ответе
         if (data.remaining_coins !== undefined) {
           window.dispatchEvent(new CustomEvent('balance-update', { detail: { coins: data.remaining_coins } }));
+        }
+
+        // Обновляем статистику подписки, если вернулись новые лимиты
+        if (data.voice_remaining !== undefined) {
+          window.dispatchEvent(new CustomEvent('subscription-update'));
         }
 
         // Проигрываем аудио
@@ -959,7 +1012,7 @@ const MessageComponent: React.FC<MessageProps> = ({
         };
         audio.onloadeddata = () => {
         };
-        
+
         // Автоматически воспроизводим после загрузки
         audio.load();
         audio.play().then(() => {
@@ -1382,25 +1435,37 @@ const MessageComponent: React.FC<MessageProps> = ({
                 {isTyping && <TypingCursor />}
               </MessageText>
               {shouldShowVoiceButton && (
-                <MessageButtonsRow>
-                  <VoiceButton onClick={handleGenerateVoice} disabled={isVoiceLoading}>
-                    {isVoiceLoading ? (
-                      <VoiceButtonContent>
-                        <Loader2 className="animate-spin" />
-                        <span>Генерация...</span>
-                      </VoiceButtonContent>
-                    ) : (
-                      <>
+                <MessageButtonsRow style={{ alignItems: 'flex-start' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                    <VoiceButton onClick={handleGenerateVoice} disabled={isVoiceLoading}>
+                      {isVoiceLoading ? (
+                        <VoiceButtonContent>
+                          <Loader2 className="animate-spin" />
+                          <span>Генерация...</span>
+                        </VoiceButtonContent>
+                      ) : (
                         <VoiceButtonContent>
                           <FiVolume2 />
                           <span>{audioUrl ? 'Перегенерировать' : 'Сгенерировать голос'}</span>
                         </VoiceButtonContent>
-                        <CreditCost>
-                          {Math.max(1, Math.ceil((message.content.replace(/[\*\_\~]/g, '').length) / 30))} кредитов
-                        </CreditCost>
-                      </>
+                      )}
+                    </VoiceButton>
+                    {showSubscriptionWarning && (
+                      <div style={{
+                        color: '#fbbf24',
+                        fontSize: '10px',
+                        marginTop: '4px',
+                        textAlign: 'center',
+                        fontWeight: 600,
+                        animation: 'fadeIn 0.3s ease',
+                        whiteSpace: 'nowrap',
+                        position: 'absolute',
+                        bottom: '-25px'
+                      }}>
+                        Только для подписчиков STANDARD или PREMIUM
+                      </div>
                     )}
-                  </VoiceButton>
+                  </div>
 
                   <RepeatButton
                     onClick={() => {

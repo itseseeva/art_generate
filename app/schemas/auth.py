@@ -114,17 +114,28 @@ class Message(BaseModel):
 class TipCreatorRequest(BaseModel):
     """Схема для отправки благодарности создателю персонажа"""
     character_name: str = Field(..., description="Имя персонажа")
-    amount: int = Field(..., ge=1, le=1000, description="Количество кредитов (от 1 до 1000)")
+    tip_type: str = Field(..., description="Тип благодарности: 'photo' или 'voice'")
+    amount: int = Field(..., ge=1, le=100, description="Количество генераций (от 1 до 100)")
     message: Optional[str] = Field(None, max_length=500, description="Необязательное сообщение")
+    
+    @field_validator('tip_type')
+    @classmethod
+    def validate_tip_type(cls, v):
+        """Валидация типа благодарности"""
+        if v not in ['photo', 'voice']:
+            raise ValueError('Тип благодарности должен быть "photo" или "voice"')
+        return v
 
 
 class TipCreatorResponse(BaseModel):
     """Схема ответа на благодарность"""
     success: bool
     message: str
-    sender_coins_remaining: int
-    receiver_coins_total: int
+    tip_type: str  # 'photo' или 'voice'
+    sender_remaining: int  # Оставшиеся генерации отправителя
+    receiver_total: int  # Всего генераций у получателя
     creator_email: str
+
 
 
 class TipMessageResponse(BaseModel):

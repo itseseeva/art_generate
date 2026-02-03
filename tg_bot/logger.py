@@ -145,6 +145,10 @@ class TelegramHandler(Handler):
                     "Validation errors details",
                     "Request body:",
                     "not JSON serializable",
+                    "Signature has expired",
+                    "Недостаточно лимита генераций",
+                    "1 validation error",
+                    "No credentials provided",
                 )
                 if any(p in error_message for p in skip_patterns):
                     return

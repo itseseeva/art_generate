@@ -27,6 +27,7 @@ class CreateKassaPaymentRequest(BaseModel):
 	payment_type: str = Field(default="subscription", description="subscription, topup или booster")
 	payment_method: str = Field(default="bank_card", description="sbp, sberbank, tinkoff_bank, yoo_money, bank_card")
 	character_id: str | None = None  # ID персонажа для возврата в чат после оплаты бустера
+	is_test: bool = False
 
 
 class CreateKassaPaymentResponse(BaseModel):
@@ -51,10 +52,20 @@ async def create_kassa_payment(
 	"""
 	Создает платеж в ЮKassa для подписки или покупки кредитов.
 	"""
+	if payload.is_test and not current_user.is_admin:
+		raise HTTPException(
+			status_code=403,
+			detail="Test mode is only available for administrators."
+		)
+
 	try:
-		cfg = get_kassa_config()
+		cfg = get_kassa_config(test_mode=payload.is_test)
 	except ValueError as err:
 		raise HTTPException(status_code=500, detail=str(err))
+
+	# Отладочное логирование (маскированное)
+	sk_masked = cfg["secret_key"][:10] + "..." + cfg["secret_key"][-4:] if cfg["secret_key"] else "None"
+	logger.info(f"[YOOKASSA DEBUG] Using config: shop_id={cfg['shop_id']}, test_mode={payload.is_test}, secret_key={sk_masked}")
 
 	# Генерируем уникальный ключ идемпотентности
 	idempotence_key = f"yookassa-{current_user.id}-{payload.payment_type}-{uuid.uuid4()}"
@@ -386,8 +397,7 @@ async def process_yookassa_webhook(
 			if not subscription:
 				# Если подписки нет, создаем FREE подписку автоматически
 				logger.warning(f"[YOOKASSA WEBHOOK] No subscription found for user {user_id}, creating FREE subscription")
-				from app.models.subscription import SubscriptionType
-				from app.models.user_subscription import UserSubscription
+				from app.models.subscription import SubscriptionType, UserSubscription
 				from datetime import datetime, timezone
 				
 				subscription = UserSubscription(

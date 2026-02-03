@@ -12,7 +12,7 @@ import { CircularProgress } from './ui/CircularProgress';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToEnglish, translateToRussian } from '../utils/translate';
 import { FiX as CloseIcon, FiSettings, FiClock, FiCheckCircle } from 'react-icons/fi';
-import { Plus, Sparkles, Zap, X, Upload, CheckCircle, AlertCircle } from 'lucide-react';
+import { Plus, Sparkles, Zap, X, Upload, CheckCircle, AlertCircle, Camera, MessageCircle } from 'lucide-react';
 import { BiCoinStack } from 'react-icons/bi';
 
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -1703,7 +1703,9 @@ const GenerationArea = styled.div`
 
 const GenerateButton = styled.button`
   width: 100%;
-  height: 56px;
+  min-width: 160px;
+  height: 48px;
+  padding: 0 24px;
   background: linear-gradient(135deg, #facc15 0%, #eab308 100%);
   color: #000;
   border: none;
@@ -1739,6 +1741,44 @@ const GenerateButton = styled.button`
 const GenerateButtonContainer = styled.div`
   position: relative;
   width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+`;
+
+
+
+const LimitItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+`;
+
+const LimitValue = styled.span<{ $warning?: boolean }>`
+  font-family: 'Courier New', monospace;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: ${props => props.$warning ? '#fbbf24' : '#a78bfa'};
+  text-shadow: 0 0 8px ${props => props.$warning ? 'rgba(251, 191, 36, 0.4)' : 'rgba(167, 139, 250, 0.4)'};
+`;
+
+const AnimatedIcon = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  svg {
+    width: 18px;
+    height: 18px;
+    stroke-width: 2.2;
+    color: rgba(236, 72, 153, 0.9);
+    filter: drop-shadow(0 0 8px rgba(236, 72, 153, 0.4));
+  }
 `;
 
 const GenerateTooltip = styled.div<{ $isVisible: boolean }>`
@@ -3380,23 +3420,28 @@ const PhotoTile = styled.div`
 
 const GenerationTimer = styled.div`
   position: absolute;
-  top: 6px;
-  right: 6px;
-  background: rgba(0, 0, 0, 0.65);
+  top: 8px;
+  right: 8px;
+  background: rgba(15, 15, 15, 0.85);
   color: #fff;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
   pointer-events: none;
-  z-index: 10;
-  backdrop-filter: blur(4px);
+  z-index: 20;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
 
   @media (max-width: 768px) {
-    top: 4px;
-    right: 4px;
-    padding: 2px 4px;
-    font-size: 9px;
+    top: 6px;
+    right: 6px;
+    padding: 3px 6px;
+    font-size: 10px;
   }
 `;
 
@@ -4126,7 +4171,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
     return name;
   });
-  type SelectedPhoto = { id: string; url: string };
+  type SelectedPhoto = { id: string; url: string; generation_time?: number | null };
   const [generatedPhotos, setGeneratedPhotos] = useState<any[]>([]);
   const [isGeneratingPhoto, setIsGeneratingPhoto] = useState(false);
   const [isLoadingPhotos, setIsLoadingPhotos] = useState(true);
@@ -4418,7 +4463,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         .slice(0, MAX_MAIN_PHOTOS)
         .map(photo => ({
           id: photo.id,
-          url: normalizeImageUrl(photo.url) || photo.url
+          url: normalizeImageUrl(photo.url) || photo.url,
+          generation_time: photo.generationTime
         }));
 
       setSelectedPhotos(selected);
@@ -4489,7 +4535,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         setError(`Можно выбрать до ${MAX_MAIN_PHOTOS} фото`);
         return;
       }
-      updatedSelection = [...selectedPhotos, { id: targetPhoto.id, url: targetPhoto.url }];
+      updatedSelection = [...selectedPhotos, {
+        id: targetPhoto.id,
+        url: targetPhoto.url,
+        generation_time: targetPhoto.generationTime
+      }];
     }
 
     const previousSelection = [...selectedPhotos];
@@ -4918,7 +4968,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         return;
       }
 
-      const response = await fetch('/api/v1/subscription/stats/', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/profit/stats/`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -4927,13 +4977,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       if (response.ok) {
         const statsData = await response.json();
         setSubscriptionStats(statsData);
-
       } else {
-
         setSubscriptionStats(null);
       }
     } catch (error) {
-
+      console.error('Failed to load subscription stats:', error);
       setSubscriptionStats(null);
     }
   };
@@ -5762,6 +5810,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       }
       setGenerationProgress(100);
       await checkAuth();
+      await loadSubscriptionStats();
       window.dispatchEvent(new Event('balance-update'));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка генерации фото');
@@ -5825,10 +5874,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     } else {
       queueLimit = 1;
     }
-    if (!userInfo || (userInfo.coins || 0) < 10) {
-      setError('Недостаточно монет! Нужно 10 монет для генерации одного фото.');
-      return;
-    }
+    // Coin check removed
+
     const queue = generationQueueRef.current;
     const queueCount = queue.length;
     const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
@@ -8047,7 +8094,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                   { label: 'Повседневный образ', value: 'в повседневной одежде, комфортный стиль' },
                                   { label: 'Спортивный стиль', value: 'в спортивной одежде, активный образ жизни' },
                                   { label: 'Романтичная атмосфера', value: 'романтичная обстановка, мягкое освещение, уют' }
-                                ].map((tag, idx) => (
+                                ].slice(0, isPhotoPromptTagsExpanded ? undefined : 6).map((tag, idx) => (
                                   <TagButton
                                     key={idx}
                                     type="button"
@@ -8062,7 +8109,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                   >
                                     <Plus size={10} /> {tag.label}
                                   </TagButton>
-                                ))}
+                                ))
+                                }
                               </TagsContainer>
                               <ExpandButton
                                 $isExpanded={isPhotoPromptTagsExpanded}
@@ -8077,21 +8125,13 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
                           {/* 3. Действие: Кнопка "Сгенерировать" */}
                           <GenerationArea>
-                            <div className="flex justify-between items-center mb-2">
-                              <span className="text-xs text-zinc-400">
-                                Стоимость: <span className="text-zinc-200 font-medium">10 монет</span>
-                              </span>
+                            {/* Cost display removed */}
 
-                              {userInfo && (
-                                <CoinsBalance>
-                                  <BiCoinStack /> {userInfo.coins}
-                                </CoinsBalance>
-                              )}
-                            </div>
 
-                            <GenerateButtonContainer>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', width: '100%' }}>
                               <GenerateButton
                                 type="button"
+                                style={{ flexGrow: 1, minWidth: 0 }}
                                 onClick={() => {
                                   generatePhoto();
                                   setShowGenerateTooltip(true);
@@ -8115,7 +8155,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                   const queueCount = generationQueueRef.current?.length ?? 0;
                                   const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
                                   const isQueueFull = activeGenerations >= queueLimit;
-                                  return isQueueFull || userInfo.coins < 10;
+                                  return isQueueFull;
+
                                 })()}
                               >
                                 <span className="flex items-center gap-2">
@@ -8159,10 +8200,32 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                   })()}
                                 </span>
                               </GenerateButton>
+
+                              {/* Счетчик лимитов */}
+                              {userInfo && (
+                                <LimitItem>
+                                  <AnimatedIcon>
+                                    <Camera />
+                                  </AnimatedIcon>
+                                  <LimitValue $warning={(subscriptionStats?.images_limit || 0) - (subscriptionStats?.images_used || 0) <= 5}>
+                                    {(() => {
+                                      const limit = subscriptionStats?.images_limit ??
+                                        subscriptionStats?.monthly_photos ??
+                                        (userInfo?.subscription_type === 'standard' || userInfo?.subscription_type === 'premium' ? 300 : 5);
+                                      const used = subscriptionStats?.images_used ??
+                                        subscriptionStats?.used_photos ??
+                                        0;
+                                      return Math.max(0, limit - used);
+                                    })()}
+                                  </LimitValue>
+                                </LimitItem>
+                              )}
+
+
                               <GenerateTooltip $isVisible={showGenerateTooltip}>
                                 Наведитесь на готовое фото и нажмите "Добавить"
                               </GenerateTooltip>
-                            </GenerateButtonContainer>
+                            </div>
 
                             {/* Кнопка загрузки фото с компьютера (только для админов) */}
                             {(isAdmin || userInfo?.is_admin) && (
@@ -8562,39 +8625,44 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                 </div>
               </RightColumn>
             </form>
-          </MainContent>
+          </MainContent >
 
           {/* Модальное окно для просмотра фото в полный размер */}
-          <PromptGlassModal
-            isOpen={!!selectedPhotoForView}
+          < PromptGlassModal
+            isOpen={!!selectedPhotoForView
+            }
             onClose={closePhotoModal}
-            imageUrl={selectedPhotoForView?.url || ''}
+            imageUrl={selectedPhotoForView?.url || ''
+            }
             imageAlt="Generated photo"
             promptText={selectedPrompt}
             isLoading={isLoadingPrompt}
             error={promptError}
+            generationTime={selectedPhotoForView?.generationTime}
           />
 
           {/* Модальное окно авторизации */}
-          {isAuthModalOpen && (
-            <AuthModal
-              isOpen={isAuthModalOpen}
-              mode={authMode}
-              onModeChange={setAuthMode}
-              onClose={() => {
-                setIsAuthModalOpen(false);
-                setAuthMode('login');
-              }}
-              onAuthSuccess={(accessToken, refreshToken) => {
-                authManager.setTokens(accessToken, refreshToken);
-                setIsAuthenticated(true);
-                setIsAuthModalOpen(false);
-                setAuthMode('login');
-                checkAuth();
-                fetchCharacterPhotos();
-              }}
-            />
-          )}
+          {
+            isAuthModalOpen && (
+              <AuthModal
+                isOpen={isAuthModalOpen}
+                mode={authMode}
+                onModeChange={setAuthMode}
+                onClose={() => {
+                  setIsAuthModalOpen(false);
+                  setAuthMode('login');
+                }}
+                onAuthSuccess={(accessToken, refreshToken) => {
+                  authManager.setTokens(accessToken, refreshToken);
+                  setIsAuthenticated(true);
+                  setIsAuthModalOpen(false);
+                  setAuthMode('login');
+                  checkAuth();
+                  fetchCharacterPhotos();
+                }}
+              />
+            )
+          }
 
           {/* Отладочная информация */}
           { }
@@ -8858,34 +8926,36 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
           {/* ВРЕМЕННО ОТКЛЮЧЕНО для отладки */}
           {/* Модальное окно Premium */}
-          {showPremiumModal && (
-            <PremiumModalOverlay onClick={() => setShowPremiumModal(false)}>
-              <PremiumModalContent onClick={(e) => e.stopPropagation()}>
-                <PremiumModalTitle>Премиальный голос</PremiumModalTitle>
-                <PremiumModalText>
-                  Оформите Premium-подписку, чтобы получить доступ к эксклюзивным голосам или выберите другой голос.
-                </PremiumModalText>
-                <PremiumModalButtons>
-                  <PremiumModalButton
-                    $primary
-                    onClick={() => {
-                      setShowPremiumModal(false);
-                      if (onShop) {
-                        onShop();
-                      } else {
-                        window.location.href = '/shop';
-                      }
-                    }}
-                  >
-                    Оформить Premium
-                  </PremiumModalButton>
-                  <PremiumModalButton onClick={() => setShowPremiumModal(false)}>
-                    Закрыть
-                  </PremiumModalButton>
-                </PremiumModalButtons>
-              </PremiumModalContent>
-            </PremiumModalOverlay>
-          )}
+          {
+            showPremiumModal && (
+              <PremiumModalOverlay onClick={() => setShowPremiumModal(false)}>
+                <PremiumModalContent onClick={(e) => e.stopPropagation()}>
+                  <PremiumModalTitle>Премиальный голос</PremiumModalTitle>
+                  <PremiumModalText>
+                    Оформите Premium-подписку, чтобы получить доступ к эксклюзивным голосам или выберите другой голос.
+                  </PremiumModalText>
+                  <PremiumModalButtons>
+                    <PremiumModalButton
+                      $primary
+                      onClick={() => {
+                        setShowPremiumModal(false);
+                        if (onShop) {
+                          onShop();
+                        } else {
+                          window.location.href = '/shop';
+                        }
+                      }}
+                    >
+                      Оформить Premium
+                    </PremiumModalButton>
+                    <PremiumModalButton onClick={() => setShowPremiumModal(false)}>
+                      Закрыть
+                    </PremiumModalButton>
+                  </PremiumModalButtons>
+                </PremiumModalContent>
+              </PremiumModalOverlay>
+            )
+          }
 
           {/* <BackgroundWrapper>
         <DarkVeil speed={1.1} />

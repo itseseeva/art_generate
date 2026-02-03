@@ -166,7 +166,9 @@ class ProfitActivateService:
                 user_id=user_id,
                 subscription_type=SubscriptionType.FREE,
                 status=SubscriptionStatus.ACTIVE,
-                monthly_messages=10,
+                monthly_messages=5,
+                images_limit=5,
+                voice_limit=5,
                 used_messages=0,
             )
             self.db.add(subscription)
@@ -242,31 +244,68 @@ class ProfitActivateService:
             raise ValueError("Подписка Free доступна только при регистрации и не может быть активирована вручную.")
 
         # Определяем параметры подписки (базовые лимиты за месяц)
+        # Определяем параметры подписки (базовые лимиты за месяц)
+        images_limit = 0
+        voice_limit = 0
+        
         if subscription_type.lower() == "standard":
             monthly_credits = 2000  # Standard: 2000 кредитов в месяц
             monthly_photos = 0
+            
+            # Новые лимиты
+            images_limit = 100
+            voice_limit = 100
+            
             max_message_length = 200
         elif subscription_type.lower() == "premium":
             monthly_credits = 6000  # Premium: 6000 кредитов в месяц
             monthly_photos = 0
+            
+            # Новые лимиты
+            images_limit = 300
+            voice_limit = 300
+            
             max_message_length = 300
         else:
             raise ValueError(f"Неподдерживаемый тип подписки: {subscription_type}")
+            
+        # Увеличение лимитов генераций и голоса при покупке на долгий срок (ИТОГО ЗА ВЕСЬ ПЕРИОД)
+        # Пример для Standard (100/мес): на 3 месяца = 100 * 3 + 20% = 360
+        total_photos = images_limit * months
+        total_voice = voice_limit * months
+
+        if months >= 12:
+            images_limit = int(total_photos * 1.15)
+            voice_limit = int(total_voice * 1.15)
+            logger.info(f"[SUBSCRIPTION] Увеличены лимиты (x1.15) за 12 месяцев: img={images_limit}, voice={voice_limit}")
+        elif months >= 6:
+            images_limit = int(total_photos * 1.10)
+            voice_limit = int(total_voice * 1.10)
+            logger.info(f"[SUBSCRIPTION] Увеличены лимиты (x1.10) за 6 месяцев: img={images_limit}, voice={voice_limit}")
+        elif months >= 3:
+            images_limit = int(total_photos * 1.05)
+            voice_limit = int(total_voice * 1.05)
+            logger.info(f"[SUBSCRIPTION] Увеличены лимиты (x1.05) за 3 месяца: img={images_limit}, voice={voice_limit}")
+        else:
+            images_limit = total_photos
+            voice_limit = total_voice
         
         # Начисляем кредиты за ВСЕ месяцы сразу
         total_period_credits = monthly_credits * months
         
         # БОНУСЫ К КРЕДИТАМ:
-        # +10% за 12 месяцев
-        # +5% за 6 месяцев
         if months == 12:
-            bonus_credits = int(total_period_credits * 0.1)
+            bonus_credits = int(total_period_credits * 0.15)
             total_period_credits += bonus_credits
-            logger.info(f"[SUBSCRIPTION] Добавлен бонус 10% за годовую подписку: {bonus_credits} кредитов")
+            logger.info(f"[SUBSCRIPTION] Добавлен бонус 15% за годовую подписку: {bonus_credits} кредитов")
         elif months == 6:
+            bonus_credits = int(total_period_credits * 0.10)
+            total_period_credits += bonus_credits
+            logger.info(f"[SUBSCRIPTION] Добавлен бонус 10% за 6 месяцев: {bonus_credits} кредитов")
+        elif months == 3:
             bonus_credits = int(total_period_credits * 0.05)
             total_period_credits += bonus_credits
-            logger.info(f"[SUBSCRIPTION] Добавлен бонус 5% за 6 месяцев: {bonus_credits} кредитов")
+            logger.info(f"[SUBSCRIPTION] Добавлен бонус 5% за 3 месяца: {bonus_credits} кредитов")
         
         # Получаем пользователя для работы с балансом
         from app.models.user import Users
@@ -311,6 +350,17 @@ class ProfitActivateService:
                 # Обновляем лимиты: устанавливаем базовый месячный лимит
                 existing_subscription.monthly_credits = monthly_credits
                 existing_subscription.used_credits = 0
+                
+                # Обновляем новые лимиты
+                existing_subscription.images_limit = images_limit
+                existing_subscription.voice_limit = voice_limit
+                # Сбрасываем использование (или можно оставить, если это продление в середине месяца? 
+                # Но логика продления обычно сбрасывает месячные лимиты или добавляет к ним. 
+                # Здесь мы просто обновляем сам лимит и дату окончания.
+                # Сделаем сброс использования, так как это "новый месяц" или период)
+                existing_subscription.images_used = 0
+                existing_subscription.voice_used = 0
+                
                 # monthly_photos остается 0 для STANDARD и PREMIUM
                 # Переводим ТОЛЬКО кредиты новой подписки на баланс (остатки старой подписки теряются)
                 
@@ -376,6 +426,12 @@ class ProfitActivateService:
                 existing_subscription.monthly_credits = monthly_credits
                 existing_subscription.monthly_photos = monthly_photos
                 existing_subscription.max_message_length = max_message_length
+                
+                # Устанавливаем новые лимиты
+                existing_subscription.images_limit = images_limit
+                existing_subscription.voice_limit = voice_limit
+                existing_subscription.images_used = 0
+                existing_subscription.voice_used = 0
                 
                 # Кредиты: сбрасываем used_credits
                 existing_subscription.used_credits = 0
@@ -488,8 +544,15 @@ class ProfitActivateService:
             monthly_credits=monthly_credits,
             monthly_photos=monthly_photos,
             max_message_length=max_message_length,
+            # Новые лимиты
+            images_limit=images_limit,
+            voice_limit=voice_limit,
+            
             used_credits=0,
             used_photos=0,
+            images_used=0,
+            voice_used=0,
+            
             activated_at=datetime.utcnow(),
             expires_at=datetime.utcnow() + timedelta(days=30 * months),
             last_reset_at=datetime.utcnow()
@@ -653,14 +716,20 @@ class ProfitActivateService:
                 "status": "inactive",
                 "monthly_credits": 0,
                 "monthly_photos": 0,
-                "monthly_messages": 10,
-                "max_message_length": 0,
+                "monthly_messages": 5,
+                "max_message_length": 100,
                 "used_credits": 0,
                 "used_photos": 0,
                 "used_messages": 0,
+                "images_limit": 5,
+                "images_used": 0,
+                "voice_limit": 5,
+                "voice_used": 0,
                 "credits_remaining": 0,
                 "photos_remaining": 0,
-                "messages_remaining": 10,
+                "messages_remaining": 5,
+                "images_remaining": 5,
+                "voice_remaining": 5,
                 "days_left": 0,
                 "is_active": False,
                 "expires_at": None,
@@ -682,14 +751,14 @@ class ProfitActivateService:
                 "status": "inactive",
                 "monthly_credits": 0,
                 "monthly_photos": 0,
-                "monthly_messages": 10,
+                "monthly_messages": 5,
                 "max_message_length": 0,
                 "used_credits": 0,
                 "used_photos": 0,
                 "used_messages": 0,
                 "credits_remaining": 0,
                 "photos_remaining": 0,
-                "messages_remaining": 10,
+                "messages_remaining": 5,
                 "days_left": 0,
                 "is_active": False,
                 "expires_at": None,
@@ -704,6 +773,49 @@ class ProfitActivateService:
             # Инвалидируем кэш при сбросе лимитов
             await cache_delete(key_subscription(user_id))
             await cache_delete(cache_key)
+
+        # FIX: Автоматическое исправление нулевых лимитов для старых подписок
+        # Это критически важно для миграции существующих пользователей
+        limits_updated = False
+        if subscription.images_limit == 0 and subscription.voice_limit == 0:
+            sub_type = subscription.subscription_type.value.lower()
+            if sub_type == "free" or sub_type == "base":
+                subscription.images_limit = 5
+                subscription.voice_limit = 5
+                limits_updated = True
+            elif sub_type == "standard":
+                subscription.images_limit = 100
+                subscription.voice_limit = 100
+                limits_updated = True
+            elif sub_type == "premium":
+                subscription.images_limit = 300
+                subscription.voice_limit = 300
+                limits_updated = True
+        
+        if limits_updated:
+            logger.info(f"[STATS] AUTO-FIX: Обновлены лимиты для user_id={user_id}. {sub_type}: img={subscription.images_limit}, voice={subscription.voice_limit}")
+            await self.db.commit()
+            await self.db.refresh(subscription)
+            # Инвалидируем кэш снова, чтобы вернуть новые данные
+            await cache_delete(key_subscription(user_id))
+            await cache_delete(cache_key)
+        
+        # Подсчитываем количество созданных персонажей
+        from app.chat_bot.models.models import CharacterDB
+        from sqlalchemy import func, select as sql_select
+        
+        characters_count_query = sql_select(func.count(CharacterDB.id)).where(CharacterDB.user_id == user_id)
+        characters_count_result = await self.db.execute(characters_count_query)
+        characters_count = characters_count_result.scalar() or 0
+        
+        # Определяем лимит персонажей в зависимости от подписки
+        sub_type = subscription.subscription_type.value.lower()
+        if sub_type == "premium":
+            characters_limit = None  # Unlimited
+        elif sub_type == "standard":
+            characters_limit = 10
+        else:  # free
+            characters_limit = 1
         
         stats = {
             "subscription_type": subscription.subscription_type.value,
@@ -718,6 +830,17 @@ class ProfitActivateService:
             "credits_remaining": subscription.credits_remaining,
             "photos_remaining": subscription.photos_remaining,
             "messages_remaining": subscription.messages_remaining if subscription.monthly_messages > 0 else None,
+            # Новые поля для лимитов
+            "images_limit": subscription.images_limit,
+            "images_used": subscription.images_used,
+            "images_remaining": subscription.images_remaining,
+            "voice_limit": subscription.voice_limit,
+            "voice_used": subscription.voice_used,
+            "voice_remaining": subscription.voice_remaining,
+            # Лимит персонажей
+            "characters_count": characters_count,
+            "characters_limit": characters_limit,
+            
             "days_left": subscription.days_until_expiry,
             "is_active": subscription.is_active,
             "expires_at": subscription.expires_at.isoformat() if subscription.expires_at else None,
@@ -835,5 +958,10 @@ class ProfitActivateService:
             expires_at=subscription.expires_at,
             last_reset_at=subscription.last_reset_at,
             is_active=subscription.is_active,
-            days_until_expiry=subscription.days_until_expiry
+            days_until_expiry=subscription.days_until_expiry,
+            # Новые лимиты
+            images_limit=subscription.images_limit,
+            images_used=subscription.images_used,
+            voice_limit=subscription.voice_limit,
+            voice_used=subscription.voice_used,
         )

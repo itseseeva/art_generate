@@ -140,18 +140,18 @@ class ChatConfig(BaseSettings):
 
     # --- базовые параметры генерации (оптимизированы для Cydonia-24B) ---
     DEFAULT_MAX_TOKENS: int = Field(
-        default=600, 
-        description="Лимит токенов по умолчанию - длина одного ответа (600 токенов максимум для всех)"
+        default=750, 
+        description="Лимит токенов по умолчанию - длина одного ответа (750 токенов по умолчанию)"
     )
     
     # Дополнительные лимиты для контроля
     HARD_MAX_TOKENS: int = Field(
-        default=600,
-        description="Жесткий лимит - длина одного ответа (600 токенов максимум для всех)"
+        default=800,
+        description="Жесткий лимит - длина одного ответа (800 токенов максимум для всех)"
     )
     
     WARNING_THRESHOLD: int = Field(
-        default=300,
+        default=400,
         description="Порог предупреждения - начинаем завершать диалог"
     )
     DEFAULT_TEMPERATURE: float = Field(

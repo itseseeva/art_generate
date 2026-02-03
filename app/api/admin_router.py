@@ -174,8 +174,7 @@ async def get_admin_stats(
                 select(func.count(func.distinct(UserSubscription.user_id))).where(
                     UserSubscription.subscription_type.in_([
                         SubscriptionType.STANDARD,
-                        SubscriptionType.PREMIUM,
-                        SubscriptionType.PRO
+                        SubscriptionType.PREMIUM
                     ])
                 )
             )
@@ -204,15 +203,7 @@ async def get_admin_stats(
         except Exception:
             premium_all_time = 0
         
-        try:
-            pro_all_time_result = await db.execute(
-                select(func.count(func.distinct(UserSubscription.user_id))).where(
-                    UserSubscription.subscription_type == SubscriptionType.PRO
-                )
-            )
-            pro_all_time = pro_all_time_result.scalar() or 0
-        except Exception:
-            pro_all_time = 0
+        pro_all_time = 0
 
         return {
             "total_visits": total_users,
@@ -320,7 +311,11 @@ async def get_users_list(
                     "used_credits": user.subscription.used_credits,
                     "used_photos": user.subscription.used_photos,
                     "monthly_credits": user.subscription.monthly_credits,
-                    "monthly_photos": user.subscription.monthly_photos
+                    "monthly_photos": user.subscription.monthly_photos,
+                    "images_limit": user.subscription.images_limit,
+                    "images_used": user.subscription.images_used,
+                    "voice_limit": user.subscription.voice_limit,
+                    "voice_used": user.subscription.voice_used
                 }
             
             # Статистика чатов
@@ -555,6 +550,10 @@ async def get_user_details(
                 "monthly_photos": user.subscription.monthly_photos,
                 "used_credits": user.subscription.used_credits,
                 "used_photos": user.subscription.used_photos,
+                "images_limit": user.subscription.images_limit,
+                "images_used": user.subscription.images_used,
+                "voice_limit": user.subscription.voice_limit,
+                "voice_used": user.subscription.voice_used,
                 "max_message_length": user.subscription.max_message_length,
                 "activated_at": user.subscription.activated_at.isoformat() if user.subscription.activated_at else None,
                 "expires_at": user.subscription.expires_at.isoformat() if user.subscription.expires_at else None
@@ -733,6 +732,17 @@ async def get_users_table(
                 logger.warning(f"[ADMIN] Ошибка проверки покупки бустера для user_id={user.id}: {e}")
                 purchased_booster = False
             
+            # Собираем инфо о подписке для лимитов
+            sub_info = None
+            if subscription:
+                sub_info = {
+                    "type": subscription_type,
+                    "images_limit": subscription.images_limit,
+                    "images_used": subscription.images_used,
+                    "voice_limit": subscription.voice_limit,
+                    "voice_used": subscription.voice_used
+                }
+
             users_table.append({
                 "id": user.id,
                 "user": user.email or user.username or f"User {user.id}",
@@ -740,6 +750,7 @@ async def get_users_table(
                 "email": user.email,
                 "messages_count": messages_count,
                 "subscription_type": subscription_type,
+                "subscription": sub_info,
                 "photos_count": photos_count,
                 "last_login": last_login,
                 "purchased_booster": purchased_booster
@@ -943,3 +954,66 @@ async def add_admin_character_tag(
     await db.commit()
     await db.refresh(new_tag)
     return {"id": new_tag.id, "name": new_tag.name}
+@admin_router.post("/grant-booster/{user_id}")
+async def grant_booster_manually(
+    user_id: int,
+    current_user: Users = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Вручную начисляет бустер пользователю (только для админов).
+    +30 сообщений, +10 генераций фото.
+    """
+    try:
+        from app.services.profit_activate import ProfitActivateService, emit_profile_update
+        from app.utils.redis_cache import cache_delete, key_subscription, key_subscription_stats
+        
+        service = ProfitActivateService(db)
+        subscription = await service.get_user_subscription(user_id)
+        
+        if not subscription:
+            # Если подписки нет, создаем FREE подписку автоматически
+            from app.models.subscription import SubscriptionType, UserSubscription
+            from datetime import datetime, timezone
+            
+            subscription = UserSubscription(
+                user_id=user_id,
+                subscription_type=SubscriptionType.FREE,
+                is_active=True,
+                activated_at=datetime.now(timezone.utc),
+                monthly_messages=5,
+                monthly_photos=5,
+                used_messages=0,
+                used_photos=0
+            )
+            db.add(subscription)
+            await db.flush()
+            logger.info(f"[ADMIN BOOSTER] Created FREE subscription for user {user_id}")
+
+        # Увеличиваем лимиты: +30 сообщений, +10 генераций
+        subscription.monthly_messages = (subscription.monthly_messages or 0) + 30
+        subscription.monthly_photos = (subscription.monthly_photos or 0) + 10
+        
+        await db.commit()
+        await db.refresh(subscription)
+        
+        # Инвалидируем кэш
+        await cache_delete(key_subscription(user_id))
+        await cache_delete(key_subscription_stats(user_id))
+        await emit_profile_update(user_id, db)
+        
+        logger.info(
+            f"[ADMIN BOOSTER] Booster applied by admin {current_user.email}: "
+            f"user_id={user_id}, messages={subscription.monthly_messages}, photos={subscription.monthly_photos}"
+        )
+        
+        return {
+            "success": True, 
+            "message": "Бустер успешно начислен",
+            "new_messages_limit": subscription.monthly_messages,
+            "new_photos_limit": subscription.monthly_photos
+        }
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"[ADMIN BOOSTER] Error granting booster: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

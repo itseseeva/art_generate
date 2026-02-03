@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
-import { FiAlertCircle as AlertIcon, FiShoppingBag as ShopIcon, FiLock as LockIcon } from 'react-icons/fi';
+import { FiAlertCircle as AlertIcon, FiShoppingBag as ShopIcon, FiUnlock as UnlockIcon } from 'react-icons/fi';
 import { authManager } from '../utils/auth';
 
 const NotificationOverlay = styled.div`
@@ -52,18 +52,24 @@ const NotificationContainer = styled.div<{ $isClosing?: boolean }>`
   }
 `;
 
-const NotificationContent = styled.div<{ $variant?: 'warning' | 'default' }>`
-  background: ${props => props.$variant === 'warning' 
+const NotificationContent = styled.div<{ $variant?: 'warning' | 'success' | 'default' }>`
+  background: ${props => props.$variant === 'warning'
     ? 'linear-gradient(135deg, rgba(30, 30, 30, 0.95) 0%, rgba(20, 20, 20, 0.95) 100%)'
-    : 'linear-gradient(135deg, rgba(30, 30, 30, 0.95) 0%, rgba(20, 20, 20, 0.95) 100%)'};
-  border: 2px solid ${props => props.$variant === 'warning' 
+    : props.$variant === 'success'
+      ? 'linear-gradient(135deg, rgba(20, 40, 30, 0.95) 0%, rgba(15, 30, 20, 0.95) 100%)'
+      : 'linear-gradient(135deg, rgba(30, 30, 30, 0.95) 0%, rgba(20, 20, 20, 0.95) 100%)'};
+  border: 2px solid ${props => props.$variant === 'warning'
     ? 'rgba(150, 150, 150, 0.5)'
-    : 'rgba(150, 150, 150, 0.3)'};
+    : props.$variant === 'success'
+      ? 'rgba(34, 197, 94, 0.5)'
+      : 'rgba(150, 150, 150, 0.3)'};
   border-radius: ${theme.borderRadius.xl};
   padding: ${theme.spacing.xl};
   box-shadow: ${props => props.$variant === 'warning'
     ? '0 20px 60px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
-    : '0 20px 60px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.1)'};
+    : props.$variant === 'success'
+      ? '0 20px 60px rgba(34, 197, 94, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+      : '0 20px 60px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.1)'};
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -71,15 +77,19 @@ const NotificationContent = styled.div<{ $variant?: 'warning' | 'default' }>`
   text-align: center;
 `;
 
-const IconWrapper = styled.div`
+const IconWrapper = styled.div<{ $variant?: 'warning' | 'success' | 'default' }>`
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  background: rgba(80, 80, 80, 0.3);
+  background: ${props => props.$variant === 'success'
+    ? 'rgba(34, 197, 94, 0.2)'
+    : 'rgba(80, 80, 80, 0.3)'};
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(200, 200, 200, 1);
+  color: ${props => props.$variant === 'success'
+    ? 'rgba(34, 197, 94, 1)'
+    : 'rgba(200, 200, 200, 1)'};
   
   svg {
     width: 32px;
@@ -87,20 +97,22 @@ const IconWrapper = styled.div`
   }
 `;
 
-const NotificationTitle = styled.h2<{ $variant?: 'warning' | 'default' }>`
+const NotificationTitle = styled.h2<{ $variant?: 'warning' | 'success' | 'default' }>`
   font-size: ${theme.fontSize['2xl']};
   font-weight: 700;
-  color: ${props => props.$variant === 'warning' 
-    ? 'rgba(240, 240, 240, 1)'
+  color: ${props => props.$variant === 'success'
+    ? 'rgba(34, 197, 94, 1)'
     : 'rgba(240, 240, 240, 1)'};
   margin: 0;
 `;
 
-const NotificationMessage = styled.p<{ $variant?: 'warning' | 'default' }>`
+const NotificationMessage = styled.p<{ $variant?: 'warning' | 'success' | 'default' }>`
   font-size: ${theme.fontSize.base};
-  color: ${props => props.$variant === 'warning' 
+  color: ${props => props.$variant === 'warning'
     ? 'rgba(200, 200, 200, 1)'
-    : 'rgba(200, 200, 200, 1)'};
+    : props.$variant === 'success'
+      ? 'rgba(180, 220, 200, 1)'
+      : 'rgba(200, 200, 200, 1)'};
   margin: 0;
   line-height: 1.6;
 `;
@@ -109,37 +121,40 @@ const NotificationButtonGroup = styled.div`
   display: flex;
   gap: ${theme.spacing.md};
   width: 100%;
-  justify-content: center;
+  margin-top: ${theme.spacing.md};
 `;
 
-const NotificationButton = styled.button<{ $variant?: 'warning' | 'default' }>`
-  display: flex;
-  align-items: center;
-  gap: ${theme.spacing.sm};
-  padding: ${theme.spacing.md} ${theme.spacing.xl};
+const NotificationButton = styled.button<{ $variant?: 'warning' | 'success' | 'default' }>`
+  flex: 1;
+  padding: ${theme.spacing.md} ${theme.spacing.lg};
   background: ${props => props.$variant === 'warning'
-    ? 'linear-gradient(135deg, rgba(100, 100, 100, 0.8) 0%, rgba(80, 80, 80, 0.8) 100%)'
-    : 'linear-gradient(135deg, rgba(139, 92, 246, 0.8) 0%, rgba(99, 102, 241, 0.8) 100%)'};
+    ? 'linear-gradient(135deg, rgba(150, 150, 150, 0.8) 0%, rgba(120, 120, 120, 0.8) 100%)'
+    : props.$variant === 'success'
+      ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.8) 0%, rgba(22, 163, 74, 0.8) 100%)'
+      : 'linear-gradient(135deg, rgba(139, 92, 246, 0.8) 0%, rgba(99, 102, 241, 0.8) 100%)'};
   border: 1px solid ${props => props.$variant === 'warning'
     ? 'rgba(150, 150, 150, 0.5)'
-    : 'rgba(139, 92, 246, 0.5)'};
+    : props.$variant === 'success'
+      ? 'rgba(34, 197, 94, 0.5)'
+      : 'rgba(139, 92, 246, 0.5)'};
   border-radius: ${theme.borderRadius.lg};
-  color: rgba(240, 240, 240, 1);
-  font-size: ${theme.fontSize.base};
+  color: #ffffff;
   font-weight: 600;
+  font-size: ${theme.fontSize.base};
   cursor: pointer;
   transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: ${theme.spacing.sm};
   
-  &:hover {
+  &:hover:not(:disabled) {
     background: ${props => props.$variant === 'warning'
-      ? 'linear-gradient(135deg, rgba(120, 120, 120, 0.9) 0%, rgba(100, 100, 100, 0.9) 100%)'
+    ? 'linear-gradient(135deg, rgba(150, 150, 150, 1) 0%, rgba(120, 120, 120, 1) 100%)'
+    : props.$variant === 'success'
+      ? 'linear-gradient(135deg, rgba(34, 197, 94, 1) 0%, rgba(22, 163, 74, 1) 100%)'
       : 'linear-gradient(135deg, rgba(139, 92, 246, 1) 0%, rgba(99, 102, 241, 1) 100%)'};
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  }
-  
-  &:active {
-    transform: translateY(0);
   }
   
   &:disabled {
@@ -149,40 +164,28 @@ const NotificationButton = styled.button<{ $variant?: 'warning' | 'default' }>`
   }
   
   svg {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
   }
 `;
 
-const NotificationCancelButton = styled.button<{ $variant?: 'warning' | 'default' }>`
-  display: flex;
-  align-items: center;
-  gap: ${theme.spacing.sm};
-  padding: ${theme.spacing.md} ${theme.spacing.xl};
-  background: transparent;
-  border: 1px solid ${props => props.$variant === 'warning'
-    ? 'rgba(150, 150, 150, 0.5)'
-    : 'rgba(150, 150, 150, 0.3)'};
+const NotificationCancelButton = styled.button<{ $variant?: 'warning' | 'success' | 'default' }>`
+  flex: 1;
+  padding: ${theme.spacing.md} ${theme.spacing.lg};
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: ${theme.borderRadius.lg};
-  color: ${props => props.$variant === 'warning'
-    ? 'rgba(200, 200, 200, 1)'
-    : 'rgba(200, 200, 200, 1)'};
-  font-size: ${theme.fontSize.base};
+  color: rgba(200, 200, 200, 1);
   font-weight: 600;
+  font-size: ${theme.fontSize.base};
   cursor: pointer;
   transition: all 0.3s ease;
   
   &:hover {
-    background: rgba(80, 80, 80, 0.3);
-    border-color: rgba(150, 150, 150, 0.7);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: rgba(240, 240, 240, 1);
   }
-`;
-
-const PriceInfo = styled.div`
-  font-size: ${theme.fontSize.lg};
-  font-weight: 700;
-  color: rgba(240, 240, 240, 1);
-  margin-top: ${theme.spacing.sm};
 `;
 
 interface PaidAlbumPurchaseModalProps {
@@ -210,28 +213,26 @@ export const PaidAlbumPurchaseModal: React.FC<PaidAlbumPurchaseModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      
+
     }
   }, [isOpen, characterName, subscriptionType, userCoins]);
 
   if (!isOpen) return null;
 
   const normalizedSubscriptionType = subscriptionType?.toLowerCase() || 'free';
-  const PAID_ALBUM_COST = 300;
-  const canAfford = userCoins >= PAID_ALBUM_COST;
   const isFree = normalizedSubscriptionType === 'free';
   const isStandard = normalizedSubscriptionType === 'standard';
   const isPremium = normalizedSubscriptionType === 'premium';
 
-  const handlePurchase = async () => {
-    if (!canAfford || isPurchasing) return;
-    
+  const handleUnlock = async () => {
+    if (isPurchasing) return;
+
     setIsPurchasing(true);
     try {
       await onPurchase();
       onClose();
     } catch (error) {
-      
+
     } finally {
       setIsPurchasing(false);
     }
@@ -244,7 +245,7 @@ export const PaidAlbumPurchaseModal: React.FC<PaidAlbumPurchaseModalProps> = ({
     onClose();
   };
 
-  // Для FREE пользователей - показываем предупреждение
+  // Для FREE пользователей - показываем предупреждение о необходимости подписки
   if (isFree) {
     return (
       <>
@@ -256,7 +257,7 @@ export const PaidAlbumPurchaseModal: React.FC<PaidAlbumPurchaseModalProps> = ({
             </IconWrapper>
             <NotificationTitle $variant="warning">Требуется подписка</NotificationTitle>
             <NotificationMessage $variant="warning">
-              Для покупки альбома персонажа "{characterName}" необходима подписка STANDARD или PREMIUM.
+              Для доступа к альбому персонажа "{characterName}" необходима подписка Standard или Premium.
               Перейдите в магазин, чтобы оформить подписку.
             </NotificationMessage>
             <NotificationButtonGroup>
@@ -274,34 +275,28 @@ export const PaidAlbumPurchaseModal: React.FC<PaidAlbumPurchaseModalProps> = ({
     );
   }
 
-  // Для STANDARD пользователей - показываем предложение купить
-  if (isStandard) {
+  // Для STANDARD и PREMIUM пользователей - показываем, что альбом бесплатен
+  if (isStandard || isPremium) {
     return (
       <>
         <NotificationOverlay onClick={onClose} />
         <NotificationContainer $isClosing={false}>
-          <NotificationContent>
-            <IconWrapper>
-              <LockIcon />
+          <NotificationContent $variant="success">
+            <IconWrapper $variant="success">
+              <UnlockIcon />
             </IconWrapper>
-            <NotificationTitle>Купить альбом</NotificationTitle>
-            <NotificationMessage>
-              Открыть альбом персонажа "{characterName}" за {PAID_ALBUM_COST} кредитов?
+            <NotificationTitle $variant="success">Разблокировать альбом</NotificationTitle>
+            <NotificationMessage $variant="success">
+              Альбом персонажа "{characterName}" доступен бесплатно для вашей подписки {subscriptionType.toUpperCase()}.
+              Нажмите "Разблокировать", чтобы получить доступ.
             </NotificationMessage>
-            <PriceInfo>
-              У вас: {userCoins} кредитов
-            </PriceInfo>
-            {!canAfford && (
-              <NotificationMessage style={{ color: 'rgba(239, 68, 68, 1)', fontSize: theme.fontSize.sm }}>
-                Недостаточно кредитов. Нужно {PAID_ALBUM_COST}, доступно {userCoins}.
-              </NotificationMessage>
-            )}
             <NotificationButtonGroup>
-              <NotificationButton 
-                onClick={handlePurchase} 
-                disabled={!canAfford || isPurchasing || isLoading}
+              <NotificationButton
+                onClick={handleUnlock}
+                disabled={isPurchasing || isLoading}
+                $variant="success"
               >
-                {isPurchasing || isLoading ? 'Покупка...' : 'Купить'}
+                {isPurchasing || isLoading ? 'Разблокировка...' : 'Разблокировать'}
               </NotificationButton>
               <NotificationCancelButton onClick={onClose}>
                 Отмена
@@ -313,7 +308,6 @@ export const PaidAlbumPurchaseModal: React.FC<PaidAlbumPurchaseModalProps> = ({
     );
   }
 
-  // Для PREMIUM - не должно показываться, так как альбомы открыты автоматически
+  // Не должно показываться для других случаев
   return null;
 };
-

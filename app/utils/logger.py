@@ -2,10 +2,18 @@
 Модуль для настройки логирования с интеграцией Telegram.
 """
 from loguru import logger
-from telegram import Bot
-from telegram.error import TelegramError
 from functools import wraps
 import sys
+
+# Делаем импорт telegram опциональным
+try:
+    from telegram import Bot
+    from telegram.error import TelegramError
+    TELEGRAM_AVAILABLE = True
+except ImportError:
+    TELEGRAM_AVAILABLE = False
+    Bot = None
+    TelegramError = Exception
 
 
 class Logger:
@@ -27,6 +35,18 @@ class Logger:
             log_level: Уровень логирования (DEBUG, INFO, WARNING, ERROR, CRITICAL)
             max_message_length: Максимальная длина сообщения в Telegram
         """
+        if not TELEGRAM_AVAILABLE:
+            logger.warning(
+                "Модуль telegram не установлен. "
+                "Отправка логов в Telegram будет недоступна."
+            )
+            self.bot = None
+            self.bot_token = bot_token
+            self.chat_id = chat_id
+            self.log_level = log_level
+            self.max_message_length = max_message_length
+            return
+            
         if not bot_token or not chat_id:
             raise ValueError(
                 "Bot token и chat_id обязательны "
@@ -81,6 +101,10 @@ class Logger:
         Args:
             message: Текст сообщения для отправки
         """
+        if not self.bot or not TELEGRAM_AVAILABLE:
+            logger.debug("Telegram бот недоступен, пропускаем отправку лога")
+            return
+            
         try:
             # Разбиваем длинные сообщения
             if len(message) > self.max_message_length:

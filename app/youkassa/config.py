@@ -18,7 +18,7 @@ class YooKassaConfig(TypedDict):
 	capture: bool
 
 
-def get_kassa_config() -> YooKassaConfig:
+def get_kassa_config(test_mode: bool = False) -> YooKassaConfig:
 	"""
 	Получает конфигурацию YooKassa из переменных окружения.
 	
@@ -29,15 +29,20 @@ def get_kassa_config() -> YooKassaConfig:
 	
 	Подробнее: см. app/youkassa/TESTING.md
 	"""
-	shop_id = os.getenv("YOOKASSA_SHOP_ID") or os.getenv("yookassa_shop_id")
-	# Поддержка обоих вариантов: YOU_KASSA_API_KEY и YOOKASSA_SECRET_KEY
-	# Также поддерживается тестовый ключ: YOU_KASSA_TEST_API_KEY
-	secret_key = (
-		os.getenv("YOU_KASSA_API_KEY") or 
-		os.getenv("YOU_KASSA_TEST_API_KEY") or 
-		os.getenv("YOOKASSA_SECRET_KEY") or 
-		os.getenv("yookassa_secret_key")
-	)
+	shop_id = os.getenv("YOOKASSA_TEST_SHOP_ID") if test_mode else None
+	if not shop_id:
+		shop_id = os.getenv("YOOKASSA_SHOP_ID") or os.getenv("yookassa_shop_id")
+
+	if test_mode:
+		secret_key = os.getenv("YOU_KASSA_TEST_API_KEY")
+	else:
+		# Поддержка обоих вариантов: YOU_KASSA_API_KEY и YOOKASSA_SECRET_KEY
+		secret_key = (
+			os.getenv("YOU_KASSA_API_KEY") or 
+			os.getenv("YOOKASSA_SECRET_KEY") or 
+			os.getenv("yookassa_secret_key")
+		)
+
 	return_url = os.getenv("YOOKASSA_RETURN_URL") or os.getenv("redirect_url1") or "https://cherrylust.art/shop"
 	currency = os.getenv("YOOKASSA_CURRENCY") or "RUB"
 	capture_env = os.getenv("YOOKASSA_CAPTURE", "true").strip().lower()
@@ -47,7 +52,8 @@ def get_kassa_config() -> YooKassaConfig:
 	if not shop_id:
 		missing.append("YOOKASSA_SHOP_ID")
 	if not secret_key:
-		missing.append("YOU_KASSA_API_KEY или YOOKASSA_SECRET_KEY")
+		key_name = "YOU_KASSA_TEST_API_KEY" if test_mode else "YOU_KASSA_API_KEY или YOOKASSA_SECRET_KEY"
+		missing.append(key_name)
 	if missing:
 		raise ValueError(f"YooKassa config is incomplete, missing: {', '.join(missing)}")
 

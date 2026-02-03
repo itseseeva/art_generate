@@ -69,11 +69,11 @@ def get_max_tokens(subscription_type: Optional[SubscriptionType]) -> int:
     Returns:
         Максимальное количество токенов для генерации (максимум 600)
     """
-    # ОГРАНИЧЕНИЕ: 600 токенов максимум для всех подписок
+    # ОГРАНИЧЕНИЕ: 800 токенов максимум для всех подписок (согласно ползунку на фронтенде)
     from app.chat_bot.config.chat_config import chat_config
     max_tokens = chat_config.DEFAULT_MAX_TOKENS
-    # Гарантируем, что значение не превышает 600
-    return min(max_tokens, 600)
+    # Гарантируем, что значение не превышает 800
+    return min(max_tokens, 700)
 
 
 def get_max_image_prompt_tokens(subscription_type: Optional[SubscriptionType]) -> int:

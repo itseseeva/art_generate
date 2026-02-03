@@ -1,0 +1,17 @@
+  // Восстанавливаем currentStep после успешной авторизации
+  useEffect(() => {
+    // Восстанавливаем шаг только при переходе из неавторизованного в авторизованное состояние
+    if (!prevIsAuthenticatedRef.current && isAuthenticated && authCheckComplete) {
+      const savedStep = localStorage.getItem('createCharacterStep');
+      if (savedStep) {
+        const step = parseInt(savedStep, 10) as 1 | 2 | 3 | 4;
+        if (step >= 1 && step <= 4) {
+          setCurrentStep(step);
+          // Очищаем сохранённый шаг после восстановления
+          localStorage.removeItem('createCharacterStep');
+        }
+      }
+    }
+    // Обновляем предыдущее состояние
+    prevIsAuthenticatedRef.current = isAuthenticated;
+  }, [isAuthenticated, authCheckComplete]);

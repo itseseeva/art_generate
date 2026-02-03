@@ -863,27 +863,45 @@ async def tip_character_creator(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Поблагодарить создателя персонажа, отправив ему кредиты.
+    Поблагодарить создателя персонажа, отправив ему фото-генерации или голосовые генерации.
     
     Проверки безопасности:
-    - Нельзя отправить кредиты себе
-    - Проверка баланса отправителя
-    - Лимит на количество кредитов (1-1000)
+    - Нельзя отправить генерации себе
+    - Проверка лимитов подписки отправителя
+    - Лимит на количество генераций (1-100)
     - Проверка существования персонажа и его создателя
     """
     # Валидация количества
     if tip_request.amount <= 0:
-        raise HTTPException(status_code=400, detail="Количество кредитов должно быть положительным")
+        raise HTTPException(status_code=400, detail="Количество генераций должно быть положительным")
     
-    if tip_request.amount > 1000:
-        raise HTTPException(status_code=400, detail="Максимум 1000 кредитов за один раз")
+    if tip_request.amount > 100:
+        raise HTTPException(status_code=400, detail="Максимум 100 генераций за один раз")
     
-    # Проверка баланса отправителя
-    if current_user.coins < tip_request.amount:
+    # Получить подписку отправителя
+    from app.services.profit_activate import ProfitActivateService
+    service = ProfitActivateService(db)
+    sender_subscription = await service.get_user_subscription(current_user.id)
+    
+    if not sender_subscription or not sender_subscription.is_active:
         raise HTTPException(
-            status_code=400, 
-            detail=f"Недостаточно кредитов. У вас: {current_user.coins}, требуется: {tip_request.amount}"
+            status_code=400,
+            detail="У вас нет активной подписки"
         )
+    
+    # Проверка лимитов в зависимости от типа благодарности
+    if tip_request.tip_type == 'photo':
+        if sender_subscription.images_remaining < tip_request.amount:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Недостаточно фото-генераций. У вас: {sender_subscription.images_remaining}, требуется: {tip_request.amount}"
+            )
+    elif tip_request.tip_type == 'voice':
+        if sender_subscription.voice_remaining < tip_request.amount:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Недостаточно голосовых генераций. У вас: {sender_subscription.voice_remaining}, требуется: {tip_request.amount}"
+            )
     
     # Найти персонажа
     from app.chat_bot.models.models import CharacterDB
@@ -900,8 +918,9 @@ async def tip_character_creator(
     logger = logging.getLogger(__name__)
     logger.info(f"[DEBUG] Персонаж '{character.name}' имеет user_id: {character.user_id}")
     
-    # Если персонаж системный (без user_id), кредиты уходят в систему (не возвращаем их)
+    # Если персонаж системный (без user_id), генерации уходят в систему (не возвращаем их)
     creator = None
+    creator_subscription = None
     if character.user_id:
         # Получить создателя персонажа
         result = await db.execute(
@@ -914,55 +933,72 @@ async def tip_character_creator(
         if not creator:
             raise HTTPException(status_code=404, detail=f"Создатель персонажа не найден (user_id: {character.user_id})")
         
-        # ЗАЩИТА: Нельзя отправить кредиты себе (кроме админов)
+        # ЗАЩИТА: Нельзя отправить генерации себе (кроме админов)
         is_admin = getattr(current_user, 'is_admin', False)
         logger.info(f"[DEBUG] Текущий пользователь: {current_user.email} (ID: {current_user.id})")
         logger.info(f"[DEBUG] Создатель персонажа: {creator.email} (ID: {creator.id})")
         logger.info(f"[DEBUG] Текущий пользователь admin: {is_admin}")
-        logger.info(f"[DEBUG] Проверка: creator.id ({creator.id}) == current_user.id ({current_user.id}): {creator.id == current_user.id}")
         
         if creator.id == current_user.id and not is_admin:
-            logger.warning(f"[BLOCKED] Пользователь {current_user.email} пытается отправить кредиты своему персонажу - ЗАБЛОКИРОВАНО")
+            logger.warning(f"[BLOCKED] Пользователь {current_user.email} пытается отправить генерации своему персонажу - ЗАБЛОКИРОВАНО")
             raise HTTPException(
-                status_code=400, 
-                detail="Вы не можете отправить кредиты своему персонажу"
+                status_code=400,
+                detail="Вы не можете отправить генерации своему персонажу"
             )
         
         if creator.id == current_user.id and is_admin:
-            logger.info(f"[DEBUG] Админ {current_user.email} отправляет кредиты себе - разрешено")
+            logger.info(f"[DEBUG] Админ {current_user.email} отправляет генерации себе - разрешено")
         
-        logger.info(f"[DEBUG] Баланс создателя ДО: {creator.coins}")
-    
+        # Получить подписку создателя
+        creator_subscription = await service.get_user_subscription(creator.id)
+        if not creator_subscription:
+            raise HTTPException(status_code=400, detail="У создателя персонажа нет подписки")
     
     # Выполнить транзакцию
     try:
         from sqlalchemy import update as sqlalchemy_update
         
-        logger.info(f"[TIP] Баланс отправителя ДО: {current_user.coins}")
-        logger.info(f"[TIP] СПИСЫВАЕМ {tip_request.amount} кредитов у отправителя {current_user.email} (ID: {current_user.id})")
+        tip_type_ru = "фото-генераций" if tip_request.tip_type == 'photo' else "голосовых генераций"
+        logger.info(f"[TIP] СПИСЫВАЕМ {tip_request.amount} {tip_type_ru} у отправителя {current_user.email} (ID: {current_user.id})")
         
         # Сохраняем ID для использования в транзакции
         sender_id = current_user.id
         creator_id = creator.id if creator else None
         
-        # Обновляем баланс отправителя через UPDATE
-        await db.execute(
-            sqlalchemy_update(Users)
-            .where(Users.id == sender_id)
-            .values(coins=Users.coins - tip_request.amount)
-        )
-        logger.info(f"[TIP] Баланс отправителя обновлен (списано {tip_request.amount})")
-        
-        # Если есть создатель - добавить кредиты ему
-        if creator_id:
+        # Обновляем лимиты отправителя через UPDATE
+        if tip_request.tip_type == 'photo':
             await db.execute(
-                sqlalchemy_update(Users)
-                .where(Users.id == creator_id)
-                .values(coins=Users.coins + tip_request.amount)
+                sqlalchemy_update(UserSubscription)
+                .where(UserSubscription.id == sender_subscription.id)
+                .values(images_used=UserSubscription.images_used + tip_request.amount)
             )
-            logger.info(f"[TIP] Баланс создателя обновлен (начислено {tip_request.amount})")
+            logger.info(f"[TIP] Использовано {tip_request.amount} фото-генераций отправителем")
+        else:  # voice
+            await db.execute(
+                sqlalchemy_update(UserSubscription)
+                .where(UserSubscription.id == sender_subscription.id)
+                .values(voice_used=UserSubscription.voice_used + tip_request.amount)
+            )
+            logger.info(f"[TIP] Использовано {tip_request.amount} голосовых генераций отправителем")
+        
+        # Если есть создатель - добавить генерации ему
+        if creator_id and creator_subscription:
+            if tip_request.tip_type == 'photo':
+                await db.execute(
+                    sqlalchemy_update(UserSubscription)
+                    .where(UserSubscription.id == creator_subscription.id)
+                    .values(images_limit=UserSubscription.images_limit + tip_request.amount)
+                )
+                logger.info(f"[TIP] Добавлено {tip_request.amount} фото-генераций создателю")
+            else:  # voice
+                await db.execute(
+                    sqlalchemy_update(UserSubscription)
+                    .where(UserSubscription.id == creator_subscription.id)
+                    .values(voice_limit=UserSubscription.voice_limit + tip_request.amount)
+                )
+                logger.info(f"[TIP] Добавлено {tip_request.amount} голосовых генераций создателю")
         else:
-            logger.info(f"[TIP] Системный персонаж - кредиты сгорают")
+            logger.info(f"[TIP] Системный персонаж - генерации сгорают")
         
         # Сохраняем сообщение благодарности в той же транзакции
         if creator:
@@ -978,109 +1014,80 @@ async def tip_character_creator(
             db.add(tip_message)
             logger.info(f"[TIP MESSAGE] Сообщение добавлено в транзакцию")
         
-        # Записываем историю баланса для отправителя
-        try:
-            from app.utils.balance_history import record_balance_change
-            await record_balance_change(
-                db=db,
-                user_id=sender_id,
-                amount=-tip_request.amount,
-                reason=f"Чаевые создателю персонажа '{character.display_name or character.name}'"
-            )
-        except Exception as e:
-            logger.warning(f"Не удалось записать историю баланса для отправителя: {e}")
-        
-        # Записываем историю баланса для получателя (если есть)
-        if creator_id:
-            try:
-                from app.utils.balance_history import record_balance_change
-                await record_balance_change(
-                    db=db,
-                    user_id=creator_id,
-                    amount=tip_request.amount,
-                    reason=f"Чаевые от пользователя за персонажа '{character.display_name or character.name}'"
-                )
-            except Exception as e:
-                logger.warning(f"Не удалось записать историю баланса для получателя: {e}")
-        
         # Один commit для всей транзакции
-            await db.commit()
+        await db.commit()
         logger.info(f"[TIP] Транзакция закоммичена")
         
         # Получаем обновлённые данные из БД ПОСЛЕ commit
-        result = await db.execute(
-            select(Users).where(Users.id == sender_id)
-        )
-        updated_sender = result.scalar_one()
-        logger.info(f"[TIP] Отправитель обновлен из БД, баланс: {updated_sender.coins}")
+        await db.refresh(sender_subscription)
+        logger.info(f"[TIP] Подписка отправителя обновлена из БД")
         
-        updated_creator = None
+        if creator_subscription:
+            await db.refresh(creator_subscription)
+            logger.info(f"[TIP] Подписка создателя обновлена из БД")
+        
+        # Инвалидируем кэш подписок
+        from app.utils.redis_cache import cache_delete, key_user_subscription
+        await cache_delete(key_user_subscription(sender_id))
         if creator_id:
-            result = await db.execute(
-                select(Users).where(Users.id == creator_id)
-            )
-            updated_creator = result.scalar_one()
-            logger.info(f"[TIP] Создатель обновлен из БД, баланс: {updated_creator.coins}")
+            await cache_delete(key_user_subscription(creator_id))
         
-        # Инвалидируем кэш пользователей
-        from app.utils.redis_cache import cache_delete, key_user, key_user_coins
-        await cache_delete(key_user(updated_sender.email))
-        await cache_delete(key_user_coins(updated_sender.id))
-        if updated_creator:
-            await cache_delete(key_user(updated_creator.email))
-            await cache_delete(key_user_coins(updated_creator.id))
+        await emit_profile_update(sender_id, db)
+        if creator_id:
+            await emit_profile_update(creator_id, db)
         
-        await emit_profile_update(updated_sender.id, db)
-        if updated_creator:
-            await emit_profile_update(updated_creator.id, db)
+        # Формируем ответ
+        sender_remaining = sender_subscription.images_remaining if tip_request.tip_type == 'photo' else sender_subscription.voice_remaining
+        receiver_total = 0
         
-        if updated_creator:
-            # Проверяем, отправил ли админ кредиты себе
-            is_self_tip = updated_creator.id == sender_id
-            is_admin = getattr(updated_sender, 'is_admin', False)
+        if creator_subscription:
+            receiver_total = creator_subscription.images_limit if tip_request.tip_type == 'photo' else creator_subscription.voice_limit
+            
+            # Проверяем, отправил ли админ генерации себе
+            is_self_tip = creator_id == sender_id
+            is_admin = getattr(current_user, 'is_admin', False)
             
             if is_self_tip and is_admin:
                 logger.info(
-                    f"[TIP ADMIN] Админ {updated_sender.email} (ID: {updated_sender.id}) "
-                    f"отправил себе {tip_request.amount} кредитов "
+                    f"[TIP ADMIN] Админ {current_user.email} (ID: {current_user.id}) "
+                    f"отправил себе {tip_request.amount} {tip_type_ru} "
                     f"за персонажа '{character.name}'. "
-                    f"Баланс теперь: {updated_creator.coins}"
                 )
-                message = f"[ADMIN] Вы отправили себе {tip_request.amount} кредитов за персонажа '{character.display_name or character.name}'!"
+                message = f"[ADMIN] Вы отправили себе {tip_request.amount} {tip_type_ru} за персонажа '{character.display_name or character.name}'!"
             else:
                 logger.info(
-                    f"[TIP] Пользователь {updated_sender.email} (ID: {updated_sender.id}) "
-                    f"отправил {tip_request.amount} кредитов "
-                    f"создателю {updated_creator.email} (ID: {updated_creator.id}) "
-                    f"за персонажа '{character.name}'. "
-                    f"Баланс создателя теперь: {updated_creator.coins}"
+                    f"[TIP] Пользователь {current_user.email} (ID: {current_user.id}) "
+                    f"отправил {tip_request.amount} {tip_type_ru} "
+                    f"создателю {creator.email} (ID: {creator.id}) "
+                    f"за персонажа '{character.name}'."
                 )
-                message = f"Вы успешно отправили {tip_request.amount} кредитов создателю персонажа '{character.display_name or character.name}'!"
+                message = f"Вы успешно отправили {tip_request.amount} {tip_type_ru} создателю персонажа '{character.display_name or character.name}'!"
         else:
             logger.info(
-                f"[TIP] Пользователь {updated_sender.email} (ID: {updated_sender.id}) "
-                f"отправил {tip_request.amount} кредитов "
+                f"[TIP] Пользователь {current_user.email} (ID: {current_user.id}) "
+                f"отправил {tip_request.amount} {tip_type_ru} "
                 f"системе за персонажа '{character.name}' (системный персонаж)"
             )
-            message = f"Спасибо за поддержку! Вы отправили {tip_request.amount} кредитов за персонажа '{character.display_name or character.name}'."
+            message = f"Спасибо за поддержку! Вы отправили {tip_request.amount} {tip_type_ru} за персонажа '{character.display_name or character.name}'."
         
         response_data = TipCreatorResponse(
             success=True,
             message=message,
-            sender_coins_remaining=updated_sender.coins,
-            receiver_coins_total=updated_creator.coins if updated_creator else 0,
-            creator_email=updated_creator.email if updated_creator else "Системный персонаж"
+            tip_type=tip_request.tip_type,
+            sender_remaining=sender_remaining,
+            receiver_total=receiver_total,
+            creator_email=creator.email if creator else "Системный персонаж"
         )
-        logger.info(f"[TIP] Возвращаем ответ: sender_coins_remaining={updated_sender.coins}, receiver_coins_total={updated_creator.coins if updated_creator else 0}")
+        logger.info(f"[TIP] Возвращаем ответ: sender_remaining={sender_remaining}, receiver_total={receiver_total}")
         return response_data
         
     except Exception as e:
         await db.rollback()
-        logger.error(f"[ERROR] Ошибка при отправке кредитов: {e}")
+        logger.error(f"[ERROR] Ошибка при отправке генераций: {e}")
         logger.error(f"[ERROR] Трейсбек: {traceback.format_exc()}")
         raise HTTPException(
-            status_code=500, 
-            detail="Произошла ошибка при отправке кредитов. Пожалуйста, попробуйте позже."
+            status_code=500,
+            detail="Произошла ошибка при отправке генераций. Пожалуйста, попробуйте позже."
         )
 
 
@@ -1985,8 +1992,8 @@ async def unlock_user_gallery(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Открывает доступ к галерее фото пользователя за 500 кредитов.
-    Доступно только для подписок STANDARD и PREMIUM.
+    Открывает доступ к галерее фото пользователя.
+    Доступно только для подписки PREMIUM (бесплатно).
     
     Parameters:
     - request: Запрос с user_id пользователя, галерею которого нужно открыть
@@ -1994,14 +2001,13 @@ async def unlock_user_gallery(
     Returns:
     - Message: Подтверждение открытия галереи.
     """
-    GALLERY_UNLOCK_COST = 500
     target_user_id = request.user_id
     
     # Если открываем свою галерею - ничего не делаем (она уже доступна)
     if target_user_id == current_user.id:
         return Message(message="Ваша галерея уже доступна")
     
-    # Проверяем подписку - только STANDARD и PREMIUM могут открывать галереи
+    # Проверяем подписку - только PREMIUM могут открывать галереи
     from app.services.subscription_service import SubscriptionService
     subscription_service = SubscriptionService(db)
     subscription = await subscription_service.get_user_subscription(current_user.id)
@@ -2010,24 +2016,24 @@ async def unlock_user_gallery(
         logger.warning(f"[GALLERY] Пользователь {current_user.id} не имеет подписки")
         raise HTTPException(
             status_code=403,
-            detail="Для разблокировки галереи необходима подписка STANDARD или PREMIUM"
+            detail="Для доступа к галереям других пользователей необходима подписка Premium"
         )
     
     if not subscription.is_active:
         logger.warning(f"[GALLERY] Подписка пользователя {current_user.id} неактивна: {subscription.status}")
         raise HTTPException(
             status_code=403,
-            detail="Для разблокировки галереи необходима активная подписка STANDARD или PREMIUM"
+            detail="Для доступа к галереям других пользователей необходима активная подписка Premium"
         )
     
     # Получаем тип подписки - subscription_type это enum SubscriptionType, его value уже в нижнем регистре
     subscription_type_str = subscription.subscription_type.value
     logger.info(f"[GALLERY] Проверка подписки пользователя {current_user.id}: type={subscription_type_str}, active={subscription.is_active}, status={subscription.status}")
-    if subscription_type_str not in ['standard', 'premium']:
+    if subscription_type_str != 'premium':
         logger.warning(f"[GALLERY] Неподдерживаемый тип подписки: {subscription_type_str}")
         raise HTTPException(
             status_code=403,
-            detail="Для разблокировки галереи необходима подписка STANDARD или PREMIUM"
+            detail="Для доступа к галереям других пользователей необходима подписка Premium"
         )
     
     # Проверяем, не была ли галерея уже разблокирована
@@ -2039,73 +2045,18 @@ async def unlock_user_gallery(
         )
     )
     if existing_unlock.scalar_one_or_none():
-        # Галерея уже разблокирована, не списываем кредиты
+        # Галерея уже разблокирована
         return Message(message="Галерея уже была разблокирована ранее")
     
-    # Для PREMIUM подписки галереи бесплатны
-    is_premium = subscription_type_str == 'premium'
-    
-    if not is_premium:
-        # Для STANDARD проверяем баланс и списываем кредиты
-        from app.services.coins_service import CoinsService
-        coins_service = CoinsService(db)
-        
-        if not await coins_service.can_user_afford(current_user.id, GALLERY_UNLOCK_COST):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Недостаточно кредитов. Нужно {GALLERY_UNLOCK_COST} кредитов для открытия галереи."
-            )
-        
-        # Списываем кредиты
-        success = await coins_service.spend_coins(current_user.id, GALLERY_UNLOCK_COST, commit=False)
-        if not success:
-            raise HTTPException(
-                status_code=500,
-                detail="Не удалось списать кредиты"
-            )
-        
-        # Записываем историю баланса
-        try:
-            from app.utils.balance_history import record_balance_change
-            await record_balance_change(
-                db=db,
-                user_id=current_user.id,
-                amount=-GALLERY_UNLOCK_COST,
-                reason=f"Разблокировка галереи пользователя (ID: {target_user_id})"
-            )
-        except Exception as e:
-            logger.warning(f"Не удалось записать историю баланса: {e}")
-    
-    # Сохраняем информацию о разблокировке
-    unlock_record = UserGalleryUnlock(
+    # Для PREMIUM подписки галереи бесплатны - просто разблокируем
+    db.add(UserGalleryUnlock(
         unlocker_id=current_user.id,
         target_user_id=target_user_id
-    )
-    db.add(unlock_record)
-    
+    ))
     await db.commit()
     
-    # Инвалидируем кэш пользователя и баланс
-    from app.utils.redis_cache import cache_delete, key_user, key_user_coins
-    await cache_delete(key_user(current_user.email))
-    await cache_delete(key_user_coins(current_user.id))
-    
-    # Отправляем событие обновления профиля
-    from app.services.profit_activate import emit_profile_update
-    try:
-        await emit_profile_update(current_user.id, db)
-    except Exception as ws_error:
-        logger.warning(f"[WARNING] Не удалось отправить обновление через WebSocket: {ws_error}")
-    
-    # Получаем финальный баланс после коммита
-    from app.services.coins_service import CoinsService
-    coins_service = CoinsService(db)
-    final_balance = await coins_service.get_user_coins(current_user.id) or 0
-    
-    logger.info(f"[GALLERY_UNLOCK] Пользователь {current_user.id} разблокировал галерею пользователя {target_user_id}, баланс: {final_balance}")
-    
-    # Возвращаем сообщение с балансом в detail для совместимости
-    return Message(message=f"Галерея успешно открыта. Баланс: {final_balance}")
+    logger.info(f"[GALLERY] Пользователь {current_user.id} (Premium) разблокировал галерею пользователя {target_user_id}")
+    return Message(message="Галерея успешно разблокирована")
 
 
 @auth_router.get("/auth/user-gallery/", response_model=UserGalleryResponse)
@@ -2202,7 +2153,7 @@ async def get_user_generated_photos(
                 logger.warning(f"[USER_GALLERY] Попытка доступа к незаблокированной галерее: пользователь {current_user.id} пытается открыть галерею {user_id}")
                 raise HTTPException(
                     status_code=403,
-                    detail="Галерея не разблокирована. Сначала разблокируйте галерею за 500 кредитов."
+                    detail="Галерея не разблокирована. Для доступа к галереям других пользователей необходима подписка Premium."
                 )
             logger.info(f"[USER_GALLERY] Галерея разблокирована, доступ разрешен")
         

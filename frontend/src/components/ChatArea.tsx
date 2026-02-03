@@ -184,12 +184,13 @@ interface ChatAreaProps {
   selectedVoiceId?: string | null;
   selectedVoiceUrl?: string | null;
   onSelectVoice?: (voiceId: string | null, voiceUrl: string | null) => void;
-  [key: string]: any; 
+  onOutOfLimits?: (type: 'messages' | 'photos' | 'voice') => void;
+  [key: string]: any;
 }
 
-export const ChatArea: React.FC<ChatAreaProps> = ({ 
-  messages, 
-  isLoading, 
+export const ChatArea: React.FC<ChatAreaProps> = ({
+  messages,
+  isLoading,
   characterSituation,
   characterName,
   characterAvatar,
@@ -208,6 +209,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   selectedVoiceId,
   selectedVoiceUrl,
   onSelectVoice,
+  onOutOfLimits,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -237,7 +239,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     if (!container) return;
 
     const { scrollTop, scrollHeight, clientHeight } = container;
-    const threshold = 100; 
+    const threshold = 100;
     wasScrolledToBottomRef.current = scrollHeight - scrollTop - clientHeight < threshold;
   }, [messages]);
 
@@ -249,7 +251,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         const threshold = 150;
         const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
         const isAtBottom = distanceFromBottom < threshold;
-        
+
         if (wasScrolledToBottomRef.current && isAtBottom && messages.length > 0) {
           messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
         }
@@ -269,11 +271,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               <p>{characterSituation}</p>
             </RoleSituationCard>
           )}
-          
+
           {messages && messages.length > 0 && messages.map((message, index) => {
             return (
-              <Message 
-                key={message.id} 
+              <Message
+                key={message.id}
                 message={message}
                 characterName={characterName}
                 characterAvatar={characterAvatar}
@@ -292,10 +294,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 selectedVoiceId={selectedVoiceId}
                 selectedVoiceUrl={selectedVoiceUrl}
                 onSelectVoice={onSelectVoice}
+                onOutOfLimits={onOutOfLimits}
               />
             );
           })}
-          
+
           <div ref={messagesEndRef} />
         </MessagesList>
       </MessagesContainer>

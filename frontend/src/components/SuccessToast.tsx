@@ -84,13 +84,15 @@ interface SuccessToastProps {
   amount: number;
   onClose: () => void;
   duration?: number;
+  tipType?: 'photo' | 'voice'; // Добавлен тип благодарности
 }
 
-export const SuccessToast: React.FC<SuccessToastProps> = ({ 
-  message, 
-  amount, 
+export const SuccessToast: React.FC<SuccessToastProps> = ({
+  message,
+  amount,
   onClose,
-  duration = 1000
+  duration = 1000,
+  tipType
 }) => {
   const [isClosing, setIsClosing] = React.useState(false);
 
@@ -109,15 +111,23 @@ export const SuccessToast: React.FC<SuccessToastProps> = ({
     };
   }, [duration, onClose]);
 
+  // Определяем текст в зависимости от типа благодарности
+  const getAmountText = () => {
+    if (!tipType) return `${amount} отправлено`;
+    if (tipType === 'photo') return `${amount} фото-генераций отправлено`;
+    if (tipType === 'voice') return `${amount} голосовых сообщений отправлено`;
+    return `${amount} отправлено`;
+  };
+
   return (
-      <ToastContainer $isClosing={isClosing}>
+    <ToastContainer $isClosing={isClosing}>
       <ToastContent>
         <IconWrapper>
           <FiHeart size={24} />
         </IconWrapper>
         <TextContent>
           <h4>{message}</h4>
-          {amount > 0 && <p>{amount} кредитов отправлено</p>}
+          {amount > 0 && <p>{getAmountText()}</p>}
         </TextContent>
         <IconWrapper>
           <FiCheck size={24} />

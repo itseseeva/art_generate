@@ -28,8 +28,6 @@ FREE_ALIASES = {"free", "base"}
 
 def _normalize_subscription_type(subscription_type: str | SubscriptionType) -> SubscriptionType:
     if isinstance(subscription_type, SubscriptionType):
-        if subscription_type == SubscriptionType.PRO:
-            raise ValueError("Тариф Pro временно недоступен.")
         if subscription_type == SubscriptionType.FREE:
             return SubscriptionType.FREE
         return subscription_type
@@ -39,8 +37,7 @@ def _normalize_subscription_type(subscription_type: str | SubscriptionType) -> S
             normalized = subscription_type.strip().lower()
             if normalized in FREE_ALIASES:
                 return SubscriptionType.FREE
-            if normalized == "pro":
-                raise ValueError("Тариф Pro временно недоступен.")
+
             return SubscriptionType(normalized)
         except ValueError as exc:
             raise ValueError(f"Неподдерживаемый тип подписки: {subscription_type}") from exc
@@ -94,23 +91,39 @@ class SubscriptionService:
             existing_subscription = await self.get_user_subscription(user_id)
             if existing_subscription:
                 raise ValueError("Бесплатная подписка доступна только при регистрации и не может быть активирована повторно.")
-            monthly_credits = 200  # 200 кредитов для FREE подписки
+            monthly_credits = 0  # 0 кредитов для FREE подписки (вместо 200)
             monthly_photos = 5  # 5 генераций фото для FREE подписки
+            
+            # Новые лимиты
+            images_limit = 5
+            voice_limit = 5
+            
             max_message_length = 100
         elif normalized_enum == SubscriptionType.STANDARD:
             monthly_credits = 2000  # Стандартный тариф: 2000 кредитов в месяц
             monthly_photos = 0  # Без лимита - генерация оплачивается кредитами (10 кредитов за фото)
+            
+            # Новые лимиты для STANDARD
+            images_limit = 100
+            voice_limit = 100
+            
             max_message_length = 200
         elif normalized_enum == SubscriptionType.PREMIUM:
             monthly_credits = 6000  # Премиум тариф: 6000 кредитов в месяц
             monthly_photos = 0  # Без лимита - генерация оплачивается кредитами (10 кредитов за фото)
+            
+            # Новые лимиты для PREMIUM
+            images_limit = 300
+            voice_limit = 300
+            
             max_message_length = 300
         else:
             print(f"[ERROR] DEBUG: Неподдерживаемый тип подписки: {subscription_type}")
             raise ValueError(f"Неподдерживаемый тип подписки: {subscription_type}")
         
-        monthly_messages = 10 if normalized_enum == SubscriptionType.FREE else 0
+        monthly_messages = 5 if normalized_enum == SubscriptionType.FREE else 0
         print(f"[OK] DEBUG: Параметры подписки - кредиты: {monthly_credits}, фото: {monthly_photos}, сообщения: {monthly_messages}, длина: {max_message_length}")
+        print(f"[OK] DEBUG: Новые лимиты - изображения: {images_limit}, голос: {voice_limit}")
         
         # Проверяем, есть ли уже подписка
         existing_subscription = await self.get_user_subscription(user_id)
@@ -119,12 +132,31 @@ class SubscriptionService:
             
             # Если подписка активна и того же типа, возвращаем её
             if existing_subscription.is_active and existing_subscription.subscription_type == normalized_enum:
-                print(f"[OK] DEBUG: Подписка того же типа уже активна, возвращаем существующую")
+                print(f"[OK] DEBUG: Подписка того же типа уже активна, обновляем лимиты если нужно")
+                # Обновляем лимиты, если они старые (0)
+                should_update = False
+                if existing_subscription.images_limit != images_limit:
+                    existing_subscription.images_limit = images_limit
+                    should_update = True
+                if existing_subscription.voice_limit != voice_limit:
+                    existing_subscription.voice_limit = voice_limit
+                    should_update = True
+                
+                if should_update:
+                     await self.db.commit()
+                     # Инвалидируем кэш
+                     await cache_delete(key_subscription(user_id))
+                     await cache_delete(key_subscription_stats(user_id))
+                
                 return existing_subscription
             
             # БЕЗОПАСНОСТЬ: Сохраняем остатки перед обновлением
             old_credits_remaining = existing_subscription.credits_remaining
             old_photos_remaining = existing_subscription.photos_remaining
+            
+            # Для изображений и голоса не переносим остатки при смене тарифа (они "сгорают" или заменяются новыми),
+            # так как это месячные лимиты, а не накапливаемые кредиты.
+            # Но если пользователь делает upgrade, логично дать ему полный пакет нового тарифа.
             
             print(f"🔄 DEBUG: Обновляем подписку {existing_subscription.subscription_type.value} -> {subscription_type}")
             print(f"💰 DEBUG: Сохраняем остатки: кредиты={old_credits_remaining}, фото={old_photos_remaining}")
@@ -134,9 +166,16 @@ class SubscriptionService:
             existing_subscription.status = SubscriptionStatus.ACTIVE
             existing_subscription.monthly_credits = monthly_credits
             
-            # ФОТО: СУММИРУЕМ старые остатки с новым лимитом
+            # ФОТО: СУММИРУЕМ старые остатки с новым лимитом (только для legacy monthly_photos)
             total_photos_available = monthly_photos + old_photos_remaining
             existing_subscription.monthly_photos = total_photos_available
+            
+            # Новые лимиты устанавливаем жестко согласно тарифу
+            existing_subscription.images_limit = images_limit
+            existing_subscription.voice_limit = voice_limit
+            # Сбрасываем использование новых лимитов
+            existing_subscription.images_used = 0
+            existing_subscription.voice_used = 0
             
             existing_subscription.max_message_length = max_message_length
             existing_subscription.monthly_messages = monthly_messages
@@ -172,10 +211,18 @@ class SubscriptionService:
             monthly_credits=monthly_credits,
             monthly_photos=monthly_photos,
             monthly_messages=monthly_messages,
+            # Новые лимиты
+            images_limit=images_limit,
+            voice_limit=voice_limit,
+            
             max_message_length=max_message_length,
             used_credits=0,
             used_photos=0,
             used_messages=0,
+            # Сброс использования
+            images_used=0,
+            voice_used=0,
+            
             activated_at=datetime.utcnow(),
             expires_at=datetime.utcnow() + timedelta(days=30),
             last_reset_at=datetime.utcnow()
@@ -266,18 +313,47 @@ class SubscriptionService:
                 "used_photos": 0,
                 "credits_remaining": 0,
                 "photos_remaining": 0,
+                # Новые поля
+                "images_limit": 0,
+                "images_used": 0,
+                "images_remaining": 0,
+                "voice_limit": 0,
+                "voice_used": 0,
+                "voice_remaining": 0,
+                
                 "days_left": 0,
                 "is_active": False,
                 "expires_at": None,
                 "last_reset_at": None
             }
+            
+        # FIX: Автоматическое исправление нулевых лимитов для старых подписок
+        limits_updated = False
         
+        if subscription.images_limit == 0 and subscription.voice_limit == 0:
+            sub_type = subscription.subscription_type.value.lower()
+            if sub_type == "free" or sub_type == "base":
+                subscription.images_limit = 5
+                subscription.voice_limit = 5
+                limits_updated = True
+            elif sub_type == "standard":
+                subscription.images_limit = 100
+                subscription.voice_limit = 100
+                limits_updated = True
+            elif sub_type == "premium":
+                subscription.images_limit = 300
+                subscription.voice_limit = 300
+                limits_updated = True
+                
         # Проверяем, нужно ли сбросить месячные лимиты
         if subscription.should_reset_limits():
             subscription.reset_monthly_limits()
+            limits_updated = True
+            
+        if limits_updated:
             await self.db.commit()
             await self.db.refresh(subscription)
-            # Инвалидируем кэш при сбросе лимитов
+            # Инвалидируем кэш
             await cache_delete(key_subscription(user_id))
             await cache_delete(cache_key)
         
@@ -290,6 +366,15 @@ class SubscriptionService:
             "used_photos": subscription.used_photos,
             "credits_remaining": subscription.credits_remaining,
             "photos_remaining": subscription.photos_remaining,
+            
+            # Новые лимиты
+            "images_limit": subscription.images_limit,
+            "images_used": subscription.images_used,
+            "images_remaining": subscription.images_remaining,
+            "voice_limit": subscription.voice_limit,
+            "voice_used": subscription.voice_used,
+            "voice_remaining": subscription.voice_remaining,
+            
             "days_left": subscription.days_until_expiry,
             "is_active": subscription.is_active,
             "expires_at": subscription.expires_at.isoformat() if subscription.expires_at else None,

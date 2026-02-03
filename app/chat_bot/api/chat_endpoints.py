@@ -134,17 +134,55 @@ async def chat_with_character(
             trim_messages_to_token_limit
         )
         
+        # Для премиум-пользователей проверяем выбранную модель
+        # subscription_type_enum УЖЕ определен выше на строках 114-128
+        
         # Определяем модель ПЕРЕД расчетом лимитов
         from app.chat_bot.services.openrouter_service import get_model_for_subscription
-        selected_model = request.model if request.model and subscription_type_enum == SubscriptionType.PREMIUM else None
-        model_used = selected_model if selected_model else get_model_for_subscription(subscription_type_enum)
-
+        model_to_pass = request.model if request.model and subscription_type_enum == SubscriptionType.PREMIUM else None
+        model_to_use = model_to_pass if model_to_pass else await get_model_for_subscription(subscription_type_enum)
+        
         # Определяем лимиты контекста
         context_limit = get_context_limit(subscription_type_enum)
-        max_context_tokens = get_max_context_tokens(subscription_type_enum, model_used)
+        max_context_tokens = get_max_context_tokens(subscription_type_enum, model_to_use)
+        
+        # БАЗОВЫЙ ЛИМИТ ГЕНЕРАЦИИ
         max_tokens = get_max_tokens(subscription_type_enum)
         
-        logger.info(f"[CONTEXT] Модель: {model_used}, Лимит сообщений БД: {context_limit}, Лимит токенов: {max_context_tokens}")
+        # Если передан пользовательский лимит (обычно 600), используем его
+        if request.max_tokens:
+            max_tokens = max(100, min(800, request.max_tokens))
+        
+        # Добавляем инструкцию краткости если режим "brief" (НЕ влияет на max_tokens, только на промпт)
+        brevity_instruction = ""
+        if request.brevity_mode == "brief":
+            # УСИЛЕННАЯ инструкция краткости
+            brevity_instruction = (
+                "\n\n[SYSTEM] IMPERATIVE: Keep the answer CONCISE and COMPACT. "
+                "Do not write long paragraphs. Get straight to the point. "
+                "Maximum 1-2 paragraphs (~150 words). Avoid fluffy language."
+            )
+
+        # --- BEST PRACTICE: ПРЕДОТВРАЩЕНИЕ ОБРЫВОВ ТЕКСТА ---
+        # 1. Задаем модели целевой лимит в промпте
+        target_token_limit = max_tokens
+        
+        # 2. Даем API запас (buffer) +25%, чтобы модель могла закончить мысль (было 15%)
+        # Если модель выйдет за лимит, она просто будет обрезана API, но мы пытаемся этого избежать промптом
+        api_max_tokens = int(max_tokens * 1.25)
+        
+        # 3. Добавляем КРИТИЧЕСКУЮ инструкцию в промпт
+        completion_instruction = f"\n\n[SYSTEM] ATTENTION: Your response MUST BE COMPLETE. You have a limit of approx {target_token_limit} tokens. Be concise, dense, but ALWAYS finish your last sentence naturally. NEVER stop in the middle of a thought."
+        
+        # Обновляем системный промпт
+        system_prompt_with_limit = character.prompt + brevity_instruction + completion_instruction + lang_instruction
+        
+        # Используем api_max_tokens для запроса
+        effective_max_tokens = api_max_tokens
+        
+        logger.info(f"[CONTEXT] Модель: {model_to_use}, Подписка: {subscription_type_enum.value}, Коридор токенов: target={target_token_limit}, api={effective_max_tokens}")
+        
+        # logger.info(f"[CONTEXT] Модель: {model_to_use}, Лимит сообщений БД: {context_limit}, Лимит токенов: {max_context_tokens}")
 
         # Пытаемся найти существующую сессию чата
         chat_session = None
@@ -182,7 +220,7 @@ async def chat_with_character(
             # 1. Системное сообщение с описанием персонажа
             openai_messages.append({
                 "role": "system",
-                "content": character_config.prompt
+                "content": system_prompt_with_limit
             })
             
             # 2. История диалога из БД
@@ -207,14 +245,10 @@ async def chat_with_character(
                 system_message_index=0
             )
             
-            # 5. Добавляем инструкции к системному промпту
-            if openai_messages and openai_messages[0]["role"] == "system":
-                openai_messages[0]["content"] += f"\n\nIMPORTANT: Be concise. Your response must be strictly within {max_tokens} tokens."
-                openai_messages[0]["content"] += lang_instruction
-            
-            # Добавляем финальное напоминание для Euryale
-            if model_used == "sao10k/l3-euryale-70b":
-                openai_messages[0]["content"] += f"\n\nREMINDER: Write your response ONLY in {target_lang.upper()}. NO CHINESE CHARACTERS."
+            # Добавляем финальное напоминание для Euryale (дополнительно к системному)
+            if model_to_use == "sao10k/l3-euryale-70b":
+                if openai_messages and openai_messages[0]["role"] == "system":
+                    openai_messages[0]["content"] += f"\n\nREMINDER: Write your response ONLY in {target_lang.upper()}. NO CHINESE CHARACTERS."
             
             messages = openai_messages
         else:
@@ -222,7 +256,7 @@ async def chat_with_character(
             messages = [
                 {
                     "role": "system",
-                    "content": character_config.prompt + f"\n\nIMPORTANT: Be concise. Your response must be strictly within {max_tokens} tokens." + lang_instruction + (f"\n\nREMINDER: Write your response ONLY in {target_lang.upper()}. NO CHINESE CHARACTERS." if model_used == "sao10k/l3-euryale-70b" else "")
+                    "content": system_prompt_with_limit + (f"\n\nREMINDER: Write your response ONLY in {target_lang.upper()}. NO CHINESE CHARACTERS." if model_to_use == "sao10k/l3-euryale-70b" else "")
                 },
                 {
                     "role": "user",
@@ -231,7 +265,7 @@ async def chat_with_character(
             ]
             
         # ЕСЛИ ИСПОЛЬЗУЕТСЯ CYDONIA, ДОБАВЛЯЕМ СПЕЦИФИЧНЫЕ ИНСТРУКЦИИ
-        if model_used == "thedrummer/cydonia-24b-v4.1":
+        if model_to_use == "thedrummer/cydonia-24b-v4.1":
             from app.chat_bot.config.cydonia_config import CYDONIA_CONFIG
             if messages and messages[0]["role"] == "system":
                 current_content = messages[0]["content"]
@@ -243,17 +277,17 @@ async def chat_with_character(
         # Логируем используемую модель и размер контекста перед запросом
         from app.chat_bot.utils.context_manager import count_messages_tokens
         final_tokens = count_messages_tokens(messages)
-        logger.info(f"[CHAT_BOT] ОТПРАВКА ЗАПРОСА: Модель={model_used}, Контекст={final_tokens}/{max_context_tokens} токенов, Подписка={subscription_type_enum.value if subscription_type_enum else 'FREE'}")
+        logger.info(f"[CHAT_BOT] ОТПРАВКА ЗАПРОСА: Модель={model_to_use}, Контекст={final_tokens}/{max_context_tokens} токенов, Подписка={subscription_type_enum.value if subscription_type_enum else 'FREE'}")
         
         response_text = await openrouter_service.generate_text(
             messages=messages,
-            max_tokens=max_tokens,
+            max_tokens=effective_max_tokens,
             temperature=chat_config.DEFAULT_TEMPERATURE,
             top_p=chat_config.DEFAULT_TOP_P,
             repeat_penalty=chat_config.DEFAULT_REPEAT_PENALTY,
             presence_penalty=chat_config.DEFAULT_PRESENCE_PENALTY,
             subscription_type=subscription_type_enum,
-            model=model_used
+            model=model_to_pass
         )
         
         # Проверяем ошибку подключения к сервису генерации
@@ -270,7 +304,7 @@ async def chat_with_character(
         )
         
         # Логируем модель, которая ответила на сообщение
-        logger.info(f"[CHAT] Ответ сгенерирован моделью: {model_used} (подписка: {subscription_type_enum.value if subscription_type_enum else 'FREE'})")
+        logger.info(f"[CHAT] Ответ сгенерирован моделью: {model_to_use} (подписка: {subscription_type_enum.value if subscription_type_enum else 'FREE'})")
         
         # Сохраняем диалог в базу данных
         # КРИТИЧЕСКИ ВАЖНО: для FREE подписки не сохраняем ChatSession/ChatMessageDB
@@ -297,8 +331,8 @@ async def chat_with_character(
                     can_save_session = subscription.subscription_type in [
                         SubscriptionType.FREE, 
                         SubscriptionType.STANDARD, 
-                        SubscriptionType.PREMIUM, 
-                        SubscriptionType.PRO
+                        SubscriptionType.STANDARD, 
+                        SubscriptionType.PREMIUM
                     ]
                     logger.info(f"[CHAT] Пользователь {current_user.id}: подписка={subscription.subscription_type.value}, is_active={subscription.is_active}, can_save_session={can_save_session}")
                 else:
@@ -358,14 +392,12 @@ async def chat_with_character_stream(
     Использует Server-Sent Events (SSE) для передачи данных в реальном времени.
     """
     try:
-        # Логируем начало обработки запроса
         logger.info(f"[CHAT STREAM ENDPOINT] ========================================")
         logger.info(f"[CHAT STREAM ENDPOINT] POST /api/v1/chat/stream")
         logger.info(f"[CHAT STREAM ENDPOINT] User: {current_user.email if current_user else 'Anonymous'} (ID: {current_user.id if current_user else 'N/A'})")
         logger.info(f"[CHAT STREAM ENDPOINT] Character: {request.character}")
         logger.info(f"[CHAT STREAM ENDPOINT] Message (первые 100 символов): {request.message[:100].encode('utf-8', errors='replace').decode('utf-8') if request.message else 'N/A'}...")
         logger.info(f"[CHAT STREAM ENDPOINT] Model from request: {request.model if request.model else 'N/A'}")
-        logger.info(f"[CHAT STREAM ENDPOINT] Subscription type: {subscription_type_enum.value if subscription_type_enum else 'FREE'}")
         logger.info(f"[CHAT STREAM ENDPOINT] Full request body model field: {request.model}")
         logger.info(f"[CHAT STREAM ENDPOINT] ========================================")
         
@@ -431,14 +463,61 @@ async def chat_with_character_stream(
             if user_subscription and user_subscription.subscription_type:
                 subscription_type_enum = user_subscription.subscription_type
 
-        # Определяем модель ПЕРЕД расчетом лимитов
+        # Для премиум-пользователей проверяем выбранную модель
+        model_to_pass = request.model if request.model and subscription_type_enum == SubscriptionType.PREMIUM else None
+        
+        # Определяем модель для внутренних расчетов (лимиты, промпты)
         from app.chat_bot.services.openrouter_service import get_model_for_subscription
-        selected_model = request.model if request.model and subscription_type_enum == SubscriptionType.PREMIUM else None
-        model_used = selected_model if selected_model else get_model_for_subscription(subscription_type_enum)
+        model_to_use = model_to_pass if model_to_pass else await get_model_for_subscription(subscription_type_enum)
         
         context_limit = get_context_limit(subscription_type_enum)
-        max_context_tokens = get_max_context_tokens(subscription_type_enum, model_used)
+        max_context_tokens = get_max_context_tokens(subscription_type_enum, model_to_use)
+        
+        # БАЗОВЫЙ ЛИМИТ ГЕНЕРАЦИИ
         max_tokens = get_max_tokens(subscription_type_enum)
+        
+        logger.info(f"DEBUG REQ [STREAM]: incoming max_tokens={request.max_tokens}, brevity_mode={request.brevity_mode}, sub={subscription_type_enum}")
+
+        # Если передан пользовательский лимит (обычно 600), используем его
+        if request.max_tokens:
+            max_tokens = max(100, min(800, request.max_tokens))
+            logger.info(f"DEBUG REQ [STREAM]: applied user max_tokens={max_tokens}")
+
+        # Добавляем инструкцию краткости если режим "brief" (НЕ влияет на max_tokens, только на промпт)
+        brevity_instruction = ""
+        if request.brevity_mode == "brief":
+            # УСИЛЕННАЯ инструкция краткости
+            brevity_instruction = (
+                "\n\n[SYSTEM] IMPERATIVE: Keep the answer CONCISE and COMPACT. "
+                "Do not write long paragraphs. Get straight to the point. "
+                "Maximum 1-2 paragraphs (~150 words). Avoid fluffy language."
+            )
+            logger.info(f"DEBUG REQ [STREAM]: applied brevity instruction")
+
+        # --- BEST PRACTICE: ПРЕДОТВРАЩЕНИЕ ОБРЫВОВ ТЕКСТА ---
+        # 1. Задаем модели целевой лимит в промпте
+        target_token_limit = max_tokens
+        
+        # 2. Даем API запас (buffer) +25%, чтобы модель могла закончить мысль (было 15%)
+        api_max_tokens = int(max_tokens * 1.25)
+        
+        # 3. Добавляем КРИТИЧЕСКУЮ инструкцию в промпт
+        completion_instruction = f"\n\n[SYSTEM] ATTENTION: Your response MUST BE COMPLETE. You have a limit of approx {target_token_limit} tokens. Be concise, dense, but ALWAYS finish your last sentence naturally. NEVER stop in the middle of a thought."
+        
+        # Собираем базовый системный промпт (персонаж)
+        system_prompt_with_limit = character.prompt
+        
+        # Используем api_max_tokens для запроса
+        effective_max_tokens = api_max_tokens
+        
+        logger.info(f"\n[TOKEN DEBUG] Calculation trace:\n"
+                    f"  1. request.max_tokens: {request.max_tokens}\n"
+                    f"  2. chat_config.DEFAULT: {chat_config.DEFAULT_MAX_TOKENS}\n"
+                    f"  3. After check logic: max_tokens={max_tokens}\n"
+                    f"  4. After buffer applied (*1.25): api_max_tokens={api_max_tokens}\n"
+                    f"  5. FINAL effective_max_tokens passed to API: {effective_max_tokens}\n")
+        
+        logger.info(f"[CONTEXT STREAM] Модель: {model_to_use}, Коридор токенов: target={target_token_limit}, api={effective_max_tokens}")
         
         # Формируем языковую инструкцию
         target_lang = request.target_language or "ru"
@@ -464,10 +543,20 @@ async def chat_with_character_stream(
 - NEVER use Chinese characters or hieroglyphs
 - Write in Russian using Cyrillic alphabet
 - STRICTLY RUSSIAN ONLY."""
+
+        # Добавляем языковую инструкцию
+        system_prompt_with_limit += lang_instruction
+        
+        # !!! ВАЖНО !!! Добавляем инструкции по длине и завершению В САМЫЙ КОНЕЦ
+        # Это использует Recency Bias - модели лучше следуют последним инструкциям
+        system_prompt_with_limit += "\n\n" + "-"*20 + "\nFORMAT INSTRUCTIONS:"
+        system_prompt_with_limit += brevity_instruction
+        system_prompt_with_limit += completion_instruction
         
         # Формируем массив messages для OpenAI API
         if chat_session:
-            # ...
+            # Получаем историю сообщений
+            from app.chat_history.models.chat_history import ChatMessageDB
             messages_query = (
                 select(ChatMessageDB)
                 .where(ChatMessageDB.session_id == chat_session.id)
@@ -487,7 +576,7 @@ async def chat_with_character_stream(
             # 1. Системное сообщение с описанием персонажа (всегда первое)
             openai_messages.append({
                 "role": "system",
-                "content": character_config.prompt
+                "content": system_prompt_with_limit
             })
             
             # 2. История диалога из БД
@@ -495,16 +584,10 @@ async def chat_with_character_stream(
                 if not should_include_message_in_context(msg.content, msg.role):
                     continue
                     
-                if msg.role == "user":
-                    openai_messages.append({
-                        "role": "user",
-                        "content": msg.content
-                    })
-                elif msg.role == "assistant":
-                    openai_messages.append({
-                        "role": "assistant",
-                        "content": msg.content
-                    })
+                openai_messages.append({
+                    "role": msg.role,
+                    "content": msg.content
+                })
             
             # 3. Текущее сообщение пользователя
             openai_messages.append({
@@ -519,13 +602,9 @@ async def chat_with_character_stream(
                 system_message_index=0
             )
             
-            # 5. В начало списка сообщений (system prompt) добавляем инструкции
-            if openai_messages and openai_messages[0]["role"] == "system":
-                openai_messages[0]["content"] += f"\n\nIMPORTANT: Be concise. Your response must be strictly within {max_tokens} tokens."
-                openai_messages[0]["content"] += lang_instruction
-                
-                # Добавляем финальное напоминание для Euryale
-                if model_used == "sao10k/l3-euryale-70b":
+            # Добавляем финальное напоминание для Euryale (дополнительно к системному)
+            if model_to_use == "sao10k/l3-euryale-70b":
+                if openai_messages and openai_messages[0]["role"] == "system":
                     openai_messages[0]["content"] += f"\n\nREMINDER: Write your response ONLY in {target_lang.upper()}. NO CHINESE CHARACTERS."
             
             messages = openai_messages
@@ -534,7 +613,7 @@ async def chat_with_character_stream(
             messages = [
                 {
                     "role": "system",
-                    "content": character_config.prompt + f"\n\nIMPORTANT: Be concise. Your response must be strictly within {max_tokens} tokens." + lang_instruction + (f"\n\nREMINDER: Write your response ONLY in {target_lang.upper()}. NO CHINESE CHARACTERS." if model_used == "sao10k/l3-euryale-70b" else "")
+                    "content": system_prompt_with_limit + (f"\n\nREMINDER: Write your response ONLY in {target_lang.upper()}. NO CHINESE CHARACTERS." if model_to_use == "sao10k/l3-euryale-70b" else "")
                 },
                 {
                     "role": "user",
@@ -545,7 +624,7 @@ async def chat_with_character_stream(
         logger.info(f"[CHAT STREAM] Начало стриминга для персонажа '{character_name}', сообщений: {len(messages)}")
         
         # ЕСЛИ ИСПОЛЬЗУЕТСЯ CYDONIA, ДОБАВЛЯЕМ СПЕЦИФИЧНЫЕ ИНСТРУКЦИИ
-        if model_used == "thedrummer/cydonia-24b-v4.1":
+        if model_to_use == "thedrummer/cydonia-24b-v4.1":
             from app.chat_bot.config.cydonia_config import CYDONIA_CONFIG
             if messages and messages[0]["role"] == "system":
                 # Добавляем суффикс к системному сообщению
@@ -558,7 +637,7 @@ async def chat_with_character_stream(
         # Логируем используемую модель и размер контекста перед стримингом
         from app.chat_bot.utils.context_manager import count_messages_tokens
         final_tokens = count_messages_tokens(messages)
-        logger.info(f"[CHAT_BOT STREAM] НАЧАЛО СТРИМИНГА: Модель={model_used}, Контекст={final_tokens}/{max_context_tokens} токенов, Подписка={subscription_type_enum.value if subscription_type_enum else 'FREE'}")
+        logger.info(f"[CHAT_BOT STREAM] НАЧАЛО СТРИМИНГА: Модель={model_to_use}, Контекст={final_tokens}/{max_context_tokens} токенов, Подписка={subscription_type_enum.value if subscription_type_enum else 'FREE'}")
         
         # Создаем асинхронный генератор для SSE
         async def generate_sse_stream() -> AsyncGenerator[str, None]:
@@ -571,12 +650,12 @@ async def chat_with_character_stream(
                 # Получаем поток от OpenRouter
                 async for chunk in openrouter_service.generate_text_stream(
                     messages=messages,
-                    max_tokens=max_tokens,
+                    max_tokens=effective_max_tokens,
                     temperature=chat_config.DEFAULT_TEMPERATURE,
                     top_p=chat_config.DEFAULT_TOP_P,
                     presence_penalty=chat_config.DEFAULT_PRESENCE_PENALTY,
                     subscription_type=subscription_type_enum,
-                    model=model_used
+                    model=model_to_pass
                 ):
                     try:
                         # Проверяем на ошибку
@@ -639,8 +718,8 @@ async def chat_with_character_stream(
                             can_save_session = subscription.subscription_type in [
                                 SubscriptionType.FREE, 
                                 SubscriptionType.STANDARD, 
-                                SubscriptionType.PREMIUM, 
-                                SubscriptionType.PRO
+                                SubscriptionType.STANDARD, 
+                                SubscriptionType.PREMIUM
                             ]
                     
                     if can_save_session and full_response:
@@ -670,7 +749,7 @@ async def chat_with_character_stream(
                         db.add(assistant_message)
                         
                         await db.commit()
-                        logger.info(f"[CHAT STREAM] Диалог сохранен в БД (session_id={chat_session.id}), модель: {model_used}")
+                        logger.info(f"[CHAT STREAM] Диалог сохранен в БД (session_id={chat_session.id}), модель: {model_to_use}")
                 except Exception as e:
                     logger.error(f"[CHAT STREAM] Ошибка сохранения диалога: {e}")
                     # Не прерываем стриминг из-за ошибки сохранения
@@ -712,6 +791,8 @@ async def generate_voice(
 ):
     """
     Генерация речи для сообщения.
+    Доступна только для платных подписок (STANDARD, PREMIUM).
+    Использует квоту голоса (1 единица = 500 символов).
     """
     if not current_user:
         raise HTTPException(status_code=401, detail="Требуется авторизация")
@@ -738,14 +819,27 @@ async def generate_voice(
         logger.info(f"[VOICE PLAYBACK] Длина текста: {len(request.text)} символов")
         logger.info("=" * 80)
         
-        coins_service = CoinsService(db)
+        from app.services.profit_activate import ProfitActivateService
+        from app.services.tts_service import calculate_voice_cost
         
-        # Проверяем баланс перед генерацией
-        cost = coins_service.calculate_tts_cost(request.text)
-        if not await coins_service.can_user_afford(current_user.id, cost):
+        subscription_service = ProfitActivateService(db)
+        
+        # 1. Проверяем подписку
+        subscription = await subscription_service.get_user_subscription(current_user.id)
+        if not subscription or not subscription.is_active:
+             raise HTTPException(status_code=403, detail="Необходима активная подписка для генерации голоса")
+        
+        # 2. Проверяем тип подписки (разрешаем FREE, если есть квота)
+        # У FREE пользователей теперь есть стартовые 5 генераций
+        pass
+
+        # 3. Рассчитываем стоимость и проверяем квоту
+        cost = calculate_voice_cost(request.text)
+        
+        if not subscription.can_use_voice(cost):
             raise HTTPException(
-                status_code=400, 
-                detail=f"Недостаточно монет. Требуется: {cost}, у вас: {current_user.coins}"
+                status_code=403, 
+                detail=f"Недостаточно квоты голоса. Требуется: {cost}, доступно: {subscription.voice_remaining}"
             )
         
         audio_path = await generate_tts_audio(request.text, request.voice_url)
@@ -753,29 +847,24 @@ async def generate_voice(
         if not audio_path:
             raise HTTPException(status_code=500, detail="Не удалось сгенерировать аудио")
         
-        # Списываем монеты после успешной генерации (без commit, чтобы записать историю)
-        await coins_service.spend_coins(current_user.id, cost, commit=False)
+        # 4. Списываем квоту
+        if not subscription.use_voice(cost):
+             raise HTTPException(status_code=500, detail="Ошибка при списании квоты")
         
-        # Записываем в историю баланса
-        try:
-            from app.utils.balance_history import record_balance_change
-            await record_balance_change(
-                db=db,
-                user_id=current_user.id,
-                amount=-cost,
-                reason=f"Голосовая генерация ({len(request.text)} символов)"
-            )
-        except Exception as e:
-            logger.warning(f"Не удалось записать историю баланса для TTS: {e}")
-        
-        # Коммитим все изменения вместе
+        # Сохраняем изменения в БД
         await db.commit()
         
-        # Обновляем кэш и профиль пользователя
-        await emit_profile_update(current_user.id, db)
+        # Обновляем объект подписки для возврата актуальных данных
+        await db.refresh(subscription)
         
-        # Обновляем баланс в объекте пользователя для ответа
-        await db.refresh(current_user)
+        # Инвалидируем кэш перед отправкой обновлений
+        from app.utils.redis_cache import cache_delete, key_subscription, key_subscription_stats
+        await cache_delete(key_subscription(current_user.id))
+        await cache_delete(key_subscription_stats(current_user.id))
+        logger.info(f"[GENERATE_VOICE] Кэш подписки инвалидирован для user_id={current_user.id}")
+        
+        # Обновляем кэш и профиль пользователя (событие обновления)
+        await emit_profile_update(current_user.id, db)
         
         # Формируем URL для фронтенда
         import os
@@ -816,7 +905,8 @@ async def generate_voice(
             "status": "success",
             "audio_url": audio_url,
             "cost": cost,
-            "remaining_coins": current_user.coins
+            "voice_remaining": subscription.voice_remaining,
+            "voice_limit": subscription.voice_limit
         }
     except HTTPException:
         raise

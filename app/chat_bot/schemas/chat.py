@@ -75,6 +75,18 @@ class SimpleChatRequest(BaseModel):
         description="Штраф за повторения"
     )
     
+    # Max tokens для ответа (фиксированное значение с фронтенда)
+    max_tokens: Optional[int] = Field(
+        default=None,
+        description="Максимальное количество токенов для ответа (обычно 750)"
+    )
+    
+    # Brevity mode for response length control
+    brevity_mode: Optional[str] = Field(
+        default=None,
+        description="Режим краткости ответов: 'brief' для кратких ответов, 'normal' для обычных"
+    )
+    
     # Параметры генерации изображений
     generate_image: Optional[bool] = Field(
         default=False, 

@@ -42,119 +42,50 @@ class CoinsService:
     
     async def can_user_afford(self, user_id: int, amount: int, use_cache: bool = True) -> bool:
         """
-        Проверяет, достаточно ли монет у пользователя.
-        
-        Args:
-            user_id: ID пользователя
-            amount: Необходимое количество монет
-            use_cache: Использовать ли кэш (по умолчанию True). 
-                      Если False, всегда получает актуальные данные из БД.
-        
-        Returns:
-            True если у пользователя достаточно монет (coins >= amount), иначе False.
-            Если баланс отрицательный, всегда возвращает False.
+        Проверяет, достаточно ли монет у пользователя. (ОТКЛЮЧЕНО: всегда возвращает True)
         """
-        if use_cache:
-            coins = await self.get_user_coins(user_id)
-        else:
-            # Получаем актуальные данные из БД, минуя кэш
-            result = await self.db.execute(
-                select(Users.coins).where(Users.id == user_id)
-            )
-            coins = result.scalars().first()
-        
-        # Блокируем отправку при отрицательном или недостаточном балансе
-        if coins is None:
-            return False
-        # Проверяем, что баланс неотрицательный и достаточен для операции
-        return coins >= amount
+        return True
     
     async def get_user_coins(self, user_id: int) -> Optional[int]:
         """Получает количество монет пользователя с кэшированием."""
-        cache_key = key_user_coins(user_id)
-        use_cache = self._should_use_cache()
-        if use_cache:
-            cached_coins = await cache_get(cache_key)
-            if cached_coins is not None:
-                return cached_coins
-        
+        # Для отображения в UI (пока не удалено на фронтенде)
         result = await self.db.execute(
             select(Users.coins).where(Users.id == user_id)
         )
         coins = result.scalars().first()
-        
-        if coins is not None and use_cache:
-            await cache_set(cache_key, coins, ttl_seconds=TTL_USER_COINS)
-        
-        return coins
+        return coins if coins is not None else 0
     
     async def can_user_send_message(self, user_id: int, use_cache: bool = False) -> bool:
-        """
-        Проверяет, может ли пользователь отправить сообщение (стоимость: 2 монеты).
-        
-        Args:
-            user_id: ID пользователя
-            use_cache: Использовать ли кэш. По умолчанию False для получения актуальных данных.
-        
-        Returns:
-            True если у пользователя достаточно монет для отправки сообщения, иначе False.
-        """
-        return await self.can_user_afford(user_id, 2, use_cache=use_cache)
+        """Проверяет возможность отправки сообщения. (ОТКЛЮЧЕНО: True)"""
+        return True
     
     async def can_user_generate_photo(self, user_id: int) -> bool:
-        """Проверяет, может ли пользователь сгенерировать фото (стоимость: 10 монет)."""
-        return await self.can_user_afford(user_id, 10)
+        """Проверяет возможность генерации фото. (ОТКЛЮЧЕНО: True)"""
+        return True
     
     @staticmethod
     def calculate_tts_cost(text: str) -> int:
-        """
-        Рассчитывает стоимость TTS на основе длины текста.
-        1 кредит за 30 символов, минимум 1 кредит.
-        """
-        if not text:
-            return 1
-        return max(1, (len(text) + 29) // 30)
+        return 0
 
     async def can_user_afford_tts(self, user_id: int, text: str) -> bool:
-        """Проверяет, может ли пользователь позволить себе TTS для данного текста."""
-        cost = self.calculate_tts_cost(text)
-        return await self.can_user_afford(user_id, cost)
+        """Проверяет возможность TTS. (ОТКЛЮЧЕНО: True)"""
+        return True
     
     async def spend_coins(self, user_id: int, amount: int, commit: bool = True) -> bool:
-        """Списывает указанное количество монет."""
-        try:
-            await self.db.execute(
-                update(Users)
-                .where(Users.id == user_id)
-                .values(coins=Users.coins - amount)
-            )
-            if commit:
-                await self.db.commit()
-                if self._should_use_cache():
-                    await cache_delete(key_user_coins(user_id))
-                await emit_profile_update(user_id, self.db)
-            else:
-                await self.db.flush()
-            return True
-        except Exception as e:
-            print(f"[ERROR] Ошибка траты монет: {e}")
-            if commit:
-                await self.db.rollback()
-                return False
-            raise
+        """Списывает указанное количество монет. (ОТКЛЮЧЕНО: ничего не делает)"""
+        return True
     
     async def spend_coins_for_message(self, user_id: int, commit: bool = True) -> bool:
-        """Тратит 2 монеты за отправку сообщения."""
-        return await self.spend_coins(user_id, 2, commit=commit)
+        """Тратит монеты за сообщение. (ОТКЛЮЧЕНО)"""
+        return True
     
     async def spend_coins_for_photo(self, user_id: int) -> bool:
-        """Тратит 10 монет за генерацию фото."""
-        return await self.spend_coins(user_id, 10)
+        """Тратит монеты за фото. (ОТКЛЮЧЕНО)"""
+        return True
     
     async def spend_coins_for_tts(self, user_id: int, text: str, commit: bool = True) -> bool:
-        """Тратит монеты за генерацию TTS (1 кредит за 30 символов, минимум 1)."""
-        cost = self.calculate_tts_cost(text)
-        return await self.spend_coins(user_id, cost, commit=commit)
+        """Тратит монеты за TTS. (ОТКЛЮЧЕНО)"""
+        return True
     
     async def add_coins(self, user_id: int, amount: int, commit: bool = True) -> bool:
         """Добавляет монеты пользователю."""

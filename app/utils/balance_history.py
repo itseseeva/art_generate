@@ -27,6 +27,9 @@ async def record_balance_change(
         reason: Причина изменения (например, "Редактирование персонажа", "Генерация фото")
     """
     try:
+        # Credit system is disabled
+        pass
+        """
         # Получаем текущий баланс пользователя
         result = await db.execute(
             select(Users).where(Users.id == user_id)
@@ -34,7 +37,7 @@ async def record_balance_change(
         user = result.scalar_one_or_none()
         
         if not user:
-            logger.warning(f"Пользователь {user_id} не найден для записи истории баланса")
+            # logger.warning(f"Пользователь {user_id} не найден для записи истории баланса")
             return
         
         balance_before = user.coins - amount  # Баланс до изменения
@@ -56,7 +59,8 @@ async def record_balance_change(
             f"Записана история баланса для пользователя {user_id}: "
             f"{amount} кредитов, причина: {reason}, баланс: {balance_before} -> {balance_after}"
         )
+        """
     except Exception as e:
-        logger.error(f"Ошибка записи истории баланса для пользователя {user_id}: {e}", exc_info=True)
-        # Не прерываем выполнение, если не удалось записать историю
+        # logger.error(f"Ошибка записи истории баланса для пользователя {user_id}: {e}", exc_info=True)
+        pass
 

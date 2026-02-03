@@ -2267,7 +2267,7 @@ async def spend_message_resources_async(user_id: int, use_credits: bool) -> None
                     except Exception as e:
                         logger.warning(f"Не удалось записать историю баланса за сообщение (кредиты подписки): {e}")
                     await db.commit()
-                    logger.info(f"[STREAM] Списаны кредиты подписки за сообщение пользователя {user_id}")
+                    # logger.info(f"[STREAM] Списаны кредиты подписки за сообщение пользователя {user_id}")
             else:
                 from app.services.coins_service import CoinsService
                 from app.models.subscription import SubscriptionType
@@ -2299,7 +2299,7 @@ async def spend_message_resources_async(user_id: int, use_credits: bool) -> None
                     except Exception as e:
                         logger.warning(f"Не удалось записать историю баланса: {e}")
                     await db.commit()
-                    logger.info(f"[STREAM] Списаны монеты за сообщение пользователя {user_id}")
+                    # logger.info(f"[STREAM] Списаны монеты за сообщение пользователя {user_id}")
     except Exception as e:
         logger.error(f"[STREAM] Ошибка списания ресурсов: {e}")
 
@@ -2703,10 +2703,53 @@ async def chat_endpoint(
 
         # Определяем лимит контекста на основе подписки и выбранной модели
         # subscription_type_enum уже определен выше в блоке async with
+        # subscription_type_enum уже определен выше в блоке async with
         context_limit = get_context_limit(subscription_type_enum)  # Лимит сообщений для загрузки из БД
         max_context_tokens = get_max_context_tokens(subscription_type_enum, model_used)  # Лимит токенов для контекста
-        max_tokens = get_max_tokens(subscription_type_enum)  # Лимит токенов для генерации ответа
-        logger.info(f"[CONTEXT] Модель: {model_used}, Лимит сообщений из БД: {context_limit}, лимит токенов контекста: {max_context_tokens}, лимит токенов генерации: {max_tokens}")
+        
+        # БАЗОВЫЙ ЛИМИТ ГЕНЕРАЦИИ
+        max_tokens = get_max_tokens(subscription_type_enum)
+        
+        # Если передан пользовательский лимит, используем его (но не более 800)
+        user_max_tokens = request.get("max_tokens")
+        if user_max_tokens:
+            try:
+                user_max_tokens = int(user_max_tokens)
+                max_tokens = max(100, min(800, user_max_tokens))
+            except (ValueError, TypeError):
+                pass
+        
+        # --- BEST PRACTICE: ПРЕДОТВРАЩЕНИЕ ОБРЫВОВ ТЕКСТА ---
+        # 1. Задаем модели целевой лимит в промпте
+        target_token_limit = max_tokens
+        
+        # 2. Даем API запас (buffer) +25%, чтобы модель могла закончить мысль
+        api_max_tokens = int(max_tokens * 1.25)
+        effective_max_tokens = api_max_tokens
+        
+        # 3. Формируем инструкции краткости и завершенности
+        brevity_instruction = ""
+        user_brevity_mode = request.get("brevity_mode")
+        if user_brevity_mode == "brief":
+            # УСИЛЕННАЯ инструкция краткости
+            brevity_instruction = (
+                "\n\n[SYSTEM] IMPERATIVE: Keep the answer CONCISE and COMPACT. "
+                "Do not write long paragraphs. Get straight to the point. "
+                "Maximum 1-2 paragraphs (~150 words). Avoid fluffy language."
+            )
+            
+        completion_instruction = f"\n\n[SYSTEM] ATTENTION: Your response MUST BE COMPLETE. You have a limit of approx {target_token_limit} tokens. Be concise, dense, but ALWAYS finish your last sentence naturally. NEVER stop in the middle of a thought."
+
+        logger.info(f"\n[TOKEN DEBUG] Calculation trace (Main.py):\n"
+                    f"  1. request.max_tokens: {user_max_tokens}\n"
+                    f"  2. subscription default: {get_max_tokens(subscription_type_enum)}\n"
+                    f"  3. After user override: max_tokens={max_tokens}\n"
+                    f"  4. After buffer applied (*1.25): api_max_tokens={api_max_tokens}\n"
+                    f"  5. FINAL effective_max_tokens passed to API: {effective_max_tokens}\n"
+                    f"  6. brevity_mode: {user_brevity_mode}\n"
+                    f"  7. brevity_instruction length: {len(brevity_instruction)}\n")
+
+        logger.info(f"[CONTEXT] Модель: {model_used}, Лимит сообщений из БД: {context_limit}, лимит токенов контекста: {max_context_tokens}, лимит токенов генерации: {max_tokens} (api={effective_max_tokens})")
         
         # Получаем историю из БД, если есть подписка и user_id
         db_history_messages = []
@@ -2780,7 +2823,12 @@ async def chat_endpoint(
 - STRICTLY RUSSIAN ONLY."""
         
         # Добавляем языковую инструкцию к промпту персонажа
+        # !!! ВАЖНО !!! Добавляем инструкции по длине и завершению В САМЫЙ КОНЕЦ
+        # Это использует Recency Bias
         system_prompt = character_data["prompt"] + language_instruction
+        system_prompt += "\n\n" + "-"*20 + "\nFORMAT INSTRUCTIONS:"
+        system_prompt += brevity_instruction
+        system_prompt += completion_instruction
         
         logger.info(f"[LANGUAGE] Target language: {target_language}, instruction added to system prompt")
         
@@ -2900,7 +2948,7 @@ async def chat_endpoint(
         if openai_messages and openai_messages[0]["role"] == "system":
             system_content = openai_messages[0]["content"]
             logger.info(f"[CHAT_MAIN] Системный промпт (первые 500 символов): {system_content[:500]}...")
-            logger.info(f"[CHAT_MAIN] Системный промпт (последние 200 символов): ...{system_content[-200:]}")
+            logger.info(f"[CHAT_MAIN] Системный промпт (последние 1000 символов): ...{system_content[-1000:]}")
         
         # ДИАГНОСТИКА: Логируем последнее сообщение пользователя
         if openai_messages and len(openai_messages) > 1:
@@ -3056,7 +3104,7 @@ async def chat_endpoint(
                     # Получаем поток от OpenRouter
                     async for chunk in openrouter_service.generate_text_stream(
                         messages=openai_messages,
-                        max_tokens=max_tokens,
+                        max_tokens=effective_max_tokens,
                         temperature=chat_config.DEFAULT_TEMPERATURE,
                         top_p=chat_config.DEFAULT_TOP_P,
                         presence_penalty=chat_config.DEFAULT_PRESENCE_PENALTY,
@@ -3159,7 +3207,7 @@ async def chat_endpoint(
         
         response = await openrouter_service.generate_text(
             messages=openai_messages,
-            max_tokens=max_tokens,
+            max_tokens=effective_max_tokens,
             temperature=chat_config.DEFAULT_TEMPERATURE,
             top_p=chat_config.DEFAULT_TOP_P,
             repeat_penalty=chat_config.DEFAULT_REPEAT_PENALTY,
@@ -3848,21 +3896,23 @@ async def generate_image(
         # Получаем user_id из текущего пользователя или из request
         user_id = current_user.id if current_user else request.user_id
         if user_id:
-            from app.services.coins_service import CoinsService
+            from app.services.profit_activate import ProfitActivateService
             from app.database.db import async_session_maker
             
             async with async_session_maker() as db:
-                coins_service = CoinsService(db)
-                can_generate_photo = await coins_service.can_user_generate_photo(user_id)
-                if not can_generate_photo:
-                    coins = await coins_service.get_user_coins(user_id)
-                    logger.error(f"[ERROR] DEBUG: Недостаточно монет для генерации фото! У пользователя {user_id}: {coins} монет, нужно 10")
+                subscription_service = ProfitActivateService(db)
+                can_generate = await subscription_service.can_user_generate_photo(user_id)
+                if not can_generate:
+                    # Получаем информацию о подписке для детального сообщения
+                    subscription = await subscription_service.get_user_subscription(user_id)
+                    images_remaining = subscription.images_remaining if subscription else 0
+                    logger.error(f"[ERROR] Недостаточно лимита генераций! У пользователя {user_id}: осталось {images_remaining}")
                     raise HTTPException(
                         status_code=403, 
-                        detail="Недостаточно монет для генерации фото! Нужно 10 монет."
+                        detail=f"Недостаточно лимита генераций! Осталось: {images_remaining}"
                     )
                 else:
-                    logger.info(f"[OK] DEBUG: Пользователь {user_id} может генерировать фото")
+                    logger.info(f"[OK] Пользователь {user_id} может генерировать фото")
         else:
             logger.warning(f"[WARNING] DEBUG: user_id не передан в эндпоинте generate-image")
         # Логируем информацию о модели перед генерацией
@@ -4327,39 +4377,24 @@ async def generate_image(
                 
                 async with async_session_maker() as db:
                     subscription_service = ProfitActivateService(db)
-                    subscription = await subscription_service.get_user_subscription(user_id)
-                    subscription_type_value = subscription.subscription_type.value if subscription else "free"
+                    # Списываем лимит генераций для всех типов подписки
+                    # (Для FREE, STANDARD, PREMIUM единая логика через images_used)
+                    photo_spent = await subscription_service.use_photo_generation(user_id, commit=False)
                     
-                    # Для FREE: списываем только лимит генераций, БЕЗ монет
-                    if subscription_type_value == "free":
-                        photo_spent = await subscription_service.use_photo_generation(user_id, commit=False)
-                        if not photo_spent:
-                            logger.error(f"[FREE] Недостаточно лимита генераций для пользователя {user_id}")
-                            raise HTTPException(
-                                status_code=403,
-                                detail="Лимит генераций фото исчерпан (5). Оформите подписку для продолжения генерации."
-                            )
-                        logger.info(f"[FREE] Списан лимит генераций для user_id={user_id} (монеты НЕ списаны)")
+                    if not photo_spent:
+                        logger.warning(f"[LIMIT] Недостаточно лимита генераций для пользователя {user_id}")
+                        raise HTTPException(
+                            status_code=403,
+                            detail="Лимит генераций фото исчерпан. Оформите подписку для увеличения лимита."
+                        )
                     
-                    # Для STANDARD/PREMIUM: списываем монеты
-                    else:
-                        coins_service = CoinsService(db)
-                        await coins_service.spend_coins(user_id, PHOTO_GENERATION_COST, commit=False)
+                    # Фиксируем изменения
+                    await db.commit()
+                    logger.info(f"[LIMIT] Списана 1 генерация для user_id={user_id}")
+                    
+                    # ПРИМЕЧАНИЕ: Историю баланса (монеты) больше не пишем, так как монеты не тратятся
                         
-                        # Записываем историю баланса
-                        try:
-                            from app.utils.balance_history import record_balance_change
-                            character_name_for_history = character_data_for_history.get("name", "неизвестный") if character_data_for_history else "неизвестный"
-                            await record_balance_change(
-                                db=db,
-                                user_id=user_id,
-                                amount=-PHOTO_GENERATION_COST,
-                                reason=f"Генерация фото для персонажа '{character_name_for_history}' (Celery)"
-                            )
-                        except Exception as e:
-                            logger.warning(f"Не удалось записать историю баланса: {e}")
-                        
-                        logger.info(f"[{subscription_type_value.upper()}] Списано {PHOTO_GENERATION_COST} монет для user_id={user_id}")
+
                     
                     await db.commit()
                     

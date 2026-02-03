@@ -21,6 +21,12 @@ const MainContainer = styled.div`
   color: white;
 `;
 
+const BonusValue = styled.span`
+  color: #db2777;
+  font-weight: 800;
+  margin-left: 2px;
+`;
+
 const BackgroundWrapper = styled.div`
   position: fixed;
   top: 0;
@@ -408,7 +414,12 @@ export const ShopPage: React.FC<any> = ({
   onBackToMain,
   isAuthenticated: propIsAuthenticated,
   userInfo: propUserInfo,
-  onProfile
+  onProfile,
+  onShop,
+  onHome,
+  onLogin,
+  onRegister,
+  onLogout
 }) => {
   const [viewMode, setViewMode] = useState<'subscription' | 'credits'>(() => {
     if (typeof window !== 'undefined') {
@@ -538,7 +549,7 @@ export const ShopPage: React.FC<any> = ({
 
     try {
       // Базовые цены: 499₽ для STANDARD и 1199₽ для PREMIUM
-      const basePrice = plan === 'premium' ? 1199 : 499;
+      const basePrice = plan === 'premium' ? 1199 : 449;
       const priceInfo = calculatePrice(basePrice);
       const amount = priceInfo.total;
       const description = `${plan.toUpperCase()} Subscription (${billingCycle.replace('_', ' ')})`;
@@ -567,6 +578,41 @@ export const ShopPage: React.FC<any> = ({
       window.location.href = data.confirmation_url;
     } catch (e) {
       // Ошибка обработки платежа
+    }
+  };
+
+  const handleTestPayment = async (plan: string) => {
+    const token = localStorage.getItem('authToken');
+    if (!token) return;
+
+    try {
+      const basePrice = plan === 'premium' ? 1199 : 449;
+      const priceInfo = calculatePrice(basePrice);
+      const amount = priceInfo.total;
+      const description = `[TEST] ${plan.toUpperCase()} Subscription`;
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/kassa/create_payment/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          amount,
+          description,
+          plan,
+          months: CYCLE_MONTHS[billingCycle],
+          payment_type: 'subscription',
+          payment_method: 'bank_card',
+          is_test: true
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        window.location.href = data.confirmation_url;
+      }
+    } catch (e) {
+      // Ошибка теста
     }
   };
 
@@ -606,7 +652,7 @@ export const ShopPage: React.FC<any> = ({
   const renderSubscriptionContent = () => {
     // Базовые цены: 499₽ для STANDARD и 1199₽ для PREMIUM
     const premiumBasePrice = 1199;
-    const standardBasePrice = 499;
+    const standardBasePrice = 449;
     const premiumPrice = calculatePrice(premiumBasePrice);
     const standardPrice = calculatePrice(standardBasePrice);
     const months = CYCLE_MONTHS[billingCycle];
@@ -628,15 +674,15 @@ export const ShopPage: React.FC<any> = ({
         <DurationTabs>
           <DurationTab $active={billingCycle === 'yearly'} onClick={() => setBillingCycle('yearly')}>
             Год
-            <SaveTag>SAVE 25% + 10% БОНУС</SaveTag>
+            <SaveTag>SAVE 25% + 15% БОНУС</SaveTag>
           </DurationTab>
           <DurationTab $active={billingCycle === '6_months'} onClick={() => setBillingCycle('6_months')}>
             6 Месяцев
-            <SaveTag>SAVE 20% + 5% БОНУС</SaveTag>
+            <SaveTag>SAVE 20% + 10% БОНУС</SaveTag>
           </DurationTab>
           <DurationTab $active={billingCycle === '3_months'} onClick={() => setBillingCycle('3_months')}>
             3 Месяца
-            <SaveTag>SAVE 15%</SaveTag>
+            <SaveTag>SAVE 15% + 5% БОНУС</SaveTag>
           </DurationTab>
           <DurationTab $active={billingCycle === 'monthly'} onClick={() => setBillingCycle('monthly')}>
             Месяц
@@ -683,27 +729,30 @@ export const ShopPage: React.FC<any> = ({
             <FeaturesList>
               <FeatureItem>
                 <FiCheck style={{ color: '#7c3aed' }} />
-                {isYearly ? (
-                  <span style={{ color: '#7c3aed', fontWeight: 'bold' }}>
-                    {Math.round(6000 * months * 1.1)} кредитов (+10% БОНУС)
-                  </span>
-                ) : is6Months ? (
-                  <span style={{ color: '#7c3aed', fontWeight: 'bold' }}>
-                    {Math.round(6000 * months * 1.05)} кредитов (+5% БОНУС)
-                  </span>
-                ) : (
-                  <span style={{ color: '#7c3aed', fontWeight: 'bold' }}>{`${6000 * months} кредитов`}</span>
-                )}
+                <span style={{ color: 'white' }}>
+                  {billingCycle === 'monthly' ? "300" : (
+                    <>{isYearly ? "3600" : is6Months ? "1800" : "900"} <BonusValue>+ {isYearly ? "540" : is6Months ? "180" : "45"}</BonusValue></>
+                  )} фото-генераций
+                </span>
+              </FeatureItem>
+              <FeatureItem>
+                <FiCheck style={{ color: '#7c3aed' }} />
+                <span style={{ color: 'white' }}>
+                  {billingCycle === 'monthly' ? "300" : (
+                    <>{isYearly ? "3600" : is6Months ? "1800" : "900"} <BonusValue>+ {isYearly ? "540" : is6Months ? "180" : "45"}</BonusValue></>
+                  )} голосовых сообщений
+                </span>
               </FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Доступ ко всем персонажам</span></FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Глубокая память (16 000 токенов)</span></FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Сохранение истории сообщений</span></FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Создание платных альбомов</span></FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Доступ ко всем платным альбомам</span></FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Доступ ко всем галереям пользователей</span></FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Доступ к галереям других пользователей (только Premium)</span></FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Доступ к Pro моделям</span></FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Приоритет в очереди генерации</span></FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Возможность загружать свои голоса для озвучки</span></FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Безлимитное создание персонажей</span></FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Доступ к Premium голосам</span></FeatureItem>
             </FeaturesList>
 
@@ -722,6 +771,25 @@ export const ShopPage: React.FC<any> = ({
                   <span style={{ opacity: 0.7, fontSize: '0.8rem', textDecoration: 'line-through' }}>{premiumPrice.originalTotal}₽</span>
                 )}
               </CheckoutButton>
+
+              {userInfo?.is_admin && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleTestPayment('premium'); }}
+                  style={{
+                    width: '100%',
+                    marginTop: '0.5rem',
+                    background: 'transparent',
+                    border: '1px dashed #ef4444',
+                    color: '#ef4444',
+                    padding: '0.3rem',
+                    borderRadius: '8px',
+                    fontSize: '0.7rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  ТЕСТОВАЯ ПОКУПКА (ADMIN)
+                </button>
+              )}
             </div>
           </PlanCard>
 
@@ -756,21 +824,24 @@ export const ShopPage: React.FC<any> = ({
             <FeaturesList>
               <FeatureItem>
                 <FiCheck style={{ color: '#fbbf24' }} />
-                {isYearly ? (
-                  <span style={{ color: '#fbbf24', fontWeight: 'bold' }}>
-                    {Math.round(2000 * months * 1.1)} кредитов (+10% БОНУС)
-                  </span>
-                ) : is6Months ? (
-                  <span style={{ color: '#fbbf24', fontWeight: 'bold' }}>
-                    {Math.round(2000 * months * 1.05)} кредитов (+5% БОНУС)
-                  </span>
-                ) : (
-                  `${2000 * months} кредитов`
-                )}
+                <span style={{ color: 'white' }}>
+                  {billingCycle === 'monthly' ? "100" : (
+                    <>{isYearly ? "1200" : is6Months ? "600" : "300"} <BonusValue>+ {isYearly ? "180" : is6Months ? "60" : "15"}</BonusValue></>
+                  )} фото-генераций
+                </span>
+              </FeatureItem>
+              <FeatureItem>
+                <FiCheck style={{ color: '#fbbf24' }} />
+                <span style={{ color: 'white' }}>
+                  {billingCycle === 'monthly' ? "100" : (
+                    <>{isYearly ? "1200" : is6Months ? "600" : "300"} <BonusValue>+ {isYearly ? "180" : is6Months ? "60" : "15"}</BonusValue></>
+                  )} голосовых сообщений
+                </span>
               </FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#fbbf24' }} /> Доступ ко всем персонажам</FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#fbbf24' }} /> Расширенная память (8 000 токенов)</FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#fbbf24' }} /> Сохранение истории сообщений</FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#fbbf24' }} /> Создание 10 персонажей</FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#fbbf24' }} /> Создание платных альбомов</FeatureItem>
             </FeaturesList>
 
@@ -789,6 +860,25 @@ export const ShopPage: React.FC<any> = ({
                   <span style={{ opacity: 0.7, fontSize: '0.8rem', textDecoration: 'line-through' }}>{standardPrice.originalTotal}₽</span>
                 )}
               </CheckoutButton>
+
+              {userInfo?.is_admin && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleTestPayment('standard'); }}
+                  style={{
+                    width: '100%',
+                    marginTop: '0.5rem',
+                    background: 'transparent',
+                    border: '1px dashed #ef4444',
+                    color: '#ef4444',
+                    padding: '0.3rem',
+                    borderRadius: '8px',
+                    fontSize: '0.7rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  ТЕСТОВАЯ ПОКУПКА (ADMIN)
+                </button>
+              )}
             </div>
           </PlanCard>
 
@@ -820,7 +910,7 @@ export const ShopPage: React.FC<any> = ({
               <FeatureItem><FiCheck style={{ color: '#888' }} /> Ограничение сообщений: 10</FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#888' }} /> 5 генераций фото</FeatureItem>
               <FeatureItem><FiCheck style={{ color: '#888' }} /> Доступ ко всем персонажам</FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#888' }} /> Возможность создать своих персонажей</FeatureItem>
+              <FeatureItem><FiCheck style={{ color: '#888' }} /> Создание 1 персонажа</FeatureItem>
             </FeaturesList>
 
             <CheckoutButton
@@ -904,26 +994,15 @@ export const ShopPage: React.FC<any> = ({
         <DarkVeil speed={1.1} />
       </BackgroundWrapper>
       <GlobalHeader
-        onHome={onBackToMain}
+        onHome={onHome || onBackToMain}
         onProfile={onProfile}
+        onShop={onShop}
+        onLogin={onLogin}
+        onRegister={onRegister}
+        onLogout={onLogout}
       />
       <ContentWrapper>
-        <ToggleContainer>
-          <ToggleButton
-            $active={viewMode === 'credits'}
-            onClick={() => setViewMode('credits')}
-          >
-            Кредиты
-          </ToggleButton>
-          <ToggleButton
-            $active={viewMode === 'subscription'}
-            onClick={() => setViewMode('subscription')}
-          >
-            Подписка
-          </ToggleButton>
-        </ToggleContainer>
-
-        {viewMode === 'subscription' ? renderSubscriptionContent() : renderCreditsContent()}
+        {renderSubscriptionContent()}
       </ContentWrapper>
 
       {isAuthModalOpen && (

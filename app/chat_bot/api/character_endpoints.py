@@ -1514,7 +1514,7 @@ async def create_user_character(
     logger = logging.getLogger(__name__)
     
     from app.chat_bot.models.models import CharacterDB
-    from sqlalchemy import select
+    from sqlalchemy import select, func
     import sys
     
     try:
@@ -1529,6 +1529,36 @@ async def create_user_character(
                 status_code=400, 
                 detail=f"Character with name {character.name} already exists"
             )
+            
+        # Проверяем лимиты создания персонажей
+        # FREE: 1, STANDARD: 10, PREMIUM: Unlimited
+        # Загружаем подписку явно через запрос к БД
+        from app.models.subscription import UserSubscription
+        subscription_result = await db.execute(
+            select(UserSubscription).where(UserSubscription.user_id == current_user.id)
+        )
+        subscription = subscription_result.scalar_one_or_none()
+        
+        subscription_type = "free"
+        if subscription and subscription.subscription_type:
+            subscription_type = subscription.subscription_type.value.lower()
+            
+        if subscription_type != "premium":
+            # Считаем количество персонажей пользователя
+            count_query = select(func.count(CharacterDB.id)).where(CharacterDB.user_id == current_user.id)
+            count_result = await db.execute(count_query)
+            current_count = count_result.scalar() or 0
+            
+            # Определяем лимит
+            limit = 1  # free
+            if subscription_type == "standard":
+                limit = 10
+            
+            if current_count >= limit:
+                 raise HTTPException(
+                    status_code=403,
+                    detail=f"Достигнут лимит создания персонажей ({limit}). Обновите подписку для создания большего количества."
+                )
         
         # Формируем весь текст пользователя в одно поле prompt с правильной обработкой Unicode
         full_prompt = f"""Character: {character.name}
@@ -1663,6 +1693,14 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         await cache_delete(key_characters_list())
         await cache_delete_pattern("characters:list:*")
         logger.info(f"[CACHE] Инвалидирован кэш списка персонажей после создания {character.name}")
+        
+        # Отправляем WebSocket событие для обновления счётчика персонажей
+        from app.services.profit_activate import emit_profile_update
+        try:
+            await emit_profile_update(current_user.id, db)
+            logger.info(f"[CREATE_CHAR] WebSocket событие отправлено для user_id={current_user.id}")
+        except Exception as ws_error:
+            logger.warning(f"[CREATE_CHAR] Не удалось отправить WebSocket событие: {ws_error}")
         
         return CharacterInDB.model_validate(new_character)
         
@@ -3557,21 +3595,23 @@ async def get_character_photos(
             # ВАЖНО: загружаем для ВСЕХ пользователей, которые создавали фото для этого персонажа
             # Но сначала пробуем для owner_user_id
             prompts_query = select(ImageGenerationHistory).where(
-                ImageGenerationHistory.character_name == character_name
+                ImageGenerationHistory.character_name.ilike(actual_character_name)
             )
             prompts_result = await db.execute(prompts_query)
             prompts_rows = prompts_result.scalars().all()
-            logger.info(f"Loaded {len(prompts_rows)} ImageGenerationHistory records for character {character_name}")
+            logger.info(f"Loaded {len(prompts_rows)} ImageGenerationHistory records for character {actual_character_name}")
             
             # Создаем словарь для быстрого поиска промптов и времени генерации по нормализованному URL
             for row in prompts_rows:
                 if row.image_url:
-                    normalized_url = row.image_url.split('?')[0].split('#')[0]
+                    # КРИТИЧНО: Конвертируем в прокси формат для корректного сопоставления
+                    proxy_url = YandexCloudStorageService.convert_yandex_url_to_proxy(row.image_url)
+                    normalized_url = proxy_url.split('?')[0].split('#')[0]
                     # Преобразуем generation_time в float, если оно есть
                     gen_time = row.generation_time
                     if gen_time is not None:
                         try:
-                            gen_time = float(gen_time) if gen_time else None
+                            gen_time = float(gen_time) if gen_time is not None else None
                         except (ValueError, TypeError):
                             gen_time = None
                     prompts_map[normalized_url] = {
@@ -3593,7 +3633,7 @@ async def get_character_photos(
                         if map_gen_time is not None:
                             # Преобразуем в float, если нужно
                             try:
-                                photo["generation_time"] = float(map_gen_time) if map_gen_time else None
+                                photo["generation_time"] = float(map_gen_time) if map_gen_time is not None else None
                                 logger.debug(f"Updated photo generation_time from ImageGenerationHistory: {photo['url'][:50]}... -> {photo['generation_time']}")
                             except (ValueError, TypeError):
                                 photo["generation_time"] = map_gen_time
@@ -3633,7 +3673,7 @@ async def get_character_photos(
             # Преобразуем в float, если это число
             if gen_time is not None:
                 try:
-                    gen_time = float(gen_time) if gen_time else None
+                    gen_time = float(gen_time) if gen_time is not None else None
                 except (ValueError, TypeError):
                     gen_time = None
             
@@ -3669,7 +3709,7 @@ async def get_character_photos(
             # Преобразуем в float, если это число
             if gen_time is not None:
                 try:
-                    gen_time = float(gen_time) if gen_time else None
+                    gen_time = float(gen_time) if gen_time is not None else None
                 except (ValueError, TypeError):
                     gen_time = None
             
@@ -3705,7 +3745,7 @@ async def get_character_photos(
             # Преобразуем в float, если это число
             if gen_time is not None:
                 try:
-                    gen_time = float(gen_time) if gen_time else None
+                    gen_time = float(gen_time) if gen_time is not None else None
                 except (ValueError, TypeError):
                     gen_time = None
             

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import styled, { keyframes } from 'styled-components';
-import { FiX, FiCopy, FiCheck } from 'react-icons/fi';
+import { FiX, FiCopy, FiCheck, FiClock } from 'react-icons/fi';
 
 const fadeIn = keyframes`
   from {
@@ -141,8 +141,8 @@ const IconButton = styled.button<{ $variant?: 'copy' | 'close' }>`
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: ${props => props.$variant === 'copy' 
-    ? 'rgba(139, 92, 246, 0.15)' 
+  background: ${props => props.$variant === 'copy'
+    ? 'rgba(139, 92, 246, 0.15)'
     : 'rgba(255, 255, 255, 0.05)'};
   border: 1px solid ${props => props.$variant === 'copy'
     ? 'rgba(139, 92, 246, 0.3)'
@@ -156,11 +156,11 @@ const IconButton = styled.button<{ $variant?: 'copy' | 'close' }>`
   
   &:hover {
     background: ${props => props.$variant === 'copy'
-      ? 'rgba(139, 92, 246, 0.25)'
-      : 'rgba(255, 255, 255, 0.1)'};
+    ? 'rgba(139, 92, 246, 0.25)'
+    : 'rgba(255, 255, 255, 0.1)'};
     border-color: ${props => props.$variant === 'copy'
-      ? 'rgba(139, 92, 246, 0.5)'
-      : 'rgba(255, 255, 255, 0.2)'};
+    ? 'rgba(139, 92, 246, 0.5)'
+    : 'rgba(255, 255, 255, 0.2)'};
     transform: scale(1.05);
   }
   
@@ -267,6 +267,7 @@ interface PromptGlassModalProps {
   promptText: string | null;
   isLoading?: boolean;
   error?: string | null;
+  generationTime?: number | null;
 }
 
 export const PromptGlassModal: React.FC<PromptGlassModalProps> = ({
@@ -277,6 +278,7 @@ export const PromptGlassModal: React.FC<PromptGlassModalProps> = ({
   promptText,
   isLoading = false,
   error = null,
+  generationTime = null,
 }) => {
   const [isCopied, setIsCopied] = useState(false);
   const [isPromptVisible, setIsPromptVisible] = useState(true);
@@ -310,7 +312,17 @@ export const PromptGlassModal: React.FC<PromptGlassModalProps> = ({
         {isPromptVisible && (
           <GlassCard $isVisible={isPromptVisible}>
             <CardHeader>
-              <Title>Промпт</Title>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <Title>Промпт</Title>
+                {generationTime !== null && generationTime !== undefined && (
+                  <div style={{ fontSize: '10px', color: 'rgba(255, 255, 255, 0.4)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <FiClock style={{ width: '10px', height: '10px' }} />
+                    Время генерации: {generationTime < 60
+                      ? `${Math.round(generationTime)}с`
+                      : `${Math.round(generationTime / 60)}м ${Math.round(generationTime % 60)}с`}
+                  </div>
+                )}
+              </div>
               <HeaderButtons>
                 {promptText && !isLoading && !error && (
                   <IconButton $variant="copy" onClick={handleCopy} title="Скопировать">

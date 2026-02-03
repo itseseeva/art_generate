@@ -35,8 +35,7 @@ class ChatHistoryService:
         can_save = subscription.subscription_type in [
             SubscriptionType.FREE, 
             SubscriptionType.STANDARD, 
-            SubscriptionType.PREMIUM, 
-            SubscriptionType.PRO
+            SubscriptionType.PREMIUM
         ]
         return can_save
     

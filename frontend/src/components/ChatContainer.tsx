@@ -631,6 +631,80 @@ const PaidAlbumDisclaimer = styled.div`
   opacity: 0.9;
 `;
 
+const ShowBoosterButton = styled.button`
+  width: 100%;
+  height: 42px;
+  border: 1px solid rgba(236, 72, 153, 0.3);
+  border-radius: 12px;
+  padding: 0 1.25rem;
+  color: white;
+  font-weight: 600;
+  font-size: 0.875rem;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  position: relative;
+  overflow: hidden;
+  margin-top: ${theme.spacing.lg};
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(236, 72, 153, 0.3),
+      transparent
+    );
+    animation: shimmer 3s infinite;
+  }
+  
+  @keyframes shimmer {
+    0% {
+      left: -100%;
+    }
+    100% {
+      left: 100%;
+    }
+  }
+  
+  &:hover:not(:disabled) {
+    transform: scale(1.05);
+    background: linear-gradient(135deg, rgba(236, 72, 153, 0.25) 0%, rgba(168, 85, 247, 0.25) 100%);
+    border-color: rgba(236, 72, 153, 0.5);
+    box-shadow: 0 4px 20px rgba(236, 72, 153, 0.3);
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+  
+  svg {
+    width: 18px;
+    height: 18px;
+    stroke-width: 2.5;
+    flex-shrink: 0;
+  }
+`;
+
 const PaidAlbumError = styled.div`
   margin-top: ${theme.spacing.sm};
   padding: ${theme.spacing.sm};
@@ -981,6 +1055,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const [isTipModalOpen, setIsTipModalOpen] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [tipAmount, setTipAmount] = useState(0);
+  const [tipType, setTipType] = useState<'photo' | 'voice' | ''>('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [modelInfo, setModelInfo] = useState<string>('Загрузка...');
@@ -1044,7 +1119,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const [isCharacterFavorite, setIsCharacterFavorite] = useState<boolean>(false);
   const [isModelSelectorOpen, setIsModelSelectorOpen] = useState(false);
   const [isBoosterOfferOpen, setIsBoosterOfferOpen] = useState(false);
-  const [boosterLimitType, setBoosterLimitType] = useState<'messages' | 'photos'>('messages');
+  const [boosterLimitType, setBoosterLimitType] = useState<'messages' | 'photos' | 'voice'>('messages');
+  const [isBoosterInfoMode, setIsBoosterInfoMode] = useState(false);
+  const [boosterVariantOverride, setBoosterVariantOverride] = useState<'booster' | 'out_of_limits' | 'info' | 'album_access' | null>(null);
   const SUBSCRIPTION_STATS_KEY = 'chat_subscription_stats';
 
   const [subscriptionStats, setSubscriptionStatsState] = useState<{
@@ -1052,6 +1129,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     used_messages?: number;
     monthly_photos?: number;
     used_photos?: number;
+    images_limit?: number;
+    images_used?: number;
+    voice_limit?: number;
+    voice_used?: number;
+    photos_pack?: number;
   } | null>(() => {
     try {
       const s = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(SUBSCRIPTION_STATS_KEY) : null;
@@ -1116,6 +1198,21 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     localStorage.setItem('targetLanguage', targetLanguage);
   }, [targetLanguage]);
 
+  // Режим краткости ответов
+  const [brevityMode, setBrevityMode] = useState<'brief' | 'normal'>(() => {
+    const saved = localStorage.getItem('brevityMode');
+    return (saved === 'normal' || saved === 'brief') ? saved : 'brief'; // Default 'brief'
+  });
+
+  // Сохраняем режим краткости
+  useEffect(() => {
+    localStorage.setItem('brevityMode', brevityMode);
+  }, [brevityMode]);
+
+  // Фиксированный лимит токенов (750) - пользователь не может менять
+  // Увеличили с 600 до 750, чтобы избежать обрывов на полуслове
+  const maxTokens = 750;
+
   // Загружаем статистику подписки и тип подписки при авторизации и изменении баланса
   useEffect(() => {
     const loadSubscriptionData = async () => {
@@ -1144,7 +1241,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           console.log('[SUBSCRIPTION_FETCH] Получены данные с бэкенда:', statsData);
           const subType = statsData?.subscription_type || 'free';
           setFetchedSubscriptionType(subType);
-          
+
           // Мерджим с существующими данными, используя Math.max для used полей
           setSubscriptionStats((prev) => {
             if (!prev) {
@@ -1160,7 +1257,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               used_messages: Math.max(serverUsedMessages, prevUsedMessages),
               used_photos: Math.max(serverUsedPhotos, prevUsedPhotos)
             };
-            console.log('[SUBSCRIPTION_FETCH] Мердж данных:', { 
+            console.log('[SUBSCRIPTION_FETCH] Мердж данных:', {
               prev: { used_messages: prevUsedMessages, used_photos: prevUsedPhotos },
               server: { used_messages: serverUsedMessages, used_photos: serverUsedPhotos },
               result: { used_messages: merged.used_messages, used_photos: merged.used_photos }
@@ -1193,6 +1290,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     }
     return 'free';
   }, [effectiveSubscriptionType]);
+
+
 
   const canCreatePaidAlbum = normalizedSubscriptionType === 'standard' || normalizedSubscriptionType === 'premium';
 
@@ -1256,6 +1355,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         return msg;
       })
     );
+  }, []);
+
+  const handleOutOfLimits = useCallback((type: 'messages' | 'photos' | 'voice') => {
+    setBoosterLimitType(type);
+    setIsBoosterOfferOpen(true);
   }, []);
 
   // Функция для запуска прогресса заглушки с интервалом
@@ -1613,7 +1717,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     };
   }, []);
 
-  const loadSubscriptionStats = async () => {
+  const loadSubscriptionStats = useCallback(async () => {
     try {
       const token = authManager.getToken();
       if (!token) {
@@ -1654,7 +1758,20 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     } catch (error) {
       console.error('[LOAD_STATS] Ошибка загрузки статистики подписки:', error);
     }
-  };
+  }, []);
+
+  // Слушаем события обновления подписки
+  useEffect(() => {
+    const handleSubscriptionUpdate = () => {
+      console.log('[CHAT_CONTAINER] Получено событие subscription-update, обновляем статистику');
+      loadSubscriptionStats();
+    };
+
+    window.addEventListener('subscription-update', handleSubscriptionUpdate);
+    return () => {
+      window.removeEventListener('subscription-update', handleSubscriptionUpdate);
+    };
+  }, [loadSubscriptionStats]);
 
   const checkAuth = async (): Promise<UserInfo | null> => {
     try {
@@ -1684,10 +1801,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         };
         setUserInfo(info);
         setIsAuthenticated(true);
-        
+
         // Загружаем статистику подписки
         await loadSubscriptionStats();
-        
+
         return info;
       } else {
         // Токен недействителен
@@ -2280,7 +2397,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     // Проверяем лимиты для FREE пользователей: модалка только когда лимит реально 0
     if (normalizedSubscriptionType === 'free' && subscriptionStats) {
       const photosRemaining = Math.max(0, (subscriptionStats.monthly_photos ?? 5) - (subscriptionStats.used_photos ?? 0));
-      
+
       if (photosRemaining === 0) {
         setBoosterLimitType('photos');
         setIsBoosterOfferOpen(true);
@@ -2703,7 +2820,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     // Проверяем лимиты для FREE пользователей: модалка только когда лимит реально 0
     if (normalizedSubscriptionType === 'free' && subscriptionStats) {
       const messagesRemaining = Math.max(0, (subscriptionStats.monthly_messages ?? 10) - (subscriptionStats.used_messages ?? 0));
-      
+
       if (messagesRemaining === 0) {
         setBoosterLimitType('messages');
         setIsBoosterOfferOpen(true);
@@ -2805,6 +2922,14 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       // Добавляем модель только для PREMIUM
       if (normalizedSubscriptionType === 'premium' && selectedChatModel) {
         requestBody.model = selectedChatModel;
+      }
+
+      // Добавляем фиксированный лимит токенов (600)
+      requestBody.max_tokens = maxTokens;
+
+      // Добавляем режим краткости (влияет на system prompt)
+      if (brevityMode) {
+        requestBody.brevity_mode = brevityMode;
       }
 
       // Оптимистичное обновление счётчиков для FREE: число меняется сразу при действии
@@ -3164,11 +3289,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       const savedHistory = localStorage.getItem('pending_chat_history');
       if (savedHistory) {
         const historyData = JSON.parse(savedHistory);
-        
+
         // Проверяем, что история не старше 1 часа (защита от устаревших данных)
         const maxAge = 60 * 60 * 1000; // 1 час в миллисекундах
         const age = Date.now() - (historyData.timestamp || 0);
-        
+
         if (age > maxAge) {
           console.log('[CHAT_RESTORE] История устарела, очищаем localStorage');
           localStorage.removeItem('pending_chat_history');
@@ -3181,22 +3306,22 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             // Проверяем, что история для текущего персонажа
             const savedCharacterId = historyData.characterId;
             const currentCharacterId = expectedCharacter?.id || expectedCharacter?.name || currentCharacter?.id || currentCharacter?.name;
-            
+
             if (savedCharacterId === currentCharacterId || savedCharacterId === identifier) {
               console.log('[CHAT_RESTORE] Восстановление истории чата из localStorage:', historyData);
-              
+
               // Восстанавливаем сообщения
               const restoredMessages: Message[] = historyData.messages.map((msg: any) => ({
                 ...msg,
                 timestamp: new Date(msg.timestamp)
               }));
-              
+
               setMessages(restoredMessages);
-              
+
               // Очищаем localStorage после успешного восстановления
               localStorage.removeItem('pending_chat_history');
               console.log('[CHAT_RESTORE] История успешно восстановлена и очищена из localStorage');
-              
+
               isLoadingHistoryRef.current = null;
               return; // Не загружаем историю с сервера, используем восстановленную
             } else {
@@ -3721,7 +3846,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
     // Проверка подписки: разблокировать альбом могут только пользователи с подпиской Standard или Premium
     if (normalizedSubscriptionType !== 'standard' && normalizedSubscriptionType !== 'premium') {
-      setIsUpgradeModalOpen(true);
+      setBoosterVariantOverride('album_access');
+      setIsBoosterOfferOpen(true);
       return;
     }
 
@@ -4208,7 +4334,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           ) : (
             <MobileAlbumButton
               onClick={handleUnlockPaidAlbum}
-              disabled={isUnlockingAlbum || !isAuthenticated || userCoins < PAID_ALBUM_COST}
+              disabled={isUnlockingAlbum}
             >
               {isUnlockingAlbum ? (
                 <>
@@ -4273,6 +4399,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               selectedVoiceId={selectedVoiceId}
               selectedVoiceUrl={selectedVoiceUrl}
               onSelectVoice={saveSelectedVoice}
+              onOutOfLimits={handleOutOfLimits}
             />
 
             {error && (
@@ -4284,13 +4411,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
             <MessageInput
               onSendMessage={handleSendMessage}
+              onShop={onShop}
               targetLanguage={targetLanguage}
               onLanguageChange={handleLanguageChange}
               isPremium={normalizedSubscriptionType === 'premium'}
+              subscriptionType={normalizedSubscriptionType}
+              brevityMode={brevityMode}
+              onBrevityModeChange={setBrevityMode}
               onSelectModel={() => setIsModelSelectorOpen(true)}
               messagesRemaining={
                 normalizedSubscriptionType === 'free'
-                  ? Math.max(0, (subscriptionStats?.monthly_messages ?? 10) - (subscriptionStats?.used_messages ?? 0))
+                  ? Math.max(0, (subscriptionStats?.monthly_messages ?? 5) - (subscriptionStats?.used_messages ?? 0))
                   : undefined
               }
               photosRemaining={
@@ -4298,7 +4429,16 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   ? Math.max(0, (subscriptionStats?.monthly_photos ?? 5) - (subscriptionStats?.used_photos ?? 0))
                   : undefined
               }
-              subscriptionType={normalizedSubscriptionType}
+              imagesRemaining={
+                subscriptionStats && subscriptionStats.images_limit !== undefined
+                  ? Math.max(0, (subscriptionStats.images_limit ?? 0) - (subscriptionStats.images_used ?? 0))
+                  : undefined
+              }
+              voiceRemaining={
+                subscriptionStats && subscriptionStats.voice_limit !== undefined
+                  ? Math.max(0, (subscriptionStats.voice_limit ?? 0) - (subscriptionStats.voice_used ?? 0))
+                  : (normalizedSubscriptionType === 'free' ? 5 : undefined)
+              }
               onGenerateImage={() => {
                 // Открываем модалку с предзаполненным промптом из данных персонажа (проверяем несколько источников)
                 const characterForData = currentCharacter || initialCharacter;
@@ -4557,7 +4697,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                       ) : (
                         <PaidAlbumButton
                           onClick={handleUnlockPaidAlbum}
-                          disabled={isUnlockingAlbum || userCoins < PAID_ALBUM_COST}
+                          disabled={isUnlockingAlbum}
                         >
                           {isUnlockingAlbum ? (
                             <>
@@ -4602,7 +4742,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                     ) : (
                       <PaidAlbumButton
                         onClick={handleUnlockPaidAlbum}
-                        disabled={isUnlockingAlbum || userCoins < PAID_ALBUM_COST}
+                        disabled={isUnlockingAlbum}
                       >
                         {isUnlockingAlbum ? (
                           <>
@@ -4639,6 +4779,18 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   </>
                 );
               })()}
+
+              {/* Кнопка "Показать бустер" */}
+              <ShowBoosterButton
+                onClick={() => {
+                  setBoosterLimitType('messages');
+                  setIsBoosterInfoMode(true);
+                  setIsBoosterOfferOpen(true);
+                }}
+              >
+                <Sparkles />
+                Показать бустер
+              </ShowBoosterButton>
 
             </PaidAlbumPanel>
           )}
@@ -5026,14 +5178,22 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           }}
           characterName={currentCharacter.name}
           characterDisplayName={currentCharacter.display_name || currentCharacter.name}
-          userBalance={userInfo.coins}
-          onSuccess={(newBalance, amount) => {
-            // Обновляем локальный баланс
-            setUserInfo({ ...userInfo, coins: newBalance });
+          photoGenerations={
+            subscriptionStats
+              ? Math.max(0, (subscriptionStats.monthly_photos || 0) + (subscriptionStats.photos_pack || 0) - (subscriptionStats.used_photos || 0))
+              : 0
+          }
+          voiceGenerations={
+            subscriptionStats
+              ? Math.max(0, (subscriptionStats.voice_limit || 0) - (subscriptionStats.voice_used || 0))
+              : 0
+          }
+          onSuccess={(tipType, senderRemaining, amount) => {
             // Обновляем данные пользователя и подписки
             refreshUserStats();
-            // Показываем toast
+            // Показываем toast с типом благодарности
             setTipAmount(amount);
+            setTipType(tipType);
             setShowSuccessToast(true);
             setIsTipModalOpen(false);
           }}
@@ -5044,6 +5204,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         <SuccessToast
           message="Спасибо за поддержку!"
           amount={tipAmount}
+          tipType={tipType || undefined}
           onClose={() => setShowSuccessToast(false)}
           duration={3000}
         />
@@ -5077,17 +5238,28 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
       <BoosterOfferModal
         isOpen={isBoosterOfferOpen}
-        onClose={() => setIsBoosterOfferOpen(false)}
+        onClose={() => {
+          setIsBoosterOfferOpen(false);
+          setIsBoosterInfoMode(false);
+          setBoosterVariantOverride(null);
+        }}
         limitType={boosterLimitType}
         variant={
-          subscriptionStats &&
-          ((subscriptionStats.monthly_messages ?? 10) > 10 ||
-            (subscriptionStats.monthly_photos ?? 5) > 5)
-            ? 'out_of_limits'
-            : 'booster'
+          boosterVariantOverride || (
+            isBoosterInfoMode
+              ? 'info'
+              : subscriptionStats &&
+                ((subscriptionStats.monthly_messages ?? 5) > 5 ||
+                  (subscriptionStats.monthly_photos ?? 5) > 5 ||
+                  (subscriptionStats.voice_limit ?? 0) > 5)
+                ? 'out_of_limits'
+                : 'booster'
+          )
         }
         chatHistory={messages}
         characterId={currentCharacter?.id || currentCharacter?.name}
+        userId={userInfo?.id}
+        isAdmin={userInfo?.is_admin}
       />
 
 

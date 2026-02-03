@@ -25,8 +25,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   // Редирект на страницу /auth вместо показа модального окна
   React.useEffect(() => {
     if (isOpen) {
-      // Определяем URL в зависимости от mode
-      const authUrl = mode === 'register' ? '/register' : '/login';
+      // Определяем URL в зависимости от mode с учетом текущего пути для редиректа
+      const currentPath = window.location.pathname + window.location.search;
+      const authUrl = mode === 'register'
+        ? `/register?redirect=${encodeURIComponent(currentPath)}`
+        : `/login?redirect=${encodeURIComponent(currentPath)}`;
+
       window.location.href = authUrl;
 
       // Закрываем модальное окно (если компонент ещё смонтирован)

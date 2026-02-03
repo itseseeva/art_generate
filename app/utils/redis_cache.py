@@ -388,6 +388,11 @@ def key_user_coins(user_id: int) -> str:
     return f"user:coins:{user_id}"
 
 
+def key_user_subscription(user_id: int) -> str:
+    """Генерирует ключ для подписки пользователя (альтернативный формат)."""
+    return f"user:subscription:{user_id}"
+
+
 def key_characters_list() -> str:
     """Генерирует ключ для списка персонажей."""
     return "characters:list"

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
-import { FiHeart, FiX } from 'react-icons/fi';
+import { FiHeart, FiX, FiImage, FiMic } from 'react-icons/fi';
 import { API_CONFIG } from '../config/api';
 
 const ModalOverlay = styled.div`
@@ -92,6 +92,62 @@ const CharacterInfo = styled.div`
   }
 `;
 
+const TipTypeSelector = styled.div`
+  margin-bottom: 2rem;
+  
+  label {
+    display: block;
+    font-weight: 600;
+    color: #d1d1d1;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+  }
+`;
+
+const TipTypeButtons = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+`;
+
+const TipTypeButton = styled.button<{ selected: boolean }>`
+  padding: 1rem;
+  background: ${props => props.selected
+    ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.8) 0%, rgba(99, 102, 241, 0.8) 100%)'
+    : 'rgba(255, 255, 255, 0.05)'};
+  border: 2px solid ${props => props.selected
+    ? 'rgba(139, 92, 246, 0.5)'
+    : 'rgba(255, 255, 255, 0.1)'};
+  border-radius: 12px;
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  
+  &:hover:not(:disabled) {
+    border-color: rgba(139, 92, 246, 0.6);
+    background: ${props => props.selected
+    ? 'linear-gradient(135deg, rgba(139, 92, 246, 1) 0%, rgba(99, 102, 241, 1) 100%)'
+    : 'rgba(255, 255, 255, 0.1)'};
+    transform: translateY(-2px);
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  svg {
+    width: 20px;
+    height: 20px;
+  }
+`;
+
 const AmountSelector = styled.div`
   margin-bottom: 2rem;
   
@@ -120,11 +176,11 @@ const AmountButtons = styled.div`
 
 const AmountButton = styled.button<{ selected: boolean }>`
   padding: 0.75rem;
-  background: ${props => props.selected 
-    ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.8) 0%, rgba(99, 102, 241, 0.8) 100%)' 
+  background: ${props => props.selected
+    ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.8) 0%, rgba(99, 102, 241, 0.8) 100%)'
     : 'rgba(255, 255, 255, 0.05)'};
-  border: 2px solid ${props => props.selected 
-    ? 'rgba(139, 92, 246, 0.5)' 
+  border: 2px solid ${props => props.selected
+    ? 'rgba(139, 92, 246, 0.5)'
     : 'rgba(255, 255, 255, 0.1)'};
   border-radius: 12px;
   color: #ffffff;
@@ -137,9 +193,9 @@ const AmountButton = styled.button<{ selected: boolean }>`
   
   &:hover:not(:disabled) {
     border-color: rgba(139, 92, 246, 0.6);
-    background: ${props => props.selected 
-      ? 'linear-gradient(135deg, rgba(139, 92, 246, 1) 0%, rgba(99, 102, 241, 1) 100%)' 
-      : 'rgba(255, 255, 255, 0.1)'};
+    background: ${props => props.selected
+    ? 'linear-gradient(135deg, rgba(139, 92, 246, 1) 0%, rgba(99, 102, 241, 1) 100%)'
+    : 'rgba(255, 255, 255, 0.1)'};
     transform: translateY(-2px);
   }
   
@@ -151,7 +207,7 @@ const AmountButton = styled.button<{ selected: boolean }>`
   @media (max-width: 768px) {
     padding: 0.6rem;
     font-size: 0.9rem;
-    flex: 1 1 calc(25% - 0.5rem); /* 4 in a row approx */
+    flex: 1 1 calc(25% - 0.5rem);
     min-width: 50px;
   }
 `;
@@ -256,7 +312,7 @@ const ButtonGroup = styled.div`
 const SubmitButton = styled.button`
   flex: 1;
   padding: 1rem;
-  background: #6d28d9; /* Solid fallback color */
+  background: #6d28d9;
   background: linear-gradient(135deg, rgba(139, 92, 246, 0.9) 0%, rgba(99, 102, 241, 0.9) 100%);
   border: 1px solid rgba(139, 92, 246, 0.5);
   border-radius: 12px;
@@ -316,21 +372,24 @@ interface TipCreatorModalProps {
   onClose: () => void;
   characterName: string;
   characterDisplayName?: string;
-  userBalance: number;
-  onSuccess: (newBalance: number, amount: number) => void;
+  photoGenerations: number;
+  voiceGenerations: number;
+  onSuccess: (tipType: 'photo' | 'voice', remaining: number, amount: number) => void;
 }
 
-const PRESET_AMOUNTS = [5, 10, 25, 50, 100, 250, 500, 1000];
+const PRESET_AMOUNTS = [1, 2, 5, 10, 15, 20, 30, 50];
 
 export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
   isOpen,
   onClose,
   characterName,
   characterDisplayName,
-  userBalance,
+  photoGenerations,
+  voiceGenerations,
   onSuccess
 }) => {
-  const [selectedAmount, setSelectedAmount] = useState<number | null>(10);
+  const [tipType, setTipType] = useState<'photo' | 'voice'>('photo');
+  const [selectedAmount, setSelectedAmount] = useState<number | null>(5);
   const [customAmount, setCustomAmount] = useState<string>('');
   const [message, setMessage] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
@@ -338,6 +397,9 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
   const [success, setSuccess] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  const currentBalance = tipType === 'photo' ? photoGenerations : voiceGenerations;
+  const balanceLabel = tipType === 'photo' ? 'фото-генераций' : 'голосовых генераций';
 
   const getActualAmount = (): number => {
     if (customAmount) {
@@ -360,22 +422,27 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
     setError(null);
   };
 
+  const handleTipTypeChange = (newType: 'photo' | 'voice') => {
+    setTipType(newType);
+    setError(null);
+  };
+
   const handleSubmit = async () => {
     const amount = getActualAmount();
 
     // Валидация
     if (amount <= 0) {
-      setError('Пожалуйста, укажите количество кредитов');
+      setError('Пожалуйста, укажите количество генераций');
       return;
     }
 
-    if (amount > 1000) {
-      setError('Максимум 1000 кредитов за один раз');
+    if (amount > 100) {
+      setError('Максимум 100 генераций за один раз');
       return;
     }
 
-    if (amount > userBalance) {
-      setError(`Недостаточно кредитов. У вас: ${userBalance}`);
+    if (amount > currentBalance) {
+      setError(`Недостаточно ${balanceLabel}. У вас: ${currentBalance}`);
       return;
     }
 
@@ -390,9 +457,6 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
         return;
       }
 
-      
-      
-
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/coins/tip-creator/`, {
         method: 'POST',
         headers: {
@@ -401,6 +465,7 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
         },
         body: JSON.stringify({
           character_name: characterName,
+          tip_type: tipType,
           amount: amount,
           message: message || undefined
         })
@@ -408,30 +473,23 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || 'Ошибка при отправке кредитов');
+        throw new Error(errorData.detail || 'Ошибка при отправке генераций');
       }
 
       const data = await response.json();
-      
-      
-      
-      
+
       setSuccess(data.message);
-      
-      // Диспатчим событие обновления баланса с данными из ответа
-      if (data.sender_coins_remaining !== undefined) {
-        
-        window.dispatchEvent(new CustomEvent('balance-update', { detail: { coins: data.sender_coins_remaining } }));
-      } else {
-        
-        setTimeout(() => {
-          
-          window.dispatchEvent(new Event('balance-update'));
-        }, 100);
-      }
-      
+
+      // Диспатчим событие обновления баланса
+      window.dispatchEvent(new CustomEvent('balance-update', {
+        detail: {
+          tipType: data.tip_type,
+          remaining: data.sender_remaining
+        }
+      }));
+
       // Сразу закрываем модалку и показываем toast
-      onSuccess(data.sender_coins_remaining, amount);
+      onSuccess(data.tip_type, data.sender_remaining, amount);
       onClose();
 
     } catch (err) {
@@ -461,26 +519,48 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
             <strong>Персонаж:</strong> {displayName}
           </p>
           <p style={{ fontSize: '14px', marginTop: '8px' }}>
-            Создателю персонажа будет отправлена благодарность в виде кредитов
+            Создателю персонажа будет отправлена благодарность в виде фото-генераций или голосовых генераций
           </p>
         </CharacterInfo>
 
+        <TipTypeSelector>
+          <label>Выберите тип благодарности:</label>
+          <TipTypeButtons>
+            <TipTypeButton
+              selected={tipType === 'photo'}
+              onClick={() => handleTipTypeChange('photo')}
+              disabled={isLoading}
+            >
+              <FiImage />
+              Фото-генерации
+            </TipTypeButton>
+            <TipTypeButton
+              selected={tipType === 'voice'}
+              onClick={() => handleTipTypeChange('voice')}
+              disabled={isLoading}
+            >
+              <FiMic />
+              Голосовые генерации
+            </TipTypeButton>
+          </TipTypeButtons>
+        </TipTypeSelector>
+
         <BalanceInfo>
           <p>
-            Ваш баланс: <strong>{userBalance}</strong> кредитов
+            Ваш баланс: <strong>{currentBalance}</strong> {balanceLabel}
           </p>
         </BalanceInfo>
 
         <AmountSelector>
-          <label>Выберите количество кредитов:</label>
+          <label>Выберите количество:</label>
           <AmountButtons>
             {PRESET_AMOUNTS.map(amount => (
               <AmountButton
                 key={amount}
                 selected={selectedAmount === amount}
                 onClick={() => handleAmountSelect(amount)}
-                disabled={isLoading || amount > userBalance}
-                style={{ opacity: amount > userBalance ? 0.5 : 1 }}
+                disabled={isLoading || amount > currentBalance}
+                style={{ opacity: amount > currentBalance ? 0.5 : 1 }}
               >
                 {amount}
               </AmountButton>
@@ -488,22 +568,22 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
           </AmountButtons>
           <CustomAmountInput
             type="number"
-            placeholder="Или введите свою сумму (1-1000)"
+            placeholder="Или введите свою сумму (1-100)"
             value={customAmount}
             onChange={handleCustomAmountChange}
             min={1}
-            max={1000}
+            max={100}
             disabled={isLoading}
           />
         </AmountSelector>
 
         <div style={{ marginBottom: theme.spacing.xl }}>
-          <label style={{ 
+          <label style={{
             display: 'block',
             fontWeight: 600,
             color: theme.colors.text.secondary,
             fontSize: theme.fontSize.sm,
-            marginBottom: theme.spacing.md 
+            marginBottom: theme.spacing.md
           }}>
             Сообщение (необязательно):
           </label>
@@ -522,9 +602,9 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
         <ButtonGroup>
           <SubmitButton
             onClick={handleSubmit}
-            disabled={isLoading || actualAmount <= 0 || actualAmount > userBalance}
+            disabled={isLoading || actualAmount <= 0 || actualAmount > currentBalance}
           >
-            {isLoading ? 'Отправка...' : `Отправить ${actualAmount} кредитов`}
+            {isLoading ? 'Отправка...' : `Отправить ${actualAmount} ${balanceLabel}`}
           </SubmitButton>
           <CancelButton
             onClick={onClose}
@@ -537,4 +617,3 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
     </ModalOverlay>
   );
 };
-

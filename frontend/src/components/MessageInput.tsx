@@ -3,14 +3,16 @@ import styled from 'styled-components';
 import { theme } from '../theme';
 import Dock from './Dock';
 import type { DockItemData } from './Dock';
+import { ConfirmModal } from './ConfirmModal';
 import { FiSend } from 'react-icons/fi';
-import { 
-  Trash2, 
-  HelpCircle, 
-  MessageSquare, 
-  Heart, 
+import {
+  Trash2,
+  HelpCircle,
+  MessageSquare,
+  Heart,
   Bot,
-  Camera
+  Camera,
+  Mic
 } from 'lucide-react';
 
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -34,14 +36,30 @@ const InputWrapper = styled.div<{ $isMobile?: boolean }>`
   display: flex;
   flex-direction: ${props => props.$isMobile ? 'column' : 'row'};
   gap: ${theme.spacing.md};
-  align-items: ${props => props.$isMobile ? 'stretch' : 'flex-end'};
-  max-width: ${props => props.$isMobile ? '100%' : '1135px'}; /* Шире на ~15% (было 20%, минус 5%) */
-  margin: ${props => props.$isMobile ? '0 auto' : '0 auto 0 15%'}; /* Сдвиг вправо на 15% (было 20%, минус 5%) */
+  align-items: ${props => props.$isMobile ? 'stretch' : 'center'};
+  max-width: ${props => props.$isMobile ? '100%' : '1350px'};
+  margin: 0 auto;
   width: 100%;
   background: transparent;
   border: none;
   box-shadow: none;
   padding: 0;
+`;
+
+const LeftControlsGroup = styled.div`
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+
+  @media (max-width: 768px) {
+    position: static;
+    transform: none;
+    flex-wrap: wrap;
+    left: auto;
+    top: auto;
+  }
 `;
 
 const LanguageToggle = styled.div`
@@ -54,25 +72,14 @@ const LanguageToggle = styled.div`
   border-radius: ${theme.borderRadius.md};
   padding: 4px;
   height: fit-content;
-  position: absolute;
-  left: ${theme.spacing.lg};
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 11;
-
-  @media (max-width: 768px) {
-    padding: 2px;
-    position: static;
-    transform: none;
-    left: auto;
-    top: auto;
-  }
 `;
+
+// Градиентный слайдер на всю ширину
 
 const LanguageButton = styled.button<{ $isActive: boolean }>`
   padding: 6px 12px;
-  background: ${props => props.$isActive 
-    ? 'rgba(60, 60, 60, 0.9)' 
+  background: ${props => props.$isActive
+    ? 'rgba(60, 60, 60, 0.9)'
     : 'transparent'};
   border: none;
   border-radius: ${theme.borderRadius.sm};
@@ -90,9 +97,9 @@ const LanguageButton = styled.button<{ $isActive: boolean }>`
   }
   
   &:hover {
-    background: ${props => props.$isActive 
-      ? 'rgba(70, 70, 70, 1)' 
-      : 'rgba(40, 40, 40, 0.6)'};
+    background: ${props => props.$isActive
+    ? 'rgba(70, 70, 70, 1)'
+    : 'rgba(40, 40, 40, 0.6)'};
     color: rgba(255, 255, 255, 1);
   }
   
@@ -126,9 +133,24 @@ const TextAreaWrapper = styled.div<{ $isMobile?: boolean }>`
   }
 `;
 
+const BrevityToggleTopContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 8px;
+  width: 100%;
+`;
+
+const TextAreaColumn = styled.div`
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  width: 100%;
+`;
+
 const TextArea = styled.textarea<{ $isDisabled: boolean; $isMobile?: boolean }>`
   flex: 1;
-  min-height: ${props => props.$isMobile ? '34px' : '50px'}; /* Чуть выше дефолт */
+  min-height: ${props => props.$isMobile ? '34px' : '54px'}; /* Увеличено до 54px для баланса */
   max-height: ${props => props.$isMobile ? '120px' : '200px'};
   padding: ${props => props.$isMobile ? '6px 12px' : '14px 20px'};
   background: transparent; /* Фон теперь на Wrapper */
@@ -377,10 +399,10 @@ const PremiumIconWrapper = styled.div<{ $disabled?: boolean; $color?: string; $i
     height: 20px;
     stroke-width: 2.5;
     color: ${props => {
-      if (props.$disabled) return 'rgba(150, 150, 150, 0.4)';
-      if (props.$color) return props.$color;
-      return 'rgba(240, 240, 240, 0.6)';
-    }};
+    if (props.$disabled) return 'rgba(150, 150, 150, 0.4)';
+    if (props.$color) return props.$color;
+    return 'rgba(240, 240, 240, 0.6)';
+  }};
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     ${props => props.$isImage && !props.$disabled ? `
       animation: pulse-glow-image 2s ease-in-out infinite;
@@ -406,23 +428,23 @@ const PremiumIconWrapper = styled.div<{ $disabled?: boolean; $color?: string; $i
     
     svg {
       color: ${props => {
-        if (props.$disabled) return 'rgba(150, 150, 150, 0.4)';
-        if (props.$color) return props.$color;
-        return '#8B5CF6';
-      }};
+    if (props.$disabled) return 'rgba(150, 150, 150, 0.4)';
+    if (props.$color) return props.$color;
+    return '#8B5CF6';
+  }};
       filter: ${props => {
-        if (props.$disabled) return 'none';
-        if (props.$isImage) {
-          return 'drop-shadow(0 0 16px rgba(59, 130, 246, 1)) drop-shadow(0 0 24px rgba(59, 130, 246, 0.8)) drop-shadow(0 0 32px rgba(59, 130, 246, 0.6))';
-        }
-        if (props.$color) {
-          const r = parseInt(props.$color.slice(1, 3), 16);
-          const g = parseInt(props.$color.slice(3, 5), 16);
-          const b = parseInt(props.$color.slice(5, 7), 16);
-          return `drop-shadow(0 0 8px rgba(${r}, ${g}, ${b}, 0.5))`;
-        }
-        return 'drop-shadow(0 0 8px rgba(139, 92, 246, 0.6))';
-      }};
+    if (props.$disabled) return 'none';
+    if (props.$isImage) {
+      return 'drop-shadow(0 0 16px rgba(59, 130, 246, 1)) drop-shadow(0 0 24px rgba(59, 130, 246, 0.8)) drop-shadow(0 0 32px rgba(59, 130, 246, 0.6))';
+    }
+    if (props.$color) {
+      const r = parseInt(props.$color.slice(1, 3), 16);
+      const g = parseInt(props.$color.slice(3, 5), 16);
+      const b = parseInt(props.$color.slice(5, 7), 16);
+      return `drop-shadow(0 0 8px rgba(${r}, ${g}, ${b}, 0.5))`;
+    }
+    return 'drop-shadow(0 0 8px rgba(139, 92, 246, 0.6))';
+  }};
       ${props => props.$isImage ? 'animation: none;' : ''}
     }
   }
@@ -478,11 +500,149 @@ interface MessageInputProps {
   isPremium?: boolean;
   onLanguageChange?: (language: 'ru' | 'en') => void;
   onSelectModel?: () => void;
-  /** Счётчики лимитов (только для FREE): сообщения и генерации */
+  /** Счётчики лимитов: сообщения (для FREE), генерации и голос */
   messagesRemaining?: number;
-  photosRemaining?: number;
+  photosRemaining?: number; // Deprecated, use imagesRemaining
+  imagesRemaining?: number;
+  voiceRemaining?: number;
   subscriptionType?: 'free' | 'base' | 'standard' | 'premium';
+  // Brevity mode
+  brevityMode?: 'brief' | 'normal';
+  onBrevityModeChange?: (mode: 'brief' | 'normal') => void;
+  onShop?: () => void;
 }
+
+const BrevityToggleContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: fit-content;
+  position: relative;
+  cursor: pointer;
+
+  &:hover::after {
+    content: "Режим ответа";
+    position: absolute;
+    bottom: calc(100% + 12px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 15, 15, 0.95);
+    color: white;
+    padding: 6px 14px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    pointer-events: none;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: tooltipFadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  &:hover::before {
+    content: "";
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 6px 6px 0 6px;
+    border-style: solid;
+    border-color: rgba(15, 15, 15, 0.95) transparent transparent transparent;
+    z-index: 1000;
+    pointer-events: none;
+    animation: tooltipFadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @keyframes tooltipFadeIn {
+    from { 
+      opacity: 0; 
+      transform: translate(-50%, 10px) scale(0.95); 
+    }
+    to { 
+      opacity: 1; 
+      transform: translate(-50%, 0) scale(1); 
+    }
+  }
+`;
+
+const BrevityLabel = styled.span<{ $isActive: boolean }>`
+  font-size: ${theme.fontSize.sm};
+  color: ${props => props.$isActive ? 'rgba(255, 255, 255, 0.9)' : 'rgba(180, 180, 180, 0.6)'};
+  font-weight: ${props => props.$isActive ? '600' : '500'};
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  user-select: none;
+
+  @media (max-width: 768px) {
+    font-size: 0.75rem;
+  }
+`;
+
+const ToggleSwitchWrapper = styled.label`
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 24px;
+  cursor: pointer;
+  
+  @media (max-width: 768px) {
+    width: 42px;
+    height: 22px;
+  }
+`;
+
+const ToggleSwitchInput = styled.input`
+  opacity: 0;
+  width: 0;
+  height: 0;
+`;
+
+const ToggleSwitchSlider = styled.span<{ $checked: boolean; $disabled?: boolean }>`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: ${props => props.$checked
+    ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+    : 'rgba(60, 60, 60, 0.8)'};
+  border-radius: 24px;
+  transition: all 0.3s ease;
+  border: 1px solid ${props => props.$checked
+    ? 'rgba(118, 75, 162, 0.5)'
+    : 'rgba(80, 80, 80, 0.5)'};
+  opacity: ${props => props.$disabled ? 0.5 : 1};
+  cursor: ${props => props.$disabled ? 'not-allowed' : 'pointer'};
+
+  &:before {
+    content: "";
+    position: absolute;
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 2px;
+    background: white;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    transform: ${props => props.$checked ? 'translateX(24px)' : 'translateX(0)'};
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+
+    @media (max-width: 768px) {
+      height: 16px;
+      width: 16px;
+      transform: ${props => props.$checked ? 'translateX(20px)' : 'translateX(0)'};
+    }
+  }
+
+  &:hover {
+    background: ${props => props.$checked
+    ? 'linear-gradient(135deg, #7c8ef0 0%, #8b5fc4 100%)'
+    : 'rgba(70, 70, 70, 0.9)'};
+  }
+`;
 
 export const MessageInput: React.FC<MessageInputProps> = ({
   onSendMessage,
@@ -501,11 +661,21 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onSelectModel,
   messagesRemaining,
   photosRemaining,
-  subscriptionType = 'free'
+  imagesRemaining,
+  voiceRemaining,
+  subscriptionType = 'free',
+  brevityMode = 'brief',
+  onBrevityModeChange,
+  onShop,
+  ...props
 }) => {
   const isMobile = useIsMobile();
   const [message, setMessage] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Use imagesRemaining if available, otherwise fallback to photosRemaining = imagesRemaining !== undefined ? imagesRemaining : photosRemaining;
+
+  const actualImagesRemaining = imagesRemaining !== undefined ? imagesRemaining : photosRemaining;
 
   // Автоматическое изменение высоты textarea
   useEffect(() => {
@@ -559,7 +729,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const dockItems: DockItemData[] = [
     {
       icon: (
-        <PremiumIconWrapper 
+        <PremiumIconWrapper
           $disabled={disableImageGeneration || !onGenerateImage}
           $isImage={true}
           data-disabled={disableImageGeneration || !onGenerateImage}
@@ -573,7 +743,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     },
     ...(onShowHelp ? [{
       icon: (
-        <PremiumIconWrapper 
+        <PremiumIconWrapper
           $disabled={disabled}
           data-disabled={disabled}
         >
@@ -602,7 +772,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       ),
       label: 'Поблагодарить',
       onClick: onTipCreator,
-      className: '' 
+      className: ''
     }] : []),
     ...(onShowComments ? [{
       icon: (
@@ -612,7 +782,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       ),
       label: 'Комментарии',
       onClick: onShowComments,
-      className: '' 
+      className: ''
     }] : []),
     ...(onSelectModel ? [{
       icon: (
@@ -622,7 +792,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       ),
       label: 'Выбрать модель',
       onClick: onSelectModel,
-      className: '' 
+      className: ''
     }] : [])
   ];
 
@@ -630,183 +800,200 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     <InputContainer $isMobile={isMobile}>
       <form onSubmit={handleSubmit} style={{ width: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
         {!isMobile && (
-          <LanguageToggle>
-            <LanguageButton
-              type="button"
-              $isActive={targetLanguage === 'ru'}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onLanguageChange && onLanguageChange('ru');
-              }}
-              disabled={disabled}
-              title="Русский язык"
-            >
-              RU
-            </LanguageButton>
-            <LanguageButton
-              type="button"
-              $isActive={targetLanguage === 'en'}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onLanguageChange && onLanguageChange('en');
-              }}
-              disabled={disabled}
-              title="English language"
-            >
-              EN
-            </LanguageButton>
-          </LanguageToggle>
+          <BrevityToggleTopContainer>
+            <BrevityToggleContainer>
+              <BrevityLabel $isActive={brevityMode === 'brief'}>
+                Кратко
+              </BrevityLabel>
+              <ToggleSwitchWrapper>
+                <ToggleSwitchInput
+                  type="checkbox"
+                  checked={brevityMode === 'normal'}
+                  onChange={(e) => {
+                    e.preventDefault();
+                    onBrevityModeChange && onBrevityModeChange(e.target.checked ? 'normal' : 'brief');
+                  }}
+                  disabled={disabled}
+                />
+                <ToggleSwitchSlider
+                  $checked={brevityMode === 'normal'}
+                  $disabled={disabled}
+                />
+              </ToggleSwitchWrapper>
+              <BrevityLabel $isActive={brevityMode === 'normal'}>
+                Подробно
+              </BrevityLabel>
+            </BrevityToggleContainer>
+          </BrevityToggleTopContainer>
         )}
+
         <InputWrapper $isMobile={isMobile}>
-          <TextAreaWrapper $isMobile={isMobile}>
-            <TextArea
-              ref={textareaRef}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={placeholder}
-              disabled={disabled}
-              $isDisabled={disabled}
-              $isMobile={isMobile}
-              rows={1}
-            />
-            {isMobile ? (
-              <IconButton 
-                type="button" 
-                onClick={handleSend} 
-                disabled={disabled || !message.trim()}
-                style={{ 
-                  color: !message.trim() ? 'rgba(150, 150, 150, 0.4)' : (theme.colors.accent?.primary || '#764ba2'),
-                  padding: '4px 8px'
-                }}
-              >
-                <FiSend size={22} />
-              </IconButton>
-            ) : (
-              <SendButtonDesktop 
-                type="submit" 
-                onClick={(e) => { e.preventDefault(); handleSend(); }} 
-                $disabled={disabled || !message.trim()}
-              >
-                <FiSend size={20} style={{ marginLeft: '2px' }} />
-              </SendButtonDesktop>
-            )}
-          </TextAreaWrapper>
-          
-          {isMobile ? (
-            <MobileActions>
+          {!isMobile && (
+            <LeftControlsGroup>
               <LanguageToggle>
                 <LanguageButton
                   type="button"
                   $isActive={targetLanguage === 'ru'}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onLanguageChange && onLanguageChange('ru');
-                  }}
+                  onClick={(e) => { e.preventDefault(); onLanguageChange && onLanguageChange('ru'); }}
                   disabled={disabled}
+                  title="Русский язык"
                 >
                   RU
                 </LanguageButton>
                 <LanguageButton
                   type="button"
                   $isActive={targetLanguage === 'en'}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onLanguageChange && onLanguageChange('en');
-                  }}
+                  onClick={(e) => { e.preventDefault(); onLanguageChange && onLanguageChange('en'); }}
                   disabled={disabled}
+                  title="English language"
                 >
                   EN
                 </LanguageButton>
               </LanguageToggle>
+            </LeftControlsGroup>
+          )}
 
-              <MobileButtons>
-                {onSelectModel && (
-                  <MobileIconButton type="button" onClick={onSelectModel} title="Выбрать модель">
-                    <MobileButtonLabel>Модель</MobileButtonLabel>
-                    <Bot size={20} color="rgba(59, 130, 246, 0.9)" strokeWidth={2.5} />
-                  </MobileIconButton>
-                )}
-                {onGenerateImage && (
-                  <MobileIconButton 
-                    type="button" 
-                    onClick={handleImageGeneration} 
-                    disabled={disableImageGeneration}
-                    title="Сгенерировать фото"
-                  >
-                    <MobileButtonLabel>Фото</MobileButtonLabel>
-                    <Camera size={22} strokeWidth={2.5} />
-                  </MobileIconButton>
-                )}
-                {onShowHelp && (
-                  <MobileIconButton type="button" onClick={handleShowHelp} title="Помощь">
-                    <MobileButtonLabel>Помощь</MobileButtonLabel>
-                    <HelpCircle size={24} strokeWidth={2.5} />
-                  </MobileIconButton>
-                )}
-                {onTipCreator && (
-                  <MobileIconButton type="button" onClick={onTipCreator} title="Поблагодарить">
-                    <MobileButtonLabel>Донат</MobileButtonLabel>
-                    <Heart size={20} color="#ec4899" strokeWidth={2.5} />
-                  </MobileIconButton>
-                )}
-                {onShowComments && (
-                  <MobileIconButton type="button" onClick={onShowComments} title="Комментарии">
-                    <MobileButtonLabel>Чат</MobileButtonLabel>
-                    <MessageSquare size={20} strokeWidth={2.5} />
-                  </MobileIconButton>
-                )}
-                {onClearChat && hasMessages && (
-                  <MobileIconButton type="button" onClick={handleClear} title="Очистить чат">
-                    <MobileButtonLabel>Очистить</MobileButtonLabel>
-                    <Trash2 size={20} strokeWidth={2.5} />
-                  </MobileIconButton>
-                )}
-              </MobileButtons>
-            </MobileActions>
-          ) : (
+          <TextAreaWrapper $isMobile={isMobile}>
+            <TextArea
+              ref={textareaRef}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={placeholder || (disabled ? "Чат отключен" : "Напишите сообщение...")}
+              disabled={disabled}
+              $isDisabled={disabled}
+              $isMobile={isMobile}
+              rows={1}
+            />
+            {!isMobile && (
+              <SendButtonDesktop
+                type="button"
+                onClick={handleSend}
+                disabled={disabled || !message.trim()}
+                $disabled={disabled || !message.trim()}
+                title="Отправить (Enter)"
+              >
+                <FiSend size={20} />
+              </SendButtonDesktop>
+            )}
+            {isMobile && (
+              <IconButton
+                type="button"
+                onClick={handleSend}
+                disabled={disabled || !message.trim()}
+                style={{
+                  color: !message.trim() ? 'rgba(150, 150, 150, 0.4)' : (theme.colors.accent?.primary || '#764ba2'),
+                  padding: '4px 8px'
+                }}
+              >
+                <FiSend size={22} />
+              </IconButton>
+            )}
+          </TextAreaWrapper>
+
+          {!isMobile && (
             <DockAndCountersRow>
               <DockWrapper>
-                <Dock 
+                <Dock
                   items={dockItems}
-                  baseItemSize={40}
-                  magnification={50}
-                  distance={100}
-                  panelHeight={50}
-                  dockHeight={60}
+                  disabled={disabled}
                 />
               </DockWrapper>
-              {subscriptionType === 'free' && (
-                <ResourceCountersContainer>
-                  {messagesRemaining !== undefined && messagesRemaining !== null && messagesRemaining >= 0 && (
-                    <ResourceCounter>
-                      <AnimatedCounterIcon $color="#a78bfa" $glowColor="rgba(167, 139, 250, 0.7)">
-                        <MessageSquare />
-                      </AnimatedCounterIcon>
-                      <CounterValue $warning={messagesRemaining <= 3}>
-                        {messagesRemaining}
-                      </CounterValue>
-                    </ResourceCounter>
-                  )}
-                  {photosRemaining !== undefined && photosRemaining !== null && photosRemaining >= 0 && (
-                    <ResourceCounter>
-                      <AnimatedCounterIcon $color="#3b82f6" $glowColor="rgba(59, 130, 246, 0.7)">
-                        <Camera />
-                      </AnimatedCounterIcon>
-                      <CounterValue $warning={photosRemaining <= 2}>
-                        {photosRemaining}
-                      </CounterValue>
-                    </ResourceCounter>
-                  )}
-                </ResourceCountersContainer>
-              )}
+
+              <ResourceCountersContainer>
+                {subscriptionType === 'free' && (
+                  <ResourceCounter>
+                    <AnimatedCounterIcon $color="rgba(167, 139, 250, 0.9)" $glowColor="rgba(167, 139, 250, 0.4)">
+                      <MessageSquare />
+                    </AnimatedCounterIcon>
+                    <CounterValue>{messagesRemaining ?? 0}</CounterValue>
+                  </ResourceCounter>
+                )}
+
+                <ResourceCounter>
+                  <AnimatedCounterIcon $color="rgba(236, 72, 153, 0.9)" $glowColor="rgba(236, 72, 153, 0.4)">
+                    <Camera />
+                  </AnimatedCounterIcon>
+                  <CounterValue $warning={(actualImagesRemaining ?? 0) <= 5}>{actualImagesRemaining ?? 0}</CounterValue>
+                </ResourceCounter>
+
+                <ResourceCounter>
+                  <AnimatedCounterIcon $color="rgba(59, 130, 246, 0.9)" $glowColor="rgba(59, 130, 246, 0.4)">
+                    <Mic />
+                  </AnimatedCounterIcon>
+                  <CounterValue $warning={(voiceRemaining ?? 0) <= 5}>{voiceRemaining ?? 0}</CounterValue>
+                </ResourceCounter>
+              </ResourceCountersContainer>
             </DockAndCountersRow>
           )}
         </InputWrapper>
+
+        {isMobile && (
+          <MobileActions>
+            <LanguageToggle>
+              <LanguageButton
+                type="button"
+                $isActive={targetLanguage === 'ru'}
+                onClick={(e) => { e.preventDefault(); onLanguageChange && onLanguageChange('ru'); }}
+                disabled={disabled}
+              >
+                RU
+              </LanguageButton>
+              <LanguageButton
+                type="button"
+                $isActive={targetLanguage === 'en'}
+                onClick={(e) => { e.preventDefault(); onLanguageChange && onLanguageChange('en'); }}
+                disabled={disabled}
+              >
+                EN
+              </LanguageButton>
+            </LanguageToggle>
+
+            <MobileButtons>
+              {onSelectModel && (
+                <MobileIconButton type="button" onClick={onSelectModel} title="Выбрать модель">
+                  <Bot size={20} color="rgba(59, 130, 246, 0.9)" strokeWidth={2.5} />
+                  <MobileButtonLabel>Модель</MobileButtonLabel>
+                </MobileIconButton>
+              )}
+              {onGenerateImage && (
+                <MobileIconButton
+                  type="button"
+                  onClick={handleImageGeneration}
+                  disabled={disableImageGeneration}
+                  title="Сгенерировать фото"
+                >
+                  <Camera size={22} strokeWidth={2.5} />
+                  <MobileButtonLabel>Фото</MobileButtonLabel>
+                </MobileIconButton>
+              )}
+              {onShowHelp && (
+                <MobileIconButton type="button" onClick={handleShowHelp} title="Помощь">
+                  <HelpCircle size={24} strokeWidth={2.5} />
+                  <MobileButtonLabel>Помощь</MobileButtonLabel>
+                </MobileIconButton>
+              )}
+              {onTipCreator && (
+                <MobileIconButton type="button" onClick={onTipCreator} title="Поблагодарить">
+                  <Heart size={20} color="#ec4899" strokeWidth={2.5} />
+                  <MobileButtonLabel>Донат</MobileButtonLabel>
+                </MobileIconButton>
+              )}
+              {onShowComments && (
+                <MobileIconButton type="button" onClick={onShowComments} title="Комментарии">
+                  <MessageSquare size={20} strokeWidth={2.5} />
+                  <MobileButtonLabel>Чат</MobileButtonLabel>
+                </MobileIconButton>
+              )}
+              {onClearChat && hasMessages && (
+                <MobileIconButton type="button" onClick={handleClear} title="Очистить чат">
+                  <Trash2 size={20} strokeWidth={2.5} />
+                  <MobileButtonLabel>Очистить</MobileButtonLabel>
+                </MobileIconButton>
+              )}
+            </MobileButtons>
+          </MobileActions>
+        )}
       </form>
     </InputContainer>
   );

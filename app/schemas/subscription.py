@@ -22,6 +22,12 @@ class SubscriptionStatsResponse(BaseModel):
     is_active: bool
     expires_at: Optional[datetime] = None
     last_reset_at: Optional[datetime] = None
+    
+    # Новые лимиты
+    images_limit: Optional[int] = 0
+    images_used: Optional[int] = 0
+    voice_limit: Optional[int] = 0
+    voice_used: Optional[int] = 0
 
 
 class SubscriptionActivateRequest(BaseModel):
@@ -56,3 +62,9 @@ class SubscriptionInfoResponse(BaseModel):
     last_reset_at: Optional[datetime] = None
     is_active: bool
     days_until_expiry: int
+    
+    # Новые лимиты
+    images_limit: Optional[int] = 0
+    images_used: Optional[int] = 0
+    voice_limit: Optional[int] = 0
+    voice_used: Optional[int] = 0

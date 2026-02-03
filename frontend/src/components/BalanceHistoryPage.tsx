@@ -169,7 +169,7 @@ export const BalanceHistoryPage: React.FC<BalanceHistoryPageProps> = ({
       setError(null);
 
       const response = await authManager.fetchWithAuth('/api/v1/auth/balance-history/');
-      
+
       if (!response.ok) {
         if (response.status === 401) {
           setError('Необходима авторизация');
@@ -237,22 +237,35 @@ export const BalanceHistoryPage: React.FC<BalanceHistoryPageProps> = ({
               Всего записей: {total}
             </div>
             <HistoryList>
-              {history.map((item) => (
-                <HistoryItem key={item.id}>
-                  <HistoryItemLeft>
-                    <ReasonText>{item.reason}</ReasonText>
-                    <DateText>{formatDate(item.created_at)}</DateText>
-                  </HistoryItemLeft>
-                  <HistoryItemRight>
-                    <AmountText $isNegative={item.amount < 0}>
-                      {item.amount > 0 ? '+' : ''}{item.amount} кредитов
-                    </AmountText>
-                    <BalanceText>
-                      {item.balance_before} → {item.balance_after} кредитов
-                    </BalanceText>
-                  </HistoryItemRight>
-                </HistoryItem>
-              ))}
+              {history.map((item) => {
+                // Определяем тип генерации по тексту причины
+                const isPhotoGeneration = item.reason.toLowerCase().includes('фото') || item.reason.toLowerCase().includes('photo');
+                const isVoiceGeneration = item.reason.toLowerCase().includes('голос') || item.reason.toLowerCase().includes('voice');
+
+                let unitText = 'кредитов'; // По умолчанию
+                if (isPhotoGeneration) {
+                  unitText = Math.abs(item.amount) === 1 ? 'фото-генерация' : 'фото-генераций';
+                } else if (isVoiceGeneration) {
+                  unitText = Math.abs(item.amount) === 1 ? 'голосовое сообщение' : 'голосовых сообщений';
+                }
+
+                return (
+                  <HistoryItem key={item.id}>
+                    <HistoryItemLeft>
+                      <ReasonText>{item.reason}</ReasonText>
+                      <DateText>{formatDate(item.created_at)}</DateText>
+                    </HistoryItemLeft>
+                    <HistoryItemRight>
+                      <AmountText $isNegative={item.amount < 0}>
+                        {item.amount > 0 ? '+' : ''}{item.amount} {unitText}
+                      </AmountText>
+                      <BalanceText>
+                        {item.balance_before} → {item.balance_after}
+                      </BalanceText>
+                    </HistoryItemRight>
+                  </HistoryItem>
+                );
+              })}
             </HistoryList>
           </>
         )}

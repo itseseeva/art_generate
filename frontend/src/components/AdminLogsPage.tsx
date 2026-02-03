@@ -183,11 +183,96 @@ const ModalContent = styled.div`
   border: 1px solid rgba(100, 100, 100, 0.3);
   border-radius: ${theme.borderRadius.lg};
   padding: ${theme.spacing.xl};
-  max-width: 900px;
+  max-width: 1400px;
   width: 100%;
   max-height: 90vh;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   position: relative;
+`;
+
+const ModalBody = styled.div`
+  display: flex;
+  gap: ${theme.spacing.lg};
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+`;
+
+const PhotosColumn = styled.div`
+  flex: 0 0 400px;
+  display: flex;
+  flex-direction: column;
+  gap: ${theme.spacing.md};
+  overflow-y: auto;
+  padding-right: ${theme.spacing.md};
+  border-right: 1px solid rgba(100, 100, 100, 0.3);
+`;
+
+const MessagesColumn = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  min-width: 0;
+`;
+
+const ColumnTitle = styled.h3`
+  font-size: ${theme.fontSize.lg};
+  font-weight: 600;
+  color: rgba(240, 240, 240, 1);
+  margin: 0 0 ${theme.spacing.md} 0;
+  padding-bottom: ${theme.spacing.sm};
+  border-bottom: 1px solid rgba(100, 100, 100, 0.2);
+  position: sticky;
+  top: 0;
+  background: rgba(30, 30, 30, 0.95);
+  z-index: 10;
+`;
+
+const PhotoCard = styled.div`
+  background: rgba(40, 40, 40, 0.8);
+  border: 1px solid rgba(100, 100, 100, 0.3);
+  border-radius: ${theme.borderRadius.md};
+  padding: ${theme.spacing.md};
+  display: flex;
+  flex-direction: column;
+  gap: ${theme.spacing.sm};
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba(50, 50, 50, 0.9);
+    border-color: rgba(139, 92, 246, 0.4);
+  }
+`;
+
+const PhotoImage = styled.img`
+  width: 100%;
+  height: auto;
+  max-height: 300px;
+  object-fit: contain;
+  border-radius: ${theme.borderRadius.sm};
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+
+  &:hover {
+    opacity: 0.9;
+  }
+`;
+
+const PhotoMeta = styled.div`
+  font-size: ${theme.fontSize.xs};
+  color: rgba(160, 160, 160, 1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`;
+
+const EmptyState = styled.div`
+  text-align: center;
+  padding: ${theme.spacing.xl};
+  color: rgba(160, 160, 160, 1);
+  font-size: ${theme.fontSize.sm};
 `;
 
 const ModalHeader = styled.div`
@@ -273,26 +358,7 @@ const MessageContent = styled.div`
   line-height: 1.55;
 `;
 
-const MessageImageWrapper = styled.div`
-  margin-top: ${theme.spacing.sm};
-  display: inline-block;
-`;
 
-const MessageImage = styled.img`
-  max-width: 200px;
-  max-height: 160px;
-  width: auto;
-  height: auto;
-  object-fit: cover;
-  border-radius: ${theme.borderRadius.md};
-  border: 1px solid rgba(100, 100, 100, 0.3);
-  cursor: pointer;
-  transition: opacity 0.2s ease;
-
-  &:hover {
-    opacity: 0.9;
-  }
-`;
 
 const MessageType = styled.span<{ $isUser?: boolean }>`
   display: inline-block;
@@ -308,6 +374,92 @@ const MessageType = styled.span<{ $isUser?: boolean }>`
     : 'rgba(200, 200, 200, 1)'};
   margin-bottom: ${theme.spacing.xs};
 `;
+
+const CharacterSection = styled.div`
+  margin-bottom: ${theme.spacing.xl};
+  border: 1px solid rgba(100, 100, 100, 0.3);
+  border-radius: ${theme.borderRadius.lg};
+  overflow: hidden;
+  background: rgba(20, 20, 20, 0.5);
+`;
+
+const CharacterSectionHeader = styled.div<{ $isExpanded: boolean }>`
+  padding: ${theme.spacing.md} ${theme.spacing.lg};
+  background: rgba(40, 40, 40, 0.8);
+  border-bottom: ${props => props.$isExpanded ? '1px solid rgba(100, 100, 100, 0.3)' : 'none'};
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba(50, 50, 50, 0.9);
+  }
+`;
+
+const CharacterHeaderInfo = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${theme.spacing.xs};
+`;
+
+const CharacterHeaderTitle = styled.div`
+  font-size: ${theme.fontSize.lg};
+  font-weight: 600;
+  color: rgba(139, 92, 246, 1);
+  display: flex;
+  align-items: center;
+  gap: ${theme.spacing.sm};
+`;
+
+const CharacterHeaderStats = styled.div`
+  font-size: ${theme.fontSize.sm};
+  color: rgba(160, 160, 160, 1);
+`;
+
+const ExpandIcon = styled.span<{ $isExpanded: boolean }>`
+  font-size: ${theme.fontSize.xl};
+  color: rgba(200, 200, 200, 1);
+  transition: transform 0.2s ease;
+  transform: ${props => props.$isExpanded ? 'rotate(180deg)' : 'rotate(0deg)'};
+`;
+
+const CharacterMessagesContainer = styled.div<{ $isExpanded: boolean }>`
+  display: ${props => props.$isExpanded ? 'block' : 'none'};
+  padding: ${theme.spacing.lg};
+`;
+
+const ConversationDivider = styled.div`
+  display: flex;
+  align-items: center;
+  margin: ${theme.spacing.lg} 0;
+  gap: ${theme.spacing.md};
+  
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      transparent,
+      rgba(139, 92, 246, 0.3),
+      transparent
+    );
+  }
+`;
+
+const ConversationDividerText = styled.span`
+  font-size: ${theme.fontSize.xs};
+  color: rgba(139, 92, 246, 0.7);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  white-space: nowrap;
+`;
+
+
 
 interface AdminLogsPageProps {
   onBackToMain: () => void;
@@ -325,6 +477,13 @@ interface UserTableItem {
   photos_count: number;
   last_login: string | null;
   purchased_booster?: boolean;
+  subscription?: {
+    type: string;
+    images_limit: number;
+    images_used: number;
+    voice_limit: number;
+    voice_used: number;
+  } | null;
 }
 
 interface AdminStats {
@@ -356,6 +515,7 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({
   const [userMessages, setUserMessages] = useState<any[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [messagesError, setMessagesError] = useState<string | null>(null);
+  const [expandedCharacters, setExpandedCharacters] = useState<Set<string>>(new Set());
 
   const loadStats = useCallback(async () => {
     setIsLoading(true);
@@ -479,6 +639,67 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({
     setSelectedUsername('');
     setUserMessages([]);
     setMessagesError(null);
+    setExpandedCharacters(new Set());
+  };
+
+  const toggleCharacterSection = (characterName: string) => {
+    setExpandedCharacters(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(characterName)) {
+        newSet.delete(characterName);
+      } else {
+        newSet.add(characterName);
+      }
+      return newSet;
+    });
+  };
+
+  // Group messages by character
+  const groupMessagesByCharacter = (messages: any[]) => {
+    const grouped: Record<string, any[]> = {};
+
+    messages.forEach(msg => {
+      const characterName = msg.character_name || 'Неизвестный персонаж';
+      if (!grouped[characterName]) {
+        grouped[characterName] = [];
+      }
+      grouped[characterName].push(msg);
+    });
+
+    return grouped;
+  };
+
+  // Check if there's a significant time gap between messages (more than 1 hour)
+  const hasTimeGap = (msg1: any, msg2: any): boolean => {
+    if (!msg1.created_at || !msg2.created_at) return false;
+    const time1 = new Date(msg1.created_at).getTime();
+    const time2 = new Date(msg2.created_at).getTime();
+    const hourInMs = 60 * 60 * 1000;
+    return Math.abs(time2 - time1) > hourInMs;
+  };
+
+  // Format relative time
+  const formatRelativeTime = (dateString: string): string => {
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffMins = Math.floor(diffMs / (1000 * 60));
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+      if (diffMins < 60) {
+        return `${diffMins} мин назад`;
+      } else if (diffHours < 24) {
+        return `${diffHours} ч назад`;
+      } else if (diffDays < 7) {
+        return `${diffDays} дн назад`;
+      } else {
+        return formatDate(dateString);
+      }
+    } catch {
+      return formatDate(dateString);
+    }
   };
 
   return (
@@ -558,7 +779,8 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({
                       <TableHeaderCell>Пользователь</TableHeaderCell>
                       <TableHeaderCell>Сообщений</TableHeaderCell>
                       <TableHeaderCell>Подписка</TableHeaderCell>
-                      <TableHeaderCell>Фото</TableHeaderCell>
+                      <TableHeaderCell>Фото (мес)</TableHeaderCell>
+                      <TableHeaderCell>Голос (мес)</TableHeaderCell>
                       <TableHeaderCell>Бустер 69₽</TableHeaderCell>
                       <TableHeaderCell>Последний вход</TableHeaderCell>
                     </tr>
@@ -566,7 +788,7 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({
                   <TableBody>
                     {usersTable.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} style={{ textAlign: 'center', padding: theme.spacing.xl }}>
+                        <TableCell colSpan={7} style={{ textAlign: 'center', padding: theme.spacing.xl }}>
                           Нет данных
                         </TableCell>
                       </TableRow>
@@ -579,8 +801,28 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({
                         >
                           <TableCell>{user.user}</TableCell>
                           <TableCell>{user.messages_count}</TableCell>
-                          <TableCell>{user.subscription_type}</TableCell>
-                          <TableCell>{user.photos_count}</TableCell>
+                          <TableCell>
+                            <span style={{
+                              color: user.subscription_type.toLowerCase() === 'premium' ? '#a78bfa' :
+                                user.subscription_type.toLowerCase() === 'standard' ? '#fbbf24' : '#888'
+                            }}>
+                              {user.subscription_type}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {user.subscription ? (
+                              <span style={{ color: user.subscription.images_used >= user.subscription.images_limit ? '#ef4444' : '#22c55e' }}>
+                                {user.subscription.images_used} / {user.subscription.images_limit}
+                              </span>
+                            ) : '-'}
+                          </TableCell>
+                          <TableCell>
+                            {user.subscription ? (
+                              <span style={{ color: user.subscription.voice_used >= user.subscription.voice_limit ? '#ef4444' : '#22c55e' }}>
+                                {user.subscription.voice_used} / {user.subscription.voice_limit}
+                              </span>
+                            ) : '-'}
+                          </TableCell>
                           <TableCell>{user.purchased_booster ? '✅ Да' : '❌ Нет'}</TableCell>
                           <TableCell>{formatDate(user.last_login)}</TableCell>
                         </TableRow>
@@ -615,41 +857,117 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({
               <div style={{ textAlign: 'center', padding: theme.spacing.xl, color: 'rgba(160, 160, 160, 1)' }}>
                 Нет сообщений
               </div>
-            ) : (
-              <MessagesList>
-                {userMessages.map((msg) => (
-                  <MessageItem key={msg.id} $isUser={msg.message_type === 'user'}>
-                    <MessageHeader>
-                      <div>
-                        <MessageType $isUser={msg.message_type === 'user'}>
-                          {msg.message_type === 'user' ? 'Пользователь' : 'Персонаж'}
-                        </MessageType>
-                        <CharacterName>{msg.character_name || 'Неизвестно'}</CharacterName>
-                      </div>
-                      <MessageDate>{formatDate(msg.created_at)}</MessageDate>
-                    </MessageHeader>
-                    <MessageContent>{msg.message_content || '(пустое сообщение)'}</MessageContent>
-                    {msg.image_url && (
-                      <MessageImageWrapper>
-                        <MessageImage
-                          src={msg.image_url}
-                          alt="Изображение из сообщения"
-                          onClick={() => window.open(msg.image_url, '_blank', 'noopener')}
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                      </MessageImageWrapper>
+            ) : (() => {
+              // Separate photos and text messages
+              const photoMessages = userMessages.filter(msg => msg.image_url);
+              const groupedMessages = groupMessagesByCharacter(userMessages);
+              const characterNames = Object.keys(groupedMessages).sort();
+
+              // Auto-expand all character sections by default
+              if (expandedCharacters.size === 0 && characterNames.length > 0) {
+                setExpandedCharacters(new Set(characterNames));
+              }
+
+              return (
+                <ModalBody>
+                  {/* Left Column: Photos */}
+                  <PhotosColumn>
+                    <ColumnTitle>🖼️ Фото генерации ({photoMessages.length})</ColumnTitle>
+                    {photoMessages.length === 0 ? (
+                      <EmptyState>Нет сгенерированных фото</EmptyState>
+                    ) : (
+                      photoMessages.map((msg) => (
+                        <PhotoCard key={msg.id}>
+                          <PhotoImage
+                            src={msg.image_url}
+                            alt="Сгенерированное фото"
+                            onClick={() => window.open(msg.image_url, '_blank', 'noopener')}
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                          <PhotoMeta>
+                            <span>{msg.character_name || 'Неизвестно'}</span>
+                            <span>{formatRelativeTime(msg.created_at)}</span>
+                          </PhotoMeta>
+                          {msg.generation_time && (
+                            <PhotoMeta>
+                              <span>⏱️ {msg.generation_time}с</span>
+                            </PhotoMeta>
+                          )}
+                        </PhotoCard>
+                      ))
                     )}
-                    {msg.generation_time && (
-                      <div style={{ fontSize: theme.fontSize.xs, color: 'rgba(160, 160, 160, 1)', marginTop: theme.spacing.xs }}>
-                        Время генерации: {msg.generation_time}с
-                      </div>
-                    )}
-                  </MessageItem>
-                ))}
-              </MessagesList>
-            )}
+                  </PhotosColumn>
+
+                  {/* Right Column: Messages */}
+                  <MessagesColumn>
+                    <ColumnTitle>💬 Сообщения</ColumnTitle>
+                    {characterNames.map(characterName => {
+                      const messages = groupedMessages[characterName];
+                      const isExpanded = expandedCharacters.has(characterName);
+                      const messageCount = messages.length;
+                      const firstMessage = messages[0];
+                      const lastMessage = messages[messages.length - 1];
+
+                      return (
+                        <CharacterSection key={characterName}>
+                          <CharacterSectionHeader
+                            $isExpanded={isExpanded}
+                            onClick={() => toggleCharacterSection(characterName)}
+                          >
+                            <CharacterHeaderInfo>
+                              <CharacterHeaderTitle>
+                                💬 {characterName}
+                              </CharacterHeaderTitle>
+                              <CharacterHeaderStats>
+                                {messageCount} {messageCount === 1 ? 'сообщение' : messageCount < 5 ? 'сообщения' : 'сообщений'} •
+                                {' '}{formatRelativeTime(firstMessage.created_at)}
+                                {messages.length > 1 && ` - ${formatRelativeTime(lastMessage.created_at)}`}
+                              </CharacterHeaderStats>
+                            </CharacterHeaderInfo>
+                            <ExpandIcon $isExpanded={isExpanded}>▼</ExpandIcon>
+                          </CharacterSectionHeader>
+
+                          <CharacterMessagesContainer $isExpanded={isExpanded}>
+                            <MessagesList>
+                              {messages.map((msg, index) => {
+                                const prevMsg = index > 0 ? messages[index - 1] : null;
+                                const showDivider = prevMsg && hasTimeGap(prevMsg, msg);
+
+                                return (
+                                  <React.Fragment key={msg.id}>
+                                    {showDivider && (
+                                      <ConversationDivider>
+                                        <ConversationDividerText>
+                                          Новая сессия
+                                        </ConversationDividerText>
+                                      </ConversationDivider>
+                                    )}
+
+                                    <MessageItem $isUser={msg.message_type === 'user'}>
+                                      <MessageHeader>
+                                        <div>
+                                          <MessageType $isUser={msg.message_type === 'user'}>
+                                            {msg.message_type === 'user' ? 'Пользователь' : 'Персонаж'}
+                                          </MessageType>
+                                        </div>
+                                        <MessageDate>{formatRelativeTime(msg.created_at)}</MessageDate>
+                                      </MessageHeader>
+                                      <MessageContent>{msg.message_content || '(пустое сообщение)'}</MessageContent>
+                                    </MessageItem>
+                                  </React.Fragment>
+                                );
+                              })}
+                            </MessagesList>
+                          </CharacterMessagesContainer>
+                        </CharacterSection>
+                      );
+                    })}
+                  </MessagesColumn>
+                </ModalBody>
+              );
+            })()}
           </ModalContent>
         </ModalOverlay>
       )}

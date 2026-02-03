@@ -99,12 +99,12 @@ const CharacterItem = styled.button<{ $isActive: boolean }>`
   align-items: center;
   gap: ${theme.spacing.md};
   padding: ${theme.spacing.md};
-  background: ${props => props.$isActive 
-    ? theme.colors.gradients.button 
+  background: ${props => props.$isActive
+    ? theme.colors.gradients.button
     : 'transparent'
   };
-  border: 1px solid ${props => props.$isActive 
-    ? theme.colors.accent.primary 
+  border: 1px solid ${props => props.$isActive
+    ? theme.colors.accent.primary
     : theme.colors.border.primary
   };
   border-radius: ${theme.borderRadius.lg};
@@ -114,10 +114,10 @@ const CharacterItem = styled.button<{ $isActive: boolean }>`
   text-align: left;
   
   &:hover {
-    background: ${props => props.$isActive 
-      ? theme.colors.gradients.buttonHover 
-      : theme.colors.background.tertiary
-    };
+    background: ${props => props.$isActive
+    ? theme.colors.gradients.buttonHover
+    : theme.colors.background.tertiary
+  };
     border-color: ${theme.colors.accent.primary};
     transform: translateX(4px);
   }
@@ -198,8 +198,8 @@ const AuthSection = styled.div`
 const AuthButton = styled.button<{ $isDisabled?: boolean }>`
   width: 100%;
   padding: ${theme.spacing.md};
-  background: ${props => props.$isDisabled 
-    ? theme.colors.background.tertiary 
+  background: ${props => props.$isDisabled
+    ? theme.colors.background.tertiary
     : theme.colors.gradients.button
   };
   color: ${theme.colors.text.primary};
@@ -309,7 +309,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <h2>AI Chat</h2>
         <p>Выберите персонажа для общения</p>
       </Logo>
-      
+
       <CharactersSection>
         <InfoSection>
           <SectionTitle>Доступные персонажи</SectionTitle>
@@ -332,7 +332,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </CharacterList>
         </InfoSection>
       </CharactersSection>
-      
+
       <InfoSection>
         <SectionTitle>Информация</SectionTitle>
         <ModelInfo>{modelInfo}</ModelInfo>
@@ -346,17 +346,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
           Магазин
         </QuickActionButton>
         <QuickActionButton onClick={() => onQuickAction('create')}>
-          Создать персонажа (10 монет)
+          Создать персонажа
         </QuickActionButton>
         <QuickActionButton onClick={() => onQuickAction('clear')}>
           Очистить чат
         </QuickActionButton>
       </QuickActions>
-      
+
       <AuthSection>
         {isAuthenticated && userInfo ? (
           <UserInfo>
-            <UserName>{userInfo.username} | Монеты: {userInfo.coins}</UserName>
+            <UserName>{userInfo.username}</UserName>
             <UserStatus>Авторизован</UserStatus>
           </UserInfo>
         ) : (

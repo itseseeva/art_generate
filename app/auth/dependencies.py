@@ -40,7 +40,7 @@ async def get_current_user(
     
     try:
         if not credentials or not credentials.credentials:
-            logger.error("[GET_CURRENT_USER] No credentials provided")
+            logger.info("[GET_CURRENT_USER] No credentials provided")
             raise credentials_exception
         
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
@@ -50,7 +50,7 @@ async def get_current_user(
             raise credentials_exception
         token_data = TokenData(email=email)
     except jwt.PyJWTError as e:
-        logger.error(f"[GET_CURRENT_USER] Token decoding error: {e}")
+        logger.warning(f"[GET_CURRENT_USER] Token decoding error: {e}")
         raise credentials_exception
     
     try:

@@ -18,7 +18,6 @@ import { PhotoGenerationPage3 } from './components/PhotoGenerationPage3';
 import { EditCharactersPage } from './components/EditCharactersPage';
 import { EditCharacterPage } from './components/EditCharacterPage';
 import { FavoritesPage } from './components/FavoritesPage';
-import { BalanceHistoryPage } from './components/BalanceHistoryPage';
 import { CharacterCommentsPage } from './components/CharacterCommentsPage';
 import { BugReportPage } from './components/BugReportPage';
 import { AdminLogsPage } from './components/AdminLogsPage';
@@ -105,7 +104,6 @@ type PageType =
   | 'edit-character'
   | 'favorites'
   | 'history'
-  | 'balance-history'
   | 'character-comments'
   | 'legal'
   | 'about'
@@ -154,7 +152,6 @@ function App() {
         'edit-character': 'Редактировать персонажа',
         'favorites': 'Избранное',
         'history': 'История',
-        'balance-history': 'История баланса',
         'character-comments': 'Комментарии',
         'legal': 'Правовая информация',
         'about': 'О проекте',
@@ -263,7 +260,7 @@ function App() {
     } else if (path.includes('/chat')) {
       const characterId = urlParams.get('character');
       const paymentSuccess = urlParams.get('payment') === 'success';
-      
+
       if (characterId) {
         // КРИТИЧНО: Показываем спиннер пока персонаж загружается
         setIsLoadingCharacter(true);
@@ -274,12 +271,12 @@ function App() {
           if (char) {
 
             setSelectedCharacter(char);
-            
+
             // Если оплата успешна, очищаем параметр из URL
             if (paymentSuccess) {
               window.history.replaceState(
-                { page: 'chat', character: characterId }, 
-                '', 
+                { page: 'chat', character: characterId },
+                '',
                 `/chat?character=${characterId}`
               );
             } else {
@@ -613,8 +610,13 @@ function App() {
 
       }
 
-      // Переходим на главную страницу после OAuth авторизации
-      window.location.href = '/';
+      // Переходим по redirect или на главную страницу после OAuth авторизации
+      const redirectPath = urlParams.get('redirect');
+      if (redirectPath) {
+        window.location.href = redirectPath;
+      } else {
+        window.location.href = '/';
+      }
     }
   }, []);
 
@@ -664,6 +666,11 @@ function App() {
   const handleContentRatingSelect = (rating: 'safe' | 'nsfw') => {
     setSelectedContentRating(rating);
     setShowContentRatingModal(false);
+
+    // Очищаем данные создания персонажа при старте нового процесса из меню
+    localStorage.removeItem('createCharacterFormData');
+    localStorage.removeItem('createCharacterStep');
+
     setCurrentPage('create-character');
     window.history.pushState({ page: 'create-character' }, '', '/create-character');
   };
@@ -859,11 +866,6 @@ function App() {
     window.history.pushState({ page: 'history' }, '', '/history');
   };
 
-  const handleBalanceHistory = () => {
-    setCurrentPage('balance-history');
-    window.history.pushState({ page: 'balance-history' }, '', '/balance-history');
-  };
-
   const handleBugReport = () => {
     setCurrentPage('bug-report');
     window.history.pushState({ page: 'bug-report' }, '', '/bug-report');
@@ -994,6 +996,8 @@ function App() {
               onPhotoGeneration={handlePhotoGeneration}
               isAuthenticated={isAuthenticated}
               userInfo={userInfo}
+              onLogin={handleLogin}
+              onRegister={handleRegister}
             />
           </ErrorBoundary>
         );
@@ -1008,6 +1012,9 @@ function App() {
             userInfo={userInfo}
             onProfile={handleProfile}
             onHome={handleBackToMain}
+            onLogin={handleLogin}
+            onRegister={handleRegister}
+            onLogout={handleLogout}
           />
         );
       case 'profile':
@@ -1025,7 +1032,6 @@ function App() {
             onMyCharacters={handleMyCharacters}
             onMessages={handleMessages}
             onHistory={handleHistory}
-            onBalanceHistory={handleBalanceHistory}
             onCreateCharacter={handleCreateCharacter}
             onEditCharacters={handleEditCharacters}
             onCharacterSelect={handleCharacterSelect}
@@ -1253,14 +1259,6 @@ function App() {
             initialUserInfo={userInfo}
           />
         );
-      case 'balance-history':
-        return (
-          <BalanceHistoryPage
-            onBackToMain={handleBackToMain}
-            onShop={handleShop}
-            onProfile={handleProfile}
-          />
-        );
       case 'favorites':
         return (
           <FavoritesPage
@@ -1324,8 +1322,30 @@ function App() {
                   // Отправляем событие успешной авторизации
                   window.dispatchEvent(new Event('auth-success'));
 
-                  // Перенаправляем на главную
-                  handleBackToMain();
+                  // Перенаправляем обратно или на главную
+                  const urlParams = new URLSearchParams(window.location.search);
+                  const redirectPath = urlParams.get('redirect');
+                  if (redirectPath && (redirectPath.startsWith('/') || redirectPath.startsWith(window.location.origin))) {
+                    const targetPath = redirectPath.startsWith(window.location.origin)
+                      ? redirectPath.substring(window.location.origin.length)
+                      : redirectPath;
+
+                    // Если это внутренняя страница, используем SPA навигацию
+                    if (targetPath.includes('/create-character')) {
+                      setCurrentPage('create-character');
+                      window.history.pushState({ page: 'create-character' }, '', targetPath);
+                    } else if (targetPath.includes('/chat')) {
+                      // Для чата нужно вытащить ID персонажа если есть
+                      const targetUrlParams = new URLSearchParams(targetPath.split('?')[1] || '');
+                      const charId = targetUrlParams.get('character');
+                      setCurrentPage('chat');
+                      window.history.pushState({ page: 'chat', character: charId }, '', targetPath);
+                    } else {
+                      window.location.href = targetPath;
+                    }
+                  } else {
+                    handleBackToMain();
+                  }
                 }
               } catch (error) {
                 // Ошибка будет обработана в AuthPage
@@ -1333,8 +1353,13 @@ function App() {
               }
             }}
             onGoogleLogin={() => {
-              // Перенаправляем на OAuth endpoint
-              window.location.href = '/auth/google/';
+              // Перенаправляем на OAuth endpoint с учетом redirect
+              const urlParams = new URLSearchParams(window.location.search);
+              const redirectPath = urlParams.get('redirect');
+              const authUrl = redirectPath
+                ? `/auth/google/?redirect=${encodeURIComponent(redirectPath)}`
+                : '/auth/google/';
+              window.location.href = authUrl;
             }}
             onSignUp={() => {
               // Переходим на страницу регистрации
@@ -1417,13 +1442,38 @@ function App() {
                 // Отправляем событие успешной авторизации
                 window.dispatchEvent(new Event('auth-success'));
 
-                // Перенаправляем на главную
-                handleBackToMain();
+                // Перенаправляем обратно или на главную
+                const urlParams = new URLSearchParams(window.location.search);
+                const redirectPath = urlParams.get('redirect');
+                if (redirectPath && (redirectPath.startsWith('/') || redirectPath.startsWith(window.location.origin))) {
+                  const targetPath = redirectPath.startsWith(window.location.origin)
+                    ? redirectPath.substring(window.location.origin.length)
+                    : redirectPath;
+
+                  if (targetPath.includes('/create-character')) {
+                    setCurrentPage('create-character');
+                    window.history.pushState({ page: 'create-character' }, '', targetPath);
+                  } else if (targetPath.includes('/chat')) {
+                    const targetUrlParams = new URLSearchParams(targetPath.split('?')[1] || '');
+                    const charId = targetUrlParams.get('character');
+                    setCurrentPage('chat');
+                    window.history.pushState({ page: 'chat', character: charId }, '', targetPath);
+                  } else {
+                    window.location.href = targetPath;
+                  }
+                } else {
+                  handleBackToMain();
+                }
               }
             }}
             onGoogleRegister={() => {
-              // Перенаправляем на OAuth endpoint
-              window.location.href = '/auth/google/';
+              // Перенаправляем на OAuth endpoint с учетом redirect
+              const urlParams = new URLSearchParams(window.location.search);
+              const redirectPath = urlParams.get('redirect');
+              const authUrl = redirectPath
+                ? `/auth/google/?redirect=${encodeURIComponent(redirectPath)}`
+                : '/auth/google/';
+              window.location.href = authUrl;
             }}
             onLogin={() => {
               // Переходим на страницу входа
@@ -1803,15 +1853,32 @@ function App() {
   };
 
   const handleLogin = () => {
-    // Переходим на страницу логина вместо открытия модального окна
+    // Переходим на страницу логина
+    const urlParams = new URLSearchParams(window.location.search);
+    let redirect = urlParams.get('redirect');
+
+    // Если в URL нет редиректа, но мы на какой-то серьезной странице, используем её
+    if (!redirect && window.location.pathname !== '/' && window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+      redirect = window.location.pathname + window.location.search;
+    }
+
     setCurrentPage('login');
-    window.history.pushState({ page: 'login' }, '', '/login');
+    const path = redirect ? `/login?redirect=${encodeURIComponent(redirect)}` : '/login';
+    window.history.pushState({ page: 'login' }, '', path);
   };
 
   const handleRegister = () => {
     // Переходим на страницу регистрации
+    const urlParams = new URLSearchParams(window.location.search);
+    let redirect = urlParams.get('redirect');
+
+    if (!redirect && window.location.pathname !== '/' && window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+      redirect = window.location.pathname + window.location.search;
+    }
+
     setCurrentPage('register');
-    window.history.pushState({ page: 'register' }, '', '/register');
+    const path = redirect ? `/register?redirect=${encodeURIComponent(redirect)}` : '/register';
+    window.history.pushState({ page: 'register' }, '', path);
   };
 
   const handleLogout = async () => {
@@ -1845,7 +1912,6 @@ function App() {
           onFavorites={handleFavorites}
           onMyCharacters={handleMyCharacters}
           onMessages={handleMessages}
-          onBalanceHistory={handleBalanceHistory}
           onBugReport={handleBugReport}
           onProfile={handleProfile}
           onShop={handleShop}

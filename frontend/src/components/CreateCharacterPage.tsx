@@ -10,7 +10,7 @@ import { API_CONFIG } from '../config/api';
 import { motion, AnimatePresence } from 'motion/react';
 import { CircularProgress } from './ui/CircularProgress';
 import { FiX as CloseIcon, FiClock, FiImage, FiSettings, FiCheckCircle, FiCpu } from 'react-icons/fi';
-import { Plus, Sparkles, Zap, X, Upload, CheckCircle, AlertCircle } from 'lucide-react';
+import { Plus, Sparkles, Zap, X, Upload, CheckCircle, AlertCircle, Camera } from 'lucide-react';
 import { BiCoinStack } from 'react-icons/bi';
 import { fetchPromptByImage } from '../utils/prompt';
 
@@ -211,6 +211,38 @@ const PhotoGenerationContainer = styled.div<{ $isMobile?: boolean; $isFullscreen
     overflow-y: ${props => props.$isFullscreen ? 'auto' : 'visible'};
     min-width: 0;
   }
+`;
+
+const LimitItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+`;
+
+const AnimatedIcon = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  svg {
+    width: 18px;
+    height: 18px;
+    stroke-width: 2.2;
+    color: rgba(236, 72, 153, 0.9);
+    filter: drop-shadow(0 0 8px rgba(236, 72, 153, 0.4));
+  }
+`;
+
+const LimitValue = styled.span<{ $warning?: boolean }>`
+  font-size: 13px;
+  font-weight: 600;
+  color: ${props => props.$warning ? '#ef4444' : 'rgba(255, 255, 255, 0.9)'};
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 `;
 
 const Form = styled.form`
@@ -4376,6 +4408,8 @@ interface CreateCharacterPageProps {
   contentMode?: 'safe' | 'nsfw';
   isAuthenticated?: boolean;
   userInfo?: { username: string, coins: number, id?: number, subscription?: { subscription_type?: string }, avatar_url?: string | null } | null;
+  onLogin?: () => void;
+  onRegister?: () => void;
 }
 
 const MAX_MAIN_PHOTOS = 3;
@@ -4401,13 +4435,17 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   onProfile,
   contentMode = 'safe',
   isAuthenticated: propIsAuthenticated,
-  userInfo: propUserInfo
+  userInfo: propUserInfo,
+  onLogin,
+  onRegister
 }) => {
   const isMobile = useIsMobile();
   const generationSectionRef = useRef<HTMLDivElement>(null);
   const generatedPhotosRef = useRef<HTMLDivElement>(null);
   /** Флаг: уже автоматически добавили первое фото на главную. Нужен, чтобы при генерации 2-го фото не перезаписывать список из-за устаревшего closure. */
   const hasAutoAddedFirstPhotoRef = useRef(false);
+  /** Флаг: предыдущее состояние авторизации для отслеживания перехода из неавторизованного в авторизованное */
+  const prevIsAuthenticatedRef = useRef<boolean>(false);
   const [formData, setFormData] = useState({
     name: '',
     personality: '',
@@ -4430,7 +4468,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [errorToastMessage, setErrorToastMessage] = useState<string>('');
   const [nameError, setNameError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(propIsAuthenticated ?? false);
-  const [userInfo, setUserInfo] = useState<{ username: string, coins: number, id: number, subscription?: { subscription_type?: string }, is_admin?: boolean } | null>(propUserInfo ?? null);
+  const [userInfo, setUserInfo] = useState<any>(propUserInfo ?? null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [currentContentMode, setCurrentContentMode] = useState<'safe' | 'nsfw'>(contentMode);
 
@@ -4440,6 +4478,25 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   }, [contentMode]);
   const [isPhotoGenerationExpanded, setIsPhotoGenerationExpanded] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
+
+  const [subscriptionStats, setSubscriptionStats] = useState<any>(null);
+  const [isPhotoPromptTagsExpanded, setIsPhotoPromptTagsExpanded] = useState(false);
+
+  const loadSubscriptionStats = async () => {
+    try {
+      const response = await authManager.fetchWithAuth('/api/v1/subscription/stats');
+      if (response.ok) {
+        const stats = await response.json();
+        setSubscriptionStats(stats);
+      }
+    } catch (error) {
+      console.error('Failed to load subscription stats:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadSubscriptionStats();
+  }, []);
 
   // Синхронизируем состояние авторизации с пропсами
   useEffect(() => {
@@ -4472,7 +4529,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [isInstructionTagsExpanded, setIsInstructionTagsExpanded] = useState(false);
   const [isAppearanceTagsExpanded, setIsAppearanceTagsExpanded] = useState(false);
   const [isLocationTagsExpanded, setIsLocationTagsExpanded] = useState(false);
-  const [isPhotoPromptTagsExpanded, setIsPhotoPromptTagsExpanded] = useState(false);
+
   const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime' | 'realism'>('anime-realism');
   const [showGenerateTooltip, setShowGenerateTooltip] = useState(false);
   const [generationProgress, setGenerationProgress] = useState<number | undefined>(undefined);
@@ -4710,7 +4767,38 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [showLocation, setShowLocation] = useState(false);
 
   // Wizard state
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(() => {
+    const savedStep = localStorage.getItem('createCharacterStep');
+    return (savedStep ? parseInt(savedStep, 10) : 1) as 1 | 2 | 3 | 4;
+  });
+
+  // Флаг инициализации формы, чтобы избежать перезаписи localStorage пустыми данными при монтировании
+  const [isFormInitialized, setIsFormInitialized] = useState(false);
+
+  // Сохраняем шаг при изменении
+  useEffect(() => {
+    localStorage.setItem('createCharacterStep', currentStep.toString());
+  }, [currentStep]);
+
+  // Сохраняем все данные формы при изменениях
+  useEffect(() => {
+    // Не сохраняем данные, пока форма не инициализирована (данные не загружены восстановылены)
+    if (!isFormInitialized) return;
+
+    try {
+      const dataToSave = {
+        ...formData,
+        selectedTags,
+        selectedVoiceId,
+        selectedVoiceUrl,
+        contentMode: currentContentMode
+      };
+      localStorage.setItem('createCharacterFormData', JSON.stringify(dataToSave));
+    } catch (error) {
+      console.error('Failed to save character creation data:', error);
+    }
+  }, [formData, selectedTags, selectedVoiceId, selectedVoiceUrl, currentContentMode]);
+
 
   // Функция для определения категории тега
   const getTagCategory = (label: string): 'kind' | 'strict' | 'neutral' => {
@@ -4876,7 +4964,6 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
   useEffect(() => {
     const initPage = async () => {
-      // Восстанавливаем данные формы из localStorage
       const savedFormData = localStorage.getItem('createCharacterFormData');
       if (savedFormData) {
         try {
@@ -4885,6 +4972,19 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
           // Восстанавливаем выбранные теги
           if (parsed.selectedTags && Array.isArray(parsed.selectedTags)) {
             setSelectedTags(parsed.selectedTags);
+          }
+
+          // Восстанавливаем выбранный голос
+          if (parsed.selectedVoiceId) {
+            setSelectedVoiceId(parsed.selectedVoiceId);
+          }
+          if (parsed.selectedVoiceUrl) {
+            setSelectedVoiceUrl(parsed.selectedVoiceUrl);
+          }
+
+          // Восстанавливаем режим контента
+          if (parsed.contentMode) {
+            setCurrentContentMode(parsed.contentMode);
           }
 
           // Восстанавливаем видимость полей на основе данных
@@ -4904,7 +5004,13 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
             setShowLocation(true);
           }
         } catch (error) {
+          // Если данные повреждены, очищаем всё
+          localStorage.removeItem('createCharacterFormData');
+          localStorage.removeItem('createCharacterStep');
         }
+      } else {
+        // Если нет сохранённых данных формы, это новый процесс - очищаем шаг
+        localStorage.removeItem('createCharacterStep');
       }
 
       // Если авторизация уже передана из пропсов, пропускаем проверку
@@ -4924,10 +5030,32 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       } catch (error) {
         // Игнорируем ошибки загрузки настроек
       }
+
+
+      setIsFormInitialized(true);
     };
 
     initPage();
   }, []);
+
+
+  // Восстанавливаем currentStep после успешной авторизации
+  useEffect(() => {
+    // Восстанавливаем шаг только при переходе из неавторизованного в авторизованное состояние
+    if (!prevIsAuthenticatedRef.current && isAuthenticated && authCheckComplete) {
+      const savedStep = localStorage.getItem('createCharacterStep');
+      if (savedStep) {
+        const step = parseInt(savedStep, 10) as 1 | 2 | 3 | 4;
+        if (step >= 1 && step <= 4) {
+          setCurrentStep(step);
+          // Очищаем сохранённый шаг после восстановления
+          localStorage.removeItem('createCharacterStep');
+        }
+      }
+    }
+    // Обновляем предыдущее состояние
+    prevIsAuthenticatedRef.current = isAuthenticated;
+  }, [isAuthenticated, authCheckComplete]);
 
   // Автоматическое сохранение тегов при изменении на этапе 4 (если персонаж уже создан)
   useEffect(() => {
@@ -5119,10 +5247,31 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     try {
       const token = localStorage.getItem('authToken');
       if (!token) {
-        // Если пользователь не авторизован, показываем модалку регистрации
-        setIsLoading(false);
-        setAuthMode('register');
-        setIsAuthModalOpen(true);
+        // Сохраняем текущий шаг перед редиректом
+        localStorage.setItem('createCharacterStep', '3');
+
+        // Сохраняем все данные формы перед редиректом
+        try {
+          const dataToSave = {
+            ...formData,
+            selectedTags,
+            selectedVoiceId,
+            selectedVoiceUrl,
+            contentMode: currentContentMode
+          };
+          localStorage.setItem('createCharacterFormData', JSON.stringify(dataToSave));
+        } catch (error) {
+          console.error('Failed to save character creation data before redirect:', error);
+        }
+
+        // Перенаправляем на страницу входа с возвратом на создание персонажа
+        // Используем SPA навигацию если доступна, иначе полный редирект
+        if (onLogin) {
+          onLogin();
+        } else {
+          // Fallback: полный редирект
+          window.location.href = '/login?redirect=/create-character';
+        }
         return;
       }
 
@@ -5194,8 +5343,9 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       // Переходим на Step 4 для генерации фото
       setCurrentStep(4);
 
-      // Очищаем сохраненные данные формы после успешного создания
+      // Очищаем сохраненные данные формы и шаг после успешного создания
       localStorage.removeItem('createCharacterFormData');
+      localStorage.removeItem('createCharacterStep');
 
       // Автоматически заполняем промпт для генерации фото данными о внешности и локации
       // Только если пользователь еще не редактировал промпт вручную
@@ -5987,6 +6137,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
       // Обновляем информацию о пользователе
       await checkAuth();
+      await loadSubscriptionStats();
       // Обновляем баланс в хедере после списания за генерацию фото
       window.dispatchEvent(new Event('balance-update'));
     } catch (err) {
@@ -6031,7 +6182,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
   };
 
   const generatePhoto = async () => {
-    const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
+    const rawSubscriptionType = userInfo?.subscription?.subscription_type || (userInfo as any)?.subscription_type;
     let subscriptionType = 'free';
     if (rawSubscriptionType) {
       subscriptionType = typeof rawSubscriptionType === 'string'
@@ -6044,10 +6195,13 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
     } else if (subscriptionType === 'standard') {
       queueLimit = 3;
     }
-    if (!userInfo || userInfo.coins < 10) {
-      setError('Недостаточно монет! Нужно 10 монет для генерации одного фото.');
+
+    // Лимит уникальных фото на этапе создания для бесплатных пользователей
+    if (subscriptionType === 'free' && generatedPhotos.length >= 3) {
+      setError('Достигнут лимит генераций (3 фото) для вашего тарифа на этом этапе. Выберите из уже созданных или оформите подписку.');
       return;
     }
+
     const queue = generationQueueRef.current;
     const queueCount = queue.length;
     const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
@@ -6100,12 +6254,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
             onHome={onBackToMain}
             onProfile={onProfile}
             onLogin={() => {
-              setAuthMode('login');
-              setIsAuthModalOpen(true);
+              window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
             }}
             onRegister={() => {
-              setAuthMode('register');
-              setIsAuthModalOpen(true);
+              window.location.href = `/register?redirect=${encodeURIComponent(window.location.pathname)}`;
             }}
             onLogout={() => {
               localStorage.removeItem('authToken');
@@ -6685,7 +6837,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                     ))}
                                   </WaveformContainer>
                                 )}
-                                {((isUserVoice && (isOwner || isAdmin || userInfo?.is_admin)) || (!isUserVoice && (isAdmin || userInfo?.is_admin))) && (
+                                {((isUserVoice && (voice.user_id === userInfo?.id || isAdmin || userInfo?.is_admin)) || (!isUserVoice && (isAdmin || userInfo?.is_admin))) && (
                                   <EditButton
                                     type="button"
                                     className="edit-voice-button"
@@ -6705,7 +6857,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                     ✎
                                   </EditButton>
                                 )}
-                                {((isUserVoice && (isOwner || isAdmin || userInfo?.is_admin)) || (!isUserVoice && (isAdmin || userInfo?.is_admin))) && (
+                                {((isUserVoice && (voice.user_id === userInfo?.id || isAdmin || userInfo?.is_admin)) || (!isUserVoice && (isAdmin || userInfo?.is_admin))) && (
                                   <DeleteButton
                                     type="button"
                                     className="delete-voice-button"
@@ -7965,7 +8117,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                             { label: 'Повседневный образ', value: 'в повседневной одежде, комфортный стиль' },
                             { label: 'Спортивный стиль', value: 'в спортивной одежде, активный образ жизни' },
                             { label: 'Романтичная атмосфера', value: 'романтичная обстановка, мягкое освещение, уют' }
-                          ].map((tag, idx) => (
+                          ].slice(0, isPhotoPromptTagsExpanded ? undefined : 6).map((tag, idx) => (
                             <TagButton
                               key={idx}
                               type="button"
@@ -7997,20 +8149,13 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                     {/* 3. Действие: Кнопка "Сгенерировать" */}
                     <GenerationArea>
                       <div className="flex justify-between items-center mb-2">
-                        <span className="text-xs text-zinc-400">
-                          Стоимость: <span className="text-zinc-200 font-medium">10 монет</span>
-                        </span>
-
-                        {userInfo && (
-                          <CoinsBalance>
-                            <BiCoinStack /> {userInfo.coins}
-                          </CoinsBalance>
-                        )}
+                        {/* Cost display removed */}
                       </div>
 
-                      <GenerateButtonContainer>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', width: '100%' }}>
                         <GenerateButton
                           type="button"
+                          style={{ flexGrow: 1, minWidth: 0 }}
                           onClick={() => {
                             generatePhoto();
                             setShowGenerateTooltip(true);
@@ -8034,7 +8179,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                             const queueCount = generationQueueRef.current?.length ?? 0;
                             const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
                             const isQueueFull = activeGenerations >= queueLimit;
-                            return isQueueFull || userInfo.coins < 10;
+                            return isQueueFull;
                           })()}
                         >
                           <span className="flex items-center gap-2">
@@ -8077,10 +8222,31 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                             })()}
                           </span>
                         </GenerateButton>
+
+                        {/* Счетчик лимитов */}
+                        {userInfo && (
+                          <LimitItem>
+                            <AnimatedIcon>
+                              <Camera />
+                            </AnimatedIcon>
+                            <LimitValue $warning={(subscriptionStats?.images_limit || 0) - (subscriptionStats?.images_used || 0) <= 5}>
+                              {(() => {
+                                const limit = subscriptionStats?.images_limit ??
+                                  subscriptionStats?.monthly_photos ??
+                                  (userInfo?.subscription_type === 'standard' || userInfo?.subscription_type === 'premium' ? 300 : 5);
+                                const used = subscriptionStats?.images_used ??
+                                  subscriptionStats?.used_photos ??
+                                  0;
+                                return Math.max(0, limit - used);
+                              })()}
+                            </LimitValue>
+                          </LimitItem>
+                        )}
+
                         <GenerateTooltip $isVisible={showGenerateTooltip}>
                           Наведитесь на готовое фото и нажмите "Добавить"
                         </GenerateTooltip>
-                      </GenerateButtonContainer>
+                      </div>
 
                       {/* Предупреждение о времени (серое) */}
                       <WarningText>

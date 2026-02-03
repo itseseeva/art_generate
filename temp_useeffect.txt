@@ -1,0 +1,13 @@
+
+  // Восстанавливаем currentStep после успешной авторизации
+  useEffect(() =\u003e {
+    if (isAuthenticated \u0026\u0026 authCheckComplete) {
+      const savedStep = localStorage.getItem('createCharacterStep');
+      if (savedStep) {
+        const step = parseInt(savedStep, 10) as 1 | 2 | 3 | 4;
+        if (step \u003e= 1 \u0026\u0026 step \u003c= 4) {
+          setCurrentStep(step);
+        }
+      }
+    }
+  }, [isAuthenticated, authCheckComplete]);

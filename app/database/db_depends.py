@@ -28,5 +28,5 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             raise
         except Exception as e:
             await session.rollback()
-            logger.error(f"Ошибка в сессии БД: {e}")
+            logger.warning(f"Ошибка в сессии БД: {e}")
             raise

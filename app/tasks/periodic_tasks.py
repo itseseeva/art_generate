@@ -417,7 +417,8 @@ def check_primary_model_availability_task(self) -> Dict[str, Any]:
                 response = await service.generate_text(
                     messages=test_messages,
                     max_tokens=10,
-                    model=PRIMARY_MODEL  # Явно указываем primary модель для теста
+                    model=PRIMARY_MODEL,  # Явно указываем primary модель для теста
+                    ignore_fallback=True  # Игнорируем fallback режим, чтобы проверить реальную доступность
                 )
                 
                 # Проверяем результат
@@ -480,6 +481,82 @@ def check_primary_model_availability_task(self) -> Dict[str, Any]:
         
     except Exception as exc:
         logger.error(f"[MODEL_CHECK] Критическая ошибка проверки: {exc}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(exc)
+        }
+
+
+@celery_app.task(
+    bind=True,
+    base=CallbackTask,
+    name="app.tasks.periodic_tasks.check_subscription_limits_reset_task"
+)
+def check_subscription_limits_reset_task(self) -> Dict[str, Any]:
+    """
+    Проверяет и сбрасывает месячные лимиты подписок.
+    Выполняется ежедневно.
+    """
+    try:
+        import asyncio
+        from app.database.db import async_session_maker
+        from app.models.subscription import UserSubscription, SubscriptionStatus
+        from sqlalchemy import select
+        
+        async def process_resets():
+            stats = {
+                "processed": 0,
+                "reset_count": 0,
+                "errors": []
+            }
+            
+            async with async_session_maker() as db:
+                try:
+                    # Находим все активные подписки
+                    query = select(UserSubscription).where(
+                        UserSubscription.status == SubscriptionStatus.ACTIVE
+                    )
+                    result = await db.execute(query)
+                    subscriptions = result.scalars().all()
+                    
+                    stats["processed"] = len(subscriptions)
+                    
+                    for sub in subscriptions:
+                        try:
+                            if sub.should_reset_limits():
+                                logger.info(f"[LIMIT RESET] Сброс лимитов для user_id={sub.user_id}, last_reset={sub.last_reset_at}")
+                                sub.reset_monthly_limits()
+                                stats["reset_count"] += 1
+                        except Exception as e:
+                            error_msg = f"Ошибка при сбросе лимитов для user_id={sub.user_id}: {e}"
+                            stats["errors"].append(error_msg)
+                            logger.error(error_msg)
+                    
+                    await db.commit()
+                    
+                except Exception as e:
+                    await db.rollback()
+                    stats["errors"].append(str(e))
+                    logger.error(f"[LIMIT RESET] Общая ошибка: {e}")
+                    raise
+                
+                return stats
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            stats = loop.run_until_complete(process_resets())
+        finally:
+            loop.close()
+        
+        logger.info(f"[LIMIT RESET] Обработка завершена: {stats}")
+        return {
+            "success": True,
+            "stats": stats
+        }
+        
+    except Exception as exc:
+        logger.error(f"[LIMIT RESET] Критическая ошибка: {exc}")
         return {
             "success": False,
             "error": str(exc)
