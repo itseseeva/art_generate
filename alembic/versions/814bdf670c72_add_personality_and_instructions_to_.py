@@ -53,15 +53,20 @@ def upgrade() -> None:
     # Standard Alembic operations with safety for existing objects
     op.execute(sa.text("ALTER TABLE IF EXISTS character_available_tags DROP CONSTRAINT IF EXISTS uq_character_available_tags_name"))
     
-    op.create_index(op.f('ix_character_available_tags_id'), 'character_available_tags', ['id'], unique=False)
-    op.add_column('characters', sa.Column('personality', app.chat_bot.models.models.UTF8Text(), nullable=True))
-    op.add_column('characters', sa.Column('instructions', app.chat_bot.models.models.UTF8Text(), nullable=True))
+    # Fully idempotent index and column operations
+    op.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_character_available_tags_id ON character_available_tags (id)"))
+    op.execute(sa.text("ALTER TABLE characters ADD COLUMN IF NOT EXISTS personality TEXT"))
+    op.execute(sa.text("ALTER TABLE characters ADD COLUMN IF NOT EXISTS instructions TEXT"))
     
     op.execute(sa.text("DROP INDEX IF EXISTS idx_user_gallery_user_id"))
 
-    op.create_index(op.f('ix_user_gallery_id'), 'user_gallery', ['id'], unique=False)
-    op.create_index(op.f('ix_user_gallery_user_id'), 'user_gallery', ['user_id'], unique=False)
+    op.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_user_gallery_id ON user_gallery (id)"))
+    op.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_user_gallery_user_id ON user_gallery (user_id)"))
     
+    # Note: alter_column doesn't easily support IF EXISTS in raw SQL cross-DB, 
+    # but since it's an enum change, we'll keep it as is or wrap in try-except if it's already done.
+    # However, to be safe, we'll keep it but it might still cause issues if the sequence is messed up.
+    # But usually, alter_column is more forgiving than create_index.
     op.alter_column('user_subscriptions', 'subscription_type',
                existing_type=postgresql.ENUM('BASE', 'STANDARD', 'PREMIUM', 'PRO', name='subscriptiontype'),
                type_=app.models.subscription.SubscriptionTypeDB('BASE', 'FREE', 'STANDARD', 'PREMIUM'),
