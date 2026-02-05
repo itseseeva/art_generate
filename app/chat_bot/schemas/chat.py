@@ -251,6 +251,9 @@ class CharacterInDB(CharacterConfig):
     dislikes: Optional[int] = Field(None, description="Количество дизлайков")
     views: Optional[int] = Field(None, description="Количество просмотров")
     comments: Optional[int] = Field(None, description="Количество комментариев")
+    creator_username: Optional[str] = Field(None, description="Username создателя персонажа")
+    paid_album_photos_count: Optional[int] = Field(0, description="Количество фотографий в платном альбоме")
+    paid_album_preview_urls: Optional[List[str]] = Field(default_factory=list, description="URLs превью фотографий платного альбома")
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -1230,34 +1230,16 @@ const MessageComponent: React.FC<MessageProps> = ({
             const photos = data.images || [];
             const normalizedMessageUrl = normalizeUrl(message.imageUrl!);
 
-            const photoExists = photos.some((photo: any) => {
+            const photoExistsInAlbum = photos.some((photo: any) => {
               if (!photo) return false;
-
-              // Поддерживаем разные форматы: photo.url, photo.image_url, photo.photo_url
               const photoUrl = photo.url || photo.image_url || photo.photo_url;
               if (!photoUrl) return false;
-
-              // Точное совпадение
               if (photoUrl === message.imageUrl) return true;
-
-              // Нормализованное сравнение
               const normalizedPhotoUrl = normalizeUrl(photoUrl);
-              if (normalizedPhotoUrl === normalizedMessageUrl) return true;
-
-              // Сравнение без учета протокола и домена (только путь)
-              const messagePath = message.imageUrl!.split('?')[0].split('#')[0];
-              const photoPath = photoUrl.split('?')[0].split('#')[0];
-              if (messagePath === photoPath) return true;
-
-              // Сравнение последней части пути (имя файла)
-              const messageFileName = messagePath.split('/').pop();
-              const photoFileName = photoPath.split('/').pop();
-              if (messageFileName && photoFileName && messageFileName === photoFileName) return true;
-
-              return false;
+              return normalizedPhotoUrl === normalizedMessageUrl;
             });
 
-            if (photoExists) {
+            if (photoExistsInAlbum) {
               setIsAddedToPaidAlbum(true);
             }
           }
@@ -1267,7 +1249,10 @@ const MessageComponent: React.FC<MessageProps> = ({
       }, 500);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Не удалось добавить фото в платный альбом';
-      setErrorModalMessage(errorMessage);
+      // Если это ошибка подписки, ChatContainer покажет стильную модалку, так что здесь ничего не делаем
+      if (errorMessage !== 'SUBSCRIPTION_REQUIRED') {
+        setErrorModalMessage(errorMessage);
+      }
       // Не устанавливаем isAddedToPaidAlbum в true при ошибке
     } finally {
       setIsAddingToPaidAlbum(false);
@@ -1286,12 +1271,11 @@ const MessageComponent: React.FC<MessageProps> = ({
       await onAddToGallery(message.imageUrl!, characterName);
       setIsAddedToGallery(true);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Не удалось добавить фото в альбом');
+      // Игнорируем или показываем alert
     } finally {
       setIsAddingToGallery(false);
     }
   };
-
 
   // Для прогресса генерации - отображаем БЕЗ MessageContent контейнера (прозрачный фон)
   // Убираем аватар при генерации фото

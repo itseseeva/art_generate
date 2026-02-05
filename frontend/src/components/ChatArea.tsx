@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import { Message } from './Message';
+import { CharacterInfoBlock } from './CharacterInfoBlock';
 
 // --- Обновленный стиль контейнера ---
 const MessagesContainer = styled.div`
@@ -116,7 +117,7 @@ const RoleSituationCard = styled.div`
   align-items: center;
   justify-content: center;
   padding: ${theme.spacing.xl};
-  margin: ${theme.spacing.xl} auto;
+  margin: ${theme.spacing.xl} auto 0 auto;
   background: linear-gradient(135deg, rgba(30, 30, 30, 0.8) 0%, rgba(20, 20, 20, 0.9) 100%);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -185,6 +186,7 @@ interface ChatAreaProps {
   selectedVoiceUrl?: string | null;
   onSelectVoice?: (voiceId: string | null, voiceUrl: string | null) => void;
   onOutOfLimits?: (type: 'messages' | 'photos' | 'voice') => void;
+  character?: any;
   [key: string]: any;
 }
 
@@ -210,6 +212,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   selectedVoiceUrl,
   onSelectVoice,
   onOutOfLimits,
+  character,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -270,6 +273,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               <h3>Ролевая ситуация</h3>
               <p>{characterSituation}</p>
             </RoleSituationCard>
+          )}
+
+          {character && (
+            <CharacterInfoBlock character={character} />
           )}
 
           {messages && messages.length > 0 && messages.map((message, index) => {

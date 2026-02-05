@@ -1,7 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, AlertTriangle } from 'lucide-react';
+import { Shield, Flame } from 'lucide-react';
 
 const ModalOverlay = styled(motion.div)`
   position: fixed;
@@ -61,7 +61,7 @@ const OptionsContainer = styled.div`
   }
 `;
 
-const OptionButton = styled(motion.button)<{ $isSelected: boolean; $variant: 'safe' | 'nsfw' }>`
+const OptionButton = styled(motion.button) <{ $isSelected: boolean; $variant: 'safe' | 'nsfw' }>`
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -69,11 +69,11 @@ const OptionButton = styled(motion.button)<{ $isSelected: boolean; $variant: 'sa
   gap: 16px;
   flex: 1;
   padding: 16px 32px;
-  background: ${props => 
-    props.$isSelected 
-      ? (props.$variant === 'safe' 
-          ? 'rgba(34, 197, 94, 0.15)' 
-          : 'rgba(239, 68, 68, 0.15)')
+  background: ${props =>
+    props.$isSelected
+      ? (props.$variant === 'safe'
+        ? 'rgba(34, 197, 94, 0.15)'
+        : 'rgba(239, 68, 68, 0.15)')
       : 'rgba(40, 40, 50, 0.6)'
   };
   border: none;
@@ -104,11 +104,11 @@ const OptionButton = styled(motion.button)<{ $isSelected: boolean; $variant: 'sa
   }
 
   &:hover {
-    background: ${props => 
-      props.$variant === 'safe' 
-        ? 'rgba(34, 197, 94, 0.2)' 
-        : 'rgba(239, 68, 68, 0.2)'
-    };
+    background: ${props =>
+    props.$variant === 'safe'
+      ? 'rgba(34, 197, 94, 0.2)'
+      : 'rgba(239, 68, 68, 0.2)'
+  };
     transform: translateY(-2px);
     box-shadow: 
       0 6px 24px rgba(0, 0, 0, 0.3),
@@ -134,14 +134,14 @@ const OptionIcon = styled.div<{ $variant: 'safe' | 'nsfw' }>`
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  background: ${props => 
-    props.$variant === 'safe' 
-      ? 'rgba(34, 197, 94, 0.2)' 
+  background: ${props =>
+    props.$variant === 'safe'
+      ? 'rgba(34, 197, 94, 0.2)'
       : 'rgba(239, 68, 68, 0.2)'
   };
-  color: ${props => 
-    props.$variant === 'safe' 
-      ? 'rgba(34, 197, 94, 1)' 
+  color: ${props =>
+    props.$variant === 'safe'
+      ? 'rgba(34, 197, 94, 1)'
       : 'rgba(239, 68, 68, 1)'
   };
   flex-shrink: 0;
@@ -241,7 +241,7 @@ export const ContentRatingModal: React.FC<ContentRatingModalProps> = ({
                 whileTap={{ scale: 0.98 }}
               >
                 <OptionIcon $variant="nsfw">
-                  <AlertTriangle size={24} />
+                  <Flame size={24} />
                 </OptionIcon>
                 <OptionContent>
                   <OptionTitle>

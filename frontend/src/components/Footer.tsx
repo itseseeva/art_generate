@@ -77,6 +77,24 @@ const FooterLink = styled.a`
   }
 `;
 
+const SeoContainer = styled.div`
+  width: 100%;
+  max-width: 1200px;
+  margin: 1rem auto 0;
+  padding: 0 1rem;
+  opacity: 0.1; /* Almost hidden but present in DOM for SEO */
+  pointer-events: none; /* Non-interactive */
+  height: 1px;
+  overflow: hidden;
+`;
+
+const SeoText = styled.p`
+  font-size: 1px;
+  color: transparent;
+  margin: 0;
+  line-height: 1;
+`;
+
 export const Footer: React.FC = () => {
   return (
     <FooterContainer>
@@ -95,6 +113,11 @@ export const Footer: React.FC = () => {
         <FooterSeparator>|</FooterSeparator>
         <FooterText>Крецу Василе, ИНН: 772426525886</FooterText>
       </FooterContent>
+      <SeoContainer>
+        <SeoText>
+          Cherry Lust — это современный чат бот с ИИ, где доступны ии чаты с девушками 18 и аниме персонажами на русском языке. Мы предлагаем бесплатный чат с ии без ограничений, чтобы вы могли наслаждаться ролевыми играми с виртуальными персонажами с фото в любое время.
+        </SeoText>
+      </SeoContainer>
     </FooterContainer>
   );
 };

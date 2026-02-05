@@ -23,6 +23,9 @@ import { ModelSelectorModal } from './ModelSelectorModal';
 import { ModelAccessDeniedModal } from './ModelAccessDeniedModal';
 import { generationTracker } from '../utils/generationTracker';
 import { BoosterOfferModal } from './BoosterOfferModal';
+import { CharacterInfoBlock } from './CharacterInfoBlock';
+import { PaidAlbumPurchaseModal } from './PaidAlbumPurchaseModal';
+import { ImageGenerationModal } from './ImageGenerationModal';
 
 const MobileAlbumButtonsContainer = styled.div`
   display: none;
@@ -714,56 +717,6 @@ const PaidAlbumError = styled.div`
   font-size: ${theme.fontSize.xs};
 `;
 
-const UpgradeOverlay = styled.div`
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 12000;
-`;
-
-const UpgradeModal = styled.div`
-  width: min(480px, 92vw);
-  background: rgba(30, 30, 30, 0.95);
-  border: 1px solid rgba(100, 100, 100, 0.3);
-  border-radius: ${theme.borderRadius.xl};
-  padding: ${theme.spacing.xxl};
-  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.8);
-  display: flex;
-  flex-direction: column;
-  gap: ${theme.spacing.lg};
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-`;
-
-const UpgradeModalTitle = styled.h3`
-  margin: 0;
-  color: rgba(240, 240, 240, 1);
-  font-size: ${theme.fontSize['2xl']};
-  font-weight: 700;
-`;
-
-const UpgradeModalText = styled.p`
-  margin: 0;
-  color: rgba(160, 160, 160, 1);
-  line-height: 1.5;
-  font-size: ${theme.fontSize.sm};
-`;
-
-const UpgradeModalActions = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${theme.spacing.md};
-
-  @media (min-width: 640px) {
-    flex-direction: row;
-  }
-`;
-
 interface Message {
   id: string;
   type: 'user' | 'assistant';
@@ -783,6 +736,7 @@ interface Character {
   avatar?: string;
   character_appearance?: string;
   location?: string;
+  prompt?: string;
   voice_url?: string;
   voice_id?: string;  // ID голоса из папки default_character_voices
   user_id?: number;
@@ -811,6 +765,8 @@ interface PaidAlbumStatus {
   character_slug: string;
   unlocked: boolean;
   is_owner: boolean;
+  photos_count?: number;
+  preview_urls?: string[];
 }
 
 interface ChatContainerProps {
@@ -1059,6 +1015,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [modelInfo, setModelInfo] = useState<string>('Загрузка...');
+  const [lockedAlbumPhotos, setLockedAlbumPhotos] = useState<string[]>([]);
 
   // Сбрасываем sessionPrompt при смене персонажа
   useEffect(() => {
@@ -1116,12 +1073,13 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [fetchedSubscriptionType, setFetchedSubscriptionType] = useState<string>('free');
   const [characterPhotos, setCharacterPhotos] = useState<string[]>([]);
+  const [lockedAlbumPhoto, setLockedAlbumPhoto] = useState<string | null>(null);
   const [isCharacterFavorite, setIsCharacterFavorite] = useState<boolean>(false);
   const [isModelSelectorOpen, setIsModelSelectorOpen] = useState(false);
   const [isBoosterOfferOpen, setIsBoosterOfferOpen] = useState(false);
   const [boosterLimitType, setBoosterLimitType] = useState<'messages' | 'photos' | 'voice'>('messages');
   const [isBoosterInfoMode, setIsBoosterInfoMode] = useState(false);
-  const [boosterVariantOverride, setBoosterVariantOverride] = useState<'booster' | 'out_of_limits' | 'info' | 'album_access' | null>(null);
+  const [boosterVariantOverride, setBoosterVariantOverride] = useState<'booster' | 'out_of_limits' | 'info' | 'album_access' | 'album_add' | null>(null);
   const SUBSCRIPTION_STATS_KEY = 'chat_subscription_stats';
 
   const [subscriptionStats, setSubscriptionStatsState] = useState<{
@@ -1419,33 +1377,37 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   // Теперь используем только реальный прогресс из RunPod API
 
   const fetchPaidAlbumStatus = useCallback(async (characterName: string) => {
-    if (!characterName) {
-      setPaidAlbumStatus(null);
-      return;
-    }
+    if (!characterName) return;
 
     const token = authManager.getToken();
-    if (!token) {
-      setPaidAlbumStatus(null);
-      return;
-    }
+    // We fetch status even without token for preview purposes (anonymous access)
 
     try {
       const encodedName = encodeURIComponent(characterName);
-      const response = await authManager.fetchWithAuth(`/api/v1/paid-gallery/${encodedName}/status/`);
-      if (!response.ok) {
-        setPaidAlbumStatus(null);
-        return;
-      }
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/paid-gallery/${encodedName}/status/`, {
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : ''
+        }
+      });
+      if (!response.ok) return;
 
       const data = await response.json();
       setPaidAlbumStatus(data);
+
+      // Only update if we have actual data to prevent flickering
+      if (data && !data.unlocked && !data.is_owner && (data.photos_count || 0) > 0) {
+        if (data.preview_urls && data.preview_urls.length > 0) {
+          setLockedAlbumPhotos(data.preview_urls);
+        }
+      } else if (data?.unlocked || data?.is_owner) {
+        setLockedAlbumPhotos([]);
+      }
+
       if (data?.unlocked || data?.is_owner) {
         setPaidAlbumError(null);
       }
     } catch (error) {
-
-      setPaidAlbumStatus(null);
+      // Keep existing state on error
     }
   }, []);
 
@@ -1570,17 +1532,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       return;
     }
 
-    if (isAuthenticated) {
-      const identifier = currentCharacter.raw?.name || currentCharacter.name;
-      if (identifier && lastPaidAlbumStatusRef.current !== identifier) {
-        lastPaidAlbumStatusRef.current = identifier;
-        fetchPaidAlbumStatus(identifier);
-      }
-    } else {
+    // Запрашиваем новый статус при смене персонажа (даже для неавторизованных, чтобы видеть превью)
+    const identifier = (currentCharacter as any).slug || currentCharacter.raw?.name || currentCharacter.name;
+    if (identifier && lastPaidAlbumStatusRef.current !== identifier) {
+      // Only clear state if character actually changed
       setPaidAlbumStatus(null);
-      lastPaidAlbumStatusRef.current = null;
+      setLockedAlbumPhotos([]);
+
+      lastPaidAlbumStatusRef.current = identifier;
+      fetchPaidAlbumStatus(identifier);
     }
-  }, [currentCharacter?.name, currentCharacter?.raw?.name, isAuthenticated, balanceRefreshTrigger]);
+  }, [currentCharacter?.name, currentCharacter?.raw?.name, isAuthenticated]);
 
   // Храним связь между taskId и messageId для обновления сообщений
   const taskIdToMessageIdRef = useRef<Map<string, string>>(new Map());
@@ -2763,7 +2725,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       generationFailed = true;
       stopPlaceholderProgress(assistantMessageId);
       const errorMessage = error instanceof Error ? error.message : 'Ошибка генерации изображения';
-      const isPhotoLimit = /лимит генераций|лимита подписки для генерации|недостаточно монет для генерации/i.test(errorMessage);
+      const isPhotoLimit = /лимита?.*генераци|лимита подписки для генерации|недостаточно монет для генерации/i.test(errorMessage);
       if (isPhotoLimit) {
         setBoosterLimitType('photos');
         setIsBoosterOfferOpen(true);
@@ -3795,10 +3757,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       return;
     }
 
-    if (normalizedSubscriptionType === 'free' && !paidAlbumStatus?.unlocked) {
-      setPaidAlbumError(`Откройте доступ к альбому, оплатив ${PAID_ALBUM_COST} кредитов, или оформите подписку Standard/Premium.`);
-      return;
-    }
+
 
     if (onOpenPaidAlbum) {
       onOpenPaidAlbum(currentCharacter);
@@ -3906,6 +3865,14 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       throw new Error('Необходима авторизация');
     }
 
+    // Проверка подписки перед добавлением в альбом
+    if (normalizedSubscriptionType !== 'standard' && normalizedSubscriptionType !== 'premium') {
+      setBoosterVariantOverride('album_add');
+      setIsBoosterOfferOpen(true);
+      // Бросаем специфическую ошибку, которую Message.tsx сможет проигнорировать
+      throw new Error('SUBSCRIPTION_REQUIRED');
+    }
+
     const token = authManager.getToken();
     if (!token) {
       setIsAuthModalOpen(true);
@@ -3927,7 +3894,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
       if (!currentPhotosResponse.ok) {
         if (currentPhotosResponse.status === 403) {
-          throw new Error('Сначала разблокируйте платный альбом персонажа');
+          setBoosterVariantOverride('album_add');
+          setIsBoosterOfferOpen(true);
+          throw new Error('SUBSCRIPTION_REQUIRED');
         }
         throw new Error('Не удалось получить текущие фото альбома');
       }
@@ -3984,7 +3953,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
       throw error;
     }
-  }, [isAuthenticated, fetchPaidAlbumStatus]);
+  }, [isAuthenticated, normalizedSubscriptionType, fetchPaidAlbumStatus]);
 
   const handleAddToGallery = useCallback(async (imageUrl: string, characterName: string) => {
     if (!isAuthenticated) {
@@ -4153,21 +4122,28 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const albumCharacterName = currentCharacter?.display_name || currentCharacter?.name || '';
   const userCoins = userInfo?.coins ?? 0;
   const isPaidAlbumUnlocked = useMemo(() => {
-    if (paidAlbumStatus?.unlocked) {
-      return true;
+    // ВАЖНО: Если статус еще не загружен — считаем заблокированным (предотвращаем мерцание)
+    // До того как придут данные от сервера, мы всегда показываем замок (если это не наш персонаж)
+    const isUnlocked = (() => {
+      if (!paidAlbumStatus) return false;
+      if (paidAlbumStatus.unlocked) return true;
+      if (paidAlbumStatus.is_owner && normalizedSubscriptionType !== 'free') return true;
+      if (normalizedSubscriptionType === 'premium') return true;
+      return false;
+    })();
+
+    // Логируем для отладки
+    if (paidAlbumStatus && currentCharacter) {
+      console.log('[DEBUG_ALBUM_STATUS]', {
+        char: currentCharacter.name,
+        isUnlocked,
+        status: paidAlbumStatus,
+        sub: normalizedSubscriptionType
+      });
     }
 
-    if (paidAlbumStatus?.is_owner && normalizedSubscriptionType !== 'free') {
-      return true;
-    }
-
-    // Для PREMIUM пользователей альбомы всегда открыты
-    if (normalizedSubscriptionType === 'premium') {
-      return true;
-    }
-
-    return false;
-  }, [paidAlbumStatus?.unlocked, paidAlbumStatus?.is_owner, normalizedSubscriptionType]);
+    return isUnlocked;
+  }, [paidAlbumStatus, normalizedSubscriptionType, currentCharacter?.id]);
   const canExpandAlbum = Boolean(paidAlbumStatus?.is_owner && canCreatePaidAlbum);
 
   // КРИТИЧЕСКИ ВАЖНО: Guard clauses для предотвращения белого экрана
@@ -4357,7 +4333,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 if (canCreatePaidAlbum) {
                   handleOpenPaidAlbumBuilderView();
                 } else {
-                  setIsUpgradeModalOpen(true);
+                  setBoosterVariantOverride('album_add');
+                  setIsBoosterOfferOpen(true);
                 }
               }}
             >
@@ -4400,6 +4377,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               selectedVoiceUrl={selectedVoiceUrl}
               onSelectVoice={saveSelectedVoice}
               onOutOfLimits={handleOutOfLimits}
+              character={characterForRender}
             />
 
             {error && (
@@ -4565,13 +4543,41 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                       }
                     }}
                     onPaidAlbum={() => {
-                      if (onOpenPaidAlbum && currentCharacter) {
-                        onOpenPaidAlbum(currentCharacter);
+                      // Если данных еще нет, считаем заблокированным (для безопасности)
+                      const isLocked = !isPaidAlbumUnlocked && (paidAlbumStatus ? (paidAlbumStatus.photos_count || 0) > 0 : true);
+                      if (isLocked && normalizedSubscriptionType !== 'standard' && normalizedSubscriptionType !== 'premium') {
+                        handleUnlockPaidAlbum();
                       } else {
-                        handleOpenPaidAlbumView();
+                        if (onOpenPaidAlbum && currentCharacter) {
+                          onOpenPaidAlbum(currentCharacter);
+                        } else {
+                          handleOpenPaidAlbumView();
+                        }
                       }
                     }}
+                    isLocked={!isPaidAlbumUnlocked && (paidAlbumStatus ? (paidAlbumStatus.photos_count || 0) > 0 : true)}
+                    lockedAlbumPhotos={lockedAlbumPhotos}
+                    key={`card_${currentCharacter.id}_${isPaidAlbumUnlocked}_${!!paidAlbumStatus}`}
                   />
+
+                  {/* CharacterInfoBlock moved to ChatArea */}
+
+                  {/* SEO JSON-LD */}
+                  <script type="application/ld+json">
+                    {JSON.stringify({
+                      "@context": "https://schema.org",
+                      "@type": "CreativeWork",
+                      "name": `Чат с ИИ ${currentCharacter.name}`,
+                      "description": currentCharacter.description || `Виртуальный чат с персонажем ${currentCharacter.name}`,
+                      "image": currentCharacter.avatar,
+                      "author": {
+                        "@type": "Organization",
+                        "name": "Cherry Lust"
+                      },
+                      "genre": "AI Roleplay Chat",
+                      "url": window.location.href
+                    })}
+                  </script>
                 </CharacterCardWrapper>
               )}
 
@@ -4672,7 +4678,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                           </PaidAlbumButton>
                         )}
                         <PaidAlbumButton
-                          onClick={() => setIsUpgradeModalOpen(true)}
+                          onClick={() => {
+                            setBoosterVariantOverride('album_add');
+                            setIsBoosterOfferOpen(true);
+                          }}
                         >
                           <Sparkles />
                           Расширить альбом
@@ -4683,10 +4692,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                   }
 
                   // Для FREE подписки показываем обычную кнопку разблокировки и ниже "Расширить альбом"
-                  // Для PREMIUM показываем "Открыть" вместо "Разблокировать"
+                  // Для PREMIUM и STANDARD показываем "Открыть" вместо "Разблокировать"
                   return (
                     <>
-                      {isPaidAlbumUnlocked || (normalizedSubscriptionType as string) === 'premium' ? (
+                      {isPaidAlbumUnlocked || (normalizedSubscriptionType as string) === 'premium' || (normalizedSubscriptionType as string) === 'standard' ? (
                         <PaidAlbumButton
                           $variant="secondary"
                           onClick={handleOpenPaidAlbumView}
@@ -4713,14 +4722,14 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                         </PaidAlbumButton>
                       )}
                       <PaidAlbumButton
-                        onClick={() => setIsUpgradeModalOpen(true)}
+                        onClick={() => {
+                          setBoosterVariantOverride('album_add');
+                          setIsBoosterOfferOpen(true);
+                        }}
                       >
                         <Sparkles />
                         Расширить альбом
                       </PaidAlbumButton>
-                      <PaidAlbumInfo>
-                        Доступно кредитов: {userCoins}. Разблокировка за {PAID_ALBUM_COST} кредитов.
-                      </PaidAlbumInfo>
                       {paidAlbumError && <PaidAlbumError>{paidAlbumError}</PaidAlbumError>}
                     </>
                   );
@@ -4728,10 +4737,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
                 // Обычный пользователь, альбом не разблокирован
                 // Но если пользователь является создателем, показываем кнопку "Расширить альбом" ниже
-                // Для PREMIUM показываем "Открыть" вместо "Разблокировать"
+                // Для PREMIUM и STANDARD показываем "Открыть" вместо "Разблокировать"
                 return (
                   <>
-                    {isPaidAlbumUnlocked || (normalizedSubscriptionType as string) === 'premium' ? (
+                    {isPaidAlbumUnlocked || (normalizedSubscriptionType as string) === 'premium' || (normalizedSubscriptionType as string) === 'standard' ? (
                       <PaidAlbumButton
                         $variant="secondary"
                         onClick={handleOpenPaidAlbumView}
@@ -4764,7 +4773,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                           if (canCreatePaidAlbum) {
                             handleOpenPaidAlbumBuilderView();
                           } else {
-                            setIsUpgradeModalOpen(true);
+                            setBoosterVariantOverride('album_add');
+                            setIsBoosterOfferOpen(true);
                           }
                         }}
                       >
@@ -4772,25 +4782,24 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                         Расширить альбом
                       </PaidAlbumButton>
                     )}
-                    <PaidAlbumInfo>
-                      Доступно кредитов: {userCoins}. Разблокировка за {PAID_ALBUM_COST} кредитов.
-                    </PaidAlbumInfo>
                     {paidAlbumError && <PaidAlbumError>{paidAlbumError}</PaidAlbumError>}
                   </>
                 );
               })()}
 
-              {/* Кнопка "Показать бустер" */}
-              <ShowBoosterButton
-                onClick={() => {
-                  setBoosterLimitType('messages');
-                  setIsBoosterInfoMode(true);
-                  setIsBoosterOfferOpen(true);
-                }}
-              >
-                <Sparkles />
-                Показать бустер
-              </ShowBoosterButton>
+              {/* Кнопка "Показать бустер" - только для админов */}
+              {userInfo?.is_admin === true && (
+                <ShowBoosterButton
+                  onClick={() => {
+                    setBoosterLimitType('messages');
+                    setIsBoosterInfoMode(true);
+                    setIsBoosterOfferOpen(true);
+                  }}
+                >
+                  <Sparkles />
+                  Показать бустер
+                </ShowBoosterButton>
+              )}
 
             </PaidAlbumPanel>
           )}
@@ -4798,35 +4807,19 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       </MainContent>
 
       {isUpgradeModalOpen && (
-        <UpgradeOverlay onClick={() => setIsUpgradeModalOpen(false)}>
-          <UpgradeModal onClick={(e) => e.stopPropagation()}>
-            <UpgradeModalTitle>
-              {normalizedSubscriptionType === 'base'
-                ? 'Платные альбомы недоступны'
-                : 'Разблокировка альбома недоступна'}
-            </UpgradeModalTitle>
-            <UpgradeModalText>
-              {' '}
-              {normalizedSubscriptionType === 'base'
-                ? 'Платные альбомы доступны только для подписчиков Standard и Premium. Оформите подписку, чтобы создавать и расширять платные альбомы.'
-                : 'Разблокировка и добавление фотографий в альбом доступны только подписчикам Standard и Premium. Оформите подписку, чтобы получить доступ к этой функции.'}
-            </UpgradeModalText>
-            <UpgradeModalActions>
-              <PaidAlbumButton onClick={() => {
-                setIsUpgradeModalOpen(false);
-                onShop?.();
-              }}>
-                {normalizedSubscriptionType === 'base' ? 'Перейти в магазин' : 'Оформить подписку'}
-              </PaidAlbumButton>
-              <PaidAlbumButton
-                $variant="secondary"
-                onClick={() => setIsUpgradeModalOpen(false)}
-              >
-                Понятно
-              </PaidAlbumButton>
-            </UpgradeModalActions>
-          </UpgradeModal>
-        </UpgradeOverlay>
+        <PaidAlbumPurchaseModal
+          isOpen={isUpgradeModalOpen}
+          onClose={() => setIsUpgradeModalOpen(false)}
+          onPurchase={async () => {
+            // Для владельцев персонажей это окно показывается только для информации
+            // что нужна подписка для создания альбомов
+            setIsUpgradeModalOpen(false);
+          }}
+          onOpenShop={onShop}
+          characterName={currentCharacter?.name || ''}
+          subscriptionType={normalizedSubscriptionType}
+          userCoins={userCoins}
+        />
       )}
 
       {/* Модальное окно помощи по генерации фото */}
@@ -4836,325 +4829,45 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       />
 
       {/* Модалка для ввода промпта генерации */}
-      {isImagePromptModalOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.75)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 10000,
-          backdropFilter: 'blur(12px)',
-          padding: isMobile ? '10px' : '0'
-        }}>
-          <div style={{
-            background: 'rgba(20, 20, 25, 0.85)',
-            backdropFilter: 'blur(20px)',
-            padding: isMobile ? '1.5rem' : '2rem',
-            borderRadius: '16px',
-            maxWidth: '900px',
-            width: isMobile ? '100%' : '90%',
-            border: '1px solid rgba(255, 255, 255, 0.15)',
-            boxShadow: '0 25px 50px rgba(0, 0, 0, 0.9)',
-            maxHeight: isMobile ? '90vh' : 'auto',
-            overflowY: isMobile ? 'auto' : 'visible',
-            display: 'flex',
-            flexDirection: 'column'
-          }}>
-            <h3 style={{ color: '#fff', marginBottom: '1rem', fontSize: isMobile ? '1.25rem' : '1.5rem' }}>
-              Генерация фото персонажа
-            </h3>
-            <p style={{ color: '#aaa', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
-              Стоимость: 30 монет. Опишите желаемое изображение или отредактируйте предзаполненный промпт.
-            </p>
-            <div style={{ marginBottom: '1.5rem' }}>
-              <label style={{
-                color: '#fff',
-                fontSize: '0.9rem',
-                marginBottom: '0.75rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem'
-              }}>
-                <FiSettings size={14} /> Выберите стиль
-              </label>
-              <ModelSelectionContainer>
-                <ModelCard
-                  $isSelected={selectedModel === 'anime-realism'}
-                  $previewImage="/анимереализм.jpg"
-                  onClick={() => setSelectedModel('anime-realism')}
-                >
-                  <ModelInfoOverlay>
-                    <ModelName>Аниме + Реализм</ModelName>
-                    <ModelDescription>Сбалансированный стиль</ModelDescription>
-                  </ModelInfoOverlay>
-                </ModelCard>
-
-                <ModelCard
-                  $isSelected={selectedModel === 'anime'}
-                  $previewImage="/аниме.png"
-                  onClick={() => setSelectedModel('anime')}
-                >
-                  <ModelInfoOverlay>
-                    <ModelName>Аниме</ModelName>
-                    <ModelDescription>Классический 2D стиль</ModelDescription>
-                  </ModelInfoOverlay>
-                </ModelCard>
-              </ModelSelectionContainer>
-            </div>
-            <textarea
-              value={imagePromptInput}
-              onChange={(e) => setImagePromptInput(e.target.value)}
-              placeholder="Опишите желаемое изображение..."
-              style={{
-                width: '100%',
-                minHeight: isMobile ? '120px' : '200px',
-                padding: '1rem',
-                background: 'rgba(15, 15, 20, 0.7)',
-                backdropFilter: 'blur(10px)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                borderRadius: '8px',
-                color: '#fff',
-                fontSize: '1rem',
-                resize: 'vertical',
-                marginBottom: '0.5rem',
-                fontFamily: 'inherit'
-              }}
-            />
-
-            {/* Теги-помощники */}
-            <div style={{ position: 'relative', marginBottom: '1.5rem' }}>
-              <TagsContainer $isExpanded={isTagsExpanded}>
-                {[
-                  // Нормальные промпты
-                  { label: 'Высокая детализация', value: 'высокая детализация, реализм, 8к разрешение' },
-                  { label: 'Киберпанк', value: 'стиль киберпанк, неоновое освещение, футуристично' },
-                  { label: 'Фэнтези', value: 'фэнтези стиль, магическая атмосфера' },
-                  { label: 'Портрет', value: 'крупный план, детальное лицо, выразительный взгляд' },
-                  { label: 'В полный рост', value: 'в полный рост, изящная поза' },
-                  { label: 'Аниме стиль', value: 'красивый аниме стиль, четкие линии, яркие цвета' },
-                  { label: 'Реализм', value: 'фотореалистично, натуральные текстуры кожи' },
-                  { label: 'Кинематографично', value: 'кинематографичный свет, глубокие тени, драматично' },
-                  { label: 'На пляже', value: 'на берегу океана, золотой песок, закатное солнце' },
-                  { label: 'В городе', value: 'на оживленной улице города, ночные огни, боке' },
-                  { label: 'В лесу', value: 'в сказочном лесу, лучи солнца сквозь листву' },
-                  { label: 'Офисный стиль', value: 'в строгом офисном костюме, деловая обстановка' },
-                  { label: 'Летнее платье', value: 'в легком летнем платье, летящая ткань' },
-                  { label: 'Вечерний свет', value: 'мягкий вечерний свет, теплые тона' },
-                  { label: 'Зима', value: 'зимний пейзаж, падающий снег, меховая одежда' },
-                  { label: 'Элегантный образ', value: 'элегантная поза, утонченный стиль, изысканность' },
-                  { label: 'Портрет крупным планом', value: 'крупный план лица, выразительный взгляд, детализированные черты' },
-                  { label: 'В парке', value: 'в городском парке, зеленая трава, солнечный свет' },
-                  { label: 'В кафе', value: 'в уютном кафе, теплая атмосфера, приятная обстановка' },
-                  { label: 'На природе', value: 'на природе, свежий воздух, красивые пейзажи' },
-                  { label: 'Вечерний наряд', value: 'в красивом вечернем наряде, элегантный стиль' },
-                  { label: 'Повседневный образ', value: 'в повседневной одежде, комфортный стиль' },
-                  { label: 'Спортивный стиль', value: 'в спортивной одежде, активный образ жизни' },
-                  { label: 'Романтичная атмосфера', value: 'романтичная обстановка, мягкое освещение, уют' }
-                ].map((tag, idx) => (
-                  <TagButton
-                    key={idx}
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      const separator = imagePromptInput.length > 0 && !imagePromptInput.endsWith(', ') && !imagePromptInput.endsWith(',') ? ', ' : '';
-                      const newValue = imagePromptInput + separator + tag.value;
-                      setImagePromptInput(newValue);
-                    }}
-                  >
-                    <Plus size={10} /> {tag.label}
-                  </TagButton>
-                ))}
-              </TagsContainer>
-              <ExpandButton
-                $isExpanded={isTagsExpanded}
-                onClick={() => setIsTagsExpanded(!isTagsExpanded)}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
-              </ExpandButton>
-            </div>
-            <div style={{
-              display: 'flex',
-              gap: '1rem',
-              flexDirection: isMobile ? 'column' : 'row'
-            }}>
-              <button
-                onClick={() => {
-                  // Сброс промпта к дефолтным данным из БД
-                  const characterForData = currentCharacter || initialCharacter;
-                  const appearance = (characterForData as any)?.character_appearance
-                    || (characterForData as any)?.raw?.character_appearance
-                    || (characterForData as any)?.appearance
-                    || '';
-                  const location = (characterForData as any)?.location
-                    || (characterForData as any)?.raw?.location
-                    || '';
-                  const parts = [appearance, location].filter(p => p && p.trim());
-                  const defaultPrompt = parts.length > 0 ? parts.join('\n') : '';
-                  setImagePromptInput(defaultPrompt);
-                  setSessionPrompt(null); // Сбрасываем сохраненный промпт
-                }}
-                style={{
-                  padding: '0.5rem 1rem',
-                  background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.9), rgba(99, 102, 241, 0.9))',
-                  border: '1px solid rgba(139, 92, 246, 0.6)',
-                  borderRadius: '8px',
-                  color: '#fff',
-                  fontSize: '0.875rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  width: isMobile ? '100%' : 'auto',
-                  order: isMobile ? 3 : 1,
-                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3), 0 0 15px rgba(139, 92, 246, 0.2)',
-                  position: 'relative',
-                  overflow: 'hidden'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(139, 92, 246, 1), rgba(99, 102, 241, 1))';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 8px 24px rgba(139, 92, 246, 0.4)';
-                  e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.9)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(139, 92, 246, 0.9), rgba(99, 102, 241, 0.9))';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.3), 0 0 15px rgba(139, 92, 246, 0.2)';
-                  e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.6)';
-                }}
-                onMouseDown={(e) => {
-                  e.currentTarget.style.transform = 'scale(0.98)';
-                }}
-                onMouseUp={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                }}
-              >
-                Сбросить
-              </button>
-              <button
-                onClick={() => {
-                  // Проверяем очередь только при клике
-                  if (activeGenerations.size >= getGenerationQueueLimit) {
-                    setError(`Максимум ${getGenerationQueueLimit} ${getGenerationQueueLimit === 1 ? 'фото может' : 'фото могут'} генерироваться одновременно. Дождитесь завершения текущих генераций.`);
-                    return;
-                  }
-                  if (imagePromptInput.trim()) {
-                    // Сохраняем промпт в sessionPrompt перед генерацией
-                    const promptToSave = imagePromptInput.trim();
-                    setSessionPrompt(promptToSave);
-                    setIsImagePromptModalOpen(false);
-                    handleGenerateImage(promptToSave);
-                  }
-                }}
-                disabled={!imagePromptInput.trim()}
-                style={{
-                  flex: 1,
-                  padding: '0.5rem 1rem',
-                  background: !imagePromptInput.trim()
-                    ? 'rgba(60, 60, 60, 0.5)'
-                    : 'linear-gradient(135deg, rgba(234, 179, 8, 0.9), rgba(251, 191, 36, 0.9))',
-                  border: !imagePromptInput.trim()
-                    ? '1px solid rgba(80, 80, 80, 0.5)'
-                    : '1px solid rgba(251, 191, 36, 0.6)',
-                  borderRadius: '8px',
-                  color: !imagePromptInput.trim() ? 'rgba(150, 150, 150, 0.5)' : '#1a1a1a',
-                  fontSize: '0.875rem',
-                  fontWeight: 600,
-                  cursor: !imagePromptInput.trim()
-                    ? 'not-allowed'
-                    : 'pointer',
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  opacity: !imagePromptInput.trim() ? 0.6 : 1,
-                  width: isMobile ? '100%' : 'auto',
-                  order: isMobile ? 1 : 2,
-                  boxShadow: !imagePromptInput.trim()
-                    ? 'none'
-                    : '0 4px 6px rgba(0, 0, 0, 0.3), 0 0 15px rgba(234, 179, 8, 0.2)',
-                  position: 'relative',
-                  overflow: 'hidden'
-                }}
-                onMouseEnter={(e) => {
-                  if (imagePromptInput.trim()) {
-                    e.currentTarget.style.background = 'linear-gradient(135deg, rgba(234, 179, 8, 1), rgba(251, 191, 36, 1))';
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(234, 179, 8, 0.4)';
-                    e.currentTarget.style.borderColor = 'rgba(251, 191, 36, 0.9)';
-                    e.currentTarget.style.filter = 'brightness(1.1)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (imagePromptInput.trim()) {
-                    e.currentTarget.style.background = 'linear-gradient(135deg, rgba(234, 179, 8, 0.9), rgba(251, 191, 36, 0.9))';
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.3), 0 0 15px rgba(234, 179, 8, 0.2)';
-                    e.currentTarget.style.borderColor = 'rgba(251, 191, 36, 0.6)';
-                    e.currentTarget.style.filter = 'brightness(1)';
-                  }
-                }}
-                onMouseDown={(e) => {
-                  if (imagePromptInput.trim()) {
-                    e.currentTarget.style.transform = 'scale(0.98)';
-                  }
-                }}
-                onMouseUp={(e) => {
-                  if (imagePromptInput.trim()) {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                  }
-                }}
-              >
-                Сгенерировать
-              </button>
-              <button
-                onClick={() => setIsImagePromptModalOpen(false)}
-                style={{
-                  padding: '0.5rem 1rem',
-                  background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.9), rgba(99, 102, 241, 0.9))',
-                  border: '1px solid rgba(139, 92, 246, 0.6)',
-                  borderRadius: '8px',
-                  color: '#fff',
-                  fontSize: '0.875rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  width: isMobile ? '100%' : 'auto',
-                  order: isMobile ? 2 : 3,
-                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3), 0 0 15px rgba(139, 92, 246, 0.2)',
-                  position: 'relative',
-                  overflow: 'hidden'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(139, 92, 246, 1), rgba(99, 102, 241, 1))';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 8px 24px rgba(139, 92, 246, 0.4)';
-                  e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.9)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(139, 92, 246, 0.9), rgba(99, 102, 241, 0.9))';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.3), 0 0 15px rgba(139, 92, 246, 0.2)';
-                  e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.6)';
-                }}
-                onMouseDown={(e) => {
-                  e.currentTarget.style.transform = 'scale(0.98)';
-                }}
-                onMouseUp={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                }}
-              >
-                Отмена
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ImageGenerationModal
+        isOpen={isImagePromptModalOpen}
+        onClose={() => setIsImagePromptModalOpen(false)}
+        imagePromptInput={imagePromptInput}
+        setImagePromptInput={setImagePromptInput}
+        selectedModel={selectedModel}
+        setSelectedModel={(val) => setSelectedModel(val as any)}
+        isTagsExpanded={isTagsExpanded}
+        setIsTagsExpanded={setIsTagsExpanded}
+        onGenerate={(prompt) => {
+          if (activeGenerations.size >= getGenerationQueueLimit) {
+            setError(`Максимум ${getGenerationQueueLimit} ${getGenerationQueueLimit === 1 ? 'фото может' : 'фото могут'} генерироваться одновременно. Дождитесь завершения текущих генераций.`);
+            return;
+          }
+          if (prompt.trim()) {
+            const promptToSave = prompt.trim();
+            setSessionPrompt(promptToSave);
+            setIsImagePromptModalOpen(false);
+            handleGenerateImage(promptToSave);
+          }
+        }}
+        onReset={() => {
+          const characterForData = currentCharacter || initialCharacter;
+          const appearance = (characterForData as any)?.character_appearance
+            || (characterForData as any)?.raw?.character_appearance
+            || (characterForData as any)?.appearance
+            || '';
+          const location = (characterForData as any)?.location
+            || (characterForData as any)?.raw?.location
+            || '';
+          const parts = [appearance, location].filter((p: string) => p && p.trim());
+          const defaultPrompt = parts.length > 0 ? parts.join('\n') : '';
+          setImagePromptInput(defaultPrompt);
+          setSessionPrompt(null);
+        }}
+        activeGenerationsCount={activeGenerations.size}
+        generationQueueLimit={getGenerationQueueLimit}
+        isMobile={isMobile}
+      />
 
       {isAuthModalOpen && (
         <AuthModal

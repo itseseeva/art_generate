@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, get_current_user_optional
 from app.chat_bot.api.character_endpoints import (
     _character_slug,
     _normalize_main_photos,
@@ -58,6 +58,7 @@ class PaidAlbumStatusResponse(BaseModel):
     unlocked: bool
     is_owner: bool
     photos_count: int = 0
+    preview_urls: list[str] = []
 
 
 class PaidAlbumPhotosRequest(BaseModel):
@@ -69,18 +70,29 @@ class PaidAlbumPhotosRequest(BaseModel):
 async def _get_character_by_slug(db: AsyncSession, character_name: str) -> CharacterDB | None:
     """Возвращает персонажа по имени или слагу."""
     slug = _character_slug(character_name)
+    print(f"[DEBUG_GALLERY] Looking for: '{character_name}', generated slug: '{slug}'")
 
     stmt = select(CharacterDB).where(CharacterDB.name.ilike(character_name))
     result = await db.execute(stmt)
     character = result.scalar_one_or_none()
     if character:
+        print(f"[DEBUG_GALLERY] Found by name: {character.name}")
         return character
 
+    print(f"[DEBUG_GALLERY] Not found by name. Searching by slug match...")
     stmt = select(CharacterDB)
     result = await db.execute(stmt)
-    for candidate in result.scalars():
-        if _character_slug(candidate.name) == slug:
+    all_chars = result.scalars().all()
+    print(f"[DEBUG_GALLERY] Total chars in DB: {len(all_chars)}")
+    
+    for candidate in all_chars:
+        cand_slug = _character_slug(candidate.name)
+        # print(f"[DEBUG_GALLERY] Checking '{candidate.name}' -> '{cand_slug}' vs '{slug}'")
+        if cand_slug == slug:
+            print(f"[DEBUG_GALLERY] Found by slug match: {candidate.name}")
             return candidate
+            
+    print("[DEBUG_GALLERY] Not found at all.")
     return None
 
 
@@ -141,7 +153,7 @@ async def list_unlocked_albums(
 async def get_paid_album_status(
     character: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Users = Depends(get_current_user),
+    current_user: Users = Depends(get_current_user_optional),
 ) -> PaidAlbumStatusResponse:
     """Возвращает статус доступа к платному альбому."""
     character_db = await _get_character_by_slug(db, character)
@@ -149,23 +161,71 @@ async def get_paid_album_status(
         raise HTTPException(status_code=404, detail="Персонаж не найден")
 
     slug = _character_slug(character_db.name)
-    is_owner = bool(character_db.user_id) and character_db.user_id == current_user.id
-    is_unlocked = await _is_album_unlocked(db, current_user.id, slug)
-    is_admin = bool(current_user.is_admin) if current_user.is_admin is not None else False
     
-    # Проверяем подписку STANDARD/PREMIUM - для них все альбомы доступны
+    is_owner = False
+    is_unlocked = False
+    is_admin = False
     has_subscription_access = False
-    from app.services.subscription_service import SubscriptionService
-    subscription_service = SubscriptionService(db)
-    subscription = await subscription_service.get_user_subscription(current_user.id)
     
-    if subscription and subscription.is_active:
-        subscription_type = subscription.subscription_type.value.lower()
-        if subscription_type in ['standard', 'premium']:
-            has_subscription_access = True
+    if current_user:
+        is_owner = bool(character_db.user_id) and character_db.user_id == current_user.id
+        is_unlocked = await _is_album_unlocked(db, current_user.id, slug)
+        is_admin = bool(current_user.is_admin) if current_user.is_admin is not None else False
+        
+        # Проверяем подписку STANDARD/PREMIUM - для них все альбомы доступны
+        from app.services.subscription_service import SubscriptionService
+        subscription_service = SubscriptionService(db)
+        subscription = await subscription_service.get_user_subscription(current_user.id)
+        
+        if subscription and subscription.is_active:
+            subscription_type = subscription.subscription_type.value.lower()
+            if subscription_type in ['standard', 'premium']:
+                has_subscription_access = True
     
     unlocked = bool(is_unlocked or is_owner or is_admin or has_subscription_access)
+    user_id_log = current_user.id if current_user else "Anonymous"
+    print(f"[DEBUG_GALLERY_STATUS] Char: {slug}, User: {user_id_log}, Unlocked: {unlocked}")
+    if current_user:
+        print(f"  -> Reasons: IsUnlocked={is_unlocked}, IsOwner={is_owner}, IsAdmin={is_admin}, HasSub={has_subscription_access}")
+    else:
+        print(f"  -> Reasons: Unauthenticated")
     photos_count = await _get_paid_album_photos_count(db, character_db, slug)
+
+    # Получаем URL первых 3 фото для превью (blur slideshow)
+    preview_urls = []
+    if photos_count > 0:
+        # Сначала проверяем БД
+        from app.chat_bot.models.models import PaidAlbumPhoto
+        
+        photo_stmt = (
+            select(PaidAlbumPhoto)
+            .where(PaidAlbumPhoto.character_id == character_db.id)
+            .order_by(PaidAlbumPhoto.created_at.desc())
+            .limit(3)
+        )
+        photo_result = await db.execute(photo_stmt)
+        db_photos = photo_result.scalars().all()
+        
+        if db_photos:
+            # Возвращаем прямые URL из БД
+            preview_urls = [photo.photo_url for photo in db_photos]
+        else:
+            # Если нет в БД, проверяем файловую систему
+            project_root = Path(__file__).resolve().parents[2]
+            gallery_dir = project_root / "paid_gallery" / slug
+            if gallery_dir.exists() and gallery_dir.is_dir():
+                exts = {".png", ".jpg", ".jpeg", ".webp"}
+                # Берем первые 3 файла
+                for f in sorted(gallery_dir.iterdir()):
+                    if f.is_file() and f.suffix.lower() in exts:
+                        # Локальные файлы все равно нужно отдавать через какой-то путь
+                        # Но если тут только Yandex Cloud, то это не важно
+                        preview_urls.append(f"/paid_gallery/{slug}/{f.name}")
+                        if len(preview_urls) >= 3:
+                            break
+
+
+    print(f"[PREVIEW_URLS] Character: {slug}, Total: {len(preview_urls)}, URLs: {preview_urls}")
 
     return PaidAlbumStatusResponse(
         character=character_db.name,
@@ -173,6 +233,7 @@ async def get_paid_album_status(
         unlocked=unlocked,
         is_owner=is_owner,
         photos_count=photos_count,
+        preview_urls=preview_urls,
     )
 
 

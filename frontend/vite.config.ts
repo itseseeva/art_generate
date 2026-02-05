@@ -6,7 +6,7 @@ import path from 'path'
 export default defineConfig(({ mode }) => {
   // Загружаем переменные окружения
   const env = loadEnv(mode, process.cwd(), '')
-  
+
   return {
     plugins: [react()],
     resolve: {
@@ -39,6 +39,36 @@ export default defineConfig(({ mode }) => {
           secure: false,
         },
         '/static': {
+          target: 'http://localhost:8001',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/paid_gallery': {
+          target: 'http://localhost:8001',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/media': {
+          target: 'http://localhost:8001',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/voices': {
+          target: 'http://localhost:8001',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/user_voices': {
+          target: 'http://localhost:8001',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/default_character_voices': {
+          target: 'http://localhost:8001',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/avatars': {
           target: 'http://localhost:8001',
           changeOrigin: true,
           secure: false,

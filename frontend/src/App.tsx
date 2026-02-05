@@ -33,6 +33,9 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { Footer } from './components/Footer';
 import { authManager } from './utils/auth';
 import { ContentRatingModal } from './components/ContentRatingModal';
+import { TagsPage } from './components/TagsPage';
+import { useSEO } from './hooks/useSEO';
+
 
 import { useIsMobile } from './hooks/useIsMobile';
 
@@ -94,6 +97,8 @@ type PageType =
   | 'my-characters'
   | 'create-character'
   | 'shop'
+  | 'tariffs'
+  | 'characters'
   | 'profile'
   | 'messages'
   | 'user-gallery'
@@ -112,7 +117,9 @@ type PageType =
   | 'admin-logs'
   | 'login'
   | 'register'
-  | 'forgot-password';
+  | 'forgot-password'
+  | 'tags';
+
 
 function App() {
   const isMobile = useIsMobile();
@@ -123,48 +130,123 @@ function App() {
   const [selectedSubscriptionType, setSelectedSubscriptionType] = useState<string>('');
   const [showContentRatingModal, setShowContentRatingModal] = useState(false);
   const [selectedContentRating, setSelectedContentRating] = useState<'safe' | 'nsfw' | null>(null);
+  const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
+  const [tagName, setTagName] = useState<string>('');
+  const [selectedProfileUsername, setSelectedProfileUsername] = useState<string | null>(null);
 
-  // Устанавливаем заголовок страницы в зависимости от режима и текущей страницы
-  useEffect(() => {
-    if (currentPage === 'main') {
-      if (contentMode === 'safe') {
-        document.title = 'cherrylust.art AI CHAT с персонажами';
-      } else {
-        document.title = 'cherrylust.art AI 18 + CHAT с персонажами';
-      }
-    } else {
-      // Для других страниц используем динамические заголовки
-      const pageTitles: Record<PageType, string> = {
-        'main': contentMode === 'safe'
-          ? 'cherrylust.art AI CHAT с персонажами'
-          : 'cherrylust.art AI 18 + CHAT с персонажами',
-        'chat': 'Чат',
-        'my-characters': 'Мои персонажи',
-        'create-character': 'Создать персонажа',
-        'shop': 'Магазин',
-        'profile': 'Профиль',
-        'messages': 'Сообщения',
-        'user-gallery': 'Галерея',
-        'paid-album': 'Платный альбом',
-        'paid-album-builder': 'Создать альбом',
-        'photo-generation': 'Генерация фото',
-        'edit-characters': 'Редактировать персонажей',
-        'edit-character': 'Редактировать персонажа',
-        'favorites': 'Избранное',
-        'history': 'История',
-        'character-comments': 'Комментарии',
-        'legal': 'Правовая информация',
-        'about': 'О проекте',
-        'how-it-works': 'Как это работает',
-        'bug-report': 'Сообщить об ошибке',
-        'admin-logs': 'Логи администратора',
-        'login': 'Вход',
-        'register': 'Регистрация',
-        'forgot-password': 'Восстановление пароля',
-      };
-      document.title = pageTitles[currentPage] || 'cherrylust.art';
+  // SEO конфигурация для каждой страницы
+  const getSEOConfig = () => {
+    const baseUrl = 'https://cherrylust.art';
+
+    switch (currentPage) {
+      case 'main':
+        return {
+          title: 'Cherry Lust — Эксклюзивный AI чат с персонажами 18+',
+          description: 'Виртуальное общение с AI персонажами. Нейросеть создает уникальных собеседников для ролевого чата. Безлимитный доступ к AI чат-боту 18+ без цензуры.',
+          canonical: baseUrl + '/',
+          keywords: 'ai чат, виртуальные персонажи, 18+, нейросеть персонажи, ролевой чат, AI собеседник, чат-бот 18+, виртуальное общение',
+          ogImage: baseUrl + '/logo-cherry.png'
+        };
+
+      case 'tariffs':
+      case 'shop':
+        return {
+          title: 'Тарифы и подписки Cherry Lust — Безлимитный AI чат',
+          description: 'Выберите подписку для безлимитного общения с AI персонажами. Standard и Premium тарифы с генерацией фото и голосовыми сообщениями. Доступ к эксклюзивным функциям нейросети.',
+          canonical: baseUrl + (currentPage === 'tariffs' ? '/tariffs' : '/shop'),
+          keywords: 'подписка ai чат, тарифы cherry lust, premium ai, генерация фото нейросеть, голосовые сообщения ai',
+          ogImage: baseUrl + '/logo-cherry.png'
+        };
+
+      case 'characters':
+        return {
+          title: 'Каталог AI персонажей 18+ — Cherry Lust',
+          description: 'Большой выбор виртуальных персонажей для общения. Аниме девушки, ролевые персонажи с уникальными характерами. Создано нейросетью для взрослых.',
+          canonical: baseUrl + '/characters',
+          keywords: 'ai персонажи, виртуальные собеседники, аниме девушки ai, ролевые персонажи, нейросеть персонажи',
+          ogImage: baseUrl + '/logo-cherry.png'
+        };
+
+      case 'create-character':
+        return {
+          title: 'Создать своего AI персонажа — Cherry Lust',
+          description: 'Создайте уникального AI собеседника с помощью нейросети. Настройте внешность, характер и стиль общения персонажа. Генерация изображений AI.',
+          canonical: baseUrl + '/create-character',
+          keywords: 'создать ai персонажа, генератор персонажей, нейросеть создание, ai конструктор персонажей',
+          ogImage: baseUrl + '/logo-cherry.png'
+        };
+
+      case 'about':
+        return {
+          title: 'О сервисе Cherry Lust — AI чат нового поколения',
+          description: 'Узнайте больше о Cherry Lust — инновационном AI чате для взрослых с продвинутой нейросетью и генерацией контента. Виртуальное общение без границ.',
+          canonical: baseUrl + '/about',
+          keywords: 'о cherry lust, ai чат для взрослых, нейросеть чат, виртуальное общение',
+          ogImage: baseUrl + '/logo-cherry.png'
+        };
+
+      case 'how-it-works':
+        return {
+          title: 'Как работает Cherry Lust — Гайд по AI чату',
+          description: 'Подробная инструкция по использованию AI чата: создание персонажей, общение с нейросетью, генерация изображений и голосовых сообщений.',
+          canonical: baseUrl + '/how-it-works',
+          keywords: 'как работает ai чат, инструкция cherry lust, гайд по нейросети, использование ai',
+          ogImage: baseUrl + '/logo-cherry.png'
+        };
+
+      case 'legal':
+        return {
+          title: 'Правовая информация — Cherry Lust',
+          description: 'Пользовательское соглашение, политика конфиденциальности и правила использования сервиса Cherry Lust. Информация для пользователей AI чата.',
+          canonical: baseUrl + '/legal',
+          keywords: 'правила cherry lust, пользовательское соглашение, политика конфиденциальности',
+          ogImage: baseUrl + '/logo-cherry.png'
+        };
+
+      case 'chat':
+        if (selectedCharacter?.name) {
+          const characterDescription = selectedCharacter.description
+            ? selectedCharacter.description.slice(0, 160)
+            : `Общайтесь с ${selectedCharacter.name} в ролевом AI чате. Виртуальное общение с персонажем, созданным нейросетью.`;
+
+          return {
+            title: `Чат с ${selectedCharacter.name} — Виртуальный ИИ чат 18+ | Cherry Lust`,
+            description: characterDescription,
+            canonical: baseUrl + '/chat/' + encodeURIComponent(selectedCharacter.name),
+            keywords: `${selectedCharacter.name}, ai чат, виртуальное общение, ролевой чат, нейросеть персонаж`,
+            ogImage: selectedCharacter.avatar || baseUrl + '/logo-cherry.png'
+          };
+        }
+        return {
+          title: 'Чат — Cherry Lust',
+          description: 'Общайтесь с AI персонажами в приватном чате. Виртуальное общение с нейросетью без ограничений.',
+          canonical: baseUrl + '/chat',
+          keywords: 'ai чат, виртуальное общение, ролевой чат',
+          ogImage: baseUrl + '/logo-cherry.png'
+        };
+
+      case 'tags':
+        return {
+          title: `ИИ персонажи с тегом: ${tagName} — Cherry Lust`,
+          description: `Общайся с ИИ персонажами категории ${tagName} на русском. Бесплатный ролевой чат без цензуры и регистрации. Виртуальные собеседники созданы нейросетью.`,
+          canonical: baseUrl + '/tags/' + encodeURIComponent(tagName),
+          keywords: `${tagName}, ai персонажи, виртуальные собеседники, ролевой чат, нейросеть`,
+          ogImage: baseUrl + '/logo-cherry.png'
+        };
+
+      default:
+        return {
+          title: 'Cherry Lust — Эксклюзивный AI чат с персонажами 18+',
+          description: 'Виртуальное общение с AI персонажами. Нейросеть создает уникальных собеседников для ролевого чата.',
+          canonical: baseUrl + '/',
+          keywords: 'ai чат, виртуальные персонажи, 18+',
+          ogImage: baseUrl + '/logo-cherry.png'
+        };
     }
-  }, [currentPage, contentMode]);
+  };
+
+  // Используем SEO хук для обновления мета-тегов
+  useSEO(getSEOConfig());
 
   // Мемоизируем initialCharacter для ChatContainer, чтобы избежать лишних перезагрузок
   const memoizedInitialCharacter = React.useMemo(() => {
@@ -370,7 +452,14 @@ function App() {
       }
     } else if (path.includes('/profile')) {
       setCurrentPage('profile');
-      window.history.replaceState({ page: 'profile' }, '', path);
+      // Пытаемся извлечь username из пути /profile/username
+      const parts = path.split('/profile/');
+      if (parts.length > 1 && parts[1]) {
+        setSelectedProfileUsername(parts[1]);
+      } else {
+        setSelectedProfileUsername(null);
+      }
+      window.history.replaceState({ page: 'profile', username: parts.length > 1 ? parts[1] : undefined }, '', path);
     } else if (path.includes('/messages')) {
       setCurrentPage('messages');
       window.history.replaceState({ page: 'messages' }, '', path);
@@ -468,6 +557,16 @@ function App() {
     } else if (path.includes('/register')) {
       setCurrentPage('register');
       window.history.replaceState({ page: 'register' }, '', '/register');
+    } else if (path.startsWith('/tags/')) {
+      const slug = path.split('/tags/')[1];
+      if (slug) {
+        setSelectedTagId(slug);
+        setCurrentPage('tags');
+        window.history.replaceState({ page: 'tags', slug }, '', path);
+      } else {
+        setCurrentPage('main');
+        window.history.replaceState({ page: 'main' }, '', '/');
+      }
     } else {
       setCurrentPage('main');
       window.history.replaceState({ page: 'main' }, '', '/');
@@ -577,16 +676,26 @@ function App() {
     };
 
     const handleNavigateToProfile = (event: CustomEvent) => {
-      const userId = event.detail?.userId;
-      handleProfile(userId);
+      const { userId, username } = event.detail || {};
+      handleProfile(userId, username);
+    };
+
+    const handleNavigateToTags = (event: CustomEvent) => {
+      const slug = event.detail?.slug;
+      if (slug) {
+        setSelectedTagId(slug);
+        setCurrentPage('tags');
+      }
     };
 
     window.addEventListener('navigate-to-admin-logs', handleNavigateToAdminLogs);
     window.addEventListener('navigate-to-profile', handleNavigateToProfile as EventListener);
+    window.addEventListener('navigate-to-tags', handleNavigateToTags as EventListener);
 
     return () => {
       window.removeEventListener('navigate-to-admin-logs', handleNavigateToAdminLogs);
       window.removeEventListener('navigate-to-profile', handleNavigateToProfile as EventListener);
+      window.removeEventListener('navigate-to-tags', handleNavigateToTags as EventListener);
     };
   }, []);
 
@@ -680,11 +789,16 @@ function App() {
     window.history.pushState({ page: 'shop' }, '', '/shop');
   };
 
-  const handleProfile = (userId?: number) => {
+  const handleProfile = (userId?: number, username?: string) => {
     // Принудительно обновляем состояние, даже если мы уже на странице профиля
     if (userId) {
+      setSelectedProfileUsername(null);
       setCurrentPage('profile');
       window.history.pushState({ page: 'profile', userId }, '', `/profile?user=${userId}`);
+    } else if (username) {
+      setSelectedProfileUsername(username);
+      setCurrentPage('profile');
+      window.history.pushState({ page: 'profile', username }, '', `/profile/${username}`);
     } else {
       // Если userId не указан, открываем свой профиль
       // Проверяем, есть ли параметр user в URL
@@ -698,6 +812,7 @@ function App() {
       }
 
       // Если мы уже на своем профиле, просто обновляем состояние
+      setSelectedProfileUsername(null);
       setCurrentPage('profile');
       window.history.pushState({ page: 'profile' }, '', '/profile');
     }
@@ -776,8 +891,8 @@ function App() {
 
     }
 
-    // Для PREMIUM - сразу открываем альбом (все альбомы бесплатны)
-    if (normalizedSubscriptionType === 'premium') {
+    // Для PREMIUM и STANDARD - сразу открываем альбом (все альбомы бесплатны)
+    if (normalizedSubscriptionType === 'premium' || normalizedSubscriptionType === 'standard') {
       setSelectedCharacter(character);
       setCurrentPage('paid-album');
       if (character?.id) {
@@ -1023,6 +1138,7 @@ function App() {
         return (
           <ProfilePage
             userId={profileUserId}
+            username={selectedProfileUsername || undefined}
             onBackToMain={handleBackToMain}
             onShop={handleShop}
             onOpenUserGallery={handleOpenUserGallery}
@@ -1267,6 +1383,28 @@ function App() {
             onShop={handleShop}
             onPhotoGeneration={handlePhotoGeneration}
             onPaidAlbum={handlePaidAlbum}
+            onProfile={handleProfile}
+          />
+        );
+      case 'history':
+        return (
+          <HistoryPage
+            onBackToMain={handleBackToMain}
+            onShop={handleShop}
+            onCreateCharacter={handleCreateCharacter}
+            onEditCharacters={handleEditCharacters}
+            onOpenChat={handleCharacterSelect}
+            onProfile={handleProfile}
+          />
+        );
+      case 'tags':
+        return (
+          <TagsPage
+            slug={selectedTagId || ''}
+            onBackToMain={handleBackToMain}
+            onCharacterSelect={handleCharacterSelect}
+            setTagName={setTagName}
+            onShop={handleShop}
             onProfile={handleProfile}
           />
         );

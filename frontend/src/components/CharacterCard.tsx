@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'motion/react';
 import { theme } from '../theme';
 import ElectricBorder from './ElectricBorder';
-import { FiHeart, FiX as CloseIcon, FiTrash2, FiThumbsUp, FiThumbsDown, FiEdit } from 'react-icons/fi';
+import { FiHeart, FiX as CloseIcon, FiTrash2, FiThumbsUp, FiThumbsDown, FiEdit, FiMessageSquare, FiLock, FiUnlock } from 'react-icons/fi';
 import { authManager } from '../utils/auth';
 import { API_CONFIG } from '../config/api';
 import { translateToRussian } from '../utils/translate';
@@ -66,9 +66,9 @@ const PhotoContainer = styled.div<{ $clickable?: boolean; $isHovered?: boolean }
   `}
 `;
 
-const ActionButtons = styled.div`
+const ActionButtons = styled.div<{ $badgeCount: number }>`
   position: absolute;
-  top: ${theme.spacing.sm};
+  top: ${props => 12 + (props.$badgeCount * 24)}px;
   right: ${theme.spacing.sm};
   display: flex;
   flex-direction: column;
@@ -88,6 +88,124 @@ const ActionButtons = styled.div`
   @media (max-width: 768px) {
     opacity: 1 !important;
     transform: translateY(0) !important;
+  }
+`;
+
+const VerificationBadge = styled.div`
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1002;
+  pointer-events: none;
+  filter: drop-shadow(0 0 4px rgba(46, 204, 113, 0.6));
+  
+  svg {
+    width: 14px;
+    height: 14px;
+    color: #2ecc71;
+    stroke-width: 4px;
+  }
+`;
+
+const MessageCountBadge = styled.div<{ $hasVerification?: boolean }>`
+  position: absolute;
+  top: ${props => props.$hasVerification ? '32px' : '12px'};
+  right: 0;
+  background: rgba(80, 80, 80, 0.82);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 1px 6px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: #d8b4fe; /* lighter violet */
+  z-index: 1005;
+  font-size: 9px;
+  font-weight: 800;
+  pointer-events: none;
+  font-family: 'Inter', -apple-system, sans-serif;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+
+  svg {
+    width: 9px;
+    height: 9px;
+    color: #d8b4fe;
+    stroke-width: 3.5px;
+  }
+`;
+
+const LikesBadge = styled.div`
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  border-radius: 6px;
+  padding: 1px 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: white;
+  z-index: 1010;
+  font-size: 10px;
+  font-weight: 700;
+  pointer-events: none;
+  font-family: 'Inter', -apple-system, sans-serif;
+  opacity: 0;
+  transform: translateY(5px);
+  transition: all 0.2s ease-out;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+
+  ${CardContainer}:hover & {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  svg {
+    width: 10px;
+    height: 10px;
+    color: white;
+  }
+`;
+
+const CreatorLink = styled.a`
+  position: absolute;
+  bottom: 11px;
+  right: 12px;
+  color: #e9d5ff; /* light violet */
+  background: rgba(0, 0, 0, 0.5);
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  text-decoration: none;
+  z-index: 10000;
+  transition: all 0.2s ease;
+  opacity: 0;
+  transform: translateY(5px);
+  cursor: pointer;
+  pointer-events: auto;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 1);
+  font-family: 'Inter', -apple-system, sans-serif;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+
+  ${CardContainer}:hover & {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  &:hover {
+    color: white;
+    background: rgba(168, 85, 247, 0.9);
+    transform: scale(1.05);
+    border-color: rgba(255, 255, 255, 0.4);
   }
 `;
 
@@ -703,6 +821,7 @@ const CharacterName = styled.h3`
   margin-bottom: ${theme.spacing.xs};
   line-height: 1.3;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+  transform: translateY(-8px); /* Подняли само имя выше */
 `;
 
 const CharacterDescription = styled.p`
@@ -731,7 +850,8 @@ const TagsContainerBottom = styled.div<{ $visible?: boolean }>`
   left: 0;
   right: 0;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow: hidden;
   gap: 4px;
   padding: ${theme.spacing.xs} ${theme.spacing.sm};
   z-index: 101;
@@ -745,7 +865,7 @@ const TagsContainerBottom = styled.div<{ $visible?: boolean }>`
   }
 `;
 
-const Tag = styled.span`
+const Tag = styled.a`
   background: rgba(139, 92, 246, 0.25);
   color: rgba(200, 200, 220, 0.95);
   padding: 2px 8px;
@@ -756,6 +876,14 @@ const Tag = styled.span`
   border: 1px solid rgba(139, 92, 246, 0.3);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
   white-space: nowrap;
+  text-decoration: none;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba(139, 92, 246, 0.4);
+    transform: scale(1.05);
+    color: white;
+  }
 `;
 
 const StatItemMiddle = styled.div`
@@ -1227,6 +1355,9 @@ interface Character {
   views: number;
   comments: number;
   is_nsfw?: boolean;
+  creator_username?: string;
+  paid_album_photos_count?: number;
+  paid_album_preview_urls?: string[];
 }
 
 interface CharacterCardProps {
@@ -1235,10 +1366,13 @@ interface CharacterCardProps {
   isAuthenticated?: boolean;
   showEditButton?: boolean;
   onEdit?: (character: Character) => void;
+
   onDelete?: (character: Character) => void;
   onAddPhoto?: (character: Character) => void; // New prop for adding photos
   onPhotoGeneration?: (character: Character) => void; // Генерация фото
   onPaidAlbum?: (character: Character) => void; // Платный альбом
+  isLocked?: boolean; // Флаг заблокированного альбома
+  lockedAlbumPhotos?: string[]; // Массив фото для превью заблокированного альбома (слайдшоу)
   isFavorite?: boolean; // Если true, персонаж считается в избранном (для страницы favorites)
   onFavoriteToggle?: () => void; // Callback при изменении статуса избранного
   userInfo?: { is_admin?: boolean } | null; // Информация о пользователе для проверки прав админа
@@ -1254,7 +1388,8 @@ const SlideShow: React.FC<{
   onPhotoClick?: (photoUrl: string) => void;
   onCurrentPhotoChange?: (photoUrl: string) => void;
   isHovered?: boolean;
-}> = ({ photos, characterName, onPhotoClick, onCurrentPhotoChange, isHovered = false }) => {
+  hideDots?: boolean;
+}> = ({ photos, characterName, onPhotoClick, onCurrentPhotoChange, isHovered = false, hideDots = false }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
 
   useEffect(() => {
@@ -1304,7 +1439,7 @@ const SlideShow: React.FC<{
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 300px"
         />
       </PhotoContainer>
-      {photos.length > 1 && (
+      {photos.length > 1 && !hideDots && (
         <SlideDots>
           {photos.map((_, idx) => (
             <Dot
@@ -1326,6 +1461,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   onAddPhoto, // New prop
   onPhotoGeneration,
   onPaidAlbum,
+  isLocked,
+  lockedAlbumPhotos,
   isFavorite: isFavoriteProp = false, // Проп для установки начального состояния избранного
   onFavoriteToggle, // Callback при изменении статуса избранного
   userInfo = null, // Информация о пользователе
@@ -1335,6 +1472,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   onAuthRequired // Callback для открытия модального окна авторизации
 }) => {
   const isMobile = useIsMobile();
+  const [isLockHovered, setIsLockHovered] = useState(false);
   // КРИТИЧЕСКИ ВАЖНО: если isFavoriteProp не передан, начинаем с false
   // Это нужно для главной страницы, где проверка выполняется через API
   const [isFavorite, setIsFavorite] = useState(isFavoriteProp ?? false);
@@ -1342,7 +1480,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   const [isChecking, setIsChecking] = useState(isFavoriteProp === undefined);
   // Локальное состояние для отслеживания NSFW статуса
   const [isNsfw, setIsNsfw] = useState(
-    character?.is_nsfw === true || (character as any)?.raw?.is_nsfw === true
+    character?.is_nsfw === true
   );
 
   // Обновляем состояние избранного при изменении пропа
@@ -1356,9 +1494,9 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
   // Обновляем локальное состояние NSFW при изменении character
   useEffect(() => {
-    const newNsfw = character?.is_nsfw === true || (character as any)?.raw?.is_nsfw === true;
+    const newNsfw = character?.is_nsfw === true;
     setIsNsfw(newNsfw);
-  }, [character?.is_nsfw, (character as any)?.raw?.is_nsfw]);
+  }, [character?.is_nsfw]);
   const [currentPhotoUrl, setCurrentPhotoUrl] = useState<string | null>(
     character.photos && character.photos.length > 0 ? character.photos[0] : null
   );
@@ -1380,6 +1518,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
       setCurrentPhotoUrl(null);
     }
   }, [character.photos]);
+
   const [isPersonalityModalOpen, setIsPersonalityModalOpen] = useState(false);
   const [personality, setPersonality] = useState<string | null>(null);
   const [isLoadingPersonality, setIsLoadingPersonality] = useState(false);
@@ -1392,21 +1531,41 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   const [dislikesCount, setDislikesCount] = useState<number>(character.dislikes ?? 0);
   const [userRating, setUserRating] = useState<'like' | 'dislike' | null>(null);
 
+  // Проверка на оригинальность персонажа
+  const isOriginal = useMemo(() => {
+    const tagsArr = character.tags || [];
+    return tagsArr.some((t: any) => {
+      const name = typeof t === 'string' ? t : (t.name || '');
+      return name.toLowerCase() === 'original' || name.toLowerCase() === 'оригинальный';
+    });
+  }, [character.tags]);
+
   // Состояние для Smart Hover overlay
   const [isHovered, setIsHovered] = useState(false);
-  const [showOverlay, setShowOverlay] = useState(false);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
-  const [roleplaySituation, setRoleplaySituation] = useState<string | null>(null);
-  const [isLoadingSituation, setIsLoadingSituation] = useState(false);
-  const [situationError, setSituationError] = useState<string | null>(null);
-  const [cardPosition, setCardPosition] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
 
   // Состояние для модального окна промпта
   const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
   const [promptText, setPromptText] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
+
+  // Определяем, заблокирован ли альбом.
+  // Если проп isLocked передан (например из ChatContainer), используем его.
+  // Иначе рассчитываем сами: если есть фото в платном альбоме и пользователь не авторизован - точно заблокирован.
+  // Для авторизованных на главной без переданного isLocked считаем заблокированным, если есть фото (пока не придет инфа об обратном).
+  const finalIsLocked = useMemo(() => {
+    if (isLocked !== undefined) return isLocked;
+    const count = character.paid_album_photos_count || 0;
+    if (count === 0) return false;
+    // Если не авторизован - точно заблокирован
+    if (!isAuthenticated) return true;
+    // Если авторизован, но проп не передан (на главной), по умолчанию считаем заблокированным
+    // пока не будет загружен статус (что обычно делает ChatContainer)
+    return true;
+  }, [isLocked, character.paid_album_photos_count, isAuthenticated]);
+
   const [isPromptVisible, setIsPromptVisible] = useState(true);
   const [modalPhotoUrl, setModalPhotoUrl] = useState<string | null>(null); // Сохраняем фото при открытии модального окна
 
@@ -1997,48 +2156,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isPersonalityModalOpen, isEditPromptModalOpen, isPromptModalOpen]);
 
-  // Функция для загрузки ролевой ситуации
-  const loadRoleplaySituation = async () => {
-    if (roleplaySituation) {
-      return; // Уже загружена
-    }
 
-    setIsLoadingSituation(true);
-    setSituationError(null);
-
-    try {
-      // КРИТИЧНО: Используем ID для запроса, если он доступен
-      const identifier = character.id?.toString() || character.name;
-      const encodedIdentifier = encodeURIComponent(identifier);
-      // Используем обычный fetch, так как эндпоинт доступен без авторизации
-      const url = `${API_CONFIG.BASE_URL || ''}/api/v1/characters/${encodedIdentifier}`;
-      const response = await fetch(url);
-
-      if (response.ok) {
-        const characterData = await response.json();
-        const prompt = characterData?.prompt || '';
-
-        if (prompt) {
-          const situation = extractRolePlayingSituation(prompt);
-          if (situation) {
-            // Переводим на русский
-            const translatedSituation = await translateToRussian(situation);
-            setRoleplaySituation(translatedSituation);
-          } else {
-            setSituationError('Ролевая ситуация не найдена');
-          }
-        } else {
-          setSituationError('Данные персонажа не найдены');
-        }
-      } else {
-        setSituationError('Ошибка загрузки данных персонажа');
-      }
-    } catch (error) {
-      setSituationError('Ошибка загрузки ролевой ситуации');
-    } finally {
-      setIsLoadingSituation(false);
-    }
-  };
 
   // Функция для загрузки промпта для текущего фото (characterName — для fallback на главной при URL из paid_gallery/static)
   const loadPromptForPhoto = async (photoUrl: string, characterName?: string | null) => {
@@ -2094,99 +2212,21 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     setIsPromptVisible(false);
   };
 
-  // Обновление позиции карточки для позиционирования overlay
-  useEffect(() => {
-    const updatePosition = () => {
-      if (cardRef.current) {
-        const rect = cardRef.current.getBoundingClientRect();
-        // Для position: fixed используем координаты относительно viewport (без scroll offset)
-        setCardPosition({
-          top: rect.top,
-          left: rect.left,
-          width: rect.width,
-          height: rect.height
-        });
-      }
-    };
 
-    // Обновляем позицию при hover или когда overlay показывается
-    if (isHovered || showOverlay) {
-      updatePosition();
-      const interval = setInterval(updatePosition, 100);
-      window.addEventListener('scroll', updatePosition, true);
-      window.addEventListener('resize', updatePosition);
 
-      return () => {
-        clearInterval(interval);
-        window.removeEventListener('scroll', updatePosition, true);
-        window.removeEventListener('resize', updatePosition);
-      };
-    }
-  }, [isHovered, showOverlay]);
 
-  // Обработка hover с задержкой для Smart Hover overlay (только для десктопа)
-  useEffect(() => {
-    if (isMobile) {
-      // На мобильных не используем hover
-      return;
-    }
 
-    if (isHovered) {
-      // Убеждаемся, что позиция карточки установлена сразу при hover
-      if (cardRef.current) {
-        const rect = cardRef.current.getBoundingClientRect();
-        setCardPosition({
-          top: rect.top,
-          left: rect.left,
-          width: rect.width,
-          height: rect.height
-        });
-      }
-
-      hoverTimeoutRef.current = setTimeout(() => {
-        // Проверяем, что мышь все еще на карточке
-        if (isHovered && cardRef.current) {
-          setShowOverlay(true);
-          // Загружаем ролевую ситуацию при показе overlay
-          loadRoleplaySituation();
-        }
-      }, 500);
-    } else {
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
-        hoverTimeoutRef.current = null;
-      }
-      // Закрываем overlay сразу при уходе мыши с карточки
-      setShowOverlay(false);
-    }
-
-    return () => {
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHovered, isMobile]);
-
-  // Функция для показа overlay по клику (для мобильных) с toggle логикой
-  const handleShowRoleplaySituation = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-
-    // Если уже открыто - закрываем
-    if (showOverlay) {
-      setShowOverlay(false);
-      return;
-    }
-
-    // Иначе открываем и загружаем данные
-    setShowOverlay(true);
-    await loadRoleplaySituation();
+  const formatCount = (count: number) => {
+    if (count >= 1000000) return (count / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (count >= 1000) return (count / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    return count.toString();
   };
 
   return (
     <>
       <CardWrapper>
-        {showRatings && (
+        {/* Side rating buttons are hidden as per user request to show stats on the card itself */}
+        {false && showRatings && (
           <RatingButton
             $isActive={userRating === 'like'}
             $isLike={true}
@@ -2203,20 +2243,12 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         >
           <CardContainer
             ref={cardRef}
-            $isHovered={showOverlay && isHovered}
+            $isHovered={isHovered}
             onMouseEnter={(e) => {
               e.stopPropagation();
               setIsHovered(true);
               // Обновляем позицию сразу при hover
-              if (cardRef.current) {
-                const rect = cardRef.current.getBoundingClientRect();
-                setCardPosition({
-                  top: rect.top,
-                  left: rect.left,
-                  width: rect.width,
-                  height: rect.height
-                });
-              }
+
             }}
             onMouseLeave={(e) => {
               // При уходе мыши с карточки
@@ -2230,23 +2262,153 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                 );
 
               // Если не переходим на overlay, закрываем сразу
-              if (!isMovingToOverlay) {
-                setShowOverlay(false);
-              }
+
             }}
           >
-            <SlideShow
-              photos={character.photos || []}
-              characterName={character.name}
-              onPhotoClick={undefined}
-              onCurrentPhotoChange={(photoUrl) => {
-                setCurrentPhotoUrl(photoUrl);
-              }}
-              isHovered={showOverlay}
-            />
+            <div className={`absolute inset-0 overflow-hidden transition-all duration-500 ${finalIsLocked ? "blur-[10px] scale-125 opacity-20 grayscale brightness-50" : ""}`}>
+              <SlideShow
+                photos={character.photos || []}
+                characterName={character.name}
+                onPhotoClick={undefined}
+                onCurrentPhotoChange={(photoUrl) => {
+                  setCurrentPhotoUrl(photoUrl);
+                }}
+                isHovered={isHovered}
+                hideDots={finalIsLocked}
+              />
+            </div>
+
+            {/* Locked Album Preview Overlay */}
+            {finalIsLocked && (
+              <div
+                className="absolute inset-0 z-[9999] flex items-center justify-center rounded-lg overflow-hidden animate-fade-in"
+                style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
+              >
+                {/* 1. Underlying Blur (on the main content) */}
+                <div className="absolute inset-0 backdrop-blur-[5px] pointer-events-none" />
+
+                {/* 2. Sliding Blurred Photos */}
+                <div className="absolute inset-0 z-0">
+                  {(() => {
+                    const normalizeUrl = (url: string) => {
+                      if (!url) return '';
+
+                      // Обработка ссылок Yandex Cloud через прокси /media/
+                      let processedUrl = url;
+                      if (url.includes('storage.yandexcloud.net/')) {
+                        if (url.includes('.storage.yandexcloud.net/')) {
+                          const objectKey = url.split('.storage.yandexcloud.net/')[1];
+                          if (objectKey) processedUrl = `${API_CONFIG.BASE_URL || ''}/media/${objectKey}`;
+                        } else {
+                          const parts = url.split('storage.yandexcloud.net/')[1];
+                          if (parts) {
+                            const pathSegments = parts.split('/');
+                            if (pathSegments.length > 1) {
+                              processedUrl = `${API_CONFIG.BASE_URL || ''}/media/${pathSegments.slice(1).join('/')}`;
+                            }
+                          }
+                        }
+                      }
+
+                      if (processedUrl.startsWith('http')) return processedUrl;
+                      const baseUrl = API_CONFIG.BASE_URL || window.location.origin;
+                      if (processedUrl.startsWith('/')) {
+                        // Если baseUrl пустой (относительный путь в продакшене), то оставляем как есть
+                        return baseUrl ? `${baseUrl}${processedUrl}` : processedUrl;
+                      }
+                      return baseUrl ? `${baseUrl}/${processedUrl}` : `/${processedUrl}`;
+                    };
+
+                    const rawPreviewPhotos = (lockedAlbumPhotos && lockedAlbumPhotos.length > 0)
+                      ? [...lockedAlbumPhotos]
+                      : (character.paid_album_preview_urls && character.paid_album_preview_urls.length > 0)
+                        ? [...character.paid_album_preview_urls]
+                        : (character.photos && character.photos.length > 0 ? [character.photos[0]] : []);
+
+                    const previewPhotos = rawPreviewPhotos.map(normalizeUrl);
+
+                    const hasPreview = (lockedAlbumPhotos && lockedAlbumPhotos.length > 0) ||
+                      (character.paid_album_preview_urls && character.paid_album_preview_urls.length > 0);
+
+                    return previewPhotos.length > 0 ? (
+                      <div className={`absolute inset-0 z-0 ${hasPreview ? 'blur-[10px]' : 'blur-[50px] grayscale brightness-50'} opacity-70 scale-125 transition-all duration-1000`}>
+                        <SlideShow
+                          photos={previewPhotos}
+                          characterName={character.name}
+                          isHovered={true}
+                          hideDots={true}
+                        />
+                      </div>
+                    ) : null;
+                  })()}
+                </div>
+
+                {/* 3. Dark gradient for better text/icon contrast */}
+                <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/60 z-5" />
+
+                {/* 4. The Lock Icon Overlay */}
+                <div
+                  className="relative z-10 flex flex-col items-center justify-center w-full h-full cursor-pointer transition-all duration-500"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onPaidAlbum) onPaidAlbum(character);
+                  }}
+                >
+                  <div className={`flex flex-col items-center transition-all duration-700 ${isHovered ? 'scale-105' : 'scale-100'}`}>
+                    {/* Icon Container with Glow */}
+                    <div className="relative mb-6">
+                      <div className={`absolute inset-0 blur-3xl opacity-50 transition-colors duration-500 ${isHovered ? 'bg-pink-500' : 'bg-white'}`} />
+                      <div className="relative transform transition-all duration-500 ease-out">
+                        {isHovered ? (
+                          <FiUnlock className="w-24 h-24 text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.8)]" />
+                        ) : (
+                          <FiLock className="w-20 h-20 text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]" />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Premium Text Content */}
+                    <div className="text-center px-4 transform transition-all duration-500 delay-100">
+                      <div className="text-white/70 text-xs uppercase tracking-[0.2em] font-medium mb-2 drop-shadow-sm">
+                        Exclusive Content
+                      </div>
+                      <h3 className="text-white text-xl font-semibold tracking-tight leading-tight mb-2 drop-shadow-xl">
+                        Получи доступ <br /> к альбому
+                      </h3>
+                      <div className="inline-block px-4 py-1.5 rounded-full bg-gradient-to-r from-pink-500/80 to-purple-600/80 backdrop-blur-md border border-white/20 text-white text-sm font-medium shadow-lg transform transition-all duration-300 hover:scale-105">
+                        {character.name}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!finalIsLocked && isOriginal && (
+              <VerificationBadge title="Original Character">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              </VerificationBadge>
+            )}
+
+            {!finalIsLocked && (Number(character.comments) > 0 || Number(character.views) > 0) && (
+              <MessageCountBadge $hasVerification={isOriginal}>
+                <FiMessageSquare />
+                {formatCount(Number(character.comments) || Number(character.views) || 0)}
+              </MessageCountBadge>
+            )}
+
+            {!finalIsLocked && Number(character.likes) > 0 && (
+              <LikesBadge>
+                <FiThumbsUp />
+                {formatCount(Number(character.likes))}
+              </LikesBadge>
+            )}
+
 
             {/* На странице favorites всегда показываем кнопку, даже если идет проверка */}
-            {(isFavoriteProp !== undefined || !isChecking) && (
+            {!finalIsLocked && (isFavoriteProp !== undefined || !isChecking) && (
               <FavoriteButton
                 type="button"
                 data-button="favorite"
@@ -2262,124 +2424,136 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
               </FavoriteButton>
             )}
 
-            <ActionButtons>
-              {userInfo && userInfo.is_admin === true && (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '4px 8px',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    borderRadius: '8px',
-                    zIndex: 10,
-                    position: 'relative'
-                  }}
-                >
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <Switcher4
-                      checked={isNsfw}
-                      onToggle={async (nextChecked) => {
-                        // Вызываем toggleNsfw при клике на переключатель
-                        const syntheticEvent = {
-                          stopPropagation: () => { },
-                          preventDefault: () => { }
-                        } as React.MouseEvent;
-                        await toggleNsfw(syntheticEvent);
-                      }}
-                      variant="pink"
-                    />
+            {!finalIsLocked && (
+              <ActionButtons $badgeCount={(isOriginal ? 1 : 0) + ((character.comments > 0 || character.views > 0) ? 1 : 0)}>
+                {userInfo && userInfo.is_admin === true && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '4px 8px',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      borderRadius: '8px',
+                      zIndex: 10,
+                      position: 'relative'
+                    }}
+                  >
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <Switcher4
+                        checked={isNsfw}
+                        onToggle={async (nextChecked) => {
+                          // Вызываем toggleNsfw при клике на переключатель
+                          const syntheticEvent = {
+                            stopPropagation: () => { },
+                            preventDefault: () => { }
+                          } as React.MouseEvent;
+                          await toggleNsfw(syntheticEvent);
+                        }}
+                        variant="pink"
+                      />
+                    </div>
+                    <span style={{ fontSize: '11px', color: '#fff', whiteSpace: 'nowrap' }}>
+                      {isNsfw ? '18+' : 'SAFE'}
+                    </span>
                   </div>
-                  <span style={{ fontSize: '11px', color: '#fff', whiteSpace: 'nowrap' }}>
-                    {isNsfw ? '18+' : 'SAFE'}
-                  </span>
-                </div>
-              )}
-              {onPaidAlbum && (
-                <AlbumButton
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onPaidAlbum(character);
-                  }}
-                >
-                  Альбом
-                </AlbumButton>
-              )}
-              {currentPhotoUrl && (
-                <PromptButton
-                  onClick={handleOpenPromptModal}
-                >
-                  Промпт
-                </PromptButton>
-              )}
-              {isMobile && (
-                <RoleplaySituationButton
-                  onClick={handleShowRoleplaySituation}
-                >
-                  Ролевая ситуация
-                </RoleplaySituationButton>
-              )}
-              {userInfo && userInfo.is_admin === true && character.photos && character.photos.length > 0 && (
-                <EditPromptButton
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    // Берем до 3 фото персонажа
-                    const photosToEdit = character.photos.slice(0, 3);
-                    setIsEditPromptModalOpen(true);
-                    setPromptSaveError(null);
-                    setIsSavingPrompt(false);
-                    // Загружаем текущие промпты для всех фото
-                    try {
-                      const photosWithPrompts = await loadPromptsForPhotos(photosToEdit);
-                      setEditingPhotos(photosWithPrompts);
-                    } catch (error) {
-                      setEditingPhotos(photosToEdit.map(url => ({ url, prompt: '' })));
-                    }
-                  }}
-                >
-                  <FiEdit size={14} />
-                  Вписать промит фото
-                </EditPromptButton>
-              )}
-              {onDelete && (
-                <ActionButtonWithTooltip>
-                  <ActionButton
-                    $variant="delete"
+                )}
+                {onPaidAlbum && (
+                  <AlbumButton
                     onClick={(e) => {
                       e.stopPropagation();
-                      e.preventDefault();
-                      if (onDelete) {
-                        onDelete(character);
+                      onPaidAlbum(character);
+                    }}
+                  >
+                    Альбом
+                  </AlbumButton>
+                )}
+                {currentPhotoUrl && (
+                  <PromptButton
+                    onClick={handleOpenPromptModal}
+                  >
+                    Промпт
+                  </PromptButton>
+                )}
+                {userInfo && userInfo.is_admin === true && character.photos && character.photos.length > 0 && (
+                  <EditPromptButton
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      // Берем до 3 фото персонажа
+                      const photosToEdit = character.photos.slice(0, 3);
+                      setIsEditPromptModalOpen(true);
+                      setPromptSaveError(null);
+                      setIsSavingPrompt(false);
+                      // Загружаем текущие промпты для всех фото
+                      try {
+                        const photosWithPrompts = await loadPromptsForPhotos(photosToEdit);
+                        setEditingPhotos(photosWithPrompts);
+                      } catch (error) {
+                        setEditingPhotos(photosToEdit.map(url => ({ url, prompt: '' })));
                       }
                     }}
                   >
-                    <FiTrash2 size={16} />
-                  </ActionButton>
-                  <Tooltip>Удалить персонажа</Tooltip>
-                </ActionButtonWithTooltip>
-              )}
-            </ActionButtons>
+                    <FiEdit size={14} />
+                    Вписать промит фото
+                  </EditPromptButton>
+                )}
+                {onDelete && (
+                  <ActionButtonWithTooltip>
+                    <ActionButton
+                      $variant="delete"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        if (onDelete) {
+                          onDelete(character);
+                        }
+                      }}
+                    >
+                      <FiTrash2 size={16} />
+                    </ActionButton>
+                    <Tooltip>Удалить персонажа</Tooltip>
+                  </ActionButtonWithTooltip>
+                )}
+              </ActionButtons>
+            )}
 
-            <StatsContainerMiddle $isVisible={isHovered || showOverlay}>
+            <StatsContainerMiddle $isVisible={false}>
               <StatItemMiddle>
                 <FiThumbsUp size={12} style={{ marginRight: '4px' }} />
                 <span>{formatNumber(likesCount ?? 0)}</span>
               </StatItemMiddle>
-              <StatItemMiddle>
-                <FiThumbsDown size={12} style={{ marginRight: '4px' }} />
-                <span>{formatNumber(dislikesCount ?? 0)}</span>
-              </StatItemMiddle>
             </StatsContainerMiddle>
 
-            <ContentOverlay>
-              <CharacterName>{character.name}</CharacterName>
-            </ContentOverlay>
+            {!finalIsLocked && (
+              <ContentOverlay>
+                <CharacterName>{character.name}</CharacterName>
+              </ContentOverlay>
+            )}
 
-            {character.tags && character.tags.length > 0 && (
-              <TagsContainerBottom $visible={!isHovered && !showOverlay}>
-                {character.tags.slice(0, 3).map((tag, idx) => (
-                  <Tag key={idx}>{tag}</Tag>
-                ))}
+            {!finalIsLocked && character.tags && character.tags.length > 0 && (
+              <TagsContainerBottom $visible={!isHovered}>
+                {character.tags.slice(0, 3).map((tag: string, idx: number) => {
+                  const slug = tag.toLowerCase()
+                    .replace(/[^a-zа-я0-9\s-]/g, '')
+                    .replace(/\s+/g, '-')
+                    .replace(/-+/g, '-');
+
+                  return (
+                    <Tag
+                      key={idx}
+                      href={`/tags/${slug}`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        window.dispatchEvent(new CustomEvent('navigate-to-tags', {
+                          detail: { slug: slug, tagName: tag }
+                        }));
+                      }}
+                    >
+                      {tag}
+                    </Tag>
+                  );
+                })}
               </TagsContainerBottom>
             )}
 
@@ -2394,8 +2568,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                   target.closest('[class*="Switcher"]') ||
                   target.closest('[class*="FavoriteButton"]') ||
                   target.closest('[data-button="favorite"]') ||
-                  target.closest('[class*="ActionButton"]') ||
-                  target.closest('[class*="RoleplaySituationButton"]')
+                  target.closest('[class*="ActionButton"]')
                 ) {
                   // Если клик по кнопке - не перехватываем
                   e.stopPropagation();
@@ -2415,8 +2588,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                   target.closest('[class*="Switcher"]') ||
                   target.closest('[class*="FavoriteButton"]') ||
                   target.closest('[data-button="favorite"]') ||
-                  target.closest('[class*="ActionButton"]') ||
-                  target.closest('[class*="RoleplaySituationButton"]')
+                  target.closest('[class*="ActionButton"]')
                 ) {
                   // Если клик по кнопке - не перехватываем
                   return;
@@ -2434,177 +2606,30 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
               }}
             />
 
-            {/* Smart Hover Popup - справа от карточки (десктоп) - через Portal */}
-            {showOverlay && cardPosition && !isMobile && cardPosition.width > 0 && createPortal(
-              <AnimatePresence>
-                <motion.div
-                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                  transition={{
-                    type: "spring",
-                    stiffness: 300,
-                    damping: 25,
-                    mass: 0.8
-                  }}
-                  className="bg-black/80 backdrop-blur-[10px] border border-purple-500/50 rounded-2xl shadow-2xl shadow-purple-500/20 pointer-events-auto"
-                  style={{
-                    position: 'fixed' as const,
-                    zIndex: 10000,
-                    left: (() => {
-                      // Увеличиваем ширину окошка до 120% от ширины карточки или минимум 400px
-                      const overlayWidth = Math.max(cardPosition.width * 1.2, 400);
-                      const cardRightEdge = cardPosition.left + cardPosition.width;
-                      const spaceOnRight = window.innerWidth - cardRightEdge;
-
-                      // Если справа достаточно места (ширина окошка) - показываем справа вплотную
-                      if (spaceOnRight >= overlayWidth) {
-                        return `${cardRightEdge}px`;
-                      }
-                      // Если справа нет места - показываем слева вплотную
-                      else {
-                        return `${cardPosition.left - overlayWidth}px`;
-                      }
-                    })(),
-                    top: `${cardPosition.top}px`,
-                    width: (() => {
-                      // Увеличиваем ширину окошка до 120% от ширины карточки или минимум 400px
-                      return `${Math.max(cardPosition.width * 1.2, 400)}px`;
-                    })(),
-                    height: '180px',
-                    maxHeight: '180px',
-                  }}
-                  onMouseEnter={() => setIsHovered(true)}
-                  onMouseLeave={() => {
-                    setIsHovered(false);
-                    setShowOverlay(false);
-                  }}
-                >
-                  <div className="p-4 flex flex-col h-full" style={{
-                    height: '180px',
-                    maxHeight: '180px',
-                    minHeight: 0
-                  }}>
-                    {/* Title with gradient - pink/purple bold */}
-                    <h3 className="text-lg font-bold mb-2 bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent flex-shrink-0" style={{
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                      backgroundClip: 'text'
-                    }}>
-                      {character.name}
-                    </h3>
-
-                    {/* Scrollable content area */}
-                    <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0" style={{
-                      scrollbarWidth: 'thin',
-                      scrollbarColor: 'rgba(139, 92, 246, 0.5) transparent',
-                      WebkitOverflowScrolling: 'touch'
-                    }}>
-                      {isLoadingSituation ? (
-                        <div className="text-sm text-white/70 animate-pulse">Загрузка...</div>
-                      ) : situationError ? (
-                        <div className="text-sm text-red-400">{situationError}</div>
-                      ) : roleplaySituation ? (
-                        <p className="text-sm text-white/90 leading-relaxed whitespace-pre-wrap pr-2">
-                          {roleplaySituation}
-                        </p>
-                      ) : (
-                        <p className="text-sm text-white/50">Ролевая ситуация не найдена</p>
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-              </AnimatePresence>,
-              document.body
+            {!finalIsLocked && character.creator_username && (
+              <CreatorLink
+                href={`/profile/${character.creator_username}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  window.dispatchEvent(new CustomEvent('navigate-to-profile', {
+                    detail: { username: character.creator_username }
+                  }));
+                }}
+              >
+                @{character.creator_username}
+              </CreatorLink>
             )}
+
+
           </CardContainer>
         </ElectricBorder>
 
         {/* Smart Hover Popup для мобильных - на весь экран */}
-        {showOverlay && cardPosition && isMobile && createPortal(
-          <AnimatePresence>
-            <motion.div
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.95 }}
-              transition={{
-                type: "spring",
-                stiffness: 300,
-                damping: 25,
-                mass: 0.8
-              }}
-              className="fixed bg-black/80 backdrop-blur-md border border-purple-500/50 rounded-xl shadow-2xl shadow-purple-500/20 pointer-events-auto z-[10000]"
-              style={{
-                left: '0',
-                right: '0',
-                top: '0',
-                bottom: '0',
-                width: '100vw',
-                height: '100vh',
-                borderRadius: '0',
-              }}
-              onMouseEnter={() => {
-                if (!isMobile) {
-                  setIsHovered(true);
-                }
-              }}
-              onMouseLeave={() => {
-                if (!isMobile) {
-                  setIsHovered(false);
-                  setShowOverlay(false);
-                }
-              }}
-              onClick={(e) => {
-                if (isMobile && e.target === e.currentTarget) {
-                  setShowOverlay(false);
-                }
-              }}
-            >
-              <div className="p-4 md:p-6 flex flex-col overflow-y-auto relative" style={{
-                maxHeight: '100vh',
-                height: '100vh',
-                paddingTop: '60px'
-              }}>
-                {/* Кнопка закрытия для мобильных */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowOverlay(false);
-                  }}
-                  className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 border border-white/20 text-white transition-colors z-10"
-                >
-                  <CloseIcon size={18} />
-                </button>
 
-                {/* Title with gradient */}
-                <h3 className="text-xl md:text-2xl font-bold mb-3 bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent pr-8">
-                  {character.name}
-                </h3>
 
-                {/* Roleplay Situation */}
-                <div>
-                  <h4 className="text-sm font-semibold text-purple-300 mb-2 uppercase tracking-wide">
-                    Ролевая ситуация
-                  </h4>
-                  {isLoadingSituation ? (
-                    <div className="text-sm text-white/70 animate-pulse">Загрузка...</div>
-                  ) : situationError ? (
-                    <div className="text-sm text-red-400">{situationError}</div>
-                  ) : roleplaySituation ? (
-                    <p className="text-sm md:text-base text-white/90 leading-relaxed whitespace-pre-wrap">
-                      {roleplaySituation}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-white/50">Ролевая ситуация не найдена</p>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          </AnimatePresence>,
-          document.body
-        )}
-
-        {showRatings && (
+        {/* Dislikes are hidden at user's request */}
+        {false && showRatings && (
           <RatingButton
             $isActive={userRating === 'dislike'}
             $isLike={false}

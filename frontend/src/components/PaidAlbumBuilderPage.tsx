@@ -8,7 +8,7 @@ import { SuccessToast } from './SuccessToast';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToEnglish, translateToRussian } from '../utils/translate';
 import { useIsMobile } from '../hooks/useIsMobile';
-import { Sparkles, Plus, X, ArrowLeft, Save, Wand2, Settings, Upload } from 'lucide-react';
+import { Sparkles, Plus, X, ArrowLeft, Save, Wand2, Settings, Upload, Camera } from 'lucide-react';
 import { FiSettings } from 'react-icons/fi';
 import DarkVeil from '../../@/components/DarkVeil';
 import { PromptGlassModal } from './PromptGlassModal';
@@ -191,12 +191,12 @@ const ModelSelectionContainer = styled.div`
 const ModelCard = styled.div<{ $isSelected: boolean; $previewImage?: string }>`
   flex: 0 0 180px;
   height: 260px;
-  background: ${props => props.$isSelected 
-    ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(99, 102, 241, 0.2) 100%)' 
+  background: ${props => props.$isSelected
+    ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(99, 102, 241, 0.2) 100%)'
     : 'rgba(30, 30, 30, 0.4)'};
   backdrop-filter: blur(8px);
-  border: 2px solid ${props => props.$isSelected 
-    ? '#8b5cf6' 
+  border: 2px solid ${props => props.$isSelected
+    ? '#8b5cf6'
     : 'rgba(255, 255, 255, 0.05)'};
   border-radius: ${theme.borderRadius.lg};
   padding: 0;
@@ -495,13 +495,13 @@ const InfoText = styled.p`
 
 // Generate Button
 const GenerateButton = styled.button`
-  width: 100%;
-  padding: 1.125rem 1.5rem;
+  flex: 1;
+  padding: 0.875rem 1.25rem;
   background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
   border: none;
   border-radius: 0.75rem;
   color: #000000;
-  font-size: 1rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   cursor: pointer;
   display: flex;
@@ -511,7 +511,8 @@ const GenerateButton = styled.button`
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.2);
+  white-space: nowrap;
 
   &:hover:not(:disabled) {
     transform: translateY(-2px);
@@ -537,12 +538,86 @@ const GenerateButton = styled.button`
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
     transition: left 0.5s;
   }
 
   &:hover::before {
     left: 100%;
+  }
+
+  @media (max-width: 768px) {
+    padding: 0.75rem 1.25rem;
+    font-size: 0.875rem;
+  }
+`;
+
+const LimitItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  background: rgba(30, 30, 30, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.75rem;
+  height: 100%;
+  min-height: 48px;
+  transition: all 0.3s ease;
+
+  &:hover {
+    background: rgba(40, 40, 40, 0.8);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  @media (max-width: 768px) {
+    padding: 0 12px;
+    min-height: 44px;
+  }
+`;
+
+const AnimatedIcon = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  svg {
+    width: 20px;
+    height: 20px;
+    stroke-width: 2;
+    color: #fbbf24;
+    filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.3));
+  }
+
+  @media (max-width: 768px) {
+    svg {
+      width: 18px;
+      height: 18px;
+    }
+  }
+`;
+
+const LimitValue = styled.span<{ $warning?: boolean }>`
+  font-size: 1rem;
+  font-weight: 700;
+  color: ${props => props.$warning ? '#ef4444' : 'rgba(255, 255, 255, 0.95)'};
+  letter-spacing: 0.5px;
+  font-family: 'Inter', sans-serif;
+
+  @media (max-width: 768px) {
+    font-size: 0.9rem;
+  }
+`;
+
+const GenerateActionContainer = styled.div`
+  display: flex;
+  gap: 0.75rem;
+  align-items: stretch;
+  width: 100%;
+  margin-bottom: 1rem;
+
+  @media (max-width: 480px) {
+    flex-direction: column;
+    align-items: stretch;
   }
 `;
 
@@ -633,8 +708,8 @@ const OverlayButtons = styled.div`
 
 const OverlayButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   padding: 0.375rem 0.75rem;
-  background: ${props => props.$variant === 'primary' 
-    ? 'rgba(100, 100, 100, 0.9)' 
+  background: ${props => props.$variant === 'primary'
+    ? 'rgba(100, 100, 100, 0.9)'
     : 'rgba(255, 255, 255, 0.15)'};
   border: 1px solid ${props => props.$variant === 'primary'
     ? 'rgba(150, 150, 150, 1)'
@@ -652,8 +727,8 @@ const OverlayButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
 
   &:hover {
     background: ${props => props.$variant === 'primary'
-      ? 'rgba(120, 120, 120, 1)'
-      : 'rgba(255, 255, 255, 0.25)'};
+    ? 'rgba(120, 120, 120, 1)'
+    : 'rgba(255, 255, 255, 0.25)'};
     transform: scale(1.05);
   }
 
@@ -733,7 +808,7 @@ const ProgressBarWrapper = styled.div`
 const ProgressBarFill = styled.div<{ $progress: number; $isFull?: boolean }>`
   height: 100%;
   width: ${props => props.$progress}%;
-  background: ${props => props.$isFull 
+  background: ${props => props.$isFull
     ? 'linear-gradient(90deg, #d4a574, #e5b887)'
     : 'linear-gradient(90deg, #6a6a6a, #8a8a8a)'};
   border-radius: 9999px;
@@ -1312,6 +1387,21 @@ const QueueCounter = styled.div`
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 `;
 
+interface SubscriptionStats {
+  subscription_type: string | null;
+  monthly_photos: number;
+  used_photos: number;
+  images_limit?: number;
+  images_used?: number;
+  voice_limit?: number;
+  voice_used?: number;
+  characters_count?: number;
+  characters_limit?: number | null;
+  photos_remaining: number;
+  days_left: number | null;
+  is_active: boolean;
+}
+
 interface PaidAlbumImage {
   id: string;
   url: string;
@@ -1364,7 +1454,8 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
   const [fakeProgress, setFakeProgress] = useState(0);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [userSubscription, setUserSubscription] = useState<string | null>(null);
-  const [userInfo, setUserInfo] = useState<{coins: number, subscription?: {subscription_type?: string}, subscription_type?: string, is_admin?: boolean} | null>(null);
+  const [userInfo, setUserInfo] = useState<{ coins: number, subscription?: { subscription_type?: string }, subscription_type?: string, is_admin?: boolean } | null>(null);
+  const [subscriptionStats, setSubscriptionStats] = useState<SubscriptionStats | null>(null);
   const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime' | 'realism'>('anime-realism');
   const [isTagsExpanded, setIsTagsExpanded] = useState(false);
   const [promptLoadedFromDB, setPromptLoadedFromDB] = useState(false);
@@ -1374,6 +1465,26 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
   type QueuedGeneration = { rawPrompt: string; model: 'anime-realism' | 'anime' | 'realism' };
   const generationQueueRef = useRef<QueuedGeneration[]>([]); // Очередь: промпт и модель на момент клика
   const promptRef = useRef<string>(''); // Актуальный промпт при быстром вводе + генерация
+
+  const fetchSubscriptionStats = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await fetch('/api/v1/profit/stats/', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const statsData = await response.json();
+        setSubscriptionStats(statsData);
+      }
+    } catch (error) {
+      console.error('Error fetching subscription stats:', error);
+    }
+  }, []);
 
   // Check subscription and load userInfo
   useEffect(() => {
@@ -1394,9 +1505,9 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
 
         if (response.ok) {
           const userData = await response.json();
-          const subscriptionType = userData.subscription?.subscription_type || 
-                                  userData.subscription_type || 
-                                  'free';
+          const subscriptionType = userData.subscription?.subscription_type ||
+            userData.subscription_type ||
+            'free';
           setUserSubscription(String(subscriptionType).toLowerCase());
           setUserInfo({
             coins: userData.coins || 0,
@@ -1404,6 +1515,8 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
             subscription_type: userData.subscription_type,
             is_admin: userData.is_admin || false
           });
+          // Load stats if authenticated
+          fetchSubscriptionStats();
         } else {
           setUserSubscription(null);
           setUserInfo(null);
@@ -1415,7 +1528,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
     };
 
     checkSubscription();
-  }, []);
+  }, [fetchSubscriptionStats]);
 
   useEffect(() => {
     promptRef.current = prompt;
@@ -1431,12 +1544,12 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
       fakeProgressTimeoutRef.current = null;
     }
     setFakeProgress(0);
-    
+
     const duration = 15000;
     const interval = 300;
     const steps = duration / interval;
     const increment = 100 / steps;
-    
+
     let currentProgress = 0;
     fakeProgressIntervalRef.current = setInterval(() => {
       currentProgress += increment;
@@ -1482,7 +1595,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
 
       const initialAppearance = character?.character_appearance || character?.appearance || '';
       const initialLocation = character?.location || '';
-      
+
       if (initialAppearance || initialLocation) {
         const initialParts = [initialAppearance, initialLocation].filter(p => p && p.trim());
         const initialPrompt = initialParts.length > 0 ? initialParts.join(' | ') : '';
@@ -1497,16 +1610,16 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         const response = await authManager.fetchWithAuth(`/api/v1/characters/${encodedName}`);
         if (response.ok) {
           const characterData = await response.json();
-          
+
           const appearance = characterData?.character_appearance || characterData?.appearance || character?.character_appearance || character?.appearance || '';
           const location = characterData?.location || character?.location || '';
-          
+
           const needsAppearanceTranslation = appearance && appearance.trim() && !/[а-яёА-ЯЁ]/.test(appearance);
           const needsLocationTranslation = location && location.trim() && !/[а-яёА-ЯЁ]/.test(location);
-          
+
           let translatedAppearance = appearance;
           let translatedLocation = location;
-          
+
           if (needsAppearanceTranslation || needsLocationTranslation) {
             const translations = await Promise.all([
               needsAppearanceTranslation ? translateToRussian(appearance) : Promise.resolve(appearance),
@@ -1515,10 +1628,10 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
             translatedAppearance = translations[0];
             translatedLocation = translations[1];
           }
-          
+
           const parts = [translatedAppearance, translatedLocation].filter(p => p && p.trim());
           const defaultPrompt = parts.length > 0 ? parts.join(' | ') : '';
-          
+
           if (defaultPrompt) {
             promptRef.current = defaultPrompt;
             setPrompt(defaultPrompt);
@@ -1529,13 +1642,13 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         if (character.character_appearance || character.appearance || character.location) {
           const appearance = character.character_appearance || character.appearance || '';
           const location = character.location || '';
-          
+
           const needsAppearanceTranslation = appearance && appearance.trim() && !/[а-яёА-ЯЁ]/.test(appearance);
           const needsLocationTranslation = location && location.trim() && !/[а-яёА-ЯЁ]/.test(location);
-          
+
           let translatedAppearance = appearance;
           let translatedLocation = location;
-          
+
           if (needsAppearanceTranslation || needsLocationTranslation) {
             const translations = await Promise.all([
               needsAppearanceTranslation ? translateToRussian(appearance) : Promise.resolve(appearance),
@@ -1544,10 +1657,10 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
             translatedAppearance = translations[0];
             translatedLocation = translations[1];
           }
-          
+
           const parts = [translatedAppearance, translatedLocation].filter(p => p && p.trim());
           const defaultPrompt = parts.length > 0 ? parts.join(' | ') : '';
-          
+
           if (defaultPrompt) {
             promptRef.current = defaultPrompt;
             setPrompt(defaultPrompt);
@@ -1615,13 +1728,13 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         }
 
         const status = await response.json();
-        
+
         const resultData = status.result || status.data;
-        
+
         if (status.status === 'SUCCESS' && resultData) {
           const imageUrl = resultData.image_url || resultData.cloud_url || resultData.url ||
-                          (Array.isArray(resultData.cloud_urls) && resultData.cloud_urls[0]) ||
-                          (Array.isArray(resultData.saved_paths) && resultData.saved_paths[0]);
+            (Array.isArray(resultData.cloud_urls) && resultData.cloud_urls[0]) ||
+            (Array.isArray(resultData.saved_paths) && resultData.saved_paths[0]);
           const imageId = resultData.image_id || resultData.id || resultData.task_id || resultData.filename || `${Date.now()}-${taskId}`;
 
           if (imageUrl) {
@@ -1687,7 +1800,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
     }
 
     const result = await response.json();
-    
+
     if (result.task_id) {
       const image = await waitForGeneration(result.task_id, token);
       return image;
@@ -1745,6 +1858,9 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                 subscription: userData.subscription,
                 subscription_type: userData.subscription_type
               });
+
+              // Обновляем статистику подписки, чтобы счетчик изменился
+              fetchSubscriptionStats();
             }
           }
         } catch {
@@ -1818,11 +1934,11 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
     setSuccess(null);
 
     const subscriptionType = (userSubscription || '').toLowerCase();
-    const hasValidSubscription = subscriptionType === 'standard' || 
-                                subscriptionType === 'premium' || 
-                                subscriptionType === 'pro' ||
-                                subscriptionType === 'standart';
-    
+    const hasValidSubscription = subscriptionType === 'standard' ||
+      subscriptionType === 'premium' ||
+      subscriptionType === 'pro' ||
+      subscriptionType === 'standart';
+
     const canEdit = canEditAlbum || hasValidSubscription;
 
     if (!canEdit) {
@@ -1875,11 +1991,11 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
     setSuccess(null);
 
     const subscriptionType = (userSubscription || '').toLowerCase();
-    const hasValidSubscription = subscriptionType === 'standard' || 
-                                subscriptionType === 'premium' || 
-                                subscriptionType === 'pro' ||
-                                subscriptionType === 'standart';
-    
+    const hasValidSubscription = subscriptionType === 'standard' ||
+      subscriptionType === 'premium' ||
+      subscriptionType === 'pro' ||
+      subscriptionType === 'standart';
+
     const canEdit = canEditAlbum || hasValidSubscription;
 
     if (!canEdit) {
@@ -1902,7 +2018,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
     const newPhotos = [...selectedPhotos, photo];
     setSelectedPhotos(newPhotos);
     setAddedPhotoId(photo.id);
-    
+
     // Автоматическое сохранение при добавлении
     if (character?.name) {
       setIsSaving(true);
@@ -1918,7 +2034,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         });
 
         if (response.ok) {
-          setSuccess('Фото добавлено в альбом');
+          // Успешно сохранено
         } else {
           const data = await response.json().catch(() => ({}));
           throw new Error(data.detail || data.message || 'Не удалось сохранить альбом');
@@ -1931,7 +2047,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         setIsSaving(false);
       }
     }
-    
+
     setTimeout(() => setAddedPhotoId(null), 400);
   };
 
@@ -1943,7 +2059,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
     setSelectedPrompt(null);
     setPromptError(null);
     setIsPromptVisible(true);
-    
+
     // Загружаем промпт для изображения
     setIsLoadingPrompt(true);
     try {
@@ -1999,7 +2115,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         <Header>
           <Title>Платный альбом {displayName}</Title>
           <Subtitle>
-            Сгенерируйте новые изображения и выберите до {MAX_PAID_ALBUM_PHOTOS} фотографий для платного альбома персонажа. 
+            Сгенерируйте новые изображения и выберите до {MAX_PAID_ALBUM_PHOTOS} фотографий для платного альбома персонажа.
             Если кто-то купит ваш альбом, вы получите 15%
           </Subtitle>
         </Header>
@@ -2011,7 +2127,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
             <UpgradeModal onClick={(e) => e.stopPropagation()}>
               <UpgradeTitle>Платный альбом недоступен</UpgradeTitle>
               <UpgradeText>
-                Добавление фотографий в платный альбом доступно только подписчикам Standard и Premium. 
+                Добавление фотографий в платный альбом доступно только подписчикам Standard и Premium.
                 Оформите подписку, чтобы получать 15% от продаж.
               </UpgradeText>
               <UpgradeActions>
@@ -2034,13 +2150,13 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
           <GenerationSection>
             <GlassCard>
               <SectionTitle>Генерация изображений</SectionTitle>
-              
+
               <ModelSelectWrapper>
                 <Label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
                   <FiSettings size={16} /> Выберите стиль
                 </Label>
                 <ModelSelectionContainer>
-                  <ModelCard 
+                  <ModelCard
                     $isSelected={selectedModel === 'anime-realism'}
                     $previewImage="/анимереализм.jpg"
                     onClick={() => setSelectedModel('anime-realism')}
@@ -2050,8 +2166,8 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                       <ModelDescription>Сбалансированный стиль</ModelDescription>
                     </ModelInfoOverlay>
                   </ModelCard>
-                  
-                  <ModelCard 
+
+                  <ModelCard
                     $isSelected={selectedModel === 'anime'}
                     $previewImage="/аниме.png"
                     onClick={() => setSelectedModel('anime')}
@@ -2077,7 +2193,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                 <MagicIcon>
                   <Wand2 size={20} />
                 </MagicIcon>
-                
+
                 {/* Теги-помощники */}
                 <div className="relative">
                   <TagsContainer $isExpanded={isTagsExpanded}>
@@ -2108,7 +2224,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                       { label: 'Спортивный стиль', value: 'в спортивной одежде, активный образ жизни' },
                       { label: 'Романтичная атмосфера', value: 'романтичная обстановка, мягкое освещение, уют' }
                     ].map((tag, idx) => (
-                      <TagButton 
+                      <TagButton
                         key={idx}
                         type="button"
                         $category="neutral"
@@ -2125,8 +2241,8 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                       </TagButton>
                     ))}
                   </TagsContainer>
-                  <ExpandButton 
-                    $isExpanded={isTagsExpanded} 
+                  <ExpandButton
+                    $isExpanded={isTagsExpanded}
                     onClick={() => setIsTagsExpanded(!isTagsExpanded)}
                   >
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -2137,84 +2253,105 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
               </PromptWrapper>
 
               <InfoText>
-                Используйте подробное описание внешности, окружения и атмосферы. 
+                Используйте подробное описание внешности, окружения и атмосферы.
                 Если оставить поле пустым, будут использованы описания персонажа.
               </InfoText>
 
-              <GenerateButton 
-                onClick={handleGeneratePhoto} 
-                disabled={(() => {
-                  if (!userInfo) return true;
-                  const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userSubscription;
-                  let subscriptionType = 'free';
-                  if (rawSubscriptionType) {
-                    subscriptionType = typeof rawSubscriptionType === 'string' 
-                      ? rawSubscriptionType.toLowerCase().trim() 
-                      : String(rawSubscriptionType).toLowerCase().trim();
-                  }
-                  let queueLimit;
-                  if (subscriptionType === 'premium') {
-                    queueLimit = 5; // PREMIUM: 5 фото одновременно
-                  } else if (subscriptionType === 'standard') {
-                    queueLimit = 3; // STANDARD: 3 фото одновременно
-                  } else {
-                    queueLimit = 1; // FREE/BASE: только 1 фото одновременно
-                  }
-                  const queueCount = generationQueueRef.current?.length ?? 0;
-                  const activeGenerations = (isGenerating ? 1 : 0) + queueCount;
-                  const hasEnoughCoins = (userInfo?.coins || 0) >= 10;
-                  const isQueueFull = activeGenerations >= queueLimit;
-                  return isQueueFull || !hasEnoughCoins;
-                })()}
-              >
-                {(() => {
-                  const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userSubscription;
-                  let subscriptionType = 'free';
-                  if (rawSubscriptionType) {
-                    subscriptionType = typeof rawSubscriptionType === 'string' 
-                      ? rawSubscriptionType.toLowerCase().trim() 
-                      : String(rawSubscriptionType).toLowerCase().trim();
-                  }
-                  let queueLimit;
-                  if (subscriptionType === 'premium') {
-                    queueLimit = 5; // PREMIUM: 5 фото одновременно
-                  } else if (subscriptionType === 'standard') {
-                    queueLimit = 3; // STANDARD: 3 фото одновременно
-                  } else {
-                    queueLimit = 1; // FREE/BASE: только 1 фото одновременно
-                  }
-                  const queueCount = generationQueueRef.current?.length ?? 0;
-                  const activeGenerations = (isGenerating ? 1 : 0) + queueCount;
-                  const isQueueFull = activeGenerations >= queueLimit;
-                  
-                  if (isGenerating) {
-                    return (
-                      <>
-                        <LoadingSpinner size="sm" /> Генерация... {fakeProgress}%
-                      </>
-                    );
-                  } else {
-                    const hasGeneratedPhotos = generatedPhotos && generatedPhotos.length > 0;
-                    const modelDisplayNames = {
-                      'anime-realism': 'Аниме + Реализм',
-                      'anime': 'Аниме',
-                      'realism': 'Реализм'
-                    };
-                    const currentModelName = modelDisplayNames[selectedModel] || selectedModel;
-                    
-                    const actionText = hasGeneratedPhotos ? 'Сгенерировать' : 'Сгенерировать фото';
-                    const baseText = isQueueFull 
-                      ? `${actionText} (${currentModelName}) (10 монет) • Очередь заполнена`
-                      : `${actionText} (${currentModelName}) (10 монет)`;
-                    
-                    return (
-                      <>
-                        <Sparkles size={20} /> {baseText}
-                      </>
-                    );
-                  }
-                })()}
-              </GenerateButton>
+              <GenerateActionContainer>
+                <GenerateButton
+                  onClick={handleGeneratePhoto}
+                  disabled={(() => {
+                    if (!userInfo) return true;
+                    const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userSubscription;
+                    let subscriptionType = 'free';
+                    if (rawSubscriptionType) {
+                      subscriptionType = typeof rawSubscriptionType === 'string'
+                        ? rawSubscriptionType.toLowerCase().trim()
+                        : String(rawSubscriptionType).toLowerCase().trim();
+                    }
+                    let queueLimit;
+                    if (subscriptionType === 'premium') {
+                      queueLimit = 5; // PREMIUM: 5 фото одновременно
+                    } else if (subscriptionType === 'standard') {
+                      queueLimit = 3; // STANDARD: 3 фото одновременно
+                    } else {
+                      queueLimit = 1; // FREE/BASE: только 1 фото одновременно
+                    }
+                    const queueCount = generationQueueRef.current?.length ?? 0;
+                    const activeGenerations = (isGenerating ? 1 : 0) + queueCount;
+                    const hasEnoughCoins = (userInfo?.coins || 0) >= 10;
+                    const isQueueFull = activeGenerations >= queueLimit;
+                    return isQueueFull || !hasEnoughCoins;
+                  })()}
+                >
+                  {(() => {
+                    const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userSubscription;
+                    let subscriptionType = 'free';
+                    if (rawSubscriptionType) {
+                      subscriptionType = typeof rawSubscriptionType === 'string'
+                        ? rawSubscriptionType.toLowerCase().trim()
+                        : String(rawSubscriptionType).toLowerCase().trim();
+                    }
+                    let queueLimit;
+                    if (subscriptionType === 'premium') {
+                      queueLimit = 5; // PREMIUM: 5 фото одновременно
+                    } else if (subscriptionType === 'standard') {
+                      queueLimit = 3; // STANDARD: 3 фото одновременно
+                    } else {
+                      queueLimit = 1; // FREE/BASE: только 1 фото одновременно
+                    }
+                    const queueCount = generationQueueRef.current?.length ?? 0;
+                    const activeGenerations = (isGenerating ? 1 : 0) + queueCount;
+                    const isQueueFull = activeGenerations >= queueLimit;
+
+                    if (isGenerating) {
+                      return (
+                        <>
+                          <LoadingSpinner size="sm" /> Генерация... {fakeProgress}%
+                        </>
+                      );
+                    } else {
+                      const hasGeneratedPhotos = generatedPhotos && generatedPhotos.length > 0;
+                      const modelDisplayNames = {
+                        'anime-realism': 'Аниме + Реализм',
+                        'anime': 'Аниме',
+                        'realism': 'Реализм'
+                      };
+                      const currentModelName = modelDisplayNames[selectedModel] || selectedModel;
+
+                      const actionText = hasGeneratedPhotos ? 'Сгенерировать' : 'Сгенерировать фото';
+                      const baseText = isQueueFull
+                        ? `${actionText} (${currentModelName}) (10 монет) • Очередь заполнена`
+                        : `${actionText} (${currentModelName}) (10 монет)`;
+
+                      return (
+                        <>
+                          <Sparkles size={18} /> {baseText}
+                        </>
+                      );
+                    }
+                  })()}
+                </GenerateButton>
+
+                {userInfo && (
+                  <LimitItem title="Осталось фото-генераций">
+                    <AnimatedIcon>
+                      <Camera />
+                    </AnimatedIcon>
+                    <LimitValue $warning={(subscriptionStats?.images_limit || subscriptionStats?.monthly_photos || 0) - (subscriptionStats?.images_used || subscriptionStats?.used_photos || 0) <= 5}>
+                      {(() => {
+                        const limit = subscriptionStats?.images_limit ??
+                          subscriptionStats?.monthly_photos ??
+                          (userInfo?.subscription_type === 'standard' || userInfo?.subscription_type === 'premium' ? 300 : 5);
+                        const used = subscriptionStats?.images_used ??
+                          subscriptionStats?.used_photos ??
+                          0;
+                        return Math.max(0, limit - used);
+                      })()}
+                    </LimitValue>
+                  </LimitItem>
+                )}
+              </GenerateActionContainer>
 
               {/* Кнопка загрузки фото с компьютера (только для админов) */}
               {userInfo?.is_admin && (
@@ -2227,7 +2364,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                     onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
-                      
+
                       try {
                         setError(null);
                         const formData = new FormData();
@@ -2236,7 +2373,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                           formData.append('character_name', character.name);
                         }
                         formData.append('is_paid_album', 'true');
-                        
+
                         const token = localStorage.getItem('authToken');
                         const response = await fetch('/api/v1/characters/upload-image/', {
                           method: 'POST',
@@ -2245,14 +2382,14 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                           },
                           body: formData
                         });
-                        
+
                         if (!response.ok) {
                           const error = await response.json().catch(() => ({}));
                           throw new Error(error.detail || 'Ошибка загрузки изображения');
                         }
-                        
+
                         const result = await response.json();
-                        
+
                         // Добавляем загруженное фото в selectedPhotos
                         if (result.url && result.id) {
                           const newPhoto = { id: result.id, url: result.url, created_at: new Date().toISOString() };
@@ -2260,7 +2397,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                             // Автоматически добавляем в альбом
                             const updatedPhotos = [...selectedPhotos, newPhoto];
                             setSelectedPhotos(updatedPhotos);
-                            
+
                             // Сохраняем в БД
                             if (character?.name) {
                               setIsSaving(true);
@@ -2274,7 +2411,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                                     photos: updatedPhotos
                                   })
                                 });
-                                
+
                                 if (saveResponse.ok) {
                                   setSuccess('Фото успешно загружено и добавлено в альбом');
                                 } else {
@@ -2293,7 +2430,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                             setError(`В платном альбоме может быть не более ${MAX_PAID_ALBUM_PHOTOS} фотографий`);
                           }
                         }
-                        
+
                         // Очищаем input
                         e.target.value = '';
                       } catch (err) {
@@ -2320,8 +2457,8 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                 const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userSubscription;
                 let subscriptionType = 'free';
                 if (rawSubscriptionType) {
-                  subscriptionType = typeof rawSubscriptionType === 'string' 
-                    ? rawSubscriptionType.toLowerCase().trim() 
+                  subscriptionType = typeof rawSubscriptionType === 'string'
+                    ? rawSubscriptionType.toLowerCase().trim()
                     : String(rawSubscriptionType).toLowerCase().trim();
                 }
                 let queueLimit;
@@ -2407,7 +2544,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
 
           <AlbumSummaryCard>
             <SectionTitle style={{ marginBottom: '1rem' }}>Альбом</SectionTitle>
-            
+
             <ProgressContainer>
               <ProgressHeader>
                 <ProgressLabel>Фотографий в альбоме</ProgressLabel>
@@ -2461,7 +2598,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                   Перейти в чат
                 </ChatButton>
               )}
-              
+
               <GhostButton onClick={onBackToMain}>
                 <ArrowLeft size={18} />
                 На главную

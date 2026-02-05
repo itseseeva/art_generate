@@ -1,19 +1,61 @@
+# Cherry Lust - AI Chat 18+ Robots.txt
 User-agent: *
 Allow: /
 
-# Основные страницы
-Allow: /
-Allow: /shop
-Allow: /tariffs
-Allow: /characters
+# Основные страницы для индексации
+Allow: /$
+Allow: /characters$
+Allow: /create-character$
+Allow: /shop$
+Allow: /tariffs$
+Allow: /about$
+Allow: /how-it-works$
+Allow: /legal$
 
-# Запрещенные для индексации
+# Запрещенные для индексации (приватные разделы)
 Disallow: /api/
 Disallow: /admin/
 Disallow: /process-transaction343242/
+Disallow: /chat/
+Disallow: /my-characters/
+Disallow: /profile/
+Disallow: /messages/
+Disallow: /history/
+Disallow: /user-gallery/
+Disallow: /paid-album/
+Disallow: /paid-album-builder/
+Disallow: /photo-generation/
+Disallow: /edit-characters/
+Disallow: /edit-character/
+Disallow: /favorites/
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
 
 # Sitemap
 Sitemap: https://cherrylust.art/sitemap.xml
 
-# Crawl-delay (задержка между запросами в секундах)
+# Crawl-delay для вежливого краулинга
 Crawl-delay: 1
+
+# Специфичные правила для поисковых ботов
+User-agent: Yandex
+Allow: /
+Crawl-delay: 2
+
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 1
+
+# Блокировка агрессивных ботов
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /

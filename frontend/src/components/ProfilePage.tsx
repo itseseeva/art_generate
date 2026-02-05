@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { authManager } from '../utils/auth';
 import { theme } from '../theme';
@@ -38,6 +38,9 @@ import {
 import { User, Coins, Crown, History, LogOut } from 'lucide-react';
 import { motion } from 'motion/react';
 import { CharacterCard } from './CharacterCard';
+import { GalleryAccessModal } from './GalleryAccessModal';
+import { GalleryAccessDeniedModal } from './GalleryAccessDeniedModal';
+
 
 const UNLOCKED_USER_GALLERIES_KEY = 'userGalleryUnlocked';
 
@@ -163,6 +166,7 @@ interface ProfilePageProps {
   onPaidAlbum?: (character: any) => void;
   onShop?: () => void;
   userId?: number;
+  username?: string;
 }
 
 interface UserInfoResponse {
@@ -1316,7 +1320,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   onCharacterSelect,
   onLogout,
   onPaidAlbum,
-  userId: profileUserId
+  userId: profileUserId,
+  username: profileUsername
 }) => {
 
   const [userInfo, setUserInfo] = useState<UserInfoResponse | null>(null);
@@ -1328,7 +1333,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   });
   const [error, setError] = useState<string | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [showFreeSubscriptionTooltip, setShowFreeSubscriptionTooltip] = useState(false);
+  const [showGalleryAccessModal, setShowGalleryAccessModal] = useState(false);
   const galleryButtonRef = useRef<HTMLButtonElement>(null);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authToken, setAuthToken] = useState<string | null>(() => localStorage.getItem('authToken'));
@@ -1348,8 +1353,22 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [photosMap, setPhotosMap] = useState<Record<string, string[]>>({});
   const [favoriteCharacterIds, setFavoriteCharacterIds] = useState<Set<number>>(new Set());
 
-  const isViewingOwnProfile = !profileUserId || (currentUserId !== null && profileUserId === currentUserId);
-  const isMobile = useIsMobile();
+  // Определяем, просматривает ли пользователь свой профиль
+  // 1. Если нет ни ID, ни username в параметрах - это "/profile" (свой)
+  // 2. Если есть ID, сравниваем с currentUserId
+  // 3. Если есть username, сравниваем ID загруженного пользователя с currentUserId
+  const isViewingOwnProfile = useMemo(() => {
+    // 1. Если нет ни ID, ни username в параметрах - это "/profile" (свой)
+    if (!profileUserId && !profileUsername) return true;
+
+    // 2. Если есть ID, сравниваем с currentUserId
+    if (profileUserId && currentUserId !== null && Number(profileUserId) === Number(currentUserId)) return true;
+
+    // 3. Если есть username, сравниваем ID загруженного пользователя с currentUserId
+    if (profileUsername && currentUserId !== null && userInfo?.id === currentUserId) return true;
+
+    return false;
+  }, [profileUserId, profileUsername, currentUserId, userInfo?.id]);
 
   // Загрузка избранных персонажей
   const loadFavorites = useCallback(async () => {
@@ -1389,6 +1408,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       // Если передан profileUserId, используем его (для чужого профиля)
       if (profileUserId) {
         targetUserId = profileUserId;
+      } else if (profileUsername) {
+        // Если передан username, ждем загрузки userInfo, чтобы получить ID
+        if (userInfo) {
+          targetUserId = userInfo.id;
+        } else {
+          // Если userInfo еще не загружен, выходим и ждем обновления
+          return;
+        }
       } else {
         // Для своего профиля получаем ID текущего пользователя
         // Используем currentUserId если он уже установлен, иначе делаем запрос
@@ -1436,16 +1463,24 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         }
 
         // Если использовали /my-characters, персонажи уже отфильтрованы
-        // Если использовали общий эндпоинт, фильтруем по user_id
-        const myCharacters = !profileUserId && currentUserId === targetUserId
+        // Если использовали общий эндпоинт, фильтруем по user_id или username
+        const myCharacters = (!profileUserId && !profileUsername && currentUserId === targetUserId)
           ? charactersData  // Уже отфильтрованы
           : charactersData.filter((char: any) => {
-            if (!char || !char.id) {
-              return false;
-            }
-            // Проверяем оба варианта: user_id и creator_id (на случай разных версий API)
+            if (!char) return false;
+
+            // Проверяем по ID
             const charUserId = char.user_id || char.creator_id;
-            return charUserId !== null && charUserId !== undefined && Number(charUserId) === Number(targetUserId);
+            const matchesId = charUserId !== null && charUserId !== undefined && Number(charUserId) === Number(targetUserId);
+
+            // Проверяем по Username (на случай если ID не совпадает или отсутствует в char)
+            const targetUsername = userInfo?.username || profileUsername;
+            const matchesUsername = targetUsername && (
+              (char.creator_username && char.creator_username.toLowerCase() === targetUsername.toLowerCase()) ||
+              (char.author && char.author.toLowerCase() === targetUsername.toLowerCase())
+            );
+
+            return matchesId || matchesUsername;
           });
 
         // Загружаем фото из main_photos
@@ -1597,7 +1632,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       setUserCharacters([]);
       setRawCharactersData([]);
     }
-  }, [profileUserId, currentUserId]);
+  }, [profileUserId, profileUsername, currentUserId, userInfo]);
   const viewedUserName = userInfo?.username || userInfo?.email?.split('@')[0] || 'Пользователь';
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -1633,16 +1668,47 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
   const fetchUserInfo = useCallback(async () => {
     // Если передан profileUserId, загружаем данные этого пользователя
+    // Если передан profileUsername, сначала пытаемся найти ID пользователя
     // Иначе загружаем данные текущего пользователя
-    const url = profileUserId
-      ? `${API_CONFIG.BASE_URL}/api/v1/auth/users/${profileUserId}/`
-      : `${API_CONFIG.BASE_URL}/api/v1/auth/me/`;
+
+    let url = `${API_CONFIG.BASE_URL}/api/v1/auth/me/`;
+    let targetId = profileUserId;
+
+    if (targetId) {
+      url = `${API_CONFIG.BASE_URL}/api/v1/auth/users/${targetId}/`;
+    } else if (profileUsername) {
+      // Пытаемся найти пользователя по username через список персонажей (fallback method)
+      // Так как прямого эндпоинта поиска по username может не быть, ищем через персонажей
+      try {
+        const response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/characters/`);
+        if (response.ok) {
+          const characters = await response.json();
+          // Ищем хотя бы одного персонажа этого автора
+          const authorChar = characters.find((c: any) =>
+            (c.creator_username && c.creator_username.toLowerCase() === profileUsername.toLowerCase()) ||
+            (c.author && c.author.toLowerCase() === profileUsername.toLowerCase())
+          );
+
+          if (authorChar) {
+            targetId = authorChar.user_id || authorChar.creator_id;
+            if (targetId) {
+              url = `${API_CONFIG.BASE_URL}/api/v1/auth/users/${targetId}/`;
+            }
+          }
+        }
+      } catch (e) {
+        // Silently fail fallback
+      }
+    }
 
     const response = await authManager.fetchWithAuth(url);
 
     if (!response.ok) {
       const errorText = await response.text();
-
+      // Если поиск по username не удался и это был не "me" запрос
+      if (profileUsername && !targetId) {
+        throw new Error('Пользователь не найден');
+      }
       throw new Error('Не удалось загрузить данные пользователя');
     }
 
@@ -1651,18 +1717,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       throw new Error('Пустой ответ от сервера');
     }
 
-
-
     setUserInfo(data as UserInfoResponse);
 
     // Если это свой профиль, сохраняем ID текущего пользователя
-    if (!profileUserId) {
+    if (!profileUserId && !profileUsername) {
       const userId = data.id;
       setCurrentUserId(userId);
     }
 
     return data as UserInfoResponse;
-  }, [profileUserId]);
+  }, [profileUserId, profileUsername]);
 
   const fetchSubscriptionStats = useCallback(async () => {
     const response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/profit/stats/`);
@@ -1794,7 +1858,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
 
   const handleOpenUserGallery = useCallback(async () => {
-    if (!profileUserId || isViewingOwnProfile) {
+    // Определяем ID пользователя для галереи
+    // Если есть profileUserId - используем его
+    // Если нет, но есть profileUsername - используем userInfo?.id (ID загруженного пользователя)
+    const targetUserId = profileUserId || userInfo?.id;
+
+    if (!targetUserId || isViewingOwnProfile) {
       // Открываем свою галерею
       onOpenUserGallery?.();
       return;
@@ -1834,14 +1903,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     const currentSubscription = subscriptionTypeRaw ? subscriptionTypeRaw.toLowerCase() : '';
 
 
-    // Проверяем, что подписка есть и она STANDARD или PREMIUM
-    const allowedSubscriptions = ['standard', 'premium'];
+    // Проверяем, что подписка есть и она PREMIUM
+    const allowedSubscriptions = ['premium'];
     if (!currentSubscription || !allowedSubscriptions.includes(currentSubscription)) {
-      // Показываем уведомление снизу от кнопки для FREE пользователей
-      setShowFreeSubscriptionTooltip(true);
-      setTimeout(() => {
-        setShowFreeSubscriptionTooltip(false);
-      }, 3000);
+      // Показываем модальное окно для FREE и STANDARD пользователей
+      setShowGalleryAccessModal(true);
       return;
     }
 
@@ -1849,8 +1915,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
       const hasServerAccess = await verifyGalleryAccess();
       if (hasServerAccess) {
-
-        onOpenUserGallery?.(profileUserId);
+        onOpenUserGallery?.(targetUserId);
         return;
       }
 
@@ -1862,9 +1927,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     setIsLoadingGallery(true);
     try {
       // Вызываем разблокировку - бэкенд проверит баланс, подписку и списал кредиты
-      await unlockUserGallery(profileUserId);
+      await unlockUserGallery(targetUserId);
       const updatedProfile = await fetchCurrentUserProfile();
-      rememberUnlockedUserGallery(profileUserId);
+      rememberUnlockedUserGallery(targetUserId);
       setHasUnlockedGallery(true);
 
       // Диспатчим событие обновления баланса с данными
@@ -1873,7 +1938,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       }, 100);
 
       if (onOpenUserGallery) {
-        onOpenUserGallery(profileUserId);
+        onOpenUserGallery(targetUserId);
       }
     } catch (err: any) {
       const isSubscriptionError = err.status === 403 ||
@@ -1890,12 +1955,20 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       setIsLoadingGallery(false);
     }
   }, [
-    hasUnlockedGallery,
-    fetchCurrentUserProfile,
+    profileUserId,
+    userInfo,
     isViewingOwnProfile,
+    hasUnlockedGallery,
     verifyGalleryAccess,
+    onOpenUserGallery,
     stats,
-    userInfo
+    fetchSubscriptionStats,
+    unlockUserGallery,
+    fetchCurrentUserProfile,
+    rememberUnlockedUserGallery,
+    setHasUnlockedGallery,
+    setIsLoadingGallery,
+    setShowGalleryAccessModal
   ]);
 
 
@@ -1923,22 +1996,20 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     setError(null);
 
     try {
-      // Если это чужой профиль, сначала загружаем ID текущего пользователя
+      // Всегда загружаем ID текущего пользователя, чтобы корректно определять "свой" профиль
+      // даже если навигация была по username или ID.
       let myUserId: number | null = null;
-      if (profileUserId) {
-        try {
-          const myProfileData = await fetchCurrentUserProfile();
-          myUserId = myProfileData?.id ?? null;
-        } catch (error) {
-
-          // Продолжаем загрузку даже если не удалось получить ID текущего пользователя
-        }
+      try {
+        const myProfileData = await fetchCurrentUserProfile();
+        myUserId = myProfileData?.id ?? null;
+      } catch (error) {
+        // Продолжаем загрузку даже если не удалось получить ID текущего пользователя
       }
 
       const results = await Promise.allSettled([
         fetchUserInfo(),
         fetchSubscriptionStats(), // Всегда загружаем статистику текущего пользователя (нужна для проверки подписки при разблокировке галереи)
-        profileUserId ? Promise.resolve(null) : loadPhotosCount(), // Фото только для своего профиля
+        (profileUserId || profileUsername) ? Promise.resolve(null) : loadPhotosCount(), // Фото только для своего профиля
         isViewingOwnProfile ? fetchProfileStats() : Promise.resolve(null) // Расширенная статистика только для своего профиля
       ]);
 
@@ -1984,7 +2055,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   useEffect(() => {
     if (authToken) {
       // Для своего профиля ждем, пока currentUserId установится
-      if (!profileUserId && currentUserId === null) {
+      if (!profileUserId && !profileUsername && currentUserId === null) {
         // currentUserId еще не установлен, пропускаем загрузку
         // Она произойдет после установки currentUserId через другой useEffect
         return;
@@ -1994,7 +2065,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       setUserCharacters([]);
       setRawCharactersData([]);
     }
-  }, [authToken, loadUserCharacters, profileUserId, currentUserId]);
+  }, [authToken, loadUserCharacters, profileUserId, profileUsername, currentUserId, userInfo]);
 
   // Дополнительный useEffect для загрузки персонажей после установки currentUserId
   useEffect(() => {
@@ -2174,13 +2245,31 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 max-w-7xl mx-auto">
-          {/* Блок 1 (2x1): Карточка пользователя */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="md:col-span-2 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 md:p-8 hover:border-pink-500/30 transition-all duration-300 shadow-lg shadow-pink-500/5"
+            className="md:col-span-2 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 md:p-8 hover:border-pink-500/30 transition-all duration-300 shadow-lg shadow-pink-500/5 relative group/card"
           >
+            {isViewingOwnProfile && (
+              <button
+                onClick={() => {
+                  if (onLogout) {
+                    onLogout();
+                  } else {
+                    localStorage.removeItem('authToken');
+                    localStorage.removeItem('refreshToken');
+                    setAuthToken(null);
+                    window.location.href = '/';
+                  }
+                }}
+                className="absolute top-4 right-4 p-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 rounded-xl text-red-400 transition-all duration-300 flex items-center gap-2 group/logout shadow-lg shadow-red-500/5 hover:shadow-red-500/10"
+                title="Выйти из аккаунта"
+              >
+                <LogOut className="w-4 h-4 transition-transform group-hover/logout:scale-110" />
+                <span className="text-xs font-bold hidden sm:inline uppercase tracking-wider">Выйти</span>
+              </button>
+            )}
             <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
               <div className="relative">
                 <div className={`w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden border-2 ${isPremium
@@ -2254,9 +2343,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               </div>
               <div className="flex-1">
                 <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">{viewedUserName}</h1>
-                <p className="text-white/60 mb-4">{userInfo?.email || '—'}</p>
+                {isViewingOwnProfile && userInfo?.email && <p className="text-white/60 mb-4">{userInfo.email}</p>}
                 <div className="flex items-center gap-3 flex-wrap">
-                  {subscriptionTypeUpper && (
+                  {isViewingOwnProfile && subscriptionTypeUpper && (
                     <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm ${isPremium
                       ? 'bg-gradient-to-r from-yellow-400/20 to-yellow-600/20 text-yellow-300 border border-yellow-400/30 shadow-[0_0_15px_rgba(250,204,21,0.2)]'
                       : 'bg-gradient-to-r from-pink-500/20 to-rose-500/20 text-pink-300 border border-pink-500/30 shadow-[0_0_15px_rgba(236,72,153,0.2)]'
@@ -2282,9 +2371,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                         >
                           Галерея пользователя
                         </button>
-                        <FreeSubscriptionTooltip $show={showFreeSubscriptionTooltip}>
-                          Для доступа нужна подписка Standard или Premium
-                        </FreeSubscriptionTooltip>
                       </GalleryButtonWrapper>
                     </>
                   )}
@@ -2297,9 +2383,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       >
                         Галерея пользователя
                       </button>
-                      <FreeSubscriptionTooltip $show={showFreeSubscriptionTooltip}>
-                        Для доступа нужна подписка Standard или Premium
-                      </FreeSubscriptionTooltip>
                     </GalleryButtonWrapper>
                   )}
                 </div>
@@ -2329,13 +2412,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       <span className="text-white/60 text-sm">Генерация фото</span>
                     </div>
                     <span className="text-white font-bold text-sm">
-                      {Math.min(stats?.images_used ?? 0, stats?.images_limit ?? 0)} / {stats?.images_limit ?? 0}
+                      {Math.min(stats?.images_used ?? stats?.used_photos ?? 0, stats?.images_limit ?? stats?.monthly_photos ?? 0)} / {stats?.images_limit ?? stats?.monthly_photos ?? 0}
                     </span>
                   </div>
                   <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
                     <motion.div
                       initial={{ width: 0 }}
-                      animate={{ width: `${Math.min(100, ((stats?.images_used ?? 0) / (stats?.images_limit || 1)) * 100)}%` }}
+                      animate={{
+                        width: `${Math.min(100, ((stats?.images_used ?? stats?.used_photos ?? 0) / ((stats?.images_limit ?? stats?.monthly_photos) || 1)) * 100)}%`
+                      }}
                       transition={{ duration: 1, delay: 0.3 }}
                       className={`h-full rounded-full ${isPremium
                         ? 'bg-gradient-to-r from-yellow-400 to-yellow-600'
@@ -2382,7 +2467,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     </div>
                     <span className="text-white font-bold text-sm">
                       {stats?.characters_limit === null
-                        ? `${stats?.characters_count ?? 0} (Без ограничений)`
+                        ? `${stats?.characters_count ?? 0} (∞)`
                         : `${stats?.characters_count ?? 0} / ${stats?.characters_limit ?? 0}`
                       }
                     </span>
@@ -2408,29 +2493,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           )}
 
 
-          {/* Блок 5 (1x1): Выход - только для своего профиля */}
-          {isViewingOwnProfile && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.4 }}
-              className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 hover:border-red-500/50 transition-all duration-300 shadow-lg shadow-red-500/5 cursor-pointer group"
-              onClick={() => {
-                localStorage.removeItem('authToken');
-                localStorage.removeItem('refreshToken');
-                setAuthToken(null);
-                window.location.reload();
-              }}
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center border border-red-500/30 group-hover:bg-red-500/30 transition-colors">
-                  <LogOut className="w-5 h-5 text-red-400" />
-                </div>
-                <span className="text-white/60 text-sm">Выход</span>
-              </div>
-              <div className="text-white/40 text-xs">Выйти из аккаунта</div>
-            </motion.div>
-          )}
 
           {/* Блок 6 (3x1): Галерея персонажей */}
           {rawCharactersData.length > 0 && (
@@ -2487,10 +2549,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                         onClick={onCharacterSelect}
                         isAuthenticated={!!authToken}
                         onPhotoGeneration={onOpenUserGallery ? (char) => {
-                          const userId = profileUserId || currentUserId || undefined;
-                          if (userId) {
-                            onOpenUserGallery(userId);
-                          }
+                          // Если это свой профиль, открываем свою галерею.
+                          // Если чужой - тоже открываем свою галерею, так как генерация привязана к текущему пользователю
+                          onOpenUserGallery(currentUserId || undefined);
                         } : undefined}
                         onPaidAlbum={onPaidAlbum ? (char) => {
                           onPaidAlbum(char);
@@ -2566,6 +2627,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           }}
         />
       )}
+
+      <GalleryAccessModal
+        isOpen={showGalleryAccessModal}
+        onClose={() => setShowGalleryAccessModal(false)}
+        onGoToShop={() => {
+          window.location.href = '/shop?tab=subscription';
+        }}
+      />
 
     </MainContainer>
   );

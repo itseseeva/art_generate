@@ -465,9 +465,9 @@ async def get_user_details(
         from app.chat_bot.models.models import CharacterDB
         
         # Получаем пользователя с подпиской
-        stmt = select(Users).options(selectinload(Users.subscription)).filter(Users.id == user_id)
+        stmt = select(Users).filter(Users.id == user_id)
         result = await db.execute(stmt)
-        user = result.scalar_one_or_none()
+        user = result.scalars().first()
         
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
@@ -641,7 +641,7 @@ async def get_users_table(
                     .order_by(UserSubscription.activated_at.desc())
                     .limit(1)
                 )
-                subscription = subscription_query.scalar_one_or_none()
+                subscription = subscription_query.scalars().first()
                 
                 if subscription:
                     # Получаем тип подписки
@@ -919,7 +919,7 @@ async def get_admin_character_tags(
             select(CharacterAvailableTag).order_by(CharacterAvailableTag.name)
         )
         rows = result.scalars().all()
-        return [{"id": r.id, "name": r.name} for r in rows]
+        return [{"id": r.id, "name": r.name, "slug": r.slug} for r in rows]
     except Exception as e:
         logger.error(f"[ADMIN TAGS] Ошибка получения тегов: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -953,7 +953,7 @@ async def add_admin_character_tag(
     db.add(new_tag)
     await db.commit()
     await db.refresh(new_tag)
-    return {"id": new_tag.id, "name": new_tag.name}
+    return {"id": new_tag.id, "name": new_tag.name, "slug": new_tag.slug}
 @admin_router.post("/grant-booster/{user_id}")
 async def grant_booster_manually(
     user_id: int,
@@ -993,6 +993,9 @@ async def grant_booster_manually(
         # Увеличиваем лимиты: +30 сообщений, +10 генераций
         subscription.monthly_messages = (subscription.monthly_messages or 0) + 30
         subscription.monthly_photos = (subscription.monthly_photos or 0) + 10
+        # Update new limit fields as well to ensure it works with new system
+        subscription.images_limit = (subscription.images_limit or 0) + 10
+        subscription.voice_limit = (subscription.voice_limit or 0) + 10
         
         await db.commit()
         await db.refresh(subscription)
@@ -1004,14 +1007,18 @@ async def grant_booster_manually(
         
         logger.info(
             f"[ADMIN BOOSTER] Booster applied by admin {current_user.email}: "
-            f"user_id={user_id}, messages={subscription.monthly_messages}, photos={subscription.monthly_photos}"
+            f"user_id={user_id}, messages={subscription.monthly_messages}, "
+            f"photos={subscription.monthly_photos}, images_limit={subscription.images_limit}, "
+            f"voice_limit={subscription.voice_limit}"
         )
         
         return {
             "success": True, 
             "message": "Бустер успешно начислен",
             "new_messages_limit": subscription.monthly_messages,
-            "new_photos_limit": subscription.monthly_photos
+            "new_photos_limit": subscription.monthly_photos,
+            "new_images_limit": subscription.images_limit,
+            "new_voice_limit": subscription.voice_limit
         }
     except Exception as e:
         await db.rollback()

@@ -512,8 +512,8 @@ interface BoosterOfferModalProps {
   isOpen: boolean;
   onClose: () => void;
   limitType: 'messages' | 'photos' | 'voice';
-  /** 'booster' — предложение буста за 69 ₽; 'out_of_limits' — лимиты кончились после буста, кнопки Магазин и Подписка; 'info' — показать информацию о бустере; 'album_access' — уведомление о доступе к альбому */
-  variant?: 'booster' | 'out_of_limits' | 'info' | 'album_access';
+  /** 'booster' — предложение буста за 69 ₽; 'out_of_limits' — лимиты кончились после буста, кнопки Магазин и Подписка; 'info' — показать информацию о бустере; 'album_access' — уведомление о доступе к альбому; 'album_add' — доступ к добавлению в альбом */
+  variant?: 'booster' | 'out_of_limits' | 'info' | 'album_access' | 'album_add';
   /** Текущая история чата для сохранения перед оплатой */
   chatHistory?: Array<{
     id: string;
@@ -531,6 +531,7 @@ interface BoosterOfferModalProps {
   userId?: number;
   /** Является ли пользователь администратором */
   isAdmin?: boolean;
+  onShop?: () => void;
 }
 
 const OFFER_DURATION = 30 * 60; // 30 минут
@@ -543,7 +544,8 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
   chatHistory,
   characterId,
   userId,
-  isAdmin
+  isAdmin,
+  onShop
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState(OFFER_DURATION);
@@ -551,9 +553,17 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
   const isOutOfLimits = variant === 'out_of_limits';
   const isInfoMode = variant === 'info';
   const isAlbumAccess = variant === 'album_access';
+  const isAlbumAdd = variant === 'album_add';
+
+  // ... (useEffect omitted, implied unchanged if not targeting it)
+
+  // We need to keep the useEffect, so I will only replace the top part and let the rest match context.
+  // Actually, replace_file_content replaces the block. I need to be careful with maintaining useEffect.
+  // The instruction said "Add onShop to interface".
+
 
   useEffect(() => {
-    if (!isOpen || isOutOfLimits || isInfoMode || isAlbumAccess) {
+    if (!isOpen || isOutOfLimits || isInfoMode || isAlbumAccess || isAlbumAdd) {
       setTimeLeft(OFFER_DURATION);
       setOfferExpired(false);
       return;
@@ -584,7 +594,7 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
       if (newRemaining === 0) setOfferExpired(true);
     }, 1000);
     return () => clearInterval(interval);
-  }, [isOpen, limitType, isOutOfLimits, userId]);
+  }, [isOpen, limitType, isOutOfLimits, userId, isInfoMode, isAlbumAccess, isAlbumAdd]);
 
   const handlePurchase = async () => {
     if (offerExpired) return;
@@ -677,14 +687,16 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
 
   if (!isOpen) return null;
 
-  const messageText = isAlbumAccess
-    ? 'Для просмотра этого альбома необходима подписка STANDARD или PREMIUM.\n\nPREMIUM открывает все альбомы персонажей сразу!'
+  const messageText = isAlbumAccess || isAlbumAdd
+    ? (isAlbumAdd
+      ? 'Для добавления фотографий в альбом этого персонажа необходима подписка STANDARD или PREMIUM.\n'
+      : 'Для просмотра этого альбома необходима подписка STANDARD или PREMIUM.\n')
     : isOutOfLimits
       ? (limitType === 'messages'
-        ? 'Сообщения снова закончились. Оформи подписку или пополни кредиты в магазине.'
+        ? 'Сообщения снова закончились. Оформите подписку в магазине.'
         : limitType === 'photos'
-          ? 'Генерации снова закончились. Оформи подписку или пополни кредиты в магазине.'
-          : 'Голосовые генерации снова закончились. Оформи подписку или пополни кредиты в магазине.')
+          ? 'Генерации снова закончились. Оформите подписку в магазине.'
+          : 'Голосовые генерации снова закончились. Оформите подписку в магазине.')
       : (limitType === 'messages'
         ? 'Твои бесплатные сообщения закончились, но я не хочу прерывать нашу игру.'
         : limitType === 'photos'
@@ -716,7 +728,8 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
           description: 'Оплата подписки STANDARD на 30 дней',
           plan: 'standard',
           payment_type: 'subscription',
-          payment_method: 'sbp'
+          payment_method: 'sbp',
+          character_id: characterId || undefined
         })
       });
 
@@ -753,7 +766,7 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
               <X size={20} strokeWidth={2.5} />
             </CloseButton>
 
-            {!isOutOfLimits && !isAlbumAccess && (
+            {!isOutOfLimits && !isAlbumAccess && !isAlbumAdd && (
               <ClockContainer>
                 <ClockFace $expired={offerExpired}>
                   <ClockMark $rotation={90} />
@@ -769,10 +782,10 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
             )}
 
             <Title>
-              {isAlbumAccess ? 'Доступ к альбому' : isOutOfLimits ? 'Лимиты закончились' : 'Кажется, нам только стало интересно...'}
+              {isAlbumAdd ? 'Добавление в альбом' : isAlbumAccess ? 'Доступ к альбому' : isOutOfLimits ? 'Лимиты закончились' : 'Кажется, нам только стало интересно...'}
             </Title>
             <Subtitle>
-              {isAlbumAccess ? 'Только для подписчиков' : isOutOfLimits ? 'Продолжи общение' : 'Специальное предложение только для тебя'}
+              {isAlbumAccess || isAlbumAdd ? 'Только для подписчиков' : isOutOfLimits ? 'Продолжи общение' : 'Специальное предложение только для тебя'}
             </Subtitle>
 
             <Message>
@@ -784,12 +797,12 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
                     {i < messageText.split('\n').length - 1 && <br />}
                   </React.Fragment>
                 ))}
-              {!isOutOfLimits && !isInfoMode && !isAlbumAccess && (
+              {!isOutOfLimits && !isInfoMode && !isAlbumAccess && !isAlbumAdd && (
                 <MessageHighlight>Специально для тебя — секретный доступ:</MessageHighlight>
               )}
             </Message>
 
-            {!isOutOfLimits && !isInfoMode && !isAlbumAccess && (
+            {!isOutOfLimits && !isInfoMode && !isAlbumAccess && !isAlbumAdd && (
               <OfferBox>
                 <OfferTitle>Держи ещё:</OfferTitle>
                 <OfferItems>
@@ -829,14 +842,14 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
               </OfferBox>
             )}
 
-            {isOutOfLimits || isAlbumAccess ? (
+            {isOutOfLimits || isAlbumAccess || isAlbumAdd ? (
               <>
                 <ButtonsRow>
                   <ActionButton onClick={handleGoToSubscription}>
                     {isOutOfLimits ? 'В магазин' : 'Оформить подписку'}
                   </ActionButton>
                 </ButtonsRow>
-                <DeclineButton onClick={onClose}>Позже</DeclineButton>
+
               </>
             ) : (
               <>
@@ -906,7 +919,6 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
                 <PayButton
                   onClick={handleStandardPurchase}
                   style={{
-                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
                     marginTop: '0',
                     display: 'flex',
                     flexDirection: 'column',
@@ -917,7 +929,7 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
                 >
                   <ButtonContent style={{ marginBottom: '0' }}>
                     <SbpLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
-                    <ButtonPrice style={{ color: '#a855f7', textShadow: '0 0 10px rgba(168, 85, 247, 0.4)' }}>449 ₽</ButtonPrice>
+                    <ButtonPrice>449 ₽</ButtonPrice>
                   </ButtonContent>
                 </PayButton>
 
@@ -930,7 +942,6 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
                   </AdminTools>
                 )}
 
-                <DeclineButton onClick={onClose}>Позже</DeclineButton>
               </>
             )}
           </ModalContainer>

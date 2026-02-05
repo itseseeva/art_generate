@@ -89,12 +89,12 @@ async def create_kassa_payment(
 	capture = True if payload.payment_method == "sbp" else cfg["capture"]
 
 	# Определяем return_url в зависимости от типа платежа
-	# Для бустера возвращаем пользователя обратно в чат с персонажем
-	if payload.payment_type == "booster" and payload.character_id:
+	# Если передан character_id, возвращаем пользователя обратно в чат с персонажем
+	if payload.character_id:
 		base_url = cfg["return_url"].replace("/shop", "")
 		return_url = f"{base_url}/chat?character={payload.character_id}&payment=success"
 	elif payload.payment_type == "booster":
-		# Если character_id не передан, возвращаем на главную
+		# Если это бустер, но character_id не передан, возвращаем на главную (чтобы не оставаться в магазине)
 		return_url = cfg["return_url"].replace("/shop", "/?payment=success")
 	else:
 		return_url = cfg["return_url"]
@@ -275,30 +275,41 @@ async def process_yookassa_webhook(
 		)
 		
 		# Проверяем идемпотентность
+		logger.info(f"[YOOKASSA WEBHOOK] Looking for transaction with operation_id={payment_id}")
 		existing_transaction = await db.execute(
 			select(PaymentTransaction).where(PaymentTransaction.operation_id == payment_id)
 		)
 		transaction = existing_transaction.scalars().first()
 		
-		if transaction and transaction.processed:
-			logger.info(f"[YOOKASSA WEBHOOK] Payment already processed: {payment_id}")
-			return {"status": "ok", "message": "Payment already processed"}
-		
-		# Обновляем или создаем транзакцию
-		if not transaction:
+		if transaction:
+			logger.info(f"[YOOKASSA WEBHOOK] Found transaction: {transaction.id}, processed={transaction.processed}")
+			if transaction.processed:
+				logger.info(f"[YOOKASSA WEBHOOK] Payment already processed: {payment_id}")
+				return {"status": "ok", "message": "Payment already processed"}
+		else:
+			# Если транзакция не найдена, создаем новую
+			logger.warning(f"[YOOKASSA WEBHOOK] Transaction not found for payment_id={payment_id}, creating new one")
+			
+			# Важно: если это не тестовый платеж и транзакция не найдена, возможно что-то пошло не так при создании платежа
+			# Но мы все равно должны обработать (например, если платеж был создан не через наш API, а вручную)
+			# Или если при создании платежа произошла ошибка записи в БД
+			
 			transaction = PaymentTransaction(
 				operation_id=payment_id,
 				payment_type=payment_type,
 				user_id=user_id,
 				amount=str(amount),
-				currency=amount_data.get("currency", "RUB"),
-				label=f"yookassa_{payment_type}",
+				currency="RUB",
+				label=f"yookassa_webhook_{payment_type}",
 				package_id=package_id,
 				subscription_type=plan,
 				processed=False
 			)
 			db.add(transaction)
 			await db.flush()
+			logger.info(f"[YOOKASSA WEBHOOK] Created new transaction: {transaction.id} for user {user_id}")
+		
+
 		
 		# Обрабатываем платеж
 		from app.services.profit_activate import ProfitActivateService
@@ -418,6 +429,10 @@ async def process_yookassa_webhook(
 			subscription.monthly_messages = (subscription.monthly_messages or 0) + 30
 			subscription.monthly_photos = (subscription.monthly_photos or 0) + 10
 			
+			# Update new limit fields as well to ensure it works with new system
+			subscription.images_limit = (subscription.images_limit or 0) + 10
+			subscription.voice_limit = (subscription.voice_limit or 0) + 10
+			
 			await db.flush()
 			
 			# Инвалидируем кэш
@@ -430,7 +445,9 @@ async def process_yookassa_webhook(
 			logger.info(
 				f"[YOOKASSA WEBHOOK] ✅ Booster applied: user_id={user_id}, "
 				f"new_messages_limit={subscription.monthly_messages}, "
-				f"new_photos_limit={subscription.monthly_photos}"
+				f"new_photos_limit={subscription.monthly_photos}, "
+				f"new_images_limit={subscription.images_limit}, "
+				f"new_voice_limit={subscription.voice_limit}"
 			)
 			
 			transaction.processed = True
@@ -441,8 +458,11 @@ async def process_yookassa_webhook(
 				"type": "booster",
 				"messages_added": 30,
 				"photos_added": 10,
+				"voice_added": 10,
 				"new_messages_limit": subscription.monthly_messages,
-				"new_photos_limit": subscription.monthly_photos
+				"new_photos_limit": subscription.monthly_photos,
+				"new_images_limit": subscription.images_limit,
+				"new_voice_limit": subscription.voice_limit
 			}
 		
 		else:

@@ -14,6 +14,8 @@ import { authManager } from '../utils/auth';
 import '../styles/ContentArea.css';
 import { useIsMobile } from '../hooks/useIsMobile';
 import DarkVeil from '../../@/components/DarkVeil';
+import { BoosterOfferModal } from './BoosterOfferModal';
+import { SEOContent } from './SEOContent';
 
 const PAGE_SIZE = 26;
 
@@ -251,8 +253,49 @@ const ContentArea = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
+  padding: ${theme.spacing.lg} ${theme.spacing.sm};
   min-width: 0;
   padding-top: 0;
+`;
+
+const HiddenTitle = styled.h1`
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+`;
+
+const VisibleTitle = styled.h1`
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: white;
+  margin: ${theme.spacing.md} ${theme.spacing.sm};
+  text-align: left;
+  background: linear-gradient(135deg, #fff 0%, #a5b4fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  
+  @media (max-width: 768px) {
+    font-size: 1.2rem;
+    margin: ${theme.spacing.sm};
+  }
+`;
+
+const SubTitle = styled.h2`
+  font-size: 0.9rem;
+  color: #a8a8a8;
+  margin: 0 ${theme.spacing.sm} ${theme.spacing.md};
+  font-weight: 400;
+  
+  @media (max-width: 768px) {
+    font-size: 0.8rem;
+    margin: 0 ${theme.spacing.sm} ${theme.spacing.sm};
+  }
 `;
 
 const TagFilterBar = styled.div`
@@ -265,6 +308,10 @@ const TagFilterBar = styled.div`
   background: rgba(15, 15, 15, 0.5);
   margin: 0;
   flex-shrink: 0;
+  
+  @media (max-width: 768px) {
+    margin-top: 5%;
+  }
 `;
 
 const TagFilterButton = styled.button<{ $active?: boolean }>`
@@ -302,6 +349,7 @@ interface Character {
   views: number;
   comments: number;
   is_nsfw?: boolean;
+  creator_username?: string;
 }
 
 // Mock character data - only originals
@@ -317,6 +365,7 @@ const mockCharacters: Character[] = [
     likes: 1200,
     views: 5000,
     comments: 150,
+    creator_username: 'AnnaCreator',
   },
   {
     id: 'caitlin',
@@ -329,6 +378,7 @@ const mockCharacters: Character[] = [
     likes: 980,
     views: 4100,
     comments: 90,
+    creator_username: 'CaitlinMaster',
   },
   {
     id: '3',
@@ -340,7 +390,8 @@ const mockCharacters: Character[] = [
     author: 'System',
     likes: 2100,
     views: 28900,
-    comments: 67
+    comments: 67,
+    creator_username: 'Philosopher',
   },
   {
     id: '4',
@@ -352,8 +403,9 @@ const mockCharacters: Character[] = [
     author: 'System',
     likes: 1750,
     views: 19800,
-    comments: 54
-  }
+    comments: 54,
+    creator_username: 'TechExpert',
+  },
 ];
 
 interface MainPageProps {
@@ -417,8 +469,12 @@ export const MainPage: React.FC<MainPageProps> = ({
   const [favoriteCharacterIds, setFavoriteCharacterIds] = useState<Set<number>>(new Set());
   const [sortFilter, setSortFilter] = useState<'all' | 'popular'>('popular');
   const [characterRatings, setCharacterRatings] = useState<{ [key: number]: { likes: number, dislikes: number } }>({});
+
+  // Booster Modal State
+  const [isBoosterOfferOpen, setIsBoosterOfferOpen] = useState(false);
+  const [boosterVariantOverride, setBoosterVariantOverride] = useState<'booster' | 'album_access'>('booster');
   const lastCharactersUpdateRef = useRef<number>(0); // Для отслеживания последнего обновления
-  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [availableTags, setAvailableTags] = useState<any[]>([]);
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const loadedCharacterIdsRef = useRef<Set<string>>(new Set()); // Для отслеживания уже загруженных ID
   const allCharactersCacheRef = useRef<Character[]>([]); // Кэш всех загруженных персонажей для клиентской пагинации
@@ -574,6 +630,7 @@ export const MainPage: React.FC<MainPageProps> = ({
         views: Number(char.views) || 0,
         comments: Number(char.comments) || 0,
         is_nsfw: char.is_nsfw === true,
+        creator_username: char.creator_username,
         raw: char
       };
     });
@@ -875,7 +932,18 @@ export const MainPage: React.FC<MainPageProps> = ({
         const response = await fetch(url);
         if (response.ok) {
           const data = await response.json();
-          setAvailableTags(Array.isArray(data) ? data : []);
+          // Приводим к формату {name, slug} если пришла просто строка (для обратной совместимости)
+          const formattedTags = Array.isArray(data) ? data.map(tag => typeof tag === 'string' ? { name: tag, slug: tag } : tag) : [];
+
+          // Удаляем дубликаты
+          const uniqueTagsMap = new Map();
+          formattedTags.forEach(tag => {
+            if (!uniqueTagsMap.has(tag.name)) {
+              uniqueTagsMap.set(tag.name, tag);
+            }
+          });
+
+          setAvailableTags(Array.from(uniqueTagsMap.values()));
         }
       } catch {
         setAvailableTags([]);
@@ -1288,8 +1356,28 @@ export const MainPage: React.FC<MainPageProps> = ({
         return true;
       })
       .sort((a, b) => {
-        if (sortFilter === 'popular') return (b.likes || 0) - (a.likes || 0);
-        return 0;
+        const isOriginal = (char: any) => {
+          const tags = char.tags || [];
+          return tags.some((t: any) => {
+            const name = typeof t === 'string' ? t : (t.name || '');
+            return name.toLowerCase() === 'original' || name.toLowerCase() === 'оригинальный';
+          });
+        };
+
+        const aOrig = isOriginal(a) ? 1 : 0;
+        const bOrig = isOriginal(b) ? 1 : 0;
+
+        if (aOrig !== bOrig) return bOrig - aOrig;
+
+        // Затем по лайкам
+        const aLikes = a.likes || 0;
+        const bLikes = b.likes || 0;
+        if (aLikes !== bLikes) return bLikes - aLikes;
+
+        // Затем по сообщениям
+        const aMsgs = (a.comments || a.views || 0);
+        const bMsgs = (b.comments || b.views || 0);
+        return bMsgs - aMsgs;
       });
   }, [characters, contentMode, normalizedSelectedTags, characterPhotos, characterRatings, sortFilter]);
 
@@ -1311,14 +1399,23 @@ export const MainPage: React.FC<MainPageProps> = ({
         </HeaderWrapper>
         {!isPhotoGenerationOpen && availableTags.length > 0 && (
           <TagFilterBar>
-            {availableTags.map((tag) => (
+            {availableTags.map((tagObj) => (
               <TagFilterButton
-                key={tag}
+                key={tagObj.slug || tagObj.name}
                 type="button"
-                $active={selectedTags.has(tag)}
-                onClick={() => toggleTag(tag)}
+                $active={selectedTags.has(tagObj.name)}
+                onClick={() => {
+                  const slug = tagObj.slug;
+                  if (slug) {
+                    window.history.pushState({ page: 'tags', slug }, '', `/tags/${slug}`);
+                    // Будет обрабатываться в попстейт или через глобальное событие
+                    window.dispatchEvent(new CustomEvent('navigate-to-tags', { detail: { slug } }));
+                  } else {
+                    toggleTag(tagObj.name);
+                  }
+                }}
               >
-                {tag}
+                {tagObj.name}
               </TagFilterButton>
             ))}
           </TagFilterBar>
@@ -1439,7 +1536,19 @@ export const MainPage: React.FC<MainPageProps> = ({
                           onClick={handleCharacterClick}
                           isAuthenticated={isAuthenticated}
                           onPhotoGeneration={onPhotoGeneration}
-                          onPaidAlbum={onPaidAlbum}
+                          onPaidAlbum={(character) => {
+                            if (onPaidAlbum) {
+                              // If external handler provided, use it relative to subscription status
+                              const subType = userInfo?.subscription?.subscription_type?.toLowerCase() || 'free';
+                              if (subType !== 'standard' && subType !== 'premium') {
+                                setBoosterVariantOverride('album_access');
+                                setIsBoosterOfferOpen(true);
+                              } else {
+                                // Standard/Premium logic
+                                onPaidAlbum(character);
+                              }
+                            }
+                          }}
                           isFavorite={isFavorite}
                           onFavoriteToggle={loadFavorites}
                           onDelete={deleteHandler}
@@ -1493,6 +1602,17 @@ export const MainPage: React.FC<MainPageProps> = ({
                 } : handleActivateSubscription}
               />
 
+              <BoosterOfferModal
+                isOpen={isBoosterOfferOpen}
+                onClose={() => setIsBoosterOfferOpen(false)}
+                limitType="photos"
+                onShop={() => {
+                  setIsBoosterOfferOpen(false);
+                  setIsShopModalOpen(true);
+                }}
+                variant={boosterVariantOverride}
+              />
+
               {isAuthModalOpen && (
                 <AuthModal
                   isOpen={isAuthModalOpen}
@@ -1504,6 +1624,35 @@ export const MainPage: React.FC<MainPageProps> = ({
             </>
           )}
         </ContentArea>
+        <SEOContent>
+          <h1>Cherry Lust — Эксклюзивный AI чат с персонажами 18+</h1>
+          <h2>Виртуальное общение с нейросетью нового поколения</h2>
+          <p>
+            Cherry Lust — это инновационный AI чат-бот для взрослых, который предлагает
+            уникальное виртуальное общение с персонажами, созданными нейросетью.
+            Наш ролевой чат позволяет вам общаться с AI собеседниками, которые обладают
+            уникальными характерами и могут поддержать любую беседу.
+          </p>
+          <h2>Возможности AI чата</h2>
+          <p>
+            Платформа Cherry Lust предоставляет широкий спектр функций для виртуального общения:
+          </p>
+          <ul>
+            <li>Безлимитное общение с виртуальными персонажами без цензуры</li>
+            <li>Генерация изображений с помощью нейросети в реальном времени</li>
+            <li>Голосовые сообщения от AI собеседников с уникальными голосами</li>
+            <li>Создание собственных персонажей с настройкой внешности и характера</li>
+            <li>Ролевые сценарии и интерактивные диалоги</li>
+            <li>Приватные чаты с полной конфиденциальностью</li>
+          </ul>
+          <h2>Почему выбирают Cherry Lust</h2>
+          <p>
+            Наш AI чат использует передовые технологии нейросетей для создания реалистичного
+            виртуального общения. Каждый персонаж обладает уникальной личностью, стилем общения
+            и может адаптироваться к вашим предпочтениям. Генерация изображений AI позволяет
+            визуализировать персонажей и создавать уникальный контент.
+          </p>
+        </SEOContent>
         <FooterWrapper>
           <Footer />
         </FooterWrapper>

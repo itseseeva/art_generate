@@ -15,82 +15,82 @@ from .config import (
 def generate_verification_email_html(verification_code: str) -> str:
     """
     Генерирует HTML-шаблон письма для подтверждения email.
-    
-    Args:
-        verification_code: Код подтверждения
-        
-    Returns:
-        str: HTML-код письма с инлайновыми стилями
     """
+    # Гарантируем, что код - это строка
+    code_str = str(verification_code)
+    
     html_template = f"""
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark light">
+    <meta name="supported-color-schemes" content="dark light">
     <title>Подтверждение email - Cherry Lust</title>
+    <!--[if mso]>
+    <style type="text/css">
+        body, table, td, div, p, h1 {{ font-family: Arial, sans-serif !important; }}
+    </style>
+    <![endif]-->
 </head>
-<body style="margin: 0; padding: 0; background-color: #121212; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
-    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #121212; padding: 40px 20px;">
+<body style="margin: 0; padding: 0; width: 100% !important; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; background-color: #0f172a;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #0f172a;">
         <tr>
-            <td align="center">
-                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #1a1a2e; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);">
+            <td align="center" style="padding: 40px 10px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; width: 100%; background-color: #1e293b; border-radius: 24px; overflow: hidden; border: 1px solid #334155; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4);">
+                    <!-- Верхняя декоративная полоса -->
+                    <tr>
+                        <td height="8" style="background: linear-gradient(90deg, #d946ef, #8b5cf6);"></td>
+                    </tr>
+                    
                     <!-- Логотип -->
                     <tr>
                         <td align="center" style="padding: 40px 20px 20px 20px;">
-                            <div style="width: 120px; height: 40px; background: linear-gradient(135deg, rgba(232, 121, 249, 0.8), rgba(139, 92, 246, 0.8)); border-radius: 8px; display: inline-block; line-height: 40px; color: #ffffff; font-size: 20px; font-weight: 700; text-align: center;">
-                                Cherry Lust
-                            </div>
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                                <tr>
+                                    <td align="center" style="background: linear-gradient(135deg, #d946ef, #8b5cf6); border-radius: 12px; padding: 12px 24px;">
+                                        <span style="color: #ffffff; font-family: 'Inter', Arial, sans-serif; font-size: 24px; font-weight: 800; text-align: center; letter-spacing: -0.5px; text-decoration: none;">Cherry Lust</span>
+                                    </td>
+                                </tr>
+                            </table>
                         </td>
                     </tr>
                     
-                    <!-- Заголовок -->
+                    <!-- Основной контент -->
                     <tr>
-                        <td align="center" style="padding: 0 20px 30px 20px;">
-                            <h1 style="margin: 0; color: #e879f9; font-size: 28px; font-weight: 700; text-align: center; letter-spacing: -0.5px;">
-                                Подтверждение почты
+                        <td align="center" style="padding: 20px 40px 40px 40px; font-family: 'Inter', Arial, sans-serif;">
+                            <h1 style="margin: 0 0 20px 0; color: #f8fafc; font-size: 32px; font-weight: 800; text-align: center; letter-spacing: -0.025em; line-height: 1.2;">
+                                Подтвердите ваш email
                             </h1>
-                        </td>
-                    </tr>
-                    
-                    <!-- Текст -->
-                    <tr>
-                        <td align="center" style="padding: 0 20px 30px 20px;">
-                            <p style="margin: 0; color: #e4e4e7; font-size: 16px; line-height: 1.6; text-align: center;">
-                                Ваш код подтверждения:
+                            <p style="margin: 0 0 40px 0; color: #94a3b8; font-size: 18px; line-height: 1.6; text-align: center;">
+                                Приятно видеть вас в Cherry Lust! Для завершения регистрации или входа в аккаунт, пожалуйста, используйте этот код подтверждения:
                             </p>
-                        </td>
-                    </tr>
-                    
-                    <!-- Код -->
-                    <tr>
-                        <td align="center" style="padding: 0 20px 40px 20px;">
-                            <div style="display: inline-block; padding: 24px 40px; background-color: rgba(232, 121, 249, 0.1); border: 2px solid #e879f9; border-radius: 12px; box-shadow: 0 0 20px rgba(232, 121, 249, 0.3);">
-                                <div style="font-family: 'Courier New', monospace; font-size: 36px; font-weight: 700; color: #e879f9; letter-spacing: 8px; text-align: center;">
-                                    {verification_code}
-                                </div>
-                            </div>
-                        </td>
-                    </tr>
-                    
-                    <!-- Пометка о сроке действия -->
-                    <tr>
-                        <td align="center" style="padding: 0 20px 30px 20px;">
-                            <p style="margin: 0; color: #a0a0b0; font-size: 14px; text-align: center;">
-                                Код действителен 24 часа
+                            
+                            <!-- Блок с кодом -->
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 0 auto;">
+                                <tr>
+                                    <td align="center" style="background-color: #0f172a; border: 2px solid #d946ef; border-radius: 16px; padding: 24px 48px;">
+                                        <span style="font-family: 'Courier New', Courier, monospace; font-size: 48px; font-weight: 800; color: #d946ef; letter-spacing: 12px; text-align: center; display: block;">{code_str}</span>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <p style="margin: 40px 0 0 0; color: #64748b; font-size: 14px; text-align: center; font-style: italic;">
+                                Код действителен в течение 24 часов. Если вы не запрашивали этот код, просто проигнорируйте это письмо.
                             </p>
                         </td>
                     </tr>
                     
                     <!-- Футер -->
                     <tr>
-                        <td style="padding: 30px 20px; background-color: rgba(0, 0, 0, 0.2); border-top: 1px solid rgba(232, 121, 249, 0.1);">
-                            <p style="margin: 0 0 10px 0; color: #e4e4e7; font-size: 14px; text-align: center; line-height: 1.6;">
-                                С уважением,<br>
-                                команда Cherry Lust
+                        <td align="center" style="padding: 32px 40px; background-color: #0f172a; border-top: 1px solid #334155; font-family: 'Inter', Arial, sans-serif;">
+                            <p style="margin: 0 0 8px 0; color: #94a3b8; font-size: 14px; text-align: center; font-weight: 600;">
+                                С любовью, команда Cherry Lust
                             </p>
-                            <p style="margin: 15px 0 0 0; color: #6b7280; font-size: 12px; text-align: center;">
-                                Это автоматическое письмо, пожалуйста, не отвечайте на него
+                            <p style="margin: 0; color: #475569; font-size: 12px; text-align: center;">
+                                Это автоматическое системное сообщение.<br>
+                                © 2024 Cherry Lust. Все права защищены.
                             </p>
                         </td>
                     </tr>
@@ -107,82 +107,82 @@ def generate_verification_email_html(verification_code: str) -> str:
 def generate_password_reset_email_html(verification_code: str) -> str:
     """
     Генерирует HTML-шаблон письма для восстановления пароля.
-    
-    Args:
-        verification_code: Код восстановления пароля
-        
-    Returns:
-        str: HTML-код письма с инлайновыми стилями
     """
+    # Гарантируем, что код - это строка
+    code_str = str(verification_code)
+    
     html_template = f"""
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark light">
+    <meta name="supported-color-schemes" content="dark light">
     <title>Восстановление пароля - Cherry Lust</title>
+    <!--[if mso]>
+    <style type="text/css">
+        body, table, td, div, p, h1 {{ font-family: Arial, sans-serif !important; }}
+    </style>
+    <![endif]-->
 </head>
-<body style="margin: 0; padding: 0; background-color: #121212; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
-    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #121212; padding: 40px 20px;">
+<body style="margin: 0; padding: 0; width: 100% !important; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; background-color: #0f172a;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #0f172a;">
         <tr>
-            <td align="center">
-                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #1a1a2e; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);">
+            <td align="center" style="padding: 40px 10px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; width: 100%; background-color: #1e293b; border-radius: 24px; overflow: hidden; border: 1px solid #334155; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4);">
+                    <!-- Верхняя декоративная полоса -->
+                    <tr>
+                        <td height="8" style="background: linear-gradient(90deg, #d946ef, #8b5cf6);"></td>
+                    </tr>
+                    
                     <!-- Логотип -->
                     <tr>
                         <td align="center" style="padding: 40px 20px 20px 20px;">
-                            <div style="width: 120px; height: 40px; background: linear-gradient(135deg, rgba(232, 121, 249, 0.8), rgba(139, 92, 246, 0.8)); border-radius: 8px; display: inline-block; line-height: 40px; color: #ffffff; font-size: 20px; font-weight: 700; text-align: center;">
-                                Cherry Lust
-                            </div>
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                                <tr>
+                                    <td align="center" style="background: linear-gradient(135deg, #d946ef, #8b5cf6); border-radius: 12px; padding: 12px 24px;">
+                                        <span style="color: #ffffff; font-family: 'Inter', Arial, sans-serif; font-size: 24px; font-weight: 800; text-align: center; letter-spacing: -0.5px; text-decoration: none;">Cherry Lust</span>
+                                    </td>
+                                </tr>
+                            </table>
                         </td>
                     </tr>
                     
-                    <!-- Заголовок -->
+                    <!-- Основной контент -->
                     <tr>
-                        <td align="center" style="padding: 0 20px 30px 20px;">
-                            <h1 style="margin: 0; color: #e879f9; font-size: 28px; font-weight: 700; text-align: center; letter-spacing: -0.5px;">
+                        <td align="center" style="padding: 20px 40px 40px 40px; font-family: 'Inter', Arial, sans-serif;">
+                            <h1 style="margin: 0 0 20px 0; color: #f8fafc; font-size: 32px; font-weight: 800; text-align: center; letter-spacing: -0.025em; line-height: 1.2;">
                                 Восстановление пароля
                             </h1>
-                        </td>
-                    </tr>
-                    
-                    <!-- Текст -->
-                    <tr>
-                        <td align="center" style="padding: 0 20px 30px 20px;">
-                            <p style="margin: 0; color: #e4e4e7; font-size: 16px; line-height: 1.6; text-align: center;">
-                                Для восстановления пароля используйте следующий код:
+                            <p style="margin: 0 0 40px 0; color: #94a3b8; font-size: 18px; line-height: 1.6; text-align: center;">
+                                Мы получили запрос на восстановление пароля для вашего аккаунта. Используйте этот код для продолжения:
                             </p>
-                        </td>
-                    </tr>
-                    
-                    <!-- Код -->
-                    <tr>
-                        <td align="center" style="padding: 0 20px 40px 20px;">
-                            <div style="display: inline-block; padding: 24px 40px; background-color: rgba(232, 121, 249, 0.1); border: 2px solid #e879f9; border-radius: 12px; box-shadow: 0 0 20px rgba(232, 121, 249, 0.3);">
-                                <div style="font-family: 'Courier New', monospace; font-size: 36px; font-weight: 700; color: #e879f9; letter-spacing: 8px; text-align: center;">
-                                    {verification_code}
-                                </div>
-                            </div>
-                        </td>
-                    </tr>
-                    
-                    <!-- Пометка о сроке действия -->
-                    <tr>
-                        <td align="center" style="padding: 0 20px 30px 20px;">
-                            <p style="margin: 0; color: #a0a0b0; font-size: 14px; text-align: center;">
-                                Код действителен 24 часа
+                            
+                            <!-- Блок с кодом -->
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 0 auto;">
+                                <tr>
+                                    <td align="center" style="background-color: #0f172a; border: 2px solid #d946ef; border-radius: 16px; padding: 24px 48px;">
+                                        <span style="font-family: 'Courier New', Courier, monospace; font-size: 48px; font-weight: 800; color: #d946ef; letter-spacing: 12px; text-align: center; display: block;">{code_str}</span>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <p style="margin: 40px 0 0 0; color: #64748b; font-size: 14px; text-align: center; font-style: italic;">
+                                Если вы не запрашивали восстановление пароля, просто проигнорируйте это письмо. Ваш текущий пароль останется прежним.
                             </p>
                         </td>
                     </tr>
                     
                     <!-- Футер -->
                     <tr>
-                        <td style="padding: 30px 20px; background-color: rgba(0, 0, 0, 0.2); border-top: 1px solid rgba(232, 121, 249, 0.1);">
-                            <p style="margin: 0 0 10px 0; color: #e4e4e7; font-size: 14px; text-align: center; line-height: 1.6;">
-                                С уважением,<br>
-                                команда Cherry Lust
+                        <td align="center" style="padding: 32px 40px; background-color: #0f172a; border-top: 1px solid #334155; font-family: 'Inter', Arial, sans-serif;">
+                            <p style="margin: 0 0 8px 0; color: #94a3b8; font-size: 14px; text-align: center; font-weight: 600;">
+                                С любовью, команда Cherry Lust
                             </p>
-                            <p style="margin: 15px 0 0 0; color: #6b7280; font-size: 12px; text-align: center;">
-                                Это автоматическое письмо, пожалуйста, не отвечайте на него
+                            <p style="margin: 0; color: #475569; font-size: 12px; text-align: center;">
+                                Это автоматическое системное сообщение.<br>
+                                © 2024 Cherry Lust. Все права защищены.
                             </p>
                         </td>
                     </tr>

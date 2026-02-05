@@ -1,10 +1,11 @@
 """
 SQLAlchemy models for chatbot.
 """
-from sqlalchemy import Column, Integer, String, JSON, DateTime, Text, TypeDecorator, ForeignKey, UniqueConstraint, Boolean
+from sqlalchemy import Column, Integer, String, JSON, DateTime, Text, TypeDecorator, ForeignKey, UniqueConstraint, Boolean, event
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.database.db import Base
+from slugify import slugify
 import json
 
 
@@ -63,6 +64,15 @@ class CharacterAvailableTag(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, index=True, nullable=False)
+    slug = Column(String(100), unique=True, index=True, nullable=True)
+    seo_description = Column(UTF8Text, nullable=True)
+
+
+@event.listens_for(CharacterAvailableTag, 'before_insert')
+@event.listens_for(CharacterAvailableTag, 'before_update')
+def receive_before_insert_update(mapper, connection, target):
+    if target.name and not target.slug:
+        target.slug = slugify(target.name)
 
 
 class CharacterDB(Base):

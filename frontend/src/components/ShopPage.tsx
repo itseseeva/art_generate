@@ -1,386 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import styled, { css } from 'styled-components';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+  Check,
+  X,
+  Zap,
+  Image as ImageIcon,
+  MessageSquare,
+  Crown,
+  Sparkles,
+  Shield,
+  Smartphone,
+  CreditCard
+} from 'lucide-react';
 import { AuthModal } from './AuthModal';
-import { SuccessToast } from './SuccessToast';
-import SplitText from './SplitText';
 import { API_CONFIG } from '../config/api';
 import { authManager } from '../utils/auth';
-import { FiCheck, FiCpu, FiImage, FiMessageSquare, FiZap } from 'react-icons/fi';
-
 import { GlobalHeader } from './GlobalHeader';
 import DarkVeil from '../../@/components/DarkVeil';
 
-const MainContainer = styled.div`
-  width: 100%;
-  min-height: 100vh;
-  padding: 0;
-  overflow-y: visible;
-  position: relative;
-  font-family: 'Inter', sans-serif;
-  color: white;
-`;
-
-const BonusValue = styled.span`
-  color: #db2777;
-  font-weight: 800;
-  margin-left: 2px;
-`;
-
-const BackgroundWrapper = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 0;
-  pointer-events: none;
-`;
-
-const ContentWrapper = styled.div`
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem 1rem;
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-`;
-
-const ToggleContainer = styled.div`
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 30px;
-  padding: 4px;
-  display: flex;
-  gap: 4px;
-  margin-bottom: 2rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-`;
-
-const ToggleButton = styled.button<{ $active: boolean }>`
-  background: ${props => props.$active ? '#7c3aed' : 'transparent'};
-  color: ${props => props.$active ? 'white' : '#888'};
-  border: none;
-  border-radius: 25px;
-  padding: 0.5rem 2rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-
-  &:hover {
-    color: white;
-    background: ${props => props.$active ? '#7c3aed' : 'rgba(124, 58, 237, 0.1)'};
-  }
-`;
-
-const SaleBanner = styled.div`
-  width: 100%;
-  max-width: 800px;
-  border: 1px solid #d946ef;
-  border-radius: 12px;
-  padding: 1rem;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 2rem;
-  background: rgba(217, 70, 239, 0.05);
-  position: relative;
-  overflow: hidden;
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: radial-gradient(circle at center, rgba(217, 70, 239, 0.2) 0%, transparent 70%);
-    pointer-events: none;
-  }
-`;
-
-const SaleText = styled.span`
-  font-family: 'Monoton', cursive, sans-serif; /* Fallback */
-  font-size: 1.8rem;
-  font-weight: 800;
-  color: #f0abfc;
-  font-style: italic;
-  text-shadow: 0 0 10px rgba(217, 70, 239, 0.5);
-  letter-spacing: 1px;
-`;
-
-const DiscountTag = styled.div`
-  background: #000;
-  border: 1px solid #d946ef;
-  color: white;
-  padding: 0.25rem 0.75rem;
-  border-radius: 4px;
-  font-weight: 800;
-  font-size: 1.2rem;
-  transform: skew(-10deg);
-  box-shadow: 0 0 10px rgba(217, 70, 239, 0.5);
-`;
-
-const DurationTabs = styled.div`
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1rem;
-  width: 100%;
-  max-width: 800px;
-  margin-bottom: 3rem;
-
-  @media (max-width: 768px) {
-    grid-template-columns: repeat(2, 1fr);
-  }
-`;
-
-const DurationTab = styled.button<{ $active: boolean }>`
-  background: ${props => props.$active ? '#7c3aed' : '#1a1a1a'};
-  border: 1px solid ${props => props.$active ? '#7c3aed' : 'rgba(255, 255, 255, 0.1)'};
-  color: white;
-  padding: 0.75rem;
-  border-radius: 20px;
-  font-weight: 600;
-  cursor: pointer;
-  position: relative;
-  transition: all 0.2s ease;
-
-  &:hover {
-    border-color: #7c3aed;
-    background: ${props => props.$active ? '#7c3aed' : 'rgba(124, 58, 237, 0.1)'};
-  }
-`;
-
-const SaveTag = styled.span`
-  position: absolute;
-  top: -12px;
-  right: -8px;
-  background: linear-gradient(135deg, #be185d 0%, #db2777 100%);
-  color: white;
-  font-size: 0.55rem;
-  padding: 3px 8px;
-  border-radius: 6px;
-  font-weight: 800;
-  transform: rotate(3deg);
-  box-shadow: 0 2px 8px rgba(190, 24, 93, 0.4);
-  white-space: nowrap;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-`;
-
-const PlansGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1.5rem;
-  width: 100%;
-  max-width: 1000px;
-  perspective: 1000px;
-  align-items: end; /* Ровняем банеры по нижней линии */
-
-  @media (max-width: 900px) {
-    grid-template-columns: 1fr;
-    align-items: stretch;
-  }
-`;
-
-const PlanCard = styled(motion.div) <{ $highlight?: boolean; $selected?: boolean; $planType?: 'free' | 'standard' | 'premium' }>`
-  background: ${props => props.$highlight
-    ? 'linear-gradient(145deg, #2d2d2d 0%, #1a1a1a 100%)'
-    : 'linear-gradient(145deg, #1a1a1a 0%, #2d2d2d 100%)'};
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  border-radius: 24px;
-  padding: 2rem 1.5rem;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  min-height: ${props => {
-    if (props.$planType === 'free') return '480px';
-    if (props.$planType === 'standard') return '580px';
-    if (props.$planType === 'premium') return '610px';
-    return '550px';
-  }};
-  backdrop-filter: blur(20px);
-  cursor: pointer;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
-  overflow: visible;
-  /* Улучшение рендеринга для предотвращения тряски */
-  backface-visibility: hidden;
-  transform-style: preserve-3d;
-  will-change: transform, box-shadow;
-
-  @media (max-width: 900px) {
-    min-height: auto;
-  }
-  
-  ${props => props.$highlight && css`
-    box-shadow: 0 4px 30px rgba(138, 43, 226, 0.15);
-  `}
-
-  &:hover {
-    box-shadow: 0 0 30px rgba(124, 58, 237, 0.2);
-  }
-`;
-
-const BestValueBadge = styled.div`
-  position: absolute;
-  top: -12px;
-  right: 20px;
-  background: #7c3aed;
-  color: white;
-  font-weight: 800;
-  font-size: 0.7rem;
-  padding: 4px 12px;
-  border-radius: 20px; /* Более закругленный */
-  text-transform: uppercase;
-  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
-  white-space: nowrap;
-  z-index: 100;
-  letter-spacing: 0.5px;
-`;
-
-const PlanHeader = styled.div`
-  margin-bottom: 1.5rem;
-`;
-
-const PlanTitle = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: ${props => props.color || 'white'};
-  margin-bottom: 0.25rem;
-`;
-
-const BillingInfo = styled.div`
-  font-size: 0.75rem;
-  color: #666;
-`;
-
-const PriceContainer = styled.div`
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  margin-bottom: 0.25rem;
-`;
-
-const Price = styled.div`
-  font-size: 2rem;
-  font-weight: 800;
-  color: white;
-`;
-
-const Period = styled.span`
-  font-size: 0.9rem;
-  color: #888;
-`;
-
-const OldPrice = styled.div`
-  font-size: 0.9rem;
-  color: #666;
-  text-decoration: line-through;
-`;
-
-const CheckoutButton = styled(motion.button)`
-  width: 100%;
-  height: 48px; /* Фиксированная высота для одинакового размера */
-  border: none;
-  border-radius: 12px;
-  padding: 0 1.2rem;
-  color: white;
-  font-weight: 800;
-  font-size: 0.95rem; /* Уменьшил размер шрифта */
-  margin-top: auto;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  position: relative;
-  overflow: hidden;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.2),
-      transparent
-    );
-    transition: 0.5s;
-  }
-
-  &:hover::before {
-    left: 100%;
-  }
-  
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    background: #333;
-    box-shadow: none;
-  }
-`;
-
-const FeaturesList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  margin-bottom: 2.5rem; /* Увеличил отступ снизу, чтобы кнопка не липла к тексту */
-`;
-
-const FeatureItem = styled.div`
-  display: flex;
-  gap: 0.75rem;
-  font-size: 0.9rem;
-  color: #ccc;
-  align-items: flex-start;
-  line-height: 1.4;
-
-  svg {
-    color: #fbbf24;
-    flex-shrink: 0;
-    margin-top: 2px;
-  }
-`;
-
-const PaymentLogo = styled.img`
-  width: 38px;
-  height: 38px;
-  object-fit: contain;
-  border-radius: 6px;
-  flex-shrink: 0;
-  background: transparent;
-  display: block;
-  
-  &[src=""] {
-    display: none;
-  }
-`;
-
-const VPNWarning = styled.div`
-  width: 100%;
-  padding: 0.75rem;
-  margin-bottom: 0.5rem;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  border-radius: 8px;
-  color: #ff6b6b;
-  font-size: 0.8rem;
-  font-weight: 500;
-  text-align: center;
-  animation: fadeIn 0.3s ease;
-`;
-
+// --- Types ---
 interface SubscriptionStats {
   subscription_type: string;
   monthly_credits: number;
@@ -410,6 +48,20 @@ const CYCLE_MONTHS = {
   'yearly': 12
 };
 
+// --- Components ---
+
+const CheckIcon = ({ className }: { className?: string }) => (
+  <div className={`p-1 rounded-full bg-white/10 ${className}`}>
+    <Check size={14} strokeWidth={3} />
+  </div>
+);
+
+const XIcon = ({ className }: { className?: string }) => (
+  <div className={`p-1 rounded-full bg-white/5 ${className}`}>
+    <X size={14} strokeWidth={3} />
+  </div>
+);
+
 export const ShopPage: React.FC<any> = ({
   onBackToMain,
   isAuthenticated: propIsAuthenticated,
@@ -421,6 +73,7 @@ export const ShopPage: React.FC<any> = ({
   onRegister,
   onLogout
 }) => {
+  // --- State ---
   const [viewMode, setViewMode] = useState<'subscription' | 'credits'>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -430,17 +83,17 @@ export const ShopPage: React.FC<any> = ({
     }
     return 'subscription';
   });
+
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('3_months');
   const [stats, setStats] = useState<SubscriptionStats | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(propIsAuthenticated || false);
   const [userInfo, setUserInfo] = useState(propUserInfo || null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [creditPackages, setCreditPackages] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [userCountry, setUserCountry] = useState<string | null>(null);
 
+  // --- Effects ---
   useEffect(() => {
     if (propIsAuthenticated !== undefined) setIsAuthenticated(propIsAuthenticated);
     if (propUserInfo !== undefined) {
@@ -459,6 +112,7 @@ export const ShopPage: React.FC<any> = ({
     loadCreditPackages();
   }, [isAuthenticated]);
 
+  // --- Data Loading ---
   const loadUserInfo = async () => {
     try {
       const token = localStorage.getItem('authToken');
@@ -468,13 +122,9 @@ export const ShopPage: React.FC<any> = ({
       });
       if (response.ok) {
         const data = await response.json();
-        if (data.country) {
-          setUserCountry(data.country);
-        }
+        if (data.country) setUserCountry(data.country);
       }
-    } catch (e) {
-      // Ошибка загрузки информации о пользователе
-    }
+    } catch (e) { console.error(e); }
   };
 
   const loadSubscriptionStats = async () => {
@@ -488,9 +138,7 @@ export const ShopPage: React.FC<any> = ({
         const data = await response.json();
         setStats(data);
       }
-    } catch (e) {
-      // Ошибка загрузки статистики подписки
-    }
+    } catch (e) { console.error(e); }
   };
 
   const loadCreditPackages = async () => {
@@ -500,20 +148,15 @@ export const ShopPage: React.FC<any> = ({
         const data = await response.json();
         if (data.success) setCreditPackages(data.packages);
       }
-    } catch (e) {
-      // Ошибка загрузки пакетов кредитов
-    }
+    } catch (e) { console.error(e); }
   };
 
+  // --- Business Logic ---
   const calculatePrice = (basePrice: number) => {
     const months = CYCLE_MONTHS[billingCycle];
     const discount = DISCOUNTS[billingCycle];
-
-    // Рассчитываем месячную цену со скидкой и округляем её
     const monthlyDiscounted = basePrice * (1 - discount);
-    const roundedMonthly = Math.floor(monthlyDiscounted); // Используем floor для более привлекательной цены
-
-    // Итоговая цена должна быть строго кратна месячной
+    const roundedMonthly = Math.floor(monthlyDiscounted);
     const totalDiscounted = roundedMonthly * months;
     const totalOriginal = basePrice * months;
 
@@ -524,10 +167,6 @@ export const ShopPage: React.FC<any> = ({
       originalTotal: totalOriginal,
       discountPercent: Math.round(discount * 100)
     };
-  };
-
-  const getBillingText = () => {
-    return ''; // Удалено "Списывается ежемесячно"
   };
 
   const handleSubscriptionClick = (plan: string) => {
@@ -548,7 +187,6 @@ export const ShopPage: React.FC<any> = ({
     }
 
     try {
-      // Базовые цены: 499₽ для STANDARD и 1199₽ для PREMIUM
       const basePrice = plan === 'premium' ? 1199 : 449;
       const priceInfo = calculatePrice(basePrice);
       const amount = priceInfo.total;
@@ -569,16 +207,10 @@ export const ShopPage: React.FC<any> = ({
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: 'Ошибка создания платежа' }));
-        throw new Error(errorData.detail || 'Ошибка создания платежа');
-      }
-
+      if (!response.ok) throw new Error('Ошибка создания платежа');
       const data = await response.json();
       window.location.href = data.confirmation_url;
-    } catch (e) {
-      // Ошибка обработки платежа
-    }
+    } catch (e) { console.error(e); }
   };
 
   const handleTestPayment = async (plan: string) => {
@@ -611,9 +243,7 @@ export const ShopPage: React.FC<any> = ({
         const data = await response.json();
         window.location.href = data.confirmation_url;
       }
-    } catch (e) {
-      // Ошибка теста
-    }
+    } catch (e) { console.error(e); }
   };
 
   const handleCreditPayment = async (pkg: any, method: string) => {
@@ -644,18 +274,16 @@ export const ShopPage: React.FC<any> = ({
         const data = await response.json();
         window.location.href = data.confirmation_url;
       }
-    } catch (e) {
-      // Ошибка обработки платежа за кредиты
-    }
+    } catch (e) { console.error(e); }
   };
 
+  // --- Render Helpers ---
+
   const renderSubscriptionContent = () => {
-    // Базовые цены: 499₽ для STANDARD и 1199₽ для PREMIUM
     const premiumBasePrice = 1199;
     const standardBasePrice = 449;
     const premiumPrice = calculatePrice(premiumBasePrice);
     const standardPrice = calculatePrice(standardBasePrice);
-    const months = CYCLE_MONTHS[billingCycle];
     const isYearly = billingCycle === 'yearly';
     const is6Months = billingCycle === '6_months';
 
@@ -663,269 +291,261 @@ export const ShopPage: React.FC<any> = ({
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+        className="w-full max-w-4xl mx-auto flex flex-col items-center"
       >
-        <SaleBanner>
-          <SaleText>СПЕЦИАЛЬНОЕ ПРЕДЛОЖЕНИЕ</SaleText>
-          <DiscountTag>СКИДКА ДО 25%</DiscountTag>
-        </SaleBanner>
+        {/* Sale Banner */}
+        <div className="w-full max-w-2xl mb-10 relative overflow-hidden rounded-xl border border-pink-500/30 bg-pink-500/5 backdrop-blur-sm p-4 flex justify-center items-center gap-4">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-pink-500/10 to-transparent animate-shimmer" style={{ backgroundSize: '200% 100%' }} />
+          <span className="font-extrabold text-2xl text-transparent bg-clip-text bg-gradient-to-r from-pink-300 to-purple-300 tracking-wider">
+            СПЕЦИАЛЬНОЕ ПРЕДЛОЖЕНИЕ
+          </span>
+          <span className="bg-gradient-to-r from-pink-600 to-purple-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg shadow-pink-500/20 transform -rotate-2">
+            СКИДКА ДО 25%
+          </span>
+        </div>
 
-        <DurationTabs>
-          <DurationTab $active={billingCycle === 'yearly'} onClick={() => setBillingCycle('yearly')}>
-            Год
-            <SaveTag>SAVE 25% + 15% БОНУС</SaveTag>
-          </DurationTab>
-          <DurationTab $active={billingCycle === '6_months'} onClick={() => setBillingCycle('6_months')}>
-            6 Месяцев
-            <SaveTag>SAVE 20% + 10% БОНУС</SaveTag>
-          </DurationTab>
-          <DurationTab $active={billingCycle === '3_months'} onClick={() => setBillingCycle('3_months')}>
-            3 Месяца
-            <SaveTag>SAVE 15% + 5% БОНУС</SaveTag>
-          </DurationTab>
-          <DurationTab $active={billingCycle === 'monthly'} onClick={() => setBillingCycle('monthly')}>
-            Месяц
-          </DurationTab>
-        </DurationTabs>
+        {/* Duration Tabs */}
+        <div className="w-full max-w-3xl grid grid-cols-2 md:grid-cols-4 gap-2 p-1.5 bg-white/5 rounded-full mb-12 backdrop-blur-md border border-white/10">
+          {[
+            { id: 'yearly', label: 'Год', save: 'SAVE 25% + 15%' },
+            { id: '6_months', label: '6 Месяцев', save: 'SAVE 20% + 10%' },
+            { id: '3_months', label: '3 Месяца', save: 'SAVE 15% + 5%' },
+            { id: 'monthly', label: 'Месяц', save: null }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setBillingCycle(tab.id as BillingCycle)}
+              className="relative px-4 py-3 rounded-full text-sm font-bold transition-all duration-300 isolate"
+            >
+              {billingCycle === tab.id && (
+                <motion.div
+                  layoutId="activeTab"
+                  className="absolute inset-0 bg-gradient-to-r from-violet-600 to-indigo-600 rounded-full shadow-lg shadow-violet-500/30"
+                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                />
+              )}
+              <span className={`relative z-10 ${billingCycle === tab.id ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>
+                {tab.label}
+              </span>
+              {tab.save && (
+                <span className={`absolute -top-3 -right-2 text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/20 shadow-sm whitespace-nowrap z-20
+                  ${billingCycle === tab.id
+                    ? 'bg-pink-500 text-white'
+                    : 'bg-gray-800 text-gray-300'}`}
+                >
+                  {tab.save}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
 
-        {userCountry && userCountry.toLowerCase() !== 'ru' && userCountry.toLowerCase() !== 'russia' && (
-          <VPNWarning style={{ maxWidth: '800px', marginBottom: '2rem' }}>
+        {/* VPN Warning */}
+        {userCountry && !['ru', 'russia'].includes(userCountry.toLowerCase()) && (
+          <div className="w-full max-w-2xl mb-8 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center font-medium">
             Платёжные способы не работают с VPN!
-          </VPNWarning>
+          </div>
         )}
 
-        <PlansGrid>
-          {/* PREMIUM CARD */}
-          <PlanCard
-            $planType="premium"
-            $highlight={true}
-            $selected={selectedPlan === 'premium'}
-            whileHover={{ y: -12, scale: 1.02 }}
-            whileTap={{ scale: 0.96 }}
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: "spring", stiffness: 300, damping: 20 }}
-            style={{
-              borderColor: selectedPlan === 'premium' ? '#7c3aed' : 'rgba(124, 58, 237, 0.3)',
-              boxShadow: selectedPlan === 'premium' ? '0 0 40px rgba(124, 58, 237, 0.3)' : 'none'
-            }}
+        {/* Plans Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full items-start">
+
+          {/* FREE PLAN */}
+          <div className="relative group p-4 rounded-2xl bg-white/[0.02] border border-white/[0.08] backdrop-blur-xl h-full min-h-[300px] flex flex-col hover:border-white/20 transition-all duration-300">
+            <div className="mb-4">
+              <h3 className="text-xl font-bold text-gray-400 mb-1">Free</h3>
+              <div className="flex items-baseline gap-1">
+                <span className="text-3xl font-bold text-white">Бесплатно</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Навсегда бесплатно</p>
+            </div>
+
+            <div className="space-y-2 flex-1">
+              <div className="flex gap-2 text-xs text-gray-300">
+                <CheckIcon className="text-gray-400 bg-white/5" /> <span>100 кредитов</span>
+              </div>
+              <div className="flex gap-2 text-xs text-gray-300">
+                <CheckIcon className="text-gray-400 bg-white/5" /> <span>Ограничение сообщений: 10</span>
+              </div>
+              <div className="flex gap-2 text-xs text-gray-300">
+                <CheckIcon className="text-gray-400 bg-white/5" /> <span>5 генераций фото</span>
+              </div>
+              <div className="flex gap-2 text-xs text-gray-300">
+                <CheckIcon className="text-gray-400 bg-white/5" /> <span>Доступ ко всем персонажам</span>
+              </div>
+              <div className="flex gap-2 text-xs text-gray-300">
+                <CheckIcon className="text-gray-400 bg-white/5" /> <span>Создание 1 персонажа</span>
+              </div>
+            </div>
+
+            <button disabled className="mt-8 w-full py-4 rounded-xl font-bold bg-white/5 text-gray-500 border border-white/10 cursor-not-allowed">
+              Текущий план
+            </button>
+          </div>
+
+          {/* STANDARD PLAN */}
+          <motion.div
+            whileHover={{ y: -8 }}
+            className="relative p-4 rounded-2xl bg-gradient-to-b from-amber-500/10 to-transparent border border-amber-500/30 backdrop-blur-xl h-full min-h-[450px] flex flex-col"
           >
-            <BestValueBadge>ЛУЧШИЙ ВЫБОР</BestValueBadge>
-            <PlanHeader>
-              <PlanTitle color="white">
-                Premium
-              </PlanTitle>
-              <PriceContainer>
-                <Price style={{ color: 'white' }}>{premiumPrice.monthly}₽</Price>
-                <Period style={{ color: 'white' }}>/мес</Period>
-              </PriceContainer>
+            <div className="mb-4">
+              <h3 className="text-xl font-bold text-amber-400 mb-1">Standard</h3>
+              <div className="flex items-baseline gap-1">
+                <span className="text-3xl font-bold text-white">{standardPrice.monthly}₽</span>
+                <span className="text-gray-400 text-xs">/мес</span>
+              </div>
               {billingCycle !== 'monthly' && (
-                <OldPrice style={{ color: 'white' }}>{premiumPrice.originalMonthly}₽/мес</OldPrice>
+                <p className="text-xs text-gray-500 line-through mt-1">{standardPrice.originalMonthly}₽/мес</p>
               )}
-              <BillingInfo style={{ color: 'white' }}>{getBillingText()}</BillingInfo>
-            </PlanHeader>
+            </div>
 
-            <FeaturesList>
-              <FeatureItem>
-                <FiCheck style={{ color: '#7c3aed' }} />
-                <span style={{ color: 'white' }}>
-                  {billingCycle === 'monthly' ? "300" : (
-                    <>{isYearly ? "3600" : is6Months ? "1800" : "900"} <BonusValue>+ {isYearly ? "540" : is6Months ? "180" : "45"}</BonusValue></>
-                  )} фото-генераций
-                </span>
-              </FeatureItem>
-              <FeatureItem>
-                <FiCheck style={{ color: '#7c3aed' }} />
-                <span style={{ color: 'white' }}>
-                  {billingCycle === 'monthly' ? "300" : (
-                    <>{isYearly ? "3600" : is6Months ? "1800" : "900"} <BonusValue>+ {isYearly ? "540" : is6Months ? "180" : "45"}</BonusValue></>
-                  )} голосовых сообщений
-                </span>
-              </FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Доступ ко всем персонажам</span></FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Глубокая память (16 000 токенов)</span></FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Сохранение истории сообщений</span></FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Создание платных альбомов</span></FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Доступ ко всем платным альбомам</span></FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Доступ к галереям других пользователей (только Premium)</span></FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Доступ к Pro моделям</span></FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Приоритет в очереди генерации</span></FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Возможность загружать свои голоса для озвучки</span></FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Безлимитное создание персонажей</span></FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#7c3aed' }} /> <span style={{ color: 'white' }}>Доступ к Premium голосам</span></FeatureItem>
-            </FeaturesList>
+            <div className="space-y-2 flex-1">
+              {[
+                { icon: Check, text: "фото-генераций", highlight: true, amount: billingCycle === 'monthly' ? "100" : <>{isYearly ? "1200" : is6Months ? "600" : "300"} <span className="text-amber-400 font-bold">+ {isYearly ? "180" : is6Months ? "60" : "15"}</span></> },
+                { icon: Check, text: "голосовых сообщений", highlight: true, amount: billingCycle === 'monthly' ? "100" : <>{isYearly ? "1200" : is6Months ? "600" : "300"} <span className="text-amber-400 font-bold">+ {isYearly ? "180" : is6Months ? "60" : "15"}</span></> },
+                { icon: Check, text: "Доступ ко всем персонажам" },
+                { icon: Check, text: "Расширенная память (8 000)" },
+                { icon: Check, text: "Сохранение истории" },
+                { icon: Check, text: "Создание 10 персонажей" },
+                { icon: Check, text: "Создание платных альбомов" },
+                { icon: Check, text: "Доступ ко всем платным альбомам" },
+              ].map((item, idx) => (
+                <div key={idx} className="flex gap-2 text-xs text-gray-200">
+                  <CheckIcon className="text-amber-400 bg-amber-500/10" />
+                  <span>
+                    {item.amount && <span className="font-bold mr-1">{item.amount}</span>}
+                    {item.text}
+                  </span>
+                </div>
+              ))}
 
-            <div style={{ position: 'relative', marginTop: 'auto' }}>
-              <CheckoutButton
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={(e) => { e.stopPropagation(); handleSubscriptionClick('premium'); }}
-                style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)' }}
+              <div className="my-2 border-t border-white/10" />
+
+              {[
+                "Доступ к галереям других",
+                "Доступ к Premium моделям",
+                "Приоритет в очереди",
+                "Свои голоса для озвучки",
+                "Доступ к Premium голосам"
+              ].map((text, idx) => (
+                <div key={idx} className="flex gap-2 text-xs text-gray-400 opacity-80">
+                  <XIcon className="text-red-500/50 bg-red-500/10" />
+                  <span>{text}</span>
+                </div>
+              ))}
+            </div>
+
+            <motion.button
+              whileHover={{ scale: 1.02, boxShadow: "0 0 20px rgba(245, 158, 11, 0.4)" }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => handleSubscriptionClick('standard')}
+              className="mt-6 w-full py-2.5 rounded-lg font-bold text-sm text-black bg-gradient-to-r from-amber-300 to-orange-400 shadow-lg shadow-amber-500/20 relative overflow-hidden group"
+            >
+              <div className="relative z-10 flex items-center justify-center gap-2">
+                <img src="/payment_images/pay_sbp.png?v=15" alt="SBP" className="w-5 h-5 object-contain" />
+                <span>Купить за {standardPrice.total}₽</span>
+              </div>
+              <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
+            </motion.button>
+
+            {userInfo?.is_admin && (
+              <button
+                onClick={(e) => { e.stopPropagation(); handleTestPayment('standard'); }}
+                className="mt-2 w-full py-2 text-xs text-amber-500/70 hover:text-amber-500 border border-dashed border-amber-500/30 rounded-lg"
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" style={{ width: '32px', height: '32px' }} />
-                  <span>Купить за {premiumPrice.total}₽</span>
+                ADMIN TEST
+              </button>
+            )}
+          </motion.div>
+
+          {/* PREMIUM PLAN */}
+          <motion.div
+            whileHover={{ y: -12 }}
+            className="relative p-1 rounded-2xl bg-gradient-to-b from-red-500 via-purple-600 to-transparent p-[1px] h-full min-h-[450px] flex flex-col shadow-2xl shadow-red-500/20"
+          >
+            <div className="absolute -top-3 w-full flex justify-center z-10">
+              <span className="bg-gradient-to-r from-red-500 to-purple-600 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-lg shadow-red-500/40 uppercase tracking-wider">
+                Лучший Выбор
+              </span>
+            </div>
+
+            <div className="flex-1 rounded-[14px] bg-slate-950/90 backdrop-blur-xl p-4 flex flex-col h-full border border-white/5">
+
+              <div className="mb-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-purple-400">Premium</h3>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-bold text-white">{premiumPrice.monthly}₽</span>
+                  <span className="text-gray-400 text-xs">/мес</span>
                 </div>
                 {billingCycle !== 'monthly' && (
-                  <span style={{ opacity: 0.7, fontSize: '0.8rem', textDecoration: 'line-through' }}>{premiumPrice.originalTotal}₽</span>
+                  <p className="text-xs text-gray-500 line-through mt-1">{premiumPrice.originalMonthly}₽/мес</p>
                 )}
-              </CheckoutButton>
+              </div>
+
+              <div className="space-y-2 flex-1">
+                {[
+                  { icon: Check, text: "фото-генераций", amount: billingCycle === 'monthly' ? "300" : <>{isYearly ? "3600" : is6Months ? "1800" : "900"} <span className="text-red-400 font-bold">+ {isYearly ? "540" : is6Months ? "180" : "45"}</span></> },
+                  { icon: Check, text: "голосовых сообщений", amount: billingCycle === 'monthly' ? "300" : <>{isYearly ? "3600" : is6Months ? "1800" : "900"} <span className="text-red-400 font-bold">+ {isYearly ? "540" : is6Months ? "180" : "45"}</span></> },
+                  { icon: Check, text: "Доступ ко всем персонажам" },
+                  { icon: Check, text: "Глубокая память (16 000)" },
+                  { icon: Check, text: "Сохранение истории" },
+                  { icon: Check, text: "Создание платных альбомов" },
+                  { icon: Check, text: "Доступ ко всем платным альбомам" },
+                ].map((item, idx) => (
+                  <div key={idx} className="flex gap-2 text-xs text-gray-200">
+                    <CheckIcon className="text-amber-400 bg-amber-500/10" />
+                    <span>
+                      {item.amount && <span className="font-bold mr-1">{item.amount}</span>}
+                      {item.text}
+                    </span>
+                  </div>
+                ))}
+
+                <div className="my-2 border-t border-white/10" />
+
+                {[
+                  "Доступ к галереям других",
+                  "Доступ к Premium моделям",
+                  "Приоритет в очереди",
+                  "Свои голоса для озвучки",
+                  "Безлимитное создание",
+                  "Доступ к Premium голосам"
+                ].map((text, idx) => (
+                  <div key={idx} className="flex gap-2 text-xs text-white font-medium">
+                    <CheckIcon className="text-red-400 bg-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.3)]" />
+                    <span>{text}</span>
+                  </div>
+                ))}
+              </div>
+
+              <motion.button
+                whileHover={{ scale: 1.02, boxShadow: "0 0 30px rgba(220, 38, 38, 0.5)" }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleSubscriptionClick('premium')}
+                className="mt-6 w-full py-2.5 rounded-lg font-bold text-sm text-white bg-gradient-to-r from-red-500 to-purple-600 shadow-xl shadow-red-500/30 relative overflow-hidden group"
+              >
+                <div className="relative z-10 flex items-center justify-center gap-2">
+                  <img src="/payment_images/pay_sbp.png?v=15" alt="SBP" className="w-5 h-5 object-contain brightness-0 invert" />
+                  <span>Купить за {premiumPrice.total}₽</span>
+                </div>
+                <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
+              </motion.button>
 
               {userInfo?.is_admin && (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleTestPayment('premium'); }}
-                  style={{
-                    width: '100%',
-                    marginTop: '0.5rem',
-                    background: 'transparent',
-                    border: '1px dashed #ef4444',
-                    color: '#ef4444',
-                    padding: '0.3rem',
-                    borderRadius: '8px',
-                    fontSize: '0.7rem',
-                    cursor: 'pointer'
-                  }}
+                  className="mt-2 w-full py-2 text-xs text-red-400/70 hover:text-red-400 border border-dashed border-red-500/30 rounded-lg"
                 >
-                  ТЕСТОВАЯ ПОКУПКА (ADMIN)
+                  ADMIN TEST
                 </button>
               )}
+
             </div>
-          </PlanCard>
+          </motion.div>
 
-          {/* LITE (STANDARD) CARD */}
-          <PlanCard
-            $planType="standard"
-            $selected={selectedPlan === 'standard'}
-            whileHover={{ y: -12, scale: 1.02 }}
-            whileTap={{ scale: 0.96 }}
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: "spring", stiffness: 300, damping: 20 }}
-            style={{
-              borderColor: selectedPlan === 'standard' ? '#fbbf24' : 'rgba(251, 191, 36, 0.3)',
-              boxShadow: selectedPlan === 'standard' ? '0 0 40px rgba(251, 191, 36, 0.2)' : 'none'
-            }}
-          >
-            <PlanHeader>
-              <PlanTitle color="#fbbf24">
-                Standard
-              </PlanTitle>
-              <PriceContainer>
-                <Price>{standardPrice.monthly}₽</Price>
-                <Period>/мес</Period>
-              </PriceContainer>
-              {billingCycle !== 'monthly' && (
-                <OldPrice>{standardPrice.originalMonthly}₽/мес</OldPrice>
-              )}
-              <BillingInfo>{getBillingText()}</BillingInfo>
-            </PlanHeader>
-
-            <FeaturesList>
-              <FeatureItem>
-                <FiCheck style={{ color: '#fbbf24' }} />
-                <span style={{ color: 'white' }}>
-                  {billingCycle === 'monthly' ? "100" : (
-                    <>{isYearly ? "1200" : is6Months ? "600" : "300"} <BonusValue>+ {isYearly ? "180" : is6Months ? "60" : "15"}</BonusValue></>
-                  )} фото-генераций
-                </span>
-              </FeatureItem>
-              <FeatureItem>
-                <FiCheck style={{ color: '#fbbf24' }} />
-                <span style={{ color: 'white' }}>
-                  {billingCycle === 'monthly' ? "100" : (
-                    <>{isYearly ? "1200" : is6Months ? "600" : "300"} <BonusValue>+ {isYearly ? "180" : is6Months ? "60" : "15"}</BonusValue></>
-                  )} голосовых сообщений
-                </span>
-              </FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#fbbf24' }} /> Доступ ко всем персонажам</FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#fbbf24' }} /> Расширенная память (8 000 токенов)</FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#fbbf24' }} /> Сохранение истории сообщений</FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#fbbf24' }} /> Создание 10 персонажей</FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#fbbf24' }} /> Создание платных альбомов</FeatureItem>
-            </FeaturesList>
-
-            <div style={{ position: 'relative', marginTop: 'auto' }}>
-              <CheckoutButton
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={(e) => { e.stopPropagation(); handleSubscriptionClick('standard'); }}
-                style={{ background: 'linear-gradient(135deg, #fbbf24 0%, #d97706 100%)', color: 'black' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" style={{ width: '32px', height: '32px' }} />
-                  <span>Купить за {standardPrice.total}₽</span>
-                </div>
-                {billingCycle !== 'monthly' && (
-                  <span style={{ opacity: 0.7, fontSize: '0.8rem', textDecoration: 'line-through' }}>{standardPrice.originalTotal}₽</span>
-                )}
-              </CheckoutButton>
-
-              {userInfo?.is_admin && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleTestPayment('standard'); }}
-                  style={{
-                    width: '100%',
-                    marginTop: '0.5rem',
-                    background: 'transparent',
-                    border: '1px dashed #ef4444',
-                    color: '#ef4444',
-                    padding: '0.3rem',
-                    borderRadius: '8px',
-                    fontSize: '0.7rem',
-                    cursor: 'pointer'
-                  }}
-                >
-                  ТЕСТОВАЯ ПОКУПКА (ADMIN)
-                </button>
-              )}
-            </div>
-          </PlanCard>
-
-          {/* FREE CARD */}
-          <PlanCard
-            $planType="free"
-            $selected={selectedPlan === 'free'}
-            whileHover={{ y: -8, scale: 1.02 }}
-            whileTap={{ scale: 0.96 }}
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: "spring", stiffness: 300, damping: 20 }}
-            style={{
-              borderColor: selectedPlan === 'free' ? '#888' : 'rgba(136, 136, 136, 0.2)',
-            }}
-          >
-            <PlanHeader>
-              <PlanTitle color="#888">
-                Free
-              </PlanTitle>
-              <PriceContainer>
-                <Price>Бесплатно</Price>
-              </PriceContainer>
-              <BillingInfo>Навсегда бесплатно</BillingInfo>
-            </PlanHeader>
-
-            <FeaturesList>
-              <FeatureItem><FiCheck style={{ color: '#888' }} /> 100 кредитов</FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#888' }} /> Ограничение сообщений: 10</FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#888' }} /> 5 генераций фото</FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#888' }} /> Доступ ко всем персонажам</FeatureItem>
-              <FeatureItem><FiCheck style={{ color: '#888' }} /> Создание 1 персонажа</FeatureItem>
-            </FeaturesList>
-
-            <CheckoutButton
-              disabled
-              style={{
-                background: 'rgba(255, 255, 255, 0.05)',
-                color: '#666',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                boxShadow: 'none'
-              }}
-            >
-              Текущий план
-            </CheckoutButton>
-          </PlanCard>
-        </PlansGrid>
+        </div>
       </motion.div>
     );
   };
@@ -935,64 +555,68 @@ export const ShopPage: React.FC<any> = ({
       <motion.div
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -20 }}
-        transition={{ duration: 0.4 }}
-        style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+        className="w-full max-w-6xl mx-auto"
       >
-        {userCountry && userCountry.toLowerCase() !== 'ru' && userCountry.toLowerCase() !== 'russia' && (
-          <VPNWarning style={{ maxWidth: '800px', marginBottom: '2rem' }}>
+        {userCountry && !['ru', 'russia'].includes(userCountry.toLowerCase()) && (
+          <div className="w-full max-w-2xl mx-auto mb-8 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center font-medium">
             Платёжные способы не работают с VPN!
-          </VPNWarning>
+          </div>
         )}
-        <PlansGrid>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {creditPackages.map((pkg, index) => (
-            <PlanCard
+            <motion.div
               key={pkg.id}
-              $selected={selectedPlan === pkg.id}
-              whileHover={{ y: -8, scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
+              whileHover={{ y: -5 }}
+              className="p-6 rounded-2xl bg-white/[0.03] border border-white/10 backdrop-blur-md flex flex-col hover:bg-white/[0.05] hover:border-purple-500/30 transition-all duration-300 group"
             >
-              <PlanHeader>
-                <PlanTitle color="#a78bfa">{pkg.name}</PlanTitle>
-                <PriceContainer>
-                  <Price>{pkg.price}₽</Price>
-                </PriceContainer>
-                <BillingInfo>{pkg.credits} Кредитов</BillingInfo>
-              </PlanHeader>
-
-              <FeaturesList>
-                <FeatureItem><FiCheck /> Разовая оплата</FeatureItem>
-                <FeatureItem><FiCheck /> Кредиты не сгорают</FeatureItem>
-                <FeatureItem><FiCheck /> Для генераций и общения</FeatureItem>
-              </FeaturesList>
-
-              <div style={{ position: 'relative', marginTop: 'auto' }}>
-                <CheckoutButton
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={(e) => { e.stopPropagation(); handleCreditPayment(pkg, 'sbp'); }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <PaymentLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" style={{ width: '32px', height: '32px' }} />
-                    <span>Купить сейчас</span>
-                  </div>
-                </CheckoutButton>
+              <div className="mb-4">
+                <h3 className="text-xl font-bold text-purple-300">{pkg.name}</h3>
+                <div className="mt-2 flex items-baseline gap-1">
+                  <span className="text-3xl font-bold text-white">{pkg.price}₽</span>
+                </div>
+                <p className="text-sm text-gray-400 mt-1">{pkg.credits} Кредитов</p>
               </div>
-            </PlanCard>
+
+              <div className="space-y-3 flex-1 mb-6">
+                <div className="flex gap-2 text-sm text-gray-300">
+                  <CheckIcon className="text-purple-400 bg-purple-500/10" /> <span>Разовая оплата</span>
+                </div>
+                <div className="flex gap-2 text-sm text-gray-300">
+                  <CheckIcon className="text-purple-400 bg-purple-500/10" /> <span>Кредиты не сгорают</span>
+                </div>
+                <div className="flex gap-2 text-sm text-gray-300">
+                  <CheckIcon className="text-purple-400 bg-purple-500/10" /> <span>Для любых генераций</span>
+                </div>
+              </div>
+
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={(e) => { e.stopPropagation(); handleCreditPayment(pkg, 'sbp'); }}
+                className="w-full py-3 rounded-xl font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 shadow-lg shadow-purple-500/20 relative overflow-hidden"
+              >
+                <div className="flex items-center justify-center gap-2 relative z-10">
+                  <img src="/payment_images/pay_sbp.png?v=15" alt="SBP" className="w-5 h-5 object-contain brightness-0 invert" />
+                  <span>Купить</span>
+                </div>
+              </motion.button>
+            </motion.div>
           ))}
-        </PlansGrid>
+        </div>
       </motion.div>
     );
   };
 
   return (
-    <MainContainer>
+    <div className="min-h-screen bg-[#020205] text-white font-sans overflow-x-hidden selection:bg-purple-500/30">
       <BackgroundWrapper>
         <DarkVeil speed={1.1} />
       </BackgroundWrapper>
+
       <GlobalHeader
         onHome={onHome || onBackToMain}
         onProfile={onProfile}
@@ -1001,9 +625,12 @@ export const ShopPage: React.FC<any> = ({
         onRegister={onRegister}
         onLogout={onLogout}
       />
-      <ContentWrapper>
-        {renderSubscriptionContent()}
-      </ContentWrapper>
+
+      <main className="relative z-10 pt-4 pb-10 px-4 flex flex-col items-center">
+        <div className="w-full">
+          {renderSubscriptionContent()}
+        </div>
+      </main>
 
       {isAuthModalOpen && (
         <AuthModal
@@ -1014,10 +641,20 @@ export const ShopPage: React.FC<any> = ({
             authManager.setTokens(accessToken, refreshToken);
             setIsAuthenticated(true);
             setIsAuthModalOpen(false);
-            loadSubscriptionStats();
+            loadSubscriptionStats(); // Reload after login
           }}
         />
       )}
-    </MainContainer>
+    </div>
   );
 };
+
+// --- Subcomponents ---
+
+const BackgroundWrapper = ({ children }: { children: React.ReactNode }) => (
+  <div className="fixed inset-0 w-full h-full z-0 pointer-events-none">
+    {children}
+  </div>
+);
+
+export default ShopPage;

@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, text, func
 from app.chat_bot.schemas.chat import CharacterCreate, CharacterUpdate, CharacterInDB, UserCharacterCreate, CharacterWithCreator, CreatorInfo
-from app.chat_bot.models.models import CharacterMainPhoto, FavoriteCharacter, CharacterDB, CharacterRating
+from app.chat_bot.models.models import CharacterMainPhoto, FavoriteCharacter, CharacterDB, CharacterRating, ChatSession, ChatMessageDB
 from app.chat_bot.utils.character_importer import character_importer
 from app.database.db_depends import get_db
 from app.auth.dependencies import get_current_user, get_current_user_optional
@@ -1279,7 +1279,8 @@ async def read_characters(
                                     "is_nsfw": char_data.get('is_nsfw') if char_data.get('is_nsfw') is not None else False,
                                     "voice_id": voice_id_cached,
                                     "voice_url": voice_url_cached,
-                                    "tags": char_data.get('tags') if isinstance(char_data.get('tags'), list) else []
+                                    "tags": char_data.get('tags') if isinstance(char_data.get('tags'), list) else [],
+                                    "creator_username": char_data.get('creator_username')
                                 }
                                 valid_characters.append(valid_char)
                         elif hasattr(char_data, 'id') and hasattr(char_data, 'name'):
@@ -1305,7 +1306,8 @@ async def read_characters(
                                 "is_nsfw": getattr(char_data, 'is_nsfw', None) if getattr(char_data, 'is_nsfw', None) is not None else False,
                                 "voice_id": voice_id_obj,
                                 "voice_url": voice_url_obj,
-                                "tags": tags_val if isinstance(tags_val, list) else []
+                                "tags": tags_val if isinstance(tags_val, list) else [],
+                                "creator_username": getattr(char_data, 'creator_username', None)
                             })
                     
                     if valid_characters:
@@ -1326,23 +1328,84 @@ async def read_characters(
                 logger.warning(f"Error restoring characters from cache: {cache_error}, loading from DB")
                 # Если ошибка восстановления из кэша, загружаем из БД
         
-        from app.chat_bot.models.models import CharacterDB, CharacterMainPhoto
-        from sqlalchemy import select
+        from app.chat_bot.models.models import CharacterDB, CharacterMainPhoto, CharacterRating, ChatSession, ChatMessageDB
+        from app.models.user import Users
+        from sqlalchemy import select, func
         
         logger.debug(f"Loading characters from DB (skip={skip}, limit={limit}, force_refresh={force_refresh})")
         try:
-            # Добавляем таймаут для запроса к БД (увеличиваем до 30 секунд для больших запросов)
+            # 1. Сначала загружаем персонажей и имена создателей
             result = await asyncio.wait_for(
                 db.execute(
-                    select(CharacterDB)
+                    select(CharacterDB, Users.username)
+                    .outerjoin(Users, CharacterDB.user_id == Users.id)
                     .offset(skip)
                     .limit(limit)
-                    .order_by(CharacterDB.name)
                 ),
                 timeout=30.0
             )
-            characters = result.scalars().all()
-            logger.debug(f"Retrieved {len(characters)} characters from database")
+            char_rows = result.all()
+            characters = [row[0] for row in char_rows]
+            username_map = {row[0].id: row[1] for row in char_rows}
+            char_ids = [c.id for c in characters]
+            
+            # 2. Получаем лайки для этого списка
+            likes_map = {}
+            if char_ids:
+                likes_result = await db.execute(
+                    select(CharacterRating.character_id, func.count(CharacterRating.id))
+                    .where(CharacterRating.character_id.in_(char_ids), CharacterRating.is_like == True)
+                    .group_by(CharacterRating.character_id)
+                )
+                likes_map = {row[0]: row[1] for row in likes_result.all()}
+                
+            # 3. Получаем сообщения для этого списка
+            messages_map = {}
+            if char_ids:
+                messages_result = await db.execute(
+                    select(ChatSession.character_id, func.count(ChatMessageDB.id))
+                    .join(ChatMessageDB, ChatMessageDB.session_id == ChatSession.id)
+                    .where(ChatSession.character_id.in_(char_ids))
+                    .group_by(ChatSession.character_id)
+                )
+                messages_map = {row[0]: row[1] for row in messages_result.all()}
+            
+            # 4. Получаем данные о платных альбомах для превью
+            album_counts_map = {}
+            album_previews_map = {}
+            if char_ids:
+                from app.chat_bot.models.models import PaidAlbumPhoto
+                
+                # Считаем общее кол-во фото в альбомах
+                counts_result = await db.execute(
+                    select(PaidAlbumPhoto.character_id, func.count(PaidAlbumPhoto.id))
+                    .where(PaidAlbumPhoto.character_id.in_(char_ids))
+                    .group_by(PaidAlbumPhoto.character_id)
+                )
+                album_counts_map = {row[0]: row[1] for row in counts_result.all()}
+                
+                # Получаем до 3 фото для каждого персонажа, у которого есть альбом
+                # Чтобы не делать сложный SQL с оконными функциями, просто берем все фото для этих персонажей
+                # (их обычно немного для превью) и группируем.
+                ids_with_albums = [cid for cid, count in album_counts_map.items() if count > 0]
+                if ids_with_albums:
+                    photos_result = await db.execute(
+                        select(PaidAlbumPhoto)
+                        .where(PaidAlbumPhoto.character_id.in_(ids_with_albums))
+                        .order_by(PaidAlbumPhoto.character_id, PaidAlbumPhoto.created_at.desc())
+                    )
+                    all_photos = photos_result.scalars().all()
+                    logger.info(f"Retrieved {len(all_photos)} paid album photos for {len(ids_with_albums)} characters")
+                    for photo in all_photos:
+                        if photo.character_id not in album_previews_map:
+                            album_previews_map[photo.character_id] = []
+                        if len(album_previews_map[photo.character_id]) < 3:
+                            album_previews_map[photo.character_id].append(photo.photo_url)
+                    
+                    for cid in ids_with_albums:
+                        logger.info(f"Character {cid}: count={album_counts_map.get(cid)}, previews={len(album_previews_map.get(cid, []))}")
+            
+            logger.debug(f"Retrieved {len(characters)} characters and their stats from database")
             if len(characters) > 0:
                 logger.debug(f"First character example: id={characters[0].id}, name={characters[0].name}, prompt_length={len(characters[0].prompt) if characters[0].prompt else 0}")
         except asyncio.TimeoutError:
@@ -1352,6 +1415,23 @@ async def read_characters(
             logger.error(f"Ошибка загрузки персонажей из БД: {db_error}")
             return []  # Возвращаем пустой список вместо зависания
         
+        # Функция для обработки URL (проксирование Yandex Cloud)
+        def process_url(url):
+            if not url or not isinstance(url, str):
+                return url
+            if 'storage.yandexcloud.net/' in url:
+                if '.storage.yandexcloud.net/' in url:
+                    object_key = url.split('.storage.yandexcloud.net/')[1]
+                    if object_key:
+                        return f"/media/{object_key}"
+                else:
+                    parts = url.split('storage.yandexcloud.net/')[1]
+                    if parts:
+                        path_segments = parts.split('/')
+                        if len(path_segments) > 1:
+                            return f"/media/{'/'.join(path_segments[1:])}"
+            return url
+
         # Преобразуем объекты CharacterDB в словари для сериализации
         # Убеждаемся, что обязательные поля присутствуют и не None
         characters_data = []
@@ -1386,7 +1466,12 @@ async def read_characters(
                 "is_nsfw": char.is_nsfw if char.is_nsfw is not None else False,
                 "voice_id": char.voice_id,
                 "voice_url": voice_url_value,
-                "tags": tags_list
+                "tags": tags_list,
+                "likes": likes_map.get(char.id, 0),
+                "comments": messages_map.get(char.id, 0),
+                "creator_username": username_map.get(char.id),
+                "paid_album_photos_count": album_counts_map.get(char.id, 0),
+                "paid_album_preview_urls": [process_url(u) for u in album_previews_map.get(char.id, [])]
             }
             characters_data.append(char_dict)
         
@@ -1394,6 +1479,24 @@ async def read_characters(
             logger.warning(f"Skipped {skipped_count} characters due to missing required fields")
         
         logger.debug(f"Converted {len(characters_data)} characters to dictionaries (from {len(characters)} DB objects)")
+        
+        # Сортируем персонажей: сначала те, у кого есть тег "Original" или "Оригинальный", затем по лайкам и сообщениям
+        def get_sort_key(char):
+            # 1. Оригинальность
+            tags = char.get("tags", [])
+            is_orig = 0
+            if isinstance(tags, list):
+                original_keywords = ["original", "оригинальный"]
+                if any(str(t).lower() in original_keywords for t in tags):
+                    is_orig = 1
+            # 2. Лайки
+            likes = char.get("likes", 0)
+            # 3. Сообщения
+            msgs = char.get("comments", 0)
+            return (is_orig, likes, msgs)
+
+        characters_data.sort(key=get_sort_key, reverse=True)
+        logger.debug("Sorted characters to prioritize Original, then by likes and messages")
         
         # Сохраняем в кэш только если есть персонажи
         # Если персонажей нет, очищаем кэш чтобы не показывать старые данные
@@ -1486,8 +1589,31 @@ async def get_available_files(current_user = Depends(get_current_user)):
         return []
 
 
+# Жестко заданный маппинг для SEO-текстов (fallback, если в БД пусто)
+SEO_MAPPING = {
+    "New": "Самые свежие ИИ персонажи, недавно добавленные в Cherry Lust. Успей первым начать чат с новыми виртуальными героями на русском языке и испытать возможности нашей нейросети.",
+    "NSFW": "Горячий ИИ чат 18+ без цензуры и ограничений. Откровенные ролевые игры с виртуальными персонажами, готовыми воплотить любые твои фантазии в режиме онлайн.",
+    "Original": "Эксклюзивные ИИ герои от создателей Cherry Lust. Эти персонажи проработаны вручную: уникальный лор, глубокая личность и детальные фото для идеального погружения.",
+    "SFW": "Приятное и безопасное общение с ИИ на любые темы. Дружелюбные собеседники, поддержка, психология и просто интересные диалоги на русском языке без взрослого контента.",
+    "Пользовательские": "Творчество нашего комьюнити. Огромный выбор персонажей, созданных пользователями: от классических образов до самых безумных идей для ролевого чата.",
+    "Босс": "Строгие руководители и властные начальники. Попробуй служебный роман с ИИ или попытайся договориться с суровым боссом в этом симуляторе офисных ролевых игр.",
+    "Грубая": "ИИ персонажи с непростым характером. Тебя ждут дерзость, сарказм и провокации. Сможешь ли ты укротить строптивую героиню в этом чате без ограничений?",
+    "Доминирование": "Игры власти и подчинения. ИИ персонажи, которые любят доминировать или ищут того, кто возьмет контроль на себя. Психологический и ролевой накал гарантирован.",
+    "Киберпанк": "Атмосфера будущего: неоновые города, киборги и высокие технологии. Ролевой ИИ чат в стиле Cyberpunk для любителей научно-фантастических сценариев.",
+    "Незнакомка": "Случайная встреча, которая может изменить всё. Загадочные героини, знакомство с которыми начинается с чистого листа. Идеально для начала новой истории.",
+    "Слуга": "Верные помощники и послушные ассистенты. Персонажи, готовые исполнить любое твое поручение в фэнтези-мире или современной реальности.",
+    "Учитель": "Запретные уроки и строгая дисциплина. Популярный сценарий для ролевого чата: общение с учителем или профессором на русском языке без цензуры.",
+    "Фэнтези": "Эльфы, демоны, маги и рыцари. Погрузись в волшебные миры и начни свое приключение в лучшем фэнтези ИИ чате с уникальными сказочными существами.",
+    "Горничная": "Классика ролевых игр в Cherry Lust. ИИ чат с горничной на русском языке: от преданной службы до самых смелых сценариев 18+. Общайся бесплатно и без регистрации с послушными и внимательными виртуальными персонажами в лучшем симуляторе.",
+    "Подруга": "Ищешь ламповое общение? ИИ чат с подругой — это идеальное место для душевных разговоров, поддержки или выхода из френдзоны. Ролевые игры с виртуальной подругой на русском языке без цензуры. Бесплатно и без ограничений в Cherry Lust.",
+    "Студентка": "Самые популярные сценарии со студентками в ИИ чате Cherry Lust. Общайся с молодыми и амбициозными героинями на русском языке без регистрации. Лучший ролевой чат 18+ со студентками: бесплатно, без цензуры и лишних преград.",
+    "Цундере": "Специфический ИИ чат с персонажами Цундере. Пройди путь от колких замечаний до истинной нежности в нашем чате на русском. Ролевые игры с Цундере без цензуры — попробуй растопить сердце неприступной героини бесплатно в Cherry Lust.",
+    "Милая": "Самые нежные и добрые ИИ персонажи для уютного общения. Если тебе хочется заботы и ласки, выбирай милых героинь в Cherry Lust. Бесплатный ИИ чат на русском: искренние эмоции, поддержка и приятные диалоги 18+ без регистрации."
+}
+
+
 @router.get("/available-tags")
-async def get_available_character_tags(db: AsyncSession = Depends(get_db)) -> List[str]:
+async def get_available_character_tags(db: AsyncSession = Depends(get_db)):
     """
     Возвращает список доступных тегов для персонажей (для формы создания).
     Публичный эндпоинт, не требует авторизации.
@@ -1495,12 +1621,201 @@ async def get_available_character_tags(db: AsyncSession = Depends(get_db)) -> Li
     try:
         from app.chat_bot.models.models import CharacterAvailableTag
         result = await db.execute(
-            select(CharacterAvailableTag.name).order_by(CharacterAvailableTag.name)
+            select(CharacterAvailableTag.name, CharacterAvailableTag.slug)
         )
-        return [row[0] for row in result.fetchall()]
+        
+        tags = []
+        has_user_custom = False
+        
+        for row in result.fetchall():
+            name, slug = row[0], row[1]
+            
+            # 1. Скрываем служебные теги
+            if name.lower() in ["user created", "user-created"]:
+                continue
+                
+            # 2. Переименовываем "незнакомец" -> "незнакомка"
+            if name.lower() == "незнакомец":
+                name = "Незнакомка"
+                from slugify import slugify
+                slug = slugify(name)
+            
+            if name == "Пользовательские":
+                has_user_custom = True
+                
+            tags.append({"name": name, "slug": slug})
+            
+        # 3. Принудительно добавляем "Пользовательские", если его нет
+        if not has_user_custom:
+            from slugify import slugify
+            tags.append({"name": "Пользовательские", "slug": slugify("Пользовательские")})
+            
+        # Сортируем по имени
+        tags.sort(key=lambda x: x["name"])
+        return tags
     except Exception as e:
         logger.error(f"Error fetching available tags: {e}")
         return []
+
+
+@router.get("/tags/{slug}")
+async def get_characters_by_tag_slug(slug: str, db: AsyncSession = Depends(get_db)):
+    """
+    Получает название тега и список персонажей по его slug.
+    """
+    try:
+        from app.chat_bot.models.models import CharacterAvailableTag, CharacterDB
+        from slugify import slugify
+        
+        # Находим тег по slug
+        result = await db.execute(
+            select(CharacterAvailableTag).where(CharacterAvailableTag.slug == slug)
+        )
+        tag = result.scalars().first()
+        
+        if not tag:
+            # Если тег не найден по slug, пробуем найти по совпадению slugify(name)
+            all_tags_result = await db.execute(select(CharacterAvailableTag))
+            all_tags = all_tags_result.scalars().all()
+            for t in all_tags:
+                if t.slug == slug or slugify(t.name) == slug:
+                    tag = t
+                    if not t.slug:
+                        t.slug = slug
+                        await db.commit()
+                    break
+                    
+        # Если тег всё еще не найден, но он может существовать в именах тегов персонажей
+        if not tag:
+            # Попробуем найти оригинальное имя тега из slug (обратная операция невозможна точно, 
+            # но мы можем поискать среди всех тегов всех персонажей)
+            logger.info(f"[TAG_FIX] Тег со слагом {slug} не найден в CharacterAvailableTag, ищем в персонажах...")
+            chars_result = await db.execute(select(CharacterDB))
+            all_chars = chars_result.scalars().all()
+            
+            found_tag_name = None
+            for char in all_chars:
+                if char.tags and isinstance(char.tags, list):
+                    for t_name in char.tags:
+                        if slugify(t_name) == slug:
+                            found_tag_name = t_name
+                            break
+                if found_tag_name: break
+                
+            if found_tag_name:
+                logger.info(f"[TAG_FIX] Найдено имя тега '{found_tag_name}' для слага {slug}. Регистрируем.")
+                tag = CharacterAvailableTag(name=found_tag_name, slug=slug)
+                db.add(tag)
+                await db.commit()
+                await db.refresh(tag)
+        
+        if not tag:
+            raise HTTPException(status_code=404, detail="Tag not found")
+            
+        # Получаем SEO-описание из БД, если есть
+        seo_description = tag.seo_description
+        
+        # Если в БД нет, пробуем из маппинга (fallback)
+        if not seo_description:
+            mapping_name = tag.name
+            if mapping_name.lower() == "незнакомец":
+                mapping_name = "Незнакомка"
+            elif mapping_name.lower() in ["user created", "user-created"]:
+                mapping_name = "Пользовательские"
+                
+            seo_description = SEO_MAPPING.get(mapping_name)
+            if not seo_description:
+                # Попробуем найти без учета регистра
+                for key, val in SEO_MAPPING.items():
+                    if key.lower() == mapping_name.lower():
+                        seo_description = val
+                        break
+            
+        # Теперь ищем персонажей, у которых есть этот тег
+        # Если тег "Незнакомка" или "незнакомец", ищем оба варианта
+        search_names = [tag.name]
+        if tag.name.lower() in ["незнакомка", "незнакомец"]:
+            search_names.extend(["незнакомка", "незнакомец", "Незнакомка"])
+            
+        # Для "Пользовательские" ищем и "User created"
+        if tag.name == "Пользовательские":
+            search_names.extend(["User created", "User-created"])
+
+        chars_result = await db.execute(select(CharacterDB))
+        all_chars = chars_result.scalars().all()
+        
+        tag_characters = []
+        for char in all_chars:
+            if char.tags and isinstance(char.tags, list):
+                # Проверяем наличие любого из имен в списке тегов (без учета регистра)
+                char_tags_lower = [t.lower() for t in char.tags]
+                if any(name.lower() in char_tags_lower for name in search_names):
+                    tag_characters.append(char)
+        # Получаем статистику и имена создателей для персонажей тега
+        from app.models.user import Users
+        char_ids = [char.id for char in tag_characters]
+        likes_map = {}
+        messages_map = {}
+        username_map = {}
+        if char_ids:
+            # Получаем имена создателей
+            user_result = await db.execute(
+                select(CharacterDB.id, Users.username)
+                .join(Users, CharacterDB.user_id == Users.id)
+                .where(CharacterDB.id.in_(char_ids))
+            )
+            username_map = {row[0]: row[1] for row in user_result.all()}
+
+            likes_result = await db.execute(
+                select(CharacterRating.character_id, func.count(CharacterRating.id))
+                .where(CharacterRating.character_id.in_(char_ids), CharacterRating.is_like == True)
+                .group_by(CharacterRating.character_id)
+            )
+            likes_map = {row[0]: row[1] for row in likes_result.all()}
+            
+            messages_result = await db.execute(
+                select(ChatSession.character_id, func.count(ChatMessageDB.id))
+                .join(ChatMessageDB, ChatMessageDB.session_id == ChatSession.id)
+                .where(ChatSession.character_id.in_(char_ids))
+                .group_by(ChatSession.character_id)
+            )
+            messages_map = {row[0]: row[1] for row in messages_result.all()}
+
+        # Сортируем список персонажей: сначала Оригинальные, затем по лайкам и сообщениям
+        def get_sort_key_db(char):
+            # Учитываем, что char здесь - объект CharacterDB или подобный
+            is_orig = 0
+            if char.tags and isinstance(char.tags, list):
+                original_keywords = ["original", "оригинальный"]
+                if any(str(t).lower() in original_keywords for t in char.tags):
+                    is_orig = 1
+            likes = likes_map.get(char.id, 0)
+            msgs = messages_map.get(char.id, 0)
+            return (is_orig, likes, msgs)
+            
+        tag_characters.sort(key=get_sort_key_db, reverse=True)
+        
+        # Преобразуем персонажей с учетом статистики
+        formatted_characters = []
+        for char in tag_characters:
+            char_data = CharacterInDB.model_validate(char)
+            char_dict = char_data.model_dump()
+            char_dict['likes'] = likes_map.get(char.id, 0)
+            char_dict['comments'] = messages_map.get(char.id, 0)
+            char_dict['creator_username'] = username_map.get(char.id)
+            formatted_characters.append(char_dict)
+        
+        return {
+            "tag_name": "Незнакомка" if tag.name.lower() == "незнакомец" else tag.name,
+            "slug": tag.slug,
+            "seo_description": seo_description,
+            "characters": formatted_characters
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching characters by tag slug: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/create/", response_model=CharacterInDB)
@@ -1533,11 +1848,13 @@ async def create_user_character(
         # Проверяем лимиты создания персонажей
         # FREE: 1, STANDARD: 10, PREMIUM: Unlimited
         # Загружаем подписку явно через запрос к БД
-        from app.models.subscription import UserSubscription
+        from app.models.subscription import UserSubscription, SubscriptionStatus
         subscription_result = await db.execute(
-            select(UserSubscription).where(UserSubscription.user_id == current_user.id)
+            select(UserSubscription)
+            .where(UserSubscription.user_id == current_user.id)
+            .order_by(UserSubscription.expires_at.desc())
         )
-        subscription = subscription_result.scalar_one_or_none()
+        subscription = subscription_result.scalars().first()
         
         subscription_type = "free"
         if subscription and subscription.subscription_type:
@@ -1679,6 +1996,25 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         )
         
         db.add(new_character)
+        
+        # КРИТИЧНО: Регистрируем новые теги в таблице доступных тегов
+        from app.chat_bot.models.models import CharacterAvailableTag
+        from slugify import slugify
+        
+        for t_name in tags_value:
+            t_slug = slugify(t_name)
+            # Проверяем существование тега
+            tag_check = await db.execute(
+                select(CharacterAvailableTag).where(
+                    (CharacterAvailableTag.name == t_name) | 
+                    (CharacterAvailableTag.slug == t_slug)
+                )
+            )
+            if not tag_check.scalars().first():
+                logger.info(f"[CREATE_CHAR] Регистрация нового тега: {t_name} ({t_slug})")
+                new_tag = CharacterAvailableTag(name=t_name, slug=t_slug)
+                db.add(new_tag)
+        
         await db.commit()
         await db.refresh(new_character)
         
@@ -2901,6 +3237,25 @@ Response Style:
         
         # Новое имя персонажа (для логирования и кэша)
         new_character_name = character.name
+        
+        # КРИТИЧНО: Регистрируем новые теги в таблице доступных тегов
+        from app.chat_bot.models.models import CharacterAvailableTag
+        from slugify import slugify
+        
+        if character.tags:
+            for t_name in character.tags:
+                t_slug = slugify(t_name)
+                # Проверяем существование тега
+                tag_check = await db.execute(
+                    select(CharacterAvailableTag).where(
+                        (CharacterAvailableTag.name == t_name) | 
+                        (CharacterAvailableTag.slug == t_slug)
+                    )
+                )
+                if not tag_check.scalars().first():
+                    logger.info(f"[UPDATE_CHAR] Регистрация нового тега: {t_name} ({t_slug})")
+                    new_tag = CharacterAvailableTag(name=t_name, slug=t_slug)
+                    db.add(new_tag)
         
         await db.commit()
         await db.refresh(db_char)

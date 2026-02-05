@@ -36,7 +36,7 @@ const InputWrapper = styled.div<{ $isMobile?: boolean }>`
   display: flex;
   flex-direction: ${props => props.$isMobile ? 'column' : 'row'};
   gap: ${theme.spacing.md};
-  align-items: ${props => props.$isMobile ? 'stretch' : 'center'};
+  align-items: ${props => props.$isMobile ? 'stretch' : 'flex-end'};
   max-width: ${props => props.$isMobile ? '100%' : '1350px'};
   margin: 0 auto;
   width: 100%;
@@ -77,23 +77,23 @@ const LanguageToggle = styled.div`
 // Градиентный слайдер на всю ширину
 
 const LanguageButton = styled.button<{ $isActive: boolean }>`
-  padding: 6px 12px;
+  padding: 4px 8px;
   background: ${props => props.$isActive
     ? 'rgba(60, 60, 60, 0.9)'
     : 'transparent'};
   border: none;
   border-radius: ${theme.borderRadius.sm};
   color: ${props => props.$isActive ? 'rgba(255, 255, 255, 1)' : 'rgba(180, 180, 180, 0.8)'};
-  font-size: ${theme.fontSize.sm};
+  font-size: 0.75rem;
   font-weight: ${props => props.$isActive ? '600' : '500'};
   cursor: pointer;
   transition: all 0.2s ease;
-  min-width: 44px;
+  min-width: 32px;
 
   @media (max-width: 768px) {
-    padding: 4px 8px;
-    font-size: 0.75rem;
-    min-width: 32px;
+    padding: 2px 6px;
+    font-size: 0.7rem;
+    min-width: 28px;
   }
   
   &:hover {
@@ -133,13 +133,7 @@ const TextAreaWrapper = styled.div<{ $isMobile?: boolean }>`
   }
 `;
 
-const BrevityToggleTopContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 8px;
-  width: 100%;
-`;
+
 
 const TextAreaColumn = styled.div`
   display: flex;
@@ -314,19 +308,19 @@ const DockAndCountersRow = styled.div`
   gap: 1rem;
   margin-left: 1rem;
   height: fit-content;
-  align-self: center;
+  align-self: flex-end;
 `;
 
 const DockWrapper = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 8px 12px;
+  padding: 6px 10px;
   background: rgba(20, 20, 20, 0.4) !important;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
+  border-radius: 14px;
   opacity: 1;
   height: fit-content;
 `;
@@ -387,7 +381,7 @@ const PremiumIconWrapper = styled.div<{ $disabled?: boolean; $color?: string; $i
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px;
+  padding: 6px;
   border-radius: 10px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: ${props => props.$disabled ? 'not-allowed' : 'pointer'};
@@ -395,8 +389,8 @@ const PremiumIconWrapper = styled.div<{ $disabled?: boolean; $color?: string; $i
   pointer-events: ${props => props.$disabled ? 'none' : 'auto'};
   
   svg {
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
     stroke-width: 2.5;
     color: ${props => {
     if (props.$disabled) return 'rgba(150, 150, 150, 0.4)';
@@ -455,8 +449,8 @@ const PremiumIconWrapper = styled.div<{ $disabled?: boolean; $color?: string; $i
 `;
 
 const AnimatedBotIcon = styled(Bot)`
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   stroke-width: 2.5;
   color: rgba(59, 130, 246, 0.6);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -466,7 +460,7 @@ const BotIconWrapper = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px;
+  padding: 6px;
   border-radius: 10px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
@@ -565,7 +559,17 @@ const BrevityToggleContainer = styled.div`
       opacity: 1; 
       transform: translate(-50%, 0) scale(1); 
     }
+  animation: tooltipFadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   }
+`;
+
+
+const BrevityTopContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 8px;
+  width: 100%;
 `;
 
 const BrevityLabel = styled.span<{ $isActive: boolean }>`
@@ -799,33 +803,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   return (
     <InputContainer $isMobile={isMobile}>
       <form onSubmit={handleSubmit} style={{ width: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-        {!isMobile && (
-          <BrevityToggleTopContainer>
-            <BrevityToggleContainer>
-              <BrevityLabel $isActive={brevityMode === 'brief'}>
-                Кратко
-              </BrevityLabel>
-              <ToggleSwitchWrapper>
-                <ToggleSwitchInput
-                  type="checkbox"
-                  checked={brevityMode === 'normal'}
-                  onChange={(e) => {
-                    e.preventDefault();
-                    onBrevityModeChange && onBrevityModeChange(e.target.checked ? 'normal' : 'brief');
-                  }}
-                  disabled={disabled}
-                />
-                <ToggleSwitchSlider
-                  $checked={brevityMode === 'normal'}
-                  $disabled={disabled}
-                />
-              </ToggleSwitchWrapper>
-              <BrevityLabel $isActive={brevityMode === 'normal'}>
-                Подробно
-              </BrevityLabel>
-            </BrevityToggleContainer>
-          </BrevityToggleTopContainer>
-        )}
+
+
 
         <InputWrapper $isMobile={isMobile}>
           {!isMobile && (
@@ -853,50 +832,82 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             </LeftControlsGroup>
           )}
 
-          <TextAreaWrapper $isMobile={isMobile}>
-            <TextArea
-              ref={textareaRef}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={placeholder || (disabled ? "Чат отключен" : "Напишите сообщение...")}
-              disabled={disabled}
-              $isDisabled={disabled}
-              $isMobile={isMobile}
-              rows={1}
-            />
+          <TextAreaColumn>
             {!isMobile && (
-              <SendButtonDesktop
-                type="button"
-                onClick={handleSend}
-                disabled={disabled || !message.trim()}
-                $disabled={disabled || !message.trim()}
-                title="Отправить (Enter)"
-              >
-                <FiSend size={20} />
-              </SendButtonDesktop>
+              <BrevityTopContainer>
+                <BrevityToggleContainer>
+                  <BrevityLabel $isActive={brevityMode === 'brief'}>
+                    Кратко
+                  </BrevityLabel>
+                  <ToggleSwitchWrapper>
+                    <ToggleSwitchInput
+                      type="checkbox"
+                      checked={brevityMode === 'normal'}
+                      onChange={(e) => {
+                        e.preventDefault();
+                        onBrevityModeChange && onBrevityModeChange(e.target.checked ? 'normal' : 'brief');
+                      }}
+                      disabled={disabled}
+                    />
+                    <ToggleSwitchSlider
+                      $checked={brevityMode === 'normal'}
+                      $disabled={disabled}
+                    />
+                  </ToggleSwitchWrapper>
+                  <BrevityLabel $isActive={brevityMode === 'normal'}>
+                    Подробно
+                  </BrevityLabel>
+                </BrevityToggleContainer>
+              </BrevityTopContainer>
             )}
-            {isMobile && (
-              <IconButton
-                type="button"
-                onClick={handleSend}
-                disabled={disabled || !message.trim()}
-                style={{
-                  color: !message.trim() ? 'rgba(150, 150, 150, 0.4)' : (theme.colors.accent?.primary || '#764ba2'),
-                  padding: '4px 8px'
-                }}
-              >
-                <FiSend size={22} />
-              </IconButton>
-            )}
-          </TextAreaWrapper>
+            <TextAreaWrapper $isMobile={isMobile}>
+              <TextArea
+                ref={textareaRef}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={placeholder || (disabled ? "Чат отключен" : "Напишите сообщение...")}
+                disabled={disabled}
+                $isDisabled={disabled}
+                $isMobile={isMobile}
+                rows={1}
+              />
+              {!isMobile && (
+                <SendButtonDesktop
+                  type="button"
+                  onClick={handleSend}
+                  disabled={disabled || !message.trim()}
+                  $disabled={disabled || !message.trim()}
+                  title="Отправить (Enter)"
+                >
+                  <FiSend size={20} />
+                </SendButtonDesktop>
+              )}
+              {isMobile && (
+                <IconButton
+                  type="button"
+                  onClick={handleSend}
+                  disabled={disabled || !message.trim()}
+                  style={{
+                    color: !message.trim() ? 'rgba(150, 150, 150, 0.4)' : (theme.colors.accent?.primary || '#764ba2'),
+                    padding: '4px 8px'
+                  }}
+                >
+                  <FiSend size={22} />
+                </IconButton>
+              )}
+            </TextAreaWrapper>
+          </TextAreaColumn>
 
           {!isMobile && (
             <DockAndCountersRow>
               <DockWrapper>
                 <Dock
                   items={dockItems}
-                  disabled={disabled}
+                  panelHeight={48}
+                  baseItemSize={36}
+                  magnification={50}
+                  distance={140}
                 />
               </DockWrapper>
 

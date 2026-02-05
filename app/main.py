@@ -1352,13 +1352,16 @@ async def proxy_media(object_key: str):
         
         # Построение исходного URL к Yandex.Cloud
         bucket_url = f"https://storage.yandexcloud.net/jfpohpdofnhd/{object_key}"
+        # print(f"[MEDIA_PROXY] Request: /media/{object_key} -> {bucket_url}")
         
-        async with httpx.AsyncClient(timeout=30.0, trust_env=False) as client:
+        async with httpx.AsyncClient(timeout=30.0, trust_env=False, verify=False) as client:
             response = await client.get(bucket_url)
+            # print(f"[MEDIA_PROXY] Response status: {response.status_code}")
             
             if response.status_code == 404:
                 raise HTTPException(status_code=404, detail="Image not found")
             elif response.status_code != 200:
+                print(f"[MEDIA_PROXY] Error: Status {response.status_code} for {bucket_url}")
                 raise HTTPException(
                     status_code=response.status_code, 
                     detail="Failed to fetch image"
@@ -1377,6 +1380,9 @@ async def proxy_media(object_key: str):
                 }
             )
     except Exception as e:
+        import traceback
+        print(f"[MEDIA_PROXY] Exception for {object_key}: {e}")
+        traceback.print_exc()
         if "httpx" in str(type(e)):
             raise HTTPException(
                 status_code=503, 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import styled, { keyframes, css } from 'styled-components';
 import { authManager } from '../utils/auth';
@@ -9,7 +9,7 @@ import { translateToEnglish } from '../utils/translate';
 import { API_CONFIG } from '../config/api';
 import { motion, AnimatePresence } from 'motion/react';
 import { CircularProgress } from './ui/CircularProgress';
-import { FiX as CloseIcon, FiClock, FiImage, FiSettings, FiCheckCircle, FiCpu } from 'react-icons/fi';
+import { FiX as CloseIcon, FiClock, FiImage, FiSettings, FiCheckCircle, FiCpu, FiSearch } from 'react-icons/fi';
 import { Plus, Sparkles, Zap, X, Upload, CheckCircle, AlertCircle, Camera } from 'lucide-react';
 import { BiCoinStack } from 'react-icons/bi';
 import { fetchPromptByImage } from '../utils/prompt';
@@ -865,6 +865,49 @@ const ContinueButton = styled(motion.button)`
     cursor: not-allowed;
     border-color: rgba(150, 150, 150, 0.3);
     box-shadow: none;
+  }
+`;
+
+const HintBox = styled(motion.div)`
+  background: rgba(139, 92, 246, 0.08);
+  border: 1px solid rgba(139, 92, 246, 0.15);
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+`;
+
+const HintIcon = styled.div`
+  color: #8b5cf6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+`;
+
+const HintContent = styled.div`
+  display: flex;
+  flex-direction: column;
+`;
+
+const HintTitle = styled.div`
+  color: #a78bfa;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 2px;
+`;
+
+const HintText = styled.div`
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  line-height: 1.4;
+
+  b {
+    color: #fff;
+    font-weight: 600;
   }
 `;
 
@@ -1758,6 +1801,8 @@ const ModelDescriptionOld = styled.p`
   }
 `;
 
+
+
 const TagsContainer = styled.div<{ $isExpanded: boolean }>`
   display: flex;
   flex-wrap: wrap;
@@ -2000,11 +2045,7 @@ const TagButton = styled.button<{ $category?: 'kind' | 'strict' | 'neutral' | 'o
   }};
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid ${props => {
-    if (props.$category === 'kind') return 'rgba(34, 197, 94, 0.3)';
-    if (props.$category === 'strict') return 'rgba(239, 68, 68, 0.3)';
-    return 'rgba(139, 92, 246, 0.3)';
-  }};
+  border: none;
   border-radius: 17px;
   padding: 5px 12px;
   font-size: 10px;
@@ -2137,7 +2178,7 @@ const PreviewTags = styled.div`
 `;
 
 const PreviewTag = styled.span<{ $category?: 'kind' | 'strict' | 'neutral' }>`
-  padding: 4px 10px;
+  padding: 2px 7px;
   background: ${props => {
     if (props.$category === 'kind') return 'rgba(34, 197, 94, 0.2)';
     if (props.$category === 'strict') return 'rgba(239, 68, 68, 0.2)';
@@ -2150,8 +2191,8 @@ const PreviewTag = styled.span<{ $category?: 'kind' | 'strict' | 'neutral' }>`
     if (props.$category === 'strict') return 'rgba(239, 68, 68, 0.3)';
     return 'rgba(139, 92, 246, 0.3)';
   }};
-  border-radius: 12px;
-  font-size: 11px;
+  border-radius: 8px;
+  font-size: 9.5px;
   font-weight: 600;
   color: ${props => {
     if (props.$category === 'kind') return 'rgba(34, 197, 94, 1)';
@@ -2161,80 +2202,67 @@ const PreviewTag = styled.span<{ $category?: 'kind' | 'strict' | 'neutral' }>`
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 `;
 
-const CharacterTagsUnderPhoto = styled.div`
+const PreviewImageTags = styled.div`
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+  max-width: 90%;
+  pointer-events: none;
+  z-index: 10;
+`;
+
+const TagSelectionLabel = styled.div`
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 32px;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+`;
+
+const TagsSelectionContainer = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  justify-content: flex-end;
-  margin-top: ${theme.spacing.lg};
   width: 100%;
   max-width: 400px;
+  justify-content: center;
+  padding-bottom: 20px;
 `;
 
-const AdminAddTagRow = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  max-width: 400px;
-  margin-bottom: 8px;
-`;
-const AdminAddTagInput = styled.input`
-  flex: 1;
-  min-width: 120px;
-  padding: 6px 10px;
-  background: rgba(30, 30, 40, 0.9);
-  border: 1px solid rgba(139, 92, 246, 0.35);
-  border-radius: 8px;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.95);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  &::placeholder {
-    color: rgba(200, 200, 210, 0.5);
-  }
-  &:focus {
-    outline: none;
-    border-color: rgba(139, 92, 246, 0.6);
-  }
-`;
-const AdminAddTagButton = styled.button`
-  padding: 6px 12px;
-  background: rgba(139, 92, 246, 0.25);
-  border: 1px solid rgba(139, 92, 246, 0.5);
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: rgba(200, 200, 210, 0.95);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  &:hover:not(:disabled) {
-    background: rgba(139, 92, 246, 0.35);
-    border-color: rgba(139, 92, 246, 0.7);
-  }
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-`;
-
-const CharacterTagChip = styled.button<{ $selected?: boolean }>`
+const SelectableTag = styled.button<{ $active?: boolean }>`
   padding: 4px 10px;
-  background: ${props => props.$selected ? 'rgba(34, 197, 94, 0.25)' : 'rgba(139, 92, 246, 0.15)'};
-  border: 1px solid ${props => props.$selected ? 'rgba(34, 197, 94, 0.5)' : 'rgba(139, 92, 246, 0.25)'};
-  border-radius: 12px;
-  font-size: 11px;
+  border-radius: 10px;
+  font-size: 10.5px;
   font-weight: 600;
-  color: ${props => props.$selected ? 'rgba(34, 197, 94, 1)' : 'rgba(200, 200, 210, 0.9)'};
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   cursor: pointer;
   transition: all 0.2s ease;
+  border: 1px solid ${p => p.$active ? 'rgba(34, 197, 94, 0.4)' : 'rgba(139, 92, 246, 0.2)'};
+  background: ${p => p.$active ? 'rgba(34, 197, 94, 0.1)' : 'rgba(139, 92, 246, 0.05)'};
+  color: ${p => p.$active ? '#4ade80' : 'rgba(255, 255, 255, 0.6)'};
+  font-family: 'Inter', sans-serif;
+
   &:hover {
-    border-color: ${props => props.$selected ? 'rgba(34, 197, 94, 0.7)' : 'rgba(139, 92, 246, 0.5)'};
-    background: ${props => props.$selected ? 'rgba(34, 197, 94, 0.35)' : 'rgba(139, 92, 246, 0.2)'};
+    background: ${p => p.$active ? 'rgba(34, 197, 94, 0.15)' : 'rgba(139, 92, 246, 0.1)'};
+    border-color: ${p => p.$active ? 'rgba(34, 197, 94, 0.6)' : 'rgba(139, 92, 246, 0.4)'};
+    color: ${p => p.$active ? '#86efac' : 'rgba(255, 255, 255, 0.9)'};
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
   }
 `;
+
+
 
 const WizardStep = styled(motion.div)`
   overflow: visible;
@@ -4425,6 +4453,204 @@ const getVoicePhotoPath = (voiceName: string): string => {
   return `/default_voice_photo/${normalizedName}.png`;
 };
 
+
+// --- PREMIUM TAG SELECTOR COMPONENT ---
+
+const TAG_CATEGORIES: Record<string, string[]> = {
+  'Роли и Архетипы': ['Босс', 'Горничная', 'Незнакомка', 'Подруга', 'Слуга', 'Студентка', 'Учитель', 'Врач', 'Секретарь'],
+  'Характер и Настроение': ['Грубая', 'Доминирование', 'Милая', 'Цундере', 'Добрая', 'Скромная', 'Застенчивая', 'Страстная', 'Дерзкая', 'Веселая', 'Нежная', 'Заботливая', 'Загадочная', 'Мрачная'],
+  'Сеттинг и Жанр': ['Киберпанк', 'Фэнтези', 'Sci-Fi', 'Мистика', 'Магия', 'Город', 'Спорт'],
+  'Тип контента': ['NSFW', 'SFW', 'New', 'Original', 'Пользовательские']
+};
+
+const TagSelector = ({
+  availableTags,
+  selectedTags,
+  onToggle
+}: {
+  availableTags: { name: string; slug: string }[],
+  selectedTags: string[],
+  onToggle: (tag: string) => void
+}) => {
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Группировка и фильтрация тегов
+  const categorizedTags = useMemo(() => {
+    const groups: Record<string, typeof availableTags> = {};
+    const usedTags = new Set<string>();
+
+    const normalizedQuery = searchQuery.toLowerCase().trim();
+
+    // 1. Распределяем по категориям
+    Object.entries(TAG_CATEGORIES).forEach(([category, keywords]) => {
+      const tagsInGroup = availableTags.filter(tag => {
+        if (usedTags.has(tag.name)) return false;
+        // Проверяем вхождение
+        const matchesCategory = keywords.includes(tag.name);
+        // Проверяем поиск
+        const matchesSearch = tag.name.toLowerCase().includes(normalizedQuery);
+
+        if (matchesCategory && matchesSearch) {
+          usedTags.add(tag.name);
+          return true;
+        }
+        return false;
+      });
+
+      if (tagsInGroup.length > 0) {
+        groups[category] = tagsInGroup;
+      }
+    });
+
+    // 2. Оставшиеся теги (Другое)
+    const otherTags = availableTags.filter(tag =>
+      !usedTags.has(tag.name) &&
+      tag.name.toLowerCase().includes(normalizedQuery)
+    );
+
+    if (otherTags.length > 0) {
+      groups['Разное'] = otherTags;
+    }
+
+    return groups;
+  }, [availableTags, searchQuery]);
+
+  // Анимационные варианты для контейнера
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.03
+      }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 10, scale: 0.9 },
+    show: { opacity: 1, y: 0, scale: 1 }
+  };
+
+  return (
+    <div className="w-full max-w-md mx-auto flex flex-col gap-4 p-4 mt-6 rounded-2xl border border-white/5 bg-[#09090b]/80 backdrop-blur-xl shadow-2xl relative overflow-hidden group">
+      {/* Фоновый шум и декорации */}
+      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none mix-blend-overlay"></div>
+      <div className="absolute -top-20 -right-20 w-40 h-40 bg-purple-500/10 rounded-full blur-3xl group-hover:bg-purple-500/20 transition-all duration-700"></div>
+      <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-all duration-700"></div>
+
+      {/* Заголовок и Поиск */}
+      <div className="relative z-10 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-1 h-4 bg-gradient-to-b from-purple-500 to-indigo-500 rounded-full shadow-[0_0_10px_rgba(139,92,246,0.5)]"></div>
+            <h3 className="text-xs font-bold tracking-[0.2em] text-zinc-300 uppercase font-mono">
+              Система тегов
+            </h3>
+          </div>
+          <span className="text-[10px] font-mono text-zinc-600 border border-zinc-800 px-2 py-0.5 rounded bg-black/20">
+            V.2.0
+          </span>
+        </div>
+
+        <div className="relative group/input">
+          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within/input:text-purple-400 transition-colors w-4 h-4" />
+          <input
+            type="text"
+            placeholder="Поиск нейро-тегов..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-purple-500/50 focus:bg-white/5 focus:shadow-[0_0_15px_rgba(139,92,246,0.1)] transition-all"
+          />
+        </div>
+      </div>
+
+      {/* Список тегов по категориям */}
+      <div className="relative z-10 flex flex-col gap-4 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar">
+        {Object.entries(categorizedTags).map(([category, tags]) => (
+          <motion.div
+            key={category}
+            initial="hidden"
+            animate="show"
+            variants={containerVariants}
+            className="flex flex-col gap-2"
+          >
+            <h4 className="flex items-center gap-2 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider ml-1">
+              <span className="w-1 h-1 rounded-full bg-zinc-700"></span>
+              {category}
+            </h4>
+
+            <div className="flex flex-wrap gap-2">
+              {tags.map((tag) => {
+                const isActive = selectedTags.includes(tag.name);
+                return (
+                  <motion.button
+                    key={tag.name}
+                    variants={itemVariants}
+                    whileHover={{ scale: 1.05, y: -2 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onToggle(tag.name);
+                    }}
+                    className={`
+                        relative px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-300
+                        border backdrop-blur-md flex items-center gap-2 overflow-hidden
+                        ${isActive
+                        ? 'border-transparent text-white shadow-[0_0_20px_-5px_rgba(139,92,246,0.5)]'
+                        : 'border-white/5 bg-white/5 text-zinc-400 hover:border-white/20 hover:bg-white/10 hover:text-zinc-200 hover:shadow-lg hover:shadow-purple-500/5'
+                      }
+                      `}
+                  >
+                    {/* Градиентная подложка для активного состояния */}
+                    {isActive && (
+                      <div className="absolute inset-0 bg-gradient-to-r from-violet-600/80 to-indigo-600/80 -z-10"></div>
+                    )}
+
+                    {/* Тонкая градиентная рамка для активного */}
+                    {isActive && (
+                      <div className="absolute inset-0 rounded-lg p-[1px] bg-gradient-to-r from-white/30 to-transparent -z-10 pointer-events-none"></div>
+                    )}
+
+                    {/* Иконка статуса с фиксированной шириной во избежание скачков */}
+                    <div className="w-3 h-3 flex items-center justify-center shrink-0">
+                      {isActive ? (
+                        <FiCheckCircle className="w-full h-full text-white/90" />
+                      ) : (
+                        <div className="w-1 h-1 rounded-full bg-zinc-600 group-hover:bg-purple-400 transition-colors" />
+                      )}
+                    </div>
+
+                    {tag.name}
+                  </motion.button>
+                );
+              })}
+            </div>
+          </motion.div>
+        ))}
+
+        {Object.keys(categorizedTags).length === 0 && (
+          <div className="text-center py-8 text-zinc-600 text-xs">
+            Нет тегов, соответствующих запросу
+          </div>
+        )}
+      </div>
+
+      <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-[#09090b] to-transparent pointer-events-none z-20"></div>
+    </div>
+  );
+};
+
+const getTagColor = (tagName: string) => {
+  const t = tagName.toLowerCase();
+  if (['милая', 'нежная', 'романтичная', 'добрая', 'скромная', 'застенчивая', 'заботливая'].some(x => t.includes(x))) return { bg: 'rgba(244, 114, 182, 0.2)', border: 'rgba(244, 114, 182, 0.5)', text: '#fbcfe8' }; // Pink
+  if (['страстная', 'дерзкая', 'горячая', 'сексуальная', 'доминантная', 'развратная', 'пошлая', 'опытная', 'раскрепощенная'].some(x => t.includes(x))) return { bg: 'rgba(239, 68, 68, 0.2)', border: 'rgba(239, 68, 68, 0.5)', text: '#fca5a5' }; // Red
+  if (['умная', 'серьезная', 'строгая', 'образованная', 'учитель', 'врач'].some(x => t.includes(x))) return { bg: 'rgba(59, 130, 246, 0.2)', border: 'rgba(59, 130, 246, 0.5)', text: '#93c5fd' }; // Blue
+  if (['веселая', 'энергичная', 'игривая', 'активная', 'спорт', 'позитивная'].some(x => t.includes(x))) return { bg: 'rgba(234, 179, 8, 0.2)', border: 'rgba(234, 179, 8, 0.5)', text: '#fde047' }; // Yellow
+  if (['загадочная', 'мрачная', 'темная', 'мистическая', 'роковая', 'готическая'].some(x => t.includes(x))) return { bg: 'rgba(168, 85, 247, 0.2)', border: 'rgba(168, 85, 247, 0.5)', text: '#d8b4fe' }; // Purple
+  if (['верная', 'дружелюбная', 'надежная', 'открытая'].some(x => t.includes(x))) return { bg: 'rgba(16, 185, 129, 0.2)', border: 'rgba(16, 185, 129, 0.5)', text: '#6ee7b7' }; // Emerald
+  return { bg: 'rgba(63, 63, 70, 0.4)', border: 'rgba(113, 113, 122, 0.5)', text: '#e4e4e7' }; // Default Zinc
+};
+
 export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   onBackToMain,
   onShop,
@@ -4453,13 +4679,12 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     instructions: '',
     style: '',
     appearance: '',
-    location: ''
+    location: '',
+    tags: [] as string[]
   });
-  const [availableTags, setAvailableTags] = useState<string[]>([]);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [newTagName, setNewTagName] = useState('');
-  const [addingTag, setAddingTag] = useState(false);
-  const [addTagError, setAddTagError] = useState<string | null>(null);
+
+  const [tagInput, setTagInput] = useState('');
+
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -4552,6 +4777,33 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [selectedVoiceUrl, setSelectedVoiceUrl] = useState<string | null>(null); // Для загруженных пользовательских голосов
   const [voiceSelectionTime, setVoiceSelectionTime] = useState<{ [key: string]: number }>({});
   const [playingVoiceUrl, setPlayingVoiceUrl] = useState<string | null>(null);
+  const [availableTags, setAvailableTags] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchTags = async () => {
+      try {
+        const url = `${API_CONFIG.BASE_URL}/api/v1/characters/available-tags`;
+        const response = await fetch(url);
+        if (response.ok) {
+          const data = await response.json();
+          const formattedTags = Array.isArray(data) ? data.map(tag => typeof tag === 'string' ? { name: tag, slug: tag } : tag) : [];
+
+          // Удаляем дубликаты по имени тега
+          const uniqueTagsMap = new Map();
+          formattedTags.forEach(tag => {
+            if (tag && tag.name && !uniqueTagsMap.has(tag.name)) {
+              uniqueTagsMap.set(tag.name, tag);
+            }
+          });
+
+          setAvailableTags(Array.from(uniqueTagsMap.values()));
+        }
+      } catch (err) {
+        console.error('Failed to fetch tags:', err);
+      }
+    };
+    fetchTags();
+  }, []);
 
   // Автоматическая очистка времени выбора через 0.5 секунды
   useEffect(() => {
@@ -4704,67 +4956,18 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     fetchVoices();
   }, []);
 
-  const refetchAvailableTags = React.useCallback(async () => {
-    try {
-      const url = `${API_CONFIG.BASE_URL}/api/v1/characters/available-tags`;
-      const response = await fetch(url);
-      if (response.ok) {
-        const data = await response.json();
-        setAvailableTags(Array.isArray(data) ? data : []);
-      }
-    } catch (err) {
-      setAvailableTags([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    refetchAvailableTags();
-  }, [refetchAvailableTags]);
-
   useEffect(() => {
     selectedModelRef.current = selectedModel;
   }, [selectedModel]);
 
-  const handleAddTag = React.useCallback(async () => {
-    const name = newTagName.trim();
-    if (!name) return;
-    const token = authManager.getToken();
-    if (!token) {
-      setAddTagError('Нужна авторизация');
-      return;
-    }
-    setAddTagError(null);
-    setAddingTag(true);
-    try {
-      const url = `${API_CONFIG.BASE_URL}/api/v1/admin/tags`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ name }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        setAddTagError(typeof data.detail === 'string' ? data.detail : 'Не удалось добавить тег');
-        return;
-      }
-      setNewTagName('');
-      setAvailableTags(prev => (prev.includes(data.name) ? prev : [...prev, data.name].sort()));
-    } catch (err) {
-      setAddTagError('Ошибка сети');
-    } finally {
-      setAddingTag(false);
-    }
-  }, [newTagName]);
 
-  // Пошаговая логика - какие поля показывать
-  const [showPersonality, setShowPersonality] = useState(false);
-  const [showSituation, setShowSituation] = useState(false);
-  const [showInstructions, setShowInstructions] = useState(false);
-  const [showAppearance, setShowAppearance] = useState(false);
-  const [showLocation, setShowLocation] = useState(false);
+
+  // Убрали пошаговое скрытие полей - всё доступно сразу
+  // const [showPersonality, setShowPersonality] = useState(false);
+  // const [showSituation, setShowSituation] = useState(false);
+  // const [showInstructions, setShowInstructions] = useState(false);
+  // const [showAppearance, setShowAppearance] = useState(false);
+  // const [showLocation, setShowLocation] = useState(false);
 
   // Wizard state
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(() => {
@@ -4788,7 +4991,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     try {
       const dataToSave = {
         ...formData,
-        selectedTags,
+
         selectedVoiceId,
         selectedVoiceUrl,
         contentMode: currentContentMode
@@ -4797,7 +5000,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     } catch (error) {
       console.error('Failed to save character creation data:', error);
     }
-  }, [formData, selectedTags, selectedVoiceId, selectedVoiceUrl, currentContentMode]);
+  }, [formData, selectedVoiceId, selectedVoiceUrl, currentContentMode]);
 
 
   // Функция для определения категории тега
@@ -4969,10 +5172,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         try {
           const parsed = JSON.parse(savedFormData);
           setFormData(parsed);
-          // Восстанавливаем выбранные теги
-          if (parsed.selectedTags && Array.isArray(parsed.selectedTags)) {
-            setSelectedTags(parsed.selectedTags);
-          }
+
 
           // Восстанавливаем выбранный голос
           if (parsed.selectedVoiceId) {
@@ -4987,22 +5187,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
             setCurrentContentMode(parsed.contentMode);
           }
 
-          // Восстанавливаем видимость полей на основе данных
-          if (parsed.name && parsed.name.trim().length >= 2) {
-            setShowPersonality(true);
-          }
-          if (parsed.personality && parsed.personality.trim().length > 0) {
-            setShowSituation(true);
-          }
-          if (parsed.situation && parsed.situation.trim().length > 0) {
-            setShowInstructions(true);
-          }
-          if (parsed.instructions && parsed.instructions.trim().length > 0) {
-            setShowAppearance(true);
-          }
-          if (parsed.appearance && parsed.appearance.trim().length > 0) {
-            setShowLocation(true);
-          }
+          // Поля теперь всегда видимы
         } catch (error) {
           // Если данные повреждены, очищаем всё
           localStorage.removeItem('createCharacterFormData');
@@ -5058,60 +5243,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   }, [isAuthenticated, authCheckComplete]);
 
   // Автоматическое сохранение тегов при изменении на этапе 4 (если персонаж уже создан)
-  useEffect(() => {
-    if (currentStep === 4 && createdCharacterData && selectedTags.length >= 0) {
-      // Используем debounce для автоматического сохранения тегов
-      const timeoutId = setTimeout(async () => {
-        try {
-          const token = localStorage.getItem('authToken');
-          if (!token) return;
 
-          // Получаем текущие данные персонажа
-          const characterName = createdCharacterData.name;
-
-          // Используем данные из formData (они должны быть актуальными)
-          // Если formData пуст, используем значения по умолчанию из createdCharacterData
-          const requestData = {
-            name: characterName,
-            personality: (formData.personality || '').trim() || 'Персонаж',
-            situation: (formData.situation || '').trim() || 'Ситуация',
-            instructions: (formData.instructions || '').trim() || 'Инструкции',
-            style: formData.style?.trim() || null,
-            appearance: formData.appearance?.trim() || createdCharacterData.character_appearance || null,
-            location: formData.location?.trim() || createdCharacterData.location || null,
-            is_nsfw: currentContentMode === 'nsfw',
-            tags: selectedTags
-          };
-
-          const response = await fetch(`/api/v1/characters/${characterName}/user-edit`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(requestData)
-          });
-
-          if (response.ok) {
-            const updatedCharacter = await response.json();
-            setCreatedCharacterData(updatedCharacter);
-            // Синхронизируем теги с обновленным персонажем
-            if (updatedCharacter.tags && Array.isArray(updatedCharacter.tags)) {
-              setSelectedTags(updatedCharacter.tags);
-            }
-            console.log('[AUTO_SAVE_TAGS] Теги автоматически сохранены:', selectedTags);
-          } else {
-            const errorText = await response.text();
-            console.error('[AUTO_SAVE_TAGS] Ошибка сохранения тегов:', errorText);
-          }
-        } catch (error) {
-          console.error('[AUTO_SAVE_TAGS] Ошибка при автоматическом сохранении тегов:', error);
-        }
-      }, 1500); // Задержка 1.5 секунды после последнего изменения
-
-      return () => clearTimeout(timeoutId);
-    }
-  }, [selectedTags, currentStep, createdCharacterData, formData, currentContentMode]);
 
   // Убрана автоматическая модалка авторизации - пользователь может заполнять форму без регистрации
   // Модалка будет показана только при попытке создать персонажа без авторизации
@@ -5142,7 +5274,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
     // Сохраняем данные в localStorage при каждом изменении (включая теги)
     try {
-      const dataToSave = { ...newFormData, selectedTags };
+      const dataToSave = { ...newFormData };
       localStorage.setItem('createCharacterFormData', JSON.stringify(dataToSave));
     } catch (error) {
     }
@@ -5154,30 +5286,6 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     if (name === 'name') {
       const error = validateCharacterName(value);
       setNameError(error);
-      // Показываем поле "Личность" когда имя валидно
-      if (!error && value.trim().length >= 2) {
-        setShowPersonality(true);
-      }
-    }
-
-    // Показываем поле "Ситуация" когда заполнена личность
-    if (name === 'personality' && value.trim().length > 0) {
-      setShowSituation(true);
-    }
-
-    // Показываем поле "Инструкции" когда заполнена ситуация
-    if (name === 'situation' && value.trim().length > 0) {
-      setShowInstructions(true);
-    }
-
-    // Показываем поле "Внешность" когда заполнены инструкции
-    if (name === 'instructions' && value.trim().length > 0) {
-      setShowAppearance(true);
-    }
-
-    // Показываем поле "Локация" когда заполнена внешность
-    if (name === 'appearance' && value.trim().length > 0) {
-      setShowLocation(true);
     }
   };
 
@@ -5254,7 +5362,6 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         try {
           const dataToSave = {
             ...formData,
-            selectedTags,
             selectedVoiceId,
             selectedVoiceUrl,
             contentMode: currentContentMode
@@ -5296,14 +5403,9 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         appearance: translatedAppearance,
         location: translatedLocation,
         is_nsfw: currentContentMode === 'nsfw',
-        voice_id: selectedVoiceId || null,
-        voice_url: selectedVoiceUrl || null,
-        tags: selectedTags && selectedTags.length > 0 ? selectedTags : []
+        tags: formData.tags,
+        voice_url: selectedVoiceUrl || null
       };
-
-      // Логируем теги для отладки
-      console.log('[CREATE_CHAR] Выбранные теги перед отправкой:', selectedTags);
-      console.log('[CREATE_CHAR] Теги в requestData:', requestData.tags);
 
       // Проверяем обязательные поля
       if (!requestData.name || !requestData.personality || !requestData.situation || !requestData.instructions) {
@@ -5334,10 +5436,6 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       const result = await response.json();
       setCreatedCharacterData(result);
       hasAutoAddedFirstPhotoRef.current = false; // сброс: первое сгенерированное фото на шаге 4 снова будет автоматически на главную
-      // Восстанавливаем теги из созданного персонажа
-      if (result.tags && Array.isArray(result.tags)) {
-        setSelectedTags(result.tags);
-      }
       setIsCharacterCreated(true); // Устанавливаем состояние создания персонажа
       setSuccess('Персонаж успешно создан!');
       // Переходим на Step 4 для генерации фото
@@ -5498,15 +5596,8 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
       const requestData = {
         name: (formData.name || '').trim(),
         prompt: full_prompt,
-        character_appearance: translatedAppearance,
-        location: translatedLocation,
-        is_nsfw: currentContentMode === 'nsfw',
-        tags: selectedTags && selectedTags.length > 0 ? selectedTags : []
+        is_nsfw: currentContentMode === 'nsfw'
       };
-
-      // Логируем теги для отладки
-      console.log('[EDIT_CHAR] Выбранные теги перед отправкой:', selectedTags);
-      console.log('[EDIT_CHAR] Теги в requestData:', requestData.tags);
 
 
       const response = await fetch(`/api/v1/characters/${createdCharacterData.name}`, {
@@ -5529,10 +5620,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
       setCreatedCharacterData(result);
       hasAutoAddedFirstPhotoRef.current = false; // сброс при переходе на шаг 4 после правок
-      // Синхронизируем теги с обновленным персонажем
-      if (result.tags && Array.isArray(result.tags)) {
-        setSelectedTags(result.tags);
-      }
 
       // КРИТИЧНО: обновляем промпт для шага 4 из актуальных внешности и локации,
       // чтобы при переходе на шаг 4 использовались только что сохраненные данные
@@ -5667,9 +5754,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
           if (characterResponse.ok) {
             const updatedCharacter = await characterResponse.json();
             setCreatedCharacterData(updatedCharacter);
-            if (updatedCharacter.tags && Array.isArray(updatedCharacter.tags)) {
-              setSelectedTags(updatedCharacter.tags);
-            }
             await new Promise(resolve => setTimeout(resolve, 500));
             window.dispatchEvent(new CustomEvent('character-photos-updated', {
               detail: { character: updatedCharacter, photos: newSelectedPhotos.map((p: any) => p.id) }
@@ -6063,10 +6147,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                 if (characterResponse.ok) {
                   const updatedCharacter = await characterResponse.json();
                   setCreatedCharacterData(updatedCharacter);
-                  // Синхронизируем теги с обновленным персонажем
-                  if (updatedCharacter.tags && Array.isArray(updatedCharacter.tags)) {
-                    setSelectedTags(updatedCharacter.tags);
-                  }
+                  // Синхронизируем теги с обновленным персонажем - ОТКЛЮЧЕНО, чтобы не терять локальный выбор
+                  // if (updatedCharacter.tags && Array.isArray(updatedCharacter.tags)) {
+                  //   setFormData(prev => ({ ...prev, tags: updatedCharacter.tags }));
+                  // }
 
                   // Еще одна небольшая задержка перед отправкой события
                   await new Promise(resolve => setTimeout(resolve, 500));
@@ -6276,7 +6360,11 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                 <StepItemButton
                   $isActive={currentStep === 1}
                   $isCompleted={currentStep > 1}
-                  onClick={() => setCurrentStep(1)}
+                  onClick={() => {
+                    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+                    setPlayingVoiceUrl(null);
+                    setCurrentStep(1);
+                  }}
                   type="button"
                 >
                   <StepNumber $isActive={currentStep === 1} $isCompleted={currentStep > 1}>
@@ -6288,7 +6376,13 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                 <StepItemButton
                   $isActive={currentStep === 2}
                   $isCompleted={currentStep > 2}
-                  onClick={() => formData.name && formData.personality && setCurrentStep(2)}
+                  onClick={() => {
+                    if (formData.name && formData.personality) {
+                      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+                      setPlayingVoiceUrl(null);
+                      setCurrentStep(2);
+                    }
+                  }}
                   type="button"
                   disabled={!formData.name || !formData.personality}
                 >
@@ -6301,7 +6395,13 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                 <StepItemButton
                   $isActive={currentStep === 3}
                   $isCompleted={currentStep > 3}
-                  onClick={() => formData.name && formData.personality && formData.situation && setCurrentStep(3)}
+                  onClick={() => {
+                    if (formData.name && formData.personality && formData.situation) {
+                      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+                      setPlayingVoiceUrl(null);
+                      setCurrentStep(3);
+                    }
+                  }}
                   type="button"
                   disabled={!formData.name || !formData.personality || !formData.situation}
                 >
@@ -6314,7 +6414,13 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                 <StepItemButton
                   $isActive={currentStep === 4}
                   $isCompleted={false}
-                  onClick={() => createdCharacterData && setCurrentStep(4)}
+                  onClick={() => {
+                    if (createdCharacterData) {
+                      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+                      setPlayingVoiceUrl(null);
+                      setCurrentStep(4);
+                    }
+                  }}
                   type="button"
                   disabled={!createdCharacterData}
                 >
@@ -6349,9 +6455,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         value={formData.name}
                         onChange={(e) => {
                           handleInputChange(e);
-                          if (e.target.value.trim().length >= 2 && !showPersonality) {
-                            setShowPersonality(true);
-                          }
                         }}
                         placeholder="Введите имя персонажа..."
                         required
@@ -6362,9 +6465,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                           setFormData(prev => ({ ...prev, name: val }));
                           const fakeEvent = { target: { name: 'name', value: val } } as React.ChangeEvent<HTMLInputElement>;
                           handleInputChange(fakeEvent);
-                          if (val.trim().length >= 2 && !showPersonality) {
-                            setShowPersonality(true);
-                          }
                         }}
                       />
                       {nameError && (
@@ -6386,9 +6486,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         value={formData.personality}
                         onChange={(e) => {
                           handleInputChange(e);
-                          if (e.target.value.trim().length > 0 && !showSituation) {
-                            setShowSituation(true);
-                          }
                         }}
                         placeholder="Опишите характер персонажа: какие у него черты личности?"
                         rows={3}
@@ -6406,9 +6503,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                               setFormData(prev => ({ ...prev, personality: newVal }));
                               const fakeEvent = { target: { name: 'personality', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
                               handleInputChange(fakeEvent);
-                              if (newVal.trim().length > 0 && !showSituation) {
-                                setShowSituation(true);
-                              }
                             }}
                           >
                             <Plus size={8} /> {tag.label}
@@ -6430,6 +6524,8 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                           type="button"
                           onClick={() => {
                             if ((formData.name || '').trim().length >= 2 && (formData.personality || '').trim().length > 0) {
+                              if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+                              setPlayingVoiceUrl(null);
                               setCurrentStep(2);
                             }
                           }}
@@ -6482,9 +6578,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         value={formData.situation}
                         onChange={(e) => {
                           handleInputChange(e);
-                          if (e.target.value.trim().length > 0 && !showInstructions) {
-                            setShowInstructions(true);
-                          }
                         }}
                         placeholder="Опишите ситуацию, в которой находится персонаж. Где он живет? Что происходит в его мире?"
                         rows={5}
@@ -6502,9 +6595,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                               setFormData(prev => ({ ...prev, situation: newVal }));
                               const fakeEvent = { target: { name: 'situation', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
                               handleInputChange(fakeEvent);
-                              if (newVal.trim().length > 0 && !showInstructions) {
-                                setShowInstructions(true);
-                              }
                             }}
                           >
                             <Plus size={8} /> {tag.label}
@@ -6526,7 +6616,11 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px' }}>
                       <motion.button
                         type="button"
-                        onClick={() => setCurrentStep(1)}
+                        onClick={() => {
+                          if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+                          setPlayingVoiceUrl(null);
+                          setCurrentStep(1);
+                        }}
                         style={{
                           padding: '12px 24px',
                           background: 'rgba(40, 40, 50, 0.4)',
@@ -6548,6 +6642,8 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         type="button"
                         onClick={() => {
                           if ((formData.situation || '').trim().length > 0) {
+                            if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+                            setPlayingVoiceUrl(null);
                             setCurrentStep(3);
                           }
                         }}
@@ -6671,48 +6767,44 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         </ExpandButton>
                       )}
                     </FormField>
-
-                    {showLocation && (
-                      <FormField>
-                        <FormLabel htmlFor="location">Локация (для фото)</FormLabel>
-                        <ModernTextarea
-                          id="location"
-                          name="location"
-                          value={formData.location}
-                          onChange={handleInputChange}
-                          placeholder="Опишите локацию для фото: интерьер, обстановка, атмосфера..."
-                          rows={4}
-                        />
-                        <TagsContainer $isExpanded={isLocationTagsExpanded}>
-                          {LOCATION_PROMPTS.map((tag, idx) => (
-                            <TagButton
-                              key={idx}
-                              type="button"
-                              $category="neutral"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                const newVal = formData.location ? formData.location + ' ' + tag.value : tag.value;
-                                setFormData(prev => ({ ...prev, location: newVal }));
-                                const fakeEvent = { target: { name: 'location', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
-                                handleInputChange(fakeEvent);
-                              }}
-                            >
-                              <Plus size={8} /> {tag.label}
-                            </TagButton>
-                          ))}
-                        </TagsContainer>
-                        {LOCATION_PROMPTS.length > 4 && (
-                          <ExpandButton
-                            $isExpanded={isLocationTagsExpanded}
-                            onClick={() => setIsLocationTagsExpanded(!isLocationTagsExpanded)}
+                    <FormField>
+                      <FormLabel htmlFor="location">Локация (для фото)</FormLabel>
+                      <ModernTextarea
+                        id="location"
+                        name="location"
+                        value={formData.location}
+                        onChange={handleInputChange}
+                        placeholder="Опишите локацию для фото: интерьер, обстановка, атмосфера..."
+                        rows={4}
+                      />
+                      <TagsContainer $isExpanded={isLocationTagsExpanded}>
+                        {LOCATION_PROMPTS.map((tag, idx) => (
+                          <TagButton
+                            key={idx}
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              const newVal = formData.location ? formData.location + ' ' + tag.value : tag.value;
+                              setFormData(prev => ({ ...prev, location: newVal }));
+                              const fakeEvent = { target: { name: 'location', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
+                              handleInputChange(fakeEvent);
+                            }}
                           >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points={isLocationTagsExpanded ? "18 15 12 9 6 15" : "6 9 12 15 18 9"}></polyline>
-                            </svg>
-                          </ExpandButton>
-                        )}
-                      </FormField>
-                    )}
+                            <Plus size={8} /> {tag.label}
+                          </TagButton>
+                        ))}
+                      </TagsContainer>
+                      {LOCATION_PROMPTS.length > 4 && (
+                        <ExpandButton
+                          $isExpanded={isLocationTagsExpanded}
+                          onClick={() => setIsLocationTagsExpanded(!isLocationTagsExpanded)}
+                        >
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points={isLocationTagsExpanded ? "18 15 12 9 6 15" : "6 9 12 15 18 9"}></polyline>
+                          </svg>
+                        </ExpandButton>
+                      )}
+                    </FormField>
 
                     {/* Выбор голоса */}
                     <FormField>
@@ -7344,9 +7436,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                                   if (response.ok) {
                                                     // Обновляем список голосов
                                                     const voicesResponse = await fetch('/api/v1/characters/available-voices', {
-                                                      headers: {
-                                                        'Authorization': `Bearer ${token}`
-                                                      }
+                                                      headers: { 'Authorization': `Bearer ${token}` }
                                                     });
                                                     if (voicesResponse.ok) {
                                                       const voicesData = await voicesResponse.json();
@@ -7989,10 +8079,16 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                       })()}
                     </FormField>
 
+
+
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '24px' }}>
                       <motion.button
                         type="button"
-                        onClick={() => setCurrentStep(2)}
+                        onClick={() => {
+                          if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+                          setPlayingVoiceUrl(null);
+                          setCurrentStep(2);
+                        }}
                         style={{
                           padding: '8px 16px',
                           background: 'rgba(40, 40, 50, 0.4)',
@@ -8012,6 +8108,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                       </motion.button>
                       <ContinueButton
                         type="submit"
+                        onClick={() => {
+                          if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+                          setPlayingVoiceUrl(null);
+                        }}
                         disabled={isLoading ||
                           (formData.name || '').trim().length < 2 ||
                           (formData.personality || '').trim().length === 0 ||
@@ -8152,52 +8252,18 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         {/* Cost display removed */}
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', width: '100%' }}>
-                        <GenerateButton
-                          type="button"
-                          style={{ flexGrow: 1, minWidth: 0 }}
-                          onClick={() => {
-                            generatePhoto();
-                            setShowGenerateTooltip(true);
-                            setTimeout(() => setShowGenerateTooltip(false), 4000);
-                          }}
-                          disabled={(() => {
-                            if (!userInfo || !createdCharacterData) return true;
-                            const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
-                            let subscriptionType = 'free';
-                            if (rawSubscriptionType) {
-                              subscriptionType = typeof rawSubscriptionType === 'string'
-                                ? rawSubscriptionType.toLowerCase().trim()
-                                : String(rawSubscriptionType).toLowerCase().trim();
-                            }
-                            let queueLimit = 1;
-                            if (subscriptionType === 'premium') {
-                              queueLimit = 5;
-                            } else if (subscriptionType === 'standard') {
-                              queueLimit = 3;
-                            }
-                            const queueCount = generationQueueRef.current?.length ?? 0;
-                            const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
-                            const isQueueFull = activeGenerations >= queueLimit;
-                            return isQueueFull;
-                          })()}
-                        >
-                          <span className="flex items-center gap-2">
-                            <Zap size={18} />
-                            {(() => {
-                              const hasGeneratedPhotos = generatedPhotos && generatedPhotos.length > 0;
-                              const modelDisplayNames = {
-                                'anime-realism': 'Аниме + Реализм',
-                                'anime': 'Аниме',
-                                'realism': 'Реализм'
-                              };
-                              const currentModelName = modelDisplayNames[selectedModel] || selectedModel;
-                              let buttonText = hasGeneratedPhotos ? `Сгенерировать(${currentModelName})` : `Сгенерировать фото (${currentModelName})`;
-
-                              if (!userInfo) {
-                                return buttonText;
-                              }
-
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>
+                          <GenerateButton
+                            type="button"
+                            style={{ flex: 1, minWidth: 0, height: '52px' }}
+                            onClick={() => {
+                              generatePhoto();
+                              setShowGenerateTooltip(true);
+                              setTimeout(() => setShowGenerateTooltip(false), 4000);
+                            }}
+                            disabled={(() => {
+                              if (!userInfo || !createdCharacterData) return true;
                               const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
                               let subscriptionType = 'free';
                               if (rawSubscriptionType) {
@@ -8213,35 +8279,137 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                               }
                               const queueCount = generationQueueRef.current?.length ?? 0;
                               const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
+                              const isQueueFull = activeGenerations >= queueLimit;
+                              return isQueueFull;
+                            })()}
+                          >
+                            <span className="flex items-center gap-2">
+                              <Zap size={18} />
+                              {(() => {
+                                const hasGeneratedPhotos = generatedPhotos && generatedPhotos.length > 0;
+                                const modelDisplayNames = {
+                                  'anime-realism': 'Аниме + Реализм',
+                                  'anime': 'Аниме',
+                                  'realism': 'Реализм'
+                                };
+                                const currentModelName = modelDisplayNames[selectedModel] || selectedModel;
+                                let buttonText = hasGeneratedPhotos ? `Сгенерировать ещё` : `Сгенерировать фото`;
 
-                              if (activeGenerations > 0) {
-                                return `${buttonText} ${activeGenerations}/${queueLimit}`;
+                                if (!userInfo) {
+                                  return buttonText;
+                                }
+
+                                const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
+                                let subscriptionType = 'free';
+                                if (rawSubscriptionType) {
+                                  subscriptionType = typeof rawSubscriptionType === 'string'
+                                    ? rawSubscriptionType.toLowerCase().trim()
+                                    : String(rawSubscriptionType).toLowerCase().trim();
+                                }
+                                let queueLimit = 1;
+                                if (subscriptionType === 'premium') {
+                                  queueLimit = 5;
+                                } else if (subscriptionType === 'standard') {
+                                  queueLimit = 3;
+                                }
+                                const queueCount = generationQueueRef.current?.length ?? 0;
+                                const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
+
+                                if (activeGenerations > 0) {
+                                  return `${buttonText} ${activeGenerations}/${queueLimit}`;
+                                }
+
+                                return buttonText;
+                              })()}
+                            </span>
+                          </GenerateButton>
+
+                          <ContinueButton
+                            type="button"
+                            disabled={!(generatedPhotos && generatedPhotos.length > 0)}
+                            onClick={async () => {
+                              if (!createdCharacterData) return;
+
+                              try {
+                                const token = localStorage.getItem('authToken');
+                                if (token) {
+                                  // Отправляем полные данные, чтобы избежать ошибки валидации
+                                  const updateData = {
+                                    name: createdCharacterData.name,
+                                    personality: createdCharacterData.personality,
+                                    situation: createdCharacterData.situation,
+                                    instructions: createdCharacterData.instructions,
+                                    appearance: createdCharacterData.appearance || formData.appearance,
+                                    location: createdCharacterData.location || formData.location,
+                                    voice_id: createdCharacterData.voice_id || formData.voice_id,
+                                    voice_url: createdCharacterData.voice_url || formData.voice_url,
+                                    remove_default_instructions: !hasDefaultInstructions,
+                                    tags: formData.tags
+                                  };
+
+                                  await fetch(API_CONFIG.CHARACTER_EDIT_FULL(createdCharacterData.name), {
+                                    method: 'PUT',
+                                    headers: {
+                                      'Content-Type': 'application/json',
+                                      'Authorization': `Bearer ${token}`
+                                    },
+                                    body: JSON.stringify(updateData)
+                                  });
+                                }
+                              } catch (error) {
+                                console.error('Failed to save tags:', error);
                               }
 
-                              return buttonText;
-                            })()}
-                          </span>
-                        </GenerateButton>
 
-                        {/* Счетчик лимитов */}
-                        {userInfo && (
-                          <LimitItem>
-                            <AnimatedIcon>
-                              <Camera />
-                            </AnimatedIcon>
-                            <LimitValue $warning={(subscriptionStats?.images_limit || 0) - (subscriptionStats?.images_used || 0) <= 5}>
-                              {(() => {
-                                const limit = subscriptionStats?.images_limit ??
-                                  subscriptionStats?.monthly_photos ??
-                                  (userInfo?.subscription_type === 'standard' || userInfo?.subscription_type === 'premium' ? 300 : 5);
-                                const used = subscriptionStats?.images_used ??
-                                  subscriptionStats?.used_photos ??
-                                  0;
-                                return Math.max(0, limit - used);
-                              })()}
-                            </LimitValue>
-                          </LimitItem>
-                        )}
+                              const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
+                              let subscriptionType = 'free';
+                              if (rawSubscriptionType) {
+                                subscriptionType = typeof rawSubscriptionType === 'string'
+                                  ? rawSubscriptionType.toLowerCase().trim()
+                                  : String(rawSubscriptionType).toLowerCase().trim();
+                              }
+
+                              if (subscriptionType === 'standard' || subscriptionType === 'premium') {
+                                if (onOpenPaidAlbumBuilder) {
+                                  onOpenPaidAlbumBuilder(createdCharacterData);
+                                }
+                              } else {
+                                if (onOpenChat) {
+                                  onOpenChat(createdCharacterData);
+                                }
+                              }
+                            }}
+                            style={{
+                              flex: 1,
+                              height: '52px',
+                              opacity: (generatedPhotos && generatedPhotos.length > 0) ? 1 : 0.5,
+                              cursor: (generatedPhotos && generatedPhotos.length > 0) ? 'pointer' : 'not-allowed'
+                            }}
+                          >
+                            Продолжить
+                          </ContinueButton>
+
+                          {/* Счетчик лимитов */}
+                          {userInfo && (
+                            <LimitItem>
+                              <AnimatedIcon>
+                                <Camera />
+                              </AnimatedIcon>
+                              <LimitValue $warning={(subscriptionStats?.images_limit || 0) - (subscriptionStats?.images_used || 0) <= 5}>
+                                {(() => {
+                                  const limit = subscriptionStats?.images_limit ??
+                                    subscriptionStats?.monthly_photos ??
+                                    (userInfo?.subscription_type === 'standard' || userInfo?.subscription_type === 'premium' ? 300 : 5);
+                                  const used = subscriptionStats?.images_used ??
+                                    subscriptionStats?.used_photos ??
+                                    0;
+                                  return Math.max(0, limit - used);
+                                })()}
+                              </LimitValue>
+                            </LimitItem>
+                          )}
+                        </div>
+
 
                         <GenerateTooltip $isVisible={showGenerateTooltip}>
                           Наведитесь на готовое фото и нажмите "Добавить"
@@ -8402,6 +8570,28 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                       </div>
                     )}
 
+                    <AnimatePresence>
+                      {generatedPhotos && generatedPhotos.length > 0 && selectedPhotos.length < 3 && (
+                        <HintBox
+                          key="photo-hint"
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          transition={{ duration: 0.3 }}
+                          style={{ marginTop: '24px' }}
+                        >
+                          <HintIcon><Sparkles size={16} /></HintIcon>
+                          <HintContent>
+                            <HintTitle>Совет по оформлению</HintTitle>
+                            <HintText>
+                              Добавьте еще <b>{3 - selectedPhotos.length} {3 - selectedPhotos.length === 1 ? 'фото' : 'фото'}</b> для полной коллекции!
+                              Три разных фото сделают карточку персонажа гораздо привлекательнее для пользователей.
+                            </HintText>
+                          </HintContent>
+                        </HintBox>
+                      )}
+                    </AnimatePresence>
+
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px' }}>
                       <motion.button
                         type="button"
@@ -8437,15 +8627,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                   {error}
                 </motion.div>
               )}
-              {success && success !== 'Фото успешно обновлено!' && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  style={{ padding: '16px', background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.3)', borderRadius: '12px', color: '#22c55e', fontSize: '14px', marginTop: '16px' }}
-                >
-                  {success}
-                </motion.div>
-              )}
+
             </LeftColumn>
 
             {/* Правая колонка - Live Preview (40%) */}
@@ -8632,90 +8814,91 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
                     return null;
                   })()}
-                </PreviewImage>
-                <PreviewName>
-                  {formData.name || 'Имя персонажа'}
-                </PreviewName>
-                {(formData.personality || formData.situation) && (
-                  <PreviewTags>
+                  <PreviewImageTags>
+                    {formData.tags.map((tag, idx) => (
+                      <PreviewTag key={`custom-${idx}`}>
+                        {tag}
+                      </PreviewTag>
+                    ))}
                     {formData.personality && PERSONALITY_PROMPTS
                       .filter(tag => formData.personality.includes(tag.value.substring(0, 20)))
                       .slice(0, 3)
                       .map((tag, idx) => (
-                        <PreviewTag key={idx} $category={getTagCategory(tag.label)}>
+                        <PreviewTag key={`suggested-${idx}`} $category={getTagCategory(tag.label)}>
                           {tag.label}
                         </PreviewTag>
                       ))}
-                  </PreviewTags>
-                )}
+                  </PreviewImageTags>
+                </PreviewImage>
+                <PreviewName>
+                  {formData.name || 'Имя персонажа'}
+                </PreviewName>
               </LivePreviewCard>
 
-              {(availableTags.length > 0 || isAdmin || userInfo?.is_admin) && (
-                <div style={{ marginTop: theme.spacing.lg, display: 'flex', flexDirection: 'column', gap: 8, width: '100%', maxWidth: 400 }}>
-                  {(isAdmin || userInfo?.is_admin) && (
-                    <AdminAddTagRow>
-                      <AdminAddTagInput
-                        value={newTagName}
-                        onChange={(e) => { setNewTagName(e.target.value); setAddTagError(null); }}
-                        placeholder="Новый тег"
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddTag(); } }}
-                      />
-                      <AdminAddTagButton
-                        type="button"
-                        onClick={handleAddTag}
-                        disabled={!!(addingTag || !newTagName.trim())}
-                      >
-                        {addingTag ? '...' : 'Добавить тег'}
-                      </AdminAddTagButton>
-                      {addTagError != null && addTagError !== '' && (
-                        <span style={{ color: 'rgba(239,68,68,0.95)', fontSize: 12 }}>{addTagError}</span>
-                      )}
-                    </AdminAddTagRow>
-                  )}
-                  {availableTags.length > 0 && (
-                    <CharacterTagsUnderPhoto style={{ marginTop: 0 }}>
-                      {availableTags.map((tagName) => {
-                        const isSelected = selectedTags.includes(tagName);
-                        return (
-                          <CharacterTagChip
-                            key={tagName}
-                            type="button"
-                            $selected={isSelected}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setSelectedTags(prev => {
-                                const newTags = prev.includes(tagName)
-                                  ? prev.filter((t) => t !== tagName)
-                                  : [...prev, tagName];
-                                // Сохраняем теги в localStorage сразу при изменении
-                                try {
-                                  const savedFormData = localStorage.getItem('createCharacterFormData');
-                                  const formData = savedFormData ? JSON.parse(savedFormData) : {};
-                                  formData.selectedTags = newTags;
-                                  localStorage.setItem('createCharacterFormData', JSON.stringify(formData));
-                                } catch (error) {
-                                  console.error('Ошибка сохранения тегов в localStorage:', error);
-                                }
-                                return newTags;
-                              });
-                            }}
-                          >
-                            {tagName}
-                          </CharacterTagChip>
-                        );
-                      })}
-                    </CharacterTagsUnderPhoto>
-                  )}
-                </div>
+              {currentStep === 3 && (
+                <TagSelector
+                  availableTags={availableTags}
+                  selectedTags={formData.tags}
+                  onToggle={(tagName) => {
+                    const isActive = formData.tags.includes(tagName);
+                    if (isActive) {
+                      setFormData(prev => ({
+                        ...prev,
+                        tags: prev.tags.filter(t => t !== tagName)
+                      }));
+                    } else {
+                      setFormData(prev => ({
+                        ...prev,
+                        tags: [...prev.tags, tagName]
+                      }));
+                    }
+                  }}
+                />
               )}
+
+              {/* ОБЛАКО ТЕГОВ ДЛЯ ВЫБОРА */}
+
+
+
 
               {/* Кнопка "Продолжить" - появляется под карточкой справа после генерации первого фото */}
               {generatedPhotos && generatedPhotos.length > 0 && createdCharacterData && (
                 <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
                   <ContinueButton
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       if (!createdCharacterData) return;
+
+                      try {
+                        const token = localStorage.getItem('authToken');
+                        if (token) {
+                          // Отправляем полные данные, чтобы избежать ошибки валидации
+                          const updateData = {
+                            name: createdCharacterData.name,
+                            personality: createdCharacterData.personality,
+                            situation: createdCharacterData.situation,
+                            instructions: createdCharacterData.instructions,
+                            appearance: createdCharacterData.appearance || formData.appearance,
+                            location: createdCharacterData.location || formData.location,
+                            voice_id: createdCharacterData.voice_id || formData.voice_id,
+                            voice_url: createdCharacterData.voice_url || formData.voice_url,
+                            remove_default_instructions: !hasDefaultInstructions,
+                            tags: formData.tags
+                          };
+
+                          await fetch(API_CONFIG.CHARACTER_EDIT_FULL(createdCharacterData.name), {
+                            method: 'PUT',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify(updateData)
+                          });
+                        }
+                      } catch (error) {
+                        console.error('Failed to save tags:', error);
+                      }
+
 
                       // Определяем тип подписки
                       const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;

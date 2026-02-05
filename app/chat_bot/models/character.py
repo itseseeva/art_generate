@@ -38,6 +38,7 @@ class Character:
         """Генерирует system prompt для персонажа из структурированных полей."""
         parts = [
             f"Имя: {self.name}",
+            "User is male. Always refer to the user as a male.",
             f"Возраст: {self.traits.age}" if self.traits.age else None,
             f"Профессия: {self.traits.profession}" if self.traits.profession else None,
             f"Личность: {self.traits.personality}",

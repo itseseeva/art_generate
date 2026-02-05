@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import styled, { keyframes } from 'styled-components';
+import styled, { keyframes, css } from 'styled-components';
+import { motion } from 'motion/react';
 import { theme } from '../theme';
 import { authManager } from '../utils/auth';
-import { ShoppingBag, User, Coins, DollarSign, LogOut, LogIn, UserPlus, X, ClipboardList, CheckCircle } from 'lucide-react';
+import { ShoppingBag, User, Coins, DollarSign, LogOut, LogIn, UserPlus, X, ClipboardList, CheckCircle, Crown } from 'lucide-react';
 import { generationTracker } from '../utils/generationTracker';
 
 const HeaderContainer = styled.div`
@@ -192,6 +193,7 @@ const ShopButton = styled.button`
     }
   }
 `;
+
 
 const ProfileButton = styled.div<{ $isAuthenticated?: boolean }>`
   width: 42px;
@@ -423,6 +425,38 @@ interface GlobalHeaderProps {
   isOnChatPage?: boolean;
 }
 
+const borderMove = keyframes`
+  0% { background-position: 0% 50%; }
+  100% { background-position: 400% 50%; }
+`;
+
+const AnimatedBorderButton = styled(motion.button)`
+  position: relative;
+  padding: 1px;
+  border-radius: 0.75rem; /* rounded-xl */
+  background: linear-gradient(90deg, #ec4899, #06b6d4, #8b5cf6, #ec4899);
+  background-size: 400% 100%;
+  animation: ${borderMove} 9s linear infinite;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 0 15px rgba(236, 72, 153, 0.4), 0 0 15px rgba(6, 182, 212, 0.4);
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 0.85rem;
+    background: inherit;
+    z-index: -1;
+    opacity: 0.6;
+    filter: blur(12px);
+    transition: opacity 0.3s ease;
+  }
+`;
+
 export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   onShop,
   onLogin,
@@ -649,9 +683,23 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
           </ShopButton>
         )}
         {isAuthenticated && (
-          <ShopButton onClick={handleShop}>
-            <DollarSign size={20} />
-          </ShopButton>
+          <AnimatedBorderButton
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleShop}
+          >
+            <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-slate-950/90 backdrop-blur-md rounded-[11px] w-full h-full z-10 transition-colors group">
+              <motion.div
+                whileHover={{ rotate: 15 }}
+                className="text-cyan-400 flex items-center justify-center"
+              >
+                <Crown size={16} className="drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
+              </motion.div>
+              <span className="font-sans font-medium tracking-tight text-white/90 text-sm whitespace-nowrap">
+                Сменить тариф
+              </span>
+            </div>
+          </AnimatedBorderButton>
         )}
 
         {!isAuthenticated && (

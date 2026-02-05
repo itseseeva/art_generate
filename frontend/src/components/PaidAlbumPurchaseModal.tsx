@@ -57,19 +57,19 @@ const NotificationContent = styled.div<{ $variant?: 'warning' | 'success' | 'def
     ? 'linear-gradient(135deg, rgba(30, 30, 30, 0.95) 0%, rgba(20, 20, 20, 0.95) 100%)'
     : props.$variant === 'success'
       ? 'linear-gradient(135deg, rgba(20, 40, 30, 0.95) 0%, rgba(15, 30, 20, 0.95) 100%)'
-      : 'linear-gradient(135deg, rgba(30, 30, 30, 0.95) 0%, rgba(20, 20, 20, 0.95) 100%)'};
+      : 'linear-gradient(135deg, rgba(40, 20, 50, 0.95) 0%, rgba(30, 15, 40, 0.95) 100%)'};
   border: 2px solid ${props => props.$variant === 'warning'
     ? 'rgba(150, 150, 150, 0.5)'
     : props.$variant === 'success'
       ? 'rgba(34, 197, 94, 0.5)'
-      : 'rgba(150, 150, 150, 0.3)'};
+      : 'rgba(139, 92, 246, 0.5)'};
   border-radius: ${theme.borderRadius.xl};
   padding: ${theme.spacing.xl};
   box-shadow: ${props => props.$variant === 'warning'
     ? '0 20px 60px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
     : props.$variant === 'success'
       ? '0 20px 60px rgba(34, 197, 94, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
-      : '0 20px 60px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.1)'};
+      : '0 20px 60px rgba(139, 92, 246, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)'};
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -83,13 +83,13 @@ const IconWrapper = styled.div<{ $variant?: 'warning' | 'success' | 'default' }>
   border-radius: 50%;
   background: ${props => props.$variant === 'success'
     ? 'rgba(34, 197, 94, 0.2)'
-    : 'rgba(80, 80, 80, 0.3)'};
+    : 'rgba(139, 92, 246, 0.2)'};
   display: flex;
   align-items: center;
   justify-content: center;
   color: ${props => props.$variant === 'success'
     ? 'rgba(34, 197, 94, 1)'
-    : 'rgba(200, 200, 200, 1)'};
+    : 'rgba(236, 72, 153, 1)'};
   
   svg {
     width: 32px;
@@ -102,7 +102,7 @@ const NotificationTitle = styled.h2<{ $variant?: 'warning' | 'success' | 'defaul
   font-weight: 700;
   color: ${props => props.$variant === 'success'
     ? 'rgba(34, 197, 94, 1)'
-    : 'rgba(240, 240, 240, 1)'};
+    : 'rgba(236, 72, 153, 1)'};
   margin: 0;
 `;
 
@@ -131,12 +131,12 @@ const NotificationButton = styled.button<{ $variant?: 'warning' | 'success' | 'd
     ? 'linear-gradient(135deg, rgba(150, 150, 150, 0.8) 0%, rgba(120, 120, 120, 0.8) 100%)'
     : props.$variant === 'success'
       ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.8) 0%, rgba(22, 163, 74, 0.8) 100%)'
-      : 'linear-gradient(135deg, rgba(139, 92, 246, 0.8) 0%, rgba(99, 102, 241, 0.8) 100%)'};
+      : 'linear-gradient(135deg, rgba(236, 72, 153, 0.9) 0%, rgba(219, 39, 119, 0.9) 100%)'};
   border: 1px solid ${props => props.$variant === 'warning'
     ? 'rgba(150, 150, 150, 0.5)'
     : props.$variant === 'success'
       ? 'rgba(34, 197, 94, 0.5)'
-      : 'rgba(139, 92, 246, 0.5)'};
+      : 'rgba(236, 72, 153, 0.5)'};
   border-radius: ${theme.borderRadius.lg};
   color: #ffffff;
   font-weight: 600;
@@ -153,7 +153,7 @@ const NotificationButton = styled.button<{ $variant?: 'warning' | 'success' | 'd
     ? 'linear-gradient(135deg, rgba(150, 150, 150, 1) 0%, rgba(120, 120, 120, 1) 100%)'
     : props.$variant === 'success'
       ? 'linear-gradient(135deg, rgba(34, 197, 94, 1) 0%, rgba(22, 163, 74, 1) 100%)'
-      : 'linear-gradient(135deg, rgba(139, 92, 246, 1) 0%, rgba(99, 102, 241, 1) 100%)'};
+      : 'linear-gradient(135deg, rgba(236, 72, 153, 1) 0%, rgba(219, 39, 119, 1) 100%)'};
     transform: translateY(-2px);
   }
   
@@ -251,21 +251,23 @@ export const PaidAlbumPurchaseModal: React.FC<PaidAlbumPurchaseModalProps> = ({
       <>
         <NotificationOverlay onClick={onClose} />
         <NotificationContainer $isClosing={false}>
-          <NotificationContent $variant="warning">
-            <IconWrapper>
-              <AlertIcon />
+          <NotificationContent $variant="success">
+            <IconWrapper $variant="success">
+              <UnlockIcon />
             </IconWrapper>
-            <NotificationTitle $variant="warning">Требуется подписка</NotificationTitle>
-            <NotificationMessage $variant="warning">
-              Для доступа к альбому персонажа "{characterName}" необходима подписка Standard или Premium.
-              Перейдите в магазин, чтобы оформить подписку.
+            <NotificationTitle $variant="success">Доступ к альбому</NotificationTitle>
+            <NotificationMessage $variant="success">
+              Только для подписчиков
+            </NotificationMessage>
+            <NotificationMessage $variant="success">
+              Для просмотра этого альбома необходима подписка STANDARD или PREMIUM.
             </NotificationMessage>
             <NotificationButtonGroup>
-              <NotificationButton onClick={handleShopClick} $variant="warning">
+              <NotificationButton onClick={handleShopClick} $variant="success">
                 <ShopIcon />
-                Магазин
+                Оформить подписку
               </NotificationButton>
-              <NotificationCancelButton onClick={onClose} $variant="warning">
+              <NotificationCancelButton onClick={onClose}>
                 Отмена
               </NotificationCancelButton>
             </NotificationButtonGroup>

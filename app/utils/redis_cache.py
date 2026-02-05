@@ -394,8 +394,8 @@ def key_user_subscription(user_id: int) -> str:
 
 
 def key_characters_list() -> str:
-    """Генерирует ключ для списка персонажей."""
-    return "characters:list"
+    """Генерирует ключ для списка персонажей (версия 2 для поддержки платных альбомов)."""
+    return "characters:list:v2"
 
 
 def key_registration_data(email: str) -> str:

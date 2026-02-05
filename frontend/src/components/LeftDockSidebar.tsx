@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { FiPlusCircle, FiEdit, FiClock, FiHeart, FiGrid, FiMessageSquare, FiTrendingUp, FiChevronRight, FiAlertTriangle, FiUser, FiLogIn, FiUserPlus, FiLogOut, FiDollarSign, FiRefreshCw, FiFileText, FiBarChart2, FiMenu } from 'react-icons/fi';
+import { Crown } from 'lucide-react';
 
 import Dock, { type DockItemData } from './Dock';
 import { theme } from '../theme';
@@ -399,7 +400,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   // Магазин - всегда
   if (onShop) {
     additionalDockItems.push({
-      icon: <FiDollarSign size={18} color="#facc15" />,
+      icon: <Crown size={20} color="#22d3ee" style={{ filter: 'drop-shadow(0 0 6px rgba(34, 211, 238, 0.8))' }} />,
       label: 'Магазин',
       onClick: () => onShop?.(),
       className: 'dock-item-shop',
