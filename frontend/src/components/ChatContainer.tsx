@@ -1159,7 +1159,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   // Режим краткости ответов
   const [brevityMode, setBrevityMode] = useState<'brief' | 'normal'>(() => {
     const saved = localStorage.getItem('brevityMode');
-    return (saved === 'normal' || saved === 'brief') ? saved : 'brief'; // Default 'brief'
+    return (saved === 'normal' || saved === 'brief') ? saved : 'normal'; // Default 'normal' (detailed)
   });
 
   // Сохраняем режим краткости

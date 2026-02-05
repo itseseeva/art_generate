@@ -668,7 +668,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   imagesRemaining,
   voiceRemaining,
   subscriptionType = 'free',
-  brevityMode = 'brief',
+  brevityMode = 'normal',
   onBrevityModeChange,
   onShop,
   ...props
