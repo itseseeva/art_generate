@@ -346,19 +346,24 @@ class ProfitActivateService:
                 days_to_add = 30 * months
                 new_expires_at = existing_subscription.expires_at + timedelta(days=days_to_add)
                 
+                # БЕЗОПАСНОСТЬ: Суммируем остатки старой подписки с новыми лимитами (накопление ресурсов)
+                # Чтобы при повторной покупке лимиты не сгорали, а прибавлялись
+                old_images_remaining = existing_subscription.images_remaining
+                old_voice_remaining = existing_subscription.voice_remaining
+                
                 # Обновляем лимиты: устанавливаем базовый месячный лимит
                 existing_subscription.monthly_credits = monthly_credits
                 existing_subscription.used_credits = 0
                 
-                # Обновляем новые лимиты
-                existing_subscription.images_limit = images_limit
-                existing_subscription.voice_limit = voice_limit
-                # Сбрасываем использование (или можно оставить, если это продление в середине месяца? 
-                # Но логика продления обычно сбрасывает месячные лимиты или добавляет к ним. 
-                # Здесь мы просто обновляем сам лимит и дату окончания.
-                # Сделаем сброс использования, так как это "новый месяц" или период)
+                # Обновляем новые лимиты (суммируем с остатками)
+                existing_subscription.images_limit = old_images_remaining + images_limit
+                existing_subscription.voice_limit = old_voice_remaining + voice_limit
+                # Сбрасываем использование, так как остатки перенесены в основной лимит
                 existing_subscription.images_used = 0
                 existing_subscription.voice_used = 0
+                
+                # Для платных подписок снимаем лимит сообщений (делаем безлимитными)
+                existing_subscription.monthly_messages = 0
                 
                 # monthly_photos остается 0 для STANDARD и PREMIUM
                 # Переводим ТОЛЬКО кредиты новой подписки на баланс (остатки старой подписки теряются)
@@ -418,6 +423,9 @@ class ProfitActivateService:
                 # 2. Добавляем полный лимит новой подписки
                 # 3. Итого: старые остатки + новый лимит (все в подписке)
                 
+                old_img_rem = existing_subscription.images_remaining
+                old_voice_rem = existing_subscription.voice_remaining
+                
                 # Обновляем тип и лимиты подписки
                 existing_subscription.subscription_type = _normalize_subscription_type(subscription_type)
                 existing_subscription.status = SubscriptionStatus.ACTIVE
@@ -425,14 +433,15 @@ class ProfitActivateService:
                 existing_subscription.monthly_credits = monthly_credits
                 existing_subscription.monthly_photos = monthly_photos
                 existing_subscription.max_message_length = max_message_length
+                existing_subscription.monthly_messages = 0  # Безлимит сообщений для платных
                 
-                # Устанавливаем новые лимиты
-                existing_subscription.images_limit = images_limit
-                existing_subscription.voice_limit = voice_limit
+                # Суммируем новые лимиты с остатками старой подписки
+                existing_subscription.images_limit = old_img_rem + images_limit
+                existing_subscription.voice_limit = old_voice_rem + voice_limit
                 existing_subscription.images_used = 0
                 existing_subscription.voice_used = 0
                 
-                # Кредиты: сбрасываем used_credits
+                # Кредиты: сбрасываем used_credits (так как монеты начисляются на баланс отдельно)
                 existing_subscription.used_credits = 0
                 
                 # Переводим ТОЛЬКО кредиты новой подписки на баланс (без остатков старой подписки)
@@ -542,6 +551,7 @@ class ProfitActivateService:
             status=SubscriptionStatus.ACTIVE,
             monthly_credits=monthly_credits,
             monthly_photos=monthly_photos,
+            monthly_messages=0,  # Безлимит сообщений для платных
             max_message_length=max_message_length,
             # Новые лимиты
             images_limit=images_limit,
