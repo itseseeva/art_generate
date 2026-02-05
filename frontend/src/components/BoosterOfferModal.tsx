@@ -891,11 +891,11 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
                   </div>
                   <OfferItems style={{ marginBottom: '1rem' }}>
                     <OfferItem>
-                      <Image strokeWidth={2.2} />
+                      <Crown size={20} strokeWidth={2.2} color="#fde047" />
                       <GlossyText style={{ fontSize: '1.2rem' }}>100 фото</GlossyText>
                     </OfferItem>
                     <OfferItem>
-                      <Mic strokeWidth={2.2} />
+                      <Crown size={20} strokeWidth={2.2} color="#fde047" />
                       <GlossyText style={{ fontSize: '1.2rem' }}>100 голосовых</GlossyText>
                     </OfferItem>
                   </OfferItems>
@@ -909,10 +909,22 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
                     borderTop: '1px solid rgba(255,255,255,0.1)',
                     paddingTop: '1rem'
                   }}>
-                    <GlossyText style={{ fontSize: '1rem' }}>Безлимитные сообщения</GlossyText>
-                    <GlossyText>Расширенная память</GlossyText>
-                    <GlossyText>Доступ к текстовым Premium моделям</GlossyText>
-                    <GlossyText>Доступ ко всем альбомам</GlossyText>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                      <Crown size={16} color="#fde047" />
+                      <GlossyText style={{ fontSize: '1rem' }}>Безлимитные сообщения</GlossyText>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                      <Crown size={16} color="#fde047" />
+                      <GlossyText>Расширенная память</GlossyText>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                      <Crown size={16} color="#fde047" />
+                      <GlossyText>Доступ к текстовым Premium моделям</GlossyText>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                      <Crown size={16} color="#fde047" />
+                      <GlossyText>Доступ ко всем альбомам</GlossyText>
+                    </div>
                   </div>
                 </OfferBox>
 
