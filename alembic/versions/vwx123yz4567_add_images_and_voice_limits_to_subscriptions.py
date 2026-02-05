@@ -17,11 +17,11 @@ depends_on = None
 
 
 def upgrade():
-    # Добавляем новые колонки для лимитов изображений и голоса
-    op.add_column('user_subscriptions', sa.Column('images_limit', sa.Integer(), nullable=False, server_default='0'))
-    op.add_column('user_subscriptions', sa.Column('images_used', sa.Integer(), nullable=False, server_default='0'))
-    op.add_column('user_subscriptions', sa.Column('voice_limit', sa.Integer(), nullable=False, server_default='0'))
-    op.add_column('user_subscriptions', sa.Column('voice_used', sa.Integer(), nullable=False, server_default='0'))
+    # Добавляем новые колонки для лимитов изображений и голоса с проверкой существования
+    op.execute(sa.text("ALTER TABLE user_subscriptions ADD COLUMN IF NOT EXISTS images_limit INTEGER NOT NULL DEFAULT 0"))
+    op.execute(sa.text("ALTER TABLE user_subscriptions ADD COLUMN IF NOT EXISTS images_used INTEGER NOT NULL DEFAULT 0"))
+    op.execute(sa.text("ALTER TABLE user_subscriptions ADD COLUMN IF NOT EXISTS voice_limit INTEGER NOT NULL DEFAULT 0"))
+    op.execute(sa.text("ALTER TABLE user_subscriptions ADD COLUMN IF NOT EXISTS voice_used INTEGER NOT NULL DEFAULT 0"))
     
     # Устанавливаем лимиты для FREE/BASE пользователей
     op.execute("""

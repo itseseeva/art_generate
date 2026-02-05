@@ -22,9 +22,11 @@ from slugify import slugify
 
 def upgrade() -> None:
     """Upgrade schema."""
-    # Add slug column
-    op.add_column('character_available_tags', sa.Column('slug', sa.String(length=100), nullable=True))
-    op.create_index(op.f('ix_character_available_tags_slug'), 'character_available_tags', ['slug'], unique=True)
+    # Add slug column if it doesn't exist
+    op.execute(sa.text("ALTER TABLE character_available_tags ADD COLUMN IF NOT EXISTS slug VARCHAR(100)"))
+    
+    # Create index if it doesn't exist
+    op.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_character_available_tags_slug ON character_available_tags (slug)"))
     
     # Populate slug for existing tags
     connection = op.get_bind()
