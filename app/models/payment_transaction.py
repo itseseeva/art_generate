@@ -22,6 +22,7 @@ class PaymentTransaction(Base):
     label = Column(String(500), nullable=True)
     package_id = Column(String(50), nullable=True)  # Для topup
     subscription_type = Column(String(50), nullable=True)  # Для subscription
+    months = Column(Integer, nullable=True, default=1)  # Количество месяцев подписки
     processed = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, nullable=False, default=func.now())
     processed_at = Column(DateTime, nullable=True)

@@ -195,6 +195,7 @@ async def create_kassa_payment(
 			label=f"yookassa_{payload.payment_type}",
 			package_id=payload.package_id if payload.payment_type == "topup" else None,
 			subscription_type=payload.plan if payload.payment_type == "subscription" else None,
+			months=payload.months if payload.payment_type == "subscription" else 1,
 			processed=False
 		)
 		db.add(transaction)
@@ -303,11 +304,12 @@ async def process_yookassa_webhook(
 				label=f"yookassa_webhook_{payment_type}",
 				package_id=package_id,
 				subscription_type=plan,
+				months=months,
 				processed=False
 			)
 			db.add(transaction)
 			await db.flush()
-			logger.info(f"[YOOKASSA WEBHOOK] Created new transaction: {transaction.id} for user {user_id}")
+			logger.info(f"[YOOKASSA WEBHOOK] Created new transaction: {transaction.id} for user {user_id}, months={months}")
 		
 
 		
@@ -528,6 +530,7 @@ async def get_user_transactions(
 				"currency": t.currency,
 				"package_id": t.package_id,
 				"subscription_type": t.subscription_type,
+				"months": t.months,
 				"processed": t.processed,
 				"created_at": t.created_at.isoformat() if t.created_at else None,
 				"processed_at": t.processed_at.isoformat() if t.processed_at else None,
@@ -585,16 +588,18 @@ async def process_transaction_manually(
 		return {"status": "ok", "type": "topup", "credits": package.credits}
 	
 	elif transaction.payment_type == "subscription" and transaction.subscription_type:
-		await service.activate_subscription(transaction.user_id, transaction.subscription_type)
+		months = getattr(transaction, 'months', 1) or 1
+		await service.activate_subscription(transaction.user_id, transaction.subscription_type, months=months)
 		logger.info(
 			f"[YOOKASSA MANUAL] Subscription activated: user_id={transaction.user_id}, "
-			f"plan={transaction.subscription_type}, operation_id={operation_id}"
+			f"plan={transaction.subscription_type}, months={months}, operation_id={operation_id}"
 		)
 		
 		transaction.processed = True
+		transaction.processed_at = datetime.utcnow()
 		await db.commit()
 		
-		return {"status": "ok", "type": "subscription", "plan": transaction.subscription_type}
+		return {"status": "ok", "type": "subscription", "plan": transaction.subscription_type, "months": months}
 	
 	else:
 		raise HTTPException(status_code=400, detail="Invalid transaction data")

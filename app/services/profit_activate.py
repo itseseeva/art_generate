@@ -342,9 +342,16 @@ class ProfitActivateService:
                 logger.info(f"[OLD BALANCE] Баланс пользователя: {old_user_balance} монет")
                 logger.info(f"[OLD EXPIRES] Текущая дата окончания: {existing_subscription.expires_at}")
                 
-                # ПРОДЛЕНИЕ: сдвигаем дату окончания (текущая дата окончания + 30 дней * количество месяцев)
-                days_to_add = 30 * months
-                new_expires_at = existing_subscription.expires_at + timedelta(days=days_to_add)
+                # ПРОДЛЕНИЕ: сдвигаем дату окончания
+                # Если подписка еще активна, продлеваем от текущей даты окончания.
+                # Если уже истекла, продлеваем от текущего момента.
+                now = datetime.utcnow()
+                if existing_subscription.expires_at > now:
+                    logger.info(f"[RENEWAL] Подписка еще активна, продлеваем от {existing_subscription.expires_at}")
+                    new_expires_at = existing_subscription.expires_at + timedelta(days=30 * months)
+                else:
+                    logger.info(f"[RENEWAL] Подписка истекла ({existing_subscription.expires_at}), продлеваем от текущего момента {now}")
+                    new_expires_at = now + timedelta(days=30 * months)
                 
                 # БЕЗОПАСНОСТЬ: Суммируем остатки старой подписки с новыми лимитами (накопление ресурсов)
                 # Чтобы при повторной покупке лимиты не сгорали, а прибавлялись
@@ -365,20 +372,19 @@ class ProfitActivateService:
                 # Для платных подписок снимаем лимит сообщений (делаем безлимитными)
                 existing_subscription.monthly_messages = 0
                 
-                # monthly_photos остается 0 для STANDARD и PREMIUM
-                # Переводим ТОЛЬКО кредиты новой подписки на баланс (остатки старой подписки теряются)
+                # Убеждаемся, что статус ACTIVE
+                existing_subscription.status = SubscriptionStatus.ACTIVE
                 
                 # Переводим кредиты новой подписки на баланс
                 user.coins += total_period_credits
                 
                 # Обновляем дату окончания
                 existing_subscription.expires_at = new_expires_at
-                existing_subscription.last_reset_at = datetime.utcnow()
+                existing_subscription.last_reset_at = now
                 
-                logger.info(f"[RENEWAL] Кредиты новой подписки (с учетом {months} месяцев и бонусов): {total_period_credits} кредитов")
-                logger.info(f"[RENEWAL] Остатки старой подписки: {old_credits_remaining} кредитов (не переводятся на баланс)")
-                logger.info(f"[RENEWAL] Переводим на баланс: {total_period_credits} кредитов (только новая подписка)")
+                logger.info(f"[RENEWAL] Кредиты новой подписки: {total_period_credits}")
                 logger.info(f"[RENEWAL] Новая дата окончания: {new_expires_at}")
+                logger.info(f"[RENEWAL] Статус установлен: {existing_subscription.status.value}")
                 
                 # Записываем историю баланса
                 try:
@@ -387,17 +393,25 @@ class ProfitActivateService:
                         db=self.db,
                         user_id=user_id,
                         amount=total_period_credits,
-                        reason=f"Продление подписки {subscription_type.upper()} (кредиты новой подписки)"
+                        reason=f"Продление подписки {subscription_type.upper()} ({months} мес.)"
                     )
                 except Exception as e:
                     logger.warning(f"Не удалось записать историю баланса: {e}")
-                
-                logger.info(f"[NEW BALANCE] Баланс пользователя: {old_user_balance} -> {user.coins} монет (изменение: +{total_period_credits})")
                 
                 await self.db.commit()
                 await self.db.refresh(existing_subscription)
                 await self.db.refresh(user)
                 
+                # КРИТИЧЕСКАЯ ПРОВЕРКА ПОСЛЕ COMMIT
+                if not existing_subscription.is_active:
+                    logger.error(f"[RENEWAL] ❌ КРИТИЧЕСКАЯ ОШИБКА: Подписка не активна после продления! status={existing_subscription.status.value}, expires_at={existing_subscription.expires_at}")
+                    # Принудительно исправляем и сохраняем еще раз
+                    existing_subscription.status = SubscriptionStatus.ACTIVE
+                    if existing_subscription.expires_at <= now:
+                         existing_subscription.expires_at = now + timedelta(days=30 * months)
+                    await self.db.commit()
+                    await self.db.refresh(existing_subscription)
+
                 # Инвалидируем кэш подписки
                 await cache_delete(key_subscription(user_id))
                 await cache_delete(key_subscription_stats(user_id))

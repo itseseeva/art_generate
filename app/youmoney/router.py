@@ -152,8 +152,9 @@ async def youmoney_quickpay_notify(request: Request):
 	user_id = None
 	payment_type = "subscription"  # По умолчанию подписка
 	package_id = None
+	months = 1  # По умолчанию 1 месяц
 	
-	# ожидаем "plan:premium;uid:37" или "type:topup;package:small;uid:37"
+	# ожидаем "plan:premium;uid:37" или "type:topup;package:small;uid:37" или "plan:premium;uid:37;months:3"
 	# Улучшенный парсинг с обработкой ошибок
 	parse_errors = []
 	try:
@@ -183,6 +184,13 @@ async def youmoney_quickpay_notify(request: Request):
 							logging.info("[YOUMONEY NOTIFY] Найден uid: %s", user_id)
 						except ValueError:
 							parse_errors.append(f"uid не является числом: '{uid_str}'")
+					elif p.startswith("months:"):
+						months_str = p.split(":", 1)[1].strip()
+						try:
+							months = int(months_str)
+							logging.info("[YOUMONEY NOTIFY] Найден months: %s", months)
+						except ValueError:
+							parse_errors.append(f"months не является числом: '{months_str}'")
 					else:
 						logging.warning("[YOUMONEY NOTIFY] Неизвестная часть label: '%s'", p)
 				except Exception as e:
@@ -203,8 +211,8 @@ async def youmoney_quickpay_notify(request: Request):
 			logging.error("[YOUMONEY NOTIFY] Ошибки парсинга: %s", parse_errors)
 		raise HTTPException(status_code=400, detail=f"user id not found in label: '{label}'")
 	
-	logging.info("[YOUMONEY NOTIFY] ✅ Label распарсен: plan=%s, user_id=%s, payment_type=%s, package_id=%s", 
-		plan, user_id, payment_type, package_id)
+	logging.info("[YOUMONEY NOTIFY] ✅ Label распарсен: plan=%s, user_id=%s, payment_type=%s, package_id=%s, months=%s", 
+		plan, user_id, payment_type, package_id, months)
 
 	# Проверяем сумму с улучшенным логированием
 	amount_raw = data["amount"]
@@ -263,8 +271,9 @@ async def youmoney_quickpay_notify(request: Request):
 					amount=data["amount"],
 					currency=data.get("currency", "RUB"),
 					label=label,
-					package_id=package_id if payment_type == "topup" else None,
-					subscription_type=plan if payment_type == "subscription" else None,
+					package_id=package_id,
+					subscription_type=plan,
+					months=months,
 					processed=False
 				)
 				db.add(transaction)
@@ -334,10 +343,10 @@ async def youmoney_quickpay_notify(request: Request):
 				# КРИТИЧНО: Помечаем транзакцию как обработанную ДО активации подписки
 				# Это гарантирует атомарность: если активация не удастся, транзакция все равно будет помечена
 				# Но мы проверим успешность активации после commit
-				logging.info("[YOUMONEY NOTIFY] Вызов service.activate_subscription(user_id=%s, plan=%s)...", user_id, plan)
+				logging.info("[YOUMONEY NOTIFY] Вызов service.activate_subscription(user_id=%s, plan=%s, months=%s)...", user_id, plan, months)
 				
 				# Активируем подписку (внутри делается commit)
-				sub = await service.activate_subscription(user_id, plan)
+				sub = await service.activate_subscription(user_id, plan, months=months)
 				
 				if not sub:
 					raise ValueError("activate_subscription вернул None - подписка не была создана")

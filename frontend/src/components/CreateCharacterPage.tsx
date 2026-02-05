@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import styled, { keyframes, css } from 'styled-components';
 import { authManager } from '../utils/auth';
@@ -9,7 +9,7 @@ import { translateToEnglish } from '../utils/translate';
 import { API_CONFIG } from '../config/api';
 import { motion, AnimatePresence } from 'motion/react';
 import { CircularProgress } from './ui/CircularProgress';
-import { FiX as CloseIcon, FiClock, FiImage, FiSettings, FiCheckCircle, FiCpu, FiSearch } from 'react-icons/fi';
+import { FiX as CloseIcon, FiClock, FiImage, FiSettings, FiCheckCircle, FiCpu } from 'react-icons/fi';
 import { Plus, Sparkles, Zap, X, Upload, CheckCircle, AlertCircle, Camera } from 'lucide-react';
 import { BiCoinStack } from 'react-icons/bi';
 import { fetchPromptByImage } from '../utils/prompt';
@@ -4453,204 +4453,6 @@ const getVoicePhotoPath = (voiceName: string): string => {
   return `/default_voice_photo/${normalizedName}.png`;
 };
 
-
-// --- PREMIUM TAG SELECTOR COMPONENT ---
-
-const TAG_CATEGORIES: Record<string, string[]> = {
-  'Роли и Архетипы': ['Босс', 'Горничная', 'Незнакомка', 'Подруга', 'Слуга', 'Студентка', 'Учитель', 'Врач', 'Секретарь'],
-  'Характер и Настроение': ['Грубая', 'Доминирование', 'Милая', 'Цундере', 'Добрая', 'Скромная', 'Застенчивая', 'Страстная', 'Дерзкая', 'Веселая', 'Нежная', 'Заботливая', 'Загадочная', 'Мрачная'],
-  'Сеттинг и Жанр': ['Киберпанк', 'Фэнтези', 'Sci-Fi', 'Мистика', 'Магия', 'Город', 'Спорт'],
-  'Тип контента': ['NSFW', 'SFW', 'New', 'Original', 'Пользовательские']
-};
-
-const TagSelector = ({
-  availableTags,
-  selectedTags,
-  onToggle
-}: {
-  availableTags: { name: string; slug: string }[],
-  selectedTags: string[],
-  onToggle: (tag: string) => void
-}) => {
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Группировка и фильтрация тегов
-  const categorizedTags = useMemo(() => {
-    const groups: Record<string, typeof availableTags> = {};
-    const usedTags = new Set<string>();
-
-    const normalizedQuery = searchQuery.toLowerCase().trim();
-
-    // 1. Распределяем по категориям
-    Object.entries(TAG_CATEGORIES).forEach(([category, keywords]) => {
-      const tagsInGroup = availableTags.filter(tag => {
-        if (usedTags.has(tag.name)) return false;
-        // Проверяем вхождение
-        const matchesCategory = keywords.includes(tag.name);
-        // Проверяем поиск
-        const matchesSearch = tag.name.toLowerCase().includes(normalizedQuery);
-
-        if (matchesCategory && matchesSearch) {
-          usedTags.add(tag.name);
-          return true;
-        }
-        return false;
-      });
-
-      if (tagsInGroup.length > 0) {
-        groups[category] = tagsInGroup;
-      }
-    });
-
-    // 2. Оставшиеся теги (Другое)
-    const otherTags = availableTags.filter(tag =>
-      !usedTags.has(tag.name) &&
-      tag.name.toLowerCase().includes(normalizedQuery)
-    );
-
-    if (otherTags.length > 0) {
-      groups['Разное'] = otherTags;
-    }
-
-    return groups;
-  }, [availableTags, searchQuery]);
-
-  // Анимационные варианты для контейнера
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.03
-      }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 10, scale: 0.9 },
-    show: { opacity: 1, y: 0, scale: 1 }
-  };
-
-  return (
-    <div className="w-full max-w-md mx-auto flex flex-col gap-4 p-4 mt-6 rounded-2xl border border-white/5 bg-[#09090b]/80 backdrop-blur-xl shadow-2xl relative overflow-hidden group">
-      {/* Фоновый шум и декорации */}
-      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none mix-blend-overlay"></div>
-      <div className="absolute -top-20 -right-20 w-40 h-40 bg-purple-500/10 rounded-full blur-3xl group-hover:bg-purple-500/20 transition-all duration-700"></div>
-      <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-all duration-700"></div>
-
-      {/* Заголовок и Поиск */}
-      <div className="relative z-10 flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-1 h-4 bg-gradient-to-b from-purple-500 to-indigo-500 rounded-full shadow-[0_0_10px_rgba(139,92,246,0.5)]"></div>
-            <h3 className="text-xs font-bold tracking-[0.2em] text-zinc-300 uppercase font-mono">
-              Система тегов
-            </h3>
-          </div>
-          <span className="text-[10px] font-mono text-zinc-600 border border-zinc-800 px-2 py-0.5 rounded bg-black/20">
-            V.2.0
-          </span>
-        </div>
-
-        <div className="relative group/input">
-          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within/input:text-purple-400 transition-colors w-4 h-4" />
-          <input
-            type="text"
-            placeholder="Поиск нейро-тегов..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-purple-500/50 focus:bg-white/5 focus:shadow-[0_0_15px_rgba(139,92,246,0.1)] transition-all"
-          />
-        </div>
-      </div>
-
-      {/* Список тегов по категориям */}
-      <div className="relative z-10 flex flex-col gap-4 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar">
-        {Object.entries(categorizedTags).map(([category, tags]) => (
-          <motion.div
-            key={category}
-            initial="hidden"
-            animate="show"
-            variants={containerVariants}
-            className="flex flex-col gap-2"
-          >
-            <h4 className="flex items-center gap-2 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider ml-1">
-              <span className="w-1 h-1 rounded-full bg-zinc-700"></span>
-              {category}
-            </h4>
-
-            <div className="flex flex-wrap gap-2">
-              {tags.map((tag) => {
-                const isActive = selectedTags.includes(tag.name);
-                return (
-                  <motion.button
-                    key={tag.name}
-                    variants={itemVariants}
-                    whileHover={{ scale: 1.05, y: -2 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      onToggle(tag.name);
-                    }}
-                    className={`
-                        relative px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-300
-                        border backdrop-blur-md flex items-center gap-2 overflow-hidden
-                        ${isActive
-                        ? 'border-transparent text-white shadow-[0_0_20px_-5px_rgba(139,92,246,0.5)]'
-                        : 'border-white/5 bg-white/5 text-zinc-400 hover:border-white/20 hover:bg-white/10 hover:text-zinc-200 hover:shadow-lg hover:shadow-purple-500/5'
-                      }
-                      `}
-                  >
-                    {/* Градиентная подложка для активного состояния */}
-                    {isActive && (
-                      <div className="absolute inset-0 bg-gradient-to-r from-violet-600/80 to-indigo-600/80 -z-10"></div>
-                    )}
-
-                    {/* Тонкая градиентная рамка для активного */}
-                    {isActive && (
-                      <div className="absolute inset-0 rounded-lg p-[1px] bg-gradient-to-r from-white/30 to-transparent -z-10 pointer-events-none"></div>
-                    )}
-
-                    {/* Иконка статуса с фиксированной шириной во избежание скачков */}
-                    <div className="w-3 h-3 flex items-center justify-center shrink-0">
-                      {isActive ? (
-                        <FiCheckCircle className="w-full h-full text-white/90" />
-                      ) : (
-                        <div className="w-1 h-1 rounded-full bg-zinc-600 group-hover:bg-purple-400 transition-colors" />
-                      )}
-                    </div>
-
-                    {tag.name}
-                  </motion.button>
-                );
-              })}
-            </div>
-          </motion.div>
-        ))}
-
-        {Object.keys(categorizedTags).length === 0 && (
-          <div className="text-center py-8 text-zinc-600 text-xs">
-            Нет тегов, соответствующих запросу
-          </div>
-        )}
-      </div>
-
-      <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-[#09090b] to-transparent pointer-events-none z-20"></div>
-    </div>
-  );
-};
-
-const getTagColor = (tagName: string) => {
-  const t = tagName.toLowerCase();
-  if (['милая', 'нежная', 'романтичная', 'добрая', 'скромная', 'застенчивая', 'заботливая'].some(x => t.includes(x))) return { bg: 'rgba(244, 114, 182, 0.2)', border: 'rgba(244, 114, 182, 0.5)', text: '#fbcfe8' }; // Pink
-  if (['страстная', 'дерзкая', 'горячая', 'сексуальная', 'доминантная', 'развратная', 'пошлая', 'опытная', 'раскрепощенная'].some(x => t.includes(x))) return { bg: 'rgba(239, 68, 68, 0.2)', border: 'rgba(239, 68, 68, 0.5)', text: '#fca5a5' }; // Red
-  if (['умная', 'серьезная', 'строгая', 'образованная', 'учитель', 'врач'].some(x => t.includes(x))) return { bg: 'rgba(59, 130, 246, 0.2)', border: 'rgba(59, 130, 246, 0.5)', text: '#93c5fd' }; // Blue
-  if (['веселая', 'энергичная', 'игривая', 'активная', 'спорт', 'позитивная'].some(x => t.includes(x))) return { bg: 'rgba(234, 179, 8, 0.2)', border: 'rgba(234, 179, 8, 0.5)', text: '#fde047' }; // Yellow
-  if (['загадочная', 'мрачная', 'темная', 'мистическая', 'роковая', 'готическая'].some(x => t.includes(x))) return { bg: 'rgba(168, 85, 247, 0.2)', border: 'rgba(168, 85, 247, 0.5)', text: '#d8b4fe' }; // Purple
-  if (['верная', 'дружелюбная', 'надежная', 'открытая'].some(x => t.includes(x))) return { bg: 'rgba(16, 185, 129, 0.2)', border: 'rgba(16, 185, 129, 0.5)', text: '#6ee7b7' }; // Emerald
-  return { bg: 'rgba(63, 63, 70, 0.4)', border: 'rgba(113, 113, 122, 0.5)', text: '#e4e4e7' }; // Default Zinc
-};
-
 export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   onBackToMain,
   onShop,
@@ -6360,11 +6162,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                 <StepItemButton
                   $isActive={currentStep === 1}
                   $isCompleted={currentStep > 1}
-                  onClick={() => {
-                    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-                    setPlayingVoiceUrl(null);
-                    setCurrentStep(1);
-                  }}
+                  onClick={() => setCurrentStep(1)}
                   type="button"
                 >
                   <StepNumber $isActive={currentStep === 1} $isCompleted={currentStep > 1}>
@@ -6376,13 +6174,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                 <StepItemButton
                   $isActive={currentStep === 2}
                   $isCompleted={currentStep > 2}
-                  onClick={() => {
-                    if (formData.name && formData.personality) {
-                      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-                      setPlayingVoiceUrl(null);
-                      setCurrentStep(2);
-                    }
-                  }}
+                  onClick={() => formData.name && formData.personality && setCurrentStep(2)}
                   type="button"
                   disabled={!formData.name || !formData.personality}
                 >
@@ -6395,13 +6187,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                 <StepItemButton
                   $isActive={currentStep === 3}
                   $isCompleted={currentStep > 3}
-                  onClick={() => {
-                    if (formData.name && formData.personality && formData.situation) {
-                      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-                      setPlayingVoiceUrl(null);
-                      setCurrentStep(3);
-                    }
-                  }}
+                  onClick={() => formData.name && formData.personality && formData.situation && setCurrentStep(3)}
                   type="button"
                   disabled={!formData.name || !formData.personality || !formData.situation}
                 >
@@ -6414,13 +6200,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                 <StepItemButton
                   $isActive={currentStep === 4}
                   $isCompleted={false}
-                  onClick={() => {
-                    if (createdCharacterData) {
-                      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-                      setPlayingVoiceUrl(null);
-                      setCurrentStep(4);
-                    }
-                  }}
+                  onClick={() => createdCharacterData && setCurrentStep(4)}
                   type="button"
                   disabled={!createdCharacterData}
                 >
@@ -6524,8 +6304,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                           type="button"
                           onClick={() => {
                             if ((formData.name || '').trim().length >= 2 && (formData.personality || '').trim().length > 0) {
-                              if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-                              setPlayingVoiceUrl(null);
                               setCurrentStep(2);
                             }
                           }}
@@ -6616,11 +6394,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px' }}>
                       <motion.button
                         type="button"
-                        onClick={() => {
-                          if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-                          setPlayingVoiceUrl(null);
-                          setCurrentStep(1);
-                        }}
+                        onClick={() => setCurrentStep(1)}
                         style={{
                           padding: '12px 24px',
                           background: 'rgba(40, 40, 50, 0.4)',
@@ -6642,8 +6416,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         type="button"
                         onClick={() => {
                           if ((formData.situation || '').trim().length > 0) {
-                            if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-                            setPlayingVoiceUrl(null);
                             setCurrentStep(3);
                           }
                         }}
@@ -7436,7 +7208,9 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                                   if (response.ok) {
                                                     // Обновляем список голосов
                                                     const voicesResponse = await fetch('/api/v1/characters/available-voices', {
-                                                      headers: { 'Authorization': `Bearer ${token}` }
+                                                      headers: {
+                                                        'Authorization': `Bearer ${token}`
+                                                      }
                                                     });
                                                     if (voicesResponse.ok) {
                                                       const voicesData = await voicesResponse.json();
@@ -8079,16 +7853,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                       })()}
                     </FormField>
 
-
-
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '24px' }}>
                       <motion.button
                         type="button"
-                        onClick={() => {
-                          if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-                          setPlayingVoiceUrl(null);
-                          setCurrentStep(2);
-                        }}
+                        onClick={() => setCurrentStep(2)}
                         style={{
                           padding: '8px 16px',
                           background: 'rgba(40, 40, 50, 0.4)',
@@ -8108,10 +7876,6 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                       </motion.button>
                       <ContinueButton
                         type="submit"
-                        onClick={() => {
-                          if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-                          setPlayingVoiceUrl(null);
-                        }}
                         disabled={isLoading ||
                           (formData.name || '').trim().length < 2 ||
                           (formData.personality || '').trim().length === 0 ||
@@ -8333,27 +8097,15 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                               try {
                                 const token = localStorage.getItem('authToken');
                                 if (token) {
-                                  // Отправляем полные данные, чтобы избежать ошибки валидации
-                                  const updateData = {
-                                    name: createdCharacterData.name,
-                                    personality: createdCharacterData.personality,
-                                    situation: createdCharacterData.situation,
-                                    instructions: createdCharacterData.instructions,
-                                    appearance: createdCharacterData.appearance || formData.appearance,
-                                    location: createdCharacterData.location || formData.location,
-                                    voice_id: createdCharacterData.voice_id || formData.voice_id,
-                                    voice_url: createdCharacterData.voice_url || formData.voice_url,
-                                    remove_default_instructions: !hasDefaultInstructions,
-                                    tags: formData.tags
-                                  };
-
                                   await fetch(API_CONFIG.CHARACTER_EDIT_FULL(createdCharacterData.name), {
                                     method: 'PUT',
                                     headers: {
                                       'Content-Type': 'application/json',
                                       'Authorization': `Bearer ${token}`
                                     },
-                                    body: JSON.stringify(updateData)
+                                    body: JSON.stringify({
+                                      tags: formData.tags
+                                    })
                                   });
                                 }
                               } catch (error) {
@@ -8835,29 +8587,36 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                 </PreviewName>
               </LivePreviewCard>
 
-              {currentStep === 3 && (
-                <TagSelector
-                  availableTags={availableTags}
-                  selectedTags={formData.tags}
-                  onToggle={(tagName) => {
-                    const isActive = formData.tags.includes(tagName);
-                    if (isActive) {
-                      setFormData(prev => ({
-                        ...prev,
-                        tags: prev.tags.filter(t => t !== tagName)
-                      }));
-                    } else {
-                      setFormData(prev => ({
-                        ...prev,
-                        tags: [...prev.tags, tagName]
-                      }));
-                    }
-                  }}
-                />
-              )}
-
               {/* ОБЛАКО ТЕГОВ ДЛЯ ВЫБОРА */}
-
+              <TagSelectionLabel>Доступные теги</TagSelectionLabel>
+              <TagsSelectionContainer>
+                {availableTags.map((tag, idx) => {
+                  const isActive = formData.tags.includes(tag.name);
+                  return (
+                    <SelectableTag
+                      key={tag.slug || idx}
+                      type="button"
+                      $active={isActive}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (isActive) {
+                          setFormData(prev => ({
+                            ...prev,
+                            tags: prev.tags.filter(t => t !== tag.name)
+                          }));
+                        } else {
+                          setFormData(prev => ({
+                            ...prev,
+                            tags: [...prev.tags, tag.name]
+                          }));
+                        }
+                      }}
+                    >
+                      {tag.name}
+                    </SelectableTag>
+                  );
+                })}
+              </TagsSelectionContainer>
 
 
 
@@ -8872,27 +8631,15 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                       try {
                         const token = localStorage.getItem('authToken');
                         if (token) {
-                          // Отправляем полные данные, чтобы избежать ошибки валидации
-                          const updateData = {
-                            name: createdCharacterData.name,
-                            personality: createdCharacterData.personality,
-                            situation: createdCharacterData.situation,
-                            instructions: createdCharacterData.instructions,
-                            appearance: createdCharacterData.appearance || formData.appearance,
-                            location: createdCharacterData.location || formData.location,
-                            voice_id: createdCharacterData.voice_id || formData.voice_id,
-                            voice_url: createdCharacterData.voice_url || formData.voice_url,
-                            remove_default_instructions: !hasDefaultInstructions,
-                            tags: formData.tags
-                          };
-
                           await fetch(API_CONFIG.CHARACTER_EDIT_FULL(createdCharacterData.name), {
                             method: 'PUT',
                             headers: {
                               'Content-Type': 'application/json',
                               'Authorization': `Bearer ${token}`
                             },
-                            body: JSON.stringify(updateData)
+                            body: JSON.stringify({
+                              tags: formData.tags
+                            })
                           });
                         }
                       } catch (error) {
