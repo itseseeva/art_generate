@@ -319,8 +319,7 @@ class ProfitActivateService:
         # Проверяем, есть ли уже подписка
         existing_subscription = await self.get_user_subscription(user_id)
         
-        import logging
-        logger = logging.getLogger(__name__)
+
         
         if existing_subscription:
             old_type = existing_subscription.subscription_type.value
