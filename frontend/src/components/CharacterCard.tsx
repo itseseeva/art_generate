@@ -107,7 +107,7 @@ const VerificationBadge = styled.div`
   svg {
     width: 14px;
     height: 14px;
-    color: #2ecc71;
+    color: #ffffff;
     stroke-width: 4px;
   }
 `;
