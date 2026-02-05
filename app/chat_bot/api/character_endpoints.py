@@ -1649,10 +1649,12 @@ async def get_available_character_tags(db: AsyncSession = Depends(get_db)):
                 
             tags.append({"name": name, "slug": slug})
             
-        # 3. Принудительно добавляем "Пользовательские", если его нет
-        if not has_user_custom:
-            from slugify import slugify
-            tags.append({"name": "Пользовательские", "slug": slugify("Пользовательские")})
+        # 3. Принудительно добавляем базовые теги, если их нет (на случай очистки БД или ошибок миграции)
+        base_tags = ["Пользовательские", "Original", "NSFW", "SFW", "Незнакомка", "Фэнтези", "Киберпанк", "Учитель", "Слуга", "Босс", "Доминирование"]
+        for b_name in base_tags:
+            if not any(t["name"].lower() == b_name.lower() for t in tags):
+                from slugify import slugify
+                tags.append({"name": b_name, "slug": slugify(b_name)})
             
         # Удаляем дубликаты по имени (на всякий случай после нормализации)
         seen_names = set()
@@ -1679,22 +1681,29 @@ async def get_characters_by_tag_slug(slug: str, db: AsyncSession = Depends(get_d
         from app.chat_bot.models.models import CharacterAvailableTag, CharacterDB
         from slugify import slugify
         
-        # Находим тег по slug
+        # Находим тег по slug или имени (slugified)
+        # Учитываем алиасы (незнакомка/незнакомец)
+        slug_aliases = {
+            "neznakomka": "neznakomec",
+            "neznakomec": "neznakomka"
+        }
+        
+        search_slugs = [slug]
+        if slug in slug_aliases:
+            search_slugs.append(slug_aliases[slug])
+
         result = await db.execute(
-            select(CharacterAvailableTag).where(CharacterAvailableTag.slug == slug)
+            select(CharacterAvailableTag).where(CharacterAvailableTag.slug.in_(search_slugs))
         )
         tag = result.scalars().first()
         
         if not tag:
-            # Если тег не найден по slug, пробуем найти по совпадению slugify(name)
+            # Если не нашли по прямому слагу, ищем по всем тегам ( slugify(name) == slug )
             all_tags_result = await db.execute(select(CharacterAvailableTag))
             all_tags = all_tags_result.scalars().all()
             for t in all_tags:
-                if t.slug == slug or slugify(t.name) == slug:
+                if slugify(t.name) == slug or (slug in slug_aliases and slugify(t.name) == slug_aliases[slug]):
                     tag = t
-                    if not t.slug:
-                        t.slug = slug
-                        await db.commit()
                     break
                     
         # Если тег всё еще не найден, но он может существовать в именах тегов персонажей
@@ -1722,7 +1731,18 @@ async def get_characters_by_tag_slug(slug: str, db: AsyncSession = Depends(get_d
                 await db.refresh(tag)
         
         if not tag:
-            raise HTTPException(status_code=404, detail="Tag not found")
+            # Если тег всё еще не найден ни в БД, ни в персонажах,
+            # мы создаем "виртуальный" объект тега на лету, чтобы не возвращать 404.
+            # Это позволит пользователю увидеть страницу (пустую или с fallback описанием).
+            virtual_name = slug.capitalize()
+            # Пытаемся найти красивое имя в маппинге
+            for m_name in SEO_MAPPING.keys():
+                if slugify(m_name) == slug:
+                    virtual_name = m_name
+                    break
+            
+            tag = CharacterAvailableTag(name=virtual_name, slug=slug)
+            logger.info(f"[TAG_FIX] Создан виртуальный тег для слаг '{slug}': name='{tag.name}'")
             
         # Получаем SEO-описание из БД, если есть
         seo_description = tag.seo_description if tag.seo_description and tag.seo_description.strip() else None
