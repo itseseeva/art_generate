@@ -1634,13 +1634,17 @@ async def get_available_character_tags(db: AsyncSession = Depends(get_db)):
             if name.lower() in ["user created", "user-created"]:
                 continue
                 
-            # 2. Переименовываем "незнакомец" -> "незнакомка"
+            # 2. Переименовываем "незнакомец" -> "Незнакомка"
             if name.lower() == "незнакомец":
                 name = "Незнакомка"
                 from slugify import slugify
                 slug = slugify(name)
             
-            if name == "Пользовательские":
+            # Нормализуем "пользовательские"
+            if name.lower() == "пользовательские":
+                name = "Пользовательские"
+                from slugify import slugify
+                slug = slugify(name)
                 has_user_custom = True
                 
             tags.append({"name": name, "slug": slug})
@@ -1650,9 +1654,17 @@ async def get_available_character_tags(db: AsyncSession = Depends(get_db)):
             from slugify import slugify
             tags.append({"name": "Пользовательские", "slug": slugify("Пользовательские")})
             
+        # Удаляем дубликаты по имени (на всякий случай после нормализации)
+        seen_names = set()
+        unique_tags = []
+        for tag in tags:
+            if tag["name"] not in seen_names:
+                unique_tags.append(tag)
+                seen_names.add(tag["name"])
+            
         # Сортируем по имени
-        tags.sort(key=lambda x: x["name"])
-        return tags
+        unique_tags.sort(key=lambda x: x["name"])
+        return unique_tags
     except Exception as e:
         logger.error(f"Error fetching available tags: {e}")
         return []
@@ -1713,14 +1725,14 @@ async def get_characters_by_tag_slug(slug: str, db: AsyncSession = Depends(get_d
             raise HTTPException(status_code=404, detail="Tag not found")
             
         # Получаем SEO-описание из БД, если есть
-        seo_description = tag.seo_description
+        seo_description = tag.seo_description if tag.seo_description and tag.seo_description.strip() else None
         
         # Если в БД нет, пробуем из маппинга (fallback)
         if not seo_description:
             mapping_name = tag.name
-            if mapping_name.lower() == "незнакомец":
+            if mapping_name.lower() in ["незнакомец", "незнакомка"]:
                 mapping_name = "Незнакомка"
-            elif mapping_name.lower() in ["user created", "user-created"]:
+            elif mapping_name.lower() in ["user created", "user-created", "пользовательские"]:
                 mapping_name = "Пользовательские"
                 
             seo_description = SEO_MAPPING.get(mapping_name)

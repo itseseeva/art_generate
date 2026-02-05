@@ -25,7 +25,7 @@ from app.utils.redis_cache import cache_delete_pattern
 
 
 TARGET_EMAIL = "eseeva228@gmail.com"
-TAG_USER_CREATED = "пользовательские"
+TAG_USER_CREATED = "Пользовательские"
 TAG_ORIGINAL = "Original"
 TAG_USER_CREATED_OLD = "User created"  # устаревший тег, удаляем при миграции
 
