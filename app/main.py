@@ -520,7 +520,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
     allow_headers=["*"],
     expose_headers=["*"],
 )
@@ -1330,7 +1330,7 @@ async def assets(path: str):
     return JSONResponse(status_code=404, content={"detail": "Asset not found"})
 
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 @app.get("/frontend")
 @app.get("/frontend/")
 @app.get("/characters")
