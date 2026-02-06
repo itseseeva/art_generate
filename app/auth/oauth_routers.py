@@ -42,6 +42,7 @@ async def google_login(
     
     # Считываем режим (popup или redirect)
     mode = request.query_params.get("mode", "redirect")
+    redirect_path = request.query_params.get("redirect")
     
     # Генерируем состояние для защиты от CSRF
     state = generate_state()
@@ -52,7 +53,8 @@ async def google_login(
         "state": state,
         "ip": client_ip,
         "timestamp": datetime.now().isoformat(),
-        "mode": mode
+        "mode": mode,
+        "redirect": redirect_path
     }
     await cache_set(f"oauth_state:{state}", json.dumps(state_data), ttl_seconds=600)
     logger.info(f"[OAUTH] State saved to Redis: {state[:10]}... mode={mode}")
@@ -62,6 +64,8 @@ async def google_login(
     request.session["oauth_ip"] = client_ip
     request.session["oauth_timestamp"] = datetime.now().isoformat()
     request.session["oauth_mode"] = mode
+    if redirect_path:
+        request.session["oauth_redirect"] = redirect_path
     
     # Генерируем URL для редиректа на Google
     auth_url = generate_oauth_url("google", state)
@@ -95,6 +99,7 @@ async def google_callback(
     # КРИТИЧЕСКИ ВАЖНО: проверяем state из Redis (основной) или сессии (резервный)
     session_state = None
     oauth_mode = "redirect"
+    redirect_path = None
     state_valid = False
     
     # Проверяем, не был ли уже обработан этот код (защита от повторных запросов от Google)
@@ -128,6 +133,7 @@ async def google_callback(
                 state_data = redis_state_data
             session_state = state_data.get("state")
             oauth_mode = state_data.get("mode", "redirect")
+            redirect_path = state_data.get("redirect")
             logger.info(f"[OAUTH] State found in Redis: {state[:10]}..., mode={oauth_mode}")
             # Удаляем использованное состояние из Redis
             await cache_delete(f"oauth_state:{state}")
@@ -141,12 +147,14 @@ async def google_callback(
         session_state = request.session.get("oauth_state")
         if session_state and session_state == state:
             oauth_mode = request.session.get("oauth_mode", "redirect")
+            redirect_path = request.session.get("oauth_redirect")
             logger.info(f"[OAUTH] State found in session: {session_state[:10]}..., mode={oauth_mode}")
             # Очищаем сессию
             request.session.pop("oauth_state", None)
             request.session.pop("oauth_ip", None)
             request.session.pop("oauth_timestamp", None)
             request.session.pop("oauth_mode", None)
+            request.session.pop("oauth_redirect", None)
             state_valid = True
     
     # Проверяем валидность state
@@ -260,6 +268,13 @@ async def google_callback(
         
         if needs_username:
             redirect_url += "&needs_username=true"
+            
+        if redirect_path:
+            # Важно: URL уже содержит параметры, поэтому всегда используем &
+            # Если redirect_path уже закодирован, он будет передан как есть
+            from urllib.parse import quote
+            # Кодируем redirect_path, чтобы спецсимволы не ломали URL
+            redirect_url += f"&redirect={quote(redirect_path)}"
         
         return RedirectResponse(url=redirect_url)
         

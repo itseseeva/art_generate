@@ -553,10 +553,10 @@ function App() {
       window.history.replaceState({ page: 'admin-logs' }, '', '/admin-logs');
     } else if (path.includes('/login')) {
       setCurrentPage('login');
-      window.history.replaceState({ page: 'login' }, '', '/login');
+      window.history.replaceState({ page: 'login' }, '', path + window.location.search);
     } else if (path.includes('/register')) {
       setCurrentPage('register');
-      window.history.replaceState({ page: 'register' }, '', '/register');
+      window.history.replaceState({ page: 'register' }, '', path + window.location.search);
     } else if (path.startsWith('/tags/')) {
       const slug = path.split('/tags/')[1];
       if (slug) {
@@ -1952,9 +1952,35 @@ function App() {
                 coins: authResult.userInfo.coins || 0,
                 id: authResult.userInfo.id
               });
-              // Переходим на главную после успешной авторизации
-              setCurrentPage('main');
-              window.history.pushState({ page: 'main' }, '', '/');
+              // Переходим на нужную страницу или на главную после успешной авторизации
+              const urlParams = new URLSearchParams(window.location.search);
+              const redirectPath = urlParams.get('redirect');
+
+              if (redirectPath && (redirectPath.startsWith('/') || redirectPath.startsWith(window.location.origin))) {
+                const targetPath = redirectPath.startsWith(window.location.origin)
+                  ? redirectPath.substring(window.location.origin.length)
+                  : redirectPath;
+
+                if (targetPath.includes('/create-character')) {
+                  setCurrentPage('create-character');
+                  window.history.pushState({ page: 'create-character' }, '', targetPath);
+                } else if (targetPath.includes('/chat')) {
+                  const targetUrlParams = new URLSearchParams(targetPath.split('?')[1] || '');
+                  const charId = targetUrlParams.get('character');
+                  setCurrentPage('chat');
+                  window.history.pushState({ page: 'chat', character: charId }, '', targetPath);
+                } else if (targetPath.includes('/shop')) {
+                  setCurrentPage('shop');
+                  window.history.pushState({ page: 'shop' }, '', targetPath);
+                } else {
+                  // Для остальных путей просто перезагружаем/переходим
+                  window.location.href = targetPath;
+                  return;
+                }
+              } else {
+                setCurrentPage('main');
+                window.history.pushState({ page: 'main' }, '', '/');
+              }
             }
           } catch (error) {
 

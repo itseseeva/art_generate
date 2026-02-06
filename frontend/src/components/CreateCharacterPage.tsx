@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import styled, { keyframes, css } from 'styled-components';
 import { authManager } from '../utils/auth';
@@ -10,7 +10,7 @@ import { API_CONFIG } from '../config/api';
 import { motion, AnimatePresence } from 'motion/react';
 import { CircularProgress } from './ui/CircularProgress';
 import { FiX as CloseIcon, FiClock, FiImage, FiSettings, FiCheckCircle, FiCpu } from 'react-icons/fi';
-import { Plus, Sparkles, Zap, X, Upload, CheckCircle, AlertCircle, Camera } from 'lucide-react';
+import { Plus, Sparkles, Zap, X, Upload, CheckCircle, AlertCircle, Camera, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import { BiCoinStack } from 'react-icons/bi';
 import { fetchPromptByImage } from '../utils/prompt';
 
@@ -4387,40 +4387,342 @@ interface PromptSuggestionsProps {
   onSelect: (value: string) => void;
 }
 
-const PromptSuggestions: React.FC<PromptSuggestionsProps> = ({ prompts, onSelect }) => {
+// --- New PromptSuggestions Implementation ---
+
+const SuggestionsContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(30, 30, 40, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 12px;
+  backdrop-filter: blur(10px);
+`;
+
+const SearchInputContainer = styled.div`
+  position: relative;
+  width: 100%;
+`;
+
+const SearchIconWrapper = styled.div`
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+`;
+
+const StyledSearchInput = styled.input`
+  width: 100%;
+  padding: 10px 12px 10px 36px;
+  background: rgba(20, 20, 30, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: white;
+  font-size: 13px;
+  outline: none;
+  transition: all 0.2s;
+  font-family: 'Inter', sans-serif;
+
+  &:focus {
+    border-color: rgba(139, 92, 246, 0.5);
+    background: rgba(30, 30, 45, 0.8);
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.1);
+  }
+  
+  &::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+  }
+`;
+
+const CategoriesContainer = styled.div`
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+`;
+
+const CategoryTab = styled.button<{ $isActive: boolean }>`
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: ${props => props.$isActive ? 'rgba(139, 92, 246, 0.3)' : 'rgba(255, 255, 255, 0.05)'};
+  border: 1px solid ${props => props.$isActive ? 'rgba(139, 92, 246, 0.6)' : 'rgba(255, 255, 255, 0.1)'};
+  color: ${props => props.$isActive ? 'white' : 'rgba(255, 255, 255, 0.6)'};
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+  font-family: 'Inter', sans-serif;
+
+  &:hover {
+    background: ${props => props.$isActive ? 'rgba(139, 92, 246, 0.4)' : 'rgba(255, 255, 255, 0.1)'};
+    color: white;
+  }
+`;
+
+const NewTagsGrid = styled(motion.div)`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 4px;
+  align-content: flex-start;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+  }
+`;
+
+const NewTagChip = styled(motion.button)`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: left;
+  line-height: 1.3;
+  
+  &:hover {
+    background: rgba(139, 92, 246, 0.1);
+    border-color: rgba(139, 92, 246, 0.4);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+  
+  svg {
+    opacity: 0.6;
+    color: #8b5cf6;
+  }
+`;
+
+const SuggestionExpandButton = styled.button<{ $isExpanded: boolean }>`
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 8px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.2);
+  padding: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none;
+
+  &:hover {
+    color: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  &:focus {
+    outline: none;
+  }
+
+  svg {
+    transform: rotate(${props => props.$isExpanded ? '180deg' : '0deg'});
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    ${props => !props.$isExpanded && 'animation: arrowBounce 2s infinite;'}
+  }
+
+  @keyframes arrowBounce {
+    0%, 20%, 50%, 80%, 100% {
+      transform: translateY(0);
+    }
+    40% {
+      transform: translateY(4px);
+    }
+    60% {
+      transform: translateY(2px);
+    }
+  }
+`;
+
+interface PromptSuggestionsProps {
+  prompts: (string | { label: string; value: string })[];
+  onSelect: (value: string) => void;
+  title?: string; // Optional title for the section
+}
+
+const PromptSuggestions: React.FC<PromptSuggestionsProps> = ({ prompts, onSelect, title }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState<string>('all');
+
+  // Internal helper to get category
+  const getCategory = (label: string): string => {
+    const lower = label.toLowerCase();
+
+    // Logic from getTagCategory
+    const kindKeywords = ['добрая', 'заботливая', 'нежная', 'ласковая', 'терпеливая', 'понимающая', 'романтичная', 'мечтательная'];
+    const strictKeywords = ['строгая', 'требовательная', 'жесткая', 'суровая', 'серьезная', 'сосредоточенная', 'доминирующая', 'госпожа'];
+    const sadKeywords = ['грустная', 'одинокая'];
+    const cheerfulKeywords = ['веселая', 'радостная', 'оптимистичная'];
+
+    if (kindKeywords.some(k => lower.includes(k))) return 'kind';
+    if (strictKeywords.some(k => lower.includes(k))) return 'strict';
+
+    // For locations/general
+    if (lower.includes('пляж') || lower.includes('море') || lower.includes('природа')) return 'nature';
+    if (lower.includes('город') || lower.includes('квартира') || lower.includes('дом') || lower.includes('офис')) return 'urban';
+
+    return 'neutral';
+  };
+
+  const getCategoryLabel = (cat: string) => {
+    switch (cat) {
+      case 'kind': return 'Милые / Добрые';
+      case 'strict': return 'Строгие / Властные';
+      case 'nature': return 'Природа';
+      case 'urban': return 'Город / Дом';
+      case 'neutral': return 'Общее / Другое';
+      default: return 'Все';
+    }
+  };
+
+  // Memoize categories and filtered items
+  const { allItems, categories } = useMemo(() => {
+    const items = prompts.map(p => {
+      const isObj = typeof p === 'object' && p !== null;
+      const label = isObj ? (p as any).label : (p as string);
+      const value = isObj ? (p as any).value : (p as string);
+      const category = getCategory(label);
+      return { label, value, category };
+    });
+
+    const uniqueCategories = Array.from(new Set(items.map(i => i.category)));
+    // Always have 'all', then others sorted 
+    const cats = ['all', ...uniqueCategories.sort()];
+
+    return { allItems: items, categories: cats };
+  }, [prompts]);
+
+  const allCategories = useMemo(() => {
+    return categories.map(cat => ({
+      id: cat,
+      label: getCategoryLabel(cat)
+    }));
+  }, [categories]);
+
+  const filteredPrompts = useMemo(() => {
+    return allItems.filter(item => {
+      const matchesSearch = item.label.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = activeCategory === 'all' || item.category === activeCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [allItems, searchQuery, activeCategory]);
 
   return (
     <div className="relative mt-2">
-      <TagsContainer $isExpanded={isExpanded}>
-        {prompts.map((prompt, idx) => {
-          const isObject = typeof prompt === 'object' && prompt !== null;
-          const label = isObject ? (prompt as { label: string }).label : (prompt as string);
-          const value = isObject ? (prompt as { value: string }).value : (prompt as string);
+      {!isExpanded ? (
+        <SuggestionExpandButton
+          $isExpanded={false}
+          type="button"
+          onClick={(e) => { e.preventDefault(); setIsExpanded(true); }}
+          title={title || "Показать варианты"}
+        >
+          <ChevronDown size={22} />
+        </SuggestionExpandButton>
+      ) : (
+        <>
+          <SuggestionsContainer>
+            <div className="flex justify-between items-center mb-1">
+              <div style={{ fontSize: '12px', fontWeight: 600, color: '#8b5cf6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                {title || "Варианты"}
+              </div>
+            </div>
 
-          return (
-            <TagButton
-              key={idx}
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                onSelect(value);
-              }}
-              title={isObject ? value : label} // Show full text on hover
+            <SearchInputContainer>
+              <SearchIconWrapper>
+                <Search size={14} />
+              </SearchIconWrapper>
+              <StyledSearchInput
+                type="text"
+                placeholder="Поиск промптов..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </SearchInputContainer>
+
+            <CategoriesContainer>
+              {allCategories.map(cat => (
+                <CategoryTab
+                  key={cat.id}
+                  $isActive={activeCategory === cat.id}
+                  onClick={(e) => { e.preventDefault(); setActiveCategory(cat.id); }}
+                >
+                  {cat.label}
+                </CategoryTab>
+              ))}
+            </CategoriesContainer>
+
+            <NewTagsGrid
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
             >
-              <Plus size={8} /> {label}
-            </TagButton>
-          );
-        })}
-      </TagsContainer>
-      <ExpandButton
-        $isExpanded={isExpanded}
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
-      </ExpandButton>
+              {filteredPrompts.map((item, idx) => (
+                <NewTagChip
+                  key={idx}
+                  type="button"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onSelect(item.value);
+                  }}
+                >
+                  <Plus size={10} />
+                  {item.label}
+                </NewTagChip>
+              ))}
+              {filteredPrompts.length === 0 && (
+                <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: '12px', textAlign: 'center', width: '100%', padding: '20px' }}>
+                  Ничего не найдено
+                </div>
+              )}
+            </NewTagsGrid>
+          </SuggestionsContainer>
+
+          <SuggestionExpandButton
+            $isExpanded={true}
+            type="button"
+            onClick={(e) => { e.preventDefault(); setIsExpanded(false); }}
+            title="Скрыть"
+          >
+            <ChevronDown size={22} />
+          </SuggestionExpandButton>
+        </>
+      )}
     </div>
   );
 };
@@ -4507,7 +4809,6 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [showPremiumModal, setShowPremiumModal] = useState(false);
 
   const [subscriptionStats, setSubscriptionStats] = useState<any>(null);
-  const [isPhotoPromptTagsExpanded, setIsPhotoPromptTagsExpanded] = useState(false);
 
   const loadSubscriptionStats = async () => {
     try {
@@ -4533,6 +4834,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       setAuthCheckComplete(true);
     }
   }, [propIsAuthenticated, propUserInfo]);
+
   const [createdCharacterData, setCreatedCharacterData] = useState<any>(null);
   const [customPrompt, setCustomPrompt] = useState('');
   const [customPromptManuallySet, setCustomPromptManuallySet] = useState(false);
@@ -4551,11 +4853,6 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authCheckComplete, setAuthCheckComplete] = useState(false);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
-  const [isPersonalityTagsExpanded, setIsPersonalityTagsExpanded] = useState(false);
-  const [isSituationTagsExpanded, setIsSituationTagsExpanded] = useState(false);
-  const [isInstructionTagsExpanded, setIsInstructionTagsExpanded] = useState(false);
-  const [isAppearanceTagsExpanded, setIsAppearanceTagsExpanded] = useState(false);
-  const [isLocationTagsExpanded, setIsLocationTagsExpanded] = useState(false);
 
   const [selectedModel, setSelectedModel] = useState<'anime-realism' | 'anime' | 'realism'>('anime-realism');
   const [showGenerateTooltip, setShowGenerateTooltip] = useState(false);
@@ -6271,34 +6568,16 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         rows={3}
                         required
                       />
-                      <TagsContainer $isExpanded={isPersonalityTagsExpanded}>
-                        {PERSONALITY_PROMPTS.map((tag, idx) => (
-                          <TagButton
-                            key={idx}
-                            type="button"
-                            $category={getTagCategory(tag.label)}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              const newVal = formData.personality ? formData.personality + ' ' + tag.value : tag.value;
-                              setFormData(prev => ({ ...prev, personality: newVal }));
-                              const fakeEvent = { target: { name: 'personality', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
-                              handleInputChange(fakeEvent);
-                            }}
-                          >
-                            <Plus size={8} /> {tag.label}
-                          </TagButton>
-                        ))}
-                      </TagsContainer>
-                      {PERSONALITY_PROMPTS.length > 4 && (
-                        <ExpandButton
-                          $isExpanded={isPersonalityTagsExpanded}
-                          onClick={() => setIsPersonalityTagsExpanded(!isPersonalityTagsExpanded)}
-                        >
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points={isPersonalityTagsExpanded ? "18 15 12 9 6 15" : "6 9 12 15 18 9"}></polyline>
-                          </svg>
-                        </ExpandButton>
-                      )}
+                      <PromptSuggestions
+                        prompts={PERSONALITY_PROMPTS}
+                        title="Варианты характера"
+                        onSelect={(val) => {
+                          const newVal = formData.personality ? formData.personality + ' ' + val : val;
+                          setFormData(prev => ({ ...prev, personality: newVal }));
+                          const fakeEvent = { target: { name: 'personality', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
+                          handleInputChange(fakeEvent);
+                        }}
+                      />
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
                         <motion.button
                           type="button"
@@ -6361,34 +6640,16 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         rows={5}
                         required
                       />
-                      <TagsContainer $isExpanded={isSituationTagsExpanded}>
-                        {SITUATION_PROMPTS.map((tag, idx) => (
-                          <TagButton
-                            key={idx}
-                            type="button"
-                            $category="neutral"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              const newVal = formData.situation ? formData.situation + ' ' + tag.value : tag.value;
-                              setFormData(prev => ({ ...prev, situation: newVal }));
-                              const fakeEvent = { target: { name: 'situation', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
-                              handleInputChange(fakeEvent);
-                            }}
-                          >
-                            <Plus size={8} /> {tag.label}
-                          </TagButton>
-                        ))}
-                      </TagsContainer>
-                      {SITUATION_PROMPTS.length > 4 && (
-                        <ExpandButton
-                          $isExpanded={isSituationTagsExpanded}
-                          onClick={() => setIsSituationTagsExpanded(!isSituationTagsExpanded)}
-                        >
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points={isSituationTagsExpanded ? "18 15 12 9 6 15" : "6 9 12 15 18 9"}></polyline>
-                          </svg>
-                        </ExpandButton>
-                      )}
+                      <PromptSuggestions
+                        prompts={SITUATION_PROMPTS}
+                        title="Варианты ситуации"
+                        onSelect={(val) => {
+                          const newVal = formData.situation ? formData.situation + ' ' + val : val;
+                          setFormData(prev => ({ ...prev, situation: newVal }));
+                          const fakeEvent = { target: { name: 'situation', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
+                          handleInputChange(fakeEvent);
+                        }}
+                      />
                     </FormField>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px' }}>
@@ -6470,34 +6731,16 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         rows={4}
                         required
                       />
-                      <TagsContainer $isExpanded={isInstructionTagsExpanded}>
-                        {INSTRUCTION_PROMPTS.map((tag, idx) => (
-                          <TagButton
-                            key={idx}
-                            type="button"
-                            $category="neutral"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              const newVal = formData.instructions ? formData.instructions + ' ' + tag : tag;
-                              setFormData(prev => ({ ...prev, instructions: newVal }));
-                              const fakeEvent = { target: { name: 'instructions', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
-                              handleInputChange(fakeEvent);
-                            }}
-                          >
-                            <Plus size={8} /> {tag}
-                          </TagButton>
-                        ))}
-                      </TagsContainer>
-                      {INSTRUCTION_PROMPTS.length > 4 && (
-                        <ExpandButton
-                          $isExpanded={isInstructionTagsExpanded}
-                          onClick={() => setIsInstructionTagsExpanded(!isInstructionTagsExpanded)}
-                        >
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points={isInstructionTagsExpanded ? "18 15 12 9 6 15" : "6 9 12 15 18 9"}></polyline>
-                          </svg>
-                        </ExpandButton>
-                      )}
+                      <PromptSuggestions
+                        prompts={INSTRUCTION_PROMPTS}
+                        title="Варианты инструкций"
+                        onSelect={(val) => {
+                          const newVal = formData.instructions ? formData.instructions + ' ' + val : val;
+                          setFormData(prev => ({ ...prev, instructions: newVal }));
+                          const fakeEvent = { target: { name: 'instructions', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
+                          handleInputChange(fakeEvent);
+                        }}
+                      />
                     </FormField>
 
                     <FormField>
@@ -6510,34 +6753,16 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         placeholder="Опишите внешность персонажа для генерации фото: цвет волос, цвет глаз, рост, телосложение, стиль одежды..."
                         rows={4}
                       />
-                      <TagsContainer $isExpanded={isAppearanceTagsExpanded}>
-                        {APPEARANCE_PROMPTS.map((tag, idx) => (
-                          <TagButton
-                            key={idx}
-                            type="button"
-                            $category="neutral"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              const newVal = formData.appearance ? formData.appearance + ' ' + tag.value : tag.value;
-                              setFormData(prev => ({ ...prev, appearance: newVal }));
-                              const fakeEvent = { target: { name: 'appearance', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
-                              handleInputChange(fakeEvent);
-                            }}
-                          >
-                            <Plus size={8} /> {tag.label}
-                          </TagButton>
-                        ))}
-                      </TagsContainer>
-                      {APPEARANCE_PROMPTS.length > 4 && (
-                        <ExpandButton
-                          $isExpanded={isAppearanceTagsExpanded}
-                          onClick={() => setIsAppearanceTagsExpanded(!isAppearanceTagsExpanded)}
-                        >
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points={isAppearanceTagsExpanded ? "18 15 12 9 6 15" : "6 9 12 15 18 9"}></polyline>
-                          </svg>
-                        </ExpandButton>
-                      )}
+                      <PromptSuggestions
+                        prompts={APPEARANCE_PROMPTS}
+                        title="Варианты внешности"
+                        onSelect={(val) => {
+                          const newVal = formData.appearance ? formData.appearance + ' ' + val : val;
+                          setFormData(prev => ({ ...prev, appearance: newVal }));
+                          const fakeEvent = { target: { name: 'appearance', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
+                          handleInputChange(fakeEvent);
+                        }}
+                      />
                     </FormField>
                     <FormField>
                       <FormLabel htmlFor="location">Локация (для фото)</FormLabel>
@@ -6549,33 +6774,16 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         placeholder="Опишите локацию для фото: интерьер, обстановка, атмосфера..."
                         rows={4}
                       />
-                      <TagsContainer $isExpanded={isLocationTagsExpanded}>
-                        {LOCATION_PROMPTS.map((tag, idx) => (
-                          <TagButton
-                            key={idx}
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              const newVal = formData.location ? formData.location + ' ' + tag.value : tag.value;
-                              setFormData(prev => ({ ...prev, location: newVal }));
-                              const fakeEvent = { target: { name: 'location', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
-                              handleInputChange(fakeEvent);
-                            }}
-                          >
-                            <Plus size={8} /> {tag.label}
-                          </TagButton>
-                        ))}
-                      </TagsContainer>
-                      {LOCATION_PROMPTS.length > 4 && (
-                        <ExpandButton
-                          $isExpanded={isLocationTagsExpanded}
-                          onClick={() => setIsLocationTagsExpanded(!isLocationTagsExpanded)}
-                        >
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points={isLocationTagsExpanded ? "18 15 12 9 6 15" : "6 9 12 15 18 9"}></polyline>
-                          </svg>
-                        </ExpandButton>
-                      )}
+                      <PromptSuggestions
+                        prompts={LOCATION_PROMPTS}
+                        title="Варианты локации"
+                        onSelect={(val) => {
+                          const newVal = formData.location ? formData.location + ' ' + val : val;
+                          setFormData(prev => ({ ...prev, location: newVal }));
+                          const fakeEvent = { target: { name: 'location', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
+                          handleInputChange(fakeEvent);
+                        }}
+                      />
                     </FormField>
 
                     {/* Выбор голоса */}
@@ -7954,9 +8162,9 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
                       {/* Теги-помощники */}
                       <div className="relative">
-                        <TagsContainer $isExpanded={isPhotoPromptTagsExpanded}>
-                          {[
-                            // Нормальные промпты
+                        <PromptSuggestions
+                          title="Помощники"
+                          prompts={[
                             { label: 'Высокая детализация', value: 'высокая детализация, реализм, 8к разрешение' },
                             { label: 'Киберпанк', value: 'стиль киберпанк, неоновое освещение, футуристично' },
                             { label: 'Фэнтези', value: 'фэнтези стиль, магическая атмосфера' },
@@ -7981,32 +8189,15 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                             { label: 'Повседневный образ', value: 'в повседневной одежде, комфортный стиль' },
                             { label: 'Спортивный стиль', value: 'в спортивной одежде, активный образ жизни' },
                             { label: 'Романтичная атмосфера', value: 'романтичная обстановка, мягкое освещение, уют' }
-                          ].slice(0, isPhotoPromptTagsExpanded ? undefined : 6).map((tag, idx) => (
-                            <TagButton
-                              key={idx}
-                              type="button"
-                              $category="neutral"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                const separator = customPrompt.length > 0 && !customPrompt.endsWith(', ') && !customPrompt.endsWith(',') ? ', ' : '';
-                                const newValue = customPrompt + separator + tag.value;
-                                setCustomPrompt(newValue);
-                                customPromptRef.current = newValue;
-                                setCustomPromptManuallySet(true);
-                              }}
-                            >
-                              <Plus size={8} /> {tag.label}
-                            </TagButton>
-                          ))}
-                        </TagsContainer>
-                        <ExpandButton
-                          $isExpanded={isPhotoPromptTagsExpanded}
-                          onClick={() => setIsPhotoPromptTagsExpanded(!isPhotoPromptTagsExpanded)}
-                        >
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points={isPhotoPromptTagsExpanded ? "18 15 12 9 6 15" : "6 9 12 15 18 9"}></polyline>
-                          </svg>
-                        </ExpandButton>
+                          ]}
+                          onSelect={(val) => {
+                            const separator = customPrompt.length > 0 && !customPrompt.endsWith(', ') && !customPrompt.endsWith(',') ? ', ' : '';
+                            const newValue = customPrompt + separator + val;
+                            setCustomPrompt(newValue);
+                            customPromptRef.current = newValue;
+                            setCustomPromptManuallySet(true);
+                          }}
+                        />
                       </div>
                     </FormField>
 
