@@ -97,17 +97,17 @@ class GenerationTracker {
           const result = statusData.result || {};
           const imageUrl = result.image_url || result.cloud_url || statusData.image_url || statusData.cloud_url;
 
-          console.log('[GenerationTracker] Генерация завершена:', { taskId, imageUrl, status: statusData.status });
+
 
           if (imageUrl) {
             // Уведомляем всех слушателей ПЕРЕД удалением генерации
-            console.log('[GenerationTracker] Уведомляем слушателей о завершении');
+
             this.notifyListeners(taskId, imageUrl, generation.characterName, generation.characterId);
             // Удаляем генерацию после уведомления
             this.removeGeneration(taskId);
           }
         } else if (statusData.status === 'FAILURE' || statusData.status === 'ERROR') {
-          console.log('[GenerationTracker] Генерация завершилась с ошибкой:', taskId);
+
           // Генерация завершилась с ошибкой - удаляем из отслеживания
           this.removeGeneration(taskId);
         }
@@ -129,19 +129,19 @@ class GenerationTracker {
    * При добавлении с небольшой задержкой отдаёт все ожидающие уведомления
    */
   addListener(callback: (taskId: string, imageUrl: string, characterName?: string, characterId?: string | number) => void): () => void {
-    console.log('[GenerationTracker] Добавлен новый слушатель, всего слушателей:', this.listeners.size + 1);
+
     this.listeners.add(callback);
-    
-    console.log('[GenerationTracker] Проверяем ожидающие уведомления через 100мс');
+
+
     // Отдаём ожидающие уведомления с небольшой задержкой,
     // чтобы React успел полностью смонтировать компонент
     setTimeout(() => {
-      console.log('[GenerationTracker] Вызываем flushPendingNotifications');
+
       this.flushPendingNotifications();
     }, 100);
-    
+
     return () => {
-      console.log('[GenerationTracker] Слушатель удалён');
+
       this.listeners.delete(callback);
     };
   }
@@ -150,18 +150,15 @@ class GenerationTracker {
    * Отправляет все ожидающие уведомления текущим слушателям и очищает очередь
    */
   private flushPendingNotifications(): void {
-    console.log('[GenerationTracker] flushPendingNotifications:', {
-      pendingCount: this.pendingNotifications.length,
-      listenersCount: this.listeners.size
-    });
+
 
     if (this.pendingNotifications.length === 0) {
-      console.log('[GenerationTracker] Нет ожидающих уведомлений');
+
       return;
     }
 
     if (this.listeners.size === 0) {
-      console.log('[GenerationTracker] Нет слушателей для отправки ожидающих уведомлений');
+
       return;
     }
 
@@ -171,23 +168,23 @@ class GenerationTracker {
       n => now - n.timestamp < this.PENDING_NOTIFICATION_TTL
     );
 
-    console.log('[GenerationTracker] Отправляем', validNotifications.length, 'валидных уведомлений');
+
 
     // Отправляем каждое уведомление слушателям
     for (const notification of validNotifications) {
-      console.log('[GenerationTracker] Отправка уведомления:', notification);
+
       this.listeners.forEach(callback => {
         try {
           callback(notification.taskId, notification.imageUrl, notification.characterName, notification.characterId);
         } catch (error) {
-          console.error('[GenerationTracker] Ошибка при отправке ожидающего уведомления:', error);
+
         }
       });
     }
 
     // Очищаем очередь
     this.pendingNotifications = [];
-    console.log('[GenerationTracker] Очередь очищена');
+
   }
 
   /**
@@ -195,16 +192,9 @@ class GenerationTracker {
    * Если слушателей нет, добавляет уведомление в очередь ожидания
    */
   private notifyListeners(taskId: string, imageUrl: string, characterName?: string, characterId?: string | number): void {
-    console.log('[GenerationTracker] notifyListeners вызван:', { 
-      taskId, 
-      imageUrl, 
-      characterName, 
-      characterId,
-      listenersCount: this.listeners.size 
-    });
 
     if (this.listeners.size === 0) {
-      console.log('[GenerationTracker] Нет слушателей, добавляем в очередь');
+
       // Нет активных слушателей - добавляем в очередь ожидания
       this.pendingNotifications.push({
         taskId,
@@ -213,16 +203,16 @@ class GenerationTracker {
         characterId,
         timestamp: Date.now()
       });
-      console.log('[GenerationTracker] Размер очереди:', this.pendingNotifications.length);
+
       return;
     }
 
-    console.log('[GenerationTracker] Уведомляем', this.listeners.size, 'слушателей');
+
     this.listeners.forEach(callback => {
       try {
         callback(taskId, imageUrl, characterName, characterId);
       } catch (error) {
-        console.error('[GenerationTracker] Ошибка в слушателе:', error);
+
       }
     });
   }

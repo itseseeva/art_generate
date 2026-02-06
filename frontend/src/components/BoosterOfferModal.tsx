@@ -617,7 +617,7 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
           type: 'booster_payment'
         };
         localStorage.setItem('pending_chat_history', JSON.stringify(chatHistoryData));
-        console.log('[BOOSTER_PAYMENT] История чата сохранена в localStorage:', chatHistoryData);
+
       }
 
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/kassa/create_payment/`, {

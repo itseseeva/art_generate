@@ -8,6 +8,9 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
 
   return {
+    esbuild: {
+      drop: ['console', 'debugger'],
+    },
     plugins: [react()],
     resolve: {
       alias: {

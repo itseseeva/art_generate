@@ -5240,20 +5240,16 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('handleSubmit called', {
-      isLoading: isLoading,
-      submitInProgress: submitInProgressRef.current,
-      timeSinceLastSubmit: Date.now() - lastSubmitTimeRef.current
-    });
+
 
     // Guard against rapid submissions (2 second cooldown)
     if (Date.now() - lastSubmitTimeRef.current < 2000) {
-      console.log('Submission blocked by cooldown');
+
       return;
     }
 
     if (submitInProgressRef.current) {
-      console.log('Submission blocked by submitInProgressRef');
+
       return;
     }
 
@@ -7336,7 +7332,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                     }
                     onClick={(e) => {
                       e.preventDefault();
-                      console.log('Save button clicked');
+
                       navigateToChatAfterSaveRef.current = true;
                       formRef.current?.requestSubmit();
                     }}

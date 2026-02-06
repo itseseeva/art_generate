@@ -1096,10 +1096,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     try {
       const s = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(SUBSCRIPTION_STATS_KEY) : null;
       const parsed = s ? JSON.parse(s) : null;
-      console.log('[SUBSCRIPTION_INIT] Загружены данные из sessionStorage:', parsed);
+
       return parsed;
     } catch {
-      console.log('[SUBSCRIPTION_INIT] Ошибка чтения из sessionStorage');
+
       return null;
     }
   });
@@ -1107,17 +1107,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const setSubscriptionStats = useCallback((update: React.SetStateAction<typeof subscriptionStats>) => {
     setSubscriptionStatsState(prev => {
       const next = typeof update === 'function' ? (update as (p: typeof prev) => typeof prev)(prev) : update;
-      console.log('[SUBSCRIPTION_UPDATE] Обновление stats:', { prev, next });
+
       try {
         if (next) {
           sessionStorage.setItem(SUBSCRIPTION_STATS_KEY, JSON.stringify(next));
-          console.log('[SUBSCRIPTION_UPDATE] Сохранено в sessionStorage:', next);
+
         } else {
           sessionStorage.removeItem(SUBSCRIPTION_STATS_KEY);
-          console.log('[SUBSCRIPTION_UPDATE] Удалено из sessionStorage');
+
         }
       } catch (e) {
-        console.error('[SUBSCRIPTION_UPDATE] Ошибка записи в sessionStorage:', e);
+
       }
       return next;
     });
@@ -1196,14 +1196,14 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
         if (response.ok) {
           const statsData = await response.json();
-          console.log('[SUBSCRIPTION_FETCH] Получены данные с бэкенда:', statsData);
+
           const subType = statsData?.subscription_type || 'free';
           setFetchedSubscriptionType(subType);
 
           // Мерджим с существующими данными, используя Math.max для used полей
           setSubscriptionStats((prev) => {
             if (!prev) {
-              console.log('[SUBSCRIPTION_FETCH] Нет предыдущих данных, используем данные с сервера');
+
               return statsData;
             }
             const prevUsedMessages = prev.used_messages ?? 0;
@@ -1215,19 +1215,15 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               used_messages: Math.max(serverUsedMessages, prevUsedMessages),
               used_photos: Math.max(serverUsedPhotos, prevUsedPhotos)
             };
-            console.log('[SUBSCRIPTION_FETCH] Мердж данных:', {
-              prev: { used_messages: prevUsedMessages, used_photos: prevUsedPhotos },
-              server: { used_messages: serverUsedMessages, used_photos: serverUsedPhotos },
-              result: { used_messages: merged.used_messages, used_photos: merged.used_photos }
-            });
+
             return merged;
           });
         } else {
-          console.log('[SUBSCRIPTION_FETCH] Ответ не OK, статус:', response.status);
+
           setFetchedSubscriptionType('free');
         }
       } catch (error) {
-        console.error('Ошибка загрузки статистики подписки:', error);
+
         setFetchedSubscriptionType('free');
       }
     };
@@ -1683,11 +1679,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     try {
       const token = authManager.getToken();
       if (!token) {
-        console.log('[LOAD_STATS] Нет токена, выход');
+
         return;
       }
 
-      console.log('[LOAD_STATS] Запрос к /api/v1/profit/stats/');
+
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/profit/stats/`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -1696,10 +1692,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
       if (response.ok) {
         const stats = await response.json();
-        console.log('[LOAD_STATS] Получены данные:', stats);
+
         setSubscriptionStats((prev) => {
           if (!prev) {
-            console.log('[LOAD_STATS] Нет предыдущих данных, используем сервер');
+
             return stats;
           }
           const prevUsedMessages = prev.used_messages ?? 0;
@@ -1711,21 +1707,21 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             used_messages: Math.max(serverUsedMessages, prevUsedMessages),
             used_photos: Math.max(serverUsedPhotos, prevUsedPhotos)
           };
-          console.log('[LOAD_STATS] Мердж:', { prev: prevUsedMessages, server: serverUsedMessages, result: merged.used_messages });
+
           return merged;
         });
       } else {
-        console.log('[LOAD_STATS] Ответ не OK, статус:', response.status);
+
       }
     } catch (error) {
-      console.error('[LOAD_STATS] Ошибка загрузки статистики подписки:', error);
+
     }
   }, []);
 
   // Слушаем события обновления подписки
   useEffect(() => {
     const handleSubscriptionUpdate = () => {
-      console.log('[CHAT_CONTAINER] Получено событие subscription-update, обновляем статистику');
+
       loadSubscriptionStats();
     };
 
@@ -3257,12 +3253,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         const age = Date.now() - (historyData.timestamp || 0);
 
         if (age > maxAge) {
-          console.log('[CHAT_RESTORE] История устарела, очищаем localStorage');
+
           localStorage.removeItem('pending_chat_history');
         } else {
           // Проверяем, что это история для бустера (не для других типов оплаты)
           if (historyData.type !== 'booster_payment') {
-            console.log('[CHAT_RESTORE] Неизвестный тип истории, игнорируем');
+
             localStorage.removeItem('pending_chat_history');
           } else {
             // Проверяем, что история для текущего персонажа
@@ -3270,7 +3266,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             const currentCharacterId = expectedCharacter?.id || expectedCharacter?.name || currentCharacter?.id || currentCharacter?.name;
 
             if (savedCharacterId === currentCharacterId || savedCharacterId === identifier) {
-              console.log('[CHAT_RESTORE] Восстановление истории чата из localStorage:', historyData);
+
 
               // Восстанавливаем сообщения
               const restoredMessages: Message[] = historyData.messages.map((msg: any) => ({
@@ -3282,18 +3278,18 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
               // Очищаем localStorage после успешного восстановления
               localStorage.removeItem('pending_chat_history');
-              console.log('[CHAT_RESTORE] История успешно восстановлена и очищена из localStorage');
+
 
               isLoadingHistoryRef.current = null;
               return; // Не загружаем историю с сервера, используем восстановленную
             } else {
-              console.log('[CHAT_RESTORE] История для другого персонажа, игнорируем');
+
             }
           }
         }
       }
     } catch (e) {
-      console.error('[CHAT_RESTORE] Ошибка восстановления истории:', e);
+
       // Продолжаем загрузку с сервера при ошибке
     }
 
@@ -4134,12 +4130,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
     // Логируем для отладки
     if (paidAlbumStatus && currentCharacter) {
-      console.log('[DEBUG_ALBUM_STATUS]', {
-        char: currentCharacter.name,
-        isUnlocked,
-        status: paidAlbumStatus,
-        sub: normalizedSubscriptionType
-      });
+
     }
 
     return isUnlocked;

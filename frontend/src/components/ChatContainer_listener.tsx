@@ -2,7 +2,7 @@
 // Слушаем события обновления подписки
 useEffect(() => {
     const handleSubscriptionUpdate = () => {
-        console.log('[CHAT_CONTAINER] Получено событие subscription-update, обновляем статистику');
+
         loadSubscriptionStats();
     };
 
