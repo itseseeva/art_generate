@@ -2653,14 +2653,14 @@ border - color: rgba(255, 0, 0, 0.3);
 `;
 
 const VoicePhoto = styled.img<{ $voiceName?: string; $isSelected?: boolean }>`
-width: 100 %;
-height: 100 %;
-min - width: 100 %;
-min - height: 100 %;
-border - radius: 50 %;
-object - fit: cover;
-position: relative;
-z - index: 2;
+  width: 100%;
+  height: 100%;
+  min-width: 100%;
+  min-height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  position: relative;
+  z-index: 2;
 
   /* Эффект Shimmer для премиальных голосов */
   ${props => {
@@ -2699,46 +2699,39 @@ z - index: 2;
         }
       }
     `;
-  }
-  }
-object - position: ${props => {
+  }}
+  
+  object-position: ${props => {
     if (props.$voiceName) {
       const name = props.$voiceName.toLowerCase();
-      // Сдвигаем фото "Катя" влево, чтобы лицо было по центру
       if (name.includes('катя')) {
         return '30% center';
       }
-      // Сдвигаем фото "Мита" вправо, чтобы оно лучше вписывалось в рамку
       if (name.includes('мита')) {
         return '0% center';
       }
     }
     return 'center center';
-  }
-  };
-border: 2px solid rgba(100, 100, 100, 0.3);
-transition: border - color 0.3s ease, transform 0.3s ease;
-display: block;
-margin: 0;
-padding: 0;
-overflow: hidden;
-position: relative;
-z - index: 2;
-transform: ${props => {
+  }};
+  
+  /* Убрана уродливая обводка */
+  transition: transform 0.3s ease;
+  display: block;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  position: relative;
+  z-index: 2;
+  
+  transform: ${props => {
     if (props.$voiceName) {
       const name = props.$voiceName.toLowerCase();
-      // Для "Катя" уменьшаем масштаб на 20% (1.44 * 0.8 = 1.152)
       if (name.includes('катя')) {
         return 'scale(1.152)';
       }
     }
-    return 'scale(1.2)'; // Базовое увеличение на 20% для остальных фото
-  }
-  };
-  
-  ${VoicePhotoContainer}: hover & {
-  ${props => !props.$isSelected ? 'border-color: rgba(139, 92, 246, 0.6);' : ''}
-  }
+    return 'scale(1.2)';
+  }};
 `;
 
 const PremiumVoiceName = styled.div`
@@ -3465,31 +3458,31 @@ gap: 8px;
 `;
 
 const ExpandButton = styled.button<{ $isExpanded: boolean }>`
-width: 32px;
-height: 24px;
-display: flex;
-justify - content: center;
-align - items: center;
-margin: 4px auto;
-background: transparent;
-border: none;
-color: rgba(255, 255, 255, 0.15);
-cursor: pointer;
-transition: color 0.2s ease;
-outline: none;
+  width: 32px;
+  height: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 4px auto;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+  transition: color 0.2s ease;
+  outline: none;
 
   &:hover {
-  color: rgba(255, 255, 255, 0.4);
-}
+    color: rgba(255, 255, 255, 0.4);
+  }
 
   &:focus {
-  outline: none;
-}
+    outline: none;
+  }
 
   svg {
-  transform: rotate(${props => props.$isExpanded ? '180deg' : '0deg'});
-  transition: transform 0.4s cubic - bezier(0.4, 0, 0.2, 1);
-}
+    transform: rotate(${props => props.$isExpanded ? '180deg' : '0deg'});
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
 `;
 
 const ProgressBarContainer = styled.div`
@@ -3581,213 +3574,213 @@ border: 1px solid ${({ $limitReached }) =>
 `;
 
 const PhotoList = styled.div`
-display: grid!important;
-grid - template - columns: repeat(auto - fill, minmax(200px, 1fr))!important;
-gap: ${theme.spacing.sm} !important;
-margin - top: ${theme.spacing.md};
-padding: ${theme.spacing.md};
-visibility: visible!important;
-opacity: 1!important;
-width: 100 % !important;
-box - sizing: border - box!important;
-align - content: start!important;
-grid - auto - rows: 300px!important;
-contain: layout style paint;
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
+  gap: ${theme.spacing.sm} !important;
+  margin-top: ${theme.spacing.md};
+  padding: ${theme.spacing.md};
+  visibility: visible !important;
+  opacity: 1 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  align-content: start !important;
+  grid-auto-rows: 300px !important;
+  contain: layout style paint;
 
-@media(max - width: 768px) {
-  grid - template - columns: 1fr!important;
-  padding: ${theme.spacing.xs};
-  gap: ${theme.spacing.xs} !important;
-  margin - top: ${theme.spacing.sm};
-}
+  @media(max-width: 768px) {
+    grid-template-columns: 1fr !important;
+    padding: ${theme.spacing.xs};
+    gap: ${theme.spacing.xs} !important;
+    margin-top: ${theme.spacing.sm};
+  }
 `;
 
 const PhotoTile = styled.div`
-position: relative;
-border - radius: ${theme.borderRadius.lg};
-overflow: hidden;
-border: 2px solid rgba(120, 120, 120, 0.3);
-box - shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-background: rgba(30, 30, 30, 0.95);
-transition: transform 0.2s ease, box - shadow 0.2s ease, border - color 0.2s ease;
-height: 300px;
-min - height: 300px;
-max - height: 300px;
-display: block!important;
-visibility: visible!important;
-opacity: 1!important;
-cursor: pointer;
-z - index: 1;
-will - change: transform;
-transform: translateZ(0);
-backface - visibility: hidden;
-contain: layout style paint;
+  position: relative;
+  border-radius: ${theme.borderRadius.lg};
+  overflow: hidden;
+  border: 2px solid rgba(120, 120, 120, 0.3);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  background: rgba(30, 30, 30, 0.95);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  height: 300px;
+  min-height: 300px;
+  max-height: 300px;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  cursor: pointer;
+  z-index: 1;
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  contain: layout style paint;
 
-@media(max - width: 768px) {
-  height: 180px;
-  min - height: 180px;
-  border - width: 1px;
-  border - radius: ${theme.borderRadius.md};
-}
+  @media(max-width: 768px) {
+    height: 180px;
+    min-height: 180px;
+    border-width: 1px;
+    border-radius: ${theme.borderRadius.md};
+  }
 
   &:hover {
-  transform: translateY(-2px);
-  box - shadow: 0 0 20px rgba(232, 121, 249, 0.5);
-  border - color: rgba(180, 180, 180, 0.5);
-  z - index: 10;
-}
-
-@media(max - width: 768px) {
-    &:hover {
-    transform: none;
+    transform: translateY(-2px);
+    box-shadow: 0 0 20px rgba(232, 121, 249, 0.5);
+    border-color: rgba(180, 180, 180, 0.5);
+    z-index: 10;
   }
-}
+
+  @media(max-width: 768px) {
+    &:hover {
+      transform: none;
+    }
+  }
 `;
 
 const GenerationTimer = styled.div`
-position: absolute;
-top: 8px;
-right: 8px;
-background: rgba(15, 15, 15, 0.85);
-color: #fff;
-padding: 4px 8px;
-border - radius: 6px;
-font - size: 11px;
-font - weight: 600;
-pointer - events: none;
-z - index: 20;
-backdrop - filter: blur(8px);
-border: 1px solid rgba(255, 255, 255, 0.15);
-display: flex;
-align - items: center;
-gap: 4px;
-box - shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(15, 15, 15, 0.85);
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 20;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
 
-@media(max - width: 768px) {
-  top: 6px;
-  right: 6px;
-  padding: 3px 6px;
-  font - size: 10px;
-}
+  @media(max-width: 768px) {
+    top: 6px;
+    right: 6px;
+    padding: 3px 6px;
+    font-size: 10px;
+  }
 `;
 
 const PhotoImage = styled.img`
-width: 100 % !important;
-height: 100 % !important;
-object - fit: cover;
-display: block!important;
-visibility: visible!important;
-opacity: 1!important;
-background: #333;
-cursor: pointer;
-user - select: none;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  background: #333;
+  cursor: pointer;
+  user-select: none;
 `;
 
 const PhotoOverlay = styled.div`
-position: absolute;
-left: 0;
-right: 0;
-bottom: 0;
-padding: ${theme.spacing.sm};
-display: flex!important;
-flex - direction: row;
-align - items: center;
-justify - content: center;
-gap: ${theme.spacing.xs};
-background: linear - gradient(180deg, transparent 0 %, rgba(0, 0, 0, 0.9) 100 %);
-opacity: 1;
-transition: opacity 0.3s ease;
-pointer - events: auto;
-height: 96px;
-min - height: 96px;
-will - change: opacity;
-transform: translateZ(0);
-backface - visibility: hidden;
-contain: layout style;
-
-@media(max - width: 768px) {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: ${theme.spacing.sm};
+  display: flex !important;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: ${theme.spacing.xs};
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.9) 100%);
   opacity: 1;
-  pointer - events: auto;
-  background: rgba(0, 0, 0, 0.7);
-  height: 72px;
-  min - height: 72px;
-  padding: ${theme.spacing.xs};
-}
+  transition: opacity 0.3s ease;
+  pointer-events: auto;
+  height: 96px;
+  min-height: 96px;
+  will-change: opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  contain: layout style;
+
+  @media(max-width: 768px) {
+    opacity: 1;
+    pointer-events: auto;
+    background: rgba(0, 0, 0, 0.7);
+    height: 72px;
+    min-height: 72px;
+    padding: ${theme.spacing.xs};
+  }
 `;
 
 const OverlayButtons = styled.div`
-display: flex;
-gap: 0.5rem;
-width: 100 %;
-justify - content: center;
-contain: layout;
-min - height: 32px;
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+  justify-content: center;
+  contain: layout;
+  min-height: 32px;
 `;
 
 /** Кнопка «Добавить» (жёлтая) / «Убрать» (фиолетовая) — компактная и стильная */
 const PhotoOverlayButton = styled.button<{ $variant?: 'add' | 'remove' }>`
-width: auto;
-min - width: 72px;
-padding: 0.25rem 0.5rem;
-min - height: 28px;
-touch - action: manipulation;
-background: ${props => props.$variant === 'remove'
+  width: auto;
+  min-width: 72px;
+  padding: 0.25rem 0.5rem;
+  min-height: 28px;
+  touch-action: manipulation;
+  background: ${props => props.$variant === 'remove'
     ? 'rgba(139, 92, 246, 0.85)'
     : 'rgba(234, 179, 8, 0.9)'
   };
-border: 1px solid ${props => props.$variant === 'remove'
+  border: 1px solid ${props => props.$variant === 'remove'
     ? 'rgba(167, 139, 250, 0.9)'
     : 'rgba(250, 204, 21, 0.9)'
   };
-border - radius: 6px;
-color: ${props => props.$variant === 'remove' ? '#fff' : '#1a1a1a'};
-font - size: 0.7rem;
-font - weight: 600;
-cursor: pointer;
-display: flex;
-align - items: center;
-justify - content: center;
-gap: 0.25rem;
-transition: background - color 0.2s ease, border - color 0.2s ease, transform 0.15s ease, box - shadow 0.2s ease;
-backdrop - filter: blur(10px);
-box - shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  color: ${props => props.$variant === 'remove' ? '#fff' : '#1a1a1a'};
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 
-  &: hover: not(: disabled) {
-  background: ${props => props.$variant === 'remove'
+  &:hover:not(:disabled) {
+    background: ${props => props.$variant === 'remove'
     ? 'rgba(139, 92, 246, 1)'
     : 'rgba(250, 204, 21, 1)'
   };
-  border - color: ${props => props.$variant === 'remove' ? 'rgba(167, 139, 250, 1)' : 'rgba(250, 204, 21, 1)'};
-  transform: scale(1.03);
-  box - shadow: 0 2px 8px ${props => props.$variant === 'remove' ? 'rgba(139, 92, 246, 0.35)' : 'rgba(234, 179, 8, 0.35)'};
-}
+    border-color: ${props => props.$variant === 'remove' ? 'rgba(167, 139, 250, 1)' : 'rgba(250, 204, 21, 1)'};
+    transform: scale(1.03);
+    box-shadow: 0 2px 8px ${props => props.$variant === 'remove' ? 'rgba(139, 92, 246, 0.35)' : 'rgba(234, 179, 8, 0.35)'};
+  }
 
-  &: active: not(: disabled) {
-  transform: scale(0.98);
-}
+  &:active:not(:disabled) {
+    transform: scale(0.98);
+  }
 
   &:disabled {
-  opacity: 0.6;
-  cursor: not - allowed;
-  transform: none;
-}
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
 
   svg {
-  width: 12px;
-  height: 12px;
-}
+    width: 12px;
+    height: 12px;
+  }
 
-@media(max - width: 768px) {
-  padding: 0.2rem 0.4rem;
-  font - size: 0.65rem;
-  min - width: 64px;
-  min - height: 26px;
+  @media(max-width: 768px) {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.65rem;
+    min-width: 64px;
+    min-height: 26px;
 
     svg {
-    width: 10px;
-    height: 10px;
+      width: 10px;
+      height: 10px;
+    }
   }
-}
 `;
 
 const OverlayButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
@@ -7396,74 +7389,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                         )}
                                       </>
                                     )}
-                                    {isUserVoice && isOwner && (
-                                      <div style={{ marginTop: '4px', display: 'flex', gap: '4px', justifyContent: 'center', position: 'relative', zIndex: 100 }}>
-                                        <button
-                                          style={{
-                                            width: 'auto',
-                                            minWidth: '100px',
-                                            padding: '3px 6px',
-                                            fontSize: '9px',
-                                            background: voice.is_public
-                                              ? 'rgba(100, 100, 100, 0.7)'
-                                              : 'rgba(255, 215, 0, 0.7)',
-                                            border: `1px solid ${voice.is_public ? 'rgba(100, 100, 100, 0.5)' : 'rgba(255, 215, 0, 0.5)'}`,
-                                            borderRadius: '6px',
-                                            color: voice.is_public ? 'white' : '#1a1a1a',
-                                            cursor: 'pointer',
-                                            fontWeight: '500',
-                                            transition: 'all 0.2s ease',
-                                            transform: 'scale(1)',
-                                            opacity: 0.8,
-                                            pointerEvents: 'auto'
-                                          }}
-                                          onMouseEnter={(e) => {
-                                            e.currentTarget.style.opacity = '1';
-                                            e.currentTarget.style.transform = 'scale(1.05)';
-                                          }}
-                                          onMouseLeave={(e) => {
-                                            e.currentTarget.style.opacity = '0.8';
-                                            e.currentTarget.style.transform = 'scale(1)';
-                                          }}
-                                          onClick={async (e) => {
-                                            e.stopPropagation();
-                                            e.preventDefault();
-                                            try {
-                                              const token = localStorage.getItem('authToken');
-                                              const uploadData = new FormData();
-                                              uploadData.append('is_public', String(!voice.is_public));
-
-                                              const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${voice.user_voice_id}/public`, {
-                                                method: 'PATCH',
-                                                headers: {
-                                                  'Authorization': `Bearer ${token}`
-                                                },
-                                                body: uploadData
-                                              });
-
-                                              if (response.ok) {
-                                                const voicesResponse = await fetch('/api/v1/characters/available-voices', {
-                                                  headers: {
-                                                    'Authorization': `Bearer ${token}`
-                                                  }
-                                                });
-                                                if (voicesResponse.ok) {
-                                                  const voicesData = await voicesResponse.json();
-                                                  setAvailableVoices(voicesData);
-                                                }
-                                              } else {
-                                                const error = await response.json();
-                                                alert('Ошибка изменения статуса: ' + (error.detail || 'Неизвестная ошибка'));
-                                              }
-                                            } catch (err) {
-                                              alert('Не удалось изменить статус. Проверьте консоль для деталей.');
-                                            }
-                                          }}
-                                        >
-                                          {voice.is_public ? 'Сделать приватным' : 'Сделать публичным'}
-                                        </button>
-                                      </div>
-                                    )}
                                   </VoicePhotoWrapper>
                                 );
                               })}
@@ -7473,16 +7398,17 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                           {/* Стрелочка для показа пользовательских голосов */}
                           {availableVoices.some((voice) => voice.is_user_voice) && (
                             <ExpandButton
+                              type="button"
                               $isExpanded={showUserVoices}
                               onClick={() => setShowUserVoices(!showUserVoices)}
-                              style={{ marginTop: '32px', gap: '8px' }}
                             >
                               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <polyline points="6 9 12 15 18 9"></polyline>
                               </svg>
-                              <span>{showUserVoices ? 'Скрыть пользовательские голоса' : 'Открыть пользовательские голоса'}</span>
                             </ExpandButton>
                           )}
+
+
 
                           {/* Общее модальное окно редактирования голоса — рендер в body, чтобы было по центру экрана */}
                           {editingVoicePhotoId && (() => {

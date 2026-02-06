@@ -372,30 +372,44 @@ const slideInLeftPopup = keyframes`
   }
 `;
 
-const SituationPopup = styled.div<{ $top: number; $left: number; $isRight: boolean }>`
-  position: fixed;
-  top: ${props => props.$top}px;
-  left: ${props => props.$left}px;
+const SituationPopup = styled.div<{ $isRight: boolean }>`
+  position: absolute;
+  top: 0;
+  ${props => props.$isRight ? 'left: 100%' : 'right: 100%'};
   width: 320px;
   height: 173px;
-  background: rgba(15, 23, 42, 0.7);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: rgba(13, 17, 23, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-radius: ${props => props.$isRight
-    ? `0 ${theme.borderRadius.lg} ${theme.borderRadius.lg} 0`
-    : `${theme.borderRadius.lg} 0 0 ${theme.borderRadius.lg}`};
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-left: ${props => props.$isRight ? 'none' : '1px solid rgba(255, 255, 255, 0.1)'};
-  border-right: ${props => props.$isRight ? '1px solid rgba(255, 255, 255, 0.1)' : 'none'};
+    ? `0 16px 16px 0`
+    : `16px 0 0 16px`};
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-left: ${props => props.$isRight ? 'none' : '1px solid rgba(255, 255, 255, 0.12)'};
+  border-right: ${props => props.$isRight ? '1px solid rgba(255, 255, 255, 0.12)' : 'none'};
   box-shadow: 
-    0 15px 35px rgba(0, 0, 0, 0.5),
-    inset 0 1px 1px rgba(255, 255, 255, 0.1);
+    0 25px 50px -12px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
   z-index: 10005;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: ${props => props.$isRight ? slideInRightPopup : slideInLeftPopup} 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   pointer-events: auto;
+  
+  /* Плавное появление (используем animation для запуска при монтировании) */
+  animation: situationFadeIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+
+  @keyframes situationFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
   
   @media (max-width: 768px) {
     display: none;
@@ -403,22 +417,23 @@ const SituationPopup = styled.div<{ $top: number; $left: number; $isRight: boole
 `;
 
 const SituationPopupHeader = styled.div`
-  padding: 16px 20px 12px;
+  padding: 14px 18px 10px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.02);
 `;
 
 const SituationPopupTitle = styled.h4`
   margin: 0;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 1.2px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.5);
+  color: #a78bfa; /* Мягкий фиолетовый акцент */
+  text-shadow: 0 0 10px rgba(167, 139, 250, 0.3);
 `;
 
 const SituationPopupBody = styled.div`
-  padding: 16px 20px 20px;
+  padding: 14px 18px 16px;
   overflow-y: auto;
   flex: 1;
   
@@ -431,21 +446,23 @@ const SituationPopupBody = styled.div`
   }
   
   &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 2px;
-    
-    &:hover {
-      background: rgba(255, 255, 255, 0.2);
-    }
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    transition: background 0.2s ease;
+  }
+  
+  &:hover::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
   }
 `;
 
 const SituationPopupText = styled.div`
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 14px;
-  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 13px;
+  line-height: 1.55;
+  font-weight: 400;
   white-space: pre-wrap;
-  font-family: inherit;
+  word-break: break-word;
 `;
 
 const AlbumButton = styled.button`
@@ -2392,8 +2409,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                   const rect = cardRef.current.getBoundingClientRect();
                   const isRight = rect.right + 320 < window.innerWidth;
                   setPopupPosition({
-                    top: rect.top,
-                    left: isRight ? rect.right - 2 : rect.left - 318,
+                    top: 0,
+                    left: 0,
                     isRight
                   });
                   setIsSituationHovered(true);
@@ -2802,6 +2819,30 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             <RatingCount $isActive={userRating === 'dislike'} $isLike={false}>{dislikesCount ?? 0}</RatingCount>
           </RatingButton>
         )}
+        {isSituationHovered && situation && !isMobile && (
+          <SituationPopup
+            $isRight={popupPosition.isRight}
+            onMouseEnter={() => {
+              if (situationHoverTimeoutRef.current) {
+                clearTimeout(situationHoverTimeoutRef.current);
+                situationHoverTimeoutRef.current = null;
+              }
+              setIsSituationHovered(true);
+            }}
+            onMouseLeave={() => {
+              situationHoverTimeoutRef.current = setTimeout(() => {
+                setIsSituationHovered(false);
+              }, 150);
+            }}
+          >
+            <SituationPopupHeader>
+              <SituationPopupTitle>Ролевая ситуация</SituationPopupTitle>
+            </SituationPopupHeader>
+            <SituationPopupBody>
+              <SituationPopupText>{situation}</SituationPopupText>
+            </SituationPopupBody>
+          </SituationPopup>
+        )}
       </CardWrapper>
       {isPersonalityModalOpen && createPortal(
         <PersonalityModal onClick={(e) => {
@@ -2900,33 +2941,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         isLoading={isLoadingPrompt}
         error={promptError}
       />
-      {isSituationHovered && situation && !isMobile && createPortal(
-        <SituationPopup
-          $top={popupPosition.top}
-          $left={popupPosition.left}
-          $isRight={popupPosition.isRight}
-          onMouseEnter={() => {
-            if (situationHoverTimeoutRef.current) {
-              clearTimeout(situationHoverTimeoutRef.current);
-              situationHoverTimeoutRef.current = null;
-            }
-            setIsSituationHovered(true);
-          }}
-          onMouseLeave={() => {
-            situationHoverTimeoutRef.current = setTimeout(() => {
-              setIsSituationHovered(false);
-            }, 150);
-          }}
-        >
-          <SituationPopupHeader>
-            <SituationPopupTitle>Ролевая ситуация</SituationPopupTitle>
-          </SituationPopupHeader>
-          <SituationPopupBody>
-            <SituationPopupText>{situation}</SituationPopupText>
-          </SituationPopupBody>
-        </SituationPopup>,
-        document.body
-      )}
+
     </>
   );
 };
