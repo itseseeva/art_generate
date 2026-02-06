@@ -20,7 +20,8 @@ sys.path.insert(0, str(project_root))
 from app.database.db import async_session_maker
 from app.models.user import Users
 from app.chat_bot.models.models import CharacterDB, CharacterAvailableTag
-from sqlalchemy import select, update
+from slugify import slugify
+from sqlalchemy import select, update, or_
 from app.utils.redis_cache import cache_delete_pattern
 
 
@@ -36,18 +37,25 @@ async def ensure_tags_exist(db) -> bool:
     """
     try:
         for tag_name in [TAG_USER_CREATED, TAG_ORIGINAL]:
+            expected_slug = slugify(tag_name)
+            
             result = await db.execute(
-                select(CharacterAvailableTag).where(CharacterAvailableTag.name == tag_name)
+                select(CharacterAvailableTag).where(
+                    or_(
+                        CharacterAvailableTag.name == tag_name,
+                        CharacterAvailableTag.slug == expected_slug
+                    )
+                )
             )
             existing_tag = result.scalar_one_or_none()
 
             if not existing_tag:
                 # Создаем тег
-                new_tag = CharacterAvailableTag(name=tag_name)
+                new_tag = CharacterAvailableTag(name=tag_name, slug=expected_slug)
                 db.add(new_tag)
                 print(f"[UPDATE_TAGS] Создан тег: {tag_name}")
             else:
-                print(f"[UPDATE_TAGS] Тег уже существует: {tag_name}")
+                print(f"[UPDATE_TAGS] Тег уже существует: {existing_tag.name} (slug: {existing_tag.slug})")
 
         await db.commit()
         return True
