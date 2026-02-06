@@ -649,6 +649,7 @@ export const MainPage: React.FC<MainPageProps> = ({
         comments: Number(char.comments) || 0,
         is_nsfw: char.is_nsfw === true,
         creator_username: char.creator_username,
+        prompt: char.prompt || char.full_prompt || '',
         raw: char
       };
     });

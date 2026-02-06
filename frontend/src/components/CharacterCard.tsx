@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
 import { motion, AnimatePresence } from 'motion/react';
 import { theme } from '../theme';
 import ElectricBorder from './ElectricBorder';
@@ -348,6 +348,104 @@ const ActionButton = styled.button<{ $variant?: 'edit' | 'delete' }>`
       height: 14px;
     }
   }
+`;
+
+const slideInRightPopup = keyframes`
+  from {
+    opacity: 0;
+    transform: translateX(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+`;
+
+const slideInLeftPopup = keyframes`
+  from {
+    opacity: 0;
+    transform: translateX(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+`;
+
+const SituationPopup = styled.div<{ $top: number; $left: number; $isRight: boolean }>`
+  position: fixed;
+  top: ${props => props.$top}px;
+  left: ${props => props.$left}px;
+  width: 320px;
+  height: 300px;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: ${props => props.$isRight
+    ? `0 ${theme.borderRadius.lg} ${theme.borderRadius.lg} 0`
+    : `${theme.borderRadius.lg} 0 0 ${theme.borderRadius.lg}`};
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: ${props => props.$isRight ? 'none' : '1px solid rgba(255, 255, 255, 0.1)'};
+  border-right: ${props => props.$isRight ? '1px solid rgba(255, 255, 255, 0.1)' : 'none'};
+  box-shadow: 
+    0 15px 35px rgba(0, 0, 0, 0.5),
+    inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  z-index: 10005;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: ${props => props.$isRight ? slideInRightPopup : slideInLeftPopup} 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: auto;
+  
+  @media (max-width: 768px) {
+    display: none;
+  }
+`;
+
+const SituationPopupHeader = styled.div`
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+`;
+
+const SituationPopupTitle = styled.h4`
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+`;
+
+const SituationPopupBody = styled.div`
+  padding: 16px 20px 20px;
+  overflow-y: auto;
+  flex: 1;
+  
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    
+    &:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+  }
+`;
+
+const SituationPopupText = styled.div`
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  font-family: inherit;
 `;
 
 const AlbumButton = styled.button`
@@ -1487,6 +1585,13 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     character?.is_nsfw === true
   );
 
+  const [isSituationHovered, setIsSituationHovered] = useState(false);
+  const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0, isRight: true });
+
+  const situation = useMemo(() => {
+    return extractRolePlayingSituation(character.prompt || '');
+  }, [character.prompt]);
+
   // Обновляем состояние избранного при изменении пропа
   // КРИТИЧЕСКИ ВАЖНО: если передан isFavoriteProp, используем его значение и отключаем проверку через API
   useEffect(() => {
@@ -2251,12 +2356,22 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             onMouseEnter={(e) => {
               e.stopPropagation();
               setIsHovered(true);
-              // Обновляем позицию сразу при hover
 
+              if (cardRef.current && situation && !isMobile) {
+                const rect = cardRef.current.getBoundingClientRect();
+                const isRight = rect.right + 320 < window.innerWidth;
+                setPopupPosition({
+                  top: rect.top,
+                  left: isRight ? rect.right - 2 : rect.left - 318,
+                  isRight
+                });
+                setIsSituationHovered(true);
+              }
             }}
             onMouseLeave={(e) => {
               // При уходе мыши с карточки
               setIsHovered(false);
+              setIsSituationHovered(false);
               // Проверяем, не переходим ли мы на overlay
               const relatedTarget = e.relatedTarget as HTMLElement | null;
               const isMovingToOverlay = relatedTarget &&
@@ -2536,7 +2651,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
             {!finalIsLocked && character.tags && character.tags.length > 0 && (
               <TagsContainerBottom $visible={!isHovered}>
-                {character.tags.slice(0, 3).map((tag: string, idx: number) => {
+                {Array.from(new Set(character.tags as string[])).slice(0, 3).map((tag: string, idx: number) => {
                   const slug = tag.toLowerCase()
                     .replace(/[^a-zа-я0-9\s-]/g, '')
                     .replace(/\s+/g, '-')
@@ -2741,6 +2856,21 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         isLoading={isLoadingPrompt}
         error={promptError}
       />
+      {isSituationHovered && situation && !isMobile && createPortal(
+        <SituationPopup
+          $top={popupPosition.top}
+          $left={popupPosition.left}
+          $isRight={popupPosition.isRight}
+        >
+          <SituationPopupHeader>
+            <SituationPopupTitle>Ролевая ситуация</SituationPopupTitle>
+          </SituationPopupHeader>
+          <SituationPopupBody>
+            <SituationPopupText>{situation}</SituationPopupText>
+          </SituationPopupBody>
+        </SituationPopup>,
+        document.body
+      )}
     </>
   );
 };

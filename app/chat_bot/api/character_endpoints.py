@@ -1452,7 +1452,7 @@ async def read_characters(
                 # Только для дефолтных голосов формируем voice_url из voice_id
                 voice_url_value = f"/default_character_voices/{char.voice_id}"
             
-            tags_list = char.tags if isinstance(getattr(char, 'tags', None), list) else []
+            tags_list = list(dict.fromkeys(char.tags)) if isinstance(getattr(char, 'tags', None), list) else []
             char_dict = {
                 "id": char.id,
                 "name": char.name or "",

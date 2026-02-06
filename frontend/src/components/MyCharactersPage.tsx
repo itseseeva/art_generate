@@ -72,7 +72,7 @@ const EmptyTitle = styled.h3`
 
 const EmptyDescription = styled.p`
   color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.md};
+  font-size: ${theme.fontSize.base};
   margin-bottom: ${theme.spacing.lg};
 `;
 
@@ -82,7 +82,7 @@ const CreateButton = styled.button`
   border: none;
   padding: ${theme.spacing.md} ${theme.spacing.lg};
   border-radius: ${theme.borderRadius.lg};
-  font-size: ${theme.fontSize.md};
+  font-size: ${theme.fontSize.base};
   font-weight: 600;
   cursor: pointer;
   transition: ${theme.transition.fast};
@@ -105,6 +105,7 @@ interface Character {
   dislikes?: number;
   views: number;
   comments: number;
+  prompt?: string;
 }
 
 interface MyCharactersPageProps {
@@ -130,12 +131,12 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
   const [characters, setCharacters] = useState<Character[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userInfo, setUserInfo] = useState<{username: string, coins: number} | null>(null);
+  const [userInfo, setUserInfo] = useState<{ username: string, coins: number } | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authCheckComplete, setAuthCheckComplete] = useState(false);
   const [favoriteCharacterIds, setFavoriteCharacterIds] = useState<Set<number>>(new Set());
-  const [characterRatings, setCharacterRatings] = useState<{[key: number]: {likes: number, dislikes: number}}>({});
+  const [characterRatings, setCharacterRatings] = useState<{ [key: number]: { likes: number, dislikes: number } }>({});
 
   // Используем ref для отслеживания, чтобы избежать повторных загрузок
   const isLoadingRef = useRef(false);
@@ -143,19 +144,19 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
 
   // Загрузка рейтингов персонажей
   const loadCharacterRatings = useCallback(async (charactersList: Character[]) => {
-    const ratings: {[key: number]: {likes: number, dislikes: number}} = {};
-    
+    const ratings: { [key: number]: { likes: number, dislikes: number } } = {};
+
     for (const char of charactersList) {
       const characterId = typeof char.id === 'number' ? char.id : parseInt(char.id, 10);
       if (isNaN(characterId)) continue;
-      
+
       try {
         const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.GET_CHARACTER_RATINGS(characterId)}`, {
           headers: {
             'Cache-Control': 'no-cache'
           }
         });
-        
+
         if (response.ok) {
           const data = await response.json();
           ratings[characterId] = {
@@ -167,7 +168,7 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
         // Игнорируем ошибки
       }
     }
-    
+
     setCharacterRatings(ratings);
   }, []);
 
@@ -185,7 +186,7 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (response.ok) {
         const favorites = await response.json();
         // Извлекаем ID избранных персонажей
@@ -200,7 +201,7 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
         setFavoriteCharacterIds(new Set());
       }
     } catch (error) {
-      
+
       setFavoriteCharacterIds(new Set());
     }
   }, []);
@@ -229,9 +230,9 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
 
       const userData = await userResponse.json();
       const currentUserId = userData?.id;
-      
+
       if (!currentUserId) {
-        
+
         setIsAuthenticated(false);
         return;
       }
@@ -244,15 +245,15 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
 
       if (response.ok) {
         const charactersData = await response.json();
-        
+
         // Защита от некорректных данных
         if (!Array.isArray(charactersData)) {
-          
+
           setCharacters([]);
           setIsAuthenticated(true);
           return;
         }
-        
+
         // Фильтруем только персонажей текущего пользователя по его ID
         const myCharacters = charactersData.filter((char: any) => {
           if (!char || !char.id) {
@@ -260,10 +261,10 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
           }
           return Number(char.user_id) === Number(currentUserId);
         });
-        
+
         // Загружаем фото из main_photos (как на главной странице)
         const photosMap: Record<string, string[]> = {};
-        
+
         for (const char of myCharacters) {
           if (!char || !char.main_photos) {
             continue;
@@ -282,7 +283,7 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
             try {
               parsedPhotos = JSON.parse(char.main_photos);
             } catch (e) {
-              
+
               parsedPhotos = [];
             }
           } else {
@@ -318,38 +319,39 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
             photosMap[normalizedKey] = photoUrls;
           }
         }
-        
+
         const formattedCharacters: Character[] = myCharacters
           .filter((char: any) => char && char.id != null) // Защита от null/undefined
           .map((char: any) => {
-          const normalizedKey = (char.name || char.display_name || '').toLowerCase();
+            const normalizedKey = (char.name || char.display_name || '').toLowerCase();
             const charName = char.name || char.display_name || 'Unknown';
-          return {
+            return {
               id: String(char.id || ''),
               name: charName,
-          description: char.character_appearance || 'No description available',
+              description: char.character_appearance || 'No description available',
               avatar: charName.charAt(0).toUpperCase(),
-            photos: photosMap[normalizedKey] || [],
-          tags: Array.isArray(char.tags) && char.tags.length ? char.tags : [],
-          author: 'Me',
-          likes: char.likes || 0,
-          dislikes: char.dislikes || 0,
-          views: char.views || 0,
-          comments: char.comments || 0
-          };
-        });
-        
+              photos: photosMap[normalizedKey] || [],
+              tags: Array.isArray(char.tags) && char.tags.length ? char.tags : [],
+              author: 'Me',
+              likes: char.likes || 0,
+              dislikes: char.dislikes || 0,
+              views: char.views || 0,
+              comments: char.comments || 0,
+              prompt: char.prompt || char.full_prompt || ''
+            };
+          });
+
         // Загружаем рейтинги для всех персонажей
         await loadCharacterRatings(formattedCharacters);
-        
+
         setCharacters(formattedCharacters);
         setIsAuthenticated(true);
       } else {
-        
+
         setIsAuthenticated(false);
       }
     } catch (error) {
-      
+
       setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
@@ -393,7 +395,7 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
               },
               body: JSON.stringify({ refresh_token: refreshToken })
             });
-            
+
             if (refreshResponse.ok) {
               const tokenData = await refreshResponse.json();
               authManager.setTokens(tokenData.access_token, tokenData.refresh_token);
@@ -402,7 +404,7 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
               return;
             }
           } catch (refreshError) {
-            
+
           }
         }
         // Если refresh не удался, удаляем токены
@@ -411,12 +413,12 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
         localStorage.removeItem('refreshToken');
       } else {
         // Для других ошибок не удаляем токены
-        
+
         setIsAuthenticated(false);
       }
     } catch (error) {
       // При сетевых ошибках не удаляем токены
-      
+
       setIsAuthenticated(false);
     } finally {
       setAuthCheckComplete(true);
@@ -441,26 +443,26 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
     if (hasLoadedRef.current || isLoadingRef.current) {
       return;
     }
-    
+
     isLoadingRef.current = true;
     hasLoadedRef.current = true;
-    
+
     const initPage = async () => {
       try {
-      await checkAuth();
-      
-      // Загружаем персонажей если есть токен
-      const token = localStorage.getItem('authToken');
-      if (token) {
-        await loadMyCharacters();
+        await checkAuth();
+
+        // Загружаем персонажей если есть токен
+        const token = localStorage.getItem('authToken');
+        if (token) {
+          await loadMyCharacters();
         }
       } catch (error) {
-        
+
         setIsLoading(false);
         isLoadingRef.current = false;
       }
     };
-    
+
     initPage();
   }, [checkAuth, loadMyCharacters]);
 
@@ -499,64 +501,64 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
       </BackgroundWrapper>
       <ContentWrapper>
         <div className="content-area vertical">
-        <GlobalHeader 
-          onShop={onShop}
-          onProfile={onProfile}
-        />
-        <CharactersGrid>
-          {isLoading ? (
-            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2rem', color: '#a8a8a8' }}>
-              Загрузка персонажей...
-            </div>
-          ) : characters.length === 0 ? (
-            <EmptyState>
-              <EmptyTitle>У вас пока нет персонажей</EmptyTitle>
-              <EmptyDescription>
-                Создайте своего первого персонажа, чтобы начать общение
-              </EmptyDescription>
-              <CreateButton onClick={onCreateCharacter}>
-                Создать персонажа
-              </CreateButton>
-            </EmptyState>
-          ) : (
-            characters
-              .filter((character) => character && character.id) // Защита от пустых персонажей
-              .map((character) => {
-              // Проверяем, находится ли персонаж в избранном
-              const characterId = typeof character.id === 'number' 
-                ? character.id 
-                  : parseInt(String(character.id || ''), 10);
-              const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
-              const rating = !isNaN(characterId) ? characterRatings[characterId] : null;
-              
-              return (
-                <CharacterCard
-                  key={character.id}
-                  character={{
-                    ...character,
-                    likes: rating ? rating.likes : character.likes || 0,
-                    dislikes: rating ? rating.dislikes : character.dislikes || 0
-                  }}
-                onClick={handleCardClick}
-                isAuthenticated={isAuthenticated}
-                onPhotoGeneration={onPhotoGeneration}
-                onPaidAlbum={onPaidAlbum}
-                  isFavorite={isFavorite}
-                  onFavoriteToggle={loadFavorites}
-                    onDelete={undefined}
-                />
-              );
-            })
-          )}
-        </CharactersGrid>
+          <GlobalHeader
+            onShop={onShop}
+            onProfile={onProfile}
+          />
+          <CharactersGrid>
+            {isLoading ? (
+              <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2rem', color: '#a8a8a8' }}>
+                Загрузка персонажей...
+              </div>
+            ) : characters.length === 0 ? (
+              <EmptyState>
+                <EmptyTitle>У вас пока нет персонажей</EmptyTitle>
+                <EmptyDescription>
+                  Создайте своего первого персонажа, чтобы начать общение
+                </EmptyDescription>
+                <CreateButton onClick={onCreateCharacter}>
+                  Создать персонажа
+                </CreateButton>
+              </EmptyState>
+            ) : (
+              characters
+                .filter((character) => character && character.id) // Защита от пустых персонажей
+                .map((character) => {
+                  // Проверяем, находится ли персонаж в избранном
+                  const characterId = typeof character.id === 'number'
+                    ? character.id
+                    : parseInt(String(character.id || ''), 10);
+                  const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
+                  const rating = !isNaN(characterId) ? characterRatings[characterId] : null;
+
+                  return (
+                    <CharacterCard
+                      key={character.id}
+                      character={{
+                        ...character,
+                        likes: rating ? rating.likes : character.likes || 0,
+                        dislikes: rating ? rating.dislikes : character.dislikes || 0
+                      }}
+                      onClick={handleCardClick}
+                      isAuthenticated={isAuthenticated}
+                      onPhotoGeneration={onPhotoGeneration}
+                      onPaidAlbum={onPaidAlbum}
+                      isFavorite={isFavorite}
+                      onFavoriteToggle={loadFavorites}
+                      onDelete={undefined}
+                    />
+                  );
+                })
+            )}
+          </CharactersGrid>
         </div>
       </ContentWrapper>
 
-        {/* Модальное окно авторизации */}
-        {isAuthModalOpen && (
-          <AuthModal
-            isOpen={isAuthModalOpen}
-            mode={authMode}
+      {/* Модальное окно авторизации */}
+      {isAuthModalOpen && (
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          mode={authMode}
           onClose={() => {
             setIsAuthModalOpen(false);
             setAuthMode('login');
@@ -574,8 +576,8 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
             // Перебрасываем на главную после входа
             onBackToMain();
           }}
-          />
-        )}
+        />
+      )}
     </MainContainer>
   );
 };
