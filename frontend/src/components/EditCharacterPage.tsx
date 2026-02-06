@@ -2828,6 +2828,10 @@ const EditButton = styled.button`
   z-index: 10000 !important;
   pointer-events: auto !important;
   transition: opacity 0.2s ease, background 0.2s ease, transform 0.2s ease;
+  outline: none;
+  &:focus {
+    outline: none;
+  }
   
   &:hover {
     opacity: 1 !important;
@@ -2859,6 +2863,10 @@ const DeleteButton = styled.button`
   z-index: 10000 !important;
   pointer-events: auto !important;
   transition: opacity 0.2s ease, background 0.2s ease, transform 0.2s ease;
+  outline: none;
+  &:focus {
+    outline: none;
+  }
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   
   &:hover {

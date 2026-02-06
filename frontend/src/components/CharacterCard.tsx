@@ -1066,6 +1066,10 @@ const RatingButton = styled.button<{ $isActive?: boolean; $isLike?: boolean }>`
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 1000;
   pointer-events: auto;
+  outline: none;
+  &:focus {
+    outline: none;
+  }
   position: absolute;
   visibility: visible;
   opacity: 1;
@@ -2372,7 +2376,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     <>
       <CardWrapper>
         {/* Side rating buttons are hidden as per user request to show stats on the card itself */}
-        {false && showRatings && (
+        {showRatings && (
           <RatingButton
             $isActive={userRating === 'like'}
             $isLike={true}
@@ -2809,7 +2813,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
 
         {/* Dislikes are hidden at user's request */}
-        {false && showRatings && (
+        {showRatings && (
           <RatingButton
             $isActive={userRating === 'dislike'}
             $isLike={false}
