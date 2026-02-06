@@ -67,7 +67,7 @@ services:
       - ../alembic:/app/alembic
       - ../alembic.ini:/app/alembic.ini
       - ../paid_gallery:/app/paid_gallery
-      - ../frontend/dist:/app/frontend/dist:ro
+      # - ../frontend/dist:/app/frontend/dist:ro # Теперь файлы внутри образа
     command: >
       sh -c "
       echo 'Проверка миграций...' &&

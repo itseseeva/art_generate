@@ -1,4 +1,12 @@
-# --- Stage 1: Build dependencies ---
+# --- Stage 1: Build Frontend (for SEO template) ---
+FROM node:20-alpine as frontend-builder
+WORKDIR /app
+COPY frontend/package*.json ./
+RUN npm install
+COPY frontend/ .
+RUN npm run build
+
+# --- Stage 2: Build dependencies ---
 FROM python:3.11-slim as builder
 
 WORKDIR /app
@@ -25,7 +33,7 @@ RUN pip install --upgrade pip setuptools wheel && \
     pip install --no-cache-dir packaging h2 httpx[http2] fish-audio-sdk && \
     pip install --default-timeout=1000 --no-cache-dir -r requirements.txt
 
-# --- Stage 2: Final image ---
+# --- Stage 3: Final image ---
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -39,6 +47,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy the virtual environment from builder
 COPY --from=builder /opt/venv /opt/venv
+
+# Copy frontend build results (needed for SEO index.html)
+COPY --from=frontend-builder /app/dist /app/frontend/dist
 
 # Ensure the app uses the virtual environment
 ENV PATH="/opt/venv/bin:$PATH"

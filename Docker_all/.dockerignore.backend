@@ -51,3 +51,8 @@ generation_logs/
 *.bak
 *.tmp
 
+# Frontend build artifacts
+frontend/dist/
+frontend/node_modules/
+node_modules/
+
