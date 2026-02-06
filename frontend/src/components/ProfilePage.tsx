@@ -1320,6 +1320,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   onCharacterSelect,
   onLogout,
   onPaidAlbum,
+  onShop,
   userId: profileUserId,
   username: profileUsername
 }) => {
@@ -2577,6 +2578,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       </BackgroundWrapper>
       <div className="content-area vertical flex-1 flex flex-col">
         <GlobalHeader
+          onShop={onShop}
           onLogin={() => {
             setAuthMode('login');
             setIsAuthModalOpen(true);

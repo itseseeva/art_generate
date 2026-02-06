@@ -2346,11 +2346,11 @@ left: 0;
 right: 0;
 bottom: 0;
 background: rgba(0, 0, 0, 0.85);
-backdrop - filter: blur(10px);
-z - index: 10001;
+backdrop-filter: blur(10px);
+z-index: 10001;
 display: flex;
-align - items: center;
-justify - content: center;
+align-items: center;
+justify-content: center;
 padding: 20px;
 animation: fadeIn 0.3s ease;
 
@@ -2366,15 +2366,15 @@ animation: fadeIn 0.3s ease;
 
 const PremiumModalContent = styled.div`
 background: linear - gradient(135deg, rgba(20, 10, 30, 0.95) 0 %, rgba(30, 20, 50, 0.95) 100 %);
-backdrop - filter: blur(20px);
+backdrop-filter: blur(20px);
 border: 1px solid rgba(139, 92, 246, 0.5);
-border - radius: 24px;
+border-radius: 24px;
 padding: 32px;
-max - width: 450px;
-width: 100 %;
-box - shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(139, 92, 246, 0.2);
+max-width: 450px;
+width: 100%;
+box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(139, 92, 246, 0.2);
 position: relative;
-text - align: center;
+text-align: center;
 animation: slideUp 0.3s ease;
 
 @keyframes slideUp {
@@ -2395,40 +2395,40 @@ height: 70px;
 margin: 0 auto 20px;
 background: linear - gradient(135deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.1));
 border: 1px solid rgba(139, 92, 246, 0.3);
-border - radius: 50 %;
+border-radius: 50%;
 display: flex;
-align - items: center;
-justify - content: center;
-font - size: 36px;
-box - shadow: 0 0 20px rgba(139, 92, 246, 0.2);
+align-items: center;
+justify-content: center;
+font-size: 36px;
+box-shadow: 0 0 20px rgba(139, 92, 246, 0.2);
 animation: pulse 2s ease -in -out infinite;
 
 @keyframes pulse {
   0 %, 100 % {
     transform: scale(1);
-    box- shadow: 0 0 20px rgba(139, 92, 246, 0.2);
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.2);
 }
 50 % {
   transform: scale(1.05);
-  box- shadow: 0 0 30px rgba(139, 92, 246, 0.4);
+  box-shadow: 0 0 30px rgba(139, 92, 246, 0.4);
     }
   }
 `;
 
 const PremiumModalTitle = styled.h2`
-font - size: 24px;
-font - weight: 700;
+font-size: 24px;
+font-weight: 700;
 color: #ffffff;
 margin: 0 0 12px 0;
 background: linear - gradient(135deg, #a78bfa, #c084fc, #e879f9);
--webkit - background - clip: text;
--webkit - text - fill - color: transparent;
-background - clip: text;
+-webkit - background-clip: text;
+-webkit - text - fill-color: transparent;
+background-clip: text;
 `;
 
 const PremiumModalText = styled.p`
-font - size: 16px;
-line - height: 1.5;
+font-size: 16px;
+line-height: 1.5;
 color: rgba(255, 255, 255, 0.9);
 margin: 0 0 24px 0;
 `;
@@ -2436,18 +2436,18 @@ margin: 0 0 24px 0;
 const PremiumModalButtons = styled.div`
 display: flex;
 gap: 12px;
-justify - content: center;
+justify-content: center;
 `;
 
 const PremiumModalButton = styled.button<{ $primary?: boolean }>`
 padding: 10px 20px;
-border - radius: 10px;
-font - size: 14px;
-font - weight: 600;
+border-radius: 10px;
+font-size: 14px;
+font-weight: 600;
 cursor: pointer;
 transition: all 0.3s ease;
 border: none;
-min - width: 120px;
+min-width: 120px;
   
   ${props => props.$primary ? `
     background: linear-gradient(135deg, #ecc94b, #d69e2e);
@@ -2589,65 +2589,63 @@ border-radius: 50%;
   }
   
   &::after {
-  content: '';
-  position: absolute;
-  top: 50 %;
-  left: 50 %;
-  transform: translate(-50 %, -50 %);
-  width: 100 %;
-  height: 100 %;
-  border - radius: 50 %;
-  border: 3px solid ${props => {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 3px solid ${props => {
     const isPremium = isPremiumVoice(props.$voiceName);
     return isPremium ? 'rgba(255, 0, 0, 0.5)' : 'rgba(255, 215, 0, 0.5)';
-  }
-  };
-  opacity: ${props => props.$isPlaying ? '1' : '0'};
-  animation: ${props => {
+  }};
+    opacity: ${props => props.$isPlaying ? '1' : '0'};
+    animation: ${props => {
     const isPremium = isPremiumVoice(props.$voiceName);
     return props.$isPlaying ? (isPremium ? 'redPulseWave 1.2s ease-out infinite' : 'pulseWave 1.2s ease-out infinite') : 'none';
-  }
-  };
-  z - index: 0;
-  pointer - events: none;
-}
-
-@keyframes pulseWave {
-  0 % {
-    transform: translate(-50 %, -50 %) scale(1);
-      opacity: 0.8;
-    border- width: 3px;
-}
-50 % {
-  transform: translate(-50 %, -50 %) scale(1.5);
-      opacity: 0.4;
-  border- width: 2px;
-    }
-100 % {
-  transform: translate(-50 %, -50 %) scale(2);
-      opacity: 0;
-  border- width: 1px;
-    }
+  }};
+    z-index: 0;
+    pointer-events: none;
   }
 
-@keyframes redPulseWave {
-  0 % {
-    transform: translate(-50 %, -50 %) scale(1);
+  @keyframes pulseWave {
+    0% {
+      transform: translate(-50%, -50%) scale(1);
       opacity: 0.8;
-    border- width: 3px;
-  border - color: rgba(255, 0, 0, 0.5);
-}
-50 % {
-  transform: translate(-50 %, -50 %) scale(1.5);
-      opacity: 0.4;
-  border- width: 2px;
-border - color: rgba(255, 0, 0, 0.4);
+      border-width: 3px;
     }
-100 % {
-  transform: translate(-50 %, -50 %) scale(2);
+    50% {
+      transform: translate(-50%, -50%) scale(1.5);
+      opacity: 0.4;
+      border-width: 2px;
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(2);
       opacity: 0;
-  border- width: 1px;
-border - color: rgba(255, 0, 0, 0.3);
+      border-width: 1px;
+    }
+  }
+
+  @keyframes redPulseWave {
+    0% {
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 0.8;
+      border-width: 3px;
+      border-color: rgba(255, 0, 0, 0.5);
+    }
+    50% {
+      transform: translate(-50%, -50%) scale(1.5);
+      opacity: 0.4;
+      border-width: 2px;
+      border-color: rgba(255, 0, 0, 0.4);
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(2);
+      opacity: 0;
+      border-width: 1px;
+      border-color: rgba(255, 0, 0, 0.3);
     }
   }
 `;
@@ -2735,74 +2733,74 @@ const VoicePhoto = styled.img<{ $voiceName?: string; $isSelected?: boolean }>`
 `;
 
 const PremiumVoiceName = styled.div`
-position: absolute;
-top: -30px;
-left: 50 %;
-transform: translateX(-50 %);
-white - space: nowrap;
-font - size: 11px;
-font - weight: 600;
-z - index: 4;
-display: flex;
-align - items: center;
-justify - content: center;
-gap: 4px;
-width: 100px;
-box - sizing: border - box;
-margin: 0;
-padding: 0;
-text - align: center;
-  
-  & > span {
-  background: linear - gradient(135deg, #ff0000, #ff4444, #ff6666, #ff0000);
-  background - size: 200 % 200 %;
-  -webkit - background - clip: text;
-  -webkit - text - fill - color: transparent;
-  background - clip: text;
-  animation: gradientShift 3s ease infinite;
-  display: inline - block;
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 600;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100px;
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
-}
+  text-align: center;
+  
+  & > span {
+    background: linear-gradient(135deg, #ff0000, #ff4444, #ff6666, #ff0000);
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: gradientShift 3s ease infinite;
+    display: inline-block;
+    margin: 0;
+    padding: 0;
+  }
 
-@keyframes gradientShift {
-  0 %, 100 % {
-    background- position: 0 % 50 %;
-}
-50 % {
-  background- position: 100 % 50 %;
+  @keyframes gradientShift {
+    0%, 100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
     }
   }
 `;
 
 const PremiumVoiceLabel = styled.div`
-position: absolute;
-bottom: -25px;
-left: 50 %;
-transform: translateX(-50 %);
-font - size: 9px;
-color: rgba(255, 68, 68, 0.8);
-font - weight: 500;
-white - space: nowrap;
-z - index: 4;
+  position: absolute;
+  bottom: -25px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  color: rgba(255, 68, 68, 0.8);
+  font-weight: 500;
+  white-space: nowrap;
+  z-index: 4;
 `;
 
 const VoiceName = styled.div<{ $isUserVoice?: boolean }>`
-position: absolute;
-top: -30px;
-left: 50 %;
-transform: translateX(-50 %);
-font - size: 11px;
-color: ${theme.colors.text.secondary};
-white - space: nowrap;
-text - align: center;
-width: 100px;
-overflow: hidden;
-text - overflow: ellipsis;
-cursor: ${props => props.$isUserVoice ? 'pointer' : 'default'};
-box - sizing: border - box;
-margin - left: 0;
-padding: 0;
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: ${theme.colors.text.secondary};
+  white-space: nowrap;
+  text-align: center;
+  width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: ${props => props.$isUserVoice ? 'pointer' : 'default'};
+  box-sizing: border-box;
+  margin-left: 0;
+  padding: 0;
   
   ${props => props.$isUserVoice && `
     &:hover {
@@ -2812,271 +2810,271 @@ padding: 0;
 `;
 
 const EditButton = styled.button`
-position: absolute;
-top: 4px;
-right: 4px;
-width: 24px;
-height: 24px;
-border - radius: 50 %;
-background: rgba(139, 92, 246, 0.9);
-border: 2px solid rgba(255, 255, 255, 0.9);
-color: white;
-display: flex;
-align - items: center;
-justify - content: center;
-cursor: pointer;
-font - size: 12px;
-opacity: 0.3;
-z - index: 10000!important;
-pointer - events: auto!important;
-transition: opacity 0.2s ease, background 0.2s ease, transform 0.2s ease;
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(139, 92, 246, 0.9);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 12px;
+  opacity: 0.3;
+  z-index: 10000 !important;
+  pointer-events: auto !important;
+  transition: opacity 0.2s ease, background 0.2s ease, transform 0.2s ease;
   
   &:hover {
-  opacity: 1!important;
-  background: rgba(139, 92, 246, 1);
-  transform: scale(1.1);
-}
+    opacity: 1 !important;
+    background: rgba(139, 92, 246, 1);
+    transform: scale(1.1);
+  }
   
   &:active {
-  transform: scale(0.95);
-}
+    transform: scale(0.95);
+  }
 `;
 
 const DeleteButton = styled.button`
-position: absolute;
-top: 4px;
-left: 4px;
-width: 24px;
-height: 24px;
-border - radius: 50 %;
-background: rgba(239, 68, 68, 0.9);
-border: 2px solid rgba(255, 255, 255, 0.9);
-color: white;
-display: flex;
-align - items: center;
-justify - content: center;
-cursor: pointer;
-font - size: 12px;
-opacity: 0;
-z - index: 10000!important;
-pointer - events: auto!important;
-transition: opacity 0.2s ease, background 0.2s ease, transform 0.2s ease;
-box - shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.9);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 12px;
+  opacity: 0;
+  z-index: 10000 !important;
+  pointer-events: auto !important;
+  transition: opacity 0.2s ease, background 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   
   &:hover {
-  background: rgba(239, 68, 68, 1);
-  transform: scale(1.1);
-  opacity: 1!important;
-}
+    background: rgba(239, 68, 68, 1);
+    transform: scale(1.1);
+    opacity: 1 !important;
+  }
   
   &:active {
-  transform: scale(0.95);
-}
+    transform: scale(0.95);
+  }
 `;
 
 const WaveformContainer = styled.div<{ $isPlaying: boolean }>`
-position: absolute;
-bottom: -40px;
-left: 50 %;
-transform: translateX(-50 %);
-display: ${props => props.$isPlaying ? 'flex' : 'none'};
-align - items: center;
-justify - content: center;
-gap: 4px;
-height: 16px;
-z - index: 10;
+  position: absolute;
+  bottom: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: ${props => props.$isPlaying ? 'flex' : 'none'};
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 16px;
+  z-index: 10;
 `;
 
 const WaveformBar = styled.div<{ $delay: number; $isPremium?: boolean }>`
-width: 4px;
-background: ${props => props.$isPremium
+  width: 4px;
+  background: ${props => props.$isPremium
     ? 'linear-gradient(to top, #ff0000, #ff4444, #ff0000)'
     : 'linear-gradient(to top, #ffd700, #ffed4e, #ffd700)'
   };
-border - radius: 2px;
-box - shadow: ${props => props.$isPremium
+  border-radius: 2px;
+  box-shadow: ${props => props.$isPremium
     ? '0 0 8px rgba(255, 0, 0, 0.6)'
     : '0 0 8px rgba(255, 215, 0, 0.6)'
   };
-animation: waveform ${props => 0.4 + props.$delay * 0.08}s ease -in -out infinite;
-animation - delay: ${props => props.$delay * 0.08} s;
+  animation: waveform ${props => 0.4 + props.$delay * 0.08}s ease-in-out infinite;
+  animation-delay: ${props => props.$delay * 0.08}s;
 
-@keyframes waveform {
-  0 %, 100 % {
-    height: 6px;
-    opacity: 0.7;
+  @keyframes waveform {
+    0%, 100% {
+      height: 6px;
+      opacity: 0.7;
+    }
+    50% {
+      height: 16px;
+      opacity: 1;
+    }
   }
-  50 % {
-    height: 16px;
-    opacity: 1;
-  }
-}
 `;
 
 const VoiceCheckmark = styled.div<{ $show: boolean; $isPremium?: boolean }>`
-position: absolute;
-top: -8px;
-right: -8px;
-width: 20px;
-height: 20px;
-display: flex;
-align - items: center;
-justify - content: center;
-z - index: 100;
-pointer - events: none;
-opacity: ${props => props.$show ? '1' : '0'};
-transition: opacity 0.3s ease;
-animation: ${props => props.$show ? 'checkmarkAppear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' : 'none'};
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  pointer-events: none;
+  opacity: ${props => props.$show ? '1' : '0'};
+  transition: opacity 0.3s ease;
+  animation: ${props => props.$show ? 'checkmarkAppear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' : 'none'};
 
-@keyframes checkmarkAppear {
-  0 % {
-    transform: scale(0) rotate(- 180deg);
-  opacity: 0;
-}
-50 % {
-  transform: scale(1.2) rotate(10deg);
+  @keyframes checkmarkAppear {
+    0% {
+      transform: scale(0) rotate(-180deg);
+      opacity: 0;
+    }
+    50% {
+      transform: scale(1.2) rotate(10deg);
       opacity: 1;
-}
-100 % {
-  transform: scale(1) rotate(0deg);
+    }
+    100% {
+      transform: scale(1) rotate(0deg);
       opacity: 1;
-}
+    }
   }
   
   &::before {
-  content: '';
-  position: absolute;
-  width: 6px;
-  height: 12px;
-  border: 3px solid ${props => props.$isPremium ? '#ff4444' : '#4ade80'};
-  border - top: none;
-  border - left: none;
-  transform: rotate(45deg) translate(-2px, -2px);
-  box - shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-  filter: drop - shadow(0 0 3px ${props => props.$isPremium ? 'rgba(255, 68, 68, 0.8)' : 'rgba(74, 222, 128, 0.8)'});
-}
+    content: '';
+    position: absolute;
+    width: 6px;
+    height: 12px;
+    border: 3px solid ${props => props.$isPremium ? '#ff4444' : '#4ade80'};
+    border-top: none;
+    border-left: none;
+    transform: rotate(45deg) translate(-2px, -2px);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    filter: drop-shadow(0 0 3px ${props => props.$isPremium ? 'rgba(255, 68, 68, 0.8)' : 'rgba(74, 222, 128, 0.8)'});
+  }
 `;
 
 const VoicePhotoWrapper = styled.div`
-display: flex;
-flex - direction: column;
-align - items: center;
-position: relative;
-margin: 8px;
-overflow: visible;
-z - index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  margin: 8px;
+  overflow: visible;
+  z-index: 1;
 `;
 
 const CreatorTooltip = styled.div`
-position: absolute;
-top: -45px;
-right: 0;
-background: rgba(30, 30, 30, 0.98);
-border: 1px solid rgba(139, 92, 246, 0.8);
-border - radius: 6px;
-padding: 8px 12px;
-font - size: 12px;
-color: #e4e4e7;
-white - space: nowrap;
-opacity: 0;
-pointer - events: none;
-transition: opacity 0.2s ease, transform 0.2s ease;
-z - index: 10001;
-box - shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
-backdrop - filter: blur(8px);
+  position: absolute;
+  top: -45px;
+  right: 0;
+  background: rgba(30, 30, 30, 0.98);
+  border: 1px solid rgba(139, 92, 246, 0.8);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #e4e4e7;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 10001;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
   
-  ${VoicePhotoWrapper}: hover & {
-  opacity: 1;
-  transform: translateY(-2px);
-}
-  `;
+  ${VoicePhotoWrapper}:hover & {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+`;
 
 const CreatorNameLabel = styled.div`
-position: absolute;
-top: -14px;
-left: -24px;
-background: rgba(30, 30, 30, 0.95);
-border: 1px solid rgba(139, 92, 246, 0.6);
-border - radius: 6px;
-padding: 3px 8px;
-font - size: 10px;
-color: #e4e4e7;
-white - space: nowrap;
-z - index: 10002;
-box - shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-backdrop - filter: blur(4px);
-cursor: pointer;
-transition: all 0.2s ease;
-opacity: 1;
+  position: absolute;
+  top: -14px;
+  left: -24px;
+  background: rgba(30, 30, 30, 0.95);
+  border: 1px solid rgba(139, 92, 246, 0.6);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 10px;
+  color: #e4e4e7;
+  white-space: nowrap;
+  z-index: 10002;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  opacity: 1;
   
   &:hover {
-  background: rgba(40, 40, 40, 0.95);
-  border - color: rgba(139, 92, 246, 0.9);
-  color: rgba(139, 92, 246, 0.9);
-  transform: translateY(-2px);
-}
+    background: rgba(40, 40, 40, 0.95);
+    border-color: rgba(139, 92, 246, 0.9);
+    color: rgba(139, 92, 246, 0.9);
+    transform: translateY(-2px);
+  }
 `;
 
 const SubscriptionModal = styled.div`
-position: fixed;
-top: 0;
-left: 0;
-right: 0;
-bottom: 0;
-background: rgba(0, 0, 0, 0.85);
-display: flex;
-align - items: center;
-justify - content: center;
-z - index: 10001;
-padding: ${theme.spacing.xl};
-backdrop - filter: blur(8px);
-animation: fadeIn 0.2s ease;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10001;
+  padding: ${theme.spacing.xl};
+  backdrop-filter: blur(8px);
+  animation: fadeIn 0.2s ease;
 
-@keyframes fadeIn {
+  @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
-}
+  }
 `;
 
 const SubscriptionModalContent = styled.div`
-background: linear - gradient(135deg, rgba(15, 15, 15, 0.98) 0 %, rgba(22, 22, 22, 1) 100 %);
-border: 2px solid rgba(120, 120, 120, 0.5);
-border - radius: ${theme.borderRadius.xl};
-padding: ${theme.spacing.xl};
-max - width: 500px;
-width: 100 %;
-box - shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
-backdrop - filter: blur(10px);
+  background: linear-gradient(135deg, rgba(15, 15, 15, 0.98) 0%, rgba(22, 22, 22, 1) 100%);
+  border: 2px solid rgba(120, 120, 120, 0.5);
+  border-radius: ${theme.borderRadius.xl};
+  padding: ${theme.spacing.xl};
+  max-width: 500px;
+  width: 100%;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
 `;
 
 const SubscriptionModalTitle = styled.h2`
 color: rgba(240, 240, 240, 1);
-font - size: ${theme.fontSize.xl};
-font - weight: 700;
+font-size: ${theme.fontSize.xl};
+font-weight: 700;
 margin: 0 0 ${theme.spacing.lg} 0;
-text - align: center;
+text-align: center;
 `;
 
 const SubscriptionModalText = styled.p`
 color: rgba(200, 200, 200, 1);
-font - size: ${theme.fontSize.base};
-line - height: 1.6;
+font-size: ${theme.fontSize.base};
+line-height: 1.6;
 margin: 0 0 ${theme.spacing.xl} 0;
-text - align: center;
+text-align: center;
 `;
 
 const SubscriptionModalButtons = styled.div`
 display: flex;
 gap: ${theme.spacing.md};
-justify - content: center;
+justify-content: center;
 `;
 
 const SubscriptionModalButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
 flex: 1;
 padding: ${theme.spacing.md} ${theme.spacing.lg};
-border - radius: ${theme.borderRadius.lg};
-font - size: ${theme.fontSize.base};
-font - weight: 600;
+border-radius: ${theme.borderRadius.lg};
+font-size: ${theme.fontSize.base};
+font-weight: 600;
 cursor: pointer;
 transition: all 0.3s ease;
 border: 2px solid ${props => props.$variant === 'primary' ? 'rgba(251, 191, 36, 0.6)' : 'rgba(120, 120, 120, 0.5)'};
@@ -3088,11 +3086,11 @@ color: ${props => props.$variant === 'primary' ? '#1a1a1a' : 'rgba(240, 240, 240
   
   &:hover {
   transform: translateY(-2px);
-  box - shadow: ${props => props.$variant === 'primary'
+  box-shadow: ${props => props.$variant === 'primary'
     ? '0 8px 24px rgba(234, 179, 8, 0.4)'
     : '0 4px 12px rgba(0, 0, 0, 0.4)'
   };
-  border - color: ${props => props.$variant === 'primary' ? 'rgba(251, 191, 36, 0.8)' : 'rgba(120, 120, 120, 0.7)'};
+  border-color: ${props => props.$variant === 'primary' ? 'rgba(251, 191, 36, 0.8)' : 'rgba(120, 120, 120, 0.7)'};
 }
   
   &:active {
@@ -3102,16 +3100,16 @@ color: ${props => props.$variant === 'primary' ? '#1a1a1a' : 'rgba(240, 240, 240
 
 const PhotoUploadSpinner = styled.div`
 position: absolute;
-top: 50 %;
-left: 50 %;
+top: 50%;
+left: 50%;
 transform: translate(-50 %, -50 %);
 width: 24px;
 height: 24px;
 border: 3px solid rgba(139, 92, 246, 0.3);
-border - top - color: rgba(139, 92, 246, 1);
-border - radius: 50 %;
+border-top-color: rgba(139, 92, 246, 1);
+border-radius: 50%;
 animation: spin 0.8s linear infinite;
-z - index: 100;
+z-index: 100;
 
 @keyframes spin {
     to { transform: translate(-50 %, -50 %) rotate(360deg); }
@@ -3120,12 +3118,12 @@ z - index: 100;
 
 const premiumGlow = keyframes`
 0 %, 100 % {
-  box- shadow: 0 0 15px rgba(124, 58, 237, 0.4);
-border - color: rgba(124, 58, 237, 0.5);
+  box-shadow: 0 0 15px rgba(124, 58, 237, 0.4);
+border-color: rgba(124, 58, 237, 0.5);
   }
 50 % {
-  box- shadow: 0 0 30px rgba(124, 58, 237, 0.8), 0 0 45px rgba(124, 58, 237, 0.4);
-border - color: rgba(124, 58, 237, 1);
+  box-shadow: 0 0 30px rgba(124, 58, 237, 0.8), 0 0 45px rgba(124, 58, 237, 0.4);
+border-color: rgba(124, 58, 237, 1);
   }
 `;
 
@@ -3133,63 +3131,63 @@ const PremiumWarning = styled(motion.div)`
 position: absolute;
 top: auto;
 bottom: -40px;
-left: 50 %;
+left: 50%;
 transform: translateX(-50 %);
 background: rgba(124, 58, 237, 0.95);
 color: white;
 padding: 6px 12px;
-border - radius: 8px;
-font - size: 0.75rem;
-font - weight: 700;
-white - space: nowrap;
-z - index: 1000;
-pointer - events: none;
-box - shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+border-radius: 8px;
+font-size: 0.75rem;
+font-weight: 700;
+white-space: nowrap;
+z-index: 1000;
+pointer-events: none;
+box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
   
   &::after {
   content: '';
   position: absolute;
   top: -6px;
-  left: 50 %;
+  left: 50%;
   transform: translateX(-50 %);
-  border - left: 6px solid transparent;
-  border - right: 6px solid transparent;
-  border - bottom: 6px solid rgba(124, 58, 237, 0.95);
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid rgba(124, 58, 237, 0.95);
 }
 `;
 
 const AddVoiceContainer = styled.div<{ $isUploading?: boolean; $isPremium?: boolean }>`
-position: relative;
-width: 74px;
-height: 74px;
-min - width: 74px;
-min - height: 74px;
-cursor: ${props => props.$isUploading ? 'wait' : 'pointer'};
-transition: all 0.3s cubic - bezier(0.4, 0, 0.2, 1);
-overflow: visible;
-border - radius: 50 %;
-border: 2px dashed ${props => props.$isUploading ? 'rgba(139, 92, 246, 0.9)' : 'rgba(139, 92, 246, 0.6)'};
-display: flex;
-align - items: center;
-justify - content: center;
-background: ${props => props.$isUploading ? 'rgba(40, 40, 40, 0.7)' : 'rgba(30, 30, 30, 0.5)'};
-opacity: ${props => props.$isUploading ? 0.8 : 1};
+  position: relative;
+  width: 74px;
+  height: 74px;
+  min-width: 74px;
+  min-height: 74px;
+  cursor: ${props => props.$isUploading ? 'wait' : 'pointer'};
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: visible;
+  border-radius: 50%;
+  border: 2px dashed ${props => props.$isUploading ? 'rgba(139, 92, 246, 0.9)' : 'rgba(139, 92, 246, 0.6)'};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: ${props => props.$isUploading ? 'rgba(40, 40, 40, 0.7)' : 'rgba(30, 30, 30, 0.5)'};
+  opacity: ${props => props.$isUploading ? 0.8 : 1};
   
   ${props => !props.$isUploading && css`
     animation: ${premiumGlow} 2s ease-in-out infinite;
   `}
   
   &:hover {
-  border - color: ${props => props.$isUploading ? 'rgba(139, 92, 246, 0.9)' : 'rgba(139, 92, 246, 0.9)'};
-  background: ${props => props.$isUploading ? 'rgba(40, 40, 40, 0.7)' : 'rgba(40, 40, 40, 0.7)'};
-  transform: ${props => props.$isUploading ? 'scale(1)' : 'scale(1.05)'};
-}
+    border-color: rgba(139, 92, 246, 0.9);
+    background: rgba(40, 40, 40, 0.7);
+    transform: ${props => props.$isUploading ? 'scale(1)' : 'scale(1.05)'};
+  }
   
   &:active {
-  transform: ${props => props.$isUploading ? 'scale(1)' : 'scale(0.95)'};
-}
+    transform: ${props => props.$isUploading ? 'scale(1)' : 'scale(0.95)'};
+  }
   
-  ${props => props.$isUploading && `
+  ${props => props.$isUploading && css`
     animation: pulseLoading 1.5s ease-in-out infinite;
     
     @keyframes pulseLoading {
@@ -3206,65 +3204,66 @@ opacity: ${props => props.$isUploading ? 0.8 : 1};
 `;
 
 const VoiceLoadingSpinner = styled.div`
-width: 30px;
-height: 30px;
-border: 3px solid rgba(139, 92, 246, 0.2);
-border - top: 3px solid rgba(139, 92, 246, 0.9);
-border - radius: 50 %;
-animation: spin 0.8s linear infinite;
+  width: 30px;
+  height: 30px;
+  border: 3px solid rgba(139, 92, 246, 0.2);
+  border-top: 3px solid rgba(139, 92, 246, 0.9);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 
-@keyframes spin {
-  0 % { transform: rotate(0deg); }
-  100 % { transform: rotate(360deg); }
-}
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
 `;
 
 const AddVoicePlus = styled.div`
-width: 30px;
-height: 30px;
-position: relative;
-color: rgba(139, 92, 246, 0.8);
-transition: color 0.3s ease;
+  width: 30px;
+  height: 30px;
+  position: relative;
+  color: rgba(139, 92, 246, 0.8);
+  transition: all 0.3s ease;
   
-  ${AddVoiceContainer}: hover & {
-  color: rgba(139, 92, 246, 1);
-}
+  ${AddVoiceContainer}:hover & {
+    color: rgba(139, 92, 246, 1);
+    transform: rotate(90deg);
+  }
 
-  &:: before,
+  &::before,
   &::after {
-  content: '';
-  position: absolute;
-  background: currentColor;
-  border - radius: 2px;
-}
+    content: '';
+    position: absolute;
+    background: currentColor;
+    border-radius: 2px;
+  }
   
   &::before {
-  width: 2px;
-  height: 100 %;
-  left: 50 %;
-  transform: translateX(-50 %);
-}
+    width: 2px;
+    height: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+  }
   
   &::after {
-  width: 100 %;
-  height: 2px;
-  top: 50 %;
-  transform: translateY(-50 %);
-}
+    width: 100%;
+    height: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
 `;
 
 const AddVoiceName = styled.div`
-position: absolute;
-top: -30px;
-left: 50 %;
-transform: translateX(-50 %);
-font - size: 11px;
-color: ${theme.colors.text.secondary};
-white - space: nowrap;
-text - align: center;
-width: 120px;
-overflow: hidden;
-text - overflow: ellipsis;
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: ${theme.colors.text.secondary};
+  white-space: nowrap;
+  text-align: center;
+  width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;
 
 const VoiceCloneModalOverlay = styled.div`
@@ -3274,40 +3273,40 @@ left: 0;
 right: 0;
 bottom: 0;
 background: rgba(0, 0, 0, 0.75);
-backdrop - filter: blur(8px);
-z - index: 10000;
+backdrop-filter: blur(8px);
+z-index: 10000;
 display: flex;
-align - items: center;
-justify - content: center;
+align-items: center;
+justify-content: center;
 padding: 24px;
 `;
 
 const VoiceCloneModal = styled.div`
 background: rgba(20, 20, 30, 0.95);
-backdrop - filter: blur(20px);
+backdrop-filter: blur(20px);
 border: 1px solid rgba(139, 92, 246, 0.3);
-border - radius: 12px;
+border-radius: 12px;
 padding: 32px;
-max - width: 520px;
-max - height: 90vh;
-width: 100 %;
-box - shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(139, 92, 246, 0.1);
+max-width: 520px;
+max-height: 90vh;
+width: 100%;
+box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(139, 92, 246, 0.1);
 position: relative;
-overflow - y: auto;
+overflow-y: auto;
 display: flex;
-flex - direction: column;
+flex-direction: column;
 `;
 
 const VoiceCloneModalHeader = styled.div`
 display: flex;
-justify - content: space - between;
-align - items: center;
-margin - bottom: 24px;
+justify-content: space - between;
+align-items: center;
+margin-bottom: 24px;
 `;
 
 const VoiceCloneModalTitle = styled.h2`
-font - size: 24px;
-font - weight: 600;
+font-size: 24px;
+font-weight: 600;
 color: #e4e4e7;
 margin: 0;
 `;
@@ -3318,10 +3317,10 @@ border: none;
 color: #a1a1aa;
 cursor: pointer;
 padding: 8px;
-border - radius: 8px;
+border-radius: 8px;
 display: flex;
-align - items: center;
-justify - content: center;
+align-items: center;
+justify-content: center;
 transition: all 0.2s ease;
   
   &:hover {
@@ -3331,38 +3330,38 @@ transition: all 0.2s ease;
 `;
 
 const VoiceCloneInstructions = styled.div`
-margin - bottom: 24px;
+margin-bottom: 24px;
 `;
 
 const VoiceCloneInstructionsTitle = styled.h3`
-font - size: 14px;
-font - weight: 600;
+font-size: 14px;
+font-weight: 600;
 color: #a1a1aa;
 margin: 0 0 12px 0;
 `;
 
 const VoiceCloneInstructionItem = styled.div`
 display: flex;
-align - items: flex - start;
+align-items: flex - start;
 gap: 8px;
-margin - bottom: 8px;
-font - size: 13px;
+margin-bottom: 8px;
+font-size: 13px;
 color: #d4d4d8;
-line - height: 1.5;
+line-height: 1.5;
 `;
 
 const VoiceCloneUploadZone = styled.div<{ $isDragOver?: boolean; $hasFile?: boolean }>`
 border: 2px dashed ${props => props.$isDragOver ? 'rgba(139, 92, 246, 0.8)' : props.$hasFile ? 'rgba(34, 197, 94, 0.6)' : 'rgba(139, 92, 246, 0.4)'};
-border - radius: 12px;
+border-radius: 12px;
 padding: 40px 20px;
-text - align: center;
+text-align: center;
 background: ${props => props.$isDragOver ? 'rgba(139, 92, 246, 0.1)' : props.$hasFile ? 'rgba(34, 197, 94, 0.05)' : 'rgba(30, 30, 40, 0.5)'};
 transition: all 0.3s ease;
 cursor: pointer;
 position: relative;
   
   &:hover {
-  border - color: rgba(139, 92, 246, 0.6);
+  border-color: rgba(139, 92, 246, 0.6);
   background: rgba(139, 92, 246, 0.05);
 }
 `;
@@ -3371,31 +3370,31 @@ const VoiceCloneUploadInput = styled.input`
 position: absolute;
 top: 0;
 left: 0;
-width: 100 %;
-height: 100 %;
+width: 100%;
+height: 100%;
 opacity: 0;
 cursor: pointer;
 `;
 
 const VoiceCloneUploadContent = styled.div`
-pointer - events: none;
+pointer-events: none;
 `;
 
 const VoiceCloneProgressBar = styled.div`
-width: 100 %;
+width: 100%;
 height: 8px;
 background: rgba(60, 60, 80, 0.5);
-border - radius: 4px;
+border-radius: 4px;
 overflow: hidden;
-margin - top: 16px;
+margin-top: 16px;
 position: relative;
 `;
 
 const VoiceCloneProgressFill = styled.div<{ $progress: number; $isValid: boolean }>`
-height: 100 %;
+height: 100%;
 width: ${props => Math.min(props.$progress, 100)}%;
 background: ${props => props.$isValid ? 'linear-gradient(90deg, #22c55e, #16a34a)' : 'linear-gradient(90deg, #ef4444, #dc2626)'};
-border - radius: 4px;
+border-radius: 4px;
 transition: width 0.3s ease, background 0.3s ease;
 position: relative;
   
@@ -3417,12 +3416,12 @@ position: relative;
 `;
 
 const VoiceCloneStatusMessage = styled.div<{ $isValid: boolean }>`
-margin - top: 12px;
+margin-top: 12px;
 padding: 10px 12px;
-border - radius: 8px;
-font - size: 13px;
+border-radius: 8px;
+font-size: 13px;
 display: flex;
-align - items: center;
+align-items: center;
 gap: 8px;
 background: ${props => props.$isValid ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)'};
 border: 1px solid ${props => props.$isValid ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'};
@@ -3430,26 +3429,26 @@ color: ${props => props.$isValid ? '#22c55e' : '#ef4444'};
 `;
 
 const VoiceCloneSubmitButton = styled.button<{ $isDisabled: boolean }>`
-width: 100 %;
+width: 100%;
 padding: 14px 24px;
-margin - top: 24px;
+margin-top: 24px;
 background: ${props => props.$isDisabled ? 'rgba(60, 60, 80, 0.5)' : 'linear-gradient(135deg, #8b5cf6, #7c3aed)'};
 border: 1px solid ${props => props.$isDisabled ? 'rgba(100, 100, 120, 0.3)' : 'rgba(139, 92, 246, 0.6)'};
-border - radius: 12px;
+border-radius: 12px;
 color: ${props => props.$isDisabled ? '#71717a' : '#ffffff'};
-font - size: 16px;
-font - weight: 600;
+font-size: 16px;
+font-weight: 600;
 cursor: ${props => props.$isDisabled ? 'not-allowed' : 'pointer'};
 transition: all 0.3s ease;
 display: flex;
-align - items: center;
-justify - content: center;
+align-items: center;
+justify-content: center;
 gap: 8px;
   
   &: hover: not(: disabled) {
   background: ${props => props.$isDisabled ? 'rgba(60, 60, 80, 0.5)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)'};
   transform: ${props => props.$isDisabled ? 'none' : 'translateY(-2px)'};
-  box - shadow: ${props => props.$isDisabled ? 'none' : '0 8px 20px rgba(139, 92, 246, 0.3)'};
+  box-shadow: ${props => props.$isDisabled ? 'none' : '0 8px 20px rgba(139, 92, 246, 0.3)'};
 }
   
   &: active: not(: disabled) {
@@ -3486,11 +3485,11 @@ const ExpandButton = styled.button<{ $isExpanded: boolean }>`
 `;
 
 const ProgressBarContainer = styled.div`
-margin - top: 1.25rem;
+margin-top: 1.25rem;
 padding: 1rem;
 background: rgba(20, 20, 20, 0.6);
 border: 1px solid rgba(139, 92, 246, 0.2);
-border - radius: ${theme.borderRadius.md};
+border-radius: ${theme.borderRadius.md};
 animation: slideIn 0.3s ease - out;
 
 @keyframes slideIn {
@@ -3501,9 +3500,9 @@ animation: slideIn 0.3s ease - out;
 
 const StepItem = styled.div<{ $isActive: boolean; $isCompleted: boolean }>`
 display: flex;
-align - items: center;
+align-items: center;
 gap: 0.75rem;
-margin - bottom: 0.5rem;
+margin-bottom: 0.5rem;
 opacity: ${props => (props.$isActive || props.$isCompleted ? 1 : 0.4)};
 transition: opacity 0.3s ease;
 `;
@@ -3511,45 +3510,45 @@ transition: opacity 0.3s ease;
 const StepIcon = styled.div<{ $isActive: boolean; $isCompleted: boolean }>`
 width: 18px;
 height: 18px;
-border - radius: 50 %;
+border-radius: 50%;
 display: flex;
-align - items: center;
-justify - content: center;
-font - size: 0.65rem;
-font - weight: 700;
+align-items: center;
+justify-content: center;
+font-size: 0.65rem;
+font-weight: 700;
 background: ${props => props.$isCompleted ? '#10b981' : (props.$isActive ? '#8b5cf6' : 'rgba(150, 150, 150, 0.2)')};
 color: white;
 border: 1px solid ${props => props.$isCompleted ? '#10b981' : (props.$isActive ? '#8b5cf6' : 'rgba(150, 150, 150, 0.3)')};
-box - shadow: ${props => props.$isActive ? '0 0 10px rgba(139, 92, 246, 0.4)' : 'none'};
+box-shadow: ${props => props.$isActive ? '0 0 10px rgba(139, 92, 246, 0.4)' : 'none'};
 `;
 
 const StepText = styled.span<{ $isActive: boolean; $isCompleted: boolean }>`
-font - size: 0.75rem;
+font-size: 0.75rem;
 color: ${props => props.$isCompleted ? '#10b981' : (props.$isActive ? '#ffffff' : '#888888')};
-font - weight: ${props => (props.$isActive || props.$isCompleted ? 600 : 400)};
+font-weight: ${props => (props.$isActive || props.$isCompleted ? 600 : 400)};
 `;
 
 const WarningText = styled.div`
 display: flex;
-align - items: center;
+align-items: center;
 gap: 6px;
 color: #888;
-font - size: 0.75rem;
-margin - top: 10px;
+font-size: 0.75rem;
+margin-top: 10px;
 padding: 0 4px;
 `;
 
 const CoinsBalance = styled.div`
 display: flex;
-align - items: center;
+align-items: center;
 gap: 0.5rem;
 background: rgba(251, 191, 36, 0.1);
 border: 1px solid rgba(251, 191, 36, 0.3);
 padding: 0.25rem 0.75rem;
-border - radius: 2rem;
+border-radius: 2rem;
 color: #fbbf24;
-font - size: 0.875rem;
-font - weight: 600;
+font-size: 0.875rem;
+font-weight: 600;
   
   svg {
   color: #fbbf24;
@@ -3558,12 +3557,12 @@ font - weight: 600;
 
 const PhotosCounter = styled.div<{ $limitReached: boolean }>`
 display: inline - flex;
-align - items: center;
+align-items: center;
 gap: ${theme.spacing.xs};
 padding: ${theme.spacing.xs} ${theme.spacing.sm};
-border - radius: ${theme.borderRadius.md};
-font - size: ${theme.fontSize.sm};
-font - weight: 600;
+border-radius: ${theme.borderRadius.md};
+font-size: ${theme.fontSize.sm};
+font-weight: 600;
 color: ${({ $limitReached }) =>
     $limitReached ? 'rgba(180, 180, 180, 0.9)' : theme.colors.text.secondary
   };
@@ -3785,7 +3784,7 @@ const PhotoOverlayButton = styled.button<{ $variant?: 'add' | 'remove' }>`
 
 const OverlayButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
 padding: 0.375rem 0.75rem;
-min - width: 90px;
+min-width: 90px;
 width: auto;
 background: ${props => props.$variant === 'primary'
     ? 'rgba(100, 100, 100, 0.9)'
@@ -3795,22 +3794,22 @@ border: 1px solid ${props => props.$variant === 'primary'
     ? 'rgba(150, 150, 150, 1)'
     : 'rgba(255, 255, 255, 0.2)'
   };
-border - radius: 0.5rem;
+border-radius: 0.5rem;
 color: #ffffff;
-font - size: 0.75rem;
-font - weight: 600;
+font-size: 0.75rem;
+font-weight: 600;
 cursor: pointer;
 display: flex;
-align - items: center;
-justify - content: center;
+align-items: center;
+justify-content: center;
 gap: 0.375rem;
 transition: background - color 0.2s ease, border - color 0.2s ease, transform 0.15s ease;
-backdrop - filter: blur(10px);
-will - change: transform;
+backdrop-filter: blur(10px);
+will-change: transform;
 transform: translateZ(0);
-backface - visibility: hidden;
+backface-visibility: hidden;
 contain: layout style;
-white - space: nowrap;
+white-space: nowrap;
 
   &: hover: not(: disabled) {
   background: ${props => props.$variant === 'primary'
@@ -3835,9 +3834,9 @@ white - space: nowrap;
   height: 14px;
 }
 
-@media(max - width: 768px) {
+@media(max-width: 768px) {
   padding: 0.25rem 0.5rem;
-  font - size: 0.7rem;
+  font-size: 0.7rem;
   gap: 0.25rem;
 
     svg {
@@ -3848,24 +3847,24 @@ white - space: nowrap;
 `;
 
 const SliderDescription = styled.div`
-margin - top: ${theme.spacing.lg};
-text - align: center;
+margin-top: ${theme.spacing.lg};
+text-align: center;
 padding: ${theme.spacing.lg};
 background: rgba(40, 40, 40, 0.3);
-border - radius: ${theme.borderRadius.lg};
+border-radius: ${theme.borderRadius.lg};
 
-@media(max - width: 768px) {
-  margin - top: ${theme.spacing.md};
+@media(max-width: 768px) {
+  margin-top: ${theme.spacing.md};
   padding: ${theme.spacing.md};
     
     h4 {
-    font - size: ${theme.fontSize.sm};
-    margin - bottom: ${theme.spacing.xs};
+    font-size: ${theme.fontSize.sm};
+    margin-bottom: ${theme.spacing.xs};
   }
     
     p {
-    font - size: ${theme.fontSize.xs};
-    line - height: 1.4;
+    font-size: ${theme.fontSize.xs};
+    line-height: 1.4;
   }
 }
 `;
@@ -6500,161 +6499,47 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                       <FormField>
                         <FormLabel>Голос</FormLabel>
                         <div className="relative" style={{ marginTop: '4px' }}>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'flex-start', position: 'relative', zIndex: 1 }}>
-                            {availableVoices.filter((voice) => {
-                              const isUserVoice = voice.is_user_voice || false;
-                              return !isUserVoice; // Показываем только стандартные голоса
-                            }).map((voice) => {
-                              const isUserVoice = voice.is_user_voice || false;
-                              const isPublic = voice.is_public === true || (voice.is_public as any) === 1 || (voice.is_public as any) === '1';
-                              const isOwner = voice.is_owner === true || (voice.is_owner as any) === 1 || (voice.is_owner as any) === '1';
-                              const isSelected = isUserVoice
-                                ? String(formData.voice_url || '') === String(voice.url || '')
-                                : String(formData.voice_id || '') === String(voice.id || '');
+                          {/* Row: Default Voices + Add User Voice Button */}
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'flex-start', position: 'relative', zIndex: 1, marginBottom: '20px' }}>
+                            {availableVoices.filter(v => !v.is_user_voice).map((voice) => {
+                              const isSelected = String(formData.voice_id || '') === String(voice.id || '');
                               const audioUrl = voice.preview_url || voice.url;
                               const isPlaying = playingVoiceUrl !== null && (playingVoiceUrl === audioUrl || playingVoiceUrl === voice.url || playingVoiceUrl === voice.preview_url);
-                              // Для пользовательских голосов используем photo_url, если есть, иначе placeholder
-                              const defaultPlaceholder = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9InJnYmEoNjAsIDYwLCA2MCwgMC4zKSIvPgo8cGF0aCBkPSJNMzAgNDBDMzAgMzUuMDI5IDM0LjAyOSAzMSAzOSAzMUg0MUM0NS45NzEgMzEgNTAgMzUuMDI5IDUwIDQwQzUwIDQ0Ljk3MSA0NS45NzEgNDkgNDEgNDlIMzlDMzQuMDI5IDQ5IDMwIDQ0Ljk3MSAzMCA0MFoiIGZpbGw9InJnYmEoMTUwLCAxNTAsIDE1MCwgMC41KSIvPgo8L3N2Zz4K';
-                              const photoPath = isUserVoice
-                                ? (voice.photo_url
-                                  ? (voice.photo_url.startsWith('http') ? voice.photo_url : `${API_CONFIG.BASE_URL}${voice.photo_url}`)
-                                  : defaultPlaceholder)
-                                : getVoicePhotoPath(voice.name);
-                              const isEditingName = editingVoiceId === voice.id;
-                              const editedName = editedVoiceNames[voice.id] || voice.name;
-                              const isEditingPhoto = editingVoicePhotoId === voice.id || editingVoicePhotoId === String(voice.id);
+                              const photoPath = getVoicePhotoPath(voice.name);
 
                               return (
-                                <VoicePhotoWrapper
-                                  key={voice.id}
-                                  style={{
-                                    position: 'relative',
-                                    zIndex: isUserVoice && isPublic && !isOwner ? 10 : 1
-                                  }}
-                                >
+                                <VoicePhotoWrapper key={voice.id}>
                                   <VoicePhotoContainer
-                                    $isSelected={isSelected}
-                                    $isPlaying={isPlaying}
-                                    $voiceName={voice.name}
-                                    $isUserVoice={isUserVoice}
+                                    $isSelected={isSelected} $isPlaying={isPlaying} $voiceName={voice.name} $isUserVoice={false}
                                     onClick={async (e) => {
                                       e.preventDefault();
-                                      // Если кликнули на кнопку редактирования, не выбираем голос
-                                      if ((e.target as HTMLElement).closest('.edit-voice-button')) {
-                                        return;
-                                      }
-                                      // Если кликнули на кнопку удаления, не выбираем голос
-                                      if ((e.target as HTMLElement).closest('.delete-voice-button')) {
-                                        return;
-                                      }
-                                      // Если кликнули на кнопку "Приватный/Публичный", не выбираем голос
-                                      if ((e.target as HTMLElement).closest('button') && ((e.target as HTMLElement).textContent?.includes('Приватный') || (e.target as HTMLElement).textContent?.includes('Публичный'))) {
-                                        return;
-                                      }
-                                      // Если редактируется имя, не выбираем голос
-                                      if (editingVoiceId === voice.id) return;
+                                      if ((e.target as HTMLElement).closest('.edit-voice-button')) return;
 
-                                      // Проверка PREMIUM подписки для голоса "Мита": показываем модальное окно, но не блокируем проигрывание
-                                      const isPremiumVoiceClick = isPremiumVoice(voice.name);
-                                      let isPremiumUser = true;
-                                      if (isPremiumVoiceClick) {
-                                        const subscriptionType = userInfo?.subscription?.subscription_type ||
-                                          (userInfo as any)?.subscription_type ||
-                                          'free';
-                                        isPremiumUser = ['pro', 'premium'].includes(subscriptionType.toLowerCase());
-                                        if (!isPremiumUser) {
-                                          setShowPremiumModal(true);
-                                        }
-                                      }
-                                      // Выбор голоса только для премиум или не премиум-голоса
-                                      if (!isPremiumVoiceClick || isPremiumUser) {
-                                        if (isUserVoice) {
-                                          setFormData(prev => ({ ...prev, voice_url: voice.url, voice_id: '' }));
-                                          setVoiceSelectionTime(prev => ({ ...prev, [voice.url]: Date.now() }));
-                                        } else {
-                                          setFormData(prev => ({ ...prev, voice_id: voice.id, voice_url: '' }));
-                                          setVoiceSelectionTime(prev => ({ ...prev, [voice.id]: Date.now() }));
+                                      if (isPremiumVoice(voice.name)) {
+                                        const subType = userInfo?.subscription?.subscription_type || (userInfo as any)?.subscription_type || 'free';
+                                        if (!['pro', 'premium'].includes(subType.toLowerCase())) {
+                                          setShowPremiumModal(true); return;
                                         }
                                       }
 
-                                      // Останавливаем предыдущее воспроизведение, если оно есть
-                                      if (audioRef.current) {
-                                        audioRef.current.pause();
-                                        audioRef.current.currentTime = 0;
-                                        audioRef.current = null;
-                                      }
-                                      if (playingVoiceUrl) {
-                                        setPlayingVoiceUrl(null);
-                                      }
+                                      setFormData(prev => ({ ...prev, voice_id: voice.id, voice_url: '' }));
+                                      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+                                      if (playingVoiceUrl === audioUrl) { setPlayingVoiceUrl(null); return; }
 
-                                      // Воспроизводим аудио
-                                      const audioUrlToPlay = voice.preview_url || voice.url;
-
-                                      // Если нажали на уже играющий голос - просто останавливаем его
-                                      if (playingVoiceUrl && (playingVoiceUrl === audioUrlToPlay || playingVoiceUrl === voice.url || playingVoiceUrl === voice.preview_url)) {
-                                        return;
-                                      }
-
-                                      // Премиум голоса можно прослушивать всем, проверка только при сохранении персонажа
-
-                                      if (audioUrlToPlay) {
+                                      if (audioUrl) {
                                         try {
-                                          const fullUrl = audioUrlToPlay.startsWith('http') ? audioUrlToPlay : `${API_CONFIG.BASE_URL}${audioUrlToPlay}`;
-                                          const encodedUrl = encodeURI(fullUrl);
-                                          const audio = new Audio(encodedUrl);
+                                          const fullUrl = audioUrl.startsWith('http') ? audioUrl : `${API_CONFIG.BASE_URL}${audioUrl}`;
+                                          const audio = new Audio(encodeURI(fullUrl));
                                           audioRef.current = audio;
-                                          audio.preload = 'auto';
-                                          audio.volume = 1.0;
-
-                                          // Обработчики событий
-                                          audio.onloadeddata = () => {
-                                          };
-                                          audio.onerror = (err) => {
-                                            setPlayingVoiceUrl(null);
-                                            audioRef.current = null;
-                                          };
-                                          audio.onended = () => {
-                                            setPlayingVoiceUrl(null);
-                                            audioRef.current = null;
-                                          };
-
-                                          setPlayingVoiceUrl(audioUrlToPlay);
+                                          audio.onended = () => setPlayingVoiceUrl(null);
+                                          setPlayingVoiceUrl(audioUrl);
                                           await audio.play();
-                                        } catch (err) {
-                                          setPlayingVoiceUrl(null);
-                                          audioRef.current = null;
-                                          alert('Не удалось воспроизвести аудио. Проверьте консоль для деталей.');
-                                        }
+                                        } catch (err) { }
                                       }
                                     }}
                                   >
-                                    <VoicePhoto
-                                      src={photoPath}
-                                      alt={voice.name}
-                                      $voiceName={voice.name}
-                                      $isSelected={isSelected}
-                                      onError={(e) => {
-                                        // Пробуем другие расширения
-                                        const target = e.target as HTMLImageElement;
-                                        const normalizedName = voice.name.replace(/\.(mp3|wav|ogg)$/i, '');
-                                        const extensions = ['.jpg', '.jpeg', '.webp'];
-                                        const currentSrc = target.src;
-                                        const currentExt = currentSrc.match(/\.(jpg|jpeg|png|webp)/i)?.[0] || '.png';
-                                        const currentIndex = extensions.findIndex(ext => currentExt.includes(ext.replace('.', '')));
-
-                                        if (currentIndex < extensions.length - 1) {
-                                          // Пробуем следующее расширение
-                                          target.src = `/default_voice_photo/${normalizedName}${extensions[currentIndex + 1]}`;
-                                        } else {
-                                          // Все расширения испробованы - показываем placeholder
-                                          target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9InJnYmEoNjAsIDYwLCA2MCwgMC4zKSIvPgo8cGF0aCBkPSJNMzAgNDBDMzAgMzUuMDI5IDM0LjAyOSAzMSAzOSAzMUg0MUM0NS45NzEgMzEgNTAgMzUuMDI5IDUwIDQwQzUwIDQ0Ljk3MSA0NS45NzEgNDkgNDEgNDlIMzlDMzQuMDI5IDQ5IDMwIDQ0Ljk3MSAzMCA0MFoiIGZpbGw9InJnYmEoMTUwLCAxNTAsIDE1MCwgMC41KSIvPgo8L3N2Zz4K';
-                                        }
-                                      }}
-                                    />
-                                    <VoiceCheckmark
-                                      $show={isSelected}
-                                      $isPremium={false}
-                                    />
+                                    <VoicePhoto src={photoPath} alt={voice.name} $isSelected={isSelected} $voiceName={voice.name} />
+                                    <VoiceCheckmark $show={isSelected} $isPremium={false} />
                                     {isPlaying && (
                                       <WaveformContainer $isPlaying={isPlaying}>
                                         {[...Array(5)].map((_, i) => (
@@ -6662,732 +6547,133 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                         ))}
                                       </WaveformContainer>
                                     )}
-                                    {((isUserVoice && (isOwner || isAdmin || userInfo?.is_admin)) || (!isUserVoice && (isAdmin || userInfo?.is_admin))) && (
-                                      <EditButton
-                                        type="button"
-                                        className="edit-voice-button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          e.preventDefault();
-                                          const newEditingId = voice.id;
-                                          setEditingVoiceId(newEditingId);
-                                          setEditingVoicePhotoId(newEditingId);
-                                          setEditedVoiceNames(prev => ({
-                                            ...prev,
-                                            [voice.id]: voice.name
-                                          }));
-                                        }}
-                                        title="Редактировать фото и название"
-                                      >
-                                        ✎
-                                      </EditButton>
-                                    )}
-                                    {((isUserVoice && (isOwner || isAdmin || userInfo?.is_admin)) || (!isUserVoice && (isAdmin || userInfo?.is_admin))) && (
-                                      <DeleteButton
-                                        type="button"
-                                        className="delete-voice-button"
-                                        onClick={async (e) => {
-                                          e.stopPropagation();
-
-                                          if (!confirm(`Вы уверены, что хотите удалить голос "${voice.name}"?`)) {
-                                            return;
-                                          }
-
-                                          try {
-                                            const token = localStorage.getItem('authToken');
-
-                                            // Проверяем, что это действительно пользовательский голос с валидным ID
-                                            if (isUserVoice && voice.user_voice_id) {
-                                              // Удаление пользовательского голоса
-                                              const voiceIdToDelete = typeof voice.user_voice_id === 'number'
-                                                ? voice.user_voice_id
-                                                : parseInt(String(voice.user_voice_id), 10);
-
-                                              if (isNaN(voiceIdToDelete)) {
-                                                alert('Ошибка: неверный ID голоса для удаления');
-                                                return;
-                                              }
-
-                                              const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${voiceIdToDelete}`, {
-                                                method: 'DELETE',
-                                                headers: {
-                                                  'Authorization': `Bearer ${token}`
-                                                }
-                                              });
-
-                                              if (response.ok) {
-                                                // Обновляем список голосов
-                                                const voicesResponse = await fetch('/api/v1/characters/available-voices', {
-                                                  headers: {
-                                                    'Authorization': `Bearer ${token}`
-                                                  }
-                                                });
-                                                if (voicesResponse.ok) {
-                                                  const voicesData = await voicesResponse.json();
-                                                  setAvailableVoices(voicesData);
-                                                }
-                                                // Если удаленный голос был выбран, сбрасываем выбор
-                                                if (formData.voice_url === voice.url) {
-                                                  setFormData(prev => ({ ...prev, voice_url: '', voice_id: '' }));
-                                                }
-                                              } else {
-                                                const error = await response.json();
-                                                alert('Ошибка удаления голоса: ' + (error.detail || 'Неизвестная ошибка'));
-                                              }
-                                            } else if (!isUserVoice && isAdmin) {
-                                              // Удаление дефолтного голоса
-                                              const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/default-voice/${voice.id}`, {
-                                                method: 'DELETE',
-                                                headers: {
-                                                  'Authorization': `Bearer ${token}`
-                                                }
-                                              });
-
-                                              if (response.ok) {
-                                                // Обновляем список голосов
-                                                const voicesResponse = await fetch('/api/v1/characters/available-voices', {
-                                                  headers: {
-                                                    'Authorization': `Bearer ${token}`
-                                                  }
-                                                });
-                                                if (voicesResponse.ok) {
-                                                  const voicesData = await voicesResponse.json();
-                                                  setAvailableVoices(voicesData);
-                                                }
-                                                // Если удаленный голос был выбран, сбрасываем выбор
-                                                if (formData.voice_id === voice.id) {
-                                                  setFormData(prev => ({ ...prev, voice_id: '', voice_url: '' }));
-                                                }
-                                              } else {
-                                                const errorText = await response.text();
-                                                let errorMessage = 'Неизвестная ошибка';
-                                                try {
-                                                  const error = JSON.parse(errorText);
-                                                  errorMessage = error.detail || errorMessage;
-                                                } catch {
-                                                  errorMessage = errorText || errorMessage;
-                                                }
-                                                alert('Ошибка удаления голоса: ' + errorMessage);
-                                              }
-                                            } else {
-                                              alert('Не удалось определить тип голоса для удаления.');
-                                            }
-                                          } catch (err) {
-                                            alert('Не удалось удалить голос. Проверьте консоль для деталей.');
-                                          }
-                                        }}
-                                        title="Удалить голос"
-                                      >
-                                        ×
-                                      </DeleteButton>
-                                    )}
-                                    {uploadingPhotoVoiceId === voice.id && (
-                                      <PhotoUploadSpinner />
+                                    {(isAdmin || (userInfo as any)?.is_admin) && (
+                                      <EditButton type="button" className="edit-voice-button" onClick={(e) => {
+                                        e.stopPropagation(); e.preventDefault();
+                                        setEditingVoiceId(voice.id); setEditingVoicePhotoId(voice.id);
+                                        setEditedVoiceNames(prev => ({ ...prev, [voice.id]: voice.name }));
+                                      }}>✎</EditButton>
                                     )}
                                   </VoicePhotoContainer>
-                                  {isUserVoice && voice.creator_username && !isOwner && (
-                                    <CreatorNameLabel
-                                      data-creator-name-label="true"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        // Переходим на страницу создателя голоса
-                                        const creatorUsername = voice.creator_username;
-                                        const creatorId = voice.creator_id;
-                                        const currentUserId = userInfo?.id;
-
-                                        // Проверяем, что creator_id существует, это не текущий пользователь, и это не владелец голоса
-                                        if (creatorId && typeof creatorId === 'number' && creatorId > 0 && creatorId !== currentUserId) {
-                                          // Используем callback для перехода на профиль
-                                          if (onProfile) {
-                                            onProfile(creatorId);
-                                          } else {
-                                            window.location.href = `/profile?user=${creatorId}`;
-                                          }
-                                        } else if (creatorUsername && creatorId !== currentUserId) {
-                                          // Если нет ID, пытаемся использовать username
-                                          // Для username используем прямой переход, так как callback принимает только ID
-                                          window.location.href = `/profile?username=${encodeURIComponent(creatorUsername)}`;
-                                        } else {
-                                        }
-                                      }}
-                                    >
-                                      {voice.creator_username}
-                                    </CreatorNameLabel>
+                                  {isPremiumVoice(voice.name) ? (
+                                    <PremiumVoiceName><span>{voice.name}</span></PremiumVoiceName>
+                                  ) : (
+                                    <VoiceName>{voice.name}</VoiceName>
                                   )}
-                                  {((isUserVoice && isEditingName) || (!isUserVoice && isAdmin && isEditingName)) ? (
-                                    <input
-                                      type="text"
-                                      value={editedName}
-                                      onChange={(e) => {
-                                        setEditedVoiceNames(prev => ({
-                                          ...prev,
-                                          [voice.id]: e.target.value
-                                        }));
-                                      }}
-                                      onBlur={async () => {
-                                        const newName = editedName.trim();
-                                        if (newName && newName !== voice.name) {
-                                          try {
-                                            const token = localStorage.getItem('authToken');
-
-                                            if (isUserVoice && voice.user_voice_id) {
-                                              // Редактирование пользовательского голоса
-                                              const uploadData = new FormData();
-                                              uploadData.append('voice_name', newName);
-                                              const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${voice.user_voice_id}/name`, {
-                                                method: 'PATCH',
-                                                headers: {
-                                                  'Authorization': `Bearer ${token}`
-                                                },
-                                                body: uploadData
-                                              });
-
-                                              if (response.ok) {
-                                                // Обновляем список голосов
-                                                const voicesResponse = await fetch('/api/v1/characters/available-voices', {
-                                                  headers: {
-                                                    'Authorization': `Bearer ${token}`
-                                                  }
-                                                });
-                                                if (voicesResponse.ok) {
-                                                  const voicesData = await voicesResponse.json();
-                                                  setAvailableVoices(voicesData);
-                                                }
-                                              } else {
-                                                // Откатываем изменение при ошибке
-                                                setEditedVoiceNames(prev => {
-                                                  const newState = { ...prev };
-                                                  delete newState[voice.id];
-                                                  return newState;
-                                                });
-                                              }
-                                            } else if (!isUserVoice && isAdmin) {
-                                              // Редактирование дефолтного голоса
-                                              const uploadData = new FormData();
-                                              uploadData.append('new_name', newName);
-                                              const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/default-voice/${voice.id}/name`, {
-                                                method: 'PATCH',
-                                                headers: {
-                                                  'Authorization': `Bearer ${token}`
-                                                },
-                                                body: uploadData
-                                              });
-
-                                              if (response.ok) {
-                                                // Обновляем список голосов
-                                                const voicesResponse = await fetch('/api/v1/characters/available-voices', {
-                                                  headers: {
-                                                    'Authorization': `Bearer ${token}`
-                                                  }
-                                                });
-                                                if (voicesResponse.ok) {
-                                                  const voicesData = await voicesResponse.json();
-                                                  setAvailableVoices(voicesData);
-                                                  // Обновляем выбранный голос, если он был переименован
-                                                  if (formData.voice_id === voice.id) {
-                                                    const updatedVoice = voicesData.find((v: any) => v.name === newName);
-                                                    if (updatedVoice) {
-                                                      setFormData(prev => ({ ...prev, voice_id: updatedVoice.id, voice_url: '' }));
-                                                    }
-                                                  }
-                                                }
-                                              } else {
-                                                const error = await response.json();
-                                                alert('Ошибка переименования голоса: ' + (error.detail || 'Неизвестная ошибка'));
-                                                // Откатываем изменение при ошибке
-                                                setEditedVoiceNames(prev => {
-                                                  const newState = { ...prev };
-                                                  delete newState[voice.id];
-                                                  return newState;
-                                                });
-                                              }
-                                            }
-                                          } catch (err) {
-                                            alert('Не удалось обновить имя голоса. Проверьте консоль для деталей.');
-                                            setEditedVoiceNames(prev => {
-                                              const newState = { ...prev };
-                                              delete newState[voice.id];
-                                              return newState;
-                                            });
-                                          }
-                                        } else {
-                                          setEditedVoiceNames(prev => {
-                                            const newState = { ...prev };
-                                            delete newState[voice.id];
-                                            return newState;
-                                          });
-                                        }
-                                        setEditingVoiceId(null);
-                                      }}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                          (e.target as HTMLInputElement).blur();
-                                        } else if (e.key === 'Escape') {
-                                          setEditedVoiceNames(prev => {
-                                            const newState = { ...prev };
-                                            delete newState[voice.id];
-                                            return newState;
-                                          });
-                                          setEditingVoiceId(null);
-                                        }
-                                      }}
-                                      autoFocus
-                                      style={{
-                                        position: 'absolute',
-                                        bottom: '-20px',
-                                        left: '50%',
-                                        transform: 'translateX(-50%)',
-                                        width: '120px',
-                                        fontSize: '11px',
-                                        padding: '2px 4px',
-                                        background: 'rgba(30, 30, 30, 0.95)',
-                                        border: '1px solid rgba(139, 92, 246, 0.6)',
-                                        borderRadius: '4px',
-                                        color: '#e4e4e7',
-                                        textAlign: 'center',
-                                        outline: 'none'
-                                      }}
-                                    />
-                                  ) : null}
-                                  {!((isUserVoice && isEditingName) || (!isUserVoice && isAdmin && isEditingName)) && (
-                                    <>
-                                      {isPremiumVoice(voice.name) ? (
-                                        <PremiumVoiceName>
-                                          <span>{voice.name}</span>
-                                        </PremiumVoiceName>
-                                      ) : (
-                                        <VoiceName>
-                                          {voice.name}
-                                        </VoiceName>
-                                      )}
-                                      {isPremiumVoice(voice.name) && (
-                                        <PremiumVoiceLabel>Только для Premium</PremiumVoiceLabel>
-                                      )}
-                                    </>
-                                  )}
+                                  {isPremiumVoice(voice.name) && <PremiumVoiceLabel>Только для Premium</PremiumVoiceLabel>}
                                 </VoicePhotoWrapper>
                               );
                             })}
 
-                            {/* Кнопка добавления своего голоса */}
+                            {/* Add User Voice Button (Right after Default Voices) */}
                             <VoicePhotoWrapper>
                               <AddVoiceContainer
-                                $isUploading={isUploadingVoice}
-                                $isPremium={true}
+                                $isUploading={isUploadingVoice} $isPremium={true}
                                 onClick={(e) => {
-                                  e.preventDefault();
-                                  if (isUploadingVoice) return;
-
-                                  // Проверка PREMIUM подписки
-                                  const subscriptionType = userInfo?.subscription?.subscription_type ||
-                                    (userInfo as any)?.subscription_type ||
-                                    'free';
-                                  const isPremiumUser = ['pro', 'premium'].includes(subscriptionType.toLowerCase());
-
-                                  if (!isPremiumUser) {
-                                    setIsVoiceSubscriptionModalOpen(true);
-                                    return;
-                                  }
-
+                                  e.preventDefault(); if (isUploadingVoice) return;
+                                  const subType = userInfo?.subscription?.subscription_type || (userInfo as any)?.subscription_type || 'free';
+                                  if (!['pro', 'premium'].includes(subType.toLowerCase())) { setIsVoiceSubscriptionModalOpen(true); return; }
                                   setIsVoiceCloneModalOpen(true);
                                 }}
                               >
                                 {isUploadingVoice ? <VoiceLoadingSpinner /> : <AddVoicePlus />}
                               </AddVoiceContainer>
-                              <AddVoiceName>{isUploadingVoice ? 'Загрузка...' : 'добавить свой голос'}</AddVoiceName>
+                              <AddVoiceName style={{ bottom: '-25px', top: 'auto', position: 'absolute' }}>
+                                {isUploadingVoice ? 'Загрузка...' : 'добавить свой голос'}
+                              </AddVoiceName>
                             </VoicePhotoWrapper>
                           </div>
 
-                          {/* Пользовательские голоса */}
+                          {/* Central Header + Expand Button */}
+                          {availableVoices.some(v => v.is_user_voice) && (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '30px 0 10px 0' }}>
+                              <span style={{ fontSize: '14px', color: '#e4e4e7', fontWeight: 500, marginBottom: '8px' }}>
+                                Мои голоса
+                              </span>
+                              <ExpandButton
+                                type="button"
+                                $isExpanded={showUserVoices}
+                                onClick={() => setShowUserVoices(!showUserVoices)}
+                                style={{ margin: '0 auto' }}
+                              >
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                              </ExpandButton>
+                            </div>
+                          )}
+
+                          {/* My Voices Section (Expandable) */}
                           {showUserVoices && (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'flex-start', position: 'relative', zIndex: 1, marginTop: '80px', paddingBottom: '20px' }}>
-                              {availableVoices.filter((voice) => {
-                                const isUserVoice = voice.is_user_voice || false;
-                                return isUserVoice; // Показываем только пользовательские голоса
-                              }).map((voice) => {
-                                const isUserVoice = voice.is_user_voice || false;
-                                const isPublic = voice.is_public === true || (voice.is_public as any) === 1 || (voice.is_public as any) === '1';
-                                const isOwner = voice.is_owner === true || (voice.is_owner as any) === 1 || (voice.is_owner as any) === '1';
-                                const isSelected = isUserVoice
-                                  ? String(formData.voice_url || '') === String(voice.url || '')
-                                  : String(formData.voice_id || '') === String(voice.id || '');
-                                const audioUrl = voice.preview_url || voice.url;
-                                const isPlaying = playingVoiceUrl !== null && (playingVoiceUrl === audioUrl || playingVoiceUrl === voice.url || playingVoiceUrl === voice.preview_url);
-                                const defaultPlaceholder = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9InJnYmEoNjAsIDYwLCA2MCwgMC4zKSIvPgo8cGF0aCBkPSJNMzAgNDBDMzAgMzUuMDI5IDM0LjAyOSAzMSAzOSAzMUg0MUM0NS45NzEgMzEgNTAgMzUuMDI5IDUwIDQwQzUwIDQ0Ljk3MSA0NS45NzEgNDkgNDEgNDlIMzlDMzQuMDI5IDQ5IDMwIDQ0Ljk3MSAzMCA0MFoiIGZpbGw9InJnYmEoMTUwLCAxNTAsIDE1MCwgMC41KSIvPgo8L3N2Zz4K';
-                                const photoPath = isUserVoice
-                                  ? (voice.photo_url
-                                    ? (voice.photo_url.startsWith('http') ? voice.photo_url : `${API_CONFIG.BASE_URL}${voice.photo_url}`)
-                                    : defaultPlaceholder)
-                                  : getVoicePhotoPath(voice.name);
-                                const isEditingName = editingVoiceId === voice.id;
-                                const editedName = editedVoiceNames[voice.id] || voice.name;
-                                const isEditingPhoto = editingVoicePhotoId === voice.id || editingVoicePhotoId === String(voice.id);
+                            <div style={{
+                              display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'flex-start',
+                              padding: '16px', background: 'rgba(20, 20, 20, 0.4)', borderRadius: '16px',
+                              border: '1px solid rgba(139, 92, 246, 0.2)', marginTop: '8px'
+                            }}>
+                              {availableVoices.filter(v => v.is_user_voice).map((voice) => {
+                                const isSelected = String(formData.voice_url || '') === String(voice.url || '');
+                                const isPlaying = playingVoiceUrl === voice.url;
+                                const placeholder = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9InJnYmEoNjAsIDYwLCA2MCwgMC4zKSIvPgo8cGF0aCBkPSJNMzAgNDBDMzAgMzUuMDI5IDM0LjAyOSAzMSAzOSAzMUg0MUM0NS45NzEgMzEgNTAgMzUuMDI5IDUwIDQwQzUwIDQ0Ljk3MSA0NS45NzEgNDkgNDEgNDlIMzlDMzQuMDI5IDQ5IDMwIDQ0Ljk3MSAzMCA0MFoiIGZpbGw9InJnYmEoMTUwLCAxNTAsIDE1MCwgMC41KSIvPgo8L3N2Zz4K';
+                                const photoPath = voice.photo_url ? (voice.photo_url.startsWith('http') ? voice.photo_url : `${API_CONFIG.BASE_URL}${voice.photo_url}`) : placeholder;
+                                const isOwner = voice.is_owner === true || (voice.is_owner as any) === 1;
 
                                 return (
-                                  <VoicePhotoWrapper
-                                    key={voice.id}
-                                    style={{
-                                      position: 'relative',
-                                      zIndex: isUserVoice && isPublic && !isOwner ? 10 : 1
-                                    }}
-                                  >
+                                  <VoicePhotoWrapper key={voice.id}>
                                     <VoicePhotoContainer
-                                      $isSelected={isSelected}
-                                      $isPlaying={isPlaying}
-                                      $voiceName={voice.name}
-                                      $isUserVoice={isUserVoice}
+                                      $isSelected={isSelected} $isPlaying={isPlaying} $voiceName={voice.name} $isUserVoice={true}
                                       onClick={async (e) => {
                                         e.preventDefault();
-                                        if ((e.target as HTMLElement).closest('.edit-voice-button')) {
-                                          return;
-                                        }
-                                        if (editingVoiceId === voice.id) return;
-
-
-                                        if (isUserVoice) {
-                                          setFormData(prev => ({ ...prev, voice_url: voice.url, voice_id: '' }));
-                                          setVoiceSelectionTime(prev => ({ ...prev, [voice.url]: Date.now() }));
-                                        } else {
-                                          setFormData(prev => ({ ...prev, voice_id: voice.id, voice_url: '' }));
-                                          setVoiceSelectionTime(prev => ({ ...prev, [voice.id]: Date.now() }));
-                                        }
-
-                                        // Останавливаем предыдущее воспроизведение, если оно есть
-                                        if (audioRef.current) {
-                                          audioRef.current.pause();
-                                          audioRef.current.currentTime = 0;
-                                          audioRef.current = null;
-                                        }
-                                        if (playingVoiceUrl) {
-                                          setPlayingVoiceUrl(null);
-                                        }
-
-                                        const audioUrlToPlay = voice.preview_url || voice.url;
-
-                                        // Если нажали на уже играющий голос - просто останавливаем его
-                                        if (playingVoiceUrl && (playingVoiceUrl === audioUrlToPlay || playingVoiceUrl === voice.url || playingVoiceUrl === voice.preview_url)) {
-                                          return;
-                                        }
-
+                                        if ((e.target as HTMLElement).closest('.edit-voice-button, .delete-voice-button')) return;
+                                        setFormData(prev => ({ ...prev, voice_url: voice.url, voice_id: '' }));
+                                        if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+                                        if (playingVoiceUrl === voice.url) { setPlayingVoiceUrl(null); return; }
                                         try {
-                                          const fullUrl = audioUrlToPlay.startsWith('http')
-                                            ? audioUrlToPlay
-                                            : `${API_CONFIG.BASE_URL}${audioUrlToPlay}`;
-
-                                          const audio = new Audio(fullUrl);
+                                          const fullUrl = voice.url.startsWith('http') ? voice.url : `${API_CONFIG.BASE_URL}${voice.url}`;
+                                          const audio = new Audio(encodeURI(fullUrl));
                                           audioRef.current = audio;
-
-                                          audio.onended = () => {
-                                            setPlayingVoiceUrl(null);
-                                          };
-
-                                          audio.onerror = () => {
-                                            setPlayingVoiceUrl(null);
-                                          };
-
+                                          audio.onended = () => setPlayingVoiceUrl(null);
+                                          setPlayingVoiceUrl(voice.url);
                                           await audio.play();
-                                          setPlayingVoiceUrl(audioUrlToPlay);
-                                        } catch (err) {
-                                        }
+                                        } catch (err) { }
                                       }}
                                     >
-                                      <VoicePhoto
-                                        src={photoPath}
-                                        alt={voice.name}
-                                        $voiceName={voice.name}
-                                        $isSelected={isSelected}
-                                        onError={(e) => {
-                                          const target = e.target as HTMLImageElement;
-                                          const normalizedName = voice.name.replace(/\.(mp3|wav|ogg)$/i, '');
-                                          const extensions = ['.png', '.jpg', '.jpeg', '.webp'];
-                                          let currentIndex = 0;
-
-                                          const tryNext = () => {
-                                            if (currentIndex < extensions.length) {
-                                              target.src = `/default_voice_photo/${normalizedName}${extensions[currentIndex + 1]}`;
-                                              currentIndex++;
-                                            } else {
-                                              target.src = defaultPlaceholder;
-                                            }
-                                          };
-
-                                          target.onerror = tryNext;
-                                          tryNext();
-                                        }}
-                                      />
-                                      <VoiceCheckmark
-                                        $show={isSelected}
-                                        $isPremium={false}
-                                      />
-                                      {((isUserVoice && (isOwner || isAdmin || userInfo?.is_admin)) || (!isUserVoice && (isAdmin || userInfo?.is_admin))) && (
-                                        <EditButton
-                                          type="button"
-                                          className="edit-voice-button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            e.preventDefault();
-                                            setEditingVoicePhotoId(voice.id);
-                                            setEditedVoiceNames(prev => ({
-                                              ...prev,
-                                              [voice.id]: voice.name
-                                            }));
-                                          }}
-                                          title="Редактировать фото и название"
-                                          style={{ pointerEvents: 'auto', opacity: '0.3' }}
-                                        >
-                                          ✎
-                                        </EditButton>
-                                      )}
-                                      {((isUserVoice && (isOwner || isAdmin || userInfo?.is_admin)) || (!isUserVoice && (isAdmin || userInfo?.is_admin))) && (
-                                        <DeleteButton
-                                          type="button"
-                                          className="delete-voice-button"
-                                          onClick={async (e) => {
-                                            e.stopPropagation();
-                                            e.preventDefault();
-                                            if (!confirm(`Вы уверены, что хотите удалить голос "${voice.name}"?`)) {
-                                              return;
-                                            }
-
-                                            try {
-                                              const token = localStorage.getItem('authToken');
-
-                                              if (isUserVoice && voice.user_voice_id) {
-                                                const voiceIdToDelete = typeof voice.user_voice_id === 'number'
-                                                  ? voice.user_voice_id
-                                                  : parseInt(String(voice.user_voice_id), 10);
-
-                                                if (isNaN(voiceIdToDelete)) {
-                                                  alert('Ошибка: неверный ID голоса для удаления');
-                                                  return;
-                                                }
-
-                                                const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${voiceIdToDelete}`, {
-                                                  method: 'DELETE',
-                                                  headers: {
-                                                    'Authorization': `Bearer ${token}`
-                                                  }
-                                                });
-
-                                                if (response.ok) {
-                                                  const voicesResponse = await fetch('/api/v1/characters/available-voices', {
-                                                    headers: {
-                                                      'Authorization': `Bearer ${token}`
-                                                    }
-                                                  });
-                                                  if (voicesResponse.ok) {
-                                                    const voicesData = await voicesResponse.json();
-                                                    setAvailableVoices(voicesData);
-                                                  }
-                                                  if (formData.voice_url === voice.url) {
-                                                    setFormData(prev => ({ ...prev, voice_url: '', voice_id: '' }));
-                                                  }
-                                                  alert('Голос успешно удален');
-                                                } else {
-                                                  const error = await response.json();
-                                                  alert('Ошибка удаления голоса: ' + (error.detail || 'Неизвестная ошибка'));
-                                                }
-                                              } else if (!isUserVoice && isAdmin) {
-                                                const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/default-voice/${voice.id}`, {
-                                                  method: 'DELETE',
-                                                  headers: {
-                                                    'Authorization': `Bearer ${token}`
-                                                  }
-                                                });
-
-                                                if (response.ok) {
-                                                  const voicesResponse = await fetch('/api/v1/characters/available-voices', {
-                                                    headers: {
-                                                      'Authorization': `Bearer ${token}`
-                                                    }
-                                                  });
-                                                  if (voicesResponse.ok) {
-                                                    const voicesData = await voicesResponse.json();
-                                                    setAvailableVoices(voicesData);
-                                                  }
-                                                  if (formData.voice_id === voice.id) {
-                                                    setFormData(prev => ({ ...prev, voice_id: '', voice_url: '' }));
-                                                  }
-                                                  alert('Голос успешно удален');
-                                                } else {
-                                                  const error = await response.json();
-                                                  const errorMessage = error.detail || 'Неизвестная ошибка';
-                                                  alert('Ошибка удаления голоса: ' + errorMessage);
-                                                }
-                                              } else {
-                                                alert('Не удалось определить тип голоса для удаления.');
-                                              }
-                                            } catch (err) {
-                                              alert('Не удалось удалить голос. Проверьте консоль для деталей.');
-                                            }
-                                          }}
-                                          title="Удалить голос"
-                                        >
-                                          ×
-                                        </DeleteButton>
-                                      )}
-                                      {uploadingPhotoVoiceId === voice.id && (
-                                        <PhotoUploadSpinner />
-                                      )}
+                                      <VoicePhoto src={photoPath} alt={voice.name} $isSelected={isSelected} />
+                                      <VoiceCheckmark $show={isSelected} $isPremium={false} />
                                       {isPlaying && (
                                         <WaveformContainer $isPlaying={isPlaying}>
                                           {[...Array(5)].map((_, i) => (
-                                            <WaveformBar key={i} $delay={i} />
+                                            <WaveformBar key={i} $delay={i} $isPremium={false} />
                                           ))}
                                         </WaveformContainer>
                                       )}
-                                    </VoicePhotoContainer>
-                                    {isUserVoice && voice.creator_username && !isOwner && (
-                                      <CreatorNameLabel
-                                        data-creator-name-label="true"
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          e.stopPropagation();
-                                          // Переходим на страницу создателя голоса
-                                          const creatorUsername = voice.creator_username;
-                                          const creatorId = voice.creator_id;
-                                          const currentUserId = userInfo?.id;
-
-                                          // Проверяем, что creator_id существует, это не текущий пользователь, и это не владелец голоса
-                                          if (creatorId && typeof creatorId === 'number' && creatorId > 0 && creatorId !== currentUserId) {
-                                            // Используем callback для перехода на профиль
-                                            if (onProfile) {
-                                              onProfile(creatorId);
-                                            } else {
-                                              window.location.href = `/profile?user=${creatorId}`;
-                                            }
-                                          } else if (creatorUsername && creatorId !== currentUserId) {
-                                            // Если нет ID, пытаемся использовать username
-                                            // Для username используем прямой переход, так как callback принимает только ID
-                                            window.location.href = `/profile?username=${encodeURIComponent(creatorUsername)}`;
-                                          }
-                                        }}
-                                      >
-                                        {voice.creator_username}
-                                      </CreatorNameLabel>
-                                    )}
-                                    {((isUserVoice && isEditingName) || (!isUserVoice && isAdmin && isEditingName)) ? (
-                                      <input
-                                        type="text"
-                                        value={editedName}
-                                        onChange={(e) => {
-                                          setEditedVoiceNames(prev => ({
-                                            ...prev,
-                                            [voice.id]: e.target.value
-                                          }));
-                                        }}
-                                        onBlur={async () => {
-                                          const newName = editedName.trim();
-                                          if (newName && newName !== voice.name) {
+                                      {(isOwner || isAdmin || (userInfo as any)?.is_admin) && (
+                                        <>
+                                          <EditButton type="button" className="edit-voice-button" onClick={(e) => {
+                                            e.stopPropagation(); e.preventDefault();
+                                            setEditingVoiceId(voice.id); setEditingVoicePhotoId(voice.id);
+                                            setEditedVoiceNames(prev => ({ ...prev, [voice.id]: voice.name }));
+                                          }}>✎</EditButton>
+                                          <DeleteButton type="button" className="delete-voice-button" onClick={async (e) => {
+                                            e.stopPropagation(); if (!confirm(`Удалить голос ${voice.name}?`)) return;
                                             try {
                                               const token = localStorage.getItem('authToken');
-
-                                              if (isUserVoice && voice.user_voice_id) {
-                                                const uploadData = new FormData();
-                                                uploadData.append('voice_name', newName);
-                                                const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${voice.user_voice_id}`, {
-                                                  method: 'PATCH',
-                                                  headers: {
-                                                    'Authorization': `Bearer ${token}`
-                                                  },
-                                                  body: uploadData
-                                                });
-
-                                                if (response.ok) {
-                                                  const voicesResponse = await fetch('/api/v1/characters/available-voices', {
-                                                    headers: {
-                                                      'Authorization': `Bearer ${token}`
-                                                    }
-                                                  });
-                                                  if (voicesResponse.ok) {
-                                                    const voicesData = await voicesResponse.json();
-                                                    setAvailableVoices(voicesData);
-                                                  }
-                                                  setEditingVoiceId(null);
-                                                } else {
-                                                  const error = await response.json();
-                                                  alert('Ошибка изменения имени: ' + (error.detail || 'Неизвестная ошибка'));
-                                                }
-                                              } else if (!isUserVoice && isAdmin) {
-                                                const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/default-voice/${voice.id}`, {
-                                                  method: 'PATCH',
-                                                  headers: {
-                                                    'Authorization': `Bearer ${token}`,
-                                                    'Content-Type': 'application/json'
-                                                  },
-                                                  body: JSON.stringify({ voice_name: newName })
-                                                });
-
-                                                if (response.ok) {
-                                                  const voicesResponse = await fetch('/api/v1/characters/available-voices', {
-                                                    headers: {
-                                                      'Authorization': `Bearer ${token}`
-                                                    }
-                                                  });
-                                                  if (voicesResponse.ok) {
-                                                    const voicesData = await voicesResponse.json();
-                                                    setAvailableVoices(voicesData);
-                                                  }
-                                                  setEditingVoiceId(null);
-                                                } else {
-                                                  const error = await response.json();
-                                                  alert('Ошибка изменения имени: ' + (error.detail || 'Неизвестная ошибка'));
-                                                }
+                                              const res = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${voice.user_voice_id}`, {
+                                                method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
+                                              });
+                                              if (res.ok) {
+                                                const vResp = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/available-voices`, { headers: { 'Authorization': `Bearer ${token}` } });
+                                                if (vResp.ok) setAvailableVoices(await vResp.json());
                                               }
-                                            } catch (err) {
-                                              alert('Не удалось изменить имя. Проверьте консоль для деталей.');
-                                            }
-                                          } else {
-                                            setEditingVoiceId(null);
-                                          }
-                                        }}
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter') {
-                                            (e.target as HTMLInputElement).blur();
-                                          } else if (e.key === 'Escape') {
-                                            setEditingVoiceId(null);
-                                            setEditedVoiceNames(prev => {
-                                              const newState = { ...prev };
-                                              delete newState[voice.id];
-                                              return newState;
-                                            });
-                                          }
-                                        }}
-                                        autoFocus
-                                        style={{
-                                          position: 'absolute',
-                                          bottom: '-30px',
-                                          left: '50%',
-                                          transform: 'translateX(-50%)',
-                                          background: 'rgba(30, 30, 30, 0.95)',
-                                          border: '1px solid rgba(139, 92, 246, 0.6)',
-                                          borderRadius: '6px',
-                                          padding: '4px 8px',
-                                          fontSize: '11px',
-                                          color: '#e4e4e7',
-                                          width: '120px',
-                                          textAlign: 'center',
-                                          zIndex: 10003
-                                        }}
-                                      />
-                                    ) : (
-                                      <>
-                                        {isPremiumVoice(voice.name) ? (
-                                          <PremiumVoiceName>
-                                            <span>{voice.name}</span>
-                                          </PremiumVoiceName>
-                                        ) : (
-                                          <VoiceName
-                                            $isUserVoice={isUserVoice}
-                                          >
-                                            {voice.name}
-                                          </VoiceName>
-                                        )}
-                                        {isPremiumVoice(voice.name) && (
-                                          <PremiumVoiceLabel>Только для Premium</PremiumVoiceLabel>
-                                        )}
-                                      </>
+                                            } catch (err) { }
+                                          }}>×</DeleteButton>
+                                        </>
+                                      )}
+                                    </VoicePhotoContainer>
+                                    <VoiceName>{voice.name}</VoiceName>
+                                    {voice.creator_username && !isOwner && (
+                                      <CreatorNameLabel onClick={() => voice.creator_id && (onProfile ? onProfile(voice.creator_id) : (window.location.href = `/profile?user=${voice.creator_id}`))}>
+                                        {voice.creator_username}
+                                      </CreatorNameLabel>
                                     )}
                                   </VoicePhotoWrapper>
                                 );
@@ -7395,515 +6681,48 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                             </div>
                           )}
 
-                          {/* Стрелочка для показа пользовательских голосов */}
-                          {availableVoices.some((voice) => voice.is_user_voice) && (
-                            <ExpandButton
-                              type="button"
-                              $isExpanded={showUserVoices}
-                              onClick={() => setShowUserVoices(!showUserVoices)}
-                            >
-                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <polyline points="6 9 12 15 18 9"></polyline>
-                              </svg>
-                            </ExpandButton>
-                          )}
-
-
-
-                          {/* Общее модальное окно редактирования голоса — рендер в body, чтобы было по центру экрана */}
+                          {/* Edit Voice Portal */}
                           {editingVoicePhotoId && (() => {
-                            const editingVoice = availableVoices.find(v =>
-                              String(v.id) === String(editingVoicePhotoId) ||
-                              String(v.user_voice_id) === String(editingVoicePhotoId)
-                            );
+                            const editingVoice = availableVoices.find(v => String(v.id) === String(editingVoicePhotoId) || String(v.user_voice_id) === String(editingVoicePhotoId));
                             if (!editingVoice) return null;
-
                             const isUserVoice = editingVoice.is_user_voice || false;
-                            const defaultPlaceholder = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9InJnYmEoNjAsIDYwLCA2MCwgMC4zKSIvPgo8cGF0aCBkPSJNMzAgNDBDMzAgMzUuMDI5IDM0LjAyOSAzMSAzOSAzMUg0MUM0NS45NzEgMzEgNTAgMzUuMDI5IDUwIDQwQzUwIDQ0Ljk3MSA0NS45NzEgNDkgNDEgNDlIMzlDMzQuMDI5IDQ5IDMwIDQ0Ljk3MSAzMCA0MFoiIGZpbGw9InJnYmEoMTUwLCAxNTAsIDE1MCwgMC41KSIvPgo8L3N2Zz4K';
                             const photoPath = isUserVoice
-                              ? (editingVoice.photo_url
-                                ? (editingVoice.photo_url.startsWith('http') ? editingVoice.photo_url : `${API_CONFIG.BASE_URL}${editingVoice.photo_url}`)
-                                : defaultPlaceholder)
+                              ? (editingVoice.photo_url ? (editingVoice.photo_url.startsWith('http') ? editingVoice.photo_url : `${API_CONFIG.BASE_URL}${editingVoice.photo_url}`) : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9InJnYmEoNjAsIDYwLCA2MCwgMC4zKSIvPgo8cGF0aCBkPSJNMzAgNDBDMzAgMzUuMDI5IDM0LjAyOSAzMSAzOSAzMUg0MUM0NS45NzEgMzEgNTAgMzUuMDI5IDUwIDQwQzUwIDQ0Ljk3MSA0NS45NzEgNDkgNDEgNDlIMzlDMzQuMDI5IDQ5IDMwIDQ0Ljk3MSAzMCA0MFoiIGZpbGw9InJnYmEoMTUwLCAxNTAsIDE1MCwgMC41KSIvPgo8L3N2Zz4K')
                               : getVoicePhotoPath(editingVoice.name);
-                            const editedName = editedVoiceNames[editingVoice.id] !== undefined ? editedVoiceNames[editingVoice.id] : editingVoice.name;
+                            const currentEditedName = editedVoiceNames[editingVoice.id] ?? editingVoice.name;
 
-                            const modalContent = (
-                              <div
-                                style={{
-                                  position: 'fixed',
-                                  inset: 0,
-                                  background: 'rgba(0, 0, 0, 0.5)',
-                                  backdropFilter: 'blur(12px)',
-                                  WebkitBackdropFilter: 'blur(12px)',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  zIndex: 99999,
-                                  padding: '24px',
-                                  boxSizing: 'border-box'
-                                }}
-                                onClick={(e) => {
-                                  if (e.target === e.currentTarget) {
-                                    setEditingVoicePhotoId(null);
-                                  }
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    background: 'rgba(30, 30, 30, 0.95)',
-                                    border: '1px solid rgba(139, 92, 246, 0.6)',
-                                    borderRadius: '12px',
-                                    padding: '24px',
-                                    width: '100%',
-                                    maxWidth: '420px',
-                                    maxHeight: '90vh',
-                                    overflowY: 'auto',
-                                    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <h3 style={{ color: '#e4e4e7', marginBottom: '20px', fontSize: '18px' }}>
-                                    Редактировать голос
-                                  </h3>
-
-                                  {/* Редактирование фото */}
-                                  <div style={{ marginBottom: '20px' }}>
-                                    <label style={{ display: 'block', color: '#e4e4e7', marginBottom: '8px', fontSize: '14px' }}>
-                                      Фото голоса
-                                    </label>
-                                    {photoPreview && photoPreview.url && (photoPreview.voiceId === editingVoice.id || photoPreview.voiceId === String(editingVoice.id)) ? (
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center', width: '100%' }}>
-                                        <div
-                                          style={{
-                                            width: '120px',
-                                            height: '120px',
-                                            borderRadius: '50%',
-                                            overflow: 'hidden',
-                                            border: '3px solid rgba(139, 92, 246, 0.6)',
-                                            position: 'relative',
-                                            cursor: 'move',
-                                            userSelect: 'none',
-                                            margin: '0 auto',
-                                            touchAction: 'none'
-                                          }}
-                                          onMouseDown={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            setIsDraggingPhoto(true);
-                                            setDragStart({
-                                              x: e.clientX,
-                                              y: e.clientY,
-                                              photoX: photoPreview.x,
-                                              photoY: photoPreview.y,
-                                              element: e.currentTarget
-                                            });
-                                          }}
-                                        >
-                                          <img
-                                            src={photoPreview.url}
-                                            alt="Preview"
-                                            draggable="false"
-                                            style={{
-                                              position: 'absolute',
-                                              top: '50%',
-                                              left: '50%',
-                                              minWidth: '100%',
-                                              minHeight: '100%',
-                                              width: 'auto',
-                                              height: 'auto',
-                                              maxWidth: '200%',
-                                              maxHeight: '200%',
-                                              transform: `translate(calc(-50% + ${photoPreview.x}px), calc(-50% + ${photoPreview.y}px))`,
-                                              pointerEvents: 'none',
-                                              userSelect: 'none',
-                                              objectFit: 'cover'
-                                            }}
-                                          />
-                                        </div>
-                                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                                          <input
-                                            type="file"
-                                            accept="image/png,image/jpeg,image/jpg,image/webp"
-                                            onChange={(e) => {
-                                              const file = e.target.files?.[0];
-                                              if (file) {
-                                                const reader = new FileReader();
-                                                reader.onload = (event) => {
-                                                  setPhotoPreview({
-                                                    url: event.target?.result as string,
-                                                    x: 0,
-                                                    y: 0,
-                                                    voiceId: String(editingVoice.id || editingVoice.user_voice_id)
-                                                  });
-                                                };
-                                                reader.readAsDataURL(file);
-                                              }
-                                            }}
-                                            style={{ display: 'none' }}
-                                            id={`photo-reload-input-${editingVoice.id}`}
-                                          />
-                                          <label
-                                            htmlFor={`photo-reload-input-${editingVoice.id}`}
-                                            style={{
-                                              padding: '8px 16px',
-                                              background: 'rgba(139, 92, 246, 0.8)',
-                                              border: '1px solid rgba(139, 92, 246, 0.6)',
-                                              borderRadius: '6px',
-                                              color: 'white',
-                                              cursor: 'pointer',
-                                              fontSize: '14px',
-                                              fontWeight: '500'
-                                            }}
-                                          >
-                                            Загрузить фото
-                                          </label>
-                                          {editingVoice.user_voice_id && (
-                                            <button
-                                              type="button"
-                                              onClick={async (e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                if (photoPreview && editingVoice.user_voice_id) {
-                                                  try {
-                                                    const canvas = document.createElement('canvas');
-                                                    const ctx = canvas.getContext('2d');
-                                                    const size = 200;
-                                                    canvas.width = size;
-                                                    canvas.height = size;
-
-                                                    const img = new Image();
-                                                    img.crossOrigin = 'anonymous';
-                                                    img.onload = async () => {
-                                                      const previewSize = 114;
-                                                      const finalSize = size;
-                                                      const scale = finalSize / previewSize;
-
-                                                      // Calculate effective DOM dimensions based on CSS constraints
-                                                      let domW = img.width;
-                                                      let domH = img.height;
-
-                                                      // Max constraint (200%)
-                                                      const maxDim = previewSize * 2;
-                                                      if (domW > maxDim || domH > maxDim) {
-                                                        const maxScale = Math.min(maxDim / domW, maxDim / domH);
-                                                        domW *= maxScale;
-                                                        domH *= maxScale;
-                                                      }
-
-                                                      // Min constraint (100%) - wins over max
-                                                      const minDim = previewSize;
-                                                      if (domW < minDim || domH < minDim) {
-                                                        const minScale = Math.max(minDim / domW, minDim / domH);
-                                                        domW *= minScale;
-                                                        domH *= minScale;
-                                                      }
-
-                                                      const imgW = domW * scale;
-                                                      const imgH = domH * scale;
-
-                                                      const baseX = (finalSize - imgW) / 2;
-                                                      const baseY = (finalSize - imgH) / 2;
-
-                                                      const offsetX = photoPreview.x * scale;
-                                                      const offsetY = photoPreview.y * scale;
-
-                                                      ctx.beginPath();
-                                                      ctx.arc(finalSize / 2, finalSize / 2, finalSize / 2, 0, Math.PI * 2);
-                                                      ctx.clip();
-
-                                                      ctx.drawImage(img, baseX + offsetX, baseY + offsetY, imgW, imgH);
-
-                                                      canvas.toBlob(async (blob) => {
-                                                        if (blob && editingVoice.user_voice_id) {
-                                                          setUploadingPhotoVoiceId(editingVoice.id);
-                                                          try {
-                                                            const uploadData = new FormData();
-                                                            uploadData.append('photo_file', blob, 'voice_photo.png');
-                                                            const token = localStorage.getItem('authToken');
-                                                            const photoUrl = `${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${editingVoice.user_voice_id}/photo`;
-                                                            const response = await fetch(photoUrl, {
-                                                              method: 'PATCH',
-                                                              headers: {
-                                                                'Authorization': `Bearer ${token}`
-                                                              },
-                                                              body: uploadData
-                                                            });
-
-                                                            if (response.ok) {
-                                                              const token = localStorage.getItem('authToken');
-                                                              const voicesResponse = await fetch('/api/v1/characters/available-voices', {
-                                                                headers: {
-                                                                  'Authorization': `Bearer ${token}`
-                                                                }
-                                                              });
-                                                              if (voicesResponse.ok) {
-                                                                const voicesData = await voicesResponse.json();
-                                                                setAvailableVoices(voicesData);
-                                                              }
-                                                              setPhotoPreview(null);
-                                                              setEditingVoicePhotoId(null);
-                                                            } else {
-                                                              const error = await response.json();
-                                                              alert('Ошибка обновления фото: ' + (error.detail || 'Неизвестная ошибка'));
-                                                            }
-                                                          } catch (err) {
-                                                            alert('Не удалось обновить фото. Проверьте консоль для деталей.');
-                                                          } finally {
-                                                            setUploadingPhotoVoiceId(null);
-                                                          }
-                                                        }
-                                                      }, 'image/png');
-                                                    };
-                                                    img.src = photoPreview.url;
-                                                  } catch (err) {
-                                                    alert('Не удалось обработать фото');
-                                                  }
-                                                }
-                                              }}
-                                              style={{
-                                                padding: '8px 16px',
-                                                background: 'rgba(255, 215, 0, 0.8)',
-                                                border: '1px solid rgba(255, 215, 0, 0.6)',
-                                                borderRadius: '6px',
-                                                color: '#1a1a1a',
-                                                cursor: 'pointer',
-                                                fontSize: '14px',
-                                                fontWeight: '500'
-                                              }}
-                                            >
-                                              Сохранить
-                                            </button>
-                                          )}
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.preventDefault();
-                                              e.stopPropagation();
-                                              setPhotoPreview(null);
-                                              setEditingVoicePhotoId(null);
-                                            }}
-                                            style={{
-                                              padding: '8px 16px',
-                                              background: 'rgba(100, 100, 100, 0.8)',
-                                              border: '1px solid rgba(100, 100, 100, 0.6)',
-                                              borderRadius: '6px',
-                                              color: 'white',
-                                              cursor: 'pointer',
-                                              fontSize: '14px'
-                                            }}
-                                          >
-                                            Отмена
-                                          </button>
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center', width: '100%' }}>
-                                        <div
-                                          style={{
-                                            width: '120px',
-                                            height: '120px',
-                                            borderRadius: '50%',
-                                            overflow: 'hidden',
-                                            border: '3px solid rgba(139, 92, 246, 0.6)',
-                                            position: 'relative',
-                                            margin: '0 auto'
-                                          }}
-                                        >
-                                          <img
-                                            src={photoPath}
-                                            alt={editingVoice.name}
-                                            style={{
-                                              width: '100%',
-                                              height: '100%',
-                                              objectFit: 'cover',
-                                              objectPosition: 'center'
-                                            }}
-                                          />
-                                        </div>
-                                        <input
-                                          type="file"
-                                          accept="image/png,image/jpeg,image/jpg,image/webp"
-                                          onChange={(e) => {
-                                            const file = e.target.files?.[0];
-                                            if (file) {
-                                              const reader = new FileReader();
-                                              reader.onload = (event) => {
-                                                setPhotoPreview({
-                                                  url: event.target?.result as string,
-                                                  x: 0,
-                                                  y: 0,
-                                                  voiceId: String(editingVoice.id || editingVoice.user_voice_id)
-                                                });
-                                              };
-                                              reader.readAsDataURL(file);
-                                            }
-                                          }}
-                                          style={{ display: 'none' }}
-                                          id={`photo-input-${editingVoice.id}`}
-                                        />
-                                        <label
-                                          htmlFor={`photo-input-${editingVoice.id}`}
-                                          style={{
-                                            padding: '8px 16px',
-                                            background: 'rgba(139, 92, 246, 0.8)',
-                                            border: '1px solid rgba(139, 92, 246, 0.6)',
-                                            borderRadius: '6px',
-                                            color: 'white',
-                                            cursor: 'pointer',
-                                            fontSize: '14px'
-                                          }}
-                                        >
-                                          Изменить фото
-                                        </label>
-                                      </div>
-                                    )}
+                            return createPortal(
+                              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: '24px' }} onClick={() => setEditingVoicePhotoId(null)}>
+                                <div style={{ background: 'rgba(30,30,30,0.95)', border: '1px solid rgba(139,92,246,0.6)', borderRadius: '12px', padding: '24px', width: '100%', maxWidth: '420px', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
+                                  <h3 style={{ color: '#e4e4e7', marginBottom: '20px', fontSize: '18px' }}>Редактировать голос</h3>
+                                  <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                                    <div style={{ width: '120px', height: '120px', borderRadius: '50%', overflow: 'hidden', border: '3px solid rgba(139,92,246,0.6)' }}><img src={photoPath} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div>
+                                    <input type="file" accept="image/*" id="voice-photo-input" style={{ display: 'none' }} onChange={async (e) => {
+                                      const file = e.target.files?.[0]; if (!file || !isUserVoice) return;
+                                      const token = localStorage.getItem('authToken'); const fd = new FormData(); fd.append('photo_file', file);
+                                      const res = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${editingVoice.user_voice_id}/photo`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${token}` }, body: fd });
+                                      if (res.ok) { const vr = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/available-voices`, { headers: { 'Authorization': `Bearer ${token}` } }); if (vr.ok) setAvailableVoices(await vr.json()); setEditingVoicePhotoId(null); }
+                                    }} />
+                                    {isUserVoice && <label htmlFor="voice-photo-input" style={{ padding: '8px 16px', background: 'rgba(139, 92, 246, 0.8)', borderRadius: '6px', cursor: 'pointer', color: 'white' }}>Изменить фото</label>}
                                   </div>
-
-                                  {/* Редактирование названия */}
                                   <div style={{ marginBottom: '20px' }}>
-                                    <label style={{ display: 'block', color: '#e4e4e7', marginBottom: '8px', fontSize: '14px' }}>
-                                      Название голоса
-                                    </label>
-                                    <input
-                                      type="text"
-                                      value={editedName}
-                                      onChange={(e) => {
-                                        setEditedVoiceNames(prev => ({
-                                          ...prev,
-                                          [editingVoice.id]: e.target.value
-                                        }));
-                                      }}
-                                      style={{
-                                        width: '100%',
-                                        padding: '10px',
-                                        background: 'rgba(10, 10, 10, 0.8)',
-                                        border: '1px solid rgba(139, 92, 246, 0.6)',
-                                        borderRadius: '6px',
-                                        color: '#e4e4e7',
-                                        fontSize: '14px',
-                                        outline: 'none',
-                                        marginBottom: '8px'
-                                      }}
-                                      placeholder="Введите название голоса"
-                                    />
-                                    <button
-                                      onClick={async () => {
-                                        if (editingVoice.user_voice_id && editedName && editedName !== editingVoice.name) {
-                                          try {
-                                            const uploadData = new FormData();
-                                            uploadData.append('voice_name', editedName);
-                                            const token = localStorage.getItem('authToken');
-                                            const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${editingVoice.user_voice_id}/name`, {
-                                              method: 'PATCH',
-                                              headers: {
-                                                'Authorization': `Bearer ${token}`
-                                              },
-                                              body: uploadData
-                                            });
-
-                                            if (response.ok) {
-                                              const token = localStorage.getItem('authToken');
-                                              const voicesResponse = await fetch('/api/v1/characters/available-voices', {
-                                                headers: {
-                                                  'Authorization': `Bearer ${token}`
-                                                }
-                                              });
-                                              if (voicesResponse.ok) {
-                                                const voicesData = await voicesResponse.json();
-                                                setAvailableVoices(voicesData);
-                                              }
-                                              setEditingVoicePhotoId(null);
-                                            } else {
-                                              const error = await response.json();
-                                              alert('Ошибка изменения названия: ' + (error.detail || 'Неизвестная ошибка'));
-                                            }
-                                          } catch (err) {
-                                            alert('Не удалось изменить название. Проверьте консоль для деталей.');
-                                          }
-                                        }
-                                      }}
-                                      disabled={!editedName || editedName === editingVoice.name}
-                                      style={{
-                                        width: '100%',
-                                        padding: '8px',
-                                        background: (!editedName || editedName === editingVoice.name)
-                                          ? 'rgba(60, 60, 60, 0.5)'
-                                          : 'rgba(139, 92, 246, 0.8)',
-                                        border: `1px solid ${(!editedName || editedName === editingVoice.name) ? 'rgba(60, 60, 60, 0.3)' : 'rgba(139, 92, 246, 0.6)'}`,
-                                        borderRadius: '6px',
-                                        color: (!editedName || editedName === editingVoice.name) ? '#888' : 'white',
-                                        cursor: (!editedName || editedName === editingVoice.name) ? 'not-allowed' : 'pointer',
-                                        fontSize: '14px',
-                                        fontWeight: '500'
-                                      }}
-                                    >
-                                      Сохранить название
-                                    </button>
+                                    <label style={{ display: 'block', color: '#e4e4e7', marginBottom: '8px', fontSize: '14px' }}>Название</label>
+                                    <input type="text" value={currentEditedName} onChange={e => setEditedVoiceNames(prev => ({ ...prev, [editingVoice.id]: e.target.value }))} style={{ width: '100%', padding: '10px', background: 'rgba(10,10,10,0.8)', border: '1px solid rgba(139,92,246,0.6)', borderRadius: '6px', color: '#e4e4e7', marginBottom: '12px' }} />
+                                    <button onClick={async () => {
+                                      const token = localStorage.getItem('authToken'); const fd = new FormData();
+                                      if (isUserVoice) { fd.append('voice_name', currentEditedName); await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${editingVoice.user_voice_id}/name`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${token}` }, body: fd }); }
+                                      else if (isAdmin) { fd.append('new_name', currentEditedName); await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/default-voice/${editingVoice.id}/name`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${token}` }, body: fd }); }
+                                      const vr = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/available-voices`, { headers: { 'Authorization': `Bearer ${token}` } });
+                                      if (vr.ok) setAvailableVoices(await vr.json()); setEditingVoicePhotoId(null);
+                                    }} style={{ width: '100%', padding: '10px', background: 'rgba(139,92,246,0.8)', borderRadius: '6px', color: 'white', fontWeight: '500' }}>Сохранить</button>
                                   </div>
-
-                                  {/* Кнопка публичности */}
-                                  {editingVoice.is_owner && editingVoice.user_voice_id && (
-                                    <div style={{ marginBottom: '20px' }}>
-                                      <button
-                                        onClick={async () => {
-                                          if (editingVoice.user_voice_id) {
-                                            try {
-                                              const uploadData = new FormData();
-                                              uploadData.append('is_public', String(!editingVoice.is_public));
-                                              const token = localStorage.getItem('authToken');
-                                              const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${editingVoice.user_voice_id}/public`, {
-                                                method: 'PATCH',
-                                                headers: {
-                                                  'Authorization': `Bearer ${token}`
-                                                },
-                                                body: uploadData
-                                              });
-
-                                              if (response.ok) {
-                                                const token = localStorage.getItem('authToken');
-                                                const voicesResponse = await fetch('/api/v1/characters/available-voices', {
-                                                  headers: {
-                                                    'Authorization': `Bearer ${token}`
-                                                  }
-                                                });
-                                                if (voicesResponse.ok) {
-                                                  const voicesData = await voicesResponse.json();
-                                                  setAvailableVoices(voicesData);
-                                                }
-                                              } else {
-                                                const error = await response.json();
-                                                alert('Ошибка изменения статуса: ' + (error.detail || 'Неизвестная ошибка'));
-                                              }
-                                            } catch (err) {
-                                              alert('Не удалось изменить статус. Проверьте консоль для деталей.');
-                                            }
-                                          }
-                                        }}
-                                        style={{
-                                          width: '100%',
-                                          padding: '10px',
-                                          background: editingVoice.is_public
-                                            ? 'rgba(100, 100, 100, 0.8)'
-                                            : 'rgba(255, 215, 0, 0.8)',
-                                          border: `1px solid ${editingVoice.is_public ? 'rgba(100, 100, 100, 0.6)' : 'rgba(255, 215, 0, 0.6)'}`,
-                                          borderRadius: '6px',
-                                          color: editingVoice.is_public ? 'white' : '#1a1a1a',
-                                          cursor: 'pointer',
-                                          fontSize: '14px',
-                                          fontWeight: '500'
-                                        }}
-                                      >
-                                        {editingVoice.is_public ? 'Сделать голос приватным' : 'Сделать голос общедоступным'}
-                                      </button>
-                                    </div>
-                                  )}
                                 </div>
-                              </div>
+                              </div>, document.body
                             );
-                            return createPortal(modalContent, document.body);
                           })()}
                         </div>
                       </FormField>
+
 
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px' }}>
                         <motion.button
@@ -8524,7 +7343,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                   onChange={(newTags) => setFormData(prev => ({ ...prev, tags: newTags }))}
                 />
               </RightColumn>
-            </form>
+            </form >
           </MainContent >
 
           {/* Модальное окно для просмотра фото в полный размер */}
