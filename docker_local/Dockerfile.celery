@@ -8,6 +8,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Create a non-root user with an explicit UID/GID (optional but good practice)
+RUN groupadd -r celery_user && useradd -r -g celery_user celery_user
+
+# Create directories for volumes and set permissions explicitly
+# We create logs and outputs to ensure they exist and we can chown them
+RUN mkdir -p /app/logs /app/outputs /app/app
+
 # Копирование зависимостей (лёгкая версия без ML)
 COPY requirements-celery.txt .
 RUN pip install --no-cache-dir -r requirements-celery.txt
@@ -17,9 +24,15 @@ COPY app/ /app/app/
 COPY alembic/ /app/alembic/
 COPY alembic.ini /app/
 
+# Set ownership of the working directory to the non-root user
+RUN chown -R celery_user:celery_user /app
+
 # Переменные окружения
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
+
+# Change to non-root user
+USER celery_user
 
 # По умолчанию запуск воркера (переопределяется в docker-compose)
 CMD ["celery", "-A", "app.celery_app", "worker", "--loglevel=info"]
