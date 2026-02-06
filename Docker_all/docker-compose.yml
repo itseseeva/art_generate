@@ -76,6 +76,8 @@ services:
       echo 'Миграции применены успешно' &&
       python -m app.scripts.init_admin || true &&
       python -m app.scripts.init_test_user || true &&
+      echo 'Инициализация всех тегов...' &&
+      python -m app.scripts.populate_tags || true &&
       echo 'Обновление тегов персонажей...' &&
       python -m app.scripts.update_character_tags || true &&
       echo 'Запуск сервера...' &&
