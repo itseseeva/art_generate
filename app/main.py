@@ -1308,6 +1308,28 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
+from fastapi.responses import FileResponse, JSONResponse
+
+@app.get("/assets/{path:path}")
+async def assets(path: str):
+    """
+    Служит фаллбэком для статических ассетов фронтенда (JS, CSS),
+    если Nginx проксирует их на бэкенд (из-за того что не видит файлы).
+    """
+    try:
+        # Определяем абсолютный путь к папке dist/assets
+        repo_root = Path(__file__).resolve().parents[1]
+        dist_path = repo_root / "frontend" / "dist" / "assets"
+        file_path = dist_path / path
+        
+        if file_path.exists() and file_path.is_file():
+            return FileResponse(file_path)
+    except Exception as e:
+        logger.error(f"Error serving asset {path}: {e}")
+        
+    return JSONResponse(status_code=404, content={"detail": "Asset not found"})
+
+
 @app.get("/")
 @app.get("/frontend")
 @app.get("/frontend/")
