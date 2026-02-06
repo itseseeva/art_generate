@@ -1309,9 +1309,18 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 @app.get("/")
+@app.get("/frontend")
 @app.get("/frontend/")
 @app.get("/characters")
 @app.get("/characters/")
+@app.get("/paid-album")
+@app.get("/paid-album/")
+@app.get("/gallery")
+@app.get("/gallery/")
+@app.get("/my-characters")
+@app.get("/tariffs")
+@app.get("/shop")
+@app.get("/chat-with-character")
 async def frontend_index(request: Request, db: AsyncSession = Depends(get_db)):
     """
     Сервирует index.html из папки frontend/dist с подстановкой метаданных персонажа (SEO).
