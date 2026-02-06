@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 # Добавляем корневую директорию проекта в путь
-project_root = Path(__file__).resolve().parents[1]
+project_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(project_root))
 
 from app.database.db import async_session_maker
