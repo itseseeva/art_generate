@@ -1460,6 +1460,7 @@ interface Character {
   creator_username?: string;
   paid_album_photos_count?: number;
   paid_album_preview_urls?: string[];
+  prompt?: string;
 }
 
 interface CharacterCardProps {
@@ -1659,6 +1660,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   const [promptText, setPromptText] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
+  const situationHoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Определяем, заблокирован ли альбом.
   // Если проп isLocked передан (например из ChatContainer), используем его.
@@ -2357,6 +2359,11 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
               e.stopPropagation();
               setIsHovered(true);
 
+              if (situationHoverTimeoutRef.current) {
+                clearTimeout(situationHoverTimeoutRef.current);
+                situationHoverTimeoutRef.current = null;
+              }
+
               if (cardRef.current && situation && !isMobile) {
                 const rect = cardRef.current.getBoundingClientRect();
                 const isRight = rect.right + 320 < window.innerWidth;
@@ -2371,7 +2378,11 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             onMouseLeave={(e) => {
               // При уходе мыши с карточки
               setIsHovered(false);
-              setIsSituationHovered(false);
+
+              situationHoverTimeoutRef.current = setTimeout(() => {
+                setIsSituationHovered(false);
+              }, 150);
+
               // Проверяем, не переходим ли мы на overlay
               const relatedTarget = e.relatedTarget as HTMLElement | null;
               const isMovingToOverlay = relatedTarget &&
@@ -2861,6 +2872,18 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           $top={popupPosition.top}
           $left={popupPosition.left}
           $isRight={popupPosition.isRight}
+          onMouseEnter={() => {
+            if (situationHoverTimeoutRef.current) {
+              clearTimeout(situationHoverTimeoutRef.current);
+              situationHoverTimeoutRef.current = null;
+            }
+            setIsSituationHovered(true);
+          }}
+          onMouseLeave={() => {
+            situationHoverTimeoutRef.current = setTimeout(() => {
+              setIsSituationHovered(false);
+            }, 150);
+          }}
         >
           <SituationPopupHeader>
             <SituationPopupTitle>Ролевая ситуация</SituationPopupTitle>
