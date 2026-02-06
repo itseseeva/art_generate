@@ -428,6 +428,25 @@ const ExpandIcon = styled.span<{ $isExpanded: boolean }>`
 const CharacterMessagesContainer = styled.div<{ $isExpanded: boolean }>`
   display: ${props => props.$isExpanded ? 'block' : 'none'};
   padding: ${theme.spacing.lg};
+  max-height: 600px;
+  overflow-y: auto;
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(139, 92, 246, 0.3);
+    border-radius: 4px;
+    
+    &:hover {
+      background: rgba(139, 92, 246, 0.5);
+    }
+  }
 `;
 
 const ConversationDivider = styled.div`
@@ -903,67 +922,60 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({
                   {/* Right Column: Messages */}
                   <MessagesColumn>
                     <ColumnTitle>💬 Сообщения</ColumnTitle>
-                    {characterNames.map(characterName => {
-                      const messages = groupedMessages[characterName];
-                      const isExpanded = expandedCharacters.has(characterName);
-                      const messageCount = messages.length;
-                      const firstMessage = messages[0];
-                      const lastMessage = messages[messages.length - 1];
+                    <MessagesList>
+                      {userMessages
+                        .filter(msg => !msg.image_url) // Filter out photo messages if they are mixed in
+                        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) // Sort by date descending (newest first)
+                        .map((msg, index, array) => {
+                          const currentDate = new Date(msg.created_at).toLocaleDateString('ru-RU', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          });
 
-                      return (
-                        <CharacterSection key={characterName}>
-                          <CharacterSectionHeader
-                            $isExpanded={isExpanded}
-                            onClick={() => toggleCharacterSection(characterName)}
-                          >
-                            <CharacterHeaderInfo>
-                              <CharacterHeaderTitle>
-                                💬 {characterName}
-                              </CharacterHeaderTitle>
-                              <CharacterHeaderStats>
-                                {messageCount} {messageCount === 1 ? 'сообщение' : messageCount < 5 ? 'сообщения' : 'сообщений'} •
-                                {' '}{formatRelativeTime(firstMessage.created_at)}
-                                {messages.length > 1 && ` - ${formatRelativeTime(lastMessage.created_at)}`}
-                              </CharacterHeaderStats>
-                            </CharacterHeaderInfo>
-                            <ExpandIcon $isExpanded={isExpanded}>▼</ExpandIcon>
-                          </CharacterSectionHeader>
+                          const prevMsg = index > 0 ? array[index - 1] : null;
+                          const prevDate = prevMsg
+                            ? new Date(prevMsg.created_at).toLocaleDateString('ru-RU', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })
+                            : null;
 
-                          <CharacterMessagesContainer $isExpanded={isExpanded}>
-                            <MessagesList>
-                              {messages.map((msg, index) => {
-                                const prevMsg = index > 0 ? messages[index - 1] : null;
-                                const showDivider = prevMsg && hasTimeGap(prevMsg, msg);
+                          const showDateDivider = currentDate !== prevDate;
 
-                                return (
-                                  <React.Fragment key={msg.id}>
-                                    {showDivider && (
-                                      <ConversationDivider>
-                                        <ConversationDividerText>
-                                          Новая сессия
-                                        </ConversationDividerText>
-                                      </ConversationDivider>
+                          return (
+                            <React.Fragment key={msg.id}>
+                              {showDateDivider && (
+                                <ConversationDivider>
+                                  <ConversationDividerText>
+                                    {currentDate}
+                                  </ConversationDividerText>
+                                </ConversationDivider>
+                              )}
+
+                              <MessageItem $isUser={msg.message_type === 'user'}>
+                                <MessageHeader>
+                                  <div>
+                                    <MessageType $isUser={msg.message_type === 'user'}>
+                                      {msg.message_type === 'user' ? 'Пользователь' : 'Персонаж'}
+                                    </MessageType>
+                                    {msg.character_name && (
+                                      <span style={{ marginLeft: '8px', color: 'rgba(139, 92, 246, 0.8)', fontSize: '11px', fontWeight: 600 }}>
+                                        {msg.character_name}
+                                      </span>
                                     )}
-
-                                    <MessageItem $isUser={msg.message_type === 'user'}>
-                                      <MessageHeader>
-                                        <div>
-                                          <MessageType $isUser={msg.message_type === 'user'}>
-                                            {msg.message_type === 'user' ? 'Пользователь' : 'Персонаж'}
-                                          </MessageType>
-                                        </div>
-                                        <MessageDate>{formatRelativeTime(msg.created_at)}</MessageDate>
-                                      </MessageHeader>
-                                      <MessageContent>{msg.message_content || '(пустое сообщение)'}</MessageContent>
-                                    </MessageItem>
-                                  </React.Fragment>
-                                );
-                              })}
-                            </MessagesList>
-                          </CharacterMessagesContainer>
-                        </CharacterSection>
-                      );
-                    })}
+                                  </div>
+                                  <MessageDate>{new Date(msg.created_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</MessageDate>
+                                </MessageHeader>
+                                <MessageContent>{msg.message_content || '(пустое сообщение)'}</MessageContent>
+                              </MessageItem>
+                            </React.Fragment>
+                          );
+                        })}
+                    </MessagesList>
                   </MessagesColumn>
                 </ModalBody>
               );

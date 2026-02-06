@@ -868,9 +868,9 @@ const TagsContainerBottom = styled.div<{ $visible?: boolean }>`
 const Tag = styled.a`
   background: rgba(20, 20, 25, 0.6);
   color: rgba(220, 220, 220, 0.9);
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 10px;
+  padding: 2.5px 7.5px;
+  border-radius: 9px;
+  font-size: 7.5px;
   font-weight: 600;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);

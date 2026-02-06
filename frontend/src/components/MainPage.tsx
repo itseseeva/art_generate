@@ -1374,6 +1374,12 @@ export const MainPage: React.FC<MainPageProps> = ({
         return true;
       })
       .sort((a, b) => {
+        // Сначала те, у кого есть фото
+        const aHasPhotos = a.photos && a.photos.length > 0 ? 1 : 0;
+        const bHasPhotos = b.photos && b.photos.length > 0 ? 1 : 0;
+        if (aHasPhotos !== bHasPhotos) return bHasPhotos - aHasPhotos;
+
+        // Затем оригинальные
         const isOriginal = (char: any) => {
           const tags = char.tags || [];
           return tags.some((t: any) => {
