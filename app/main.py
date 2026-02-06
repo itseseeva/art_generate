@@ -1369,6 +1369,23 @@ async def frontend_index(request: Request, db: AsyncSession = Depends(get_db)):
                     appearance = character.character_appearance or ""
                     location = character.location or ""
                     
+                    # Пытаемся извлечь личность и сценарий из промпта
+                    prompt_text = character.prompt or ""
+                    personality = ""
+                    scenario = ""
+                    
+                    # Поиск Личности/Характера
+                    # Ищем строки вида "Personality: ..." или "Личность: ..."
+                    pers_match = re.search(r"(?:Personality|Personalities|Character|Temperament|Личность|Характер):\s*(.*?)(?:\n|$)", prompt_text, re.IGNORECASE)
+                    if pers_match:
+                        personality = pers_match.group(1).strip()
+                    
+                    # Поиск Сценария/Обстановки
+                    # Ищем строки вида "Scenario: ..." или "Сценарий: ..."
+                    scen_match = re.search(r"(?:Scenario|Scene|Situation|Сценарий|Обстановка|Ситуация):\s*(.*?)(?:\n|$)", prompt_text, re.IGNORECASE)
+                    if scen_match:
+                        scenario = scen_match.group(1).strip()
+
                     # Подготавливаем метаданные
                     title = f"{name} - Cherry Lust AI Чат"
                     meta_desc = f"Общайтесь с {name} на Cherry Lust. {description[:160]}..."
@@ -1405,6 +1422,13 @@ async def frontend_index(request: Request, db: AsyncSession = Depends(get_db)):
                         flags=re.IGNORECASE
                     )
                     
+                    # Формируем дополнительные поля для SEO
+                    extra_fields = ""
+                    if personality:
+                        extra_fields += f"        <p>Личность: {personality}</p>\n"
+                    if scenario:
+                        extra_fields += f"        <p>Сценарий: {scenario}</p>\n"
+
                     # Вставляем скрытый блок с данными после <body> (учитывая возможные атрибуты и пробелы)
                     hidden_block = f"""
     <div style="display:none;" id="seo-metadata">
@@ -1412,7 +1436,7 @@ async def frontend_index(request: Request, db: AsyncSession = Depends(get_db)):
         <p>{description}</p>
         <p>Внешность: {appearance}</p>
         <p>Локация: {location}</p>
-    </div>
+{extra_fields}    </div>
 """
                     # Ищем тег body и вставляем после него
                     html_content = re.sub(
