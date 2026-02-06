@@ -1342,6 +1342,8 @@ async def assets(path: str):
 @app.get("/my-characters")
 @app.get("/tariffs")
 @app.get("/shop")
+@app.get("/chat")
+@app.get("/chat/")
 @app.get("/chat-with-character")
 async def frontend_index(request: Request, db: AsyncSession = Depends(get_db)):
     """
