@@ -19,6 +19,7 @@ import { GlobalHeader } from './GlobalHeader';
 import DarkVeil from '../../@/components/DarkVeil';
 import { PromptGlassModal } from './PromptGlassModal';
 import { ErrorToast } from './ErrorToast';
+import { TagSelector } from './TagSelector';
 
 const BackgroundWrapper = styled.div`
   position: fixed;
@@ -4389,87 +4390,20 @@ interface PromptSuggestionsProps {
 
 // --- New PromptSuggestions Implementation ---
 
-const SuggestionsContainer = styled.div`
+const SuggestionsContainer = styled(motion.div)`
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  background: rgba(30, 30, 40, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  padding: 16px;
-  margin-top: 12px;
-  backdrop-filter: blur(10px);
-`;
-
-const SearchInputContainer = styled.div`
-  position: relative;
-  width: 100%;
-`;
-
-const SearchIconWrapper = styled.div`
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: rgba(255, 255, 255, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-`;
-
-const StyledSearchInput = styled.input`
-  width: 100%;
-  padding: 10px 12px 10px 36px;
-  background: rgba(20, 20, 30, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: white;
-  font-size: 13px;
-  outline: none;
-  transition: all 0.2s;
-  font-family: 'Inter', sans-serif;
-
-  &:focus {
-    border-color: rgba(139, 92, 246, 0.5);
-    background: rgba(30, 30, 45, 0.8);
-    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.1);
-  }
+  padding: 8px 0;
+  margin-top: 8px;
+  max-height: 400px;
+  overflow: hidden;
   
-  &::placeholder {
-    color: rgba(255, 255, 255, 0.3);
-  }
-`;
-
-const CategoriesContainer = styled.div`
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-
   &::-webkit-scrollbar {
-    display: none;
+    width: 4px;
   }
-`;
-
-const CategoryTab = styled.button<{ $isActive: boolean }>`
-  padding: 6px 12px;
-  border-radius: 20px;
-  background: ${props => props.$isActive ? 'rgba(139, 92, 246, 0.3)' : 'rgba(255, 255, 255, 0.05)'};
-  border: 1px solid ${props => props.$isActive ? 'rgba(139, 92, 246, 0.6)' : 'rgba(255, 255, 255, 0.1)'};
-  color: ${props => props.$isActive ? 'white' : 'rgba(255, 255, 255, 0.6)'};
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.2s;
-  font-family: 'Inter', sans-serif;
-
-  &:hover {
-    background: ${props => props.$isActive ? 'rgba(139, 92, 246, 0.4)' : 'rgba(255, 255, 255, 0.1)'};
-    color: white;
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
   }
 `;
 
@@ -4477,30 +4411,19 @@ const NewTagsGrid = styled(motion.div)`
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  max-height: 240px;
-  overflow-y: auto;
-  padding-right: 4px;
   align-content: flex-start;
-
-  &::-webkit-scrollbar {
-    width: 4px;
-  }
-  &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 2px;
-  }
 `;
 
 const NewTagChip = styled(motion.button)`
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
+  gap: 4px;
+  padding: 5px 10px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   color: rgba(255, 255, 255, 0.5);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -4518,6 +4441,11 @@ const NewTagChip = styled(motion.button)`
   &:active {
     transform: translateY(0);
   }
+
+  &:focus, &:active {
+    outline: none;
+    box-shadow: none;
+  }
   
   svg {
     opacity: 0.6;
@@ -4526,22 +4454,21 @@ const NewTagChip = styled(motion.button)`
 `;
 
 const SuggestionExpandButton = styled.button<{ $isExpanded: boolean }>`
-  width: 100%;
+  width: 24px;
+  height: 24px;
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-top: 8px;
+  margin: 4px auto;
   background: transparent;
   border: none;
-  color: rgba(255, 255, 255, 0.2);
-  padding: 8px;
+  color: rgba(255, 255, 255, 0.15);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease;
   outline: none;
 
   &:hover {
-    color: rgba(255, 255, 255, 0.5);
-    background: rgba(255, 255, 255, 0.02);
+    color: rgba(255, 255, 255, 0.4);
   }
 
   &:focus {
@@ -4551,19 +4478,6 @@ const SuggestionExpandButton = styled.button<{ $isExpanded: boolean }>`
   svg {
     transform: rotate(${props => props.$isExpanded ? '180deg' : '0deg'});
     transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    ${props => !props.$isExpanded && 'animation: arrowBounce 2s infinite;'}
-  }
-
-  @keyframes arrowBounce {
-    0%, 20%, 50%, 80%, 100% {
-      transform: translateY(0);
-    }
-    40% {
-      transform: translateY(4px);
-    }
-    60% {
-      transform: translateY(2px);
-    }
   }
 `;
 
@@ -4571,131 +4485,88 @@ interface PromptSuggestionsProps {
   prompts: (string | { label: string; value: string })[];
   onSelect: (value: string) => void;
   title?: string; // Optional title for the section
+  visibleCount?: number; // Количество видимых элементов в первой строке
 }
 
-const PromptSuggestions: React.FC<PromptSuggestionsProps> = ({ prompts, onSelect, title }) => {
+const PromptSuggestions: React.FC<PromptSuggestionsProps> = ({ prompts, onSelect, visibleCount = 8 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState<string>('all');
 
-  // Internal helper to get category
-  const getCategory = (label: string): string => {
-    const lower = label.toLowerCase();
-
-    // Logic from getTagCategory
-    const kindKeywords = ['добрая', 'заботливая', 'нежная', 'ласковая', 'терпеливая', 'понимающая', 'романтичная', 'мечтательная'];
-    const strictKeywords = ['строгая', 'требовательная', 'жесткая', 'суровая', 'серьезная', 'сосредоточенная', 'доминирующая', 'госпожа'];
-    const sadKeywords = ['грустная', 'одинокая'];
-    const cheerfulKeywords = ['веселая', 'радостная', 'оптимистичная'];
-
-    if (kindKeywords.some(k => lower.includes(k))) return 'kind';
-    if (strictKeywords.some(k => lower.includes(k))) return 'strict';
-
-    // For locations/general
-    if (lower.includes('пляж') || lower.includes('море') || lower.includes('природа')) return 'nature';
-    if (lower.includes('город') || lower.includes('квартира') || lower.includes('дом') || lower.includes('офис')) return 'urban';
-
-    return 'neutral';
-  };
-
-  const getCategoryLabel = (cat: string) => {
-    switch (cat) {
-      case 'kind': return 'Милые / Добрые';
-      case 'strict': return 'Строгие / Властные';
-      case 'nature': return 'Природа';
-      case 'urban': return 'Город / Дом';
-      case 'neutral': return 'Общее / Другое';
-      default: return 'Все';
-    }
-  };
-
-  // Memoize categories and filtered items
-  const { allItems, categories } = useMemo(() => {
-    const items = prompts.map(p => {
+  const items = useMemo(() => {
+    return prompts.map(p => {
       const isObj = typeof p === 'object' && p !== null;
       const label = isObj ? (p as any).label : (p as string);
       const value = isObj ? (p as any).value : (p as string);
-      const category = getCategory(label);
-      return { label, value, category };
+      return { label, value };
     });
-
-    const uniqueCategories = Array.from(new Set(items.map(i => i.category)));
-    // Always have 'all', then others sorted 
-    const cats = ['all', ...uniqueCategories.sort()];
-
-    return { allItems: items, categories: cats };
   }, [prompts]);
 
-  const allCategories = useMemo(() => {
-    return categories.map(cat => ({
-      id: cat,
-      label: getCategoryLabel(cat)
-    }));
-  }, [categories]);
-
-  const filteredPrompts = useMemo(() => {
-    return allItems.filter(item => {
-      const matchesSearch = item.label.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory = activeCategory === 'all' || item.category === activeCategory;
-      return matchesSearch && matchesCategory;
-    });
-  }, [allItems, searchQuery, activeCategory]);
+  // Используем переданное количество видимых элементов
+  const visibleItems = items.slice(0, visibleCount);
+  const hiddenItems = items.slice(visibleCount);
+  const hasMore = hiddenItems.length > 0;
 
   return (
-    <div className="relative mt-2">
-      {!isExpanded ? (
-        <SuggestionExpandButton
-          $isExpanded={false}
-          type="button"
-          onClick={(e) => { e.preventDefault(); setIsExpanded(true); }}
-          title={title || "Показать варианты"}
-        >
-          <ChevronDown size={22} />
-        </SuggestionExpandButton>
-      ) : (
-        <>
-          <SuggestionsContainer>
-            <div className="flex justify-between items-center mb-1">
-              <div style={{ fontSize: '12px', fontWeight: 600, color: '#8b5cf6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                {title || "Варианты"}
-              </div>
-            </div>
-
-            <SearchInputContainer>
-              <SearchIconWrapper>
-                <Search size={14} />
-              </SearchIconWrapper>
-              <StyledSearchInput
-                type="text"
-                placeholder="Поиск промптов..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-              />
-            </SearchInputContainer>
-
-            <CategoriesContainer>
-              {allCategories.map(cat => (
-                <CategoryTab
-                  key={cat.id}
-                  $isActive={activeCategory === cat.id}
-                  onClick={(e) => { e.preventDefault(); setActiveCategory(cat.id); }}
-                >
-                  {cat.label}
-                </CategoryTab>
-              ))}
-            </CategoriesContainer>
-
-            <NewTagsGrid
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+    <div className="relative" style={{ overflow: 'hidden' }}>
+      {/* Всегда видимая первая строка */}
+      <SuggestionsContainer
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+      >
+        <NewTagsGrid>
+          {visibleItems.map((item, idx) => (
+            <NewTagChip
+              key={idx}
+              type="button"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{
+                delay: idx * 0.05,
+                duration: 0.3,
+                type: 'spring',
+                stiffness: 260,
+                damping: 20
+              }}
+              whileHover={{ scale: 1.05, y: -2 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={(e) => {
+                e.preventDefault();
+                onSelect(item.value);
+              }}
             >
-              {filteredPrompts.map((item, idx) => (
+              <Plus size={10} />
+              {item.label}
+            </NewTagChip>
+          ))}
+        </NewTagsGrid>
+      </SuggestionsContainer>
+
+      {/* Скрытые элементы с анимацией */}
+      <AnimatePresence>
+        {isExpanded && hasMore && (
+          <SuggestionsContainer
+            initial={{ height: 0, opacity: 0, marginTop: 0, paddingTop: 0, paddingBottom: 0 }}
+            animate={{ height: 'auto', opacity: 1, marginTop: 8, paddingTop: 8, paddingBottom: 8 }}
+            exit={{ height: 0, opacity: 0, marginTop: 0, paddingTop: 0, paddingBottom: 0 }}
+            transition={{
+              duration: 0.4,
+              ease: [0.4, 0, 0.2, 1]
+            }}
+            style={{ overflow: 'hidden' }}
+          >
+            <NewTagsGrid>
+              {hiddenItems.map((item, idx) => (
                 <NewTagChip
-                  key={idx}
+                  key={idx + visibleCount}
                   type="button"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    delay: idx * 0.02,
+                    duration: 0.3
+                  }}
+                  whileHover={{ scale: 1.05, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={(e) => {
                     e.preventDefault();
                     onSelect(item.value);
@@ -4705,23 +4576,20 @@ const PromptSuggestions: React.FC<PromptSuggestionsProps> = ({ prompts, onSelect
                   {item.label}
                 </NewTagChip>
               ))}
-              {filteredPrompts.length === 0 && (
-                <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: '12px', textAlign: 'center', width: '100%', padding: '20px' }}>
-                  Ничего не найдено
-                </div>
-              )}
             </NewTagsGrid>
           </SuggestionsContainer>
+        )}
+      </AnimatePresence>
 
-          <SuggestionExpandButton
-            $isExpanded={true}
-            type="button"
-            onClick={(e) => { e.preventDefault(); setIsExpanded(false); }}
-            title="Скрыть"
-          >
-            <ChevronDown size={22} />
-          </SuggestionExpandButton>
-        </>
+      {/* Кнопка раскрытия/скрытия */}
+      {hasMore && (
+        <SuggestionExpandButton
+          $isExpanded={isExpanded}
+          type="button"
+          onClick={(e) => { e.preventDefault(); setIsExpanded(!isExpanded); }}
+        >
+          <ChevronDown size={20} />
+        </SuggestionExpandButton>
       )}
     </div>
   );
@@ -6538,6 +6406,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                       />
                       <PromptSuggestions
                         prompts={NAME_PROMPTS}
+                        visibleCount={10}
                         onSelect={(val) => {
                           setFormData(prev => ({ ...prev, name: val }));
                           const fakeEvent = { target: { name: 'name', value: val } } as React.ChangeEvent<HTMLInputElement>;
@@ -6570,6 +6439,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                       />
                       <PromptSuggestions
                         prompts={PERSONALITY_PROMPTS}
+                        visibleCount={5}
                         title="Варианты характера"
                         onSelect={(val) => {
                           const newVal = formData.personality ? formData.personality + ' ' + val : val;
@@ -6642,6 +6512,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                       />
                       <PromptSuggestions
                         prompts={SITUATION_PROMPTS}
+                        visibleCount={6}
                         title="Варианты ситуации"
                         onSelect={(val) => {
                           const newVal = formData.situation ? formData.situation + ' ' + val : val;
@@ -6733,6 +6604,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                       />
                       <PromptSuggestions
                         prompts={INSTRUCTION_PROMPTS}
+                        visibleCount={4}
                         title="Варианты инструкций"
                         onSelect={(val) => {
                           const newVal = formData.instructions ? formData.instructions + ' ' + val : val;
@@ -6755,6 +6627,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                       />
                       <PromptSuggestions
                         prompts={APPEARANCE_PROMPTS}
+                        visibleCount={5}
                         title="Варианты внешности"
                         onSelect={(val) => {
                           const newVal = formData.appearance ? formData.appearance + ' ' + val : val;
@@ -6776,6 +6649,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                       />
                       <PromptSuggestions
                         prompts={LOCATION_PROMPTS}
+                        visibleCount={6}
                         title="Варианты локации"
                         onSelect={(val) => {
                           const newVal = formData.location ? formData.location + ' ' + val : val;
@@ -8778,65 +8652,29 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                 </PreviewName>
               </LivePreviewCard>
 
-              {/* ОБЛАКО ТЕГОВ ДЛЯ ВЫБОРА */}
-              <TagSelectionLabel>Доступные теги</TagSelectionLabel>
-              <TagsSelectionContainer>
-                {availableTags.map((tag, idx) => {
-                  const isActive = formData.tags.includes(tag.name);
-                  return (
-                    <SelectableTag
-                      key={tag.slug || idx}
-                      type="button"
-                      $active={isActive}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        if (isActive) {
-                          setFormData(prev => ({
-                            ...prev,
-                            tags: prev.tags.filter(t => t !== tag.name)
-                          }));
-                        } else {
-                          setFormData(prev => ({
-                            ...prev,
-                            tags: [...prev.tags, tag.name]
-                          }));
-                        }
-                      }}
-                    >
-                      {tag.name}
-                    </SelectableTag>
-                  );
-                })}
-              </TagsSelectionContainer>
-
-
-
-              {/* Кнопка "Продолжить" - появляется под карточкой справа после генерации первого фото */}
+              {/* Кнопка "Продолжить" */}
               {generatedPhotos && generatedPhotos.length > 0 && createdCharacterData && (
-                <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
+                <div style={{ marginTop: '24px', marginBottom: '24px', display: 'flex', justifyContent: 'flex-end' }}>
                   <ContinueButton
                     type="button"
                     onClick={async () => {
                       if (!createdCharacterData) return;
 
-                      try {
-                        const token = localStorage.getItem('authToken');
-                        if (token) {
-                          await fetch(API_CONFIG.CHARACTER_EDIT_FULL(createdCharacterData.name), {
+                      // Сохраняем теги, если они были изменены
+                      if (formData.tags && formData.tags.length > 0) {
+                        try {
+                          await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${createdCharacterData.id}`, {
                             method: 'PUT',
                             headers: {
                               'Content-Type': 'application/json',
-                              'Authorization': `Bearer ${token}`
+                              'Authorization': `Bearer ${localStorage.getItem('token')}`
                             },
-                            body: JSON.stringify({
-                              tags: formData.tags
-                            })
+                            body: JSON.stringify({ tags: formData.tags })
                           });
+                        } catch (e) {
+                          console.error('Failed to save tags', e);
                         }
-                      } catch (error) {
-                        console.error('Failed to save tags:', error);
                       }
-
 
                       // Определяем тип подписки
                       const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
@@ -8863,6 +8701,13 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                     Продолжить
                   </ContinueButton>
                 </div>
+              )}
+              {currentStep === 3 && (
+                <TagSelector
+                  className="mt-auto"
+                  selectedTags={formData.tags || []}
+                  onChange={(newTags) => setFormData(prev => ({ ...prev, tags: newTags }))}
+                />
               )}
             </RightColumn>
           </form>

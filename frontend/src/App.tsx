@@ -327,6 +327,33 @@ function App() {
     const path = window.location.pathname;
     const urlParams = new URLSearchParams(window.location.search);
 
+    // КРИТИЧНО: Проверяем наличие токенов в URL (возврат с Google OAuth)
+    const accessToken = urlParams.get('access_token');
+    const refreshToken = urlParams.get('refresh_token');
+
+    if (accessToken) {
+      // Сохраняем токены через authManager
+      authManager.setTokens(accessToken, refreshToken || null);
+      setIsAuthenticated(true);
+
+      // Отправляем событие успешной авторизации
+      window.dispatchEvent(new Event('auth-success'));
+
+      // Очищаем токены из URL для безопасности
+      // Удаляем параметры токенов, но сохраняем остальные параметры
+      urlParams.delete('access_token');
+      urlParams.delete('refresh_token');
+      urlParams.delete('needs_username');
+
+      // Формируем новый URL без токенов
+      const cleanUrl = urlParams.toString()
+        ? `${path}?${urlParams.toString()}`
+        : path;
+
+      // Заменяем URL в истории браузера
+      window.history.replaceState(null, '', cleanUrl);
+    }
+
     // Парсим состояние из hash или query параметров
     if (path.includes('/auth')) {
       // Обрабатываем роут /auth - перенаправляем на login или register

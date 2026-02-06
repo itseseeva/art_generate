@@ -866,23 +866,27 @@ const TagsContainerBottom = styled.div<{ $visible?: boolean }>`
 `;
 
 const Tag = styled.a`
-  background: rgba(139, 92, 246, 0.25);
-  color: rgba(200, 200, 220, 0.95);
-  padding: 2px 8px;
-  border-radius: 8px;
+  background: rgba(20, 20, 25, 0.6);
+  color: rgba(220, 220, 220, 0.9);
+  padding: 4px 10px;
+  border-radius: 12px;
   font-size: 10px;
   font-weight: 600;
-  backdrop-filter: blur(5px);
-  border: 1px solid rgba(139, 92, 246, 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
   white-space: nowrap;
   text-decoration: none;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0.02em;
 
   &:hover {
-    background: rgba(139, 92, 246, 0.4);
-    transform: scale(1.05);
-    color: white;
+    background: rgba(6, 182, 212, 0.2);
+    border-color: rgba(6, 182, 212, 0.5);
+    transform: translateY(-1px);
+    color: #22d3ee;
+    box-shadow: 0 4px 12px rgba(6, 182, 212, 0.2);
   }
 `;
 

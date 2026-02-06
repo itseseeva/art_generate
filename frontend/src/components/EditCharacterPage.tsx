@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import styled, { keyframes, css } from 'styled-components';
 import { authManager } from '../utils/auth';
@@ -12,7 +12,7 @@ import { CircularProgress } from './ui/CircularProgress';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToEnglish, translateToRussian } from '../utils/translate';
 import { FiX as CloseIcon, FiSettings, FiClock, FiCheckCircle } from 'react-icons/fi';
-import { Plus, Sparkles, Zap, X, Upload, CheckCircle, AlertCircle, Camera, MessageCircle } from 'lucide-react';
+import { Plus, Sparkles, Zap, X, Upload, CheckCircle, AlertCircle, Camera, MessageCircle, ChevronDown } from 'lucide-react';
 import { BiCoinStack } from 'react-icons/bi';
 
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -20,6 +20,7 @@ import DarkVeil from '../../@/components/DarkVeil';
 import { PromptGlassModal } from './PromptGlassModal';
 import { motion, AnimatePresence } from 'motion/react';
 import { ErrorToast } from './ErrorToast';
+import { TagSelector } from './TagSelector';
 
 /**
  * Нормализует URL изображения для локальной разработки.
@@ -2265,220 +2266,169 @@ const ModelDescription = styled.p`
   }
 `;
 
-const TagsContainer = styled.div<{ $isExpanded: boolean }>`
+const TagsContainer = styled(motion.div)`
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+  margin-top: 8px;
+  max-height: 400px;
+  overflow: hidden;
+  
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+  }
+`;
+
+const NewTagsGrid = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 12px;
-  max-height: ${props => props.$isExpanded ? '500px' : '40px'};
-  overflow: ${props => props.$isExpanded ? 'visible' : 'hidden'};
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  padding: 0 0 0 20px;
-  width: 100%;
-  z-index: 1;
-
-  ${props => !props.$isExpanded && `
-    &::after {
-      content: '';
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 1px;
-      background: linear-gradient(to bottom, transparent, rgba(20, 20, 30, 0.98));
-      pointer-events: none;
-      z-index: 2;
-    }
-  `}
+  align-content: flex-start;
 `;
 
-const TagButton = styled.button<{ $category?: 'kind' | 'strict' | 'neutral' | 'other' }>`
-  background: ${props => {
-    if (props.$category === 'kind') return 'rgba(34, 197, 94, 0.15)';
-    if (props.$category === 'strict') return 'rgba(239, 68, 68, 0.15)';
-    return 'rgba(139, 92, 246, 0.15)';
-  }};
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: none;
-  border-radius: 17px;
-  padding: 5px 12px;
-  font-size: 10px;
-  font-weight: 600;
-  color: ${props => {
-    if (props.$category === 'kind') return 'rgba(34, 197, 94, 1)';
-    if (props.$category === 'strict') return 'rgba(239, 68, 68, 1)';
-    return 'rgba(139, 92, 246, 1)';
-  }};
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  display: inline-flex;
+const TagButton = styled(motion.button)`
+  display: flex;
   align-items: center;
-  gap: 5px;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  white-space: nowrap;
-  position: relative;
-  z-index: 10;
-  margin: 4px 0;
+  gap: 4px;
+  padding: 5px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
 
   &:hover {
-    transform: translateY(-2px) scale(1.05);
-    z-index: 100;
-    margin: 8px 0;
-    background: ${props => {
-    if (props.$category === 'kind') return 'rgba(34, 197, 94, 0.25)';
-    if (props.$category === 'strict') return 'rgba(239, 68, 68, 0.25)';
-    return 'rgba(139, 92, 246, 0.25)';
-  }};
-    border-color: ${props => {
-    if (props.$category === 'kind') return 'rgba(34, 197, 94, 0.5)';
-    if (props.$category === 'strict') return 'rgba(239, 68, 68, 0.5)';
-    return 'rgba(139, 92, 246, 0.5)';
-  }};
-    box-shadow: none;
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.8);
   }
 
-  &:active {
-    transform: translateY(0) scale(1);
-    margin: 4px 0;
-  }
-
-  &:focus {
+  &:focus, &:active {
     outline: none;
-  }
-
-  &:focus-visible {
-    outline: none;
+    border-color: rgba(255, 255, 255, 0.15);
   }
 `;
 
-// Функция для проверки премиальных голосов
-const isPremiumVoice = (voiceName?: string): boolean => {
-  if (!voiceName) return false;
-  const name = voiceName.toLowerCase();
-  return name.includes('мита') || name.includes('meet') || name === 'мика';
-};
 
-const getTagCategory = (label: string): 'kind' | 'strict' | 'neutral' => {
-  const kindKeywords = ['добрая', 'заботливая', 'нежная', 'ласковая', 'терпеливая', 'понимающая', 'романтичная', 'мечтательная'];
-  const strictKeywords = ['строгая', 'требовательная', 'жесткая', 'суровая', 'серьезная', 'сосредоточенная'];
-  const lowerLabel = label.toLowerCase();
-  if (kindKeywords.some(keyword => lowerLabel.includes(keyword))) return 'kind';
-  if (strictKeywords.some(keyword => lowerLabel.includes(keyword))) return 'strict';
-  return 'neutral';
-};
+
 
 // Styled компоненты для модального окна Premium
 const PremiumModalOverlay = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(10px);
-  z-index: 10001;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  animation: fadeIn 0.3s ease;
-  
-  @keyframes fadeIn {
+position: fixed;
+top: 0;
+left: 0;
+right: 0;
+bottom: 0;
+background: rgba(0, 0, 0, 0.85);
+backdrop - filter: blur(10px);
+z - index: 10001;
+display: flex;
+align - items: center;
+justify - content: center;
+padding: 20px;
+animation: fadeIn 0.3s ease;
+
+@keyframes fadeIn {
     from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
+    opacity: 0;
   }
+    to {
+    opacity: 1;
+  }
+}
 `;
 
 const PremiumModalContent = styled.div`
-  background: linear-gradient(135deg, rgba(20, 10, 30, 0.95) 0%, rgba(30, 20, 50, 0.95) 100%);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(139, 92, 246, 0.5);
-  border-radius: 24px;
-  padding: 32px;
-  max-width: 450px;
-  width: 100%;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(139, 92, 246, 0.2);
-  position: relative;
-  text-align: center;
-  animation: slideUp 0.3s ease;
-  
-  @keyframes slideUp {
+background: linear - gradient(135deg, rgba(20, 10, 30, 0.95) 0 %, rgba(30, 20, 50, 0.95) 100 %);
+backdrop - filter: blur(20px);
+border: 1px solid rgba(139, 92, 246, 0.5);
+border - radius: 24px;
+padding: 32px;
+max - width: 450px;
+width: 100 %;
+box - shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(139, 92, 246, 0.2);
+position: relative;
+text - align: center;
+animation: slideUp 0.3s ease;
+
+@keyframes slideUp {
     from {
-      transform: translateY(20px);
-      opacity: 0;
-    }
-    to {
-      transform: translateY(0);
-      opacity: 1;
-    }
+    transform: translateY(20px);
+    opacity: 0;
   }
+    to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
 `;
 
 const PremiumModalIcon = styled.div`
-  width: 70px;
-  height: 70px;
-  margin: 0 auto 20px;
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.1));
-  border: 1px solid rgba(139, 92, 246, 0.3);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 36px;
-  box-shadow: 0 0 20px rgba(139, 92, 246, 0.2);
-  animation: pulse 2s ease-in-out infinite;
-  
-  @keyframes pulse {
-    0%, 100% {
-      transform: scale(1);
-      box-shadow: 0 0 20px rgba(139, 92, 246, 0.2);
-    }
-    50% {
-      transform: scale(1.05);
-      box-shadow: 0 0 30px rgba(139, 92, 246, 0.4);
+width: 70px;
+height: 70px;
+margin: 0 auto 20px;
+background: linear - gradient(135deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.1));
+border: 1px solid rgba(139, 92, 246, 0.3);
+border - radius: 50 %;
+display: flex;
+align - items: center;
+justify - content: center;
+font - size: 36px;
+box - shadow: 0 0 20px rgba(139, 92, 246, 0.2);
+animation: pulse 2s ease -in -out infinite;
+
+@keyframes pulse {
+  0 %, 100 % {
+    transform: scale(1);
+    box- shadow: 0 0 20px rgba(139, 92, 246, 0.2);
+}
+50 % {
+  transform: scale(1.05);
+  box- shadow: 0 0 30px rgba(139, 92, 246, 0.4);
     }
   }
 `;
 
 const PremiumModalTitle = styled.h2`
-  font-size: 24px;
-  font-weight: 700;
-  color: #ffffff;
-  margin: 0 0 12px 0;
-  background: linear-gradient(135deg, #a78bfa, #c084fc, #e879f9);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+font - size: 24px;
+font - weight: 700;
+color: #ffffff;
+margin: 0 0 12px 0;
+background: linear - gradient(135deg, #a78bfa, #c084fc, #e879f9);
+-webkit - background - clip: text;
+-webkit - text - fill - color: transparent;
+background - clip: text;
 `;
 
 const PremiumModalText = styled.p`
-  font-size: 16px;
-  line-height: 1.5;
-  color: rgba(255, 255, 255, 0.9);
-  margin: 0 0 24px 0;
+font - size: 16px;
+line - height: 1.5;
+color: rgba(255, 255, 255, 0.9);
+margin: 0 0 24px 0;
 `;
 
 const PremiumModalButtons = styled.div`
-  display: flex;
-  gap: 12px;
-  justify-content: center;
+display: flex;
+gap: 12px;
+justify - content: center;
 `;
 
 const PremiumModalButton = styled.button<{ $primary?: boolean }>`
-  padding: 10px 20px;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: none;
-  min-width: 120px;
+padding: 10px 20px;
+border - radius: 10px;
+font - size: 14px;
+font - weight: 600;
+cursor: pointer;
+transition: all 0.3s ease;
+border: none;
+min - width: 120px;
   
   ${props => props.$primary ? `
     background: linear-gradient(135deg, #ecc94b, #d69e2e);
@@ -2502,40 +2452,41 @@ const PremiumModalButton = styled.button<{ $primary?: boolean }>`
   `}
   
   &:active {
-    transform: translateY(0);
-  }
+  transform: translateY(0);
+}
 `;
 
 
 
 const VoicePhotoContainer = styled.div<{ $isSelected: boolean; $isPlaying: boolean; $voiceName?: string; $isUserVoice?: boolean }>`
-  position: relative;
-  width: 74px;
-  height: 74px;
-  min-width: 74px;
-  min-height: 74px;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  transform: ${props => {
+position: relative;
+width: 74px;
+height: 74px;
+min - width: 74px;
+min - height: 74px;
+cursor: pointer;
+transition: all 0.3s cubic - bezier(0.4, 0, 0.2, 1);
+transform: ${props => {
     const playingScale = props.$isPlaying ? 1.05 : 1;
     return `scale(${playingScale})`;
-  }};
-  
+  }
+  };
+
   /* Кнопки редактирования появляются при наведении для всех голосов */
-  &:hover .edit-voice-button,
-  &:hover .delete-voice-button {
-    opacity: 1 !important;
-  }
-  
+  &: hover.edit - voice - button,
+  &: hover.delete - voice - button {
+  opacity: 1!important;
+}
+
   /* Кнопки редактирования всегда кликабельны, даже когда невидимы */
-  .edit-voice-button,
-  .delete-voice-button {
-    pointer-events: auto !important;
-    z-index: 10000 !important;
-  }
-  overflow: visible;
-  border-radius: 50%;
-  
+  .edit - voice - button,
+  .delete - voice - button {
+  pointer - events: auto!important;
+  z - index: 10000!important;
+}
+overflow: visible;
+border - radius: 50 %;
+
   /* Анимированная градиентная рамка для премиальных голосов */
   ${props => {
     const isPremium = isPremiumVoice(props.$voiceName);
@@ -2579,8 +2530,9 @@ const VoicePhotoContainer = styled.div<{ $isSelected: boolean; $isPlaying: boole
         }
       }
     `;
-  }}
-  
+  }
+  }
+
   /* Обычная рамка выбора (для не премиальных голосов) */
   ${props => {
     const isPremium = isPremiumVoice(props.$voiceName);
@@ -2602,8 +2554,9 @@ const VoicePhotoContainer = styled.div<{ $isSelected: boolean; $isPlaying: boole
         transition: opacity 0.3s ease;
       }
     `;
-  }}
-  
+  }
+  }
+
   /* Статичное красное свечение для премиальных голосов */
   ${props => {
     const isPremium = isPremiumVoice(props.$voiceName);
@@ -2613,80 +2566,83 @@ const VoicePhotoContainer = styled.div<{ $isSelected: boolean; $isPlaying: boole
                   0 0 40px rgba(255, 0, 0, 0.3),
                   0 0 60px rgba(255, 0, 0, 0.2);
     `;
-  }}
+  }
+  }
   
   &::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    border: 3px solid ${props => {
+  content: '';
+  position: absolute;
+  top: 50 %;
+  left: 50 %;
+  transform: translate(-50 %, -50 %);
+  width: 100 %;
+  height: 100 %;
+  border - radius: 50 %;
+  border: 3px solid ${props => {
     const isPremium = isPremiumVoice(props.$voiceName);
     return isPremium ? 'rgba(255, 0, 0, 0.5)' : 'rgba(255, 215, 0, 0.5)';
-  }};
-    opacity: ${props => props.$isPlaying ? '1' : '0'};
-    animation: ${props => {
+  }
+  };
+  opacity: ${props => props.$isPlaying ? '1' : '0'};
+  animation: ${props => {
     const isPremium = isPremiumVoice(props.$voiceName);
     return props.$isPlaying ? (isPremium ? 'redPulseWave 1.2s ease-out infinite' : 'pulseWave 1.2s ease-out infinite') : 'none';
-  }};
-    z-index: 0;
-    pointer-events: none;
   }
-  
-  @keyframes pulseWave {
-    0% {
-      transform: translate(-50%, -50%) scale(1);
+  };
+  z - index: 0;
+  pointer - events: none;
+}
+
+@keyframes pulseWave {
+  0 % {
+    transform: translate(-50 %, -50 %) scale(1);
       opacity: 0.8;
-      border-width: 3px;
-    }
-    50% {
-      transform: translate(-50%, -50%) scale(1.5);
+    border- width: 3px;
+}
+50 % {
+  transform: translate(-50 %, -50 %) scale(1.5);
       opacity: 0.4;
-      border-width: 2px;
+  border- width: 2px;
     }
-    100% {
-      transform: translate(-50%, -50%) scale(2);
+100 % {
+  transform: translate(-50 %, -50 %) scale(2);
       opacity: 0;
-      border-width: 1px;
+  border- width: 1px;
     }
   }
-  
-  @keyframes redPulseWave {
-    0% {
-      transform: translate(-50%, -50%) scale(1);
+
+@keyframes redPulseWave {
+  0 % {
+    transform: translate(-50 %, -50 %) scale(1);
       opacity: 0.8;
-      border-width: 3px;
-      border-color: rgba(255, 0, 0, 0.5);
-    }
-    50% {
-      transform: translate(-50%, -50%) scale(1.5);
+    border- width: 3px;
+  border - color: rgba(255, 0, 0, 0.5);
+}
+50 % {
+  transform: translate(-50 %, -50 %) scale(1.5);
       opacity: 0.4;
-      border-width: 2px;
-      border-color: rgba(255, 0, 0, 0.4);
+  border- width: 2px;
+border - color: rgba(255, 0, 0, 0.4);
     }
-    100% {
-      transform: translate(-50%, -50%) scale(2);
+100 % {
+  transform: translate(-50 %, -50 %) scale(2);
       opacity: 0;
-      border-width: 1px;
-      border-color: rgba(255, 0, 0, 0.3);
+  border- width: 1px;
+border - color: rgba(255, 0, 0, 0.3);
     }
   }
 `;
 
 const VoicePhoto = styled.img<{ $voiceName?: string; $isSelected?: boolean }>`
-  width: 100%;
-  height: 100%;
-  min-width: 100%;
-  min-height: 100%;
-  border-radius: 50%;
-  object-fit: cover;
-  position: relative;
-  z-index: 2;
-  
+width: 100 %;
+height: 100 %;
+min - width: 100 %;
+min - height: 100 %;
+border - radius: 50 %;
+object - fit: cover;
+position: relative;
+z - index: 2;
+
   /* Эффект Shimmer для премиальных голосов */
   ${props => {
     const isPremium = isPremiumVoice(props.$voiceName);
@@ -2724,8 +2680,9 @@ const VoicePhoto = styled.img<{ $voiceName?: string; $isSelected?: boolean }>`
         }
       }
     `;
-  }}
-  object-position: ${props => {
+  }
+  }
+object - position: ${props => {
     if (props.$voiceName) {
       const name = props.$voiceName.toLowerCase();
       // Сдвигаем фото "Катя" влево, чтобы лицо было по центру
@@ -2738,16 +2695,17 @@ const VoicePhoto = styled.img<{ $voiceName?: string; $isSelected?: boolean }>`
       }
     }
     return 'center center';
-  }};
-  border: 2px solid rgba(100, 100, 100, 0.3);
-  transition: border-color 0.3s ease, transform 0.3s ease;
-  display: block;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  position: relative;
-  z-index: 2;
-  transform: ${props => {
+  }
+  };
+border: 2px solid rgba(100, 100, 100, 0.3);
+transition: border - color 0.3s ease, transform 0.3s ease;
+display: block;
+margin: 0;
+padding: 0;
+overflow: hidden;
+position: relative;
+z - index: 2;
+transform: ${props => {
     if (props.$voiceName) {
       const name = props.$voiceName.toLowerCase();
       // Для "Катя" уменьшаем масштаб на 20% (1.44 * 0.8 = 1.152)
@@ -2756,82 +2714,83 @@ const VoicePhoto = styled.img<{ $voiceName?: string; $isSelected?: boolean }>`
       }
     }
     return 'scale(1.2)'; // Базовое увеличение на 20% для остальных фото
-  }};
+  }
+  };
   
-  ${VoicePhotoContainer}:hover & {
-    ${props => !props.$isSelected ? 'border-color: rgba(139, 92, 246, 0.6);' : ''}
+  ${VoicePhotoContainer}: hover & {
+  ${props => !props.$isSelected ? 'border-color: rgba(139, 92, 246, 0.6);' : ''}
   }
 `;
 
 const PremiumVoiceName = styled.div`
-  position: absolute;
-  top: -30px;
-  left: 50%;
-  transform: translateX(-50%);
-  white-space: nowrap;
-  font-size: 11px;
-  font-weight: 600;
-  z-index: 4;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  width: 100px;
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  text-align: center;
+position: absolute;
+top: -30px;
+left: 50 %;
+transform: translateX(-50 %);
+white - space: nowrap;
+font - size: 11px;
+font - weight: 600;
+z - index: 4;
+display: flex;
+align - items: center;
+justify - content: center;
+gap: 4px;
+width: 100px;
+box - sizing: border - box;
+margin: 0;
+padding: 0;
+text - align: center;
   
   & > span {
-    background: linear-gradient(135deg, #ff0000, #ff4444, #ff6666, #ff0000);
-    background-size: 200% 200%;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    animation: gradientShift 3s ease infinite;
-    display: inline-block;
-    margin: 0;
-    padding: 0;
-  }
-  
-  @keyframes gradientShift {
-    0%, 100% {
-      background-position: 0% 50%;
-    }
-    50% {
-      background-position: 100% 50%;
+  background: linear - gradient(135deg, #ff0000, #ff4444, #ff6666, #ff0000);
+  background - size: 200 % 200 %;
+  -webkit - background - clip: text;
+  -webkit - text - fill - color: transparent;
+  background - clip: text;
+  animation: gradientShift 3s ease infinite;
+  display: inline - block;
+  margin: 0;
+  padding: 0;
+}
+
+@keyframes gradientShift {
+  0 %, 100 % {
+    background- position: 0 % 50 %;
+}
+50 % {
+  background- position: 100 % 50 %;
     }
   }
 `;
 
 const PremiumVoiceLabel = styled.div`
-  position: absolute;
-  bottom: -25px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 9px;
-  color: rgba(255, 68, 68, 0.8);
-  font-weight: 500;
-  white-space: nowrap;
-  z-index: 4;
+position: absolute;
+bottom: -25px;
+left: 50 %;
+transform: translateX(-50 %);
+font - size: 9px;
+color: rgba(255, 68, 68, 0.8);
+font - weight: 500;
+white - space: nowrap;
+z - index: 4;
 `;
 
 const VoiceName = styled.div<{ $isUserVoice?: boolean }>`
-  position: absolute;
-  top: -30px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 11px;
-  color: ${theme.colors.text.secondary};
-  white-space: nowrap;
-  text-align: center;
-  width: 100px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: ${props => props.$isUserVoice ? 'pointer' : 'default'};
-  box-sizing: border-box;
-  margin-left: 0;
-  padding: 0;
+position: absolute;
+top: -30px;
+left: 50 %;
+transform: translateX(-50 %);
+font - size: 11px;
+color: ${theme.colors.text.secondary};
+white - space: nowrap;
+text - align: center;
+width: 100px;
+overflow: hidden;
+text - overflow: ellipsis;
+cursor: ${props => props.$isUserVoice ? 'pointer' : 'default'};
+box - sizing: border - box;
+margin - left: 0;
+padding: 0;
   
   ${props => props.$isUserVoice && `
     &:hover {
@@ -2841,378 +2800,382 @@ const VoiceName = styled.div<{ $isUserVoice?: boolean }>`
 `;
 
 const EditButton = styled.button`
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: rgba(139, 92, 246, 0.9);
-  border: 2px solid rgba(255, 255, 255, 0.9);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 12px;
-  opacity: 0.3;
-  z-index: 10000 !important;
-  pointer-events: auto !important;
-  transition: opacity 0.2s ease, background 0.2s ease, transform 0.2s ease;
+position: absolute;
+top: 4px;
+right: 4px;
+width: 24px;
+height: 24px;
+border - radius: 50 %;
+background: rgba(139, 92, 246, 0.9);
+border: 2px solid rgba(255, 255, 255, 0.9);
+color: white;
+display: flex;
+align - items: center;
+justify - content: center;
+cursor: pointer;
+font - size: 12px;
+opacity: 0.3;
+z - index: 10000!important;
+pointer - events: auto!important;
+transition: opacity 0.2s ease, background 0.2s ease, transform 0.2s ease;
   
   &:hover {
-    opacity: 1 !important;
-    background: rgba(139, 92, 246, 1);
-    transform: scale(1.1);
-  }
+  opacity: 1!important;
+  background: rgba(139, 92, 246, 1);
+  transform: scale(1.1);
+}
   
   &:active {
-    transform: scale(0.95);
-  }
+  transform: scale(0.95);
+}
 `;
 
 const DeleteButton = styled.button`
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: rgba(239, 68, 68, 0.9);
-  border: 2px solid rgba(255, 255, 255, 0.9);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 12px;
-  opacity: 0;
-  z-index: 10000 !important;
-  pointer-events: auto !important;
-  transition: opacity 0.2s ease, background 0.2s ease, transform 0.2s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+position: absolute;
+top: 4px;
+left: 4px;
+width: 24px;
+height: 24px;
+border - radius: 50 %;
+background: rgba(239, 68, 68, 0.9);
+border: 2px solid rgba(255, 255, 255, 0.9);
+color: white;
+display: flex;
+align - items: center;
+justify - content: center;
+cursor: pointer;
+font - size: 12px;
+opacity: 0;
+z - index: 10000!important;
+pointer - events: auto!important;
+transition: opacity 0.2s ease, background 0.2s ease, transform 0.2s ease;
+box - shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   
   &:hover {
-    background: rgba(239, 68, 68, 1);
-    transform: scale(1.1);
-    opacity: 1 !important;
-  }
+  background: rgba(239, 68, 68, 1);
+  transform: scale(1.1);
+  opacity: 1!important;
+}
   
   &:active {
-    transform: scale(0.95);
-  }
+  transform: scale(0.95);
+}
 `;
 
 const WaveformContainer = styled.div<{ $isPlaying: boolean }>`
-  position: absolute;
-  bottom: -40px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: ${props => props.$isPlaying ? 'flex' : 'none'};
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  height: 16px;
-  z-index: 10;
+position: absolute;
+bottom: -40px;
+left: 50 %;
+transform: translateX(-50 %);
+display: ${props => props.$isPlaying ? 'flex' : 'none'};
+align - items: center;
+justify - content: center;
+gap: 4px;
+height: 16px;
+z - index: 10;
 `;
 
 const WaveformBar = styled.div<{ $delay: number; $isPremium?: boolean }>`
-  width: 4px;
-  background: ${props => props.$isPremium
+width: 4px;
+background: ${props => props.$isPremium
     ? 'linear-gradient(to top, #ff0000, #ff4444, #ff0000)'
-    : 'linear-gradient(to top, #ffd700, #ffed4e, #ffd700)'};
-  border-radius: 2px;
-  box-shadow: ${props => props.$isPremium
+    : 'linear-gradient(to top, #ffd700, #ffed4e, #ffd700)'
+  };
+border - radius: 2px;
+box - shadow: ${props => props.$isPremium
     ? '0 0 8px rgba(255, 0, 0, 0.6)'
-    : '0 0 8px rgba(255, 215, 0, 0.6)'};
-  animation: waveform ${props => 0.4 + props.$delay * 0.08}s ease-in-out infinite;
-  animation-delay: ${props => props.$delay * 0.08}s;
-  
-  @keyframes waveform {
-    0%, 100% {
-      height: 6px;
-      opacity: 0.7;
-    }
-    50% {
-      height: 16px;
-      opacity: 1;
-    }
+    : '0 0 8px rgba(255, 215, 0, 0.6)'
+  };
+animation: waveform ${props => 0.4 + props.$delay * 0.08}s ease -in -out infinite;
+animation - delay: ${props => props.$delay * 0.08} s;
+
+@keyframes waveform {
+  0 %, 100 % {
+    height: 6px;
+    opacity: 0.7;
   }
+  50 % {
+    height: 16px;
+    opacity: 1;
+  }
+}
 `;
 
 const VoiceCheckmark = styled.div<{ $show: boolean; $isPremium?: boolean }>`
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  pointer-events: none;
-  opacity: ${props => props.$show ? '1' : '0'};
-  transition: opacity 0.3s ease;
-  animation: ${props => props.$show ? 'checkmarkAppear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' : 'none'};
-  
-  @keyframes checkmarkAppear {
-    0% {
-      transform: scale(0) rotate(-180deg);
-      opacity: 0;
-    }
-    50% {
-      transform: scale(1.2) rotate(10deg);
+position: absolute;
+top: -8px;
+right: -8px;
+width: 20px;
+height: 20px;
+display: flex;
+align - items: center;
+justify - content: center;
+z - index: 100;
+pointer - events: none;
+opacity: ${props => props.$show ? '1' : '0'};
+transition: opacity 0.3s ease;
+animation: ${props => props.$show ? 'checkmarkAppear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' : 'none'};
+
+@keyframes checkmarkAppear {
+  0 % {
+    transform: scale(0) rotate(- 180deg);
+  opacity: 0;
+}
+50 % {
+  transform: scale(1.2) rotate(10deg);
       opacity: 1;
-    }
-    100% {
-      transform: scale(1) rotate(0deg);
+}
+100 % {
+  transform: scale(1) rotate(0deg);
       opacity: 1;
-    }
+}
   }
   
   &::before {
-    content: '';
-    position: absolute;
-    width: 6px;
-    height: 12px;
-    border: 3px solid ${props => props.$isPremium ? '#ff4444' : '#4ade80'};
-    border-top: none;
-    border-left: none;
-    transform: rotate(45deg) translate(-2px, -2px);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-    filter: drop-shadow(0 0 3px ${props => props.$isPremium ? 'rgba(255, 68, 68, 0.8)' : 'rgba(74, 222, 128, 0.8)'});
-  }
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 12px;
+  border: 3px solid ${props => props.$isPremium ? '#ff4444' : '#4ade80'};
+  border - top: none;
+  border - left: none;
+  transform: rotate(45deg) translate(-2px, -2px);
+  box - shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  filter: drop - shadow(0 0 3px ${props => props.$isPremium ? 'rgba(255, 68, 68, 0.8)' : 'rgba(74, 222, 128, 0.8)'});
+}
 `;
 
 const VoicePhotoWrapper = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: relative;
-  margin: 8px;
-  overflow: visible;
-  z-index: 1;
+display: flex;
+flex - direction: column;
+align - items: center;
+position: relative;
+margin: 8px;
+overflow: visible;
+z - index: 1;
 `;
 
 const CreatorTooltip = styled.div`
-  position: absolute;
-  top: -45px;
-  right: 0;
-  background: rgba(30, 30, 30, 0.98);
-  border: 1px solid rgba(139, 92, 246, 0.8);
-  border-radius: 6px;
-  padding: 8px 12px;
-  font-size: 12px;
-  color: #e4e4e7;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  z-index: 10001;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
+position: absolute;
+top: -45px;
+right: 0;
+background: rgba(30, 30, 30, 0.98);
+border: 1px solid rgba(139, 92, 246, 0.8);
+border - radius: 6px;
+padding: 8px 12px;
+font - size: 12px;
+color: #e4e4e7;
+white - space: nowrap;
+opacity: 0;
+pointer - events: none;
+transition: opacity 0.2s ease, transform 0.2s ease;
+z - index: 10001;
+box - shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+backdrop - filter: blur(8px);
   
-  ${VoicePhotoWrapper}:hover & {
-    opacity: 1;
-    transform: translateY(-2px);
-  }
-`;
+  ${VoicePhotoWrapper}: hover & {
+  opacity: 1;
+  transform: translateY(-2px);
+}
+  `;
 
 const CreatorNameLabel = styled.div`
-  position: absolute;
-  top: -14px;
-  left: -24px;
-  background: rgba(30, 30, 30, 0.95);
-  border: 1px solid rgba(139, 92, 246, 0.6);
-  border-radius: 6px;
-  padding: 3px 8px;
-  font-size: 10px;
-  color: #e4e4e7;
-  white-space: nowrap;
-  z-index: 10002;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(4px);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  opacity: 1;
+position: absolute;
+top: -14px;
+left: -24px;
+background: rgba(30, 30, 30, 0.95);
+border: 1px solid rgba(139, 92, 246, 0.6);
+border - radius: 6px;
+padding: 3px 8px;
+font - size: 10px;
+color: #e4e4e7;
+white - space: nowrap;
+z - index: 10002;
+box - shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+backdrop - filter: blur(4px);
+cursor: pointer;
+transition: all 0.2s ease;
+opacity: 1;
   
   &:hover {
-    background: rgba(40, 40, 40, 0.95);
-    border-color: rgba(139, 92, 246, 0.9);
-    color: rgba(139, 92, 246, 0.9);
-    transform: translateY(-2px);
-  }
+  background: rgba(40, 40, 40, 0.95);
+  border - color: rgba(139, 92, 246, 0.9);
+  color: rgba(139, 92, 246, 0.9);
+  transform: translateY(-2px);
+}
 `;
 
 const SubscriptionModal = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.85);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10001;
-  padding: ${theme.spacing.xl};
-  backdrop-filter: blur(8px);
-  animation: fadeIn 0.2s ease;
-  
-  @keyframes fadeIn {
+position: fixed;
+top: 0;
+left: 0;
+right: 0;
+bottom: 0;
+background: rgba(0, 0, 0, 0.85);
+display: flex;
+align - items: center;
+justify - content: center;
+z - index: 10001;
+padding: ${theme.spacing.xl};
+backdrop - filter: blur(8px);
+animation: fadeIn 0.2s ease;
+
+@keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
-  }
+}
 `;
 
 const SubscriptionModalContent = styled.div`
-  background: linear-gradient(135deg, rgba(15, 15, 15, 0.98) 0%, rgba(22, 22, 22, 1) 100%);
-  border: 2px solid rgba(120, 120, 120, 0.5);
-  border-radius: ${theme.borderRadius.xl};
-  padding: ${theme.spacing.xl};
-  max-width: 500px;
-  width: 100%;
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(10px);
+background: linear - gradient(135deg, rgba(15, 15, 15, 0.98) 0 %, rgba(22, 22, 22, 1) 100 %);
+border: 2px solid rgba(120, 120, 120, 0.5);
+border - radius: ${theme.borderRadius.xl};
+padding: ${theme.spacing.xl};
+max - width: 500px;
+width: 100 %;
+box - shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
+backdrop - filter: blur(10px);
 `;
 
 const SubscriptionModalTitle = styled.h2`
-  color: rgba(240, 240, 240, 1);
-  font-size: ${theme.fontSize.xl};
-  font-weight: 700;
-  margin: 0 0 ${theme.spacing.lg} 0;
-  text-align: center;
+color: rgba(240, 240, 240, 1);
+font - size: ${theme.fontSize.xl};
+font - weight: 700;
+margin: 0 0 ${theme.spacing.lg} 0;
+text - align: center;
 `;
 
 const SubscriptionModalText = styled.p`
-  color: rgba(200, 200, 200, 1);
-  font-size: ${theme.fontSize.base};
-  line-height: 1.6;
-  margin: 0 0 ${theme.spacing.xl} 0;
-  text-align: center;
+color: rgba(200, 200, 200, 1);
+font - size: ${theme.fontSize.base};
+line - height: 1.6;
+margin: 0 0 ${theme.spacing.xl} 0;
+text - align: center;
 `;
 
 const SubscriptionModalButtons = styled.div`
-  display: flex;
-  gap: ${theme.spacing.md};
-  justify-content: center;
+display: flex;
+gap: ${theme.spacing.md};
+justify - content: center;
 `;
 
 const SubscriptionModalButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
-  flex: 1;
-  padding: ${theme.spacing.md} ${theme.spacing.lg};
-  border-radius: ${theme.borderRadius.lg};
-  font-size: ${theme.fontSize.base};
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: 2px solid ${props => props.$variant === 'primary' ? 'rgba(251, 191, 36, 0.6)' : 'rgba(120, 120, 120, 0.5)'};
-  background: ${props => props.$variant === 'primary'
+flex: 1;
+padding: ${theme.spacing.md} ${theme.spacing.lg};
+border - radius: ${theme.borderRadius.lg};
+font - size: ${theme.fontSize.base};
+font - weight: 600;
+cursor: pointer;
+transition: all 0.3s ease;
+border: 2px solid ${props => props.$variant === 'primary' ? 'rgba(251, 191, 36, 0.6)' : 'rgba(120, 120, 120, 0.5)'};
+background: ${props => props.$variant === 'primary'
     ? 'linear-gradient(135deg, rgba(234, 179, 8, 0.9), rgba(251, 191, 36, 0.9))'
-    : 'rgba(60, 60, 60, 0.5)'};
-  color: ${props => props.$variant === 'primary' ? '#1a1a1a' : 'rgba(240, 240, 240, 1)'};
+    : 'rgba(60, 60, 60, 0.5)'
+  };
+color: ${props => props.$variant === 'primary' ? '#1a1a1a' : 'rgba(240, 240, 240, 1)'};
   
   &:hover {
-    transform: translateY(-2px);
-    box-shadow: ${props => props.$variant === 'primary'
+  transform: translateY(-2px);
+  box - shadow: ${props => props.$variant === 'primary'
     ? '0 8px 24px rgba(234, 179, 8, 0.4)'
-    : '0 4px 12px rgba(0, 0, 0, 0.4)'};
-    border-color: ${props => props.$variant === 'primary' ? 'rgba(251, 191, 36, 0.8)' : 'rgba(120, 120, 120, 0.7)'};
-  }
+    : '0 4px 12px rgba(0, 0, 0, 0.4)'
+  };
+  border - color: ${props => props.$variant === 'primary' ? 'rgba(251, 191, 36, 0.8)' : 'rgba(120, 120, 120, 0.7)'};
+}
   
   &:active {
-    transform: translateY(0);
-  }
+  transform: translateY(0);
+}
 `;
 
 const PhotoUploadSpinner = styled.div`
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 24px;
-  height: 24px;
-  border: 3px solid rgba(139, 92, 246, 0.3);
-  border-top-color: rgba(139, 92, 246, 1);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  z-index: 100;
-  
-  @keyframes spin {
-    to { transform: translate(-50%, -50%) rotate(360deg); }
-  }
+position: absolute;
+top: 50 %;
+left: 50 %;
+transform: translate(-50 %, -50 %);
+width: 24px;
+height: 24px;
+border: 3px solid rgba(139, 92, 246, 0.3);
+border - top - color: rgba(139, 92, 246, 1);
+border - radius: 50 %;
+animation: spin 0.8s linear infinite;
+z - index: 100;
+
+@keyframes spin {
+    to { transform: translate(-50 %, -50 %) rotate(360deg); }
+}
 `;
 
 const premiumGlow = keyframes`
-  0%, 100% {
-    box-shadow: 0 0 15px rgba(124, 58, 237, 0.4);
-    border-color: rgba(124, 58, 237, 0.5);
+0 %, 100 % {
+  box- shadow: 0 0 15px rgba(124, 58, 237, 0.4);
+border - color: rgba(124, 58, 237, 0.5);
   }
-  50% {
-    box-shadow: 0 0 30px rgba(124, 58, 237, 0.8), 0 0 45px rgba(124, 58, 237, 0.4);
-    border-color: rgba(124, 58, 237, 1);
+50 % {
+  box- shadow: 0 0 30px rgba(124, 58, 237, 0.8), 0 0 45px rgba(124, 58, 237, 0.4);
+border - color: rgba(124, 58, 237, 1);
   }
 `;
 
 const PremiumWarning = styled(motion.div)`
-  position: absolute;
-  top: auto;
-  bottom: -40px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(124, 58, 237, 0.95);
-  color: white;
-  padding: 6px 12px;
-  border-radius: 8px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  white-space: nowrap;
-  z-index: 1000;
-  pointer-events: none;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+position: absolute;
+top: auto;
+bottom: -40px;
+left: 50 %;
+transform: translateX(-50 %);
+background: rgba(124, 58, 237, 0.95);
+color: white;
+padding: 6px 12px;
+border - radius: 8px;
+font - size: 0.75rem;
+font - weight: 700;
+white - space: nowrap;
+z - index: 1000;
+pointer - events: none;
+box - shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
   
   &::after {
-    content: '';
-    position: absolute;
-    top: -6px;
-    left: 50%;
-    transform: translateX(-50%);
-    border-left: 6px solid transparent;
-    border-right: 6px solid transparent;
-    border-bottom: 6px solid rgba(124, 58, 237, 0.95);
-  }
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 50 %;
+  transform: translateX(-50 %);
+  border - left: 6px solid transparent;
+  border - right: 6px solid transparent;
+  border - bottom: 6px solid rgba(124, 58, 237, 0.95);
+}
 `;
 
 const AddVoiceContainer = styled.div<{ $isUploading?: boolean; $isPremium?: boolean }>`
-  position: relative;
-  width: 74px;
-  height: 74px;
-  min-width: 74px;
-  min-height: 74px;
-  cursor: ${props => props.$isUploading ? 'wait' : 'pointer'};
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: visible;
-  border-radius: 50%;
-  border: 2px dashed ${props => props.$isUploading ? 'rgba(139, 92, 246, 0.9)' : 'rgba(139, 92, 246, 0.6)'};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: ${props => props.$isUploading ? 'rgba(40, 40, 40, 0.7)' : 'rgba(30, 30, 30, 0.5)'};
-  opacity: ${props => props.$isUploading ? 0.8 : 1};
+position: relative;
+width: 74px;
+height: 74px;
+min - width: 74px;
+min - height: 74px;
+cursor: ${props => props.$isUploading ? 'wait' : 'pointer'};
+transition: all 0.3s cubic - bezier(0.4, 0, 0.2, 1);
+overflow: visible;
+border - radius: 50 %;
+border: 2px dashed ${props => props.$isUploading ? 'rgba(139, 92, 246, 0.9)' : 'rgba(139, 92, 246, 0.6)'};
+display: flex;
+align - items: center;
+justify - content: center;
+background: ${props => props.$isUploading ? 'rgba(40, 40, 40, 0.7)' : 'rgba(30, 30, 30, 0.5)'};
+opacity: ${props => props.$isUploading ? 0.8 : 1};
   
   ${props => !props.$isUploading && css`
     animation: ${premiumGlow} 2s ease-in-out infinite;
   `}
   
   &:hover {
-    border-color: ${props => props.$isUploading ? 'rgba(139, 92, 246, 0.9)' : 'rgba(139, 92, 246, 0.9)'};
-    background: ${props => props.$isUploading ? 'rgba(40, 40, 40, 0.7)' : 'rgba(40, 40, 40, 0.7)'};
-    transform: ${props => props.$isUploading ? 'scale(1)' : 'scale(1.05)'};
-  }
+  border - color: ${props => props.$isUploading ? 'rgba(139, 92, 246, 0.9)' : 'rgba(139, 92, 246, 0.9)'};
+  background: ${props => props.$isUploading ? 'rgba(40, 40, 40, 0.7)' : 'rgba(40, 40, 40, 0.7)'};
+  transform: ${props => props.$isUploading ? 'scale(1)' : 'scale(1.05)'};
+}
   
   &:active {
-    transform: ${props => props.$isUploading ? 'scale(1)' : 'scale(0.95)'};
-  }
+  transform: ${props => props.$isUploading ? 'scale(1)' : 'scale(0.95)'};
+}
   
   ${props => props.$isUploading && `
     animation: pulseLoading 1.5s ease-in-out infinite;
@@ -3231,665 +3194,668 @@ const AddVoiceContainer = styled.div<{ $isUploading?: boolean; $isPremium?: bool
 `;
 
 const VoiceLoadingSpinner = styled.div`
-  width: 30px;
-  height: 30px;
-  border: 3px solid rgba(139, 92, 246, 0.2);
-  border-top: 3px solid rgba(139, 92, 246, 0.9);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
+width: 30px;
+height: 30px;
+border: 3px solid rgba(139, 92, 246, 0.2);
+border - top: 3px solid rgba(139, 92, 246, 0.9);
+border - radius: 50 %;
+animation: spin 0.8s linear infinite;
+
+@keyframes spin {
+  0 % { transform: rotate(0deg); }
+  100 % { transform: rotate(360deg); }
+}
 `;
 
 const AddVoicePlus = styled.div`
-  width: 30px;
-  height: 30px;
-  position: relative;
-  color: rgba(139, 92, 246, 0.8);
-  transition: color 0.3s ease;
+width: 30px;
+height: 30px;
+position: relative;
+color: rgba(139, 92, 246, 0.8);
+transition: color 0.3s ease;
   
-  ${AddVoiceContainer}:hover & {
-    color: rgba(139, 92, 246, 1);
-  }
-  
-  &::before,
+  ${AddVoiceContainer}: hover & {
+  color: rgba(139, 92, 246, 1);
+}
+
+  &:: before,
   &::after {
-    content: '';
-    position: absolute;
-    background: currentColor;
-    border-radius: 2px;
-  }
+  content: '';
+  position: absolute;
+  background: currentColor;
+  border - radius: 2px;
+}
   
   &::before {
-    width: 2px;
-    height: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-  }
+  width: 2px;
+  height: 100 %;
+  left: 50 %;
+  transform: translateX(-50 %);
+}
   
   &::after {
-    width: 100%;
-    height: 2px;
-    top: 50%;
-    transform: translateY(-50%);
-  }
+  width: 100 %;
+  height: 2px;
+  top: 50 %;
+  transform: translateY(-50 %);
+}
 `;
 
 const AddVoiceName = styled.div`
-  position: absolute;
-  top: -30px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 11px;
-  color: ${theme.colors.text.secondary};
-  white-space: nowrap;
-  text-align: center;
-  width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+position: absolute;
+top: -30px;
+left: 50 %;
+transform: translateX(-50 %);
+font - size: 11px;
+color: ${theme.colors.text.secondary};
+white - space: nowrap;
+text - align: center;
+width: 120px;
+overflow: hidden;
+text - overflow: ellipsis;
 `;
 
 const VoiceCloneModalOverlay = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(8px);
-  z-index: 10000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
+position: fixed;
+top: 0;
+left: 0;
+right: 0;
+bottom: 0;
+background: rgba(0, 0, 0, 0.75);
+backdrop - filter: blur(8px);
+z - index: 10000;
+display: flex;
+align - items: center;
+justify - content: center;
+padding: 24px;
 `;
 
 const VoiceCloneModal = styled.div`
-  background: rgba(20, 20, 30, 0.95);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(139, 92, 246, 0.3);
-  border-radius: 12px;
-  padding: 32px;
-  max-width: 520px;
-  max-height: 90vh;
-  width: 100%;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(139, 92, 246, 0.1);
-  position: relative;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
+background: rgba(20, 20, 30, 0.95);
+backdrop - filter: blur(20px);
+border: 1px solid rgba(139, 92, 246, 0.3);
+border - radius: 12px;
+padding: 32px;
+max - width: 520px;
+max - height: 90vh;
+width: 100 %;
+box - shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(139, 92, 246, 0.1);
+position: relative;
+overflow - y: auto;
+display: flex;
+flex - direction: column;
 `;
 
 const VoiceCloneModalHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
+display: flex;
+justify - content: space - between;
+align - items: center;
+margin - bottom: 24px;
 `;
 
 const VoiceCloneModalTitle = styled.h2`
-  font-size: 24px;
-  font-weight: 600;
-  color: #e4e4e7;
-  margin: 0;
+font - size: 24px;
+font - weight: 600;
+color: #e4e4e7;
+margin: 0;
 `;
 
 const VoiceCloneModalCloseButton = styled.button`
-  background: transparent;
-  border: none;
-  color: #a1a1aa;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
+background: transparent;
+border: none;
+color: #a1a1aa;
+cursor: pointer;
+padding: 8px;
+border - radius: 8px;
+display: flex;
+align - items: center;
+justify - content: center;
+transition: all 0.2s ease;
   
   &:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: #e4e4e7;
-  }
+  background: rgba(255, 255, 255, 0.1);
+  color: #e4e4e7;
+}
 `;
 
 const VoiceCloneInstructions = styled.div`
-  margin-bottom: 24px;
+margin - bottom: 24px;
 `;
 
 const VoiceCloneInstructionsTitle = styled.h3`
-  font-size: 14px;
-  font-weight: 600;
-  color: #a1a1aa;
-  margin: 0 0 12px 0;
+font - size: 14px;
+font - weight: 600;
+color: #a1a1aa;
+margin: 0 0 12px 0;
 `;
 
 const VoiceCloneInstructionItem = styled.div`
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-size: 13px;
-  color: #d4d4d8;
-  line-height: 1.5;
+display: flex;
+align - items: flex - start;
+gap: 8px;
+margin - bottom: 8px;
+font - size: 13px;
+color: #d4d4d8;
+line - height: 1.5;
 `;
 
 const VoiceCloneUploadZone = styled.div<{ $isDragOver?: boolean; $hasFile?: boolean }>`
-  border: 2px dashed ${props => props.$isDragOver ? 'rgba(139, 92, 246, 0.8)' : props.$hasFile ? 'rgba(34, 197, 94, 0.6)' : 'rgba(139, 92, 246, 0.4)'};
-  border-radius: 12px;
-  padding: 40px 20px;
-  text-align: center;
-  background: ${props => props.$isDragOver ? 'rgba(139, 92, 246, 0.1)' : props.$hasFile ? 'rgba(34, 197, 94, 0.05)' : 'rgba(30, 30, 40, 0.5)'};
-  transition: all 0.3s ease;
-  cursor: pointer;
-  position: relative;
+border: 2px dashed ${props => props.$isDragOver ? 'rgba(139, 92, 246, 0.8)' : props.$hasFile ? 'rgba(34, 197, 94, 0.6)' : 'rgba(139, 92, 246, 0.4)'};
+border - radius: 12px;
+padding: 40px 20px;
+text - align: center;
+background: ${props => props.$isDragOver ? 'rgba(139, 92, 246, 0.1)' : props.$hasFile ? 'rgba(34, 197, 94, 0.05)' : 'rgba(30, 30, 40, 0.5)'};
+transition: all 0.3s ease;
+cursor: pointer;
+position: relative;
   
   &:hover {
-    border-color: rgba(139, 92, 246, 0.6);
-    background: rgba(139, 92, 246, 0.05);
-  }
+  border - color: rgba(139, 92, 246, 0.6);
+  background: rgba(139, 92, 246, 0.05);
+}
 `;
 
 const VoiceCloneUploadInput = styled.input`
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
+position: absolute;
+top: 0;
+left: 0;
+width: 100 %;
+height: 100 %;
+opacity: 0;
+cursor: pointer;
 `;
 
 const VoiceCloneUploadContent = styled.div`
-  pointer-events: none;
+pointer - events: none;
 `;
 
 const VoiceCloneProgressBar = styled.div`
-  width: 100%;
-  height: 8px;
-  background: rgba(60, 60, 80, 0.5);
-  border-radius: 4px;
-  overflow: hidden;
-  margin-top: 16px;
-  position: relative;
+width: 100 %;
+height: 8px;
+background: rgba(60, 60, 80, 0.5);
+border - radius: 4px;
+overflow: hidden;
+margin - top: 16px;
+position: relative;
 `;
 
 const VoiceCloneProgressFill = styled.div<{ $progress: number; $isValid: boolean }>`
-  height: 100%;
-  width: ${props => Math.min(props.$progress, 100)}%;
-  background: ${props => props.$isValid ? 'linear-gradient(90deg, #22c55e, #16a34a)' : 'linear-gradient(90deg, #ef4444, #dc2626)'};
-  border-radius: 4px;
-  transition: width 0.3s ease, background 0.3s ease;
-  position: relative;
+height: 100 %;
+width: ${props => Math.min(props.$progress, 100)}%;
+background: ${props => props.$isValid ? 'linear-gradient(90deg, #22c55e, #16a34a)' : 'linear-gradient(90deg, #ef4444, #dc2626)'};
+border - radius: 4px;
+transition: width 0.3s ease, background 0.3s ease;
+position: relative;
   
   &::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-    animation: shimmer 2s infinite;
-  }
-  
-  @keyframes shimmer {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
-  }
-`;
-
-const VoiceCloneStatusMessage = styled.div<{ $isValid: boolean }>`
-  margin-top: 12px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: ${props => props.$isValid ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)'};
-  border: 1px solid ${props => props.$isValid ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'};
-  color: ${props => props.$isValid ? '#22c55e' : '#ef4444'};
-`;
-
-const VoiceCloneSubmitButton = styled.button<{ $isDisabled: boolean }>`
-  width: 100%;
-  padding: 14px 24px;
-  margin-top: 24px;
-  background: ${props => props.$isDisabled ? 'rgba(60, 60, 80, 0.5)' : 'linear-gradient(135deg, #8b5cf6, #7c3aed)'};
-  border: 1px solid ${props => props.$isDisabled ? 'rgba(100, 100, 120, 0.3)' : 'rgba(139, 92, 246, 0.6)'};
-  border-radius: 12px;
-  color: ${props => props.$isDisabled ? '#71717a' : '#ffffff'};
-  font-size: 16px;
-  font-weight: 600;
-  cursor: ${props => props.$isDisabled ? 'not-allowed' : 'pointer'};
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  
-  &:hover:not(:disabled) {
-    background: ${props => props.$isDisabled ? 'rgba(60, 60, 80, 0.5)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)'};
-    transform: ${props => props.$isDisabled ? 'none' : 'translateY(-2px)'};
-    box-shadow: ${props => props.$isDisabled ? 'none' : '0 8px 20px rgba(139, 92, 246, 0.3)'};
-  }
-  
-  &:active:not(:disabled) {
-    transform: translateY(0);
-  }
-`;
-
-const ExpandButton = styled.div<{ $isExpanded: boolean }>`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  margin-top: 4px;
-  cursor: pointer;
-  color: ${theme.colors.text.secondary};
-  transition: all 0.3s ease;
-
-  &:hover {
-    color: ${theme.colors.text.primary};
-  }
-
-  svg {
-    transform: rotate(${props => props.$isExpanded ? '180deg' : '0deg'});
-    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    animation: ${props => props.$isExpanded ? 'none' : 'arrowBounce 2s infinite'};
-  }
-
-  @keyframes arrowBounce {
-    0%, 20%, 50%, 80%, 100% {
-      transform: translateY(0) rotate(0deg);
-    }
-    40% {
-      transform: translateY(5px) rotate(0deg);
-    }
-    60% {
-      transform: translateY(3px) rotate(0deg);
-    }
-  }
-`;
-
-const ProgressBarContainer = styled.div`
-  margin-top: 1.25rem;
-  padding: 1rem;
-  background: rgba(20, 20, 20, 0.6);
-  border: 1px solid rgba(139, 92, 246, 0.2);
-  border-radius: ${theme.borderRadius.md};
-  animation: slideIn 0.3s ease-out;
-  
-  @keyframes slideIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-`;
-
-const StepItem = styled.div<{ $isActive: boolean; $isCompleted: boolean }>`
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.5rem;
-  opacity: ${props => (props.$isActive || props.$isCompleted ? 1 : 0.4)};
-  transition: opacity 0.3s ease;
-`;
-
-const StepIcon = styled.div<{ $isActive: boolean; $isCompleted: boolean }>`
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.65rem;
-  font-weight: 700;
-  background: ${props => props.$isCompleted ? '#10b981' : (props.$isActive ? '#8b5cf6' : 'rgba(150, 150, 150, 0.2)')};
-  color: white;
-  border: 1px solid ${props => props.$isCompleted ? '#10b981' : (props.$isActive ? '#8b5cf6' : 'rgba(150, 150, 150, 0.3)')};
-  box-shadow: ${props => props.$isActive ? '0 0 10px rgba(139, 92, 246, 0.4)' : 'none'};
-`;
-
-const StepText = styled.span<{ $isActive: boolean; $isCompleted: boolean }>`
-  font-size: 0.75rem;
-  color: ${props => props.$isCompleted ? '#10b981' : (props.$isActive ? '#ffffff' : '#888888')};
-  font-weight: ${props => (props.$isActive || props.$isCompleted ? 600 : 400)};
-`;
-
-const WarningText = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #888;
-  font-size: 0.75rem;
-  margin-top: 10px;
-  padding: 0 4px;
-`;
-
-const CoinsBalance = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: rgba(251, 191, 36, 0.1);
-  border: 1px solid rgba(251, 191, 36, 0.3);
-  padding: 0.25rem 0.75rem;
-  border-radius: 2rem;
-  color: #fbbf24;
-  font-size: 0.875rem;
-  font-weight: 600;
-  
-  svg {
-    color: #fbbf24;
-  }
-`;
-
-const PhotosCounter = styled.div<{ $limitReached: boolean }>`
-  display: inline-flex;
-  align-items: center;
-  gap: ${theme.spacing.xs};
-  padding: ${theme.spacing.xs} ${theme.spacing.sm};
-  border-radius: ${theme.borderRadius.md};
-  font-size: ${theme.fontSize.sm};
-  font-weight: 600;
-  color: ${({ $limitReached }) =>
-    $limitReached ? 'rgba(180, 180, 180, 0.9)' : theme.colors.text.secondary};
-  background: rgba(40, 40, 40, 0.6);
-  border: 1px solid ${({ $limitReached }) =>
-    $limitReached ? 'rgba(150, 150, 150, 0.5)' : 'rgba(120, 120, 120, 0.3)'};
-`;
-
-const PhotoList = styled.div`
-  display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
-  gap: ${theme.spacing.sm} !important;
-  margin-top: ${theme.spacing.md};
-  padding: ${theme.spacing.md};
-  visibility: visible !important;
-  opacity: 1 !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
-  align-content: start !important;
-  grid-auto-rows: 300px !important;
-  contain: layout style paint;
-
-  @media (max-width: 768px) {
-    grid-template-columns: 1fr !important;
-    padding: ${theme.spacing.xs};
-    gap: ${theme.spacing.xs} !important;
-    margin-top: ${theme.spacing.sm};
-  }
-`;
-
-const PhotoTile = styled.div`
-  position: relative;
-  border-radius: ${theme.borderRadius.lg};
-  overflow: hidden;
-  border: 2px solid rgba(120, 120, 120, 0.3);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  background: rgba(30, 30, 30, 0.95);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-  height: 300px;
-  min-height: 300px;
-  max-height: 300px;
-  display: block !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  cursor: pointer;
-  z-index: 1;
-  will-change: transform;
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  contain: layout style paint;
-
-  @media (max-width: 768px) {
-    height: 180px;
-    min-height: 180px;
-    border-width: 1px;
-    border-radius: ${theme.borderRadius.md};
-  }
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 0 20px rgba(232, 121, 249, 0.5);
-    border-color: rgba(180, 180, 180, 0.5);
-    z-index: 10;
-  }
-
-  @media (max-width: 768px) {
-    &:hover {
-      transform: none;
-    }
-  }
-`;
-
-const GenerationTimer = styled.div`
+  content: '';
   position: absolute;
-  top: 8px;
-  right: 8px;
-  background: rgba(15, 15, 15, 0.85);
-  color: #fff;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  pointer-events: none;
-  z-index: 20;
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
-
-  @media (max-width: 768px) {
-    top: 6px;
-    right: 6px;
-    padding: 3px 6px;
-    font-size: 10px;
-  }
-`;
-
-const PhotoImage = styled.img`
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover;
-  display: block !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  background: #333;
-  cursor: pointer;
-  user-select: none;
-`;
-
-const PhotoOverlay = styled.div`
-  position: absolute;
+  top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  padding: ${theme.spacing.sm};
-  display: flex !important;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  gap: ${theme.spacing.xs};
-  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.9) 100%);
-  opacity: 1;
-  transition: opacity 0.3s ease;
-  pointer-events: auto;
-  height: 96px;
-  min-height: 96px;
-  will-change: opacity;
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  contain: layout style;
+  background: linear - gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0 % { transform: translateX(-100 %); }
+  100 % { transform: translateX(100 %); }
+}
+`;
+
+const VoiceCloneStatusMessage = styled.div<{ $isValid: boolean }>`
+margin - top: 12px;
+padding: 10px 12px;
+border - radius: 8px;
+font - size: 13px;
+display: flex;
+align - items: center;
+gap: 8px;
+background: ${props => props.$isValid ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)'};
+border: 1px solid ${props => props.$isValid ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'};
+color: ${props => props.$isValid ? '#22c55e' : '#ef4444'};
+`;
+
+const VoiceCloneSubmitButton = styled.button<{ $isDisabled: boolean }>`
+width: 100 %;
+padding: 14px 24px;
+margin - top: 24px;
+background: ${props => props.$isDisabled ? 'rgba(60, 60, 80, 0.5)' : 'linear-gradient(135deg, #8b5cf6, #7c3aed)'};
+border: 1px solid ${props => props.$isDisabled ? 'rgba(100, 100, 120, 0.3)' : 'rgba(139, 92, 246, 0.6)'};
+border - radius: 12px;
+color: ${props => props.$isDisabled ? '#71717a' : '#ffffff'};
+font - size: 16px;
+font - weight: 600;
+cursor: ${props => props.$isDisabled ? 'not-allowed' : 'pointer'};
+transition: all 0.3s ease;
+display: flex;
+align - items: center;
+justify - content: center;
+gap: 8px;
   
-  @media (max-width: 768px) {
-    opacity: 1;
-    pointer-events: auto;
-    background: rgba(0, 0, 0, 0.7);
-    height: 72px;
-    min-height: 72px;
-    padding: ${theme.spacing.xs};
+  &: hover: not(: disabled) {
+  background: ${props => props.$isDisabled ? 'rgba(60, 60, 80, 0.5)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)'};
+  transform: ${props => props.$isDisabled ? 'none' : 'translateY(-2px)'};
+  box - shadow: ${props => props.$isDisabled ? 'none' : '0 8px 20px rgba(139, 92, 246, 0.3)'};
+}
+  
+  &: active: not(: disabled) {
+  transform: translateY(0);
+}
+`;
+
+const ExpandButton = styled.button<{ $isExpanded: boolean }>`
+width: 32px;
+height: 24px;
+display: flex;
+justify - content: center;
+align - items: center;
+margin: 4px auto;
+background: transparent;
+border: none;
+color: rgba(255, 255, 255, 0.15);
+cursor: pointer;
+transition: color 0.2s ease;
+outline: none;
+
+  &:hover {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+  &:focus {
+  outline: none;
+}
+
+  svg {
+  transform: rotate(${props => props.$isExpanded ? '180deg' : '0deg'});
+  transition: transform 0.4s cubic - bezier(0.4, 0, 0.2, 1);
+}
+`;
+
+const ProgressBarContainer = styled.div`
+margin - top: 1.25rem;
+padding: 1rem;
+background: rgba(20, 20, 20, 0.6);
+border: 1px solid rgba(139, 92, 246, 0.2);
+border - radius: ${theme.borderRadius.md};
+animation: slideIn 0.3s ease - out;
+
+@keyframes slideIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+`;
+
+const StepItem = styled.div<{ $isActive: boolean; $isCompleted: boolean }>`
+display: flex;
+align - items: center;
+gap: 0.75rem;
+margin - bottom: 0.5rem;
+opacity: ${props => (props.$isActive || props.$isCompleted ? 1 : 0.4)};
+transition: opacity 0.3s ease;
+`;
+
+const StepIcon = styled.div<{ $isActive: boolean; $isCompleted: boolean }>`
+width: 18px;
+height: 18px;
+border - radius: 50 %;
+display: flex;
+align - items: center;
+justify - content: center;
+font - size: 0.65rem;
+font - weight: 700;
+background: ${props => props.$isCompleted ? '#10b981' : (props.$isActive ? '#8b5cf6' : 'rgba(150, 150, 150, 0.2)')};
+color: white;
+border: 1px solid ${props => props.$isCompleted ? '#10b981' : (props.$isActive ? '#8b5cf6' : 'rgba(150, 150, 150, 0.3)')};
+box - shadow: ${props => props.$isActive ? '0 0 10px rgba(139, 92, 246, 0.4)' : 'none'};
+`;
+
+const StepText = styled.span<{ $isActive: boolean; $isCompleted: boolean }>`
+font - size: 0.75rem;
+color: ${props => props.$isCompleted ? '#10b981' : (props.$isActive ? '#ffffff' : '#888888')};
+font - weight: ${props => (props.$isActive || props.$isCompleted ? 600 : 400)};
+`;
+
+const WarningText = styled.div`
+display: flex;
+align - items: center;
+gap: 6px;
+color: #888;
+font - size: 0.75rem;
+margin - top: 10px;
+padding: 0 4px;
+`;
+
+const CoinsBalance = styled.div`
+display: flex;
+align - items: center;
+gap: 0.5rem;
+background: rgba(251, 191, 36, 0.1);
+border: 1px solid rgba(251, 191, 36, 0.3);
+padding: 0.25rem 0.75rem;
+border - radius: 2rem;
+color: #fbbf24;
+font - size: 0.875rem;
+font - weight: 600;
+  
+  svg {
+  color: #fbbf24;
+}
+`;
+
+const PhotosCounter = styled.div<{ $limitReached: boolean }>`
+display: inline - flex;
+align - items: center;
+gap: ${theme.spacing.xs};
+padding: ${theme.spacing.xs} ${theme.spacing.sm};
+border - radius: ${theme.borderRadius.md};
+font - size: ${theme.fontSize.sm};
+font - weight: 600;
+color: ${({ $limitReached }) =>
+    $limitReached ? 'rgba(180, 180, 180, 0.9)' : theme.colors.text.secondary
+  };
+background: rgba(40, 40, 40, 0.6);
+border: 1px solid ${({ $limitReached }) =>
+    $limitReached ? 'rgba(150, 150, 150, 0.5)' : 'rgba(120, 120, 120, 0.3)'
+  };
+`;
+
+const PhotoList = styled.div`
+display: grid!important;
+grid - template - columns: repeat(auto - fill, minmax(200px, 1fr))!important;
+gap: ${theme.spacing.sm} !important;
+margin - top: ${theme.spacing.md};
+padding: ${theme.spacing.md};
+visibility: visible!important;
+opacity: 1!important;
+width: 100 % !important;
+box - sizing: border - box!important;
+align - content: start!important;
+grid - auto - rows: 300px!important;
+contain: layout style paint;
+
+@media(max - width: 768px) {
+  grid - template - columns: 1fr!important;
+  padding: ${theme.spacing.xs};
+  gap: ${theme.spacing.xs} !important;
+  margin - top: ${theme.spacing.sm};
+}
+`;
+
+const PhotoTile = styled.div`
+position: relative;
+border - radius: ${theme.borderRadius.lg};
+overflow: hidden;
+border: 2px solid rgba(120, 120, 120, 0.3);
+box - shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+background: rgba(30, 30, 30, 0.95);
+transition: transform 0.2s ease, box - shadow 0.2s ease, border - color 0.2s ease;
+height: 300px;
+min - height: 300px;
+max - height: 300px;
+display: block!important;
+visibility: visible!important;
+opacity: 1!important;
+cursor: pointer;
+z - index: 1;
+will - change: transform;
+transform: translateZ(0);
+backface - visibility: hidden;
+contain: layout style paint;
+
+@media(max - width: 768px) {
+  height: 180px;
+  min - height: 180px;
+  border - width: 1px;
+  border - radius: ${theme.borderRadius.md};
+}
+
+  &:hover {
+  transform: translateY(-2px);
+  box - shadow: 0 0 20px rgba(232, 121, 249, 0.5);
+  border - color: rgba(180, 180, 180, 0.5);
+  z - index: 10;
+}
+
+@media(max - width: 768px) {
+    &:hover {
+    transform: none;
   }
+}
+`;
+
+const GenerationTimer = styled.div`
+position: absolute;
+top: 8px;
+right: 8px;
+background: rgba(15, 15, 15, 0.85);
+color: #fff;
+padding: 4px 8px;
+border - radius: 6px;
+font - size: 11px;
+font - weight: 600;
+pointer - events: none;
+z - index: 20;
+backdrop - filter: blur(8px);
+border: 1px solid rgba(255, 255, 255, 0.15);
+display: flex;
+align - items: center;
+gap: 4px;
+box - shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+
+@media(max - width: 768px) {
+  top: 6px;
+  right: 6px;
+  padding: 3px 6px;
+  font - size: 10px;
+}
+`;
+
+const PhotoImage = styled.img`
+width: 100 % !important;
+height: 100 % !important;
+object - fit: cover;
+display: block!important;
+visibility: visible!important;
+opacity: 1!important;
+background: #333;
+cursor: pointer;
+user - select: none;
+`;
+
+const PhotoOverlay = styled.div`
+position: absolute;
+left: 0;
+right: 0;
+bottom: 0;
+padding: ${theme.spacing.sm};
+display: flex!important;
+flex - direction: row;
+align - items: center;
+justify - content: center;
+gap: ${theme.spacing.xs};
+background: linear - gradient(180deg, transparent 0 %, rgba(0, 0, 0, 0.9) 100 %);
+opacity: 1;
+transition: opacity 0.3s ease;
+pointer - events: auto;
+height: 96px;
+min - height: 96px;
+will - change: opacity;
+transform: translateZ(0);
+backface - visibility: hidden;
+contain: layout style;
+
+@media(max - width: 768px) {
+  opacity: 1;
+  pointer - events: auto;
+  background: rgba(0, 0, 0, 0.7);
+  height: 72px;
+  min - height: 72px;
+  padding: ${theme.spacing.xs};
+}
 `;
 
 const OverlayButtons = styled.div`
-  display: flex;
-  gap: 0.5rem;
-  width: 100%;
-  justify-content: center;
-  contain: layout;
-  min-height: 32px;
+display: flex;
+gap: 0.5rem;
+width: 100 %;
+justify - content: center;
+contain: layout;
+min - height: 32px;
 `;
 
 /** Кнопка «Добавить» (жёлтая) / «Убрать» (фиолетовая) — компактная и стильная */
 const PhotoOverlayButton = styled.button<{ $variant?: 'add' | 'remove' }>`
-  width: auto;
-  min-width: 72px;
-  padding: 0.25rem 0.5rem;
-  min-height: 28px;
-  touch-action: manipulation;
-  background: ${props => props.$variant === 'remove'
+width: auto;
+min - width: 72px;
+padding: 0.25rem 0.5rem;
+min - height: 28px;
+touch - action: manipulation;
+background: ${props => props.$variant === 'remove'
     ? 'rgba(139, 92, 246, 0.85)'
-    : 'rgba(234, 179, 8, 0.9)'};
-  border: 1px solid ${props => props.$variant === 'remove'
+    : 'rgba(234, 179, 8, 0.9)'
+  };
+border: 1px solid ${props => props.$variant === 'remove'
     ? 'rgba(167, 139, 250, 0.9)'
-    : 'rgba(250, 204, 21, 0.9)'};
-  border-radius: 6px;
-  color: ${props => props.$variant === 'remove' ? '#fff' : '#1a1a1a'};
-  font-size: 0.7rem;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.25rem;
-  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    : 'rgba(250, 204, 21, 0.9)'
+  };
+border - radius: 6px;
+color: ${props => props.$variant === 'remove' ? '#fff' : '#1a1a1a'};
+font - size: 0.7rem;
+font - weight: 600;
+cursor: pointer;
+display: flex;
+align - items: center;
+justify - content: center;
+gap: 0.25rem;
+transition: background - color 0.2s ease, border - color 0.2s ease, transform 0.15s ease, box - shadow 0.2s ease;
+backdrop - filter: blur(10px);
+box - shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 
-  &:hover:not(:disabled) {
-    background: ${props => props.$variant === 'remove'
+  &: hover: not(: disabled) {
+  background: ${props => props.$variant === 'remove'
     ? 'rgba(139, 92, 246, 1)'
-    : 'rgba(250, 204, 21, 1)'};
-    border-color: ${props => props.$variant === 'remove' ? 'rgba(167, 139, 250, 1)' : 'rgba(250, 204, 21, 1)'};
-    transform: scale(1.03);
-    box-shadow: 0 2px 8px ${props => props.$variant === 'remove' ? 'rgba(139, 92, 246, 0.35)' : 'rgba(234, 179, 8, 0.35)'};
-  }
+    : 'rgba(250, 204, 21, 1)'
+  };
+  border - color: ${props => props.$variant === 'remove' ? 'rgba(167, 139, 250, 1)' : 'rgba(250, 204, 21, 1)'};
+  transform: scale(1.03);
+  box - shadow: 0 2px 8px ${props => props.$variant === 'remove' ? 'rgba(139, 92, 246, 0.35)' : 'rgba(234, 179, 8, 0.35)'};
+}
 
-  &:active:not(:disabled) {
-    transform: scale(0.98);
-  }
+  &: active: not(: disabled) {
+  transform: scale(0.98);
+}
 
   &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none;
-  }
+  opacity: 0.6;
+  cursor: not - allowed;
+  transform: none;
+}
 
   svg {
-    width: 12px;
-    height: 12px;
-  }
+  width: 12px;
+  height: 12px;
+}
 
-  @media (max-width: 768px) {
-    padding: 0.2rem 0.4rem;
-    font-size: 0.65rem;
-    min-width: 64px;
-    min-height: 26px;
+@media(max - width: 768px) {
+  padding: 0.2rem 0.4rem;
+  font - size: 0.65rem;
+  min - width: 64px;
+  min - height: 26px;
 
     svg {
-      width: 10px;
-      height: 10px;
-    }
+    width: 10px;
+    height: 10px;
   }
+}
 `;
 
 const OverlayButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
-  padding: 0.375rem 0.75rem;
-  min-width: 90px;
-  width: auto;
-  background: ${props => props.$variant === 'primary'
+padding: 0.375rem 0.75rem;
+min - width: 90px;
+width: auto;
+background: ${props => props.$variant === 'primary'
     ? 'rgba(100, 100, 100, 0.9)'
-    : 'rgba(255, 255, 255, 0.15)'};
-  border: 1px solid ${props => props.$variant === 'primary'
+    : 'rgba(255, 255, 255, 0.15)'
+  };
+border: 1px solid ${props => props.$variant === 'primary'
     ? 'rgba(150, 150, 150, 1)'
-    : 'rgba(255, 255, 255, 0.2)'};
-  border-radius: 0.5rem;
-  color: #ffffff;
-  font-size: 0.75rem;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.375rem;
-  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
-  backdrop-filter: blur(10px);
-  will-change: transform;
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  contain: layout style;
-  white-space: nowrap;
+    : 'rgba(255, 255, 255, 0.2)'
+  };
+border - radius: 0.5rem;
+color: #ffffff;
+font - size: 0.75rem;
+font - weight: 600;
+cursor: pointer;
+display: flex;
+align - items: center;
+justify - content: center;
+gap: 0.375rem;
+transition: background - color 0.2s ease, border - color 0.2s ease, transform 0.15s ease;
+backdrop - filter: blur(10px);
+will - change: transform;
+transform: translateZ(0);
+backface - visibility: hidden;
+contain: layout style;
+white - space: nowrap;
 
-  &:hover:not(:disabled) {
-    background: ${props => props.$variant === 'primary'
+  &: hover: not(: disabled) {
+  background: ${props => props.$variant === 'primary'
     ? 'rgba(120, 120, 120, 1)'
-    : 'rgba(255, 255, 255, 0.25)'};
-    transform: scale(1.05);
-  }
+    : 'rgba(255, 255, 255, 0.25)'
+  };
+  transform: scale(1.05);
+}
 
-  &:active:not(:disabled) {
-    transform: scale(0.98);
-  }
+  &: active: not(: disabled) {
+  transform: scale(0.98);
+}
 
   &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none;
-  }
+  opacity: 0.6;
+  cursor: not - allowed;
+  transform: none;
+}
 
   svg {
-    width: 14px;
-    height: 14px;
-  }
+  width: 14px;
+  height: 14px;
+}
 
-  @media (max-width: 768px) {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.7rem;
-    gap: 0.25rem;
+@media(max - width: 768px) {
+  padding: 0.25rem 0.5rem;
+  font - size: 0.7rem;
+  gap: 0.25rem;
 
     svg {
-      width: 12px;
-      height: 12px;
-    }
+    width: 12px;
+    height: 12px;
   }
+}
 `;
 
 const SliderDescription = styled.div`
-  margin-top: ${theme.spacing.lg};
-  text-align: center;
-  padding: ${theme.spacing.lg};
-  background: rgba(40, 40, 40, 0.3);
-  border-radius: ${theme.borderRadius.lg};
+margin - top: ${theme.spacing.lg};
+text - align: center;
+padding: ${theme.spacing.lg};
+background: rgba(40, 40, 40, 0.3);
+border - radius: ${theme.borderRadius.lg};
 
-  @media (max-width: 768px) {
-    margin-top: ${theme.spacing.md};
-    padding: ${theme.spacing.md};
+@media(max - width: 768px) {
+  margin - top: ${theme.spacing.md};
+  padding: ${theme.spacing.md};
     
     h4 {
-      font-size: ${theme.fontSize.sm};
-      margin-bottom: ${theme.spacing.xs};
-    }
+    font - size: ${theme.fontSize.sm};
+    margin - bottom: ${theme.spacing.xs};
+  }
     
     p {
-      font-size: ${theme.fontSize.xs};
-      line-height: 1.4;
-    }
+    font - size: ${theme.fontSize.xs};
+    line - height: 1.4;
   }
+}
 `;
 
 interface Character {
@@ -3913,42 +3879,112 @@ interface Character {
 interface PromptSuggestionsProps {
   prompts: (string | { label: string; value: string })[];
   onSelect: (value: string) => void;
+  visibleCount?: number; // Количество видимых элементов в первой строке
 }
 
-const PromptSuggestions: React.FC<PromptSuggestionsProps> = ({ prompts, onSelect }) => {
+const PromptSuggestions: React.FC<PromptSuggestionsProps> = ({ prompts, onSelect, visibleCount = 8 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  return (
-    <div className="relative mt-2">
-      <TagsContainer $isExpanded={isExpanded}>
-        {prompts.map((prompt, idx) => {
-          const isObject = typeof prompt === 'object' && prompt !== null;
-          const label = isObject ? (prompt as { label: string }).label : (prompt as string);
-          const value = isObject ? (prompt as { value: string }).value : (prompt as string);
+  const items = useMemo(() => {
+    return prompts.map(p => {
+      const isObj = typeof p === 'object' && p !== null;
+      const label = isObj ? (p as { label: string }).label : (p as string);
+      const value = isObj ? (p as { value: string }).value : (p as string);
+      return { label, value };
+    });
+  }, [prompts]);
 
-          return (
+  // Используем переданное количество видимых элементов
+  const visibleItems = items.slice(0, visibleCount);
+  const hiddenItems = items.slice(visibleCount);
+  const hasMore = hiddenItems.length > 0;
+
+  return (
+    <div className="relative" style={{ overflow: 'hidden' }}>
+      {/* Всегда видимая первая строка */}
+      <TagsContainer
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+      >
+        <NewTagsGrid>
+          {visibleItems.map((item, idx) => (
             <TagButton
               key={idx}
               type="button"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{
+                delay: idx * 0.05,
+                duration: 0.3,
+                type: 'spring',
+                stiffness: 260,
+                damping: 20
+              }}
+              whileHover={{ scale: 1.05, y: -2 }}
+              whileTap={{ scale: 0.95 }}
               onClick={(e) => {
                 e.preventDefault();
-                onSelect(value);
+                onSelect(item.value);
               }}
-              title={isObject ? value : label}
             >
-              <Plus size={10} /> {label}
+              <Plus size={10} />
+              {item.label}
             </TagButton>
-          );
-        })}
+          ))}
+        </NewTagsGrid>
       </TagsContainer>
-      <ExpandButton
-        $isExpanded={isExpanded}
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
-      </ExpandButton>
+
+      {/* Скрытые элементы с анимацией */}
+      <AnimatePresence>
+        {isExpanded && hasMore && (
+          <TagsContainer
+            initial={{ height: 0, opacity: 0, marginTop: 0, paddingTop: 0, paddingBottom: 0 }}
+            animate={{ height: 'auto', opacity: 1, marginTop: 8, paddingTop: 8, paddingBottom: 8 }}
+            exit={{ height: 0, opacity: 0, marginTop: 0, paddingTop: 0, paddingBottom: 0 }}
+            transition={{
+              duration: 0.4,
+              ease: [0.4, 0, 0.2, 1]
+            }}
+            style={{ overflow: 'hidden' }}
+          >
+            <NewTagsGrid>
+              {hiddenItems.map((item, idx) => (
+                <TagButton
+                  key={idx + visibleCount}
+                  type="button"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    delay: idx * 0.02,
+                    duration: 0.3
+                  }}
+                  whileHover={{ scale: 1.05, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onSelect(item.value);
+                  }}
+                >
+                  <Plus size={10} />
+                  {item.label}
+                </TagButton>
+              ))}
+            </NewTagsGrid>
+          </TagsContainer>
+        )}
+      </AnimatePresence>
+
+      {/* Кнопка раскрытия/скрытия */}
+      {hasMore && (
+        <ExpandButton
+          $isExpanded={isExpanded}
+          type="button"
+          onClick={(e) => { e.preventDefault(); setIsExpanded(!isExpanded); }}
+        >
+          <ChevronDown size={20} />
+        </ExpandButton>
+      )}
     </div>
   );
 };
@@ -3988,6 +4024,21 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const isMobile = useIsMobile();
   const [showPremiumModal, setShowPremiumModal] = useState(false); // Состояние для модального окна Premium
   const generationSectionRef = useRef<HTMLDivElement>(null);
+
+  // Функция для определения категории тега
+  const getTagCategory = (label: string): 'kind' | 'strict' | 'neutral' => {
+    const kindKeywords = ['добрая', 'заботливая', 'нежная', 'ласковая', 'терпеливая', 'понимающая', 'романтичная', 'мечтательная'];
+    const strictKeywords = ['строгая', 'требовательная', 'жесткая', 'суровая', 'серьезная', 'сосредоточенная'];
+
+    const lowerLabel = label.toLowerCase();
+    if (kindKeywords.some(keyword => lowerLabel.includes(keyword))) {
+      return 'kind';
+    }
+    if (strictKeywords.some(keyword => lowerLabel.includes(keyword))) {
+      return 'strict';
+    }
+    return 'neutral';
+  };
 
 
 
@@ -4122,7 +4173,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         URL.revokeObjectURL(objectUrl);
 
         if (duration < 10) {
-          setVoiceError(`Аудио слишком короткое (мин 10с). Текущее: ${duration.toFixed(1)}с`);
+          setVoiceError(`Аудио слишком короткое(мин 10с).Текущее: ${duration.toFixed(1)} с`);
         } else {
           setVoiceError(null); // Очищаем ошибку, если длительность достаточна
         }
@@ -4238,9 +4289,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const [showGenerateTooltip, setShowGenerateTooltip] = useState(false);
 
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
-  const [isPersonalityTagsExpanded, setIsPersonalityTagsExpanded] = useState(false);
-  const [isSituationTagsExpanded, setIsSituationTagsExpanded] = useState(false);
-  const [isPhotoPromptTagsExpanded, setIsPhotoPromptTagsExpanded] = useState(false);
   const [previewPhotoIndex, setPreviewPhotoIndex] = useState(0);
 
 
@@ -4313,7 +4361,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         const token = localStorage.getItem('authToken');
         const headers: HeadersInit = {};
         if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
+          headers['Authorization'] = `Bearer ${token} `;
         }
 
         const response = await fetch('/api/v1/characters/available-voices', { headers });
@@ -4341,11 +4389,11 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
 
       // Добавляем timestamp для обхода кеша
-      const cacheBuster = `?t=${Date.now()}`;
+      const cacheBuster = `? t = ${Date.now()} `;
       const photosUrl = API_CONFIG.CHARACTER_PHOTOS_FULL(effectiveName);
       const urlWithCache = photosUrl.includes('?')
-        ? `${photosUrl}&t=${Date.now()}`
-        : `${photosUrl}${cacheBuster}`;
+        ? `${photosUrl}& t=${Date.now()} `
+        : `${photosUrl}${cacheBuster} `;
 
       const response = await authManager.fetchWithAuth(urlWithCache, {
         method: 'GET',
@@ -4393,7 +4441,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
 
       const formattedPhotos = photos.map((photo: any, index: number) => {
-        const photoId = photo.id?.toString() ?? (photo.url ? `photo_${index}_${Date.now()}` : String(Date.now()));
+        const photoId = photo.id?.toString() ?? (photo.url ? `photo_${index}_${Date.now()} ` : String(Date.now()));
         // Нормализуем URL для локальной разработки
         const photoUrl = normalizeImageUrl(photo.url);
 
@@ -4646,7 +4694,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       setSuccess(null);
 
 
-      // Добавляем timestamp для обхода кеша
       const cacheBuster = `?t=${Date.now()}`;
       // Используем /with-creator endpoint для получения полных данных персонажа
       // КРИТИЧНО: Этот endpoint работает по имени персонажа, не по ID
@@ -6188,6 +6235,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                         />
                         <PromptSuggestions
                           prompts={NAME_PROMPTS}
+                          visibleCount={10}
                           onSelect={(val) => {
                             setFormData(prev => ({ ...prev, name: val }));
                             const fakeEvent = { target: { name: 'name', value: val } } as React.ChangeEvent<HTMLInputElement>;
@@ -6206,31 +6254,16 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                           rows={3}
                           required
                         />
-                        <TagsContainer $isExpanded={isPersonalityTagsExpanded}>
-                          {PERSONALITY_PROMPTS.map((tag, idx) => (
-                            <TagButton
-                              key={idx}
-                              type="button"
-                              $category={getTagCategory(tag.label)}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                const newVal = formData.personality ? formData.personality + ' ' + tag.value : tag.value;
-                                setFormData(prev => ({ ...prev, personality: newVal }));
-                                const fakeEvent = { target: { name: 'personality', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
-                                handleInputChange(fakeEvent);
-                              }}
-                            >
-                              <Plus size={8} /> {tag.label}
-                            </TagButton>
-                          ))}
-                        </TagsContainer>
-                        {PERSONALITY_PROMPTS.length > 4 && (
-                          <ExpandButton $isExpanded={isPersonalityTagsExpanded} onClick={() => setIsPersonalityTagsExpanded(!isPersonalityTagsExpanded)}>
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points={isPersonalityTagsExpanded ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
-                            </svg>
-                          </ExpandButton>
-                        )}
+                        <PromptSuggestions
+                          prompts={PERSONALITY_PROMPTS}
+                          visibleCount={5}
+                          onSelect={(val) => {
+                            const newVal = formData.personality ? formData.personality + ' ' + val : val;
+                            setFormData(prev => ({ ...prev, personality: newVal }));
+                            const fakeEvent = { target: { name: 'personality', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
+                            handleInputChange(fakeEvent);
+                          }}
+                        />
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
                           <motion.button
                             type="button"
@@ -6281,31 +6314,16 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                           rows={5}
                           required
                         />
-                        <TagsContainer $isExpanded={isSituationTagsExpanded}>
-                          {SITUATION_PROMPTS.map((tag, idx) => (
-                            <TagButton
-                              key={idx}
-                              type="button"
-                              $category="neutral"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                const newVal = formData.situation ? formData.situation + ' ' + tag.value : tag.value;
-                                setFormData(prev => ({ ...prev, situation: newVal }));
-                                const fakeEvent = { target: { name: 'situation', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
-                                handleInputChange(fakeEvent);
-                              }}
-                            >
-                              <Plus size={8} /> {tag.label}
-                            </TagButton>
-                          ))}
-                        </TagsContainer>
-                        {SITUATION_PROMPTS.length > 4 && (
-                          <ExpandButton $isExpanded={isSituationTagsExpanded} onClick={() => setIsSituationTagsExpanded(!isSituationTagsExpanded)}>
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points={isSituationTagsExpanded ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
-                            </svg>
-                          </ExpandButton>
-                        )}
+                        <PromptSuggestions
+                          prompts={SITUATION_PROMPTS}
+                          visibleCount={6}
+                          onSelect={(val) => {
+                            const newVal = formData.situation ? formData.situation + ' ' + val : val;
+                            setFormData(prev => ({ ...prev, situation: newVal }));
+                            const fakeEvent = { target: { name: 'situation', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
+                            handleInputChange(fakeEvent);
+                          }}
+                        />
                       </FormField>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px' }}>
                         <motion.button
@@ -6398,6 +6416,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                         />
                         <PromptSuggestions
                           prompts={INSTRUCTION_PROMPTS}
+                          visibleCount={4}
                           onSelect={(val) => {
                             const newVal = formData.instructions ? formData.instructions + ' ' + val : val;
                             setFormData(prev => ({ ...prev, instructions: newVal }));
@@ -6430,6 +6449,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                               />
                               <PromptSuggestions
                                 prompts={APPEARANCE_PROMPTS}
+                                visibleCount={5}
                                 onSelect={(val) => {
                                   const newVal = formData.appearance ? formData.appearance + ' ' + val : val;
                                   setFormData(prev => ({ ...prev, appearance: newVal }));
@@ -6455,6 +6475,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                         />
                         <PromptSuggestions
                           prompts={LOCATION_PROMPTS}
+                          visibleCount={6}
                           onSelect={(val) => {
                             const newVal = formData.location ? formData.location + ' ' + val : val;
                             setFormData(prev => ({ ...prev, location: newVal }));
@@ -8040,35 +8061,16 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                               rows={4}
                             />
 
-                            <div className="relative">
-                              <TagsContainer $isExpanded={isPhotoPromptTagsExpanded}>
-                                {[...APPEARANCE_PROMPTS, ...LOCATION_PROMPTS].slice(0, isPhotoPromptTagsExpanded ? undefined : 6).map((tag, idx) => (
-                                  <TagButton
-                                    key={idx}
-                                    type="button"
-                                    $category="neutral"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      const separator = customPrompt.length > 0 && !customPrompt.endsWith(', ') && !customPrompt.endsWith(',') ? ', ' : '';
-                                      const newValue = customPrompt + separator + tag.value;
-                                      setCustomPrompt(newValue);
-                                      customPromptRef.current = newValue;
-                                      setCustomPromptManuallySet(true);
-                                    }}
-                                  >
-                                    <Plus size={10} /> {tag.label}
-                                  </TagButton>
-                                ))}
-                              </TagsContainer>
-                              <ExpandButton
-                                $isExpanded={isPhotoPromptTagsExpanded}
-                                onClick={() => setIsPhotoPromptTagsExpanded(!isPhotoPromptTagsExpanded)}
-                              >
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <polyline points="6 9 12 15 18 9"></polyline>
-                                </svg>
-                              </ExpandButton>
-                            </div>
+                            <PromptSuggestions
+                              prompts={[...APPEARANCE_PROMPTS, ...LOCATION_PROMPTS]}
+                              onSelect={(val) => {
+                                const separator = customPrompt.length > 0 && !customPrompt.endsWith(', ') && !customPrompt.endsWith(',') ? ', ' : '';
+                                const newValue = customPrompt + separator + val;
+                                setCustomPrompt(newValue);
+                                customPromptRef.current = newValue;
+                                setCustomPromptManuallySet(true);
+                              }}
+                            />
                           </FormField>
 
                           {/* 3. Действие: Кнопка "Сгенерировать" */}
@@ -8548,37 +8550,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                   )}
                 </LivePreviewCard>
 
-                <TagSelectionLabel>Доступные теги</TagSelectionLabel>
-                <TagsSelectionContainer>
-                  {availableTags.map((tag, idx) => {
-                    const isActive = formData.tags?.includes(tag.name);
-                    return (
-                      <SelectableTag
-                        key={tag.slug || idx}
-                        type="button"
-                        $active={isActive}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          if (isActive) {
-                            setFormData(prev => ({
-                              ...prev,
-                              tags: prev.tags.filter(t => t !== tag.name)
-                            }));
-                          } else {
-                            setFormData(prev => ({
-                              ...prev,
-                              tags: [...(prev.tags || []), tag.name]
-                            }));
-                          }
-                        }}
-                      >
-                        {tag.name}
-                      </SelectableTag>
-                    );
-                  })}
-                </TagsSelectionContainer>
-
-                <div style={{ marginTop: theme.spacing.lg, width: '100%', maxWidth: '360px' }}>
+                <div style={{ marginTop: theme.spacing.lg, marginBottom: theme.spacing.lg, width: '100%', maxWidth: '360px' }}>
                   <ContinueButton
                     type="button"
                     disabled={
@@ -8599,6 +8571,12 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                     {isLoading ? 'Обновление...' : 'Сохранить изменения'}
                   </ContinueButton>
                 </div>
+
+                <TagSelector
+                  className="mt-auto"
+                  selectedTags={formData.tags || []}
+                  onChange={(newTags) => setFormData(prev => ({ ...prev, tags: newTags }))}
+                />
               </RightColumn>
             </form>
           </MainContent >

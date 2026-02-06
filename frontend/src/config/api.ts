@@ -51,7 +51,9 @@ const getApiBaseUrl = (): string => {
   }
   
   // В development используем localhost по умолчанию
-  return 'http://localhost:8001';
+  // Автоматически выбираем порт бэкенда: 8001 для фронтенда на 5175, иначе 8000
+  const backendPort = window.location.port === '5175' ? '8001' : '8000';
+  return `http://${window.location.hostname || 'localhost'}:${backendPort}`;
 };
 
 const baseUrl = getApiBaseUrl();

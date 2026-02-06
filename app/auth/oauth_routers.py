@@ -264,17 +264,16 @@ async def google_callback(
             return HTMLResponse(content=html_content)
         
         # Редиректим на фронтенд с токенами
-        redirect_url = f"{frontend_base}?access_token={tokens['access_token']}&refresh_token={tokens['refresh_token']}"
+        # Если есть redirect_path, используем его как целевую страницу
+        if redirect_path:
+            # Очищаем redirect_path от лишних символов
+            clean_redirect = redirect_path.lstrip('/')
+            redirect_url = f"{frontend_base}/{clean_redirect}?access_token={tokens['access_token']}&refresh_token={tokens['refresh_token']}"
+        else:
+            redirect_url = f"{frontend_base}?access_token={tokens['access_token']}&refresh_token={tokens['refresh_token']}"
         
         if needs_username:
             redirect_url += "&needs_username=true"
-            
-        if redirect_path:
-            # Важно: URL уже содержит параметры, поэтому всегда используем &
-            # Если redirect_path уже закодирован, он будет передан как есть
-            from urllib.parse import quote
-            # Кодируем redirect_path, чтобы спецсимволы не ломали URL
-            redirect_url += f"&redirect={quote(redirect_path)}"
         
         return RedirectResponse(url=redirect_url)
         

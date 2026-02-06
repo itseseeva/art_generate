@@ -144,20 +144,42 @@ const TagFilterBar = styled.div`
 `;
 
 const TagFilterButton = styled.button<{ $active?: boolean }>`
-  padding: 2px 8px;
-  border: none;
-  border-radius: 10px;
-  background: ${(p) => (p.$active ? 'rgba(34, 197, 94, 0.3)' : 'rgba(30, 30, 30, 0.9)')};
-  color: ${(p) => (p.$active ? '#4ade80' : 'rgba(180, 180, 180, 1)')};
+  padding: 4px 12px;
+  border-radius: 20px;
+  background: ${(p) => (p.$active
+        ? 'linear-gradient(135deg, rgba(6, 182, 212, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%)'
+        : 'rgba(20, 20, 25, 0.6)')};
+  border: 1px solid ${(p) => (p.$active
+        ? 'rgba(6, 182, 212, 0.5)'
+        : 'rgba(255, 255, 255, 0.1)')};
+  color: ${(p) => (p.$active ? '#22d3ee' : 'rgba(160, 160, 170, 0.9)')};
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
   outline: none;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: ${(p) => (p.$active
+        ? '0 0 10px rgba(6, 182, 212, 0.2), inset 0 0 10px rgba(6, 182, 212, 0.1)'
+        : 'none')};
+
   &:hover {
-    background: ${(p) => (p.$active ? 'rgba(34, 197, 94, 0.4)' : 'rgba(40, 40, 40, 0.95)')};
-    color: ${(p) => (p.$active ? '#86efac' : 'rgba(220, 220, 220, 1)')};
+    background: ${(p) => (p.$active
+        ? 'linear-gradient(135deg, rgba(6, 182, 212, 0.3) 0%, rgba(59, 130, 246, 0.3) 100%)'
+        : 'rgba(255, 255, 255, 0.1)')};
+    border-color: ${(p) => (p.$active ? 'rgba(6, 182, 212, 0.7)' : 'rgba(255, 255, 255, 0.3)')};
+    color: ${(p) => (p.$active ? '#67e8f9' : 'white')};
+    transform: translateY(-1px);
+    box-shadow: ${(p) => (p.$active
+        ? '0 4px 15px rgba(6, 182, 212, 0.3), inset 0 0 10px rgba(6, 182, 212, 0.1)'
+        : '0 2px 8px rgba(0, 0, 0, 0.2)')};
+  }
+
+  &:active {
+    transform: translateY(0);
   }
 `;
 
