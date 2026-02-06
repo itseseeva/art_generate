@@ -1426,10 +1426,7 @@ async def frontend_index(request: Request, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
-@app.get("/")
-async def root():
-    """Главная страница - перенаправление на фронтенд."""
-    return RedirectResponse(url="/frontend/")
+# Legacy root() removed in favor of direct handler in frontend_index
 
 @app.get("/docs_app")
 async def docs_app():
