@@ -377,7 +377,7 @@ const SituationPopup = styled.div<{ $top: number; $left: number; $isRight: boole
   top: ${props => props.$top}px;
   left: ${props => props.$left}px;
   width: 320px;
-  height: 300px;
+  height: 173px;
   background: rgba(15, 23, 42, 0.7);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -1590,8 +1590,25 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0, isRight: true });
 
   const situation = useMemo(() => {
-    return extractRolePlayingSituation(character.prompt || '');
-  }, [character.prompt]);
+    // Пробуем извлечь из промпта
+    let text = extractRolePlayingSituation(character.prompt || '');
+
+    // Если не удалось, и в описании есть заголовок ситуации - пробуем оттуда
+    if (!text && character.description && character.description.includes('Role-playing Situation:')) {
+      text = extractRolePlayingSituation(character.description);
+    }
+
+    // Если всё еще нет, но описание достаточно длинное (похоже на ситуацию)
+    // и нет явного промпта - используем описание как ситуацию
+    if (!text && character.description && character.description.length > 20) {
+      // Но только если описание не совпадает с именем (заглушка)
+      if (character.description.toLowerCase() !== character.name.toLowerCase()) {
+        text = character.description;
+      }
+    }
+
+    return text || null;
+  }, [character.prompt, character.description, character.name]);
 
   // Обновляем состояние избранного при изменении пропа
   // КРИТИЧЕСКИ ВАЖНО: если передан isFavoriteProp, используем его значение и отключаем проверку через API
@@ -1661,6 +1678,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
   const situationHoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const situationOpenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Определяем, заблокирован ли альбом.
   // Если проп isLocked передан (например из ChatContainer), используем его.
@@ -2364,20 +2382,32 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                 situationHoverTimeoutRef.current = null;
               }
 
-              if (cardRef.current && situation && !isMobile) {
-                const rect = cardRef.current.getBoundingClientRect();
-                const isRight = rect.right + 320 < window.innerWidth;
-                setPopupPosition({
-                  top: rect.top,
-                  left: isRight ? rect.right - 2 : rect.left - 318,
-                  isRight
-                });
-                setIsSituationHovered(true);
+              // Добавляем задержку 0.5с перед появлением
+              if (situationOpenTimeoutRef.current) {
+                clearTimeout(situationOpenTimeoutRef.current);
               }
+
+              situationOpenTimeoutRef.current = setTimeout(() => {
+                if (cardRef.current && situation && !isMobile) {
+                  const rect = cardRef.current.getBoundingClientRect();
+                  const isRight = rect.right + 320 < window.innerWidth;
+                  setPopupPosition({
+                    top: rect.top,
+                    left: isRight ? rect.right - 2 : rect.left - 318,
+                    isRight
+                  });
+                  setIsSituationHovered(true);
+                }
+              }, 500);
             }}
             onMouseLeave={(e) => {
               // При уходе мыши с карточки
               setIsHovered(false);
+
+              if (situationOpenTimeoutRef.current) {
+                clearTimeout(situationOpenTimeoutRef.current);
+                situationOpenTimeoutRef.current = null;
+              }
 
               situationHoverTimeoutRef.current = setTimeout(() => {
                 setIsSituationHovered(false);
@@ -2662,28 +2692,31 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
             {!finalIsLocked && character.tags && character.tags.length > 0 && (
               <TagsContainerBottom $visible={!isHovered}>
-                {Array.from(new Set(character.tags as string[])).slice(0, 3).map((tag: string, idx: number) => {
-                  const slug = tag.toLowerCase()
-                    .replace(/[^a-zа-я0-9\s-]/g, '')
-                    .replace(/\s+/g, '-')
-                    .replace(/-+/g, '-');
+                {Array.from(new Map((character.tags as string[]).map(t => [t.toLowerCase(), t])).values())
+                  .slice(0, 3)
+                  .map((tag: string, idx: number) => {
+                    const slug = tag.toLowerCase()
+                      .replace(/[^a-zа-я0-9\s-]/g, '')
+                      .replace(/\s+/g, '-')
+                      .replace(/-+/g, '-');
 
-                  return (
-                    <Tag
-                      key={idx}
-                      href={`/tags/${slug}`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        window.dispatchEvent(new CustomEvent('navigate-to-tags', {
-                          detail: { slug: slug, tagName: tag }
-                        }));
-                      }}
-                    >
-                      {tag}
-                    </Tag>
-                  );
-                })}
+                    return (
+                      <Tag
+                        key={idx}
+                        href={`/tags/${slug}`}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          window.dispatchEvent(new CustomEvent('navigate-to-tags', {
+                            detail: { slug: slug, tagName: tag }
+                          }));
+                        }}
+                      >
+                        {tag}
+                      </Tag>
+                    );
+                  })
+                }
               </TagsContainerBottom>
             )}
 

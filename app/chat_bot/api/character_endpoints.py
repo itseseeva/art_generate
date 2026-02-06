@@ -1452,7 +1452,17 @@ async def read_characters(
                 # Только для дефолтных голосов формируем voice_url из voice_id
                 voice_url_value = f"/default_character_voices/{char.voice_id}"
             
-            tags_list = list(dict.fromkeys(char.tags)) if isinstance(getattr(char, 'tags', None), list) else []
+            # Дедупликация тегов с учетом регистра (нормализуем к системным именам)
+            raw_tags = char.tags if isinstance(getattr(char, 'tags', None), list) else []
+            seen_lower = set()
+            tags_list = []
+            for t in raw_tags:
+                t_lower = t.lower()
+                if t_lower not in seen_lower:
+                    if t_lower == "пользовательские": t = "Пользовательские"
+                    elif t_lower == "original": t = "Original"
+                    seen_lower.add(t_lower)
+                    tags_list.append(t)
             char_dict = {
                 "id": char.id,
                 "name": char.name or "",
@@ -1994,22 +2004,24 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         
         if current_user.email == ORIGINAL_CREATOR_EMAIL:
             # Персонажи от eseeva228@gmail.com получают тег "Original"
-            if "Original" not in tags_set:
+            if not any(t.lower() == "original" for t in tags_set):
                 tags_set.add("Original")
                 logger.info(f"[CREATE_CHAR] Добавлен тег 'Original' для персонажа от {ORIGINAL_CREATOR_EMAIL}")
-            # Убираем "пользовательские" если он есть
-            if "пользовательские" in tags_set:
-                tags_set.discard("пользовательские")
-                logger.info(f"[CREATE_CHAR] Удален тег 'пользовательские' для персонажа от {ORIGINAL_CREATOR_EMAIL}")
+            # Убираем "Пользовательские" (в любом регистре) если он есть
+            tags_to_remove = [t for t in tags_set if t.lower() == "пользовательские"]
+            for t in tags_to_remove:
+                tags_set.discard(t)
+                logger.info(f"[CREATE_CHAR] Удален тег '{t}' для персонажа от {ORIGINAL_CREATOR_EMAIL}")
         else:
-            # Остальные персонажи получают тег "пользовательские"
-            if "пользовательские" not in tags_set:
-                tags_set.add("пользовательские")
-                logger.info(f"[CREATE_CHAR] Добавлен тег 'пользовательские' для персонажа от {current_user.email}")
-            # Убираем "Original" если он есть
-            if "Original" in tags_set:
-                tags_set.discard("Original")
-                logger.info(f"[CREATE_CHAR] Удален тег 'Original' для персонажа от {current_user.email}")
+            # Остальные персонажи получают тег "Пользовательские"
+            if not any(t.lower() == "пользовательские" for t in tags_set):
+                tags_set.add("Пользовательские")
+                logger.info(f"[CREATE_CHAR] Добавлен тег 'Пользовательские' для персонажа от {current_user.email}")
+            # Убираем "Original" (в любом регистре) если он есть
+            tags_to_remove = [t for t in tags_set if t.lower() == "original"]
+            for t in tags_to_remove:
+                tags_set.discard(t)
+                logger.info(f"[CREATE_CHAR] Удален тег '{t}' для персонажа от {current_user.email}")
         
         tags_value = list(tags_set)
         logger.info(f"[CREATE_CHAR] Финальные теги персонажа: {tags_value}")
@@ -3218,16 +3230,20 @@ Response Style:
             
             if character_creator and character_creator.email == ORIGINAL_CREATOR_EMAIL:
                 # Персонажи от eseeva228@gmail.com получают тег "Original"
-                if "Original" not in tags_set:
+                if not any(t.lower() == "original" for t in tags_set):
                     tags_set.add("Original")
-                if "пользовательские" in tags_set:
-                    tags_set.discard("пользовательские")
+                # Убираем "Пользовательские" (в любом регистре)
+                tags_to_remove = [t for t in tags_set if t.lower() == "пользовательские"]
+                for t in tags_to_remove:
+                    tags_set.discard(t)
             else:
-                # Остальные персонажи получают тег "пользовательские"
-                if "пользовательские" not in tags_set:
-                    tags_set.add("пользовательские")
-                if "Original" in tags_set:
-                    tags_set.discard("Original")
+                # Остальные персонажи получают тег "Пользовательские"
+                if not any(t.lower() == "пользовательские" for t in tags_set):
+                    tags_set.add("Пользовательские")
+                # Убираем "Original" (в любом регистре)
+                tags_to_remove = [t for t in tags_set if t.lower() == "original"]
+                for t in tags_to_remove:
+                    tags_set.discard(t)
         
         tags_value = list(tags_set)
         db_char.tags = tags_value
