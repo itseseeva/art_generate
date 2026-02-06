@@ -20,12 +20,21 @@ COPY app/ /app/app/
 COPY alembic/ /app/alembic/
 COPY alembic.ini /app/
 
+# Создание пользователя
+RUN groupadd -r celery_user && useradd -r -g celery_user celery_user
+
 # Создание необходимых директорий
-RUN mkdir -p /app/logs /app/outputs
+RUN mkdir -p /app/logs /app/outputs /app/app
 
 # Переменные окружения
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
+
+# Смена владельца директории /app
+RUN chown -R celery_user:celery_user /app
+
+# Переключение на пользователя
+USER celery_user
 
 # Команда запуска (переопределяется в docker-compose)
 CMD ["celery", "-A", "app.celery_app", "worker", "--loglevel=info"]
