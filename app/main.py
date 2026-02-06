@@ -1396,15 +1396,22 @@ async def frontend_index(request: Request, db: AsyncSession = Depends(get_db)):
                     personality = ""
                     scenario = ""
                     
-                    # Поиск Личности/Характера
-                    # Ищем строки вида "Personality: ..." или "Личность: ..."
-                    pers_match = re.search(r"(?:Personality|Personalities|Character|Temperament|Личность|Характер):\s*(.*?)(?:\n|$)", prompt_text, re.IGNORECASE)
+                    # Поиск Личности/Характера (как во фронтенде)
+                    # Используем DOTALL (. matches newline) и более строгие ключи
+                    pers_match = re.search(
+                        r"(?:Personality and Character|Personality|Личность и Характер|Личность):\s*(.*?)(?=\s*(?:Role-playing Situation|Scenario|Instructions|Response Style|###|$))",
+                        prompt_text,
+                        re.IGNORECASE | re.DOTALL
+                    )
                     if pers_match:
                         personality = pers_match.group(1).strip()
                     
                     # Поиск Сценария/Обстановки
-                    # Ищем строки вида "Scenario: ..." или "Сценарий: ..."
-                    scen_match = re.search(r"(?:Scenario|Scene|Situation|Сценарий|Обстановка|Ситуация):\s*(.*?)(?:\n|$)", prompt_text, re.IGNORECASE)
+                    scen_match = re.search(
+                        r"(?:Role-playing Situation|Scenario|Scene|Situation|Сценарий|Обстановка|Ситуация):\s*(.*?)(?=\s*(?:Instructions|Response Style|Personality|###|$))",
+                        prompt_text,
+                        re.IGNORECASE | re.DOTALL
+                    )
                     if scen_match:
                         scenario = scen_match.group(1).strip()
 
