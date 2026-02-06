@@ -23,6 +23,25 @@ import { ErrorToast } from './ErrorToast';
 import { TagSelector } from './TagSelector';
 
 /**
+ * Функция для проверки премиальных голосов
+ */
+const isPremiumVoice = (voiceName?: string): boolean => {
+  if (!voiceName) return false;
+  const name = voiceName.toLowerCase();
+  return name.includes('мита') || name.includes('meet') || name === 'мика' || name === 'ника';
+};
+
+/**
+ * Для оформления: Ника — без красной обводки, зелёная галочка; права только для премиум сохраняются
+ */
+const isPremiumVoiceForStyle = (voiceName?: string): boolean => {
+  if (!voiceName) return false;
+  const name = voiceName.toLowerCase();
+  if (name === 'ника') return false;
+  return name.includes('мита') || name.includes('meet') || name === 'мика';
+};
+
+/**
  * Нормализует URL изображения для локальной разработки.
  * Заменяет продакшен домен (cherrylust.art) на локальный API.
  */
@@ -2462,10 +2481,10 @@ const VoicePhotoContainer = styled.div<{ $isSelected: boolean; $isPlaying: boole
 position: relative;
 width: 74px;
 height: 74px;
-min - width: 74px;
-min - height: 74px;
+min-width: 74px;
+min-height: 74px;
 cursor: pointer;
-transition: all 0.3s cubic - bezier(0.4, 0, 0.2, 1);
+transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 transform: ${props => {
     const playingScale = props.$isPlaying ? 1.05 : 1;
     return `scale(${playingScale})`;
@@ -2473,19 +2492,19 @@ transform: ${props => {
   };
 
   /* Кнопки редактирования появляются при наведении для всех голосов */
-  &: hover.edit - voice - button,
-  &: hover.delete - voice - button {
-  opacity: 1!important;
+  &:hover .edit-voice-button,
+  &:hover .delete-voice-button {
+  opacity: 1 !important;
 }
 
   /* Кнопки редактирования всегда кликабельны, даже когда невидимы */
-  .edit - voice - button,
-  .delete - voice - button {
-  pointer - events: auto!important;
-  z - index: 10000!important;
+  .edit-voice-button,
+  .delete-voice-button {
+  pointer-events: auto !important;
+  z-index: 10000 !important;
 }
 overflow: visible;
-border - radius: 50 %;
+border-radius: 50%;
 
   /* Анимированная градиентная рамка для премиальных голосов */
   ${props => {
@@ -4022,6 +4041,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   initialUserInfo
 }) => {
   const isMobile = useIsMobile();
+
   const [showPremiumModal, setShowPremiumModal] = useState(false); // Состояние для модального окна Premium
   const generationSectionRef = useRef<HTMLDivElement>(null);
 
