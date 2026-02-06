@@ -85,7 +85,7 @@ import jwt
 from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-from fastapi.responses import JSONResponse, FileResponse, RedirectResponse, Response, StreamingResponse
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse, Response, StreamingResponse, HTMLResponse
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.exceptions import RequestValidationError
@@ -1306,6 +1306,124 @@ async def global_exception_handler(request: Request, exc: Exception):
             "type": type(exc).__name__
         }
     )
+
+
+@app.get("/frontend/")
+@app.get("/characters")
+@app.get("/characters/")
+async def frontend_index(request: Request, db: AsyncSession = Depends(get_db)):
+    """
+    Сервирует index.html из папки frontend/dist с подстановкой метаданных персонажа (SEO).
+    Работает при наличии параметра ?character=ID или ?character=NAME.
+    """
+    try:
+        # Определяем абсолютный путь к папке dist
+        repo_root = Path(__file__).resolve().parents[1]
+        dist_path = repo_root / "frontend" / "dist"
+        index_html_path = dist_path / "index.html"
+        
+        if not index_html_path.exists():
+            logger.error(f"Файл index.html не найден в frontend/dist: {index_html_path}")
+            # Пытаемся найти в текущей папке или по альтернативному пути
+            alt_path = Path(__file__).parent / "static" / "index.html"
+            if alt_path.exists():
+                index_html_path = alt_path
+            else:
+                raise HTTPException(status_code=404, detail="Index.html not found")
+
+        # Читаем содержимое index.html
+        with open(index_html_path, "r", encoding="utf-8") as f:
+            html_content = f.read()
+
+        # Получаем ID или имя персонажа из параметров запроса
+        character_id = request.query_params.get("character")
+        
+        if character_id:
+            try:
+                from app.chat_bot.models.models import CharacterDB
+                from sqlalchemy import select
+                import re
+                
+                # Поиск персонажа
+                if character_id.isdigit():
+                    stmt = select(CharacterDB).where(CharacterDB.id == int(character_id))
+                else:
+                    stmt = select(CharacterDB).where(CharacterDB.name == character_id)
+                    
+                result = await db.execute(stmt)
+                character = result.scalar_one_or_none()
+                
+                if character:
+                    name = character.display_name or character.name
+                    description = character.description or ""
+                    appearance = character.character_appearance or ""
+                    location = character.location or ""
+                    
+                    # Подготавливаем метаданные
+                    title = f"{name} - Cherry Lust AI Чат"
+                    meta_desc = f"Общайтесь с {name} на Cherry Lust. {description[:160]}..."
+                    
+                    # Заменяем Title (более гибко через regex)
+                    html_content = re.sub(
+                        r"<title>.*?</title>",
+                        f"<title>{title}</title>",
+                        html_content,
+                        flags=re.IGNORECASE
+                    )
+                    
+                    # Заменяем OG Title
+                    html_content = re.sub(
+                        r'<meta property="og:title" content=".*?" />',
+                        f'<meta property="og:title" content="{title}" />',
+                        html_content,
+                        flags=re.IGNORECASE
+                    )
+                    
+                    # Заменяем Description
+                    html_content = re.sub(
+                        r'<meta name="description" content=".*?" />',
+                        f'<meta name="description" content="{meta_desc}" />',
+                        html_content,
+                        flags=re.IGNORECASE
+                    )
+                    
+                    # Заменяем OG Description
+                    html_content = re.sub(
+                        r'<meta property="og:description" content=".*?" />',
+                        f'<meta property="og:description" content="{meta_desc}" />',
+                        html_content,
+                        flags=re.IGNORECASE
+                    )
+                    
+                    # Вставляем скрытый блок с данными после <body> (учитывая возможные атрибуты и пробелы)
+                    hidden_block = f"""
+    <div style="display:none;" id="seo-metadata">
+        <h1>{name}</h1>
+        <p>{description}</p>
+        <p>Внешность: {appearance}</p>
+        <p>Локация: {location}</p>
+    </div>
+"""
+                    # Ищем тег body и вставляем после него
+                    html_content = re.sub(
+                        r"(<body.*?>)",
+                        r"\1" + hidden_block,
+                        html_content,
+                        flags=re.IGNORECASE
+                    )
+                    
+                    logger.info(f"[SEO] Инъекция метаданных для персонажа: {name}")
+                else:
+                    logger.warning(f"[SEO] Персонаж не найден: {character_id}")
+            except Exception as e:
+                logger.error(f"[SEO] Ошибка при инъекции метаданных: {e}")
+        
+        return HTMLResponse(content=html_content, status_code=200)
+
+    except Exception as e:
+        logger.error(f"Ошибка в frontend_index: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
 
 @app.get("/")
 async def root():

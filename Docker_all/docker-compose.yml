@@ -67,6 +67,7 @@ services:
       - ../alembic:/app/alembic
       - ../alembic.ini:/app/alembic.ini
       - ../paid_gallery:/app/paid_gallery
+      - ../frontend/dist:/app/frontend/dist:ro
     command: >
       sh -c "
       echo 'Проверка миграций...' &&
