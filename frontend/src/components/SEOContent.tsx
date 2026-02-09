@@ -48,7 +48,7 @@ const SEOContentWrapper = styled.div`
 `;
 
 interface SEOContentProps {
-    children: React.ReactNode;
+  children: React.ReactNode;
 }
 
 /**
@@ -57,5 +57,5 @@ interface SEOContentProps {
  * Можно сделать видимым, раскомментировав альтернативные стили
  */
 export const SEOContent: React.FC<SEOContentProps> = ({ children }) => {
-    return <SEOContentWrapper>{children}</SEOContentWrapper>;
+  return <SEOContentWrapper>{children}</SEOContentWrapper>;
 };

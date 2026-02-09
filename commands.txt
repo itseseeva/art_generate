@@ -16,3 +16,53 @@ uvicorn app.main:app --host 0.0.0.0 --port 8001 --no-access-log
 # Production запуск:
 gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker
 
+
+# ============================================================================
+# ТЕСТИРОВАНИЕ
+# ============================================================================
+
+# Активировать venv (обязательно перед запуском тестов!)
+venv\Scripts\activate
+
+# Запустить ВСЕ тесты разом
+pytest
+
+# Запустить ВСЕ тесты с подробным выводом
+pytest -v
+
+# Запустить только UNIT тесты (быстро, без внешних API)
+pytest -m "unit" -v
+
+# Запустить только INTEGRATION тесты
+pytest -m "integration" -v
+
+# Запустить тесты с покрытием кода (coverage)
+pytest --cov=app --cov-report=html
+
+# Запустить тесты параллельно (быстрее)
+pytest -n auto
+
+# Пропустить медленные тесты
+pytest -m "not slow"
+
+# Пропустить тесты RunPod (требуют API ключ)
+pytest -m "not runpod"
+
+# Запустить конкретный файл тестов
+pytest tests/test_subscriptions.py -v
+
+# Запустить конкретный тест
+pytest tests/test_subscriptions.py::test_premium_subscription_privileges -vv
+
+# Остановиться на первой ошибке
+pytest -x
+
+# Показать локальные переменные при ошибке
+pytest -l
+
+# Запустить последние упавшие тесты
+pytest --lf
+
+# Полный прогон для CI/CD (с покрытием и строгими требованиями)
+pytest --cov=app --cov-report=term-missing --cov-fail-under=70 -v
+

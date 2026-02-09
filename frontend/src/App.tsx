@@ -141,7 +141,7 @@ function App() {
     switch (currentPage) {
       case 'main':
         return {
-          title: 'Cherry Lust — Эксклюзивный AI чат с персонажами 18+',
+          title: 'Candy Girls Chat — Эксклюзивный AI чат с персонажами 18+',
           description: 'Виртуальное общение с AI персонажами. Нейросеть создает уникальных собеседников для ролевого чата. Безлимитный доступ к AI чат-боту 18+ без цензуры.',
           canonical: baseUrl + '/',
           keywords: 'ai чат, виртуальные персонажи, 18+, нейросеть персонажи, ролевой чат, AI собеседник, чат-бот 18+, виртуальное общение',
@@ -151,16 +151,16 @@ function App() {
       case 'tariffs':
       case 'shop':
         return {
-          title: 'Тарифы и подписки Cherry Lust — Безлимитный AI чат',
+          title: 'Тарифы и подписки Candy Girls Chat — Безлимитный AI чат',
           description: 'Выберите подписку для безлимитного общения с AI персонажами. Standard и Premium тарифы с генерацией фото и голосовыми сообщениями. Доступ к эксклюзивным функциям нейросети.',
           canonical: baseUrl + (currentPage === 'tariffs' ? '/tariffs' : '/shop'),
-          keywords: 'подписка ai чат, тарифы cherry lust, premium ai, генерация фото нейросеть, голосовые сообщения ai',
+          keywords: 'подписка ai чат, тарифы candy girls chat, premium ai, генерация фото нейросеть, голосовые сообщения ai',
           ogImage: baseUrl + '/logo-cherry.png'
         };
 
       case 'characters':
         return {
-          title: 'Каталог AI персонажей 18+ — Cherry Lust',
+          title: 'Каталог AI персонажей 18+ — Candy Girls Chat',
           description: 'Большой выбор виртуальных персонажей для общения. Аниме девушки, ролевые персонажи с уникальными характерами. Создано нейросетью для взрослых.',
           canonical: baseUrl + '/characters',
           keywords: 'ai персонажи, виртуальные собеседники, аниме девушки ai, ролевые персонажи, нейросеть персонажи',
@@ -169,7 +169,7 @@ function App() {
 
       case 'create-character':
         return {
-          title: 'Создать своего AI персонажа — Cherry Lust',
+          title: 'Создать своего AI персонажа — Candy Girls Chat',
           description: 'Создайте уникального AI собеседника с помощью нейросети. Настройте внешность, характер и стиль общения персонажа. Генерация изображений AI.',
           canonical: baseUrl + '/create-character',
           keywords: 'создать ai персонажа, генератор персонажей, нейросеть создание, ai конструктор персонажей',
@@ -178,28 +178,28 @@ function App() {
 
       case 'about':
         return {
-          title: 'О сервисе Cherry Lust — AI чат нового поколения',
-          description: 'Узнайте больше о Cherry Lust — инновационном AI чате для взрослых с продвинутой нейросетью и генерацией контента. Виртуальное общение без границ.',
+          title: 'О сервисе Candy Girls Chat — AI чат нового поколения',
+          description: 'Узнайте больше о Candy Girls Chat — инновационном AI чате для взрослых с продвинутой нейросетью и генерацией контента. Виртуальное общение без границ.',
           canonical: baseUrl + '/about',
-          keywords: 'о cherry lust, ai чат для взрослых, нейросеть чат, виртуальное общение',
+          keywords: 'о candy girls chat, ai чат для взрослых, нейросеть чат, виртуальное общение',
           ogImage: baseUrl + '/logo-cherry.png'
         };
 
       case 'how-it-works':
         return {
-          title: 'Как работает Cherry Lust — Гайд по AI чату',
+          title: 'Как работает Candy Girls Chat — Гайд по AI чату',
           description: 'Подробная инструкция по использованию AI чата: создание персонажей, общение с нейросетью, генерация изображений и голосовых сообщений.',
           canonical: baseUrl + '/how-it-works',
-          keywords: 'как работает ai чат, инструкция cherry lust, гайд по нейросети, использование ai',
+          keywords: 'как работает ai чат, инструкция candy girls chat, гайд по нейросети, использование ai',
           ogImage: baseUrl + '/logo-cherry.png'
         };
 
       case 'legal':
         return {
-          title: 'Правовая информация — Cherry Lust',
-          description: 'Пользовательское соглашение, политика конфиденциальности и правила использования сервиса Cherry Lust. Информация для пользователей AI чата.',
+          title: 'Правовая информация — Candy Girls Chat',
+          description: 'Пользовательское соглашение, политика конфиденциальности и правила использования сервиса Candy Girls Chat. Информация для пользователей AI чата.',
           canonical: baseUrl + '/legal',
-          keywords: 'правила cherry lust, пользовательское соглашение, политика конфиденциальности',
+          keywords: 'правила candy girls chat, пользовательское соглашение, политика конфиденциальности',
           ogImage: baseUrl + '/logo-cherry.png'
         };
 
@@ -210,15 +210,15 @@ function App() {
             : `Общайтесь с ${selectedCharacter.name} в ролевом AI чате. Виртуальное общение с персонажем, созданным нейросетью.`;
 
           return {
-            title: `Чат с ${selectedCharacter.name} — Виртуальный ИИ чат 18+ | Cherry Lust`,
+            title: `Чат с ${selectedCharacter.name} — Виртуальный ИИ чат 18+ | Candy Girls Chat`,
             description: characterDescription,
             canonical: baseUrl + '/chat/' + encodeURIComponent(selectedCharacter.name),
-            keywords: `${selectedCharacter.name}, ai чат, виртуальное общение, ролевой чат, нейросеть персонаж`,
+            keywords: `${selectedCharacter.name}, ai чат, виртуальное общение, ролевой чат, нейросеть персонажи`,
             ogImage: selectedCharacter.avatar || baseUrl + '/logo-cherry.png'
           };
         }
         return {
-          title: 'Чат — Cherry Lust',
+          title: 'Чат — Candy Girls Chat',
           description: 'Общайтесь с AI персонажами в приватном чате. Виртуальное общение с нейросетью без ограничений.',
           canonical: baseUrl + '/chat',
           keywords: 'ai чат, виртуальное общение, ролевой чат',
@@ -227,7 +227,7 @@ function App() {
 
       case 'tags':
         return {
-          title: `ИИ персонажи с тегом: ${tagName} — Cherry Lust`,
+          title: `ИИ персонажи с тегом: ${tagName} — Candy Girls Chat`,
           description: `Общайся с ИИ персонажами категории ${tagName} на русском. Бесплатный ролевой чат без цензуры и регистрации. Виртуальные собеседники созданы нейросетью.`,
           canonical: baseUrl + '/tags/' + encodeURIComponent(tagName),
           keywords: `${tagName}, ai персонажи, виртуальные собеседники, ролевой чат, нейросеть`,
@@ -236,7 +236,7 @@ function App() {
 
       default:
         return {
-          title: 'Cherry Lust — Эксклюзивный AI чат с персонажами 18+',
+          title: 'Candy Girls Chat — Эксклюзивный AI чат с персонажами 18+',
           description: 'Виртуальное общение с AI персонажами. Нейросеть создает уникальных собеседников для ролевого чата.',
           canonical: baseUrl + '/',
           keywords: 'ai чат, виртуальные персонажи, 18+',

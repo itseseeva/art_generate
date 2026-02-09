@@ -434,7 +434,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onGoogleLogin, onSignUp, o
 
       <RightSection>
         <FormContainer>
-          <FormTitle>Вход в Cherry Lust</FormTitle>
+          <FormTitle>Вход в Candy Girls Chat</FormTitle>
           <FormSubtitle>Войдите, чтобы продолжить</FormSubtitle>
 
           {error && <ErrorMessage>{error}</ErrorMessage>}

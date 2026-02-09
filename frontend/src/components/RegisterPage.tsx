@@ -454,7 +454,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onVerifyCode, o
         <FormContainer>
           {!showVerification ? (
             <>
-              <FormTitle>Регистрация в Cherry Lust</FormTitle>
+              <FormTitle>Регистрация в Candy Girls Chat</FormTitle>
               <FormSubtitle>Создайте аккаунт, чтобы начать</FormSubtitle>
 
               {error && <ErrorMessage>{error}</ErrorMessage>}

@@ -13,7 +13,7 @@ export const theme = {
       tertiary: '#16213e',    // Темно-синий с фиолетовым
       gradient: 'linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #16213e 100%)',
     },
-    
+
     // Акцентные цвета
     accent: {
       primary: '#8b5cf6',     // Яркий фиолетовый
@@ -21,7 +21,7 @@ export const theme = {
       tertiary: '#c084fc',   // Светло-пурпурный
       glow: '#e879f9',       // Светящийся пурпурный
     },
-    
+
     // Градиенты
     gradients: {
       main: 'linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 30%, #16213e 70%, #8b5cf6 100%)',
@@ -31,7 +31,7 @@ export const theme = {
       message: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
       sidebar: 'linear-gradient(180deg, #0a0a0f 0%, #1a1a2e 100%)',
     },
-    
+
     // Текст
     text: {
       primary: '#ffffff',     // Белый
@@ -40,7 +40,7 @@ export const theme = {
       muted: '#64748b',      // Приглушенный серый
       accent: '#c084fc',     // Пурпурный для акцентов
     },
-    
+
     // Состояния
     status: {
       success: '#10b981',    // Зеленый
@@ -48,14 +48,14 @@ export const theme = {
       error: '#ef4444',      // Красный
       info: '#3b82f6',       // Синий
     },
-    
+
     // Границы и разделители
     border: {
       primary: '#374151',     // Темно-серый
       secondary: '#4b5563',  // Серый
       accent: '#8b5cf6',     // Фиолетовый
     },
-    
+
     // Тени и эффекты
     shadow: {
       card: '0 10px 25px rgba(0, 0, 0, 0.3), 0 0 20px rgba(139, 92, 246, 0.1)',
@@ -64,7 +64,7 @@ export const theme = {
       message: '0 2px 10px rgba(0, 0, 0, 0.2)',
     },
   },
-  
+
   // Размеры и отступы
   spacing: {
     xs: '0.25rem',   // 4px
@@ -74,7 +74,7 @@ export const theme = {
     xl: '2rem',      // 32px
     xxl: '3rem',     // 48px
   },
-  
+
   // Радиусы скругления
   borderRadius: {
     sm: '0.375rem',  // 6px
@@ -83,7 +83,7 @@ export const theme = {
     xl: '1rem',      // 16px
     full: '9999px',
   },
-  
+
   // Размеры шрифтов
   fontSize: {
     xs: '0.75rem',   // 12px
@@ -94,14 +94,14 @@ export const theme = {
     '2xl': '1.5rem', // 24px
     '3xl': '1.875rem', // 30px
   },
-  
+
   // Переходы
   transition: {
     fast: '0.15s ease-in-out',
     normal: '0.3s ease-in-out',
     slow: '0.5s ease-in-out',
   },
-  
+
   // Z-index слои
   zIndex: {
     dropdown: 1000,

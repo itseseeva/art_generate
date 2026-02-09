@@ -1,6 +1,6 @@
 {
-  "name": "Cherry Lust - AI Чат 18+",
-  "short_name": "Cherry Lust",
+  "name": "Candy Girls Chat",
+  "short_name": "Candy Girls Chat",
   "description": "Эксклюзивный AI чат с виртуальными персонажами 18+",
   "start_url": "/",
   "display": "standalone",
@@ -21,7 +21,10 @@
       "purpose": "maskable any"
     }
   ],
-  "categories": ["entertainment", "lifestyle"],
+  "categories": [
+    "entertainment",
+    "lifestyle"
+  ],
   "lang": "ru",
   "scope": "/",
   "prefer_related_applications": false

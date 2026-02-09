@@ -1,4 +1,4 @@
-# Cherry Lust - AI Chat 18+ Robots.txt
+# Candy Girls Chat - AI Chat 18+ Robots.txt
 User-agent: *
 Allow: /
 
