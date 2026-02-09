@@ -85,7 +85,8 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     
     app.dependency_overrides[get_db] = override_get_db
     
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+    from httpx import ASGITransport
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
     
     app.dependency_overrides.clear()
@@ -108,7 +109,7 @@ async def fake_redis() -> AsyncGenerator:
 async def test_user_free(db_session: AsyncSession):
     """Создание тестового пользователя с FREE подпиской."""
     # Получаем класс Users из реестра вместо импорта
-    Users = Base.registry._class_registry.data['Users']
+    from app.models.user import Users
     
     from app.models.subscription import UserSubscription, SubscriptionType, SubscriptionStatus
     from passlib.context import CryptContext
@@ -116,10 +117,12 @@ async def test_user_free(db_session: AsyncSession):
     
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     
+    import uuid
+    unique_id = str(uuid.uuid4())[:8]
     user = Users(
-        email="free_user@test.com",
-        username="free_user",
-        password=pwd_context.hash("testpassword123"),
+        email=f"free_user_{unique_id}@test.com",
+        username=f"free_user_{unique_id}",
+        password_hash=pwd_context.hash("testpassword123"),
         is_active=True,
     )
     db_session.add(user)
@@ -146,7 +149,7 @@ async def test_user_free(db_session: AsyncSession):
 @pytest.fixture
 async def test_user_standard(db_session: AsyncSession):
     """Создание тестового пользователя с STANDARD подпиской."""
-    Users = Base.registry._class_registry.data['Users']
+    from app.models.user import Users
     
     from app.models.subscription import UserSubscription, SubscriptionType, SubscriptionStatus
     from passlib.context import CryptContext
@@ -154,10 +157,12 @@ async def test_user_standard(db_session: AsyncSession):
     
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     
+    import uuid
+    unique_id = str(uuid.uuid4())[:8]
     user = Users(
-        email="standard_user@test.com",
-        username="standard_user",
-        password=pwd_context.hash("testpassword123"),
+        email=f"standard_user_{unique_id}@test.com",
+        username=f"standard_user_{unique_id}",
+        password_hash=pwd_context.hash("testpassword123"),
         is_active=True,
     )
     db_session.add(user)
@@ -183,7 +188,7 @@ async def test_user_standard(db_session: AsyncSession):
 @pytest.fixture
 async def test_user_premium(db_session: AsyncSession):
     """Создание тестового пользователя с PREMIUM подпиской."""
-    Users = Base.registry._class_registry.data['Users']
+    from app.models.user import Users
     
     from app.models.subscription import UserSubscription, SubscriptionType, SubscriptionStatus
     from passlib.context import CryptContext
@@ -191,10 +196,12 @@ async def test_user_premium(db_session: AsyncSession):
     
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     
+    import uuid
+    unique_id = str(uuid.uuid4())[:8]
     user = Users(
-        email="premium_user@test.com",
-        username="premium_user",
-        password=pwd_context.hash("testpassword123"),
+        email=f"premium_user_{unique_id}@test.com",
+        username=f"premium_user_{unique_id}",
+        password_hash=pwd_context.hash("testpassword123"),
         is_active=True,
     )
     db_session.add(user)

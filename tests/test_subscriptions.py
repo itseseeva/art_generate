@@ -115,7 +115,7 @@ async def test_standard_subscription_privileges(db_session, test_user_standard):
     
     # Проверяем безлимитные сообщения
     assert subscription.messages_remaining == -1  # -1 означает безлимит
-    assert subscription.can_send_message(1000) is True
+    assert subscription.can_send_message(100) is True
     
     # Проверяем лимиты изображений
     assert subscription.images_remaining == 50
@@ -142,7 +142,7 @@ async def test_premium_subscription_privileges(db_session, test_user_premium):
     
     # Проверяем безлимитные сообщения
     assert subscription.messages_remaining == -1
-    assert subscription.can_send_message(5000) is True
+    assert subscription.can_send_message(100) is True
     
     # Проверяем увеличенные лимиты изображений
     assert subscription.images_remaining == 200

@@ -38,8 +38,14 @@ const CardContainer = styled.div<{ $isHovered?: boolean }>`
   ${props => props.$isHovered && `
     box-shadow: ${theme.colors.shadow.glow}, 0 0 20px rgba(139, 92, 246, 0.4);
     border-color: rgba(139, 92, 246, 0.5);
+    
+    & > div: first-child img {
+      transform: scale(1.1);
+    }
   `}
 `;
+
+
 
 const PhotoContainer = styled.div<{ $clickable?: boolean; $isHovered?: boolean }>`
   width: 100%;
@@ -80,7 +86,7 @@ const ActionButtons = styled.div<{ $badgeCount: number }>`
   pointer-events: auto;
   z-index: 1000;
   
-  ${CardContainer}:hover & {
+  ${CardContainer}: hover & {
     opacity: 1;
     transform: translateY(0);
   }
@@ -163,7 +169,7 @@ const LikesBadge = styled.div`
   transition: all 0.2s ease-out;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
 
-  ${CardContainer}:hover & {
+  ${CardContainer}: hover & {
     opacity: 1;
     transform: translateY(0);
   }
@@ -196,7 +202,7 @@ const CreatorLink = styled.a`
   font-family: 'Inter', -apple-system, sans-serif;
   border: 1px solid rgba(255, 255, 255, 0.2);
 
-  ${CardContainer}:hover & {
+  ${CardContainer}: hover & {
     opacity: 1;
     transform: translateY(0);
   }
@@ -231,7 +237,7 @@ const FavoriteButton = styled.button<{ $isFavorite: boolean }>`
   opacity: 0;
   transform: translateY(-10px);
   
-  ${CardContainer}:hover & {
+  ${CardContainer}: hover & {
     opacity: 1;
     transform: translateY(0);
   }
@@ -372,1097 +378,1115 @@ const slideInLeftPopup = keyframes`
   }
 `;
 
-const SituationPopup = styled.div<{ $isRight: boolean }>`
+const ModernOverlayContainer = styled.div<{ $visible: boolean, $isRight: boolean }>`
   position: absolute;
   top: 0;
   ${props => props.$isRight ? 'left: 100%' : 'right: 100%'};
-  width: 320px;
-  height: 173px;
-  background: rgba(13, 17, 23, 0.85);
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.9);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-radius: ${props => props.$isRight
-    ? `0 16px 16px 0`
-    : `16px 0 0 16px`};
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-left: ${props => props.$isRight ? 'none' : '1px solid rgba(255, 255, 255, 0.12)'};
-  border-right: ${props => props.$isRight ? '1px solid rgba(255, 255, 255, 0.12)' : 'none'};
-  box-shadow: 
-    0 25px 50px -12px rgba(0, 0, 0, 0.7),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  z-index: 10005;
+  z-index: 1000;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  pointer-events: auto;
-  
-  /* Плавное появление (используем animation для запуска при монтировании) */
-  animation: situationFadeIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+  border-radius: ${theme.borderRadius.lg};
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 
-  @keyframes situationFadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-  
+  ${props => props.$visible && `
+    opacity: 1;
+    pointer-events: auto;
+    ${props.$isRight ? 'transform: translateX(10px)' : 'transform: translateX(-10px)'};
+  `}
+
   @media (max-width: 768px) {
-    display: none;
+    display: none; /* Hide side popup on mobile */
   }
 `;
 
-const SituationPopupHeader = styled.div`
-  padding: 14px 18px 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.02);
+const ModernOverlayHeader = styled.div`
+  padding: 1rem 1.5rem 0.5rem;
+  display: flex;
+  align-items: center;
 `;
 
-const SituationPopupTitle = styled.h4`
-  margin: 0;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 1.5px;
+const CreatorUsername = styled.span`
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #a78bfa;
   text-transform: uppercase;
-  color: #a78bfa; /* Мягкий фиолетовый акцент */
-  text-shadow: 0 0 10px rgba(167, 139, 250, 0.3);
+  letter-spacing: 0.05em;
+  opacity: 0.8;
 `;
 
-const SituationPopupBody = styled.div`
-  padding: 14px 18px 16px;
+const ModernOverlayContent = styled.div`
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 1.5rem;
+`;
+
+const ModernOverlayTitle = styled.h3`
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 1rem 0;
+  line-height: 1.2;
+`;
+
+const ModernOverlayBody = styled.div`
+  flex-grow: 1;
+  color: #e5e7eb;
+  font-size: 0.95rem;
+  line-height: 1.6;
   overflow-y: auto;
-  flex: 1;
-  
+  margin-bottom: 1.5rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+
   &::-webkit-scrollbar {
     width: 4px;
   }
-  
   &::-webkit-scrollbar-track {
     background: transparent;
   }
-  
   &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
-    border-radius: 10px;
-    transition: background 0.2s ease;
-  }
-  
-  &:hover::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
   }
 `;
 
-const SituationPopupText = styled.div`
-  color: rgba(255, 255, 255, 0.95);
-  font-size: 13px;
-  line-height: 1.55;
-  font-weight: 400;
-  white-space: pre-wrap;
-  word-break: break-word;
+const ModernTagsContainer = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: auto;
 `;
+
+const ModernTag = styled.span`
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  color: #9ca3af;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+  }
+`;
+
+
 
 const AlbumButton = styled.button`
-  padding: ${theme.spacing.xs} ${theme.spacing.sm};
-  border-radius: ${theme.borderRadius.md};
-  background: rgba(255, 255, 255, 0.05);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  color: rgba(255, 255, 255, 0.95);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all ${theme.transition.fast};
-  cursor: pointer;
-  font-size: ${theme.fontSize.xs};
-  font-weight: 600;
-  text-align: center;
-  white-space: nowrap;
-  min-width: 60px;
-  min-height: 28px;
-  z-index: 11;
-  position: relative;
-  
-  @media (max-width: 768px) {
-    padding: 3px 6px;
-    min-width: 50px;
-    min-height: 24px;
-    font-size: 10px;
-  }
+padding: ${theme.spacing.xs} ${theme.spacing.sm};
+border-radius: ${theme.borderRadius.md};
+background: rgba(255, 255, 255, 0.05);
+border: 2px solid rgba(255, 255, 255, 0.2);
+color: rgba(255, 255, 255, 0.95);
+display: flex;
+align-items: center;
+justify-content: center;
+transition: all ${theme.transition.fast};
+cursor: pointer;
+font-size: ${theme.fontSize.xs};
+font-weight: 600;
+text-align: center;
+white-space: nowrap;
+min-width: 60px;
+min-height: 28px;
+z-index: 11;
+position: relative;
+
+@media(max-width: 768px) {
+  padding: 3px 6px;
+  min-width: 50px;
+  min-height: 24px;
+  font-size: 10px;
+}
   
   &:hover {
-    transform: scale(1.05);
+  transform: scale(1.05);
   background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.4);
-    color: rgba(255, 255, 255, 0.9);
-    box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2);
-  }
+  border-color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2);
+}
   
   &:active {
-    transform: scale(0.95);
-  }
+  transform: scale(0.95);
+}
 `;
 
 const PersonalityModal = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
-  padding: ${theme.spacing.lg};
+position: fixed;
+top: 0;
+left: 0;
+right: 0;
+bottom: 0;
+background: rgba(0, 0, 0, 0.8);
+display: flex;
+align-items: center;
+justify-content: center;
+z-index: 10000;
+padding: ${theme.spacing.lg};
 `;
 
 const PersonalityModalContent = styled.div`
-  background: ${theme.colors.background.primary};
-  border-radius: ${theme.borderRadius.lg};
-  padding: ${theme.spacing.xl};
-  max-width: 600px;
-  max-height: 80vh;
-  overflow-y: auto;
-  position: relative;
-  border: 1px solid ${theme.colors.border.accent};
-  box-shadow: ${theme.colors.shadow.glow};
+background: ${theme.colors.background.primary};
+border-radius: ${theme.borderRadius.lg};
+padding: ${theme.spacing.xl};
+max-width: 600px;
+max-height: 80vh;
+overflow-y: auto;
+position: relative;
+border: 1px solid ${theme.colors.border.accent};
+box-shadow: ${theme.colors.shadow.glow};
 `;
 
 const PersonalityModalHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: ${theme.spacing.lg};
+display: flex;
+justify-content: space-between;
+align-items: center;
+margin-bottom: ${theme.spacing.lg};
 `;
 
 const PersonalityModalTitle = styled.h2`
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.xl};
-  font-weight: 600;
-  margin: 0;
+color: ${theme.colors.text.primary};
+font-size: ${theme.fontSize.xl};
+font-weight: 600;
+margin: 0;
 `;
 
 const PersonalityModalCloseButton = styled.button`
-  background: transparent;
-  border: none;
-  color: ${theme.colors.text.primary};
-  cursor: pointer;
-  padding: ${theme.spacing.sm};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: ${theme.borderRadius.md};
-  transition: all ${theme.transition.fast};
+background: transparent;
+border: none;
+color: ${theme.colors.text.primary};
+cursor: pointer;
+padding: ${theme.spacing.sm};
+display: flex;
+align-items: center;
+justify-content: center;
+border-radius: ${theme.borderRadius.md};
+transition: all ${theme.transition.fast};
   
   &:hover {
-    background: rgba(255, 255, 255, 0.1);
-  }
+  background: rgba(255, 255, 255, 0.1);
+}
   
   svg {
-    width: 24px;
-    height: 24px;
-  }
+  width: 24px;
+  height: 24px;
+}
 `;
 
 const PersonalityText = styled.div`
-  color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.base};
-  line-height: 1.6;
-  white-space: pre-wrap;
+color: ${theme.colors.text.secondary};
+font-size: ${theme.fontSize.base};
+line-height: 1.6;
+white-space: pre-wrap;
 `;
 
 const PersonalityLoading = styled.div`
-  color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.base};
-  text-align: center;
-  padding: ${theme.spacing.xl};
+color: ${theme.colors.text.secondary};
+font-size: ${theme.fontSize.base};
+text-align: center;
+padding: ${theme.spacing.xl};
 `;
 
 const PersonalityError = styled.div`
-  color: ${theme.colors.status.error};
-  font-size: ${theme.fontSize.base};
-  text-align: center;
-  padding: ${theme.spacing.xl};
+color: ${theme.colors.status.error};
+font-size: ${theme.fontSize.base};
+text-align: center;
+padding: ${theme.spacing.xl};
 `;
 
 const EditPromptModal = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10001;
-  padding: ${theme.spacing.lg};
+position: fixed;
+top: 0;
+left: 0;
+right: 0;
+bottom: 0;
+background: rgba(0, 0, 0, 0.8);
+display: flex;
+align-items: center;
+justify-content: center;
+z-index: 10001;
+padding: ${theme.spacing.lg};
 `;
 
 const EditPromptModalContent = styled.div`
-  background: ${theme.colors.background.primary};
-  border-radius: ${theme.borderRadius.lg};
-  padding: ${theme.spacing.xl};
-  max-width: 1200px;
-  width: 100%;
-  max-height: 90vh;
-  overflow-y: auto;
-  position: relative;
-  border: 1px solid ${theme.colors.border.accent};
-  box-shadow: ${theme.colors.shadow.glow};
+background: ${theme.colors.background.primary};
+border-radius: ${theme.borderRadius.lg};
+padding: ${theme.spacing.xl};
+max-width: 1200px;
+width: 100%;
+max-height: 90vh;
+overflow-y: auto;
+position: relative;
+border: 1px solid ${theme.colors.border.accent};
+box-shadow: ${theme.colors.shadow.glow};
 `;
 
 const EditPromptModalHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: ${theme.spacing.lg};
+display: flex;
+justify-content: space-between;
+align-items: center;
+margin-bottom: ${theme.spacing.lg};
 `;
 
 const EditPromptModalTitle = styled.h2`
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.xl};
-  font-weight: 600;
-  margin: 0;
+color: ${theme.colors.text.primary};
+font-size: ${theme.fontSize.xl};
+font-weight: 600;
+margin: 0;
 `;
 
 const EditPromptModalCloseButton = styled.button`
-  background: transparent;
-  border: none;
-  color: ${theme.colors.text.primary};
-  cursor: pointer;
-  padding: ${theme.spacing.sm};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: ${theme.borderRadius.md};
-  transition: all ${theme.transition.fast};
+background: transparent;
+border: none;
+color: ${theme.colors.text.primary};
+cursor: pointer;
+padding: ${theme.spacing.sm};
+display: flex;
+align-items: center;
+justify-content: center;
+border-radius: ${theme.borderRadius.md};
+transition: all ${theme.transition.fast};
   
   &:hover {
-    background: rgba(255, 255, 255, 0.1);
-  }
+  background: rgba(255, 255, 255, 0.1);
+}
   
   svg {
-    width: 24px;
-    height: 24px;
-  }
+  width: 24px;
+  height: 24px;
+}
 `;
 
 const EditPromptPhotoGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: ${theme.spacing.xl};
-  margin-bottom: ${theme.spacing.xl};
-  
-  @media (max-width: 768px) {
-    grid-template-columns: 1fr;
-    gap: ${theme.spacing.lg};
-  }
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+gap: ${theme.spacing.xl};
+margin-bottom: ${theme.spacing.xl};
+
+@media(max-width: 768px) {
+  grid-template-columns: 1fr;
+  gap: ${theme.spacing.lg};
+}
 `;
 
 const EditPromptPhotoItem = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${theme.spacing.md};
+display: flex;
+flex-direction: column;
+gap: ${theme.spacing.md};
 `;
 
 const EditPromptPhotoImage = styled.img`
-  width: 100%;
-  max-height: 300px;
-  object-fit: contain;
-  border-radius: ${theme.borderRadius.md};
-  background: rgba(20, 20, 20, 0.8);
-  border: 1px solid rgba(100, 100, 100, 0.3);
+width: 100%;
+max-height: 300px;
+object-fit: contain;
+border-radius: ${theme.borderRadius.md};
+background: rgba(20, 20, 20, 0.8);
+border: 1px solid rgba(100, 100, 100, 0.3);
 `;
 
 const EditPromptPhotoTextarea = styled.textarea`
-  width: 100%;
-  min-height: 150px;
-  padding: ${theme.spacing.md};
-  border: 2px solid rgba(100, 100, 100, 0.3);
-  border-radius: ${theme.borderRadius.md};
-  background: rgba(20, 20, 20, 0.8);
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.sm};
-  font-family: 'Courier New', monospace;
-  resize: vertical;
-  line-height: 1.6;
+width: 100%;
+min-height: 150px;
+padding: ${theme.spacing.md};
+border: 2px solid rgba(100, 100, 100, 0.3);
+border-radius: ${theme.borderRadius.md};
+background: rgba(20, 20, 20, 0.8);
+color: ${theme.colors.text.primary};
+font-size: ${theme.fontSize.sm};
+font-family: 'Courier New', monospace;
+resize: vertical;
+line-height: 1.6;
   
   &:focus {
-    outline: none;
-    border-color: rgba(139, 92, 246, 0.6);
-    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
-  }
+  outline: none;
+  border-color: rgba(139, 92, 246, 0.6);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+}
   
   &::placeholder {
-    color: rgba(150, 150, 150, 0.7);
-  }
+  color: rgba(150, 150, 150, 0.7);
+}
 `;
 
 const EditPromptButtonGroup = styled.div`
-  display: flex;
-  gap: ${theme.spacing.md};
-  justify-content: flex-end;
+display: flex;
+gap: ${theme.spacing.md};
+justify-content: flex-end;
 `;
 
 const EditPromptSaveButton = styled.button`
-  padding: ${theme.spacing.sm} ${theme.spacing.lg};
-  border-radius: ${theme.borderRadius.md};
-  background: rgba(139, 92, 246, 0.8);
-  border: 2px solid rgba(139, 92, 246, 0.6);
-  color: white;
-  font-size: ${theme.fontSize.base};
-  font-weight: 600;
-  cursor: pointer;
-  transition: all ${theme.transition.fast};
+padding: ${theme.spacing.sm} ${theme.spacing.lg};
+border-radius: ${theme.borderRadius.md};
+background: rgba(139, 92, 246, 0.8);
+border: 2px solid rgba(139, 92, 246, 0.6);
+color: white;
+font-size: ${theme.fontSize.base};
+font-weight: 600;
+cursor: pointer;
+transition: all ${theme.transition.fast};
   
   &:hover {
-    background: rgba(139, 92, 246, 1);
-    border-color: rgba(139, 92, 246, 0.8);
-    transform: translateY(-1px);
-  }
+  background: rgba(139, 92, 246, 1);
+  border-color: rgba(139, 92, 246, 0.8);
+  transform: translateY(-1px);
+}
   
   &:active {
-    transform: translateY(0);
-  }
+  transform: translateY(0);
+}
   
   &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
-  }
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
 `;
 
 const EditPromptCancelButton = styled.button`
-  padding: ${theme.spacing.sm} ${theme.spacing.lg};
-  border-radius: ${theme.borderRadius.md};
-  background: transparent;
-  border: 2px solid rgba(100, 100, 100, 0.5);
-  color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.base};
-  font-weight: 600;
-  cursor: pointer;
-  transition: all ${theme.transition.fast};
+padding: ${theme.spacing.sm} ${theme.spacing.lg};
+border-radius: ${theme.borderRadius.md};
+background: transparent;
+border: 2px solid rgba(100, 100, 100, 0.5);
+color: ${theme.colors.text.secondary};
+font-size: ${theme.fontSize.base};
+font-weight: 600;
+cursor: pointer;
+transition: all ${theme.transition.fast};
   
   &:hover {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(100, 100, 100, 0.7);
-    color: ${theme.colors.text.primary};
-  }
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(100, 100, 100, 0.7);
+  color: ${theme.colors.text.primary};
+}
   
   &:active {
-    transform: scale(0.98);
-  }
+  transform: scale(0.98);
+}
 `;
 
 const EditPromptButton = styled.button`
-  padding: ${theme.spacing.sm} ${theme.spacing.md};
-  border-radius: ${theme.borderRadius.lg};
-  background: rgba(255, 255, 255, 0.05);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  color: rgba(255, 255, 255, 0.95);
-  display: flex;
-  align-items: center;
-  gap: ${theme.spacing.xs};
-  transition: all ${theme.transition.fast};
-  cursor: pointer;
-  font-size: ${theme.fontSize.sm};
-  font-weight: 600;
-  z-index: 11;
-  
-  @media (max-width: 768px) {
-    padding: 4px 6px;
-    font-size: ${theme.fontSize.xs};
-    gap: 3px;
+padding: ${theme.spacing.sm} ${theme.spacing.md};
+border-radius: ${theme.borderRadius.lg};
+background: rgba(255, 255, 255, 0.05);
+border: 2px solid rgba(255, 255, 255, 0.2);
+color: rgba(255, 255, 255, 0.95);
+display: flex;
+align-items: center;
+gap: ${theme.spacing.xs};
+transition: all ${theme.transition.fast};
+cursor: pointer;
+font-size: ${theme.fontSize.sm};
+font-weight: 600;
+z-index: 11;
+
+@media(max-width: 768px) {
+  padding: 4px 6px;
+  font-size: ${theme.fontSize.xs};
+  gap: 3px;
     
     svg {
-      width: 12px;
-      height: 12px;
-    }
+    width: 12px;
+    height: 12px;
   }
+}
   
   &:hover {
-    transform: scale(1.05);
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.4);
-  }
+  transform: scale(1.05);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.4);
+}
   
   &:active {
-    transform: scale(0.95);
-  }
+  transform: scale(0.95);
+}
 `;
 
 const Tooltip = styled.div`
-  position: absolute;
-  right: -10px;
-  top: 50%;
-  transform: translateY(-50%) translateX(100%);
-  background: ${theme.colors.background.primary};
-  color: ${theme.colors.text.primary};
-  padding: ${theme.spacing.sm} ${theme.spacing.md};
-  border-radius: ${theme.borderRadius.md};
-  font-size: ${theme.fontSize.sm};
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: ${theme.transition.fast};
-  z-index: 1000;
-  border: 1px solid ${theme.colors.border.accent};
-  box-shadow: ${theme.colors.shadow.message};
+position: absolute;
+right: -10px;
+top: 50%;
+transform: translateY(-50%) translateX(100%);
+background: ${theme.colors.background.primary};
+color: ${theme.colors.text.primary};
+padding: ${theme.spacing.sm} ${theme.spacing.md};
+border-radius: ${theme.borderRadius.md};
+font-size: ${theme.fontSize.sm};
+white-space: nowrap;
+opacity: 0;
+pointer-events: none;
+transition: ${theme.transition.fast};
+z-index: 1000;
+border: 1px solid ${theme.colors.border.accent};
+box-shadow: ${theme.colors.shadow.message};
   
   &::before {
-    content: '';
-    position: absolute;
-    left: -6px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 0;
-    height: 0;
-    border-top: 6px solid transparent;
-    border-bottom: 6px solid transparent;
-    border-right: 6px solid ${theme.colors.background.primary};
-  }
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-right: 6px solid ${theme.colors.background.primary};
+}
 `;
 
 const ActionButtonWithTooltip = styled.div`
-  position: relative;
+position: relative;
   
   &:hover ${Tooltip} {
-    opacity: 1;
-  }
+  opacity: 1;
+}
 `;
 
 const ContentOverlay = styled.div`
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
-  padding: ${theme.spacing.md};
-  z-index: 100;
-  pointer-events: none;
-  height: 120px;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
+position: absolute;
+bottom: 0;
+left: 0;
+right: 0;
+background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+padding: ${theme.spacing.md};
+z-index: 100;
+pointer-events: none;
+height: 120px;
+display: flex;
+flex-direction: column;
+justify-content: flex-end;
   
   * {
-    pointer-events: auto;
+  pointer-events: auto;
   }
 `;
 
 const StatsContainerMiddle = styled.div<{ $isVisible: boolean }>`
-  position: absolute;
-  top: 50%;
-  left: 0;
-  right: 0;
-  transform: translateY(-50%);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 ${theme.spacing.sm};
-  z-index: 100;
-  pointer-events: ${props => props.$isVisible ? 'auto' : 'none'};
-  opacity: ${props => props.$isVisible ? 1 : 0};
-  transition: opacity 0.3s ease;
+position: absolute;
+top: 50%;
+left: 0;
+right: 0;
+transform: translateY(-50%);
+display: flex;
+justify-content: space-between;
+align-items: center;
+padding: 0 ${theme.spacing.sm};
+z-index: 100;
+pointer-events: ${props => props.$isVisible ? 'auto' : 'none'};
+opacity: ${props => props.$isVisible ? 1 : 0};
+transition: opacity 0.3s ease;
 `;
 
 const SlideShowContainer = styled.div`
-  width: 100%;
-  height: 100%;
-  position: relative;
+width: 100%;
+height: 100%;
+position: relative;
 `;
 
 const SlideImage = styled.img`
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  position: absolute;
-  top: 0;
-  left: 0;
-  opacity: 0;
-  transition: opacity 0.5s ease-in-out;
+width: 100%;
+height: 100%;
+object-fit: cover;
+position: absolute;
+top: 0;
+left: 0;
+opacity: 0;
+transition: opacity 0.5s ease-in-out;
   
   &.active {
-    opacity: 1;
-  }
+  opacity: 1;
+}
 `;
 
 const SlideDots = styled.div`
-  position: absolute;
-  bottom: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 4px;
-  z-index: 3;
+position: absolute;
+bottom: 8px;
+left: 50%;
+transform: translateX(-50%);
+display: flex;
+gap: 4px;
+z-index: 3;
 `;
 
 const Dot = styled.div`
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.5);
-  transition: background 0.3s ease;
+width: 8px;
+height: 8px;
+border-radius: 50%;
+background: rgba(255, 255, 255, 0.5);
+transition: background 0.3s ease;
   
   &.active {
-    background: rgba(255, 255, 255, 0.9);
-  }
+  background: rgba(255, 255, 255, 0.9);
+}
 `;
 
 const CharacterAvatar = styled.div`
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background: ${theme.colors.gradients.main};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: ${theme.spacing.sm};
-  position: relative;
-  overflow: hidden;
-  font-size: ${theme.fontSize.xl};
-  font-weight: bold;
-  color: white;
+width: 60px;
+height: 60px;
+border-radius: 50%;
+background: ${theme.colors.gradients.main};
+display: flex;
+align-items: center;
+justify-content: center;
+margin-bottom: ${theme.spacing.sm};
+position: relative;
+overflow: hidden;
+font-size: ${theme.fontSize.xl};
+font-weight: bold;
+color: white;
 `;
 
 const CharacterName = styled.h3`
-  font-size: ${theme.fontSize.lg};
-  font-weight: 600;
-  color: white;
-  margin-bottom: ${theme.spacing.xs};
-  line-height: 1.3;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
-  transform: translateY(-8px); /* Подняли само имя выше */
+font-size: ${theme.fontSize.lg};
+font-weight: 600;
+color: white;
+margin-bottom: ${theme.spacing.xs};
+line-height: 1.3;
+text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+transform: translateY(-8px); /* Подняли само имя выше */
 `;
 
 const CharacterDescription = styled.p`
-  font-size: ${theme.fontSize.sm};
-  color: rgba(255, 255, 255, 0.9);
-  line-height: 1.4;
-  margin-bottom: ${theme.spacing.sm};
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+font-size: ${theme.fontSize.sm};
+color: rgba(255, 255, 255, 0.9);
+line-height: 1.4;
+margin-bottom: ${theme.spacing.sm};
+text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 `;
 
 const TagsContainer = styled.div<{ $isVisible: boolean }>`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: ${theme.spacing.xs};
-  margin-top: 2px;
-  opacity: ${props => props.$isVisible ? 1 : 0};
-  visibility: ${props => props.$isVisible ? 'visible' : 'hidden'};
-  pointer-events: ${props => props.$isVisible ? 'auto' : 'none'};
-  transition: opacity 0.3s ease, visibility 0.3s ease;
+display: flex;
+flex-wrap: wrap;
+gap: 4px;
+margin-bottom: ${theme.spacing.xs};
+margin-top: 2px;
+opacity: ${props => props.$isVisible ? 1 : 0};
+visibility: ${props => props.$isVisible ? 'visible' : 'hidden'};
+pointer-events: ${props => props.$isVisible ? 'auto' : 'none'};
+transition: opacity 0.3s ease, visibility 0.3s ease;
 `;
 
 const TagsContainerBottom = styled.div<{ $visible?: boolean }>`
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  flex-wrap: nowrap;
-  overflow: hidden;
-  gap: 4px;
-  padding: ${theme.spacing.xs} ${theme.spacing.sm};
-  z-index: 101;
-  pointer-events: none;
-  opacity: ${props => (props.$visible !== false ? 1 : 0)};
-  visibility: ${props => (props.$visible !== false ? 'visible' : 'hidden')};
-  transition: opacity 0.25s ease, visibility 0.25s ease;
+position: absolute;
+bottom: 0;
+left: 0;
+right: 0;
+display: flex;
+flex-wrap: nowrap;
+overflow: hidden;
+gap: 4px;
+padding: ${theme.spacing.xs} ${theme.spacing.sm};
+z-index: 101;
+pointer-events: none;
+opacity: ${props => (props.$visible !== false ? 1 : 0)};
+visibility: ${props => (props.$visible !== false ? 'visible' : 'hidden')};
+transition: opacity 0.25s ease, visibility 0.25s ease;
   
   * {
-    pointer-events: auto;
+  pointer-events: auto;
   }
 `;
 
 const Tag = styled.a`
-  background: rgba(20, 20, 25, 0.6);
-  color: rgba(220, 220, 220, 0.9);
-  padding: 2.5px 7.5px;
-  border-radius: 9px;
-  font-size: 7.5px;
-  font-weight: 600;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-  white-space: nowrap;
-  text-decoration: none;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  letter-spacing: 0.02em;
+background: rgba(20, 20, 25, 0.6);
+color: rgba(220, 220, 220, 0.9);
+padding: 2.5px 7.5px;
+border-radius: 9px;
+font-size: 7.5px;
+font-weight: 600;
+backdrop-filter: blur(8px);
+-webkit-backdrop-filter: blur(8px);
+border: 1px solid rgba(255, 255, 255, 0.1);
+text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+white-space: nowrap;
+text-decoration: none;
+transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+letter-spacing: 0.02em;
 
   &:hover {
-    background: rgba(6, 182, 212, 0.2);
-    border-color: rgba(6, 182, 212, 0.5);
-    transform: translateY(-1px);
-    color: #22d3ee;
-    box-shadow: 0 4px 12px rgba(6, 182, 212, 0.2);
-  }
+  background: rgba(6, 182, 212, 0.2);
+  border-color: rgba(6, 182, 212, 0.5);
+  transform: translateY(-1px);
+  color: #22d3ee;
+  box-shadow: 0 4px 12px rgba(6, 182, 212, 0.2);
+}
 `;
 
 const StatItemMiddle = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  color: rgba(255, 255, 255, 0.9);
-  font-size: ${theme.fontSize.xs};
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+display: flex;
+align-items: center;
+gap: 2px;
+color: rgba(255, 255, 255, 0.9);
+font-size: ${theme.fontSize.xs};
+text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 `;
 
 const StatsContainer = styled.div`
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
+display: flex;
+justify-content: space-between;
+width: 100%;
 `;
 
 const StatItem = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  color: rgba(255, 255, 255, 0.9);
-  font-size: ${theme.fontSize.xs};
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+display: flex;
+align-items: center;
+gap: 2px;
+color: rgba(255, 255, 255, 0.9);
+font-size: ${theme.fontSize.xs};
+text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 `;
 
 const CardWrapper = styled.div`
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0;
-  width: 100%;
-  overflow: visible;
+position: relative;
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 0;
+width: 100%;
+overflow: visible;
 `;
 
 const LIKE_ACTIVE_COLOR = 'rgba(255, 193, 7, 1)';
 const DISLIKE_ACTIVE_COLOR = 'rgba(244, 67, 54, 1)';
 
 const RatingButton = styled.button<{ $isActive?: boolean; $isLike?: boolean }>`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  width: 41px;
-  height: 41px;
-  background: rgba(20, 20, 20, 0.5);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 50%;
-  padding: 0;
-  color: ${props => {
+display: flex;
+flex-direction: column;
+align-items: center;
+justify-content: center;
+gap: 3px;
+width: 41px;
+height: 41px;
+background: rgba(20, 20, 20, 0.5);
+backdrop-filter: blur(12px);
+-webkit-backdrop-filter: blur(12px);
+border: 1px solid rgba(255, 255, 255, 0.1);
+border-radius: 50%;
+padding: 0;
+color: ${props => {
     if (props.$isActive) {
       return props.$isLike ? 'rgba(255, 193, 7, 1)' : 'rgba(200, 200, 200, 0.6)';
     }
     return props.$isLike ? 'rgba(255, 255, 255, 0.7)' : 'rgba(150, 150, 150, 0.5)';
-  }};
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 1000;
-  pointer-events: auto;
-  outline: none;
-  &:focus {
-    outline: none;
   }
-  position: absolute;
-  visibility: visible;
-  opacity: 1;
-  box-shadow: ${props => {
+  };
+cursor: pointer;
+transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+z-index: 1000;
+pointer-events: auto;
+outline: none;
+  &:focus {
+  outline: none;
+}
+position: absolute;
+visibility: visible;
+opacity: 1;
+box-shadow: ${props => {
     if (props.$isActive && props.$isLike) {
       return '0 3px 14px rgba(255, 193, 7, 0.4), 0 0 0 1px rgba(255, 193, 7, 0.2)';
     }
     return '0 1px 7px rgba(0, 0, 0, 0.3)';
-  }};
+  }
+  };
   
   ${props => props.$isLike ? `
     top: 50%;
     left: -21px;
     transform: translateY(-50%);
-  ` : `
+  `: `
     top: 50%;
     right: -21px;
     transform: translateY(-50%);
   `}
   
   &:hover {
-    transform: ${props => props.$isLike ? 'translateY(-50%) scale(1.1)' : 'translateY(-50%) scale(1.1)'};
-    background: rgba(30, 30, 30, 0.7);
-    border-color: ${props => {
+  transform: ${props => props.$isLike ? 'translateY(-50%) scale(1.1)' : 'translateY(-50%) scale(1.1)'};
+  background: rgba(30, 30, 30, 0.7);
+  border-color: ${props => {
     if (props.$isLike) {
       return props.$isActive ? 'rgba(255, 193, 7, 0.6)' : 'rgba(255, 255, 255, 0.2)';
     }
     return 'rgba(150, 150, 150, 0.3)';
-  }};
-    box-shadow: ${props => {
+  }
+  };
+  box-shadow: ${props => {
     if (props.$isLike) {
       return props.$isActive
-        ? '0 5px 22px rgba(255, 193, 7, 0.5), 0 0 0 1px rgba(255, 193, 7, 0.3)'
-        : '0 3px 14px rgba(255, 255, 255, 0.15)';
+        ? '0 5px 22px rgba(255, 193, 7, 0.5), 0 0 0 1px rgba(255, 193, 7, 0.3)' : '0 3px 14px rgba(255, 255, 255, 0.15)';
     }
     return '0 3px 14px rgba(0, 0, 0, 0.4)';
-  }};
-    filter: ${props => props.$isLike ? 'brightness(1.2)' : 'brightness(1.1)'};
   }
+  };
+  filter: ${props => props.$isLike ? 'brightness(1.2)' : 'brightness(1.1)'};
+}
   
   &:active {
-    transform: ${props => props.$isLike ? 'translateY(-50%) scale(0.95)' : 'translateY(-50%) scale(0.95)'};
-  }
+  transform: ${props => props.$isLike ? 'translateY(-50%) scale(0.95)' : 'translateY(-50%) scale(0.95)'};
+}
   
   svg {
-    width: 14px;
-    height: 14px;
-    stroke-width: 2.5;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.5;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
 `;
 
 const RatingCount = styled.span<{ $isActive?: boolean; $isLike?: boolean }>`
-  font-size: 8px;
-  font-weight: 700;
-  color: ${props => {
+font-size: 8px;
+font-weight: 700;
+color: ${props => {
     if (props.$isActive && props.$isLike) {
       return 'rgba(255, 193, 7, 1)';
     }
     return props.$isLike ? 'rgba(255, 255, 255, 0.9)' : 'rgba(200, 200, 200, 0.7)';
-  }};
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
-  line-height: 1;
-  margin-top: -1px;
-  display: block;
-  min-height: 10px;
-  letter-spacing: 0.2px;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  };
+text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+line-height: 1;
+margin-top: -1px;
+display: block;
+min-height: 10px;
+letter-spacing: 0.2px;
+font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 `;
 
 
 const RoleplaySituationButton = styled.button`
-  padding: ${theme.spacing.xs} ${theme.spacing.sm};
-  border-radius: ${theme.borderRadius.md};
-  background: rgba(255, 255, 255, 0.05);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  color: rgba(255, 255, 255, 0.95);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all ${theme.transition.fast};
-  cursor: pointer;
-  font-size: ${theme.fontSize.xs};
-  font-weight: 600;
-  text-align: center;
-  white-space: nowrap;
-  min-width: 60px;
-  min-height: 28px;
-  z-index: 11;
-  position: relative;
-  
-  @media (min-width: 769px) {
-    display: none;
-  }
-  
-  @media (max-width: 768px) {
-    padding: 3px 6px;
-    min-width: 50px;
-    min-height: 24px;
-    font-size: 10px;
-  }
+padding: ${theme.spacing.xs} ${theme.spacing.sm};
+border-radius: ${theme.borderRadius.md};
+background: rgba(255, 255, 255, 0.05);
+border: 2px solid rgba(255, 255, 255, 0.2);
+color: rgba(255, 255, 255, 0.95);
+display: flex;
+align-items: center;
+justify-content: center;
+transition: all ${theme.transition.fast};
+cursor: pointer;
+font-size: ${theme.fontSize.xs};
+font-weight: 600;
+text-align: center;
+white-space: nowrap;
+min-width: 60px;
+min-height: 28px;
+z-index: 11;
+position: relative;
+
+@media(min-width: 769px) {
+  display: none;
+}
+
+@media(max-width: 768px) {
+  padding: 3px 6px;
+  min-width: 50px;
+  min-height: 24px;
+  font-size: 10px;
+}
   
   &:hover {
-    transform: scale(1.05);
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.4);
-    color: rgba(255, 255, 255, 0.9);
-    box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2);
-  }
+  transform: scale(1.05);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2);
+}
   
   &:active {
-    transform: scale(0.95);
-  }
+  transform: scale(0.95);
+}
 `;
 
 
 const CloseButton = styled.button`
-  position: absolute;
-  top: ${theme.spacing.lg};
-  right: ${theme.spacing.lg};
-  background: rgba(0, 0, 0, 0.7);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.xl};
-  transition: ${theme.transition.fast};
-  z-index: 10001;
+position: absolute;
+top: ${theme.spacing.lg};
+right: ${theme.spacing.lg};
+background: rgba(0, 0, 0, 0.7);
+border: 2px solid rgba(255, 255, 255, 0.3);
+border-radius: 50%;
+width: 48px;
+height: 48px;
+display: flex;
+align-items: center;
+justify-content: center;
+cursor: pointer;
+color: ${theme.colors.text.primary};
+font-size: ${theme.fontSize.xl};
+transition: ${theme.transition.fast};
+z-index: 10001;
 
   &:hover {
-    background: rgba(0, 0, 0, 0.9);
-    border-color: ${theme.colors.accent.primary};
-    transform: scale(1.1);
-  }
+  background: rgba(0, 0, 0, 0.9);
+  border-color: ${theme.colors.accent.primary};
+  transform: scale(1.1);
+}
 `;
 
 const StatIcon = styled.span`
-  font-size: ${theme.fontSize.sm};
-  color: white;
+font-size: ${theme.fontSize.sm};
+color: white;
 `;
 
 const Author = styled.div`
-  font-size: ${theme.fontSize.xs};
-  color: rgba(255, 255, 255, 0.8);
-  margin-bottom: ${theme.spacing.xs};
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+font-size: ${theme.fontSize.xs};
+color: rgba(255, 255, 255, 0.8);
+margin-bottom: ${theme.spacing.xs};
+text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 `;
 
 const PromptModal = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10002;
-  padding: ${theme.spacing.lg};
+position: fixed;
+top: 0;
+left: 0;
+right: 0;
+bottom: 0;
+background: rgba(0, 0, 0, 0.3);
+backdrop-filter: blur(10px);
+-webkit-backdrop-filter: blur(10px);
+display: flex;
+align-items: center;
+justify-content: center;
+z-index: 10002;
+padding: ${theme.spacing.lg};
 `;
 
 const PromptModalContent = styled.div`
-  display: flex;
-  width: 100%;
-  max-width: 1400px;
-  height: 90vh;
-  max-height: 90vh;
-  gap: ${theme.spacing.lg};
-  position: relative;
-  
-  @media (max-width: 768px) {
-    flex-direction: column;
-    height: auto;
-    max-height: 100vh;
-  }
+display: flex;
+width: 100%;
+max-width: 1400px;
+height: 90vh;
+max-height: 90vh;
+gap: ${theme.spacing.lg};
+position: relative;
+
+@media(max-width: 768px) {
+  flex-direction: column;
+  height: auto;
+  max-height: 100vh;
+}
 `;
 
 const PromptImageContainer = styled.div`
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  background: transparent;
-  border-radius: ${theme.borderRadius.lg};
-  overflow: hidden;
+flex: 1;
+display: flex;
+align-items: center;
+justify-content: center;
+position: relative;
+background: transparent;
+border-radius: ${theme.borderRadius.lg};
+overflow: hidden;
   
   img {
-    max-width: 100%;
-    max-height: 100%;
-    width: auto;
-    height: auto;
-    object-fit: contain;
-    object-position: center;
-  }
-  
-  @media (max-width: 768px) {
-    max-height: none;
-    height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  object-position: center;
+}
+
+@media(max-width: 768px) {
+  max-height: none;
+  height: auto;
     
     img {
-      max-width: 100vw;
-      max-height: 100vh;
-      width: auto;
-      height: auto;
-    }
+    max-width: 100vw;
+    max-height: 100vh;
+    width: auto;
+    height: auto;
   }
+}
 `;
 
 const PromptSidebar = styled.div<{ $isVisible: boolean }>`
-  width: 400px;
-  background: rgba(10, 10, 15, 0.7);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: ${theme.borderRadius.lg};
-  padding: ${theme.spacing.xl};
-  display: flex;
-  flex-direction: column;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: ${theme.colors.shadow.glow};
-  transition: all ${theme.transition.fast};
+width: 400px;
+background: rgba(10, 10, 15, 0.7);
+backdrop-filter: blur(10px);
+-webkit-backdrop-filter: blur(10px);
+border-radius: ${theme.borderRadius.lg};
+padding: ${theme.spacing.xl};
+display: flex;
+flex-direction: column;
+border: 1px solid rgba(255, 255, 255, 0.1);
+box-shadow: ${theme.colors.shadow.glow};
+transition: all ${theme.transition.fast};
+opacity: ${props => props.$isVisible ? 1 : 0};
+transform: ${props => props.$isVisible ? 'translateX(0)' : 'translateX(20px)'};
+pointer-events: ${props => props.$isVisible ? 'auto' : 'none'};
+
+@media(max-width: 768px) {
+  width: 100%;
+  max-height: 45vh;
   opacity: ${props => props.$isVisible ? 1 : 0};
-  transform: ${props => props.$isVisible ? 'translateX(0)' : 'translateX(20px)'};
-  pointer-events: ${props => props.$isVisible ? 'auto' : 'none'};
-  
-  @media (max-width: 768px) {
-    width: 100%;
-    max-height: 45vh;
-    opacity: ${props => props.$isVisible ? 1 : 0};
-    transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(20px)'};
-  }
+  transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(20px)'};
+}
 `;
 
 const PromptSidebarHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: ${theme.spacing.md};
+display: flex;
+justify-content: space-between;
+align-items: center;
+margin-bottom: ${theme.spacing.md};
 `;
 
 const PromptSidebarTitle = styled.h3`
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.lg};
-  font-weight: 600;
-  margin: 0;
-  flex: 1;
+color: ${theme.colors.text.primary};
+font-size: ${theme.fontSize.lg};
+font-weight: 600;
+margin: 0;
+flex: 1;
 `;
 
 const PromptCloseButton = styled.button`
-  background: transparent;
-  border: none;
-  color: ${theme.colors.text.primary};
-  cursor: pointer;
-  padding: ${theme.spacing.sm};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: ${theme.borderRadius.md};
-  transition: all ${theme.transition.fast};
+background: transparent;
+border: none;
+color: ${theme.colors.text.primary};
+cursor: pointer;
+padding: ${theme.spacing.sm};
+display: flex;
+align-items: center;
+justify-content: center;
+border-radius: ${theme.borderRadius.md};
+transition: all ${theme.transition.fast};
   
   &:hover {
-    background: rgba(255, 255, 255, 0.1);
-  }
+  background: rgba(255, 255, 255, 0.1);
+}
   
   svg {
-    width: 20px;
-    height: 20px;
-  }
+  width: 20px;
+  height: 20px;
+}
 `;
 
 const PromptText = styled.div`
-  flex: 1;
-  overflow-y: auto;
-  color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.sm};
-  line-height: 1.6;
-  white-space: pre-wrap;
-  font-family: 'Courier New', monospace;
-  padding: ${theme.spacing.md};
-  background: rgba(20, 20, 20, 0.5);
-  border-radius: ${theme.borderRadius.md};
-  border: 1px solid rgba(100, 100, 100, 0.3);
+flex: 1;
+overflow-y: auto;
+color: ${theme.colors.text.secondary};
+font-size: ${theme.fontSize.sm};
+line-height: 1.6;
+white-space: pre-wrap;
+font-family: 'Courier New', monospace;
+padding: ${theme.spacing.md};
+background: rgba(20, 20, 20, 0.5);
+border-radius: ${theme.borderRadius.md};
+border: 1px solid rgba(100, 100, 100, 0.3);
   
   &::-webkit-scrollbar {
-    width: 8px;
-  }
+  width: 8px;
+}
   
   &::-webkit-scrollbar-track {
-    background: rgba(20, 20, 20, 0.5);
-  }
+  background: rgba(20, 20, 20, 0.5);
+}
   
   &::-webkit-scrollbar-thumb {
-    background: rgba(139, 92, 246, 0.5);
-    border-radius: 4px;
+  background: rgba(139, 92, 246, 0.5);
+  border-radius: 4px;
     
     &:hover {
-      background: rgba(139, 92, 246, 0.7);
-    }
+    background: rgba(139, 92, 246, 0.7);
   }
+}
 `;
 
 const PromptLoading = styled.div`
-  color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.base};
-  text-align: center;
-  padding: ${theme.spacing.xl};
+color: ${theme.colors.text.secondary};
+font-size: ${theme.fontSize.base};
+text-align: center;
+padding: ${theme.spacing.xl};
 `;
 
 const PromptError = styled.div`
-  color: ${theme.colors.status.error};
-  font-size: ${theme.fontSize.base};
-  text-align: center;
-  padding: ${theme.spacing.xl};
+color: ${theme.colors.status.error};
+font-size: ${theme.fontSize.base};
+text-align: center;
+padding: ${theme.spacing.xl};
 `;
 
 const PromptButton = styled.button`
-  padding: ${theme.spacing.xs} ${theme.spacing.sm};
-  border-radius: ${theme.borderRadius.md};
-  background: rgba(255, 255, 255, 0.05);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  color: rgba(255, 255, 255, 0.95);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all ${theme.transition.fast};
-  cursor: pointer;
-  font-size: ${theme.fontSize.xs};
-  font-weight: 600;
-  text-align: center;
-  white-space: nowrap;
-  min-width: 60px;
-  min-height: 28px;
-  z-index: 11;
-  position: relative;
-  
-  @media (max-width: 768px) {
-    padding: 3px 6px;
-    min-width: 50px;
-    min-height: 24px;
-    font-size: 10px;
-  }
+padding: ${theme.spacing.xs} ${theme.spacing.sm};
+border-radius: ${theme.borderRadius.md};
+background: rgba(255, 255, 255, 0.05);
+border: 2px solid rgba(255, 255, 255, 0.2);
+color: rgba(255, 255, 255, 0.95);
+display: flex;
+align-items: center;
+justify-content: center;
+transition: all ${theme.transition.fast};
+cursor: pointer;
+font-size: ${theme.fontSize.xs};
+font-weight: 600;
+text-align: center;
+white-space: nowrap;
+min-width: 60px;
+min-height: 28px;
+z-index: 11;
+position: relative;
+
+@media(max-width: 768px) {
+  padding: 3px 6px;
+  min-width: 50px;
+  min-height: 24px;
+  font-size: 10px;
+}
   
   &:hover {
-    transform: scale(1.05);
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.4);
-    color: rgba(255, 255, 255, 0.9);
-    box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2);
-  }
+  transform: scale(1.05);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2);
+}
   
   &:active {
-    transform: scale(0.95);
-  }
+  transform: scale(0.95);
+}
 `;
 
 const ModalCloseButton = styled.button`
-  position: absolute;
-  top: ${theme.spacing.lg};
-  right: ${theme.spacing.lg};
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.xl};
-  transition: ${theme.transition.fast};
-  z-index: 10003;
+position: absolute;
+top: ${theme.spacing.lg};
+right: ${theme.spacing.lg};
+background: rgba(0, 0, 0, 0.5);
+backdrop-filter: blur(10px);
+-webkit-backdrop-filter: blur(10px);
+border: 2px solid rgba(255, 255, 255, 0.3);
+border-radius: 50%;
+width: 48px;
+height: 48px;
+display: flex;
+align-items: center;
+justify-content: center;
+cursor: pointer;
+color: ${theme.colors.text.primary};
+font-size: ${theme.fontSize.xl};
+transition: ${theme.transition.fast};
+z-index: 10003;
 
   &:hover {
-    background: rgba(0, 0, 0, 0.7);
-    border-color: ${theme.colors.accent.primary};
-    transform: scale(1.1);
-  }
+  background: rgba(0, 0, 0, 0.7);
+  border-color: ${theme.colors.accent.primary};
+  transform: scale(1.1);
+}
   
   svg {
-    width: 24px;
-    height: 24px;
-  }
+  width: 24px;
+  height: 24px;
+}
 `;
 
 interface Character {
@@ -1557,7 +1581,7 @@ const SlideShow: React.FC<{
       <PhotoContainer $clickable={false} $isHovered={isHovered}>
         <OptimizedImage
           src={photos[currentSlide] || ''}
-          alt={`${characterName || 'Character'} - Slide ${currentSlide + 1}`}
+          alt={`${characterName || 'Character'} - Slide ${currentSlide + 1} `}
           eager={currentSlide === 0}
           priority={currentSlide === 0}
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 300px"
@@ -1576,6 +1600,15 @@ const SlideShow: React.FC<{
     </>
   );
 };
+const CardContent = styled.div`
+position: relative;
+width: 100%;
+height: 100%;
+overflow: hidden;
+border-radius: inherit;
+/* Ensure transform doesn't break fixed position children if any, though PhotoContainer is absolute */
+`;
+
 export const CharacterCard: React.FC<CharacterCardProps> = ({
   character,
   onClick,
@@ -1607,29 +1640,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     character?.is_nsfw === true
   );
 
-  const [isSituationHovered, setIsSituationHovered] = useState(false);
-  const [popupPosition, setPopupPosition] = useState({ top: 0, left: 0, isRight: true });
 
-  const situation = useMemo(() => {
-    // Пробуем извлечь из промпта
-    let text = extractRolePlayingSituation(character.prompt || '');
-
-    // Если не удалось, и в описании есть заголовок ситуации - пробуем оттуда
-    if (!text && character.description && character.description.includes('Role-playing Situation:')) {
-      text = extractRolePlayingSituation(character.description);
-    }
-
-    // Если всё еще нет, но описание достаточно длинное (похоже на ситуацию)
-    // и нет явного промпта - используем описание как ситуацию
-    if (!text && character.description && character.description.length > 20) {
-      // Но только если описание не совпадает с именем (заглушка)
-      if (character.description.toLowerCase() !== character.name.toLowerCase()) {
-        text = character.description;
-      }
-    }
-
-    return text || null;
-  }, [character.prompt, character.description, character.name]);
 
   // Обновляем состояние избранного при изменении пропа
   // КРИТИЧЕСКИ ВАЖНО: если передан isFavoriteProp, используем его значение и отключаем проверку через API
@@ -1652,11 +1663,11 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   // Обновляем currentPhotoUrl при изменении character.photos
   useEffect(() => {
     if (character.photos && character.photos.length > 0) {
-      // Нормализуем первое фото - убеждаемся, что это абсолютный URL
+      // Нормализуем первое фото-убеждаемся, что это абсолютный URL
       let firstPhoto = character.photos[0];
       if (firstPhoto && !firstPhoto.startsWith('http')) {
         if (firstPhoto.startsWith('/')) {
-          firstPhoto = `${API_CONFIG.BASE_URL || window.location.origin}${firstPhoto}`;
+          firstPhoto = `${API_CONFIG.BASE_URL || window.location.origin}${firstPhoto} `;
         } else {
           firstPhoto = `${API_CONFIG.BASE_URL || window.location.origin}/${firstPhoto}`;
         }
@@ -1690,6 +1701,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
   // Состояние для Smart Hover overlay
   const [isHovered, setIsHovered] = useState(false);
+  const [popupPosition, setPopupPosition] = useState({ isRight: true });
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
 
@@ -1698,18 +1710,38 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   const [promptText, setPromptText] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
-  const situationHoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const situationOpenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const situation = useMemo(() => {
+    // Пробуем извлечь из промпта
+    let text = extractRolePlayingSituation(character.prompt || '');
+
+    // Если не удалось, и в описании есть заголовок ситуации-пробуем оттуда
+    if (!text && character.description && character.description.includes('Role-playing Situation: ')) {
+      text = extractRolePlayingSituation(character.description);
+    }
+
+    // Если всё еще нет, но описание достаточно длинное (похоже на ситуацию)
+    // и нет явного промпта-используем описание как ситуацию
+    if (!text && character.description && character.description.length > 20) {
+      // Но только если описание не совпадает с именем (заглушка)
+      if (character.description.toLowerCase() !== character.name.toLowerCase()) {
+        text = character.description;
+      }
+    }
+
+    return text || null;
+  }, [character.prompt, character.description, character.name]);
+
 
   // Определяем, заблокирован ли альбом.
   // Если проп isLocked передан (например из ChatContainer), используем его.
-  // Иначе рассчитываем сами: если есть фото в платном альбоме и пользователь не авторизован - точно заблокирован.
+  // Иначе рассчитываем сами: если есть фото в платном альбоме и пользователь не авторизован-точно заблокирован.
   // Для авторизованных на главной без переданного isLocked считаем заблокированным, если есть фото (пока не придет инфа об обратном).
   const finalIsLocked = useMemo(() => {
     if (isLocked !== undefined) return isLocked;
     const count = character.paid_album_photos_count || 0;
     if (count === 0) return false;
-    // Если не авторизован - точно заблокирован
+    // Если не авторизован-точно заблокирован
     if (!isAuthenticated) return true;
     // Если авторизован, но проп не передан (на главной), по умолчанию считаем заблокированным
     // пока не будет загружен статус (что обычно делает ChatContainer)
@@ -1831,7 +1863,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
         // Извлекаем секцию "Personality and Character" из промпта
         if (prompt) {
-          const personalityMatch = prompt.match(/Personality and Character:\s*(.*?)(?=\n\nRole-playing Situation:|$)/s);
+          const personalityMatch = prompt.match(/Personality and Character: \s*(.*?)(?=\n\nRole-playing Situation: |$)/s);
           if (personalityMatch && personalityMatch[1]) {
             const extractedPersonality = personalityMatch[1].trim();
             setPersonality(extractedPersonality);
@@ -2366,106 +2398,121 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
 
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Не блокируем клики на кнопки рейтинга и другие интерактивные элементы
+    const target = e.target as HTMLElement;
+    if (
+      target.closest('button') ||
+      target.closest('a') ||
+      target.closest('[class*="RatingButton"]') ||
+      target.closest('[class*="Switcher"]') ||
+      target.closest('[class*="FavoriteButton"]') ||
+      target.closest('[data-button="favorite"]') ||
+      target.closest('[class*="ActionButton"]')
+    ) {
+      // Если клик по кнопке-не перехватываем
+      e.stopPropagation();
+      return;
+    }
+
+    // Для всего остального вызываем onClick
+    if (onClick) {
+      onClick(character);
+    }
+  };
+
   const formatCount = (count: number) => {
     if (count >= 1000000) return (count / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
     if (count >= 1000) return (count / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
     return count.toString();
   };
 
+
   return (
     <>
-      <CardWrapper>
-        {/* Side rating buttons are hidden as per user request to show stats on the card itself */}
-        {showRatings && (
-          <RatingButton
-            $isActive={userRating === 'like'}
-            $isLike={true}
-            onClick={handleLike}
-          >
-            <FiThumbsUp />
-            <RatingCount $isActive={userRating === 'like'} $isLike={true}>{likesCount ?? 0}</RatingCount>
-          </RatingButton>
-        )}
-        <ElectricBorder
-          color="#555555"
-          thickness={2}
-          style={{ borderRadius: 16, flex: '0 0 auto' }}
+      <ElectricBorder
+        color="#555555"
+        thickness={2}
+        style={{
+          borderRadius: 16,
+          flex: '0 0 auto',
+          width: '100%',
+          position: 'relative',
+          zIndex: isHovered ? 100 : 1
+        }}
+      >
+        <CardContainer
+          ref={cardRef}
+          onClick={handleCardClick}
+          onMouseEnter={() => {
+            setIsHovered(true);
+            if (cardRef.current) {
+              const rect = cardRef.current.getBoundingClientRect();
+              const isRight = rect.right + rect.width <= window.innerWidth;
+              setPopupPosition({ isRight });
+            }
+          }}
+          onMouseLeave={() => setIsHovered(false)}
+
+          $isHovered={isHovered}
+          style={{ position: 'relative', overflow: 'visible' }}
         >
-          <CardContainer
-            ref={cardRef}
-            $isHovered={isHovered}
-            onMouseEnter={(e) => {
-              e.stopPropagation();
-              setIsHovered(true);
+          <CardContent>
+            <PhotoContainer $isHovered={isHovered}>
+              {character.photos && character.photos.length > 0 ? (
+                <SlideShow
+                  photos={character.photos}
+                  characterName={character.name}
+                  isHovered={isHovered}
+                  hideDots={true}
+                />
+              ) : (
+                <OptimizedImage
+                  src={character.avatar}
+                  alt={character.name}
+                  className="w-full h-full object-cover"
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 300px"
+                />
+              )}
+            </PhotoContainer>
 
-              if (situationHoverTimeoutRef.current) {
-                clearTimeout(situationHoverTimeoutRef.current);
-                situationHoverTimeoutRef.current = null;
-              }
-
-              // Добавляем задержку 0.5с перед появлением
-              if (situationOpenTimeoutRef.current) {
-                clearTimeout(situationOpenTimeoutRef.current);
-              }
-
-              situationOpenTimeoutRef.current = setTimeout(() => {
-                if (cardRef.current && situation && !isMobile) {
-                  const rect = cardRef.current.getBoundingClientRect();
-                  const isRight = rect.right + 320 < window.innerWidth;
-                  setPopupPosition({
-                    top: 0,
-                    left: 0,
-                    isRight
-                  });
-                  setIsSituationHovered(true);
-                }
-              }, 500);
-            }}
-            onMouseLeave={(e) => {
-              // При уходе мыши с карточки
-              setIsHovered(false);
-
-              if (situationOpenTimeoutRef.current) {
-                clearTimeout(situationOpenTimeoutRef.current);
-                situationOpenTimeoutRef.current = null;
-              }
-
-              situationHoverTimeoutRef.current = setTimeout(() => {
-                setIsSituationHovered(false);
-              }, 150);
-
-              // Проверяем, не переходим ли мы на overlay
-              const relatedTarget = e.relatedTarget as HTMLElement | null;
-              const isMovingToOverlay = relatedTarget &&
-                typeof relatedTarget.closest === 'function' && (
-                  relatedTarget.closest('[class*="bg-black/80"]') !== null ||
-                  relatedTarget.closest('[class*="backdrop-blur-md"]') !== null
-                );
-
-              // Если не переходим на overlay, закрываем сразу
-
-            }}
-          >
-            <div className={`absolute inset-0 overflow-hidden transition-all duration-500 ${finalIsLocked ? "blur-[10px] scale-125 opacity-20 grayscale brightness-50" : ""}`}>
-              <SlideShow
-                photos={character.photos || []}
-                characterName={character.name}
-                onPhotoClick={undefined}
-                onCurrentPhotoChange={(photoUrl) => {
-                  setCurrentPhotoUrl(photoUrl);
-                }}
-                isHovered={isHovered}
-                hideDots={finalIsLocked}
-              />
-            </div>
+            {/* Action Buttons */}
+            <ActionButtons $badgeCount={0}>
+              {showEditButton && onEdit && (
+                <ActionButton
+                  $variant="edit"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(character);
+                  }}
+                >
+                  <FiEdit />
+                </ActionButton>
+              )}
+              {showEditButton && onDelete && (
+                <ActionButton
+                  $variant="delete"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(character);
+                  }}
+                >
+                  <FiTrash2 />
+                </ActionButton>
+              )}
+            </ActionButtons>
 
             {/* Locked Album Preview Overlay */}
             {finalIsLocked && (
               <div
                 className="absolute inset-0 z-[9999] flex items-center justify-center rounded-lg overflow-hidden animate-fade-in"
                 style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onPaidAlbum) onPaidAlbum(character);
+                }}
               >
-                {/* 1. Underlying Blur (on the main content) */}
+                {/* 1. Underlying Blur */}
                 <div className="absolute inset-0 backdrop-blur-[5px] pointer-events-none" />
 
                 {/* 2. Sliding Blurred Photos */}
@@ -2473,8 +2520,6 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                   {(() => {
                     const normalizeUrl = (url: string) => {
                       if (!url) return '';
-
-                      // Обработка ссылок Yandex Cloud через прокси /media/
                       let processedUrl = url;
                       if (url.includes('storage.yandexcloud.net/')) {
                         if (url.includes('.storage.yandexcloud.net/')) {
@@ -2490,29 +2535,24 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                           }
                         }
                       }
-
                       if (processedUrl.startsWith('http')) return processedUrl;
                       const baseUrl = API_CONFIG.BASE_URL || window.location.origin;
                       if (processedUrl.startsWith('/')) {
-                        // Если baseUrl пустой (относительный путь в продакшене), то оставляем как есть
                         return baseUrl ? `${baseUrl}${processedUrl}` : processedUrl;
                       }
                       return baseUrl ? `${baseUrl}/${processedUrl}` : `/${processedUrl}`;
                     };
 
                     const rawPreviewPhotos = (lockedAlbumPhotos && lockedAlbumPhotos.length > 0)
-                      ? [...lockedAlbumPhotos]
-                      : (character.paid_album_preview_urls && character.paid_album_preview_urls.length > 0)
-                        ? [...character.paid_album_preview_urls]
-                        : (character.photos && character.photos.length > 0 ? [character.photos[0]] : []);
+                      ? [...lockedAlbumPhotos] : (character.paid_album_preview_urls && character.paid_album_preview_urls.length > 0)
+                        ? [...character.paid_album_preview_urls] : (character.photos && character.photos.length > 0 ? [character.photos[0]] : []);
 
                     const previewPhotos = rawPreviewPhotos.map(normalizeUrl);
-
                     const hasPreview = (lockedAlbumPhotos && lockedAlbumPhotos.length > 0) ||
                       (character.paid_album_preview_urls && character.paid_album_preview_urls.length > 0);
 
                     return previewPhotos.length > 0 ? (
-                      <div className={`absolute inset-0 z-0 ${hasPreview ? 'blur-[10px]' : 'blur-[50px] grayscale brightness-50'} opacity-70 scale-125 transition-all duration-1000`}>
+                      <div className={`absolute inset-0 z-0 ${hasPreview ? 'blur-[10px]' : 'blur-[50px] grayscale brightness-50'} opacity-70 transition-all duration-1000`}>
                         <SlideShow
                           photos={previewPhotos}
                           characterName={character.name}
@@ -2524,19 +2564,12 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                   })()}
                 </div>
 
-                {/* 3. Dark gradient for better text/icon contrast */}
+                {/* 3. Dark gradient */}
                 <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/60 z-5" />
 
                 {/* 4. The Lock Icon Overlay */}
-                <div
-                  className="relative z-10 flex flex-col items-center justify-center w-full h-full cursor-pointer transition-all duration-500"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (onPaidAlbum) onPaidAlbum(character);
-                  }}
-                >
+                <div className="relative z-10 flex flex-col items-center justify-center w-full h-full cursor-pointer transition-all duration-500">
                   <div className={`flex flex-col items-center transition-all duration-700 ${isHovered ? 'scale-105' : 'scale-100'}`}>
-                    {/* Icon Container with Glow */}
                     <div className="relative mb-6">
                       <div className={`absolute inset-0 blur-3xl opacity-50 transition-colors duration-500 ${isHovered ? 'bg-pink-500' : 'bg-white'}`} />
                       <div className="relative transform transition-all duration-500 ease-out">
@@ -2547,8 +2580,6 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                         )}
                       </div>
                     </div>
-
-                    {/* Premium Text Content */}
                     <div className="text-center px-4 transform transition-all duration-500 delay-100">
                       <div className="text-white/70 text-xs uppercase tracking-[0.2em] font-medium mb-2 drop-shadow-sm">
                         Exclusive Content
@@ -2556,7 +2587,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                       <h3 className="text-white text-xl font-semibold tracking-tight leading-tight mb-2 drop-shadow-xl">
                         Получи доступ <br /> к альбому
                       </h3>
-                      <div className="inline-block px-4 py-1.5 rounded-full bg-gradient-to-r from-pink-500/80 to-purple-600/80 backdrop-blur-md border border-white/20 text-white text-sm font-medium shadow-lg transform transition-all duration-300 hover:scale-105">
+                      <div className="inline-block px-4 py-1.5 rounded-full bg-gradient-to-r from-pink-500/80 to-purple-600/80 backdrop-blur-md border border-white/20 text-white text-sm font-medium shadow-lg transform transition-all duration-300 hover: scale-105">
                         {character.name}
                       </div>
                     </div>
@@ -2565,289 +2596,86 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
               </div>
             )}
 
-            {!finalIsLocked && isOriginal && (
-              <VerificationBadge title="Original Character">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12"></polyline>
+            {/* Verification and Badges (only if not locked and original) */}
+            {!finalIsLocked && character.creator_username === 'admin' && (
+              <VerificationBadge>
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http: //www.w3.org/2000/svg">
+                  <path d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </VerificationBadge>
             )}
 
-            {!finalIsLocked && (Number(character.comments) > 0 || Number(character.views) > 0) && (
-              <MessageCountBadge $hasVerification={isOriginal}>
-                <FiMessageSquare />
-                {formatCount(Number(character.comments) || Number(character.views) || 0)}
-              </MessageCountBadge>
+            {/* Favorite Button */}
+            <FavoriteButton
+              $isFavorite={isFavorite}
+              onClick={toggleFavorite}
+              style={{ zIndex: 3 }}
+            >
+              <FiHeart />
+            </FavoriteButton>
+
+            {/* Bottom Content Overlay (Name, Stats, Tags) - Hidden on hover overlay */}
+            {!(isHovered && situation) && (
+              <>
+                <div style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  padding: '40px 12px 12px',
+                  background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 50%, transparent 100%)',
+                  zIndex: 2,
+                  pointerEvents: 'none'
+                }}>
+                  <CharacterName style={{ pointerEvents: 'auto' }}>{character.name}</CharacterName>
+
+                  <StatsContainer>
+                    <StatItem>
+                      <FiMessageSquare size={12} />
+                      {formatCount(character.comments)}
+                    </StatItem>
+                    <div style={{ flex: 1 }} />
+                  </StatsContainer>
+                </div>
+
+                <TagsContainerBottom $visible={isHovered}>
+                  {character.tags.slice(0, 3).map((tag, i) => (
+                    <Tag key={i} onClick={(e) => e.stopPropagation()}>
+                      {typeof tag === 'string' ? tag : (tag as any).name}
+                    </Tag>
+                  ))}
+                </TagsContainerBottom>
+              </>
             )}
 
-            {!finalIsLocked && Number(character.likes) > 0 && (
-              <LikesBadge>
-                <FiThumbsUp />
-                {formatCount(Number(character.likes))}
-              </LikesBadge>
+            {/* Modern On-Card Hover Overlay (displayed on neighbor) */}
+            {situation && !isMobile && (
+              <ModernOverlayContainer $visible={isHovered} $isRight={popupPosition.isRight}>
+                <ModernOverlayHeader>
+                  <CreatorUsername>@{character.creator_username || 'anonymous'}</CreatorUsername>
+                </ModernOverlayHeader>
+                <ModernOverlayContent>
+                  <ModernOverlayBody>
+                    {situation}
+                  </ModernOverlayBody>
+                  {character.tags && character.tags.length > 0 && (
+                    <ModernTagsContainer>
+                      {character.tags.slice(0, 8).map((tag, i) => (
+                        <ModernTag key={i}>
+                          {typeof tag === 'string' ? tag : (tag as any).name}
+                        </ModernTag>
+                      ))}
+                    </ModernTagsContainer>
+                  )}
+                </ModernOverlayContent>
+              </ModernOverlayContainer>
             )}
+          </CardContent>
+        </CardContainer>
 
+      </ElectricBorder>
 
-            {/* На странице favorites всегда показываем кнопку, даже если идет проверка */}
-            {!finalIsLocked && (isFavoriteProp !== undefined || !isChecking) && (
-              <FavoriteButton
-                type="button"
-                data-button="favorite"
-                $isFavorite={isFavorite}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  toggleFavorite(e);
-                }}
-                aria-label={isFavorite ? 'Удалить из избранного' : 'Добавить в избранное'}
-              >
-                <FiHeart />
-              </FavoriteButton>
-            )}
-
-            {!finalIsLocked && (
-              <ActionButtons $badgeCount={(isOriginal ? 1 : 0) + ((character.comments > 0 || character.views > 0) ? 1 : 0)}>
-                {userInfo && userInfo.is_admin === true && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '4px 8px',
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      borderRadius: '8px',
-                      zIndex: 10,
-                      position: 'relative'
-                    }}
-                  >
-                    <div onClick={(e) => e.stopPropagation()}>
-                      <Switcher4
-                        checked={isNsfw}
-                        onToggle={async (nextChecked) => {
-                          // Вызываем toggleNsfw при клике на переключатель
-                          const syntheticEvent = {
-                            stopPropagation: () => { },
-                            preventDefault: () => { }
-                          } as React.MouseEvent;
-                          await toggleNsfw(syntheticEvent);
-                        }}
-                        variant="pink"
-                      />
-                    </div>
-                    <span style={{ fontSize: '11px', color: '#fff', whiteSpace: 'nowrap' }}>
-                      {isNsfw ? '18+' : 'SAFE'}
-                    </span>
-                  </div>
-                )}
-                {onPaidAlbum && (
-                  <AlbumButton
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onPaidAlbum(character);
-                    }}
-                  >
-                    Альбом
-                  </AlbumButton>
-                )}
-                {currentPhotoUrl && (
-                  <PromptButton
-                    onClick={handleOpenPromptModal}
-                  >
-                    Промпт
-                  </PromptButton>
-                )}
-                {userInfo && userInfo.is_admin === true && character.photos && character.photos.length > 0 && (
-                  <EditPromptButton
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      // Берем до 3 фото персонажа
-                      const photosToEdit = character.photos.slice(0, 3);
-                      setIsEditPromptModalOpen(true);
-                      setPromptSaveError(null);
-                      setIsSavingPrompt(false);
-                      // Загружаем текущие промпты для всех фото
-                      try {
-                        const photosWithPrompts = await loadPromptsForPhotos(photosToEdit);
-                        setEditingPhotos(photosWithPrompts);
-                      } catch (error) {
-                        setEditingPhotos(photosToEdit.map(url => ({ url, prompt: '' })));
-                      }
-                    }}
-                  >
-                    <FiEdit size={14} />
-                    Вписать промит фото
-                  </EditPromptButton>
-                )}
-                {onDelete && (
-                  <ActionButtonWithTooltip>
-                    <ActionButton
-                      $variant="delete"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        if (onDelete) {
-                          onDelete(character);
-                        }
-                      }}
-                    >
-                      <FiTrash2 size={16} />
-                    </ActionButton>
-                    <Tooltip>Удалить персонажа</Tooltip>
-                  </ActionButtonWithTooltip>
-                )}
-              </ActionButtons>
-            )}
-
-            <StatsContainerMiddle $isVisible={false}>
-              <StatItemMiddle>
-                <FiThumbsUp size={12} style={{ marginRight: '4px' }} />
-                <span>{formatNumber(likesCount ?? 0)}</span>
-              </StatItemMiddle>
-            </StatsContainerMiddle>
-
-            {!finalIsLocked && (
-              <ContentOverlay>
-                <CharacterName>{character.name}</CharacterName>
-              </ContentOverlay>
-            )}
-
-            {!finalIsLocked && character.tags && character.tags.length > 0 && (
-              <TagsContainerBottom $visible={!isHovered}>
-                {Array.from(new Map((character.tags as string[]).map(t => [t.toLowerCase(), t])).values())
-                  .slice(0, 3)
-                  .map((tag: string, idx: number) => {
-                    const slug = tag.toLowerCase()
-                      .replace(/[^a-zа-я0-9\s-]/g, '')
-                      .replace(/\s+/g, '-')
-                      .replace(/-+/g, '-');
-
-                    return (
-                      <Tag
-                        key={idx}
-                        href={`/tags/${slug}`}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          window.dispatchEvent(new CustomEvent('navigate-to-tags', {
-                            detail: { slug: slug, tagName: tag }
-                          }));
-                        }}
-                      >
-                        {tag}
-                      </Tag>
-                    );
-                  })
-                }
-              </TagsContainerBottom>
-            )}
-
-            <div
-              onClick={(e) => {
-                // Не блокируем клики на кнопки рейтинга и другие интерактивные элементы
-                const target = e.target as HTMLElement;
-                if (
-                  target.closest('button') ||
-                  target.closest('a') ||
-                  target.closest('[class*="RatingButton"]') ||
-                  target.closest('[class*="Switcher"]') ||
-                  target.closest('[class*="FavoriteButton"]') ||
-                  target.closest('[data-button="favorite"]') ||
-                  target.closest('[class*="ActionButton"]')
-                ) {
-                  // Если клик по кнопке - не перехватываем
-                  e.stopPropagation();
-                  return;
-                }
-                // Для всего остального вызываем onClick
-                e.stopPropagation();
-                onClick(character);
-              }}
-              onTouchStart={(e) => {
-                // Для мобильных устройств также проверяем, не кликнули ли по кнопке
-                const target = e.target as HTMLElement;
-                if (
-                  target.closest('button') ||
-                  target.closest('a') ||
-                  target.closest('[class*="RatingButton"]') ||
-                  target.closest('[class*="Switcher"]') ||
-                  target.closest('[class*="FavoriteButton"]') ||
-                  target.closest('[data-button="favorite"]') ||
-                  target.closest('[class*="ActionButton"]')
-                ) {
-                  // Если клик по кнопке - не перехватываем
-                  return;
-                }
-              }}
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                zIndex: 2,
-                pointerEvents: 'auto',
-                cursor: 'pointer'
-              }}
-            />
-
-            {!finalIsLocked && character.creator_username && (
-              <CreatorLink
-                href={`/profile/${character.creator_username}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  window.dispatchEvent(new CustomEvent('navigate-to-profile', {
-                    detail: { username: character.creator_username }
-                  }));
-                }}
-              >
-                @{character.creator_username}
-              </CreatorLink>
-            )}
-
-
-          </CardContainer>
-        </ElectricBorder>
-
-        {/* Smart Hover Popup для мобильных - на весь экран */}
-
-
-        {/* Dislikes are hidden at user's request */}
-        {showRatings && (
-          <RatingButton
-            $isActive={userRating === 'dislike'}
-            $isLike={false}
-            onClick={handleDislike}
-          >
-            <FiThumbsDown />
-            <RatingCount $isActive={userRating === 'dislike'} $isLike={false}>{dislikesCount ?? 0}</RatingCount>
-          </RatingButton>
-        )}
-        {isSituationHovered && situation && !isMobile && (
-          <SituationPopup
-            $isRight={popupPosition.isRight}
-            onMouseEnter={() => {
-              if (situationHoverTimeoutRef.current) {
-                clearTimeout(situationHoverTimeoutRef.current);
-                situationHoverTimeoutRef.current = null;
-              }
-              setIsSituationHovered(true);
-            }}
-            onMouseLeave={() => {
-              situationHoverTimeoutRef.current = setTimeout(() => {
-                setIsSituationHovered(false);
-              }, 150);
-            }}
-          >
-            <SituationPopupHeader>
-              <SituationPopupTitle>Ролевая ситуация</SituationPopupTitle>
-            </SituationPopupHeader>
-            <SituationPopupBody>
-              <SituationPopupText>{situation}</SituationPopupText>
-            </SituationPopupBody>
-          </SituationPopup>
-        )}
-      </CardWrapper>
+      {/* Modals */}
       {isPersonalityModalOpen && createPortal(
         <PersonalityModal onClick={(e) => {
           if (e.target === e.currentTarget) {
@@ -2874,6 +2702,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         </PersonalityModal>,
         document.body
       )}
+
       {isEditPromptModalOpen && editingPhotos.length > 0 && createPortal(
         <EditPromptModal onClick={(e) => {
           if (e.target === e.currentTarget) {
@@ -2936,6 +2765,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         </EditPromptModal>,
         document.body
       )}
+
       <PromptGlassModal
         isOpen={isPromptModalOpen && !!modalPhotoUrl}
         onClose={handleClosePromptModal}
@@ -2945,7 +2775,6 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         isLoading={isLoadingPrompt}
         error={promptError}
       />
-
     </>
   );
 };

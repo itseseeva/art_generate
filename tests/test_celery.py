@@ -16,6 +16,11 @@ from celery import states
 def test_celery_task_execution():
     """Тест выполнения простой Celery задачи."""
     from app.celery_app import celery_app
+    celery_app.conf.update(
+        broker_url='memory://',
+        result_backend='cache+memory://',
+        task_always_eager=True
+    )
     
     # Проверяем что Celery app инициализирован
     assert celery_app is not None
@@ -27,17 +32,41 @@ def test_celery_task_execution():
 @pytest.mark.asyncio
 async def test_async_task_execution():
     """Тест выполнения асинхронной задачи."""
-    from app.tasks.image_generation import generate_image_task
+    from app.tasks.generation_tasks import generate_image_task
     
-    # Мокируем RunPod клиент
-    with patch('app.services.runpod_client.generate_image_async') as mock_generate:
-        mock_generate.return_value = "https://test.com/image.png"
+    # Мокируем FaceRefinementService (импортируется внутри задачи)
+    with patch('app.services.face_refinement.FaceRefinementService') as MockService, \
+         patch('app.services.yandex_storage.get_yandex_storage_service') as mock_get_storage, \
+         patch('app.tasks.generation_tasks._spend_photo_resources', new_callable=AsyncMock), \
+         patch('app.database.db.async_session_maker') as mock_session_maker:
         
-        # Вызываем задачу напрямую (без Celery worker)
-        result = await generate_image_task.apply_async(
-            args=["test prompt"],
-            kwargs={"model": "anime-realism"}
-        ).get()
+        mock_instance = MockService.return_value
+        # Мокируем generate_image
+        mock_result = MagicMock()
+        # Используем валидную base64 строку (например, пустой 1x1 PNG)
+        valid_base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+        mock_result.image_data = [valid_base64]
+        mock_instance.generate_image = AsyncMock(return_value=mock_result)
+
+        # Мокируем storage service
+        mock_storage = mock_get_storage.return_value
+        mock_storage.upload_file = AsyncMock(return_value="https://cloud.com/image.webp")
+
+        # Мокируем session
+        mock_session = AsyncMock()
+        mock_session_maker.return_value.__aenter__.return_value = mock_session
+        
+        # Вызываем задачу в отдельном потоке, чтобы asyncio.run() внутри задачи 
+        # не конфликтовал с loop'ом теста
+        import asyncio
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            None, 
+            lambda: generate_image_task.apply_async(
+                args=[{"prompt": "test prompt", "model": "anime-realism"}],
+                kwargs={}
+            ).get()
+        )
         
         # Проверяем результат
         assert result is not None
@@ -75,7 +104,7 @@ def test_task_result_backend():
     
     # Проверяем что result backend настроен
     assert celery_app.conf.result_backend is not None
-    assert "redis" in celery_app.conf.result_backend
+    assert "memory" in celery_app.conf.result_backend
 
 
 # ============================================================================
@@ -159,28 +188,50 @@ def test_task_error_handling():
 @pytest.mark.asyncio
 async def test_image_generation_task():
     """Тест задачи генерации изображения через Celery."""
-    from app.tasks.image_generation import generate_image_task
+    from app.tasks.generation_tasks import generate_image_task
     
-    # Мокируем RunPod
-    with patch('app.services.runpod_client.generate_image_async') as mock_generate:
-        mock_generate.return_value = "https://storage.example.com/test.png"
+    # Мокируем FaceRefinementService
+    with patch('app.services.face_refinement.FaceRefinementService') as MockService, \
+         patch('app.services.yandex_storage.get_yandex_storage_service') as mock_get_storage, \
+         patch('app.tasks.generation_tasks._spend_photo_resources', new_callable=AsyncMock), \
+         patch('app.database.db.async_session_maker') as mock_session_maker:
         
-        # Запускаем задачу
-        task = generate_image_task.apply_async(
-            args=["beautiful anime girl"],
-            kwargs={
-                "model": "anime-realism",
-                "width": 512,
-                "height": 512
-            }
-        )
+        mock_instance = MockService.return_value
+        mock_result = MagicMock()
+        # Используем валидную base64 строку
+        valid_base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+        mock_result.image_data = [valid_base64]
+        mock_instance.generate_image = AsyncMock(return_value=mock_result)
+
+        # Мокируем storage service
+        mock_storage = mock_get_storage.return_value
+        mock_storage.upload_file = AsyncMock(return_value="https://cloud.com/image.webp")
+
+        # Мокируем session
+        mock_session = AsyncMock()
+        mock_session_maker.return_value.__aenter__.return_value = mock_session
         
-        # Ждем результат (с таймаутом)
-        result = task.get(timeout=10)
+        # Запускаем задачу в отдельном потоке
+        import asyncio
+        loop = asyncio.get_running_loop()
+        
+        def run_task():
+            return generate_image_task.apply_async(
+                args=[{
+                    "prompt": "beautiful anime girl",
+                    "model": "anime-realism",
+                    "width": 512,
+                    "height": 512
+                }],
+                kwargs={}
+            ).get()
+            
+        result = await loop.run_in_executor(None, run_task)
         
         # Проверяем результат
         assert result is not None
-        assert "https://" in result
+        assert result.get("success") is True
+        assert "https://" in result.get("image_url", "")
 
 
 # ============================================================================

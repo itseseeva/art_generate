@@ -1442,8 +1442,8 @@ async def frontend_index(request: Request, db: AsyncSession = Depends(get_db)):
                         scenario = scen_match.group(1).strip()
 
                     # Подготавливаем метаданные
-                    title = f"{name} - Cherry Lust AI Чат"
-                    meta_desc = f"Общайтесь с {name} на Cherry Lust. {description[:160]}..."
+                    title = f"{name} - Candy Girls Chat AI Чат"
+                    meta_desc = f"Общайтесь с {name} на Candy Girls Chat. {description[:160]}..."
                     
                     # Заменяем Title (более гибко через regex)
                     html_content = re.sub(
@@ -1539,7 +1539,7 @@ Disallow: /admin/
 Disallow: /process-transaction343242/
 
 # Sitemap
-Sitemap: https://cherrylust.art/sitemap.xml
+Sitemap: https://candygirlschat.com/sitemap.xml
 
 # Crawl-delay (задержка между запросами в секундах)
 Crawl-delay: 1
@@ -1549,7 +1549,7 @@ Crawl-delay: 1
 
 @app.get("/media/{object_key:path}")
 async def proxy_media(object_key: str):
-    """Прокси для изображений из Yandex.Cloud через cherrylust.art/media/"""
+    """Прокси для изображений из Yandex.Cloud через candygirlschat.com/media/"""
     try:
         import httpx
         from fastapi.responses import StreamingResponse
@@ -1595,59 +1595,95 @@ async def proxy_media(object_key: str):
         raise
 
 @app.get("/sitemap.xml")
-async def sitemap_xml():
-    """Sitemap.xml файл для поисковых систем."""
-    sitemap_content = """<?xml version="1.0" encoding="UTF-8"?>
+async def sitemap_xml(db: AsyncSession = Depends(get_db)):
+    """Sitemap.xml файл для поисковых систем (динамический)."""
+    from app.chat_bot.models.models import CharacterDB, CharacterAvailableTag
+    from sqlalchemy import select
+    from datetime import date
+    
+    today = date.today().isoformat()
+    domain = "https://candygirlschat.com"
+    
+    sitemap_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
     <url>
-        <loc>https://cherrylust.art/</loc>
-        <lastmod>2026-01-09</lastmod>
+        <loc>{domain}/</loc>
+        <lastmod>{today}</lastmod>
         <changefreq>daily</changefreq>
         <priority>1.0</priority>
         <image:image>
-            <image:loc>https://cherrylust.art/site-avatar-og.jpg</image:loc>
-            <image:title>Cherry Lust - AI Чат 18+</image:title>
-            <image:caption>Главная страница Cherry Lust</image:caption>
+            <image:loc>{domain}/site-avatar-og.jpg</image:loc>
+            <image:title>Candy Girls Chat - AI Чат 18+</image:title>
+            <image:caption>Главная страница Candy Girls Chat</image:caption>
         </image:image>
     </url>
     <url>
-        <loc>https://cherrylust.art/characters</loc>
-        <lastmod>2026-01-09</lastmod>
+        <loc>{domain}/characters</loc>
+        <lastmod>{today}</lastmod>
         <changefreq>daily</changefreq>
         <priority>0.9</priority>
     </url>
     <url>
-        <loc>https://cherrylust.art/shop</loc>
-        <lastmod>2026-01-09</lastmod>
+        <loc>{domain}/shop</loc>
+        <lastmod>2026-01-20</lastmod>
         <changefreq>weekly</changefreq>
         <priority>0.8</priority>
     </url>
     <url>
-        <loc>https://cherrylust.art/tariffs</loc>
-        <lastmod>2026-01-09</lastmod>
+        <loc>{domain}/tariffs</loc>
+        <lastmod>2026-01-20</lastmod>
         <changefreq>weekly</changefreq>
         <priority>0.8</priority>
     </url>
     <url>
-        <loc>https://cherrylust.art/about</loc>
-        <lastmod>2026-01-09</lastmod>
+        <loc>{domain}/about</loc>
+        <lastmod>2026-01-20</lastmod>
         <changefreq>monthly</changefreq>
         <priority>0.6</priority>
     </url>
     <url>
-        <loc>https://cherrylust.art/how-it-works</loc>
-        <lastmod>2026-01-09</lastmod>
+        <loc>{domain}/how-it-works</loc>
+        <lastmod>2026-01-20</lastmod>
         <changefreq>monthly</changefreq>
         <priority>0.7</priority>
     </url>
     <url>
-        <loc>https://cherrylust.art/legal</loc>
-        <lastmod>2026-01-09</lastmod>
+        <loc>{domain}/legal</loc>
+        <lastmod>2026-01-20</lastmod>
         <changefreq>monthly</changefreq>
         <priority>0.5</priority>
-    </url>
-</urlset>"""
+    </url>"""
+
+    try:
+        # Добавляем персонажей
+        res_chars = await db.execute(select(CharacterDB.name).order_by(CharacterDB.id))
+        chars = res_chars.scalars().all()
+        for char_name in chars:
+            sitemap_content += f"""
+    <url>
+        <loc>{domain}/characters?character={char_name}</loc>
+        <lastmod>{today}</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>0.7</priority>
+    </url>"""
+
+        # Добавляем теги
+        res_tags = await db.execute(select(CharacterAvailableTag.slug).order_by(CharacterAvailableTag.id))
+        tags = res_tags.scalars().all()
+        for tag_slug in tags:
+            if tag_slug:
+                sitemap_content += f"""
+    <url>
+        <loc>{domain}/tags/{tag_slug}</loc>
+        <lastmod>{today}</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>0.6</priority>
+    </url>"""
+    except Exception as e:
+        logger.error(f"Error generating dynamic sitemap: {e}")
+
+    sitemap_content += "\n</urlset>"
     return Response(content=sitemap_content, media_type="application/xml; charset=utf-8")
 
 @app.get("/favicon.ico")

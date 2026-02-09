@@ -206,13 +206,12 @@ async def test_successful_image_generation():
 @pytest.mark.asyncio
 async def test_start_generation_success(mock_runpod_response):
     """Тест успешного запуска генерации с моком."""
-    with responses.RequestsMock() as rsps:
-        rsps.add(
-            responses.POST,
-            "https://api.runpod.ai/v2/test/run",
-            json={"id": "test-job-123"},
-            status=200
-        )
+    # Мокируем httpx.AsyncClient.post
+    with patch("httpx.AsyncClient.post") as mock_post:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"id": "test-job-123"}
+        mock_post.return_value = mock_response
         
         async with httpx.AsyncClient() as client:
             with patch.dict('os.environ', {
@@ -285,7 +284,10 @@ async def test_generation_cancelled():
             # Мок возвращает CANCELLED
             mock_status.return_value = {"status": "CANCELLED"}
             
-            with pytest.raises(GenerationCancelledError):
+            # Импортируем исключение внутри теста, так как модуль мог быть перезагружен
+            from app.services.runpod_client import GenerationCancelledError
+            
+            with pytest.raises(GenerationCancelledError, match="была отменена"):
                 await generate_image_async(
                     user_prompt="test",
                     timeout=10
@@ -320,16 +322,11 @@ async def test_generation_completed_with_url():
 @pytest.mark.unit
 def test_missing_api_key():
     """Тест обработки отсутствующего API ключа."""
-    with patch.dict('os.environ', {}, clear=True):
-        # Перезагружаем модуль
-        import importlib
-        import app.services.runpod_client as runpod_module
-        importlib.reload(runpod_module)
-        
+    with patch('app.services.runpod_client.RUNPOD_API_KEY', None):
         with pytest.raises(ValueError, match="RUNPOD_API_KEY"):
             async def test():
                 async with httpx.AsyncClient() as client:
-                    await runpod_module.start_generation(
+                    await start_generation(
                         client=client,
                         user_prompt="test",
                         model="anime"
