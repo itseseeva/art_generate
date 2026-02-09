@@ -33,7 +33,7 @@ Disallow: /register
 Disallow: /forgot-password
 
 # Sitemap
-Sitemap: https://cherrylust.art/sitemap.xml
+Sitemap: https://candygirlschat.com/sitemap.xml
 
 # Crawl-delay для вежливого краулинга
 Crawl-delay: 1

@@ -604,10 +604,10 @@ class YandexCloudStorageService:
             object_key: Ключ объекта
             
         Returns:
-            str: Публичный URL через домен cherrylust.art
+            str: Публичный URL через домен candygirlschat.com
         """
         # Возвращаем путь через прокси Nginx, который перенаправляет на Yandex.Бакет
-        return f"https://cherrylust.art/media/{object_key}"
+        return f"https://candygirlschat.com/media/{object_key}"
     
     @staticmethod
     def convert_yandex_url_to_proxy(url: str) -> str:
@@ -618,13 +618,13 @@ class YandexCloudStorageService:
             url: Старый URL (может быть уже новый или старый)
             
         Returns:
-            str: URL через прокси cherrylust.art/media/
+            str: URL через прокси candygirlschat.com/media/
         """
         if not url:
             return url
         
         # Если URL уже использует прокси, возвращаем как есть
-        if 'cherrylust.art/media/' in url:
+        if 'candygirlschat.com/media/' in url:
             return url
         
         # Извлекаем object_key из старого URL
@@ -634,7 +634,7 @@ class YandexCloudStorageService:
         if '.storage.yandexcloud.net/' in url:
             # Формат: https://bucket-name.storage.yandexcloud.net/path/to/file
             object_key = url.split('.storage.yandexcloud.net/')[-1]
-            return f"https://cherrylust.art/media/{object_key}"
+            return f"https://candygirlschat.com/media/{object_key}"
         elif 'storage.yandexcloud.net/' in url:
             # Формат: https://storage.yandexcloud.net/bucket-name/path/to/file
             # или: https://storage.yandexcloud.net/jfpohpdofnhd/generated/file.png
@@ -645,7 +645,7 @@ class YandexCloudStorageService:
                 if len(path_parts) > 1:
                     # path_parts[0] - это bucket-name, path_parts[1] - это путь к файлу
                     object_key = path_parts[1]
-                    return f"https://cherrylust.art/media/{object_key}"
+                    return f"https://candygirlschat.com/media/{object_key}"
                 elif len(path_parts) == 1:
                     # Если нет слеша после bucket-name, значит весь путь после storage.yandexcloud.net/ это object_key
                     # Но это маловероятно, оставляем как есть

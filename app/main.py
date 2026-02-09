@@ -495,14 +495,17 @@ ALLOWED_ORIGINS: list[str] = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     # Production домены
-    "http://cherrylust.art",
-    "https://cherrylust.art",
-    "http://www.cherrylust.art",
-    "https://www.cherrylust.art",
+    "http://candygirlschat.com",
+    "https://candygirlschat.com",
+    "http://www.candygirlschat.com",
+    "https://www.candygirlschat.com",
     # VPS IP адреса
     "http://89.124.71.251",
     "http://89.124.71.251:80",
     "https://89.124.71.251",
+    "http://178.20.43.58",
+    "http://178.20.43.58:80",
+    "https://178.20.43.58",
     # Добавляем FRONTEND_URL из настроек, если он задан
     *([settings.FRONTEND_URL] if settings.FRONTEND_URL and settings.FRONTEND_URL not in ["http://localhost:5175", "http://127.0.0.1:5175"] else []),
 ]

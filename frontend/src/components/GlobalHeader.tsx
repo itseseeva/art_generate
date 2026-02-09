@@ -645,7 +645,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
       <LeftSection>
         <Logo
           src="/logo-header.png"
-          alt="CherryLust"
+          alt="Candy Girls Chat"
           onClick={handleHome}
         />
         {leftContent}

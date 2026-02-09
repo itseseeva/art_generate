@@ -136,7 +136,7 @@ function App() {
 
   // SEO конфигурация для каждой страницы
   const getSEOConfig = () => {
-    const baseUrl = 'https://cherrylust.art';
+    const baseUrl = 'https://candygirlschat.com';
 
     switch (currentPage) {
       case 'main':

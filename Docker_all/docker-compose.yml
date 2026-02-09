@@ -90,8 +90,8 @@ services:
       context: ..
       dockerfile: Docker_all/Dockerfile.frontend
       args:
-        - VITE_API_URL=https://${DOMAIN:-cherrylust.art}
-        - VITE_DOMAIN=${DOMAIN:-cherrylust.art}
+        - VITE_API_URL=https://${DOMAIN:-candygirlschat.com}
+        - VITE_DOMAIN=${DOMAIN:-candygirlschat.com}
     container_name: art_generation_frontend
     restart: always
     networks:

@@ -616,7 +616,7 @@ export const MainPage: React.FC<MainPageProps> = ({
               }
             }
           }
-          if (photoUrl && photoUrl.includes('cherrylust.art') && import.meta.env.DEV) {
+          if (photoUrl && photoUrl.includes('candygirlschat.com') && import.meta.env.DEV) {
             photoUrl = `${API_CONFIG.BASE_URL}${photoUrl.replace(/https?:\/\/[^/]+/, '')}`;
           }
           return photoUrl;

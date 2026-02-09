@@ -302,7 +302,7 @@ async def get_prompt_by_image(
             return cached_metadata
         
         # Извлекаем имя файла или путь после /generated/ или /media/generated/
-        # Это позволяет находить промпты независимо от домена (localhost, cherrylust.art, yandexcloud и т.д.)
+        # Это позволяет находить промпты независимо от домена (localhost, candygirlschat.com, yandexcloud и т.д.)
         def extract_file_identifier(url: str) -> str:
             """Извлекает уникальный идентификатор файла из URL (имя файла или путь после /generated/)"""
             if not url:

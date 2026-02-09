@@ -43,7 +43,7 @@ const isPremiumVoiceForStyle = (voiceName?: string): boolean => {
 
 /**
  * Нормализует URL изображения для локальной разработки.
- * Заменяет продакшен домен (cherrylust.art) на локальный API.
+ * Заменяет продакшен домен (candygirlschat.com) на локальный API.
  */
 const normalizeImageUrl = (url: string | undefined | null): string => {
   if (!url) return '';
@@ -59,8 +59,8 @@ const normalizeImageUrl = (url: string | undefined | null): string => {
 
   // В development режиме заменяем продакшен домен на локальный
   if (import.meta.env.DEV) {
-    // Заменяем cherrylust.art на локальный бэкенд
-    if (url.includes('cherrylust.art')) {
+    // Заменяем candygirlschat.com на локальный бэкенд
+    if (url.includes('candygirlschat.com')) {
       const baseUrl = API_CONFIG.BASE_URL || 'http://localhost:8001';
       // Извлекаем путь после домена
       const urlPath = url.replace(/https?:\/\/[^\/]+/, '');

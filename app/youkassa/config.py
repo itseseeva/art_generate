@@ -43,7 +43,7 @@ def get_kassa_config(test_mode: bool = False) -> YooKassaConfig:
 			os.getenv("yookassa_secret_key")
 		)
 
-	return_url = os.getenv("YOOKASSA_RETURN_URL") or os.getenv("redirect_url1") or "https://cherrylust.art/shop"
+	return_url = os.getenv("YOOKASSA_RETURN_URL") or os.getenv("redirect_url1") or "https://candygirlschat.com/shop"
 	currency = os.getenv("YOOKASSA_CURRENCY") or "RUB"
 	capture_env = os.getenv("YOOKASSA_CAPTURE", "true").strip().lower()
 	capture = capture_env in ("1", "true", "yes", "on")

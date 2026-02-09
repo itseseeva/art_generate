@@ -481,7 +481,7 @@ async def test_endpoint():
 	return {
 		"status": "ok",
 		"message": "Эндпоинт YooMoney доступен",
-		"notification_url": "https://cherrylust.art/api/v1/youmoney/quickpay/notify",
+		"notification_url": "https://candygirlschat.com/api/v1/youmoney/quickpay/notify",
 		"check_logs": "Проверьте логи на наличие записей [YOUMONEY NOTIFY] после оплаты"
 	}
 
