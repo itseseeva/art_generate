@@ -141,9 +141,9 @@ class CharacterConfig(BaseModel):
     name: str = Field(..., description="Уникальное имя персонажа")
     
     # Единый промпт в формате Alpaca
-    prompt: str = Field(
-        ..., 
-        description="Полный промпт персонажа в формате Alpaca"
+    prompt: Optional[str] = Field(
+        None, 
+        description="Полный промпт персонажа в формате Alpaca (Deprecated)"
     )
     
     # Описание внешности для генерации изображений
@@ -172,6 +172,26 @@ class CharacterConfig(BaseModel):
         default_factory=list,
         description="Список тегов персонажа (из доступных тегов)"
     )
+
+    # Новые поля для раздельного хранения (RU)
+    personality_ru: Optional[str] = Field(None, description="Личность и характер (RU)")
+    situation_ru: Optional[str] = Field(None, description="Ролевая ситуация (RU)")
+    instructions_ru: Optional[str] = Field(None, description="Инструкции (RU)")
+    style_ru: Optional[str] = Field(None, description="Стиль ответа (RU)")
+
+    # Новые поля для раздельного хранения (EN)
+    personality_en: Optional[str] = Field(None, description="Personality and Character (EN)")
+    situation_en: Optional[str] = Field(None, description="Role-playing Situation (EN)")
+    instructions_en: Optional[str] = Field(None, description="Instructions (EN)")
+    style_en: Optional[str] = Field(None, description="Response Style (EN)")
+    
+    # Новые поля для раздельного хранения внешности и локации
+    appearance_ru: Optional[str] = Field(None, description="Внешность (RU)")
+    appearance_en: Optional[str] = Field(None, description="Appearance (EN)")
+    location_ru: Optional[str] = Field(None, description="Локация (RU)")
+    location_en: Optional[str] = Field(None, description="Location (EN)")
+
+    # translations removed
 
     # face_image удален (IP-Adapter удален)
 
@@ -228,6 +248,23 @@ class CharacterUpdate(BaseModel):
     """Схема для обновления существующего персонажа."""
     name: Optional[str] = Field(None, description="Имя персонажа")
     prompt: Optional[str] = Field(None, description="Полный промпт персонажа в формате Alpaca")
+    
+    # Новые поля для раздельного хранения (RU)
+    personality_ru: Optional[str] = Field(None, description="Личность и характер (RU)")
+    situation_ru: Optional[str] = Field(None, description="Ролевая ситуация (RU)")
+    instructions_ru: Optional[str] = Field(None, description="Инструкции (RU)")
+
+    # Новые поля для раздельного хранения (EN)
+    personality_en: Optional[str] = Field(None, description="Personality and Character (EN)")
+    situation_en: Optional[str] = Field(None, description="Role-playing Situation (EN)")
+    instructions_en: Optional[str] = Field(None, description="Instructions (EN)")
+    
+    # Новые поля для раздельного хранения внешности и локации
+    appearance_ru: Optional[str] = Field(None, description="Внешность (RU)")
+    appearance_en: Optional[str] = Field(None, description="Appearance (EN)")
+    location_ru: Optional[str] = Field(None, description="Локация (RU)")
+    location_en: Optional[str] = Field(None, description="Location (EN)")
+    
     character_appearance: Optional[str] = Field(None, description="Описание внешности персонажа")
     location: Optional[str] = Field(None, description="Описание локации персонажа")
     is_nsfw: Optional[bool] = Field(None, description="Флаг контента 18+ (True = NSFW, False = SAFE)")

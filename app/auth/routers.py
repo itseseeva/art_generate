@@ -740,10 +740,8 @@ async def get_current_user_info(
             subscription_info = {
                 "subscription_type": subscription.subscription_type.value,
                 "status": subscription.status.value,
-                "monthly_credits": subscription.monthly_credits,
                 "monthly_photos": subscription.monthly_photos,
                 "max_message_length": subscription.max_message_length,
-                "used_credits": subscription.used_credits,
                 "used_photos": subscription.used_photos,
                 "activated_at": subscription.activated_at,
                 "expires_at": subscription.expires_at

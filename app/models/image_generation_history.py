@@ -22,7 +22,9 @@ class ImageGenerationHistory(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, nullable=False, index=True)
     character_name = Column(String(100), nullable=False, index=True)
-    prompt = Column(Text, nullable=True)  # Промпт пользователя
+    prompt = Column(Text, nullable=True)  # Промпт пользователя (оригинал)
+    prompt_en = Column(Text, nullable=True)  # Промпт на английском (для генерации)
+    prompt_ru = Column(Text, nullable=True)  # Промпт на русском (для отображения)
     admin_prompt = Column(Text, nullable=True)  # Промпт админа (приоритетный)
     image_url = Column(String(1000), nullable=False)  # URL изображения (обязательно)
     generation_time = Column(Integer, nullable=True)  # Время генерации в секундах

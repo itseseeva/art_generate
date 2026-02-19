@@ -265,6 +265,49 @@ async def sync_characters_to_db():
     logger.info("[INFO] Синхронизация персонажей отключена - используйте character_importer")
     logger.info("[NOTE] Для обновления персонажей используйте: python update_character.py")
 
+async def run_startup_translations():
+    """
+    Фоновая задача для проверки и перевода всех персонажей при старте.
+    Гарантирует, что у всех персонажей есть английский перевод.
+    """
+    logger.info("[STARTUP] Запуск проверки переводов персонажей...")
+    try:
+        # Импорты внутри функции во избежание циклических зависимостей
+        from app.database.db import async_session_maker
+        from app.chat_bot.models.models import CharacterDB
+        from app.services.translation_service import auto_translate_and_save_character
+        from sqlalchemy import select
+
+        async with async_session_maker() as db:
+            result = await db.execute(select(CharacterDB))
+            characters = result.scalars().all()
+            
+            logger.info(f"[STARTUP] Найдено {len(characters)} персонажей. Проверка переводов...")
+            
+            count = 0
+            updated_count = 0
+            for char in characters:
+                # Проверяем и переводим на английский
+                # auto_translate_and_save_character сама проверит, нужен ли перевод
+                was_updated = await auto_translate_and_save_character(char, db, 'en')
+                if was_updated:
+                    updated_count += 1
+                count += 1
+                if count % 10 == 0:
+                     logger.info(f"[STARTUP] Проверено {count}/{len(characters)} персонажей")
+            
+            # Инвалидируем кэш если были обновления
+            if updated_count > 0:
+                from app.utils.redis_cache import cache_delete, key_characters_list, cache_delete_pattern
+                await cache_delete(key_characters_list())
+                await cache_delete_pattern("characters:list:*")
+                logger.info(f"[STARTUP] Кэш списка персонажей инвалидирован после обновления {updated_count} записей")
+
+            logger.info(f"[STARTUP] Проверка переводов завершена. Обработано {count} персонажей, обновлено {updated_count}.")
+            
+    except Exception as e:
+        logger.error(f"[STARTUP] Ошибка при проверке переводов: {e}", exc_info=True)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Управление жизненным циклом приложения"""
@@ -340,6 +383,9 @@ async def lifespan(app: FastAPI):
     
     # Синхронизация персонажей отключена - используем character_importer
     logger.info("[INFO] Синхронизация персонажей отключена - используйте character_importer")
+
+    # Запускаем проверку переводов в фоне (Critical for fixing Russian text issue)
+    asyncio.create_task(run_startup_translations())
     
     # Инициализируем Redis кэш (не блокируем запуск приложения)
     # Redis будет подключен при первом использовании, если доступен
@@ -479,6 +525,13 @@ app.add_middleware(
     same_site="lax",
     https_only=settings.FRONTEND_URL.startswith("https")
 )
+
+# Middleware для автоматического перевода персонажей - ОТКЛЮЧЕН из-за проблем
+# Проблемы: бесконечный цикл, Content-Length errors, race conditions
+# Используйте вместо этого скрипт translate_all_characters.py
+# from app.middleware.character_translation import CharacterTranslationMiddleware
+# app.add_middleware(CharacterTranslationMiddleware)
+
 
 # Настройка CORS
 ALLOWED_ORIGINS: list[str] = [
@@ -925,6 +978,17 @@ try:
 except Exception as e:
     logger.error(f"[ERROR] Ошибка подключения роутера bug_reports: {e}")
     import traceback
+    import traceback
+    logger.error(f"Traceback: {traceback.format_exc()}")
+
+# Search router
+try:
+    from app.api.endpoints.search import router as search_router
+    app.include_router(search_router, prefix="/api/v1/search", tags=["search"])
+    logger.info("[ROUTER] Search router connected")
+except Exception as e:
+    logger.error(f"[ERROR] Error connecting search_router: {e}")
+    import traceback
     logger.error(f"Traceback: {traceback.format_exc()}")
 
 # Подключаем роутер подписок (исправленная версия)
@@ -1005,11 +1069,8 @@ async def activate_subscription_direct(
             subscription=SubscriptionStatsResponse(
                 subscription_type=subscription.subscription_type.value,
                 status=subscription.status.value,
-                monthly_credits=subscription.monthly_credits,
                 monthly_photos=subscription.monthly_photos,
-                used_credits=subscription.used_credits,
                 used_photos=subscription.used_photos,
-                credits_remaining=subscription.credits_remaining,
                 photos_remaining=subscription.photos_remaining,
                 days_left=subscription.days_until_expiry,
                 is_active=subscription.is_active,
@@ -1596,90 +1657,120 @@ async def proxy_media(object_key: str):
 
 @app.get("/sitemap.xml")
 async def sitemap_xml(db: AsyncSession = Depends(get_db)):
-    """Sitemap.xml файл для поисковых систем (динамический)."""
+    """Sitemap.xml файл для поисковых систем (динамический, мультиязычный)."""
     from app.chat_bot.models.models import CharacterDB, CharacterAvailableTag
     from sqlalchemy import select
     from datetime import date
     
     today = date.today().isoformat()
     domain = "https://candygirlschat.com"
+    languages = ["ru", "en"]
+    
+    # Базовые страницы
+    pages = [
+        {"path": "", "priority": "1.0", "changefreq": "daily"},
+        {"path": "shop", "priority": "0.8", "changefreq": "weekly"},
+        {"path": "tariffs", "priority": "0.8", "changefreq": "weekly"},
+        {"path": "about", "priority": "0.6", "changefreq": "monthly"},
+        {"path": "how-it-works", "priority": "0.7", "changefreq": "monthly"},
+        {"path": "legal", "priority": "0.5", "changefreq": "monthly"},
+    ]
     
     sitemap_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+        xmlns:xhtml="http://www.w3.org/1999/xhtml"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">"""
+    
+    # 1. Добавляем базовые страницы для каждого языка
+    for lang in languages:
+        for page in pages:
+            path = page["path"]
+            loc = f"{domain}/{lang}/{path}" if path else f"{domain}/{lang}/"
+            
+            sitemap_content += f"""
     <url>
-        <loc>{domain}/</loc>
+        <loc>{loc}</loc>
         <lastmod>{today}</lastmod>
-        <changefreq>daily</changefreq>
-        <priority>1.0</priority>
+        <changefreq>{page['changefreq']}</changefreq>
+        <priority>{page['priority']}</priority>"""
+            
+            # Добавляем альтернативные версии (hreflang)
+            for alt_lang in languages:
+                alt_loc = f"{domain}/{alt_lang}/{path}" if path else f"{domain}/{alt_lang}/"
+                sitemap_content += f"""
+        <xhtml:link rel="alternate" hreflang="{alt_lang}" href="{alt_loc}" />"""
+            
+            # Специальная обработка для главной страницы (добавляем x-default)
+            if not path:
+                sitemap_content += f"""
+        <xhtml:link rel="alternate" hreflang="x-default" href="{domain}/ru/" />"""
+            
+            # Изображение для главной
+            if not path and lang == "ru":
+                sitemap_content += f"""
         <image:image>
             <image:loc>{domain}/site-avatar-og.jpg</image:loc>
             <image:title>Candy Girls Chat - AI Чат 18+</image:title>
             <image:caption>Главная страница Candy Girls Chat</image:caption>
-        </image:image>
-    </url>
-    <url>
-        <loc>{domain}/characters</loc>
-        <lastmod>{today}</lastmod>
-        <changefreq>daily</changefreq>
-        <priority>0.9</priority>
-    </url>
-    <url>
-        <loc>{domain}/shop</loc>
-        <lastmod>2026-01-20</lastmod>
-        <changefreq>weekly</changefreq>
-        <priority>0.8</priority>
-    </url>
-    <url>
-        <loc>{domain}/tariffs</loc>
-        <lastmod>2026-01-20</lastmod>
-        <changefreq>weekly</changefreq>
-        <priority>0.8</priority>
-    </url>
-    <url>
-        <loc>{domain}/about</loc>
-        <lastmod>2026-01-20</lastmod>
-        <changefreq>monthly</changefreq>
-        <priority>0.6</priority>
-    </url>
-    <url>
-        <loc>{domain}/how-it-works</loc>
-        <lastmod>2026-01-20</lastmod>
-        <changefreq>monthly</changefreq>
-        <priority>0.7</priority>
-    </url>
-    <url>
-        <loc>{domain}/legal</loc>
-        <lastmod>2026-01-20</lastmod>
-        <changefreq>monthly</changefreq>
-        <priority>0.5</priority>
+        </image:image>"""
+                
+            sitemap_content += """
     </url>"""
 
     try:
-        # Добавляем персонажей
-        res_chars = await db.execute(select(CharacterDB.name).order_by(CharacterDB.id))
-        chars = res_chars.scalars().all()
-        for char_name in chars:
-            sitemap_content += f"""
-    <url>
-        <loc>{domain}/characters?character={char_name}</loc>
-        <lastmod>{today}</lastmod>
-        <changefreq>weekly</changefreq>
-        <priority>0.7</priority>
-    </url>"""
-
-        # Добавляем теги
-        res_tags = await db.execute(select(CharacterAvailableTag.slug).order_by(CharacterAvailableTag.id))
-        tags = res_tags.scalars().all()
-        for tag_slug in tags:
-            if tag_slug:
+        # 2. Добавляем персонажей
+        res_chars = await db.execute(select(CharacterDB.id, CharacterDB.name).order_by(CharacterDB.id))
+        chars_data = res_chars.all()
+        
+        for char_id, char_name in chars_data:
+            for lang in languages:
+                char_loc = f"{domain}/{lang}/chat?character={char_id}"
                 sitemap_content += f"""
     <url>
-        <loc>{domain}/tags/{tag_slug}</loc>
+        <loc>{char_loc}</loc>
         <lastmod>{today}</lastmod>
         <changefreq>weekly</changefreq>
-        <priority>0.6</priority>
+        <priority>0.7</priority>"""
+                
+                # Альтернативные версии персонажа
+                for alt_lang in languages:
+                    alt_char_loc = f"{domain}/{alt_lang}/chat?character={char_id}"
+                    sitemap_content += f"""
+        <xhtml:link rel="alternate" hreflang="{alt_lang}" href="{alt_char_loc}" />"""
+                
+                sitemap_content += f"""
+        <xhtml:link rel="alternate" hreflang="x-default" href="{domain}/ru/chat?character={char_id}" />"""
+                
+                sitemap_content += """
     </url>"""
+
+        # 3. Добавляем теги
+        res_tags = await db.execute(select(CharacterAvailableTag.slug).order_by(CharacterAvailableTag.id))
+        tags_slugs = res_tags.scalars().all()
+        
+        for tag_slug in tags_slugs:
+            if not tag_slug: continue
+            for lang in languages:
+                tag_loc = f"{domain}/{lang}/tags/{tag_slug}"
+                sitemap_content += f"""
+    <url>
+        <loc>{tag_loc}</loc>
+        <lastmod>{today}</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>0.6</priority>"""
+                
+                # Альтернативные версии тега
+                for alt_lang in languages:
+                    alt_tag_loc = f"{domain}/{alt_lang}/tags/{tag_slug}"
+                    sitemap_content += f"""
+        <xhtml:link rel="alternate" hreflang="{alt_lang}" href="{alt_tag_loc}" />"""
+                
+                sitemap_content += f"""
+        <xhtml:link rel="alternate" hreflang="x-default" href="{domain}/ru/tags/{tag_slug}" />"""
+                
+                sitemap_content += """
+    </url>"""
+                
     except Exception as e:
         logger.error(f"Error generating dynamic sitemap: {e}")
 
@@ -2806,11 +2897,9 @@ async def chat_endpoint(
                 if can_use_subscription_credits:
                     use_credits = True  # Используем кредиты подписки
                     logger.info(
-                        "[OK] Подписка пользователя %s позволяет отправить сообщение (тип: %s, кредиты: %s/%s)",
+                        "[OK] Подписка пользователя %s позволяет отправить сообщение (тип: %s)",
                         user_id,
                         user_subscription_type or "неизвестно",
-                        subscription.used_credits if subscription else 0,
-                        subscription.monthly_credits if subscription else 0,
                     )
                 else:
                     # FREE: при исчерпании лимита 10 сообщений не разрешаем fallback на монеты
@@ -2840,11 +2929,9 @@ async def chat_endpoint(
                         )
                         coins = result.scalars().first()
                         logger.error(
-                            "[ERROR] Недостаточно ресурсов! У пользователя %s: %s монет (нужно 2), кредиты: %s/%s",
+                            "[ERROR] Недостаточно ресурсов! У пользователя %s: %s монет (нужно 2)",
                             user_id,
                             coins or 0,
-                            subscription.used_credits if subscription else 0,
-                            subscription.monthly_credits if subscription else 0,
                         )
                         raise HTTPException(
                             status_code=403, 
@@ -2864,6 +2951,8 @@ async def chat_endpoint(
                     select(CharacterDB).where(CharacterDB.name.ilike(character_name))
                 )
                 db_character = result.scalar_one_or_none()
+                # Expose db_character to local scope for later use
+                locals()['db_character'] = db_character
                 
                 if db_character:
                     character_data = {
@@ -2977,11 +3066,10 @@ async def chat_endpoint(
         brevity_instruction = ""
         user_brevity_mode = request.get("brevity_mode")
         if user_brevity_mode == "brief":
-            # УСИЛЕННАЯ инструкция краткости
+            # УСИЛЕННАЯ инструкция краткости (по запросу пользователя)
             brevity_instruction = (
-                "\n\n[SYSTEM] IMPERATIVE: Keep the answer CONCISE and COMPACT. "
-                "Do not write long paragraphs. Get straight to the point. "
-                "Maximum 1-2 paragraphs (~150 words). Avoid fluffy language."
+                "\n\n[SYSTEM] IMPERATIVE: Be extremely concise. Write short responses (max 100 words). "
+                "Avoid flowery language and long descriptions. Get straight to the point."
             )
             
         completion_instruction = f"\n\n[SYSTEM] ATTENTION: Your response MUST BE COMPLETE. You have a limit of approx {target_token_limit} tokens. Be concise, dense, but ALWAYS finish your last sentence naturally. NEVER stop in the middle of a thought."
@@ -3043,40 +3131,32 @@ async def chat_endpoint(
         # Получаем target_language из запроса (по умолчанию 'ru')
         target_language = request.get("target_language", "ru")
         
-        # Формируем языковую инструкцию
-        if target_language == "ru":
-            language_instruction = """\n\nCRITICAL LANGUAGE REQUIREMENTS:
-- You MUST write your response STRICTLY in RUSSIAN language
-- NEVER use Chinese, Japanese, Korean or any Asian languages
-- NEVER use Chinese characters (我, 你, 的, 是, 在, 我的手, 轻轻, 抚摸, 触摸, 你的脸庞, 我等待, etc.)
-- NEVER use any hieroglyphs or Asian symbols
-- Write in Russian using normal Cyrillic alphabet
-- If you use Chinese characters, you will be penalized. STRICTLY RUSSIAN ONLY."""
-        elif target_language == "en":
-            language_instruction = """\n\nCRITICAL LANGUAGE REQUIREMENTS:
-- You MUST write your response STRICTLY in ENGLISH language
-- NEVER use Russian, Chinese, Japanese, or any other languages
-- NEVER use Chinese characters (我, 你, 的, 是, 在, 触摸, etc.) or any hieroglyphs
-- Write in English using Latin alphabet only
-- If you use any other characters, you will be penalized. STRICTLY ENGLISH ONLY."""
-        else:
-            # По умолчанию русский
-            language_instruction = """\n\nCRITICAL LANGUAGE REQUIREMENTS:
-- You MUST write your response STRICTLY in RUSSIAN language
-- NEVER use Chinese, Japanese, Korean or any Asian languages
-- NEVER use Chinese characters or hieroglyphs
-- Write in Russian using Cyrillic alphabet
-- STRICTLY RUSSIAN ONLY."""
+        # Импортируем утилиту для промптов
+        from app.chat_bot.utils.prompt_utils import get_system_prompt
         
-        # Добавляем языковую инструкцию к промпту персонажа
-        # !!! ВАЖНО !!! Добавляем инструкции по длине и завершению В САМЫЙ КОНЕЦ
-        # Это использует Recency Bias
-        system_prompt = character_data["prompt"] + language_instruction
+        # Определяем объект персонажа (CharacterDB или dict)
+        character_obj = None
+        if character_data and character_data.get("id") and locals().get("db_character"):
+             character_obj = locals().get("db_character")
+        else:
+             character_obj = character_data
+
+        # Генерируем новый системный промпт
+        system_prompt = get_system_prompt(character_obj, target_language)
+        
+        # Добавляем инструкции краткости и завершенности (если они не включены в get_system_prompt, но они разные для endpoint)
+        # В get_system_prompt нет instructions for brevity/completion, они добавляются ниже
+        
         system_prompt += "\n\n" + "-"*20 + "\nFORMAT INSTRUCTIONS:"
         system_prompt += brevity_instruction
         system_prompt += completion_instruction
         
-        logger.info(f"[LANGUAGE] Target language: {target_language}, instruction added to system prompt")
+        # Log specifically Rule 7 to verify language switch (ONLY Rule 7 remains here, others moved to context log)
+        if "7. Character set:" in system_prompt:
+            start_idx = system_prompt.find("7. Character set:")
+            end_idx = system_prompt.find("\n", start_idx)
+            rule_7_log = system_prompt[start_idx:end_idx] if end_idx != -1 else system_prompt[start_idx:]
+            logger.info(f"[PROMPT DEBUG] Rule 7 (Language Specific): {rule_7_log}")
         
         openai_messages.append({
             "role": "system",
@@ -3157,7 +3237,9 @@ async def chat_endpoint(
         openai_messages = await trim_messages_to_token_limit(
             openai_messages, 
             max_tokens=max_context_tokens, 
-            system_message_index=0
+            system_message_index=0,
+            target_language=target_language,
+            brevity_mode=user_brevity_mode
         )
         messages_after_trim = len(openai_messages)
         
@@ -3375,20 +3457,7 @@ async def chat_endpoint(
                         
                         # Отправляем чанк как SSE событие
                         full_response += chunk
-                        
-                        # Для более плавной анимации на фронтенде разбиваем большие чанки
-                        # и добавляем небольшую задержку
-                        if len(chunk) > 10:
-                            # Разбиваем на мелкие части по 5 символов
-                            chunk_size = 5
-                            for i in range(0, len(chunk), chunk_size):
-                                sub_chunk = chunk[i:i+chunk_size]
-                                yield f"data: {json.dumps({'content': sub_chunk})}\n\n"
-                                await asyncio.sleep(0.02)
-                        else:
-                            yield f"data: {json.dumps({'content': chunk})}\n\n"
-                            # Небольшая задержка даже для маленьких чанков
-                            await asyncio.sleep(0.025)
+                        yield f"data: {json.dumps({'content': chunk})}\n\n"
                     
                     # Отправляем маркер завершения
                     yield f"data: {json.dumps({'done': True})}\n\n"
@@ -5295,17 +5364,17 @@ async def get_generation_status(
                         # Берем время генерации (если есть)
                         generation_time = result.get("generation_time") if isinstance(result, dict) else None
                         
+                        # Нормализуем URL (делаем всегда, не зависимо от real_prompt)
+                        normalized_url = image_url.split('?')[0].split('#')[0]
+                        
+                        # Извлекаем имя файла из URL
+                        filename = None
+                        if normalized_url:
+                            parts = normalized_url.split('/')
+                            if parts:
+                                filename = parts[-1]
+                        
                         if real_prompt:
-                            # Нормализуем URL
-                            normalized_url = image_url.split('?')[0].split('#')[0]
-                            
-                            # Извлекаем имя файла из URL
-                            filename = None
-                            if normalized_url:
-                                parts = normalized_url.split('/')
-                                if parts:
-                                    filename = parts[-1]
-                            
                             # Обновляем ChatHistory только если skip_chat_history = False
                             if not metadata.get("skip_chat_history", False):
                                 # Ищем запись в истории, которая была создана как заглушка
@@ -5325,22 +5394,24 @@ async def get_generation_status(
                                 await db.commit()
                             else:
                                 logger.info(f"[CHAT_HISTORY] Пропуск обновления ChatHistory для task_{task_id} (skip_chat_history=True)")
-                            
-                            # Также сохраняем в ImageGenerationHistory для галереи
-                            try:
-                                if metadata:
-                                    from app.services.image_generation_history_service import ImageGenerationHistoryService
-                                    history_service = ImageGenerationHistoryService(db)
-                                    await history_service.save_generation(
-                                        user_id=metadata.get("user_id"),
-                                        character_name=metadata.get("character_name"),
-                                        prompt=real_prompt,
-                                        image_url=normalized_url,
-                                        task_id=task_id,
-                                        generation_time=generation_time
-                                    )
-                            except Exception as history_save_err:
-                                logger.warning(f"[IMAGE_HISTORY] Ошибка сохранения: {history_save_err}")
+                        
+                        # КРИТИЧЕСКИ ВАЖНО: Всегда обновляем ImageGenerationHistory реальным URL
+                        # Это нужно чтобы pending:{task_id} запись обновилась даже если Redis истёк
+                        # и real_prompt пустой — промпт уже есть в pending записи в БД
+                        try:
+                            from app.services.image_generation_history_service import ImageGenerationHistoryService
+                            history_service = ImageGenerationHistoryService(db)
+                            await history_service.save_generation(
+                                user_id=metadata.get("user_id") if metadata else None,
+                                character_name=metadata.get("character_name") if metadata else None,
+                                prompt=real_prompt,  # Может быть None — тогда save_generation оставит существующий промпт из pending записи
+                                image_url=normalized_url,
+                                task_id=task_id,
+                                generation_time=generation_time
+                            )
+                            logger.info(f"[IMAGE_HISTORY] ✓ Обновлена запись для task_id={task_id}, url={normalized_url[:60]}")
+                        except Exception as history_save_err:
+                            logger.warning(f"[IMAGE_HISTORY] Ошибка сохранения: {history_save_err}")
                 except Exception as e:
                     logger.error(f"[PROMPT] Ошибка при обновлении промпта в истории: {e}")
                     import traceback
@@ -5542,6 +5613,133 @@ async def translate_en_to_ru(request: dict):
     except Exception as e:
         logger.error(f"[TRANSLATE] Ошибка перевода en->ru: {e}")
         return {"translated_text": request.get("text", "")}
+
+
+@app.get("/seo-meta/character/{character_id}")
+async def get_character_seo_metadata(
+    character_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Возвращает HTML с SEO метаданными для персонажа на основе языка пользователя.
+    Используется для ботов поисковых систем и социальных сетей.
+    
+    Args:
+        character_id: ID персонажа
+        request: FastAPI Request для определения языка
+        db: Сессия базы данных
+        
+    Returns:
+        HTML с мета-тегами и скрытым контентом для SEO
+    """
+    try:
+        from app.chat_bot.models.models import CharacterDB, CharacterMainPhoto
+        from app.utils.i18n import detect_language, get_meta_tags, get_hreflang_tags
+        from sqlalchemy import select
+        
+        # Получаем персонажа из БД
+        result = await db.execute(select(CharacterDB).where(CharacterDB.id == character_id))
+        character = result.scalar_one_or_none()
+        
+        if not character:
+            raise HTTPException(status_code=404, detail="Character not found")
+        
+        # Определяем язык
+        language = detect_language(request)
+        
+        # Получаем первое фото персонажа для og:image
+        photo_result = await db.execute(
+            select(CharacterMainPhoto)
+            .where(CharacterMainPhoto.character_id == character_id)
+            .order_by(CharacterMainPhoto.id)
+            .limit(1)
+        )
+        first_photo = photo_result.scalar_one_or_none()
+        og_image = first_photo.photo_url if first_photo else None
+        
+        # Получаем данные на нужном языке из translations
+        name = character.display_name or character.name
+        description = character.description or ""
+        
+        if language == "ru":
+            if character.name_ru: name = character.name_ru
+            if character.description_ru: description = character.description_ru
+        elif language == "en":
+            if character.name_en: name = character.name_en
+            if character.description_en: description = character.description_en
+        
+        # Генерируем мета-теги
+        meta_tags = get_meta_tags(
+            character_name=name,
+            character_description=description,
+            character_id=character_id,
+            language=language,
+            og_image=og_image
+        )
+        
+        # Генерируем hreflang теги
+        hreflang_tags = get_hreflang_tags(character_id)
+        
+        # Формируем HTML с мета-тегами
+        hreflang_html = "\n    ".join([
+            f'<link rel="{tag["rel"]}" hreflang="{tag["hreflang"]}" href="{tag["href"]}" />'
+            for tag in hreflang_tags
+        ])
+        
+        html_content = f"""<!DOCTYPE html>
+<html lang="{language}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{meta_tags['title']}</title>
+    <meta name="description" content="{meta_tags['description']}" />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="{meta_tags['og_type']}" />
+    <meta property="og:url" content="{meta_tags['og_url']}" />
+    <meta property="og:title" content="{meta_tags['og_title']}" />
+    <meta property="og:description" content="{meta_tags['og_description']}" />
+    <meta property="og:site_name" content="{meta_tags['og_site_name']}" />
+    <meta property="og:image" content="{meta_tags['og_image']}" />
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="{meta_tags['og_url']}" />
+    <meta property="twitter:title" content="{meta_tags['og_title']}" />
+    <meta property="twitter:description" content="{meta_tags['og_description']}" />
+    <meta property="twitter:image" content="{meta_tags['twitter_image']}" />
+    
+    <!-- Hreflang для мультиязычного SEO -->
+    {hreflang_html}
+    
+    <!-- Редирект на фронтенд для обычных пользователей -->
+    <meta http-equiv="refresh" content="0;url=/characters?character={character_id}" />
+</head>
+<body>
+    <!-- Скрытый контент для поисковых роботов -->
+    <div style="display:none;">
+        <h1>{meta_tags['title']}</h1>
+        <p>{description}</p>
+        <p>Character: {character.display_name or character.name}</p>
+        <p>Personality: {character.prompt[:200] if character.prompt else ''}</p>
+    </div>
+    
+    <!-- Видимый контент для пользователей (на случай если JS отключен) -->
+    <div style="text-align: center; padding: 50px;">
+        <h2>Redirecting to {character.display_name or character.name}...</h2>
+        <p>If you are not redirected, <a href="/characters?character={character_id}">click here</a>.</p>
+    </div>
+</body>
+</html>"""
+        
+        return HTMLResponse(content=html_content)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[SEO] Ошибка генерации SEO метаданных для персонажа {character_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error generating SEO metadata: {str(e)}")
 
 
 if __name__ == "__main__":

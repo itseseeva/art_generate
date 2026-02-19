@@ -4,7 +4,8 @@ import styled, { keyframes } from 'styled-components';
 import { motion, AnimatePresence } from 'motion/react';
 import { theme } from '../theme';
 import ElectricBorder from './ElectricBorder';
-import { FiHeart, FiX as CloseIcon, FiTrash2, FiThumbsUp, FiThumbsDown, FiEdit, FiMessageSquare, FiLock, FiUnlock } from 'react-icons/fi';
+import { FiSettings, FiX as CloseIcon, FiZap, FiRefreshCw, FiCheck, FiChevronDown, FiEdit, FiTrash2, FiHeart, FiMessageSquare, FiLock, FiUnlock, FiImage, FiThumbsUp, FiThumbsDown, FiAlertTriangle, FiShield } from 'react-icons/fi';
+import { Sparkles } from 'lucide-react';
 import { authManager } from '../utils/auth';
 import { API_CONFIG } from '../config/api';
 import { translateToRussian } from '../utils/translate';
@@ -14,34 +15,31 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import Switcher4 from './Switcher4';
 import { OptimizedImage } from './ui/OptimizedImage';
 import { PromptGlassModal } from './PromptGlassModal';
+import { useTranslation } from 'react-i18next';
+import { useLocation } from 'react-router-dom';
 
 const CardContainer = styled.div<{ $isHovered?: boolean }>`
-  background: rgba(22, 33, 62, 0.3); /* Очень прозрачный */
+  background: rgba(22, 33, 62, 0.3);
   backdrop-filter: blur(5px);
   border-radius: ${theme.borderRadius.lg};
-  padding: 0; /* Убираем padding чтобы фото занимало всю карточку */
+  padding: 0;
   box-shadow: ${theme.colors.shadow.message};
-  transition: ${theme.transition.fast};
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  height: 300px; /* Фиксированная высота карточки как на главной */
+  height: 339px; /* Increased by 5% */
   width: 100%;
-  min-width: 200px;
+  min-width: 203px; /* Reduced by 5% */
   border: 2px solid transparent;
   
   &:hover {
-    transform: translateY(-2px);
     box-shadow: ${theme.colors.shadow.glow};
   }
   
   ${props => props.$isHovered && `
     box-shadow: ${theme.colors.shadow.glow}, 0 0 20px rgba(139, 92, 246, 0.4);
     border-color: rgba(139, 92, 246, 0.5);
-    
-    & > div: first-child img {
-      transform: scale(1.1);
-    }
   `}
 `;
 
@@ -55,19 +53,24 @@ const PhotoContainer = styled.div<{ $clickable?: boolean; $isHovered?: boolean }
   left: 0;
   z-index: 1;
   cursor: ${props => props.$clickable !== false ? 'pointer' : 'default'};
-  transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  overflow: hidden; /* CRITICAL: предотвращает выход изображения */
+  border-radius: 20px;
   
   img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    max-width: 100%; /* Дополнительное ограничение */
+    max-height: 100%; /* Дополнительное ограничение */
+    object-fit: cover; /* Фото адаптируется под размер рамки */
     object-position: center;
-    transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.6s ease;
+    transition: filter 0.3s ease;
+    border-radius: 20px; /* Соответствует border-radius контейнера */
+    display: block; /* Убирает возможные отступы inline элементов */
   }
   
   ${props => props.$isHovered && `
     img {
-      transform: scale(1.05);
+      filter: brightness(1.05) contrast(1.05);
     }
   `}
 `;
@@ -291,12 +294,30 @@ const FavoriteButton = styled.button<{ $isFavorite: boolean }>`
   }
 `;
 
-const ActionButton = styled.button<{ $variant?: 'edit' | 'delete' }>`
+const ActionButton = styled.button<{ $variant?: 'edit' | 'delete' | 'default' | 'danger' | 'success' }>`
   padding: ${theme.spacing.xs} ${theme.spacing.sm};
   border-radius: ${theme.borderRadius.md};
-  background: rgba(255, 255, 255, 0.05);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  color: rgba(255, 255, 255, 0.95);
+  background: ${props => {
+    switch (props.$variant) {
+      case 'danger': return 'rgba(220, 53, 69, 0.2)';
+      case 'success': return 'rgba(40, 167, 69, 0.2)';
+      default: return 'rgba(255, 255, 255, 0.05)';
+    }
+  }};
+  border: 2px solid ${props => {
+    switch (props.$variant) {
+      case 'danger': return 'rgba(220, 53, 69, 0.5)';
+      case 'success': return 'rgba(40, 167, 69, 0.5)';
+      default: return 'rgba(255, 255, 255, 0.2)';
+    }
+  }};
+  color: ${props => {
+    switch (props.$variant) {
+      case 'danger': return 'rgba(255, 200, 200, 0.95)';
+      case 'success': return 'rgba(200, 255, 200, 0.95)';
+      default: return 'rgba(255, 255, 255, 0.95)';
+    }
+  }};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -378,110 +399,83 @@ const slideInLeftPopup = keyframes`
   }
 `;
 
-const ModernOverlayContainer = styled.div<{ $visible: boolean, $isRight: boolean }>`
-  position: absolute;
-  top: 0;
-  ${props => props.$isRight ? 'left: 100%' : 'right: 100%'};
+const RoleplayCardWrapper = styled.div<{ $isHovered: boolean }>`
+  position: relative;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.9);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  z-index: 1000;
+  z-index: ${props => props.$isHovered ? 100 : 1};
+  /* Ensure it has a stacking context but no overflow hidden */
+`;
+
+// Оверлей с ролевой ситуацией - uses absolute positioning now
+// Размеры динамические - покрывает соседнюю карточку полностью
+const RoleplayOverlay = styled.div<{ $visible: boolean; $isRight: boolean }>`
+  position: absolute;
+  top: 0;
+  ${props => props.$isRight ? 'left: calc(100% + 8px);' : 'right: calc(100% + 8px);'}
+  width: 100%;
+  height: 100%;
+  background: rgba(15, 15, 25, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 20px;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  box-shadow: 
+    0 10px 40px rgba(0, 0, 0, 0.6),
+    0 0 20px rgba(139, 92, 246, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  opacity: 0;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  pointer-events: none;
-  border-radius: ${theme.borderRadius.lg};
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-
-  ${props => props.$visible && `
-    opacity: 1;
-    pointer-events: auto;
-    ${props.$isRight ? 'transform: translateX(10px)' : 'transform: translateX(-10px)'};
-  `}
+  gap: 12px;
+  opacity: ${props => props.$visible ? 1 : 0};
+  pointer-events: ${props => props.$visible ? 'auto' : 'none'};
+  transform-origin: ${props => props.$isRight ? 'left center' : 'right center'};
+  transform: ${props => {
+    if (props.$visible) return 'translateX(0) scaleX(1)';
+    return props.$isRight
+      ? 'translateX(-20px) scaleX(0.8)'
+      : 'translateX(20px) scaleX(0.8)';
+  }};
+  transition: 
+    opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 
   @media (max-width: 768px) {
-    display: none; /* Hide side popup on mobile */
+    display: none;
   }
 `;
 
-const ModernOverlayHeader = styled.div`
-  padding: 1rem 1.5rem 0.5rem;
-  display: flex;
-  align-items: center;
+const RoleplayText = styled.div`
+  color: #e5e7eb;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 8;
+  -webkit-box-orient: vertical;
+  text-overflow: ellipsis;
+  flex: 1;
 `;
 
-const CreatorUsername = styled.span`
+const RoleplayCreator = styled.a`
   font-size: 0.7rem;
   font-weight: 600;
   color: #a78bfa;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  opacity: 0.8;
-`;
-
-const ModernOverlayContent = styled.div`
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  padding: 1.5rem;
-`;
-
-const ModernOverlayTitle = styled.h3`
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #ffffff;
-  margin: 0 0 1rem 0;
-  line-height: 1.2;
-`;
-
-const ModernOverlayBody = styled.div`
-  flex-grow: 1;
-  color: #e5e7eb;
-  font-size: 0.95rem;
-  line-height: 1.6;
-  overflow-y: auto;
-  margin-bottom: 1.5rem;
-  white-space: pre-wrap;
-  word-break: break-word;
-
-  &::-webkit-scrollbar {
-    width: 4px;
-  }
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 2px;
-  }
-`;
-
-const ModernTagsContainer = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: auto;
-`;
-
-const ModernTag = styled.span`
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 0.2rem 0.6rem;
-  border-radius: 4px;
-  font-size: 0.65rem;
-  color: #9ca3af;
+  text-decoration: none;
+  cursor: pointer;
   transition: all 0.2s ease;
+  margin-top: auto;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.2);
-    color: #ffffff;
+    color: #c4b5fd;
+    text-decoration: underline;
   }
 `;
+
+
 
 
 
@@ -1489,24 +1483,8 @@ z-index: 10003;
 }
 `;
 
-interface Character {
-  id: string;
-  name: string;
-  description: string;
-  avatar: string;
-  photos?: string[]; // Массив фотографий для слайд-шоу
-  tags: string[];
-  author: string;
-  likes: number;
-  dislikes?: number;
-  views: number;
-  comments: number;
-  is_nsfw?: boolean;
-  creator_username?: string;
-  paid_album_photos_count?: number;
-  paid_album_preview_urls?: string[];
-  prompt?: string;
-}
+import { Character } from '../types/character';
+import { useCharacterTranslation } from '../hooks/useCharacterTranslation';
 
 interface CharacterCardProps {
   character: Character;
@@ -1522,11 +1500,14 @@ interface CharacterCardProps {
   isLocked?: boolean; // Флаг заблокированного альбома
   lockedAlbumPhotos?: string[]; // Массив фото для превью заблокированного альбома (слайдшоу)
   isFavorite?: boolean; // Если true, персонаж считается в избранном (для страницы favorites)
-  onFavoriteToggle?: () => void; // Callback при изменении статуса избранного
-  userInfo?: { is_admin?: boolean } | null; // Информация о пользователе для проверки прав админа
-  onNsfwToggle?: () => void; // Callback при изменении статуса NSFW (для обновления списка)
-  showRatings?: boolean; // Показывать кнопки лайка/дизлайка (только в чате)
-  onAuthRequired?: () => void; // Callback для открытия модального окна авторизации
+  onFavoriteToggle?: (isFavorite: boolean) => void; // Callback при изменении статуса избранного
+  userInfo?: any; // Информация о пользователе
+  onNsfwToggle?: (isNsfw: boolean) => void; // Callback при изменении статуса NSFW
+  showRatings?: boolean; // Показать кнопки рейтинга
+  onAuthRequired?: () => void; // Callback если нужна авторизация
+  isAdmin?: boolean; // New prop for admin features
+  isRight?: boolean; // Direction of the roleplay popup (default: true)
+  disableHover?: boolean; // Disable hover overlay
 }
 
 // Компонент слайд-шоу
@@ -1626,8 +1607,13 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   onNsfwToggle, // Callback при изменении статуса NSFW
   showRatings = false, // По умолчанию не показываем кнопки лайка/дизлайка
   isAuthenticated = false, // Статус авторизации
-  onAuthRequired // Callback для открытия модального окна авторизации
+  onAuthRequired, // Callback для открытия модального окна авторизации
+  isAdmin = false, // Default to false
+  isRight = true, // Default to true (open to right)
+  disableHover = false // Default to false
 }) => {
+  const { t, i18n } = useTranslation();
+  const { tChar } = useCharacterTranslation(character);
   const isMobile = useIsMobile();
   const [isLockHovered, setIsLockHovered] = useState(false);
   // КРИТИЧЕСКИ ВАЖНО: если isFavoriteProp не передан, начинаем с false
@@ -1702,35 +1688,23 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   // Состояние для Smart Hover overlay
   const [isHovered, setIsHovered] = useState(false);
   const [popupPosition, setPopupPosition] = useState({ isRight: true });
+  const [overlayPosition, setOverlayPosition] = useState({ top: 0, left: 0, width: 235, height: 308 });
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
 
   // Состояние для модального окна промпта
   const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
   const [promptText, setPromptText] = useState<string | null>(null);
+  const [promptTextRu, setPromptTextRu] = useState<string | null>(null);
+  const [promptTextEn, setPromptTextEn] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
 
-  const situation = useMemo(() => {
-    // Пробуем извлечь из промпта
-    let text = extractRolePlayingSituation(character.prompt || '');
+  // Ролевая ситуация
+  const displaySituation = tChar('situation');
 
-    // Если не удалось, и в описании есть заголовок ситуации-пробуем оттуда
-    if (!text && character.description && character.description.includes('Role-playing Situation: ')) {
-      text = extractRolePlayingSituation(character.description);
-    }
-
-    // Если всё еще нет, но описание достаточно длинное (похоже на ситуацию)
-    // и нет явного промпта-используем описание как ситуацию
-    if (!text && character.description && character.description.length > 20) {
-      // Но только если описание не совпадает с именем (заглушка)
-      if (character.description.toLowerCase() !== character.name.toLowerCase()) {
-        text = character.description;
-      }
-    }
-
-    return text || null;
-  }, [character.prompt, character.description, character.name]);
+  // situation variable used to guard the overlay
+  const situation = displaySituation;
 
 
   // Определяем, заблокирован ли альбом.
@@ -1861,14 +1835,21 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         const characterData = await response.json();
         const prompt = characterData?.prompt || '';
 
-        // Извлекаем секцию "Personality and Character" из промпта
-        if (prompt) {
-          const personalityMatch = prompt.match(/Personality and Character: \s*(.*?)(?=\n\nRole-playing Situation: |$)/s);
-          if (personalityMatch && personalityMatch[1]) {
-            const extractedPersonality = personalityMatch[1].trim();
-            setPersonality(extractedPersonality);
+        // Используем новые колонки вместо парсинга промпта
+        if (characterData) {
+          const isEn = i18n.language === 'en';
+          const personalityVal = isEn ? characterData.personality_en : characterData.personality_ru;
+          if (personalityVal) {
+            setPersonality(personalityVal);
           } else {
-            setPersonalityError('Характер персонажа не найден');
+            // Fallback for prompt if provided
+            const prompt = characterData?.prompt || '';
+            const personalityMatch = prompt.match(/Personality and Character: \s*(.*?)(?=\n\nRole-playing Situation: |$)/s);
+            if (personalityMatch && personalityMatch[1]) {
+              setPersonality(personalityMatch[1].trim());
+            } else {
+              setPersonalityError('Характер персонажа не найден');
+            }
           }
         } else {
           setPersonalityError('Данные персонажа не найдены');
@@ -1987,7 +1968,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           setIsFavorite(false);
           // Вызываем callback, если он передан (для обновления списка на странице favorites)
           if (onFavoriteToggle) {
-            onFavoriteToggle();
+            onFavoriteToggle(false);
           }
         } else {
           const errorData = await response.json().catch(() => ({}));
@@ -2003,7 +1984,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           setIsFavorite(true);
           // Вызываем callback, если он передан
           if (onFavoriteToggle) {
-            onFavoriteToggle();
+            onFavoriteToggle(true);
           }
         } else {
           const errorData = await response.json().catch(() => ({}));
@@ -2015,44 +1996,58 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     }
   };
 
-  // Функция для переключения NSFW статуса (только для админов)
-  const toggleNsfw = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  // Consolidated Admin Toggle Handler
+  const handleAdminToggleNSFW = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click
+    if (!isAdmin && !userInfo?.is_admin) return;
+
+    const newStatus = !isNsfw;
+    setIsNsfw(newStatus); // Optimistic update
+
+    // Update local character object immediately to reflect in UI
+    if (character && (character as any).raw) {
+      (character as any).raw.is_nsfw = newStatus;
+    }
+    // Also try to update the character object itself if mutable
+    (character as any).is_nsfw = newStatus;
 
     try {
-      const characterName = character.name || (character as any).raw?.name;
-      if (!characterName) {
-        return;
+      const identifier = character.name || (character as any).raw?.name || String(character.id);
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${encodeURIComponent(identifier)}/toggle-nsfw`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update');
       }
 
-      const response = await authManager.fetchWithAuth(
-        `${API_CONFIG.BASE_URL}/api/v1/characters/${encodeURIComponent(characterName)}/toggle-nsfw`,
-        { method: 'PATCH' }
-      );
-
-
-
-      if (response.ok) {
-        const updatedCharacter = await response.json();
-
-        // Обновляем локальное состояние
-        setIsNsfw(updatedCharacter.is_nsfw === true);
-        // Обновляем локальное состояние персонажа
-        (character as any).is_nsfw = updatedCharacter.is_nsfw;
-        if ((character as any).raw) {
-          (character as any).raw.is_nsfw = updatedCharacter.is_nsfw;
-        }
-        // Вызываем callback для обновления списка
-        if (onNsfwToggle) {
-          await onNsfwToggle();
-        }
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-
-        alert(`Ошибка переключения статуса: ${errorData.detail || 'Неизвестная ошибка'}`);
+      const updatedChar = await response.json();
+      // Update local state with server response
+      setIsNsfw(updatedChar.is_nsfw === true);
+      if (character && (character as any).raw) {
+        (character as any).raw.is_nsfw = updatedChar.is_nsfw;
       }
+      (character as any).is_nsfw = updatedChar.is_nsfw;
+
+      // Success - dispatch event to refresh lists
+      window.dispatchEvent(new CustomEvent('character-updated', { detail: { characterId: character.id } }));
+
+      if (onNsfwToggle) onNsfwToggle(updatedChar.is_nsfw);
+
     } catch (error) {
-
+      console.error('Failed to toggle NSFW:', error);
+      setIsNsfw(!newStatus); // Revert
+      if (character && (character as any).raw) {
+        (character as any).raw.is_nsfw = !newStatus;
+      }
+      (character as any).is_nsfw = !newStatus;
+      alert('Failed to update NSFW status');
     }
   };
 
@@ -2353,8 +2348,10 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
     try {
       const result = await fetchPromptByImage(photoUrl, characterName);
-      if (result.hasPrompt && result.prompt) {
+      if (result.hasPrompt && (result.prompt || result.prompt_ru || result.prompt_en)) {
         setPromptText(result.prompt);
+        setPromptTextRu(result.prompt_ru || null);
+        setPromptTextEn(result.prompt_en || null);
       } else {
         setPromptError(result.errorMessage || 'Промпт не найден для этого изображения');
       }
@@ -2385,6 +2382,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     setIsPromptModalOpen(false);
     setIsPromptVisible(true);
     setPromptText(null);
+    setPromptTextRu(null);
+    setPromptTextEn(null);
     setPromptError(null);
     setModalPhotoUrl(null);
   };
@@ -2395,6 +2394,10 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   };
 
 
+
+  const handleMouseEnter = () => {
+    setIsPromptVisible(false);
+  };
 
 
 
@@ -2430,341 +2433,407 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
   return (
     <>
-      <ElectricBorder
-        color="#555555"
-        thickness={2}
-        style={{
-          borderRadius: 16,
-          flex: '0 0 auto',
-          width: '100%',
-          position: 'relative',
-          zIndex: isHovered ? 100 : 1
-        }}
-      >
-        <CardContainer
-          ref={cardRef}
-          onClick={handleCardClick}
-          onMouseEnter={() => {
-            setIsHovered(true);
-            if (cardRef.current) {
-              const rect = cardRef.current.getBoundingClientRect();
-              const isRight = rect.right + rect.width <= window.innerWidth;
-              setPopupPosition({ isRight });
-            }
+      <RoleplayCardWrapper $isHovered={isHovered}>
+        <ElectricBorder
+          color="#555555"
+          thickness={2}
+          style={{
+            borderRadius: 16,
+            flex: '0 0 auto',
+            width: '100%',
+            position: 'relative',
+            transform: isHovered ? 'scale(1.03)' : 'scale(1)',
+            transition: 'transform 0.25s ease'
           }}
-          onMouseLeave={() => setIsHovered(false)}
-
-          $isHovered={isHovered}
-          style={{ position: 'relative', overflow: 'visible' }}
         >
-          <CardContent>
-            <PhotoContainer $isHovered={isHovered}>
-              {character.photos && character.photos.length > 0 ? (
-                <SlideShow
-                  photos={character.photos}
-                  characterName={character.name}
-                  isHovered={isHovered}
-                  hideDots={true}
-                />
-              ) : (
-                <OptimizedImage
-                  src={character.avatar}
-                  alt={character.name}
-                  className="w-full h-full object-cover"
-                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 300px"
-                />
-              )}
-            </PhotoContainer>
+          <CardContainer
+            ref={cardRef}
+            onClick={handleCardClick}
+            onMouseEnter={() => {
+              setIsHovered(true);
+              if (cardRef.current) {
+                const rect = cardRef.current.getBoundingClientRect();
 
-            {/* Action Buttons */}
-            <ActionButtons $badgeCount={0}>
-              {showEditButton && onEdit && (
-                <ActionButton
-                  $variant="edit"
+                // Check if there is space to the right for the overlay
+                const spaceRight = window.innerWidth - rect.right;
+                const isRight = spaceRight > (rect.width + 8);
+
+                setPopupPosition({ isRight });
+                // Overlay position logic removed as we use CSS positioning now
+              }
+            }}
+            onMouseLeave={() => setIsHovered(false)}
+
+            $isHovered={isHovered}
+          >
+            <CardContent>
+              <PhotoContainer $isHovered={isHovered}>
+                {character.photos && character.photos.length > 0 ? (
+                  <SlideShow
+                    photos={character.photos}
+                    characterName={character.name}
+                    isHovered={isHovered}
+                    hideDots={true}
+                  />
+                ) : (
+                  <OptimizedImage
+                    src={character.avatar}
+                    alt={character.name}
+                    className="w-full h-full object-cover"
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 300px"
+                  />
+                )}
+              </PhotoContainer>
+
+              {/* Action Buttons */}
+              <ActionButtons $badgeCount={0}>
+                {/* Prompt Button */}
+                {character.photos && character.photos.length > 0 && (
+                  <ActionButton
+                    $variant="default" // Или добавить свой вариант, если нужно
+                    title={t('characterCard.showPrompt', 'Show Prompt')}
+                    onClick={handleOpenPromptModal}
+                  >
+                    <Sparkles size={16} />
+                  </ActionButton>
+                )}
+
+                {/* Album Button */}
+                {onPaidAlbum && (
+                  <ActionButton
+                    $variant="default"
+                    title={t('characterCard.openAlbum', 'Open Album')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onPaidAlbum(character);
+                    }}
+                  >
+                    <FiImage size={16} /> {/* Using FiImage for Album */}
+                  </ActionButton>
+                )}
+                {/* Admin NSFW Toggle */}
+                {(isAdmin || userInfo?.is_admin) && (
+                  <ActionButtonWithTooltip onClick={handleAdminToggleNSFW}>
+                    <ActionButton $variant={isNsfw ? "danger" : "success"}>
+                      {isNsfw ? <FiAlertTriangle /> : <FiShield />}
+                    </ActionButton>
+                    <Tooltip>
+                      {isNsfw ? 'Make Safe' : 'Make NSFW'}
+                    </Tooltip>
+                  </ActionButtonWithTooltip>
+                )}
+
+                {/* Edit Button */}
+                {showEditButton && onEdit && (
+                  <ActionButton
+                    $variant="edit"
+                    title={t('common.edit')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(character);
+                    }}
+                  >
+                    <FiEdit />
+                  </ActionButton>
+                )}
+                {showEditButton && onDelete && (
+                  <ActionButton
+                    $variant="delete"
+                    title={t('common.delete')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(character);
+                    }}
+                  >
+                    <FiTrash2 />
+                  </ActionButton>
+                )}
+              </ActionButtons>
+
+              {/* Locked Album Preview Overlay */}
+              {finalIsLocked && (
+                <div
+                  className="absolute inset-0 z-[9999] flex items-center justify-center rounded-lg overflow-hidden animate-fade-in"
+                  style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    onEdit(character);
+                    if (onPaidAlbum) onPaidAlbum(character);
                   }}
                 >
-                  <FiEdit />
-                </ActionButton>
-              )}
-              {showEditButton && onDelete && (
-                <ActionButton
-                  $variant="delete"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete(character);
-                  }}
-                >
-                  <FiTrash2 />
-                </ActionButton>
-              )}
-            </ActionButtons>
+                  {/* 1. Underlying Blur */}
+                  <div className="absolute inset-0 backdrop-blur-[5px] pointer-events-none" />
 
-            {/* Locked Album Preview Overlay */}
-            {finalIsLocked && (
-              <div
-                className="absolute inset-0 z-[9999] flex items-center justify-center rounded-lg overflow-hidden animate-fade-in"
-                style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (onPaidAlbum) onPaidAlbum(character);
-                }}
-              >
-                {/* 1. Underlying Blur */}
-                <div className="absolute inset-0 backdrop-blur-[5px] pointer-events-none" />
-
-                {/* 2. Sliding Blurred Photos */}
-                <div className="absolute inset-0 z-0">
-                  {(() => {
-                    const normalizeUrl = (url: string) => {
-                      if (!url) return '';
-                      let processedUrl = url;
-                      if (url.includes('storage.yandexcloud.net/')) {
-                        if (url.includes('.storage.yandexcloud.net/')) {
-                          const objectKey = url.split('.storage.yandexcloud.net/')[1];
-                          if (objectKey) processedUrl = `${API_CONFIG.BASE_URL || ''}/media/${objectKey}`;
-                        } else {
-                          const parts = url.split('storage.yandexcloud.net/')[1];
-                          if (parts) {
-                            const pathSegments = parts.split('/');
-                            if (pathSegments.length > 1) {
-                              processedUrl = `${API_CONFIG.BASE_URL || ''}/media/${pathSegments.slice(1).join('/')}`;
+                  {/* 2. Sliding Blurred Photos */}
+                  <div className="absolute inset-0 z-0">
+                    {(() => {
+                      const normalizeUrl = (url: string) => {
+                        if (!url) return '';
+                        let processedUrl = url;
+                        if (url.includes('storage.yandexcloud.net/')) {
+                          if (url.includes('.storage.yandexcloud.net/')) {
+                            const objectKey = url.split('.storage.yandexcloud.net/')[1];
+                            if (objectKey) processedUrl = `${API_CONFIG.BASE_URL || ''}/media/${objectKey}`;
+                          } else {
+                            const parts = url.split('storage.yandexcloud.net/')[1];
+                            if (parts) {
+                              const pathSegments = parts.split('/');
+                              if (pathSegments.length > 1) {
+                                processedUrl = `${API_CONFIG.BASE_URL || ''}/media/${pathSegments.slice(1).join('/')}`;
+                              }
                             }
                           }
                         }
-                      }
-                      if (processedUrl.startsWith('http')) return processedUrl;
-                      const baseUrl = API_CONFIG.BASE_URL || window.location.origin;
-                      if (processedUrl.startsWith('/')) {
-                        return baseUrl ? `${baseUrl}${processedUrl}` : processedUrl;
-                      }
-                      return baseUrl ? `${baseUrl}/${processedUrl}` : `/${processedUrl}`;
-                    };
+                        if (processedUrl.startsWith('http')) return processedUrl;
+                        const baseUrl = API_CONFIG.BASE_URL || window.location.origin;
+                        if (processedUrl.startsWith('/')) {
+                          return baseUrl ? `${baseUrl}${processedUrl}` : processedUrl;
+                        }
+                        return baseUrl ? `${baseUrl}/${processedUrl}` : `/${processedUrl}`;
+                      };
 
-                    const rawPreviewPhotos = (lockedAlbumPhotos && lockedAlbumPhotos.length > 0)
-                      ? [...lockedAlbumPhotos] : (character.paid_album_preview_urls && character.paid_album_preview_urls.length > 0)
-                        ? [...character.paid_album_preview_urls] : (character.photos && character.photos.length > 0 ? [character.photos[0]] : []);
+                      const rawPreviewPhotos = (lockedAlbumPhotos && lockedAlbumPhotos.length > 0)
+                        ? [...lockedAlbumPhotos] : (character.paid_album_preview_urls && character.paid_album_preview_urls.length > 0)
+                          ? [...character.paid_album_preview_urls] : (character.photos && character.photos.length > 0 ? [character.photos[0]] : []);
 
-                    const previewPhotos = rawPreviewPhotos.map(normalizeUrl);
-                    const hasPreview = (lockedAlbumPhotos && lockedAlbumPhotos.length > 0) ||
-                      (character.paid_album_preview_urls && character.paid_album_preview_urls.length > 0);
+                      const previewPhotos = rawPreviewPhotos.map(normalizeUrl);
+                      const hasPreview = (lockedAlbumPhotos && lockedAlbumPhotos.length > 0) ||
+                        (character.paid_album_preview_urls && character.paid_album_preview_urls.length > 0);
 
-                    return previewPhotos.length > 0 ? (
-                      <div className={`absolute inset-0 z-0 ${hasPreview ? 'blur-[10px]' : 'blur-[50px] grayscale brightness-50'} opacity-70 transition-all duration-1000`}>
-                        <SlideShow
-                          photos={previewPhotos}
-                          characterName={character.name}
-                          isHovered={true}
-                          hideDots={true}
-                        />
+                      return previewPhotos.length > 0 ? (
+                        <div className={`absolute inset-0 z-0 ${hasPreview ? 'blur-[10px]' : 'blur-[50px] grayscale brightness-50'} opacity-70 transition-all duration-1000`}>
+                          <SlideShow
+                            photos={previewPhotos}
+                            characterName={character.name}
+                            isHovered={true}
+                            hideDots={true}
+                          />
+                        </div>
+                      ) : null;
+                    })()}
+                  </div>
+
+                  {/* 3. Dark gradient */}
+                  <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/60 z-5" />
+
+                  {/* 4. The Lock Icon Overlay */}
+                  <div className="relative z-10 flex flex-col items-center justify-center w-full h-full cursor-pointer transition-all duration-500">
+                    <div className={`flex flex-col items-center transition-all duration-700 ${isHovered ? 'scale-105' : 'scale-100'}`}>
+                      <div className="relative mb-6">
+                        <div className={`absolute inset-0 blur-3xl opacity-50 transition-colors duration-500 ${isHovered ? 'bg-pink-500' : 'bg-white'}`} />
+                        <div className="relative transform transition-all duration-500 ease-out">
+                          {isHovered ? (
+                            <FiUnlock className="w-24 h-24 text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.8)]" />
+                          ) : (
+                            <FiLock className="w-20 h-20 text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]" />
+                          )}
+                        </div>
                       </div>
-                    ) : null;
-                  })()}
-                </div>
-
-                {/* 3. Dark gradient */}
-                <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/60 z-5" />
-
-                {/* 4. The Lock Icon Overlay */}
-                <div className="relative z-10 flex flex-col items-center justify-center w-full h-full cursor-pointer transition-all duration-500">
-                  <div className={`flex flex-col items-center transition-all duration-700 ${isHovered ? 'scale-105' : 'scale-100'}`}>
-                    <div className="relative mb-6">
-                      <div className={`absolute inset-0 blur-3xl opacity-50 transition-colors duration-500 ${isHovered ? 'bg-pink-500' : 'bg-white'}`} />
-                      <div className="relative transform transition-all duration-500 ease-out">
-                        {isHovered ? (
-                          <FiUnlock className="w-24 h-24 text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.8)]" />
-                        ) : (
-                          <FiLock className="w-20 h-20 text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]" />
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-center px-4 transform transition-all duration-500 delay-100">
-                      <div className="text-white/70 text-xs uppercase tracking-[0.2em] font-medium mb-2 drop-shadow-sm">
-                        Exclusive Content
-                      </div>
-                      <h3 className="text-white text-xl font-semibold tracking-tight leading-tight mb-2 drop-shadow-xl">
-                        Получи доступ <br /> к альбому
-                      </h3>
-                      <div className="inline-block px-4 py-1.5 rounded-full bg-gradient-to-r from-pink-500/80 to-purple-600/80 backdrop-blur-md border border-white/20 text-white text-sm font-medium shadow-lg transform transition-all duration-300 hover: scale-105">
-                        {character.name}
+                      <div className="text-center px-4 transform transition-all duration-500 delay-100">
+                        <div className="text-white/70 text-xs uppercase tracking-[0.2em] font-medium mb-2 drop-shadow-sm">
+                          {t('characterCard.exclusiveContent')}
+                        </div>
+                        <h3 className="text-white text-xl font-semibold tracking-tight leading-tight mb-2 drop-shadow-xl">
+                          {t('characterCard.getAccess').split(' ').slice(0, 2).join(' ')} <br /> {t('characterCard.getAccess').split(' ').slice(2).join(' ')}
+                        </h3>
+                        <div className="inline-block px-4 py-1.5 rounded-full bg-gradient-to-r from-pink-500/80 to-purple-600/80 backdrop-blur-md border border-white/20 text-white text-sm font-medium shadow-lg transform transition-all duration-300 hover: scale-105">
+                          {tChar('name')}
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
+              )}
+
+              {/* Verification and Badges (only if not locked and original) */}
+              {!finalIsLocked && character.creator_username === 'admin' && (
+                <VerificationBadge>
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http: //www.w3.org/2000/svg">
+                    <path d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </VerificationBadge>
+              )}
+
+              {/* Favorite Button */}
+              <FavoriteButton
+                $isFavorite={isFavorite}
+                onClick={toggleFavorite}
+                style={{ zIndex: 3 }}
+              >
+                <FiHeart />
+              </FavoriteButton>
+
+              {/* Bottom Content Overlay (Name, Stats, Tags) - Hidden on hover overlay */}
+              {!(isHovered && situation) && (
+                <>
+                  <div style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    padding: '40px 12px 12px',
+                    background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 50%, transparent 100%)',
+                    zIndex: 2,
+                    pointerEvents: 'none'
+                  }}>
+                    <StatsContainer>
+                      <StatItem>
+                        <FiMessageSquare size={12} />
+                        {formatCount(character.comments)}
+                      </StatItem>
+                      <div style={{ flex: 1 }} />
+                    </StatsContainer>
+
+                    <CharacterName style={{ pointerEvents: 'auto', marginTop: '4px' }}>{tChar('name')}</CharacterName>
+                  </div>
+
+                  <TagsContainerBottom $visible={isHovered}>
+                    {character.tags.slice(0, 3).map((tag, i) => (
+                      <Tag key={i} onClick={(e) => e.stopPropagation()}>
+                        {typeof tag === 'string' ? tag : (tag as any).name}
+                      </Tag>
+                    ))}
+                  </TagsContainerBottom>
+                </>
+              )}
+            </CardContent>
+
+
+          </CardContainer>
+
+        </ElectricBorder>
+
+        {/* Roleplay Situation Overlay - absolute positioned relative to CardWrapper */}
+        {!isMobile && !disableHover && (
+          <RoleplayOverlay
+            $visible={isHovered}
+            $isRight={isRight}
+          >
+            <RoleplayText>{displaySituation || t('characterCard.noSituation')}</RoleplayText>
+
+            {character.tags && character.tags.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: 'auto', marginBottom: '8px' }}>
+                {character.tags.slice(0, 3).map((tag, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      fontSize: '10px',
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      background: 'rgba(255,255,255,0.1)',
+                      color: '#ccc'
+                    }}
+                  >
+                    {typeof tag === 'string' ? tag : (tag as any).name}
+                  </span>
+                ))}
               </div>
             )}
 
-            {/* Verification and Badges (only if not locked and original) */}
-            {!finalIsLocked && character.creator_username === 'admin' && (
-              <VerificationBadge>
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http: //www.w3.org/2000/svg">
-                  <path d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </VerificationBadge>
-            )}
-
-            {/* Favorite Button */}
-            <FavoriteButton
-              $isFavorite={isFavorite}
-              onClick={toggleFavorite}
-              style={{ zIndex: 3 }}
+            <RoleplayCreator
+              href={`/profile/${character.creator_username || 'anonymous'}`}
+              onClick={(e) => e.stopPropagation()}
             >
-              <FiHeart />
-            </FavoriteButton>
+              @{character.creator_username || 'anonymous'}
+            </RoleplayCreator>
+          </RoleplayOverlay>
+        )}
 
-            {/* Bottom Content Overlay (Name, Stats, Tags) - Hidden on hover overlay */}
-            {!(isHovered && situation) && (
-              <>
-                <div style={{
-                  position: 'absolute',
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  padding: '40px 12px 12px',
-                  background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 50%, transparent 100%)',
-                  zIndex: 2,
-                  pointerEvents: 'none'
-                }}>
-                  <CharacterName style={{ pointerEvents: 'auto' }}>{character.name}</CharacterName>
-
-                  <StatsContainer>
-                    <StatItem>
-                      <FiMessageSquare size={12} />
-                      {formatCount(character.comments)}
-                    </StatItem>
-                    <div style={{ flex: 1 }} />
-                  </StatsContainer>
-                </div>
-
-                <TagsContainerBottom $visible={isHovered}>
-                  {character.tags.slice(0, 3).map((tag, i) => (
-                    <Tag key={i} onClick={(e) => e.stopPropagation()}>
-                      {typeof tag === 'string' ? tag : (tag as any).name}
-                    </Tag>
-                  ))}
-                </TagsContainerBottom>
-              </>
-            )}
-
-            {/* Modern On-Card Hover Overlay (displayed on neighbor) */}
-            {situation && !isMobile && (
-              <ModernOverlayContainer $visible={isHovered} $isRight={popupPosition.isRight}>
-                <ModernOverlayHeader>
-                  <CreatorUsername>@{character.creator_username || 'anonymous'}</CreatorUsername>
-                </ModernOverlayHeader>
-                <ModernOverlayContent>
-                  <ModernOverlayBody>
-                    {situation}
-                  </ModernOverlayBody>
-                  {character.tags && character.tags.length > 0 && (
-                    <ModernTagsContainer>
-                      {character.tags.slice(0, 8).map((tag, i) => (
-                        <ModernTag key={i}>
-                          {typeof tag === 'string' ? tag : (tag as any).name}
-                        </ModernTag>
-                      ))}
-                    </ModernTagsContainer>
-                  )}
-                </ModernOverlayContent>
-              </ModernOverlayContainer>
-            )}
-          </CardContent>
-        </CardContainer>
-
-      </ElectricBorder>
+      </RoleplayCardWrapper>
 
       {/* Modals */}
-      {isPersonalityModalOpen && createPortal(
-        <PersonalityModal onClick={(e) => {
-          if (e.target === e.currentTarget) {
-            setIsPersonalityModalOpen(false);
-          }
-        }}>
-          <PersonalityModalContent onClick={(e) => e.stopPropagation()}>
-            <PersonalityModalHeader>
-              <PersonalityModalTitle>Характер: {character.name}</PersonalityModalTitle>
-              <PersonalityModalCloseButton onClick={() => setIsPersonalityModalOpen(false)}>
-                <CloseIcon />
-              </PersonalityModalCloseButton>
-            </PersonalityModalHeader>
-            {isLoadingPersonality ? (
-              <PersonalityLoading>Загрузка характера...</PersonalityLoading>
-            ) : personalityError ? (
-              <PersonalityError>{personalityError}</PersonalityError>
-            ) : personality ? (
-              <PersonalityText>{personality}</PersonalityText>
-            ) : (
-              <PersonalityLoading>Характер не найден</PersonalityLoading>
-            )}
-          </PersonalityModalContent>
-        </PersonalityModal>,
-        document.body
-      )}
+      {
+        isPersonalityModalOpen && createPortal(
+          <PersonalityModal onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsPersonalityModalOpen(false);
+            }
+          }}>
+            <PersonalityModalContent onClick={(e) => e.stopPropagation()}>
+              <PersonalityModalHeader>
+                <PersonalityModalTitle>{t('characterCard.personality', { name: character.name })}</PersonalityModalTitle>
+                <PersonalityModalCloseButton onClick={() => setIsPersonalityModalOpen(false)}>
+                  <CloseIcon />
+                </PersonalityModalCloseButton>
+              </PersonalityModalHeader>
+              {isLoadingPersonality ? (
+                <PersonalityLoading>{t('characterCard.loadingPersonality')}</PersonalityLoading>
+              ) : personalityError ? (
+                <PersonalityError>{personalityError}</PersonalityError>
+              ) : personality ? (
+                <PersonalityText>{personality}</PersonalityText>
+              ) : (
+                <PersonalityLoading>{t('characterCard.personalityNotFound')}</PersonalityLoading>
+              )}
+            </PersonalityModalContent>
+          </PersonalityModal>,
+          document.body
+        )
+      }
 
-      {isEditPromptModalOpen && editingPhotos.length > 0 && createPortal(
-        <EditPromptModal onClick={(e) => {
-          if (e.target === e.currentTarget) {
-            setIsEditPromptModalOpen(false);
-            setEditingPhotos([]);
-            setPromptSaveError(null);
-          }
-        }}>
-          <EditPromptModalContent onClick={(e) => e.stopPropagation()}>
-            <EditPromptModalHeader>
-              <EditPromptModalTitle>Редактирование промптов фото</EditPromptModalTitle>
-              <EditPromptModalCloseButton onClick={() => {
-                setIsEditPromptModalOpen(false);
-                setEditingPhotos([]);
-                setPromptSaveError(null);
-              }}>
-                <CloseIcon />
-              </EditPromptModalCloseButton>
-            </EditPromptModalHeader>
-            <EditPromptPhotoGrid>
-              {editingPhotos.map((photo, index) => (
-                <EditPromptPhotoItem key={photo.url}>
-                  <EditPromptPhotoImage src={photo.url} alt={`Фото ${index + 1}`} />
-                  <EditPromptPhotoTextarea
-                    value={photo.prompt}
-                    onChange={(e) => {
-                      const updated = [...editingPhotos];
-                      updated[index] = { ...updated[index], prompt: e.target.value };
-                      setEditingPhotos(updated);
-                    }}
-                    placeholder="Введите промпт для изображения..."
-                  />
-                </EditPromptPhotoItem>
-              ))}
-            </EditPromptPhotoGrid>
-            {promptSaveError && (
-              <div style={{ color: '#ff6b6b', marginBottom: '16px', fontSize: '14px' }}>
-                {promptSaveError}
-              </div>
-            )}
-            <EditPromptButtonGroup>
-              <EditPromptCancelButton
-                onClick={() => {
+      {
+        isEditPromptModalOpen && editingPhotos.length > 0 && createPortal(
+          <EditPromptModal onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsEditPromptModalOpen(false);
+              setEditingPhotos([]);
+              setPromptSaveError(null);
+            }
+          }}>
+            <EditPromptModalContent onClick={(e) => e.stopPropagation()}>
+              <EditPromptModalHeader>
+                <EditPromptModalTitle>{t('characterCard.editPrompts')}</EditPromptModalTitle>
+                <EditPromptModalCloseButton onClick={() => {
                   setIsEditPromptModalOpen(false);
                   setEditingPhotos([]);
                   setPromptSaveError(null);
-                }}
-                disabled={isSavingPrompt}
-              >
-                Отмена
-              </EditPromptCancelButton>
-              <EditPromptSaveButton
-                onClick={handleSaveAdminPrompt}
-                disabled={isSavingPrompt}
-              >
-                {isSavingPrompt ? 'Сохранение...' : 'Сохранить все'}
-              </EditPromptSaveButton>
-            </EditPromptButtonGroup>
-          </EditPromptModalContent>
-        </EditPromptModal>,
-        document.body
-      )}
+                }}>
+                  <CloseIcon />
+                </EditPromptModalCloseButton>
+              </EditPromptModalHeader>
+              <EditPromptPhotoGrid>
+                {editingPhotos.map((photo, index) => (
+                  <EditPromptPhotoItem key={photo.url}>
+                    <EditPromptPhotoImage src={photo.url} alt={`Фото ${index + 1}`} />
+                    <EditPromptPhotoTextarea
+                      value={photo.prompt}
+                      onChange={(e) => {
+                        const updated = [...editingPhotos];
+                        updated[index] = { ...updated[index], prompt: e.target.value };
+                        setEditingPhotos(updated);
+                      }}
+                      placeholder={t('characterCard.enterPrompt')}
+                    />
+                  </EditPromptPhotoItem>
+                ))}
+              </EditPromptPhotoGrid>
+              {promptSaveError && (
+                <div style={{ color: '#ff6b6b', marginBottom: '16px', fontSize: '14px' }}>
+                  {promptSaveError}
+                </div>
+              )}
+              <EditPromptButtonGroup>
+                <EditPromptCancelButton
+                  onClick={() => {
+                    setIsEditPromptModalOpen(false);
+                    setEditingPhotos([]);
+                    setPromptSaveError(null);
+                  }}
+                  disabled={isSavingPrompt}
+                >
+                  {t('common.cancel')}
+                </EditPromptCancelButton>
+                <EditPromptSaveButton
+                  onClick={handleSaveAdminPrompt}
+                  disabled={isSavingPrompt}
+                >
+                  {isSavingPrompt ? t('characterCard.saving', 'Saving...') : t('characterCard.saveAll')}
+                </EditPromptSaveButton>
+              </EditPromptButtonGroup>
+            </EditPromptModalContent>
+          </EditPromptModal>,
+          document.body
+        )
+      }
 
       <PromptGlassModal
         isOpen={isPromptModalOpen && !!modalPhotoUrl}
@@ -2772,6 +2841,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         imageUrl={modalPhotoUrl || ''}
         imageAlt={character.name}
         promptText={promptText}
+        promptTextRu={promptTextRu}
+        promptTextEn={promptTextEn}
         isLoading={isLoadingPrompt}
         error={promptError}
       />

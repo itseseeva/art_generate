@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
+import { useTranslation } from 'react-i18next';
 import { FiAlertTriangle, FiLock, FiArrowLeft, FiLogIn } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -319,6 +320,7 @@ interface NSFWWarningModalProps {
 }
 
 export const NSFWWarningModal: React.FC<NSFWWarningModalProps> = ({ onConfirm, onCancel }) => {
+  const { t } = useTranslation();
   return createPortal(
     <AnimatePresence>
       <ModalOverlay
@@ -340,21 +342,21 @@ export const NSFWWarningModal: React.FC<NSFWWarningModalProps> = ({ onConfirm, o
           </WarningIconWrapper>
 
           <Title variants={itemVariants}>
-            NSFW Контент (18+)
+            {t('nsfwWarning.title')}
           </Title>
 
           <Message variants={itemVariants}>
             <p>
-              Вы входите в зону <strong>откровенного контента</strong>.
+              {t('nsfwWarning.message')} <strong>{t('nsfwWarning.explicitContent')}</strong>.
             </p>
             <p style={{ marginTop: '12px' }}>
-              Этот режим открывает доступ к материалам без цензуры, включая изображения и диалоги сексуального характера.
+              {t('nsfwWarning.description')}
             </p>
 
             <AgeVerificationBox>
               <p>
                 <FiLock size={16} />
-                Подтверждая, вы заявляете, что вам есть 18 лет
+                {t('nsfwWarning.ageVerification')}
               </p>
             </AgeVerificationBox>
           </Message>
@@ -367,7 +369,7 @@ export const NSFWWarningModal: React.FC<NSFWWarningModalProps> = ({ onConfirm, o
               whileTap="tap"
             >
               <FiArrowLeft size={18} />
-              <span>Вернуться</span>
+              <span>{t('common.return')}</span>
             </Button>
             <Button
               $variant="primary"
@@ -375,7 +377,7 @@ export const NSFWWarningModal: React.FC<NSFWWarningModalProps> = ({ onConfirm, o
               whileHover="hover"
               whileTap="tap"
             >
-              <span>Войти (18+)</span>
+              <span>{t('nsfwWarning.enter')}</span>
               <FiLogIn size={18} />
             </Button>
           </ButtonGroup>

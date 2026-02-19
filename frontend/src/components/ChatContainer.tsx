@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useParams, useLocation } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
+import { useTranslation } from 'react-i18next';
 import { theme } from '../theme';
 import { ChatArea } from './ChatArea';
 import { MessageInput } from './MessageInput';
@@ -9,7 +11,6 @@ import { SuccessToast } from './SuccessToast';
 import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
 import { ConfirmModal } from './ConfirmModal';
-import { GlobalHeader } from './GlobalHeader';
 import { PhotoGenerationHelpModal } from './PhotoGenerationHelpModal';
 import { extractRolePlayingSituation } from '../utils/characterUtils';
 import { authManager } from '../utils/auth';
@@ -18,7 +19,7 @@ import { FiUnlock, FiLock, FiSettings } from 'react-icons/fi';
 import { Plus, Sparkles, FolderOpen } from 'lucide-react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { CharacterCard } from './CharacterCard';
-import { API_CONFIG } from '../config/api';
+import { API_CONFIG, api } from '../config/api';
 import { ModelSelectorModal } from './ModelSelectorModal';
 import { ModelAccessDeniedModal } from './ModelAccessDeniedModal';
 import { generationTracker } from '../utils/generationTracker';
@@ -26,11 +27,13 @@ import { BoosterOfferModal } from './BoosterOfferModal';
 import { CharacterInfoBlock } from './CharacterInfoBlock';
 import { PaidAlbumPurchaseModal } from './PaidAlbumPurchaseModal';
 import { ImageGenerationModal } from './ImageGenerationModal';
+import { Character } from '../types/character';
+import { useCharacterTranslation } from '../hooks/useCharacterTranslation';
 
 const MobileAlbumButtonsContainer = styled.div`
   display: none;
 
-  @media (max-width: 768px) {
+  @media (max-width: 900px) {
     display: flex;
     gap: ${theme.spacing.sm};
     padding: ${theme.spacing.sm} ${theme.spacing.md};
@@ -145,7 +148,7 @@ const Container = styled.div`
   display: flex;
   flex-direction: column;
   position: relative;
-  overflow: visible;
+  overflow: hidden; /* Changed from visible to hidden to prevent scrollbars on full width */
   background: transparent;
 `;
 
@@ -331,8 +334,9 @@ const ChatContentWrapper = styled.div`
   opacity: 1 !important;
   overflow: visible;
   width: 100%;
+  justify-content: center; /* Center content if it doesn't take full width */
 
-  @media (max-width: 1280px) {
+  @media (max-width: 900px) {
     flex-direction: column;
   }
 `;
@@ -348,11 +352,12 @@ const CharacterCardWrapper = styled.div`
   flex-wrap: wrap;
   padding-left: 0;
   
-  /* Ограничиваем ширину карточки, но даем место для кнопок рейтинга (35px + 35px) */
+  /* Ограничиваем ширину карточки, чтобы она была как на главной */
   > *:first-child {
-    width: 270px;
-    max-width: 270px;
-    min-width: 200px;
+    width: 231px;
+    height: 339px;
+    max-width: 231px;
+    min-width: 231px;
   }
 `;
 
@@ -493,21 +498,23 @@ const PaidAlbumPanel = styled.div`
     0 4px 24px rgba(0, 0, 0, 0.5),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
   position: relative;
-  margin: ${theme.spacing.lg};
+  margin: ${theme.spacing.lg} ${theme.spacing.xl} ${theme.spacing.lg} 0; /* Add margin right for spacing from edge */
 
   @media (max-width: 1480px) {
-    width: 280px;
-    min-width: 280px;
+    width: 300px;
+    min-width: 300px;
   }
 
   @media (max-width: 1280px) {
+     /* Keep side panel visible on smaller desktops now that we have full width */
+     margin-right: ${theme.spacing.md};
+  }
+
+  @media (max-width: 900px) {
     width: 100%;
     min-width: 0;
     margin: ${theme.spacing.md};
-  }
-
-  @media (max-width: 768px) {
-    display: none;
+    display: none; /* Hide on mobile/tablet portrait if needed, or move to bottom */
   }
 `;
 
@@ -728,24 +735,7 @@ interface Message {
   progress?: number;
 }
 
-interface Character {
-  id: string;
-  name: string;
-  display_name?: string;
-  description: string;
-  avatar?: string;
-  character_appearance?: string;
-  location?: string;
-  prompt?: string;
-  voice_url?: string;
-  voice_id?: string;  // ID голоса из папки default_character_voices
-  user_id?: number;
-  raw?: any; // Исходные данные персонажа из API
-  likes?: number;
-  dislikes?: number;
-  views?: number;
-  comments?: number;
-}
+
 
 interface UserInfo {
   id: number;
@@ -870,13 +860,38 @@ const ModelDescription = styled.p`
 // Styled components для дефолтных промптов (тегов)
 const TagsContainer = styled.div<{ $isExpanded: boolean }>`
   display: flex;
-  flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
-  max-height: ${props => props.$isExpanded ? '500px' : '36px'};
-  overflow: hidden;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
+  
+  /* Desktop: wrap and expand vertically */
+  @media (min-width: 769px) {
+    flex-wrap: wrap;
+    max-height: ${props => props.$isExpanded ? '500px' : '36px'};
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  /* Mobile: horizontal scroll */
+  @media (max-width: 768px) {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-height: none;
+    padding-bottom: 4px;
+    
+    /* Hide scrollbar but keep functionality */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+    
+    &::-webkit-scrollbar {
+      display: none; /* Chrome, Safari, Opera */
+    }
+    
+    /* Smooth scroll */
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
 `;
 
 const ExpandButton = styled.div<{ $isExpanded: boolean }>`
@@ -910,6 +925,11 @@ const ExpandButton = styled.div<{ $isExpanded: boolean }>`
       transform: translateY(3px) rotate(0deg);
     }
   }
+  
+  /* Hide on mobile */
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
 const TagButton = styled.button`
@@ -924,6 +944,8 @@ const TagButton = styled.button`
   display: flex;
   align-items: center;
   gap: 4px;
+  white-space: nowrap; /* Prevent text wrapping */
+  flex-shrink: 0; /* Prevent shrinking on mobile */
 
   &:hover {
     background: rgba(60, 60, 60, 0.8);
@@ -945,6 +967,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   onNavigate,
   subscriptionType = 'free'
 }) => {
+  const { t } = useTranslation();
   const isMobile = useIsMobile();
   const [messages, setMessages] = useState<Message[]>([]);
   const isLoadingHistoryRef = useRef<string | null>(null); // Отслеживаем, для какого персонажа идет загрузка истории
@@ -991,10 +1014,48 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     }
     return Array.from(seenIds.values());
   };
+  // Получаем ID персонажа из URL, если он есть
+  const { characterId } = useParams<{ characterId: string }>();
+  const location = useLocation();
+
   const [currentCharacter, setCurrentCharacter] = useState<Character | null>(
     initialCharacter || null
   );
+
   const isLoadingFromUrlRef = useRef(false); // Флаг для отслеживания загрузки из URL
+
+  // Загружаем персонажа из API, если при обновлении страницы initialCharacter = null
+  useEffect(() => {
+    if (currentCharacter || initialCharacter || !characterId) return;
+    if (isLoadingFromUrlRef.current) return;
+    isLoadingFromUrlRef.current = true;
+
+    const fetchCharacter = async () => {
+      try {
+        const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/`);
+        if (!response.ok) return;
+        const characters = await response.json();
+        const found = characters.find((c: any) =>
+          String(c.id) === characterId ||
+          c.slug === characterId ||
+          c.name === characterId ||
+          c.name === decodeURIComponent(characterId)
+        );
+        if (found) {
+          setCurrentCharacter(found);
+        }
+      } catch (error) {
+        console.error('Error fetching character by ID:', error);
+      } finally {
+        isLoadingFromUrlRef.current = false;
+      }
+    };
+    fetchCharacter();
+  }, [characterId, currentCharacter, initialCharacter]);
+
+  // Effect to fetch character if not provided initially
+
+  const { tChar } = useCharacterTranslation(currentCharacter || initialCharacter);
 
   // Выбранный голос для текущего персонажа (локально для пользователя)
   const [selectedVoiceId, setSelectedVoiceId] = useState<string | null>(null);
@@ -1148,6 +1209,16 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   };
 
   const [targetLanguage, setTargetLanguage] = useState<'ru' | 'en'>(getDefaultLanguage());
+
+  // Синхронизируем targetLanguage с URL
+  useEffect(() => {
+    const pathParts = location.pathname.split('/');
+    const langInUrl = pathParts[1];
+    if ((langInUrl === 'ru' || langInUrl === 'en') && langInUrl !== targetLanguage) {
+      setTargetLanguage(langInUrl as 'ru' | 'en');
+    }
+  }, [location.pathname]);
+
   const [isLanguageChangeModalOpen, setIsLanguageChangeModalOpen] = useState(false);
   const [pendingLanguage, setPendingLanguage] = useState<'ru' | 'en' | null>(null);
 
@@ -1236,6 +1307,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
   const normalizedSubscriptionType = useMemo<'free' | 'base' | 'standard' | 'premium'>(() => {
     const normalized = effectiveSubscriptionType.toLowerCase();
+    console.log('[SUBSCRIPTION DEBUG] Raw subscriptionType:', subscriptionType);
+    console.log('[SUBSCRIPTION DEBUG] Fetched subscriptionType:', fetchedSubscriptionType);
+    console.log('[SUBSCRIPTION DEBUG] Effective subscriptionType:', effectiveSubscriptionType);
+    console.log('[SUBSCRIPTION DEBUG] Normalized subscriptionType:', normalized);
+    console.log('[SUBSCRIPTION DEBUG] UserInfo:', userInfo);
+
     if (normalized === 'standard' || normalized === 'premium') {
       return normalized;
     }
@@ -1243,7 +1320,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       return 'base';
     }
     return 'free';
-  }, [effectiveSubscriptionType]);
+  }, [effectiveSubscriptionType, subscriptionType, fetchedSubscriptionType, userInfo]);
 
 
 
@@ -1253,9 +1330,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const getGenerationQueueLimit = useMemo(() => {
     const subType = normalizedSubscriptionType;
     if (subType === 'premium') {
-      return 5; // PREMIUM: 5 фото одновременно
+      return 8; // PREMIUM: 8 фото одновременно
     } else if (subType === 'standard') {
-      return 3; // STANDARD: 3 фото одновременно
+      return 5; // STANDARD: 5 фото одновременно
     }
     return 1; // FREE/BASE: только 1 фото одновременно
   }, [normalizedSubscriptionType]);
@@ -1851,12 +1928,18 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           user_id: characterData.user_id || (currentCharacter as any).user_id,
           character_appearance: characterData.character_appearance || '',
           location: characterData.location || '',
+          appearance_ru: characterData.appearance_ru || characterData.character_appearance_ru,
+          appearance_en: characterData.appearance_en || characterData.character_appearance_en,
+          location_ru: characterData.location_ru,
+          location_en: characterData.location_en,
           voice_url: characterData.voice_url,
           voice_id: characterData.voice_id,
           likes: characterData.likes !== undefined ? characterData.likes : (currentCharacter.likes || 0),
           dislikes: characterData.dislikes !== undefined ? characterData.dislikes : ((currentCharacter as any).dislikes || 0),
           views: characterData.views !== undefined ? characterData.views : (currentCharacter.views || 0),
           comments: characterData.comments !== undefined ? characterData.comments : (currentCharacter.comments || 0),
+          translations: characterData.translations,
+          prompt: characterData.prompt || '',
           raw: characterData // Сохраняем raw данные для правильной работы с именем
         } : {
           id: characterId || characterData.id?.toString() || '',
@@ -1867,12 +1950,20 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           user_id: characterData.user_id,
           character_appearance: characterData.character_appearance || '',
           location: characterData.location || '',
+          appearance_ru: characterData.appearance_ru || characterData.character_appearance_ru,
+          appearance_en: characterData.appearance_en || characterData.character_appearance_en,
+          location_ru: characterData.location_ru,
+          location_en: characterData.location_en,
           voice_url: characterData.voice_url,
           voice_id: characterData.voice_id,
           likes: characterData.likes || 0,
           dislikes: characterData.dislikes || 0,
           views: characterData.views || 0,
           comments: characterData.comments || 0,
+          tags: characterData.tags || [],
+          author: characterData.author || 'Unknown',
+          translations: characterData.translations,
+          prompt: characterData.prompt || '',
           raw: characterData // Сохраняем raw данные для правильной работы с именем
         };
 
@@ -2812,7 +2903,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
     }
 
     // Если сообщение пустое, но запрашивается генерация фото, создаем сообщение с промптом
-    const originalMessage = message.trim() || (generateImage ? 'Генерация изображения' : '');
+    const originalMessage = message.trim() || (generateImage ? t('chat.generateImage') : '');
 
     // Промпт для генерации фото не должен попадать в чат как сообщение пользователя
     // Добавляем сообщение пользователя только если есть текст (для чата с текстовой моделью)
@@ -3326,7 +3417,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
         if (data.messages && data.messages.length > 0) {
           // Преобразуем сообщения в формат, ожидаемый компонентом
-          const formattedMessages: Message[] = data.messages.map((msg: any) => {
+          const formattedMessages: Message[] = data.messages.map((msg: any, index: number) => {
             const rawContent = typeof msg.content === 'string' ? msg.content : '';
             // Проверяем image_url из API ответа (приоритет) или из content
             let imageUrl = msg.image_url;
@@ -3342,9 +3433,18 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             // Очищаем content от [image:url] если он там есть
             let cleanedContent = rawContent.replace(/\n?\[image:.*?\]/g, '').trim();
 
+            // Проверяем, является ли это user-сообщением перед assistant-сообщением с изображением
+            const isUserMessage = msg.type === 'user' || msg.role === 'user';
+            const nextMessage = data.messages[index + 1];
+            const nextHasImage = nextMessage && (nextMessage.image_url || (nextMessage.content && nextMessage.content.includes('[image:')));
+            const nextIsAssistant = nextMessage && (nextMessage.type === 'assistant' || nextMessage.role === 'assistant');
+
+            // Если это user-сообщение перед assistant-сообщением с изображением, скрываем его (это промпт для фото)
+            const isPhotoPrompt = isUserMessage && nextHasImage && nextIsAssistant;
+
             // Если есть imageUrl, content должен быть полностью пустым (скрываем промпт)
             // Если imageUrl нет, используем очищенный content
-            const finalContent = imageUrl ? '' : cleanedContent;
+            const finalContent = (imageUrl || isPhotoPrompt) ? '' : cleanedContent;
 
             // Логируем для отладки
             if (imageUrl) {
@@ -3353,14 +3453,24 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
             return {
               id: msg.id.toString(),
-              type: msg.type === 'assistant' ? 'assistant' : 'user',
+              type: (msg.type === 'assistant' || msg.role === 'assistant') ? 'assistant' : 'user',
               content: finalContent,
               timestamp: new Date(msg.timestamp),
               imageUrl: imageUrl,
               generationTime: msg.generation_time !== undefined && msg.generation_time !== null
                 ? (typeof msg.generation_time === 'number' ? msg.generation_time : parseFloat(msg.generation_time))
-                : undefined
+                : undefined,
+              isPhotoPrompt: isPhotoPrompt // Помечаем промпты для фильтрации
             };
+          });
+
+          // Фильтруем промпты для фото (user-сообщения с пустым content и isPhotoPrompt)
+          const filteredMessages = formattedMessages.filter(msg => {
+            // Скрываем user-сообщения, которые являются промптами для фото
+            if (msg.type === 'user' && msg.isPhotoPrompt && !msg.content) {
+              return false;
+            }
+            return true;
           });
 
           // Улучшенная дедупликация: сначала по URL изображения, потом по ID
@@ -3368,7 +3478,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           const seenIds = new Map<string, Message>();
           const uniqueMessages: Message[] = [];
 
-          for (const msg of formattedMessages) {
+          for (const msg of filteredMessages) {
             // Нормализуем URL для сравнения (убираем query параметры и якоря)
             const normalizedUrl = msg.imageUrl ? msg.imageUrl.split('?')[0].split('#')[0] : null;
 
@@ -3579,15 +3689,17 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   }, [initialCharacterIdentifier]); // Используем только идентификатор, функции мемоизированы
 
   // Загружаем персонажа из URL, если initialCharacter не передан
+  // Загружаем персонажа из URL, если initialCharacter не передан
   useEffect(() => {
 
     // Если initialCharacter не передан и currentCharacter тоже null, пытаемся загрузить из URL
     // Также проверяем, что мы еще не загружали из URL
     if (!initialCharacter && !currentCharacter && !isLoadingFromUrlRef.current) {
       const urlParams = new URLSearchParams(window.location.search);
-      const characterId = urlParams.get('character');
+      // Use query param OR route param
+      const targetCharacterId = urlParams.get('character') || characterId;
 
-      if (characterId) {
+      if (targetCharacterId) {
 
         isLoadingFromUrlRef.current = true; // Устанавливаем флаг загрузки
 
@@ -3595,55 +3707,63 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         const loadCharacterFromUrl = async () => {
           try {
             // Сначала проверяем localStorage
-            const savedCharacter = localStorage.getItem(`character_${characterId}`);
+            const savedCharacter = localStorage.getItem(`character_${targetCharacterId}`);
             if (savedCharacter) {
               try {
                 const character = JSON.parse(savedCharacter);
 
-                setCurrentCharacter(character);
+                // ВАЖНО: Проверяем наличие prompt или raw.prompt для отображения Situation
+                // Если промпта нет (например, сохранена краткая версия), нужно загрузить полную версию
+                const hasPrompt = character.prompt || (character.raw && character.raw.prompt);
 
-                // Используем raw.name (реальное имя из БД) для загрузки истории
-                // Если raw.name нет, используем name, но лучше загрузить полные данные через loadCharacterData
-                const characterIdentifier = character.raw?.name || character.name;
+                if (hasPrompt) {
+                  setCurrentCharacter(character);
 
+                  // Используем raw.name (реальное имя из БД) для загрузки истории
+                  // Если raw.name нет, используем name, но лучше загрузить полные данные через loadCharacterData
+                  const characterIdentifier = character.raw?.name || character.name;
 
-                if (characterIdentifier) {
-                  // Проверяем, не загружали ли мы уже этого персонажа
-                  if (lastLoadedCharacterRef.current !== characterIdentifier) {
-                    lastLoadedCharacterRef.current = characterIdentifier;
-                    setCurrentCharacter(character);
-                    // loadCharacterData обновит данные персонажа, включая raw
-                    loadCharacterData(characterIdentifier);
-                    // Передаем character для правильного определения identifier в loadChatHistory
-                    loadChatHistory(characterIdentifier, character);
-                    if (fetchPaidAlbumStatus) {
-                      fetchPaidAlbumStatus(characterIdentifier);
+                  if (characterIdentifier) {
+                    // Проверяем, не загружали ли мы уже этого персонажа
+                    if (lastLoadedCharacterRef.current !== characterIdentifier) {
+                      lastLoadedCharacterRef.current = characterIdentifier;
+                      setCurrentCharacter(character);
+                      // loadCharacterData обновит данные персонажа, включая raw
+                      loadCharacterData(characterIdentifier);
+                      // Передаем character для правильного определения identifier в loadChatHistory
+                      loadChatHistory(characterIdentifier, character);
+                      if (fetchPaidAlbumStatus) {
+                        fetchPaidAlbumStatus(characterIdentifier);
+                      }
+                    } else {
+                      setCurrentCharacter({
+                        ...character,
+                        tags: character.tags || [],
+                        author: character.author || 'Unknown'
+                      });
                     }
                   } else {
-
-                    setCurrentCharacter(character); // Устанавливаем персонажа, но не загружаем данные повторно
+                    // Если нет identifier, загружаем из API
+                    throw new Error('No identifier in localStorage character');
                   }
-                } else {
-
-                  // Если нет identifier, загружаем из API
-                  throw new Error('No identifier in localStorage character');
+                  return;
                 }
-                return;
+                // Если prompt отсутствует, продолжаем выполнение, чтобы загрузить данные из API
+                console.log('Character in localStorage missing prompt, fetching from API...');
               } catch (parseError) {
-
                 // Продолжаем загрузку из API
               }
             }
 
             // Если не найден в localStorage или ошибка парсинга, загружаем из API с полными данными
-            const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${encodeURIComponent(characterId)}/with-creator`);
+            const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${encodeURIComponent(targetCharacterId)}/with-creator`);
             if (response.ok) {
               const characterData = await response.json();
 
 
               // Создаем объект персонажа с правильной структурой
               const character = {
-                id: characterData.id?.toString() || characterId,
+                id: characterData.id?.toString() || targetCharacterId,
                 name: characterData.name || '',
                 display_name: characterData.display_name || characterData.name || '',
                 description: characterData.description || '',
@@ -3653,23 +3773,31 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
               // Сохраняем в localStorage для будущего использования
               try {
-                localStorage.setItem(`character_${characterId}`, JSON.stringify(character));
+                localStorage.setItem(`character_${targetCharacterId}`, JSON.stringify(character));
 
               } catch (storageError) {
 
               }
 
-              setCurrentCharacter(character);
+              setCurrentCharacter({
+                ...character,
+                tags: characterData.tags || [],
+                author: characterData.author || 'Unknown'
+              });
 
               // Используем raw.name (реальное имя из БД) для загрузки истории
-              const characterIdentifier = characterData.name || characterId;
+              const characterIdentifier = characterData.name || targetCharacterId;
 
 
               if (characterIdentifier) {
                 // Проверяем, не загружали ли мы уже этого персонажа
                 if (lastLoadedCharacterRef.current !== characterIdentifier) {
                   lastLoadedCharacterRef.current = characterIdentifier;
-                  setCurrentCharacter(character);
+                  setCurrentCharacter({
+                    ...character,
+                    tags: characterData.tags || [],
+                    author: characterData.author || 'Unknown'
+                  });
                   // loadCharacterData обновит данные персонажа, включая raw
                   loadCharacterData(characterIdentifier);
                   // Передаем character с raw данными для правильного определения identifier в loadChatHistory
@@ -3691,12 +3819,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               if (response.status === 404) {
 
                 try {
-                  localStorage.removeItem(`character_${characterId}`);
+                  localStorage.removeItem(`character_${targetCharacterId}`);
                 } catch (e) {
 
                 }
                 // Устанавливаем ошибку, чтобы показать сообщение пользователю
-                setError(`Персонаж с ID "${characterId}" не найден. Возможно, он был удален.`);
+                setError(`Персонаж с ID "${targetCharacterId}" не найден. Возможно, он был удален.`);
                 // Не устанавливаем currentCharacter, чтобы показать сообщение об ошибке
               } else {
                 setError(`Не удалось загрузить персонажа: ${errorText || 'Неизвестная ошибка'}`);
@@ -3720,7 +3848,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialCharacter?.name, initialCharacter?.id]); // Загружаем из URL только если initialCharacter изменился или отсутствует
+  }, [initialCharacter?.name, initialCharacter?.id, characterId]); // Загружаем из URL только если initialCharacter изменился или отсутствует
 
   const handleAuthSuccess = async (accessToken: string, refreshToken?: string) => {
     // Сохраняем токены
@@ -4265,28 +4393,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   return (
     <Container>
       <MainContent>
-        <GlobalHeader
-          onShop={onShop}
-          onLogin={() => {
-            setAuthMode('login');
-            setIsAuthModalOpen(true);
-          }}
-          onRegister={() => {
-            setAuthMode('register');
-            setIsAuthModalOpen(true);
-          }}
-          onLogout={() => {
-            authManager.clearTokens();
-            setIsAuthenticated(false);
-            setUserInfo(null);
-            setBalanceRefreshTrigger(prev => prev + 1);
-          }}
-          onProfile={onOwnProfile || (() => userInfo?.id && onProfile?.(userInfo.id))}
-          onBalance={() => alert('Баланс пользователя')}
-          refreshTrigger={balanceRefreshTrigger}
-          currentCharacterId={currentCharacter?.id}
-          isOnChatPage={true}
-        />
 
         {/* Кнопки альбома для мобильных устройств - под хедером */}
         <MobileAlbumButtonsContainer>
@@ -4296,7 +4402,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               onClick={handleOpenPaidAlbumView}
             >
               <FolderOpen />
-              Открыть альбом
+              {t('album.open')}
             </MobileAlbumButton>
           ) : (
             <MobileAlbumButton
@@ -4330,19 +4436,28 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               }}
             >
               <Sparkles />
-              Расширить альбом
+              {t('album.expand')}
             </MobileAlbumButton>
           )}
         </MobileAlbumButtonsContainer>
 
         <ChatContentWrapper>
-          <ChatMessagesArea style={{ zIndex: 10, position: 'relative' }}>
+          <ChatMessagesArea style={{
+            zIndex: 10,
+            position: 'relative',
+            ...(isMobile && characterPhotos && characterPhotos.length > 0 ? {
+              backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url(${characterPhotos[0]})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat'
+            } : {})
+          }}>
             <ChatArea
               onSendMessage={handleSendMessage}
               messages={uniqueMessages}
               isLoading={isLoading}
               isGeneratingImage={activeGenerations.size > 0}
-              characterSituation={characterSituation ?? undefined}
+              characterSituation={characterSituation || tChar('situation') || (characterForRender ? extractRolePlayingSituation(characterForRender.prompt || characterForRender.raw?.prompt || '') : '')}
               characterName={characterForRender?.name || ''}
               characterAvatar={characterPhotos && characterPhotos.length > 0 ? characterPhotos[0] : undefined}
               voiceUrl={(() => {
@@ -4381,9 +4496,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             <MessageInput
               onSendMessage={handleSendMessage}
               onShop={onShop}
-              targetLanguage={targetLanguage}
-              onLanguageChange={handleLanguageChange}
-              isPremium={normalizedSubscriptionType === 'premium'}
+
+
               subscriptionType={normalizedSubscriptionType}
               brevityMode={brevityMode}
               onBrevityModeChange={setBrevityMode}
@@ -4460,7 +4574,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               }}
               disabled={isLoading && activeGenerations.size === 0}
               disableImageGeneration={activeGenerations.size >= getGenerationQueueLimit}
-              placeholder={`Напишите сообщение ${characterForRender?.name || 'персонажу'}...`}
+              placeholder={`Напишите сообщение ${tChar('name') || characterForRender?.name || 'персонажу'}...`}
               hasMessages={messages.length > 0}
             />
           </ChatMessagesArea>
@@ -4502,6 +4616,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                     isAuthenticated={isAuthenticated}
                     isFavorite={isCharacterFavorite}
                     showRatings={true}
+                    disableHover={true}
                     onFavoriteToggle={async () => {
                       // Обновляем состояние избранного после переключения, загружая актуальное состояние с сервера
                       if (currentCharacter?.id) {
@@ -4624,14 +4739,14 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                             onClick={handleOpenPaidAlbumView}
                           >
                             <FolderOpen />
-                            Открыть альбом
+                            {t('album.open')}
                           </PaidAlbumButton>
                         )}
                         <PaidAlbumButton
                           onClick={handleOpenPaidAlbumBuilderView}
                         >
                           <Sparkles />
-                          Расширить альбом
+                          {t('album.expand')}
                         </PaidAlbumButton>
                         {!isPaidAlbumUnlocked && (
                           <PaidAlbumInfo>
@@ -4640,7 +4755,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                         )}
                         {isPaidAlbumUnlocked && (
                           <PaidAlbumInfo>
-                            Альбом разблокирован. Вы можете расширить коллекцию фотографий.
+                            {t('album.unlocked')}
                           </PaidAlbumInfo>
                         )}
                       </>
@@ -4658,7 +4773,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                             onClick={handleOpenPaidAlbumView}
                           >
                             <FolderOpen />
-                            Открыть альбом
+                            {t('album.open')}
                           </PaidAlbumButton>
                         ) : (
                           <PaidAlbumButton
@@ -4675,7 +4790,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                           }}
                         >
                           <Sparkles />
-                          Расширить альбом
+                          {t('album.expand')}
                         </PaidAlbumButton>
                         {paidAlbumError && <PaidAlbumError>{paidAlbumError}</PaidAlbumError>}
                       </>
@@ -4692,7 +4807,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                           onClick={handleOpenPaidAlbumView}
                         >
                           <FolderOpen />
-                          Открыть альбом
+                          {t('album.open')}
                         </PaidAlbumButton>
                       ) : (
                         <PaidAlbumButton
@@ -4719,7 +4834,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                         }}
                       >
                         <Sparkles />
-                        Расширить альбом
+                        {t('album.expand')}
                       </PaidAlbumButton>
                       {paidAlbumError && <PaidAlbumError>{paidAlbumError}</PaidAlbumError>}
                     </>
@@ -4737,7 +4852,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                         onClick={handleOpenPaidAlbumView}
                       >
                         <FolderOpen />
-                        Открыть альбом
+                        {t('album.open')}
                       </PaidAlbumButton>
                     ) : (
                       <PaidAlbumButton
@@ -4770,7 +4885,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                         }}
                       >
                         <Sparkles />
-                        Расширить альбом
+                        {t('album.expand')}
                       </PaidAlbumButton>
                     )}
                     {paidAlbumError && <PaidAlbumError>{paidAlbumError}</PaidAlbumError>}
@@ -4961,7 +5076,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           )
         }
         chatHistory={messages}
-        characterId={currentCharacter?.id || currentCharacter?.name}
+        characterId={currentCharacter?.id ? String(currentCharacter.id) : currentCharacter?.name || ''}
         userId={userInfo?.id}
         isAdmin={userInfo?.is_admin}
       />

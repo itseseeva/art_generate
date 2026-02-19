@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Check, Plus, Hash, Sparkles } from 'lucide-react';
 import { API_CONFIG } from '../config/api';
+import { useTranslation } from 'react-i18next';
 
 // ==========================================
 // TYPES & CONSTANTS
@@ -11,21 +12,23 @@ interface TagSelectorProps {
   selectedTags: string[];
   onChange: (tags: string[]) => void;
   className?: string;
+  style?: React.CSSProperties;
 }
 
 // Custom Tag Categories Mapping
 const TAG_CATEGORIES: Record<string, string[]> = {
-  "РОЛЬ": ["Босс", "Горничная", "Незнакомка", "Подруга", "Слуга", "Студентка", "Учитель"],
-  "НАСТРОЕНИЕ": ["Грубая", "Доминирование", "Милая", "Цундере"],
-  "ЖАНР": ["Киберпанк", "Фэнтези"],
-  "ТИП": ["NSFW", "New", "Original", "SFW", "Пользовательские"]
+  "ROLE": ["Босс", "Горничная", "Незнакомка", "Подруга", "Слуга", "Студентка", "Учитель"],
+  "MOOD": ["Грубая", "Доминирование", "Милая", "Цундере"],
+  "GENRE": ["Киберпанк", "Фэнтези"],
+  "TYPE": ["NSFW", "New", "Original", "SFW", "Пользовательские"]
 };
 
 // ==========================================
 // COMPONENT
 // ==========================================
 
-export const TagSelector: React.FC<TagSelectorProps> = ({ selectedTags, onChange, className = '' }) => {
+export const TagSelector: React.FC<TagSelectorProps> = ({ selectedTags, onChange, className = '', style }) => {
+  const { t } = useTranslation('common');
   const [availableTags, setAvailableTags] = useState<any[]>([]);
 
   // 1. Fetch Tags
@@ -68,7 +71,7 @@ export const TagSelector: React.FC<TagSelectorProps> = ({ selectedTags, onChange
 
     const otherTags = availableTags.filter(t => !usedTagNames.has(t.name));
     if (otherTags.length > 0) {
-      result["ДРУГОЕ"] = otherTags;
+      result["OTHER"] = otherTags;
     }
 
     return result;
@@ -122,9 +125,9 @@ export const TagSelector: React.FC<TagSelectorProps> = ({ selectedTags, onChange
   };
 
   return (
-    <div className={`w-full ${className}`}>
+    <div className={`w-full ${className}`} style={style}>
       {/* Categories - Scrollable Area */}
-      <div className="h-[136px] overflow-y-auto pr-2 -mr-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-cyan-900/40 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-cyan-500/60 transition-colors">
+      <div className="h-full overflow-y-auto pr-2 -mr-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-cyan-900/40 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-cyan-500/60 transition-colors">
         <motion.div
           variants={containerVariants}
           initial="hidden"
@@ -135,7 +138,9 @@ export const TagSelector: React.FC<TagSelectorProps> = ({ selectedTags, onChange
             {Object.entries(categorizedTags).map(([category, tags]) => (
               <motion.div key={category} variants={itemVariants} className="flex flex-col gap-3">
                 <h4 className="flex items-center gap-3 py-2 px-1">
-                  <span className="text-[10px] font-bold text-cyan-400/80 uppercase tracking-[0.2em]">{category}</span>
+                  <span className="text-[10px] font-bold text-cyan-400/80 uppercase tracking-[0.2em]">
+                    {t(`tags.categories.${category}`)}
+                  </span>
                   <div className="h-[1px] flex-1 bg-gradient-to-r from-cyan-900/50 via-cyan-500/20 to-transparent" />
                 </h4>
                 <div className="flex flex-wrap gap-2 p-1">
@@ -158,7 +163,7 @@ export const TagSelector: React.FC<TagSelectorProps> = ({ selectedTags, onChange
                             ? 'bg-gradient-to-r from-violet-600 to-blue-600 border-transparent text-white shadow-[0_0_15px_rgba(139,92,246,0.4)]'
                             : 'bg-transparent border-white/10 text-slate-400 hover:text-white hover:border-white/40 hover:bg-white/5'
                           }
-                                                `}
+                                                  `}
                       >
                         <AnimatePresence mode='wait'>
                           {isActive ? (
@@ -176,7 +181,7 @@ export const TagSelector: React.FC<TagSelectorProps> = ({ selectedTags, onChange
                           )}
                         </AnimatePresence>
 
-                        <span className={isActive ? 'text-white' : ''}>{tag.name}</span>
+                        <span className={isActive ? 'text-white' : ''}>{t(`tags.values.${tag.name}`, tag.name) as string}</span>
 
                         {/* Hover Glow Effect for non-active */}
                         {!isActive && (

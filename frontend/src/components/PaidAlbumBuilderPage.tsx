@@ -12,7 +12,6 @@ import { Sparkles, Plus, X, ArrowLeft, Save, Wand2, Settings, Upload, Camera } f
 import { FiSettings } from 'react-icons/fi';
 import DarkVeil from '../../@/components/DarkVeil';
 import { PromptGlassModal } from './PromptGlassModal';
-import { GlobalHeader } from './GlobalHeader';
 
 // Animations
 const shimmer = keyframes`
@@ -1448,6 +1447,8 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
   const [albumLoading, setAlbumLoading] = useState(true);
   const [previewPhoto, setPreviewPhoto] = useState<PaidAlbumImage | null>(null);
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
+  const [selectedPromptRu, setSelectedPromptRu] = useState<string | null>(null);
+  const [selectedPromptEn, setSelectedPromptEn] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
   const [isPromptVisible, setIsPromptVisible] = useState(false);
@@ -1903,9 +1904,9 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
     }
     let queueLimit: number;
     if (subscriptionType === 'premium') {
-      queueLimit = 5;
+      queueLimit = 8;
     } else if (subscriptionType === 'standard') {
-      queueLimit = 3;
+      queueLimit = 5;
     } else {
       queueLimit = 1;
     }
@@ -2057,6 +2058,8 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
   const handleOpenPreview = async (photo: PaidAlbumImage) => {
     setPreviewPhoto(photo);
     setSelectedPrompt(null);
+    setSelectedPromptRu(null);
+    setSelectedPromptEn(null);
     setPromptError(null);
     setIsPromptVisible(true);
 
@@ -2064,10 +2067,10 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
     setIsLoadingPrompt(true);
     try {
       const result = await fetchPromptByImage(photo.url);
-      if (result.hasPrompt && result.prompt) {
-        // Переводим промпт на русский для отображения
-        const translatedPrompt = await translateToRussian(result.prompt);
-        setSelectedPrompt(translatedPrompt);
+      if (result.hasPrompt && (result.prompt || result.prompt_ru || result.prompt_en)) {
+        setSelectedPrompt(result.prompt);
+        setSelectedPromptRu(result.prompt_ru || null);
+        setSelectedPromptEn(result.prompt_en || null);
       } else {
         setPromptError(result.errorMessage || 'Промпт недоступен для этого изображения');
       }
@@ -2081,6 +2084,8 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
   const handleClosePreview = () => {
     setPreviewPhoto(null);
     setSelectedPrompt(null);
+    setSelectedPromptRu(null);
+    setSelectedPromptEn(null);
     setPromptError(null);
     setIsLoadingPrompt(false);
   };
@@ -2102,11 +2107,6 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
   return (
     <PageContainer>
       <HeaderWrapper>
-        <GlobalHeader
-          onHome={onBackToMain}
-          onShop={onShop}
-          onProfile={onProfile}
-        />
       </HeaderWrapper>
       <BackgroundWrapper>
         <DarkVeil speed={1.1} />
@@ -2271,9 +2271,9 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                     }
                     let queueLimit;
                     if (subscriptionType === 'premium') {
-                      queueLimit = 5; // PREMIUM: 5 фото одновременно
+                      queueLimit = 8; // PREMIUM: 8 фото одновременно
                     } else if (subscriptionType === 'standard') {
-                      queueLimit = 3; // STANDARD: 3 фото одновременно
+                      queueLimit = 5; // STANDARD: 5 фото одновременно
                     } else {
                       queueLimit = 1; // FREE/BASE: только 1 фото одновременно
                     }
@@ -2294,9 +2294,9 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                     }
                     let queueLimit;
                     if (subscriptionType === 'premium') {
-                      queueLimit = 5; // PREMIUM: 5 фото одновременно
+                      queueLimit = 8; // PREMIUM: 8 фото одновременно
                     } else if (subscriptionType === 'standard') {
-                      queueLimit = 3; // STANDARD: 3 фото одновременно
+                      queueLimit = 5; // STANDARD: 5 фото одновременно
                     } else {
                       queueLimit = 1; // FREE/BASE: только 1 фото одновременно
                     }
@@ -2463,9 +2463,9 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                 }
                 let queueLimit;
                 if (subscriptionType === 'premium') {
-                  queueLimit = 5; // PREMIUM: 5 фото одновременно
+                  queueLimit = 8; // PREMIUM: 8 фото одновременно
                 } else if (subscriptionType === 'standard') {
-                  queueLimit = 3; // STANDARD: 3 фото одновременно
+                  queueLimit = 5; // STANDARD: 5 фото одновременно
                 } else {
                   queueLimit = 1; // FREE/BASE: только 1 фото одновременно
                 }
@@ -2617,43 +2617,17 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         />
       )}
 
-      {previewPhoto && (
-        <PreviewBackdrop onClick={handleClosePreview}>
-          <PreviewContent onClick={(e) => e.stopPropagation()}>
-            <PreviewClose onClick={handleClosePreview}>
-              <X size={20} />
-            </PreviewClose>
-            <ModalImageContainer>
-              <PreviewImage src={previewPhoto.url} alt={displayName} />
-            </ModalImageContainer>
-            <PromptPanel style={{
-              display: isPromptVisible ? 'flex' : 'none',
-              visibility: isPromptVisible ? 'visible' : 'hidden'
-            }}>
-              <PromptPanelHeader>
-                <PromptPanelTitle>Промпт</PromptPanelTitle>
-                <PromptCloseButton onClick={handleClosePrompt}>
-                  <X size={20} />
-                </PromptCloseButton>
-              </PromptPanelHeader>
-              {isLoadingPrompt ? (
-                <PromptLoading>Загрузка промпта...</PromptLoading>
-              ) : promptError ? (
-                <PromptError>{promptError}</PromptError>
-              ) : selectedPrompt ? (
-                <PromptPanelText>{selectedPrompt}</PromptPanelText>
-              ) : (
-                <PromptLoading>Промпт не найден</PromptLoading>
-              )}
-            </PromptPanel>
-            {!isPromptVisible && (
-              <ShowPromptButton onClick={() => setIsPromptVisible(true)}>
-                Показать промпт
-              </ShowPromptButton>
-            )}
-          </PreviewContent>
-        </PreviewBackdrop>
-      )}
+      <PromptGlassModal
+        isOpen={!!previewPhoto}
+        onClose={handleClosePreview}
+        imageUrl={previewPhoto?.url || ''}
+        imageAlt={displayName}
+        promptText={selectedPrompt}
+        promptTextRu={selectedPromptRu}
+        promptTextEn={selectedPromptEn}
+        isLoading={isLoadingPrompt}
+        error={promptError}
+      />
     </PageContainer>
   );
 };

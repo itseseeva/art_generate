@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'motion/react';
 import { FiHeart } from 'react-icons/fi';
 import { theme } from '../theme';
@@ -8,7 +10,7 @@ import { ShopModal } from './ShopModal';
 import { AuthModal } from './AuthModal';
 import { PhotoGenerationPage } from './PhotoGenerationPage';
 import { Footer } from './Footer';
-import { GlobalHeader } from './GlobalHeader';
+// GlobalHeader import removed
 import { API_CONFIG } from '../config/api';
 import { authManager } from '../utils/auth';
 import '../styles/ContentArea.css';
@@ -16,6 +18,7 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import DarkVeil from '../../@/components/DarkVeil';
 import { BoosterOfferModal } from './BoosterOfferModal';
 import { SEOContent } from './SEOContent';
+import { LoadingSpinner } from './LoadingSpinner';
 
 const PAGE_SIZE = 26;
 
@@ -163,11 +166,11 @@ const FilterButton = styled.button<{ $active?: boolean }>`
 
 const CharactersGrid = styled.div`
   flex: 1;
-  padding: 0 ${theme.spacing.sm} ${theme.spacing.xs};
-  overflow-y: visible;
+  padding: 16px ${theme.spacing.sm} ${theme.spacing.xs}; /* Добавил padding-top для scale эффекта */
+  overflow: visible;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 0;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
   align-content: start;
   width: 100%;
   min-height: 0;
@@ -177,6 +180,7 @@ const CharactersGrid = styled.div`
     overflow-y: visible;
     grid-template-columns: repeat(2, 1fr);
     gap: ${theme.spacing.sm};
+    padding-top: 8px;
   }
 `;
 
@@ -218,17 +222,18 @@ const floatAnimation = keyframes`
 
 const CreateCharacterCardWrapper = styled.div`
   position: relative;
-  height: 300px;
+  height: 339px;
   width: 100%;
-  min-width: 0;
+  min-width: 203px;
   /* Как у CharacterCard: одна ячейка в сетке, на мобильных компактнее */
-  background: rgba(22, 33, 62, 0.3);
-  backdrop-filter: blur(5px);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border-radius: ${theme.borderRadius.lg};
-  box-shadow: ${theme.colors.shadow.message};
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   transition: ${theme.transition.fast};
   overflow: hidden;
-  border: 2px solid transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   cursor: pointer;
 
   @media (max-width: 768px) {
@@ -236,7 +241,7 @@ const CreateCharacterCardWrapper = styled.div`
   }
 
   @media (min-width: 769px) {
-    min-width: 200px;
+    min-width: 203px;
   }
   
   &:hover {
@@ -308,7 +313,16 @@ const TagFilterBar = styled.div`
   background: rgba(15, 15, 15, 0.5);
   margin: 0;
   flex-shrink: 0;
+  width: 100%;
   
+  @media (min-width: 769px) {
+    margin-left: -226px;
+    margin-right: -226px;
+    width: calc(100% + 452px);
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+
   @media (max-width: 768px) {
     margin-top: 5%;
   }
@@ -355,19 +369,40 @@ const TagFilterButton = styled.button<{ $active?: boolean }>`
 `;
 
 interface Character {
-  id: string;
+  id: string | number;
   name: string;
   description: string;
   avatar: string;
   photos?: string[];
-  tags: string[];
-  author: string;
-  likes: number;
+  tags?: string[];
+  author?: string;
+  likes?: number;
   dislikes?: number;
-  views: number;
-  comments: number;
+  views?: number;
+  comments?: number;
   is_nsfw?: boolean;
   creator_username?: string;
+  prompt?: string;
+  translations?: {
+    [lang: string]: {
+      name?: string;
+      description?: string;
+      prompt?: string;
+      situation?: string;
+      instructions?: string;
+      personality?: string;
+      firstMessage?: string;
+    };
+  };
+  // Bilingual fields
+  personality_ru?: string;
+  personality_en?: string;
+  situation_ru?: string;
+  situation_en?: string;
+  instructions_ru?: string;
+  instructions_en?: string;
+  style_ru?: string;
+  style_en?: string;
 }
 
 // Mock character data - only originals
@@ -467,6 +502,8 @@ export const MainPage: React.FC<MainPageProps> = ({
   onLogout,
   onLogin
 }) => {
+  const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [isShopModalOpen, setIsShopModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -650,7 +687,22 @@ export const MainPage: React.FC<MainPageProps> = ({
         is_nsfw: char.is_nsfw === true,
         creator_username: char.creator_username,
         prompt: char.prompt || char.full_prompt || '',
-        raw: char
+
+        raw: char,
+        translations: char.translations,
+        // Bilingual fields mapping
+        personality_ru: char.personality_ru,
+        personality_en: char.personality_en,
+        situation_ru: char.situation_ru,
+        situation_en: char.situation_en,
+        instructions_ru: char.instructions_ru,
+        instructions_en: char.instructions_en,
+        style_ru: char.style_ru,
+        style_en: char.style_en,
+        appearance_ru: char.appearance_ru || char.character_appearance_ru,
+        appearance_en: char.appearance_en || char.character_appearance_en,
+        location_ru: char.location_ru,
+        location_en: char.location_en
       };
     });
   };
@@ -1406,22 +1458,43 @@ export const MainPage: React.FC<MainPageProps> = ({
       });
   }, [characters, contentMode, normalizedSelectedTags, characterPhotos, characterRatings, sortFilter]);
 
+  const [columnsCount, setColumnsCount] = useState(6);
+
+  // Определение количества колонок
+  React.useLayoutEffect(() => {
+    const handleResize = (entries: ResizeObserverEntry[]) => {
+      for (let entry of entries) {
+        if (window.innerWidth <= 768) {
+          setColumnsCount(2); // Mobile view fixed 2 columns
+          continue;
+        }
+
+        const width = entry.contentRect.width;
+        // Min width 230px + gap 8px = 238px
+        const cols = Math.floor(width / (230 + 8));
+        // Если ширина большая, но помещается N колонок c учетом gap
+        // Grid auto-fill: ширина элемента >= 230px.
+        // Точная логика CSS grid: floor((availWidth + gap) / (minWidth + gap))
+        const calculated = Math.floor((width + 8) / 238);
+        setColumnsCount(Math.max(1, calculated));
+      }
+    };
+
+    const observer = new ResizeObserver(handleResize);
+    if (charactersGridRef.current) {
+      observer.observe(charactersGridRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <MainContainer>
       <BackgroundWrapper>
         <DarkVeil speed={1.1} />
       </BackgroundWrapper>
       <ContentWrapper>
-        <HeaderWrapper>
-          <GlobalHeader
-            onShop={onShop || handleShop}
-            onProfile={onProfile}
-            onLogin={onLogin || handleLogin}
-            onRegister={onRegister || handleRegister}
-            onLogout={onLogout}
-            onHome={onHome}
-          />
-        </HeaderWrapper>
+        {/* GlobalHeader removed from MainPage */}
         {!isPhotoGenerationOpen && availableTags.length > 0 && (
           <TagFilterBar>
             {availableTags.map((tagObj) => (
@@ -1432,15 +1505,15 @@ export const MainPage: React.FC<MainPageProps> = ({
                 onClick={() => {
                   const slug = tagObj.slug;
                   if (slug) {
-                    window.history.pushState({ page: 'tags', slug }, '', `/tags/${slug}`);
-                    // Будет обрабатываться в попстейт или через глобальное событие
-                    window.dispatchEvent(new CustomEvent('navigate-to-tags', { detail: { slug } }));
+                    const currentLang = i18n.language || 'ru';
+                    const path = currentLang === 'en' ? `/tags/${slug}` : `/${currentLang}/tags/${slug}`;
+                    navigate(path);
                   } else {
                     toggleTag(tagObj.name);
                   }
                 }}
               >
-                {tagObj.name}
+                {i18n.language === 'ru' ? tagObj.name_ru || tagObj.name : tagObj.name_en || tagObj.name}
               </TagFilterButton>
             ))}
           </TagFilterBar>
@@ -1457,30 +1530,15 @@ export const MainPage: React.FC<MainPageProps> = ({
             <>
               <CharactersGrid ref={charactersGridRef}>
                 {isLoadingCharacters ? (
-                  <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2rem', color: '#a8a8a8' }}>
-                    Loading characters...
+                  <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'center', padding: '4rem' }}>
+                    <LoadingSpinner size="lg" text={t('mainPage.loading', 'Загрузка...')} />
                   </div>
                 ) : (
                   <>
                     <CreateCharacterCardWrapper
                       onClick={() => onCreateCharacter && onCreateCharacter()}
                     >
-                      {/* Фон DarkVeil */}
-                      <div style={{ position: 'absolute', inset: 0, borderRadius: theme.borderRadius.lg, overflow: 'hidden', pointerEvents: 'none' }}>
-                        <DarkVeil speed={1.1} />
-                      </div>
 
-                      {/* Glassmorphism слой поверх фона */}
-                      <div style={{
-                        position: 'absolute',
-                        inset: 0,
-                        background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2))',
-                        backdropFilter: 'blur(12px)',
-                        border: '2px solid rgba(255, 255, 255, 0.2)',
-                        borderRadius: theme.borderRadius.lg,
-                        transition: 'all 0.3s ease',
-                        pointerEvents: 'none'
-                      }} />
 
                       {/* Контент */}
                       <div style={{
@@ -1542,11 +1600,11 @@ export const MainPage: React.FC<MainPageProps> = ({
                           margin: 0,
                           padding: `0 ${theme.spacing.sm}`
                         }}>
-                          Создай персонажа
+                          {t('mainPage.createCharacterCard.title')}
                         </h3>
                       </div>
                     </CreateCharacterCardWrapper>
-                    {charactersWithPhotos.map((character) => {
+                    {charactersWithPhotos.map((character, i) => {
                       const characterId = typeof character.id === 'number'
                         ? character.id
                         : parseInt(character.id, 10);
@@ -1556,20 +1614,26 @@ export const MainPage: React.FC<MainPageProps> = ({
 
                       return (
                         <CharacterCard
-                          key={character.id}
+                          key={`${character.id}-${i}`} // Force re-render on order change
                           character={character}
+                          isRight={(i + 2) % columnsCount !== 0}
                           onClick={handleCharacterClick}
                           isAuthenticated={isAuthenticated}
+                          isAdmin={userInfo?.is_admin}
                           onPhotoGeneration={onPhotoGeneration}
                           onPaidAlbum={(character) => {
                             if (onPaidAlbum) {
-                              // If external handler provided, use it relative to subscription status
+                              // Проверяем: админ или подписка STANDARD/PREMIUM
+                              const isAdmin = userInfo?.is_admin === true;
                               const subType = userInfo?.subscription?.subscription_type?.toLowerCase() || 'free';
-                              if (subType !== 'standard' && subType !== 'premium') {
+                              const hasAccess = isAdmin || subType === 'standard' || subType === 'premium';
+
+                              if (!hasAccess) {
+                                // Для FREE пользователей (не админов) показываем предложение подписки
                                 setBoosterVariantOverride('album_access');
                                 setIsBoosterOfferOpen(true);
                               } else {
-                                // Standard/Premium logic
+                                // Для админов и подписчиков открываем альбом напрямую
                                 onPaidAlbum(character);
                               }
                             }
@@ -1603,13 +1667,12 @@ export const MainPage: React.FC<MainPageProps> = ({
                       <div
                         style={{
                           gridColumn: '1 / -1',
-                          textAlign: 'center',
-                          padding: '1rem',
-                          color: '#a8a8a8',
-                          fontSize: '0.9rem'
+                          display: 'flex',
+                          justifyContent: 'center',
+                          padding: '2rem'
                         }}
                       >
-                        Загрузка...
+                        <LoadingSpinner size="sm" text={t('mainPage.loading', 'Загрузка...')} />
                       </div>
                     )}
                   </>
@@ -1650,38 +1713,26 @@ export const MainPage: React.FC<MainPageProps> = ({
           )}
         </ContentArea>
         <SEOContent>
-          <h1>Candy Girls Chat — Эксклюзивный AI чат с персонажами 18+</h1>
-          <h2>Виртуальное общение с нейросетью нового поколения</h2>
-          <p>
-            Candy Girls Chat — это инновационный AI чат-бот для взрослых, который предлагает
-            уникальное виртуальное общение с персонажами, созданными нейросетью.
-            Наш ролевой чат позволяет вам общаться с AI собеседниками, которые обладают
-            уникальными характерами и могут поддержать любую беседу.
-          </p>
-          <h2>Возможности AI чата</h2>
-          <p>
-            Платформа Candy Girls Chat предоставляет широкий спектр функций для виртуального общения:
-          </p>
+          <h1>{t('mainPage.seo.title')}</h1>
+          <h2>{t('mainPage.seo.subtitle')}</h2>
+          <p>{t('mainPage.seo.description')}</p>
+          <h2>{t('mainPage.seo.featuresTitle')}</h2>
+          <p>{t('mainPage.seo.featuresIntro')}</p>
           <ul>
-            <li>Безлимитное общение с виртуальными персонажами без цензуры</li>
-            <li>Генерация изображений с помощью нейросети в реальном времени</li>
-            <li>Голосовые сообщения от AI собеседников с уникальными голосами</li>
-            <li>Создание собственных персонажей с настройкой внешности и характера</li>
-            <li>Ролевые сценарии и интерактивные диалоги</li>
-            <li>Приватные чаты с полной конфиденциальностью</li>
+            <li>{t('mainPage.seo.features.unlimited')}</li>
+            <li>{t('mainPage.seo.features.images')}</li>
+            <li>{t('mainPage.seo.features.voice')}</li>
+            <li>{t('mainPage.seo.features.create')}</li>
+            <li>{t('mainPage.seo.features.roleplay')}</li>
+            <li>{t('mainPage.seo.features.privacy')}</li>
           </ul>
-          <h2>Почему выбирают Candy Girls Chat</h2>
-          <p>
-            Наш AI чат использует передовые технологии нейросетей для создания реалистичного
-            виртуального общения. Каждый персонаж обладает уникальной личностью, стилем общения
-            и может адаптироваться к вашим предпочтениям. Генерация изображений AI позволяет
-            визуализировать персонажей и создавать уникальный контент.
-          </p>
+          <h2>{t('mainPage.seo.whyChooseTitle')}</h2>
+          <p>{t('mainPage.seo.whyChooseText')}</p>
         </SEOContent>
         <FooterWrapper>
           <Footer />
         </FooterWrapper>
       </ContentWrapper>
-    </MainContainer>
+    </MainContainer >
   );
 };

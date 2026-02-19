@@ -1,0 +1,2170 @@
+import { useState, useEffect } from 'react';
+import React from 'react';
+import styled from 'styled-components';
+import { GlobalStyles } from './styles/GlobalStyles';
+import { MainPage } from './components/MainPage';
+import { ChatContainer } from './components/ChatContainer';
+import DarkVeil from '../@/components/DarkVeil';
+import { MyCharactersPage } from './components/MyCharactersPage';
+import { CreateCharacterPage } from './components/CreateCharacterPage';
+import { ShopPage } from './components/ShopPage';
+import { ProfilePage } from './components/ProfilePage';
+import { MessagesPage } from './components/MessagesPage';
+import { HistoryPage } from './components/HistoryPage';
+import { UserGalleryPage } from './components/UserGalleryPage';
+import { PaidAlbumPage } from './components/PaidAlbumPage';
+import { PaidAlbumBuilderPage } from './components/PaidAlbumBuilderPage';
+import { PhotoGenerationPage3 } from './components/PhotoGenerationPage3';
+import { EditCharactersPage } from './components/EditCharactersPage';
+import { EditCharacterPage } from './components/EditCharacterPage';
+import { FavoritesPage } from './components/FavoritesPage';
+import { CharacterCommentsPage } from './components/CharacterCommentsPage';
+import { BugReportPage } from './components/BugReportPage';
+import { AdminLogsPage } from './components/AdminLogsPage';
+import { StaggeredSidebar } from './components/StaggeredSidebar';
+import { LegalPage } from './components/LegalPage';
+import { AboutPage } from './components/AboutPage';
+import { HowItWorksPage } from './components/HowItWorksPage';
+import AuthPage from './components/AuthPage';
+import RegisterPage from './components/RegisterPage';
+import ForgotPasswordPage from './components/ForgotPasswordPage';
+import { PaidAlbumPurchaseModal } from './components/PaidAlbumPurchaseModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { Footer } from './components/Footer';
+import { authManager } from './utils/auth';
+import { ContentRatingModal } from './components/ContentRatingModal';
+import { TagsPage } from './components/TagsPage';
+import { useSEO } from './hooks/useSEO';
+
+
+import { useIsMobile } from './hooks/useIsMobile';
+
+const AppContainer = styled.div<{ $isMobile?: boolean }>`
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  position: relative;
+`;
+
+const BackgroundWrapper = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+`;
+
+const PageContainer = styled.div<{ $isMobile?: boolean; $isSidebarOpen?: boolean }>`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  position: relative;
+  padding-top: ${(p) => (p.$isMobile ? '45px' : '55px')};
+  /* Add margin/padding based on sidebar state for desktop */
+  padding-left: ${(p) => (!p.$isMobile ? '215px' : '0')};
+  padding-right: ${(p) => (!p.$isMobile ? '215px' : '0')};
+  scroll-behavior: smooth;
+  width: 100%;
+  max-width: 100%;
+  background: transparent;
+  z-index: 1;
+  transition: padding-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+`;
+
+const EmptyAlbumToast = styled.div`
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10001;
+  padding: 12px 20px;
+  background: rgba(30, 30, 40, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 12px;
+  color: rgba(226, 232, 240, 1);
+  font-size: 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  max-width: 90vw;
+`;
+
+type PageType =
+  | 'main'
+  | 'chat'
+  | 'my-characters'
+  | 'create-character'
+  | 'shop'
+  | 'tariffs'
+  | 'characters'
+  | 'profile'
+  | 'messages'
+  | 'user-gallery'
+  | 'paid-album'
+  | 'paid-album-builder'
+  | 'photo-generation'
+  | 'edit-characters'
+  | 'edit-character'
+  | 'favorites'
+  | 'history'
+  | 'character-comments'
+  | 'legal'
+  | 'about'
+  | 'how-it-works'
+  | 'bug-report'
+  | 'admin-logs'
+  | 'login'
+  | 'register'
+  | 'forgot-password'
+  | 'tags';
+
+
+function App() {
+  const isMobile = useIsMobile();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState<PageType>('main');
+  const [selectedCharacter, setSelectedCharacter] = useState<any>(null);
+  const [isLoadingCharacter, setIsLoadingCharacter] = useState(false); // Флаг загрузки персонажа
+  const [contentMode, setContentMode] = useState<'safe' | 'nsfw'>('safe');
+  const [selectedSubscriptionType, setSelectedSubscriptionType] = useState<string>('');
+  const [showContentRatingModal, setShowContentRatingModal] = useState(false);
+  const [selectedContentRating, setSelectedContentRating] = useState<'safe' | 'nsfw' | null>(null);
+  const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
+  const [tagName, setTagName] = useState<string>('');
+  const [selectedProfileUsername, setSelectedProfileUsername] = useState<string | null>(null);
+
+  // SEO конфигурация для каждой страницы
+  const getSEOConfig = () => {
+    const baseUrl = 'https://candygirlschat.com';
+
+    switch (currentPage) {
+      case 'main':
+        return {
+          title: 'Candy Girls Chat — Эксклюзивный AI чат с персонажами 18+',
+          description: 'Виртуальное общение с AI персонажами. Нейросеть создает уникальных собеседников для ролевого чата. Безлимитный доступ к AI чат-боту 18+ без цензуры.',
+          canonical: baseUrl + '/',
+          keywords: 'ai чат, виртуальные персонажи, 18+, нейросеть персонажи, ролевой чат, AI собеседник, чат-бот 18+, виртуальное общение',
+          ogImage: baseUrl + '/logo-cherry.png'
+        };
+
+      case 'tariffs':
+      case 'shop':
+        return {
+          title: 'Тарифы и подписки Candy Girls Chat — Безлимитный AI чат',
+          description: 'Выберите подписку для безлимитного общения с AI персонажами. Standard и Premium тарифы с генерацией фото и голосовыми сообщениями. Доступ к эксклюзивным функциям нейросети.',
+          canonical: baseUrl + (currentPage === 'tariffs' ? '/tariffs' : '/shop'),
+          keywords: 'подписка ai чат, тарифы candy girls chat, premium ai, генерация фото нейросеть, голосовые сообщения ai',
+          ogImage: baseUrl + '/logo-cherry.png'
+        };
+
+      case 'characters':
+        return {
+          title: 'Каталог AI персонажей 18+ — Candy Girls Chat',
+          description: 'Большой выбор виртуальных персонажей для общения. Аниме девушки, ролевые персонажи с уникальными характерами. Создано нейросетью для взрослых.',
+          canonical: baseUrl + '/characters',
+          keywords: 'ai персонажи, виртуальные собеседники, аниме девушки ai, ролевые персонажи, нейросеть персонажи',
+          ogImage: baseUrl + '/logo-cherry.png'
+        };
+
+      case 'create-character':
+        return {
+          title: 'Создать своего AI персонажа — Candy Girls Chat',
+          description: 'Создайте уникального AI собеседника с помощью нейросети. Настройте внешность, характер и стиль общения персонажа. Генерация изображений AI.',
+          canonical: baseUrl + '/create-character',
+          keywords: 'создать ai персонажа, генератор персонажей, нейросеть создание, ai конструктор персонажей',
+          ogImage: baseUrl + '/logo-cherry.png'
+        };
+
+      case 'about':
+        return {
+          title: 'О сервисе Candy Girls Chat — AI чат нового поколения',
+          description: 'Узнайте больше о Candy Girls Chat — инновационном AI чате для взрослых с продвинутой нейросетью и генерацией контента. Виртуальное общение без границ.',
+          canonical: baseUrl + '/about',
+          keywords: 'о candy girls chat, ai чат для взрослых, нейросеть чат, виртуальное общение',
+          ogImage: baseUrl + '/logo-cherry.png'
+        };
+
+      case 'how-it-works':
+        return {
+          title: 'Как работает Candy Girls Chat — Гайд по AI чату',
+          description: 'Подробная инструкция по использованию AI чата: создание персонажей, общение с нейросетью, генерация изображений и голосовых сообщений.',
+          canonical: baseUrl + '/how-it-works',
+          keywords: 'как работает ai чат, инструкция candy girls chat, гайд по нейросети, использование ai',
+          ogImage: baseUrl + '/logo-cherry.png'
+        };
+
+      case 'legal':
+        return {
+          title: 'Правовая информация — Candy Girls Chat',
+          description: 'Пользовательское соглашение, политика конфиденциальности и правила использования сервиса Candy Girls Chat. Информация для пользователей AI чата.',
+          canonical: baseUrl + '/legal',
+          keywords: 'правила candy girls chat, пользовательское соглашение, политика конфиденциальности',
+          ogImage: baseUrl + '/logo-cherry.png'
+        };
+
+      case 'chat':
+        if (selectedCharacter?.name) {
+          const characterDescription = selectedCharacter.description
+            ? selectedCharacter.description.slice(0, 160)
+            : `Общайтесь с ${selectedCharacter.name} в ролевом AI чате. Виртуальное общение с персонажем, созданным нейросетью.`;
+
+          return {
+            title: `Чат с ${selectedCharacter.name} — Виртуальный ИИ чат 18+ | Candy Girls Chat`,
+            description: characterDescription,
+            canonical: baseUrl + '/chat/' + encodeURIComponent(selectedCharacter.name),
+            keywords: `${selectedCharacter.name}, ai чат, виртуальное общение, ролевой чат, нейросеть персонажи`,
+            ogImage: selectedCharacter.avatar || baseUrl + '/logo-cherry.png'
+          };
+        }
+        return {
+          title: 'Чат — Candy Girls Chat',
+          description: 'Общайтесь с AI персонажами в приватном чате. Виртуальное общение с нейросетью без ограничений.',
+          canonical: baseUrl + '/chat',
+          keywords: 'ai чат, виртуальное общение, ролевой чат',
+          ogImage: baseUrl + '/logo-cherry.png'
+        };
+
+      case 'tags':
+        return {
+          title: `ИИ персонажи с тегом: ${tagName} — Candy Girls Chat`,
+          description: `Общайся с ИИ персонажами категории ${tagName} на русском. Бесплатный ролевой чат без цензуры и регистрации. Виртуальные собеседники созданы нейросетью.`,
+          canonical: baseUrl + '/tags/' + encodeURIComponent(tagName),
+          keywords: `${tagName}, ai персонажи, виртуальные собеседники, ролевой чат, нейросеть`,
+          ogImage: baseUrl + '/logo-cherry.png'
+        };
+
+      default:
+        return {
+          title: 'Candy Girls Chat — Эксклюзивный AI чат с персонажами 18+',
+          description: 'Виртуальное общение с AI персонажами. Нейросеть создает уникальных собеседников для ролевого чата.',
+          canonical: baseUrl + '/',
+          keywords: 'ai чат, виртуальные персонажи, 18+',
+          ogImage: baseUrl + '/logo-cherry.png'
+        };
+    }
+  };
+
+  // Используем SEO хук для обновления мета-тегов
+  useSEO(getSEOConfig());
+
+  // Мемоизируем initialCharacter для ChatContainer, чтобы избежать лишних перезагрузок
+  const memoizedInitialCharacter = React.useMemo(() => {
+    return selectedCharacter;
+  }, [selectedCharacter?.raw?.name, selectedCharacter?.name, selectedCharacter?.id]);
+
+  // Функция загрузки персонажа по ID или имени
+  const loadCharacterById = async (characterId: string | number): Promise<any | null> => {
+    try {
+      // Сначала проверяем localStorage (по ID и по имени)
+      const savedById = localStorage.getItem(`character_${characterId}`);
+      if (savedById) {
+
+        return JSON.parse(savedById);
+      }
+
+      // Пытаемся загрузить из API по ID
+      try {
+        const response = await fetch(`/api/v1/characters/${encodeURIComponent(characterId)}`);
+        if (response.ok) {
+          const character = await response.json();
+          if (character && (character.id || character.name)) {
+            // Сохраняем в localStorage
+            const storageKey = character.id ? `character_${character.id}` : `character_${character.name}`;
+            localStorage.setItem(storageKey, JSON.stringify(character));
+            return character;
+          }
+        }
+      } catch (apiError) {
+
+      }
+
+      // Если не удалось загрузить по ID, пытаемся найти в списке всех персонажей
+      const response = await fetch(`/api/v1/characters/`);
+      if (response.ok) {
+        const characters = await response.json();
+        if (Array.isArray(characters)) {
+          // Ищем по ID
+          let character = characters.find((char: any) =>
+            char.id === Number(characterId) ||
+            char.id === String(characterId) ||
+            String(char.id) === String(characterId)
+          );
+
+          // Если не нашли по ID, ищем по имени (без учета регистра)
+          if (!character) {
+            const searchName = String(characterId).toLowerCase().trim();
+            character = characters.find((char: any) => {
+              if (!char.name) return false;
+              const charName = String(char.name).toLowerCase().trim();
+              return charName === searchName ||
+                char.name === characterId ||
+                char.name === String(characterId);
+            });
+          }
+
+          if (character) {
+
+            // Сохраняем в localStorage
+            const storageKey = character.id ? `character_${character.id}` : `character_${character.name}`;
+            localStorage.setItem(storageKey, JSON.stringify(character));
+            return character;
+          }
+        }
+      }
+
+
+      return null;
+    } catch (error) {
+
+      return null;
+    }
+  };
+
+  // Синхронизация с историей браузера
+  useEffect(() => {
+    // Восстанавливаем состояние из URL при загрузке
+    const path = window.location.pathname;
+    const urlParams = new URLSearchParams(window.location.search);
+
+    // КРИТИЧНО: Проверяем наличие токенов в URL (возврат с Google OAuth)
+    const accessToken = urlParams.get('access_token');
+    const refreshToken = urlParams.get('refresh_token');
+
+    if (accessToken) {
+      // Сохраняем токены через authManager
+      authManager.setTokens(accessToken, refreshToken || null);
+      setIsAuthenticated(true);
+
+      // Отправляем событие успешной авторизации
+      window.dispatchEvent(new Event('auth-success'));
+
+      // Очищаем токены из URL для безопасности
+      // Удаляем параметры токенов, но сохраняем остальные параметры
+      urlParams.delete('access_token');
+      urlParams.delete('refresh_token');
+      urlParams.delete('needs_username');
+
+      // Формируем новый URL без токенов
+      const cleanUrl = urlParams.toString()
+        ? `${path}?${urlParams.toString()}`
+        : path;
+
+      // Заменяем URL в истории браузера
+      window.history.replaceState(null, '', cleanUrl);
+    }
+
+    // Парсим состояние из hash или query параметров
+    if (path.includes('/auth')) {
+      // Обрабатываем роут /auth - перенаправляем на login или register
+      const tab = urlParams.get('tab');
+      if (tab === 'register') {
+        setCurrentPage('register');
+        window.history.replaceState({ page: 'register' }, '', '/register');
+      } else {
+        setCurrentPage('login');
+        window.history.replaceState({ page: 'login' }, '', '/login');
+      }
+      return;
+    } else if (path.includes('/chat')) {
+      const characterId = urlParams.get('character');
+      const paymentSuccess = urlParams.get('payment') === 'success';
+
+      if (characterId) {
+        // КРИТИЧНО: Показываем спиннер пока персонаж загружается
+        setIsLoadingCharacter(true);
+        setCurrentPage('chat');
+
+        // Восстанавливаем персонажа из localStorage или API
+        loadCharacterById(characterId).then(char => {
+          if (char) {
+
+            setSelectedCharacter(char);
+
+            // Если оплата успешна, очищаем параметр из URL
+            if (paymentSuccess) {
+              window.history.replaceState(
+                { page: 'chat', character: characterId },
+                '',
+                `/chat?character=${characterId}`
+              );
+            } else {
+              window.history.replaceState({ page: 'chat', character: characterId }, '', path);
+            }
+          } else {
+
+            // Если не удалось загрузить, остаемся на главной
+            setCurrentPage('main');
+            window.history.replaceState({ page: 'main' }, '', '/');
+          }
+        }).finally(() => {
+          setIsLoadingCharacter(false);
+        });
+      } else {
+        // Если нет characterId, остаемся на главной
+        setCurrentPage('main');
+        window.history.replaceState({ page: 'main' }, '', '/');
+      }
+    } else if (path.includes('/my-characters')) {
+      setCurrentPage('my-characters');
+      window.history.replaceState({ page: 'my-characters' }, '', path);
+    } else if (path.includes('/favorites')) {
+      setCurrentPage('favorites');
+      window.history.replaceState({ page: 'favorites' }, '', path);
+    } else if (path.includes('/legal')) {
+      setCurrentPage('legal');
+      window.history.replaceState({ page: 'legal' }, '', path);
+    } else if (path.includes('/about')) {
+      setCurrentPage('about');
+      window.history.replaceState({ page: 'about' }, '', path);
+    } else if (path.includes('/how-it-works')) {
+      setCurrentPage('how-it-works');
+      window.history.replaceState({ page: 'how-it-works' }, '', path);
+    } else if (path.includes('/bug-report')) {
+      setCurrentPage('bug-report');
+      window.history.replaceState({ page: 'bug-report' }, '', path);
+    } else if (path.includes('/history')) {
+      setCurrentPage('history');
+      window.history.replaceState({ page: 'history' }, '', path);
+    } else if (path.includes('/create-character')) {
+      setCurrentPage('create-character');
+      window.history.replaceState({ page: 'create-character' }, '', path);
+    } else if (path.includes('/edit-character')) {
+      // КРИТИЧНО: Восстанавливаем персонажа для страницы редактирования
+      const characterId = urlParams.get('character');
+      if (characterId) {
+        // КРИТИЧНО: Устанавливаем флаг загрузки и страницу СРАЗУ для показа спиннера
+        setIsLoadingCharacter(true);
+        setCurrentPage('edit-character');
+
+        loadCharacterById(characterId).then(char => {
+          if (char) {
+            setSelectedCharacter(char);
+            window.history.replaceState({ page: 'edit-character', character: characterId }, '', path);
+          } else {
+            setCurrentPage('edit-characters');
+            window.history.replaceState({ page: 'edit-characters' }, '', '/edit-characters');
+          }
+        }).finally(() => {
+          setIsLoadingCharacter(false);
+        });
+        return; // Выходим, чтобы не устанавливать main
+      } else {
+        // Если нет characterId, проверяем, может быть это просто /edit-characters
+        if (path === '/edit-characters') {
+          setCurrentPage('edit-characters');
+          window.history.replaceState({ page: 'edit-characters' }, '', path);
+        } else {
+          // Иначе, считаем что это попытка редактировать без ID
+          setCurrentPage('edit-characters');
+          window.history.replaceState({ page: 'edit-characters' }, '', '/edit-characters');
+        }
+      }
+    } else if (path.includes('/edit-characters')) {
+      setCurrentPage('edit-characters');
+      window.history.replaceState({ page: 'edit-characters' }, '', path);
+    } else if (path.includes('/shop')) {
+      setCurrentPage('shop');
+      // Всегда устанавливаем состояние shop при загрузке страницы
+      const currentState = window.history.state;
+      if (!currentState || currentState.page !== 'shop') {
+        window.history.replaceState({ page: 'shop' }, '', path);
+      }
+
+      // Проверяем, вернулись ли мы с оплаты
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('payment') === 'success') {
+        // Очищаем URL от параметров после обработки
+        window.history.replaceState({ page: 'shop' }, '', '/shop');
+      }
+    } else if (path.includes('/profile')) {
+      setCurrentPage('profile');
+      // Пытаемся извлечь username из пути /profile/username
+      const parts = path.split('/profile/');
+      if (parts.length > 1 && parts[1]) {
+        setSelectedProfileUsername(parts[1]);
+      } else {
+        setSelectedProfileUsername(null);
+      }
+      window.history.replaceState({ page: 'profile', username: parts.length > 1 ? parts[1] : undefined }, '', path);
+    } else if (path.includes('/messages')) {
+      setCurrentPage('messages');
+      window.history.replaceState({ page: 'messages' }, '', path);
+    } else if (path.includes('/user-gallery')) {
+      const galleryUrlParams = new URLSearchParams(window.location.search);
+      const galleryUserId = galleryUrlParams.get('user') ? Number(galleryUrlParams.get('user')) : undefined;
+      setCurrentPage('user-gallery');
+      if (galleryUserId) {
+        window.history.replaceState({ page: 'user-gallery', userId: galleryUserId }, '', path);
+      } else {
+        window.history.replaceState({ page: 'user-gallery' }, '', path);
+      }
+    } else if (path.includes('/paid-album')) {
+      const characterId = urlParams.get('character');
+      if (characterId) {
+        loadCharacterById(characterId).then(char => {
+          if (char) {
+            setSelectedCharacter(char);
+            setCurrentPage('paid-album');
+            window.history.replaceState({ page: 'paid-album', character: characterId }, '', path);
+          } else {
+            setCurrentPage('main');
+            window.history.replaceState({ page: 'main' }, '', '/');
+          }
+        });
+        return;
+      } else {
+        setCurrentPage('main');
+        window.history.replaceState({ page: 'main' }, '', '/');
+      }
+    } else if (path.includes('/paid-album-builder')) {
+      const characterId = urlParams.get('character');
+      if (characterId) {
+        loadCharacterById(characterId).then(char => {
+          if (char) {
+            setSelectedCharacter(char);
+            setCurrentPage('paid-album-builder');
+            window.history.replaceState({ page: 'paid-album-builder', character: characterId }, '', path);
+          } else {
+            setCurrentPage('main');
+            window.history.replaceState({ page: 'main' }, '', '/');
+          }
+        });
+        return;
+      } else {
+        setCurrentPage('main');
+        window.history.replaceState({ page: 'main' }, '', '/');
+      }
+    } else if (path.includes('/photo-generation')) {
+      const characterId = urlParams.get('character');
+      if (characterId) {
+        // Загружаем данные персонажа по ID
+        loadCharacterById(characterId).then(char => {
+          if (char) {
+            setSelectedCharacter(char);
+            setCurrentPage('photo-generation');
+            window.history.replaceState({ page: 'photo-generation', character: characterId }, '', path);
+          } else {
+            setCurrentPage('main');
+            window.history.replaceState({ page: 'main' }, '', '/');
+          }
+        });
+        return; // Выходим, чтобы не устанавливать main
+      } else {
+        setCurrentPage('main');
+        window.history.replaceState({ page: 'main' }, '', '/');
+      }
+    } else if (path.includes('/character-comments')) {
+      const characterName = urlParams.get('character');
+      if (characterName) {
+        // Загружаем данные персонажа по имени или ID
+        loadCharacterById(characterName).then(char => {
+          if (char) {
+            setSelectedCharacter(char);
+            setCurrentPage('character-comments');
+            window.history.replaceState({ page: 'character-comments', character: characterName }, '', path);
+          } else {
+            // Если не удалось загрузить по ID, создаем минимальный объект с именем
+            setSelectedCharacter({ name: decodeURIComponent(characterName), id: characterName });
+            setCurrentPage('character-comments');
+            window.history.replaceState({ page: 'character-comments', character: characterName }, '', path);
+          }
+        });
+        return;
+      } else {
+        setCurrentPage('main');
+        window.history.replaceState({ page: 'main' }, '', '/');
+      }
+    } else if (path.includes('/admin-logs')) {
+      setCurrentPage('admin-logs');
+      window.history.replaceState({ page: 'admin-logs' }, '', '/admin-logs');
+    } else if (path.includes('/login')) {
+      setCurrentPage('login');
+      window.history.replaceState({ page: 'login' }, '', path + window.location.search);
+    } else if (path.includes('/register')) {
+      setCurrentPage('register');
+      window.history.replaceState({ page: 'register' }, '', path + window.location.search);
+    } else if (path.startsWith('/tags/')) {
+      const slug = path.split('/tags/')[1];
+      if (slug) {
+        setSelectedTagId(slug);
+        setCurrentPage('tags');
+        window.history.replaceState({ page: 'tags', slug }, '', path);
+      } else {
+        setCurrentPage('main');
+        window.history.replaceState({ page: 'main' }, '', '/');
+      }
+    } else {
+      setCurrentPage('main');
+      window.history.replaceState({ page: 'main' }, '', '/');
+    }
+  }, []);
+
+  // Обработка кнопок назад/вперед в браузере
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      if (event.state) {
+        const { page, character } = event.state;
+        if (page) {
+          setCurrentPage(page as PageType);
+          if (character) {
+            const savedCharacter = localStorage.getItem(`character_${character}`);
+            if (savedCharacter) {
+              setSelectedCharacter(JSON.parse(savedCharacter));
+            }
+          } else {
+            setSelectedCharacter(null);
+          }
+        }
+      } else {
+        // Если нет состояния, проверяем текущий путь
+        const path = window.location.pathname;
+        if (path.includes('/shop')) {
+          setCurrentPage('shop');
+          window.history.replaceState({ page: 'shop' }, '', '/shop');
+        } else if (path.includes('/admin-logs')) {
+          setCurrentPage('admin-logs');
+          window.history.replaceState({ page: 'admin-logs' }, '', '/admin-logs');
+        } else {
+          setCurrentPage('main');
+          setSelectedCharacter(null);
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Обработка навигации в чат с персонажем из уведомлений
+  useEffect(() => {
+    const handleNavigateToChat = async (event: CustomEvent) => {
+      const { characterId, characterName, characterIdentifier } = event.detail || {};
+
+      if (characterId || characterName || characterIdentifier) {
+        // КРИТИЧНО: Приоритет ID > новое имя > старый идентификатор
+        // Используем characterName (новое имя из API) если оно есть, иначе characterId/characterIdentifier
+        const identifier = characterId || characterName || characterIdentifier;
+
+        // Пытаемся загрузить персонажа
+        const character = await loadCharacterById(identifier);
+
+        if (character) {
+          // КРИТИЧНО: Обновляем имя персонажа из ответа API, если оно отличается
+          // Это гарантирует, что используется актуальное имя после переименования
+          if (characterName && character.name !== characterName) {
+            character.name = characterName;
+            // Обновляем raw.name если есть
+            if (character.raw) {
+              character.raw.name = characterName;
+            }
+          }
+
+          setSelectedCharacter(character);
+          setCurrentPage('chat');
+          // Сохраняем персонажа в localStorage с актуальным именем
+          const storageKey = character.id ? `character_${character.id}` : `character_${character.name || characterName || identifier}`;
+          localStorage.setItem(storageKey, JSON.stringify(character));
+          // Обновляем URL - приоритет ID > новое имя > идентификатор
+          const urlIdentifier = character.id || characterName || character.name || identifier;
+          window.history.pushState(
+            { page: 'chat', character: urlIdentifier },
+            '',
+            `/chat?character=${encodeURIComponent(String(urlIdentifier))}`
+          );
+        }
+      } else {
+        // Просто переход в чат без персонажа
+        setCurrentPage('chat');
+        setSelectedCharacter(null);
+        window.history.pushState({ page: 'chat' }, '', '/chat');
+      }
+    };
+
+    const handleNavigateToChatSimple = () => {
+      setCurrentPage('chat');
+      setSelectedCharacter(null);
+      window.history.pushState({ page: 'chat' }, '', '/chat');
+    };
+
+    window.addEventListener('navigate-to-chat-with-character', handleNavigateToChat as EventListener);
+    window.addEventListener('navigate-to-chat', handleNavigateToChatSimple);
+
+    return () => {
+      window.removeEventListener('navigate-to-chat-with-character', handleNavigateToChat as EventListener);
+      window.removeEventListener('navigate-to-chat', handleNavigateToChatSimple);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleNavigateToAdminLogs = () => {
+      setCurrentPage('admin-logs');
+      window.history.pushState({ page: 'admin-logs' }, '', '/admin-logs');
+    };
+
+    const handleNavigateToProfile = (event: CustomEvent) => {
+      const { userId, username } = event.detail || {};
+      handleProfile(userId, username);
+    };
+
+    const handleNavigateToTags = (event: CustomEvent) => {
+      const slug = event.detail?.slug;
+      if (slug) {
+        setSelectedTagId(slug);
+        setCurrentPage('tags');
+      }
+    };
+
+    window.addEventListener('navigate-to-admin-logs', handleNavigateToAdminLogs);
+    window.addEventListener('navigate-to-profile', handleNavigateToProfile as EventListener);
+    window.addEventListener('navigate-to-tags', handleNavigateToTags as EventListener);
+
+    return () => {
+      window.removeEventListener('navigate-to-admin-logs', handleNavigateToAdminLogs);
+      window.removeEventListener('navigate-to-profile', handleNavigateToProfile as EventListener);
+      window.removeEventListener('navigate-to-tags', handleNavigateToTags as EventListener);
+    };
+  }, []);
+
+  // Обработка OAuth callback - сохранение токенов из URL
+  React.useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const accessToken = urlParams.get('access_token');
+    const refreshToken = urlParams.get('refresh_token');
+    const needsUsername = urlParams.get('needs_username') === 'true';
+
+    if (accessToken) {
+      // Сохраняем токены через authManager
+      authManager.setTokens(accessToken, refreshToken || null);
+
+      // Очищаем URL от токенов для безопасности
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      // Если нужен username, можно показать модальное окно
+      if (needsUsername) {
+        // TODO: Показать модальное окно для установки username
+
+      }
+
+      // Переходим по redirect или на главную страницу после OAuth авторизации
+      const redirectPath = urlParams.get('redirect');
+      if (redirectPath) {
+        window.location.href = redirectPath;
+      } else {
+        window.location.href = '/';
+      }
+    }
+  }, []);
+
+  const handleCharacterSelect = (character: any) => {
+    setSelectedCharacter(character);
+    setCurrentPage('chat');
+    // Сохраняем персонажа для истории
+    if (character?.id) {
+      localStorage.setItem(`character_${character.id}`, JSON.stringify(character));
+      window.history.pushState({ page: 'chat', character: character.id }, '', `/chat?character=${character.id}`);
+    } else {
+      window.history.pushState({ page: 'chat' }, '', '/chat');
+    }
+  };
+
+  const handlePaidAlbumBuilder = (character: any) => {
+    setSelectedCharacter(character);
+    setCurrentPage('paid-album-builder');
+    if (character?.id) {
+      localStorage.setItem(`character_${character.id}`, JSON.stringify(character));
+      window.history.pushState({ page: 'paid-album-builder', character: character.id }, '', `/paid-album-builder?character=${character.id}`);
+    } else {
+      window.history.pushState({ page: 'paid-album-builder' }, '', '/paid-album-builder');
+    }
+  };
+
+  const handleBackToMain = () => {
+    setCurrentPage('main');
+    setSelectedCharacter(null);
+    window.history.pushState({ page: 'main' }, '', '/');
+  };
+
+  const handleMyCharacters = () => {
+    setCurrentPage('my-characters');
+    window.history.pushState({ page: 'my-characters' }, '', '/my-characters');
+  };
+
+  const handleForgotPassword = () => {
+    setCurrentPage('forgot-password');
+    window.history.pushState({ page: 'forgot-password' }, '', '/forgot-password');
+  };
+
+  const handleCreateCharacter = () => {
+    setShowContentRatingModal(true);
+  };
+
+  const handleContentRatingSelect = (rating: 'safe' | 'nsfw') => {
+    setSelectedContentRating(rating);
+    setShowContentRatingModal(false);
+
+    // Очищаем данные создания персонажа при старте нового процесса из меню
+    localStorage.removeItem('createCharacterFormData');
+    localStorage.removeItem('createCharacterStep');
+
+    setCurrentPage('create-character');
+    window.history.pushState({ page: 'create-character' }, '', '/create-character');
+  };
+
+  const handleShop = () => {
+    setCurrentPage('shop');
+    window.history.pushState({ page: 'shop' }, '', '/shop');
+  };
+
+  const handleProfile = (userId?: number, username?: string) => {
+    // Принудительно обновляем состояние, даже если мы уже на странице профиля
+    if (userId) {
+      setSelectedProfileUsername(null);
+      setCurrentPage('profile');
+      window.history.pushState({ page: 'profile', userId }, '', `/profile?user=${userId}`);
+    } else if (username) {
+      setSelectedProfileUsername(username);
+      setCurrentPage('profile');
+      window.history.pushState({ page: 'profile', username }, '', `/profile/${username}`);
+    } else {
+      // Если userId не указан, открываем свой профиль
+      // Проверяем, есть ли параметр user в URL
+      const hasUserIdParam = window.location.search.includes('user=');
+
+      if (hasUserIdParam) {
+        // Если мы на чужом профиле, принудительно переходим на свой
+        // Используем window.location.replace для перехода без создания записи в истории
+        window.location.replace('/profile');
+        return;
+      }
+
+      // Если мы уже на своем профиле, просто обновляем состояние
+      setSelectedProfileUsername(null);
+      setCurrentPage('profile');
+      window.history.pushState({ page: 'profile' }, '', '/profile');
+    }
+  };
+
+  const handleMessages = () => {
+    setCurrentPage('messages');
+    window.history.pushState({ page: 'messages' }, '', '/messages');
+  };
+
+
+  const handlePhotoGeneration = (character: any) => {
+    setSelectedCharacter(character);
+    setCurrentPage('photo-generation');
+    if (character?.id) {
+      localStorage.setItem(`character_${character.id}`, JSON.stringify(character));
+      window.history.pushState({ page: 'photo-generation', character: character.id }, '', `/photo-generation?character=${character.id}`);
+    } else {
+      window.history.pushState({ page: 'photo-generation' }, '', '/photo-generation');
+    }
+  };
+
+  const handlePaidAlbum = async (character: any) => {
+    if (!isAuthenticated) {
+      // Переходим на страницу входа
+      setCurrentPage('login');
+      window.history.pushState({ page: 'login' }, '', '/login');
+      return;
+    }
+
+    // Загружаем актуальную информацию о подписке
+    let currentSubscriptionType = subscriptionStats?.subscription_type || userInfo?.subscription?.subscription_type || 'free';
+
+    // Если статистика не загружена, загружаем её
+    if (!subscriptionStats) {
+      try {
+        const statsResponse = await authManager.fetchWithAuth('/api/v1/profit/stats/');
+        if (statsResponse.ok) {
+          const statsData = await statsResponse.json();
+          setSubscriptionStats(statsData);
+          currentSubscriptionType = statsData.subscription_type || 'free';
+        }
+      } catch (error) {
+
+      }
+    }
+
+    const normalizedSubscriptionType = currentSubscriptionType.toLowerCase();
+
+    let albumStatus: { unlocked?: boolean; photos_count?: number } | null = null;
+
+    // Проверяем статус альбома перед показом модального окна
+    try {
+      const statusResponse = await authManager.fetchWithAuth(
+        `/api/v1/paid-gallery/${encodeURIComponent(character.name)}/status/`
+      );
+
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json();
+        albumStatus = statusData;
+
+        // Если альбом уже разблокирован (куплен, Premium, или владелец) - сразу открываем
+        if (statusData.unlocked) {
+          setSelectedCharacter(character);
+          setCurrentPage('paid-album');
+          if (character?.id) {
+            localStorage.setItem(`character_${character.id}`, JSON.stringify(character));
+            window.history.pushState({ page: 'paid-album', character: character.id }, '', `/paid-album?character=${character.id}`);
+          } else {
+            window.history.pushState({ page: 'paid-album' }, '', '/paid-album');
+          }
+          return;
+        }
+      }
+    } catch (error) {
+
+    }
+
+    // Для PREMIUM и STANDARD - сразу открываем альбом (все альбомы бесплатны)
+    if (normalizedSubscriptionType === 'premium' || normalizedSubscriptionType === 'standard') {
+      setSelectedCharacter(character);
+      setCurrentPage('paid-album');
+      if (character?.id) {
+        localStorage.setItem(`character_${character.id}`, JSON.stringify(character));
+        window.history.pushState({ page: 'paid-album', character: character.id }, '', `/paid-album?character=${character.id}`);
+      } else {
+        window.history.pushState({ page: 'paid-album' }, '', '/paid-album');
+      }
+      return;
+    }
+
+    if (albumStatus && (albumStatus.photos_count ?? 0) === 0) {
+      setEmptyAlbumToast(true);
+      setTimeout(() => setEmptyAlbumToast(false), 3000);
+      return;
+    }
+
+    // Для FREE и STANDARD - показываем модальное окно только если альбом не разблокирован
+    setSelectedAlbumCharacter(character);
+    setIsPaidAlbumModalOpen(true);
+  };
+
+  const handlePurchaseAlbum = async () => {
+    if (!selectedAlbumCharacter) return;
+
+    try {
+      const response = await authManager.fetchWithAuth('/api/v1/paid-gallery/unlock/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ character_name: selectedAlbumCharacter.name })
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const message = (data && (data.detail || data.message)) || 'Не удалось разблокировать альбом';
+        throw new Error(message);
+      }
+
+      // Обновляем баланс
+      if (data.coins !== undefined && typeof data.coins === 'number') {
+        window.dispatchEvent(new CustomEvent('balance-update', { detail: { coins: data.coins } }));
+      } else {
+        window.dispatchEvent(new Event('balance-update'));
+      }
+
+      // Закрываем модальное окно и открываем альбом
+      setIsPaidAlbumModalOpen(false);
+      setSelectedCharacter(selectedAlbumCharacter);
+      setCurrentPage('paid-album');
+      if (selectedAlbumCharacter?.id) {
+        localStorage.setItem(`character_${selectedAlbumCharacter.id}`, JSON.stringify(selectedAlbumCharacter));
+        window.history.pushState({ page: 'paid-album', character: selectedAlbumCharacter.id }, '', `/paid-album?character=${selectedAlbumCharacter.id}`);
+      } else {
+        window.history.pushState({ page: 'paid-album' }, '', '/paid-album');
+      }
+    } catch (error) {
+
+      throw error;
+    }
+  };
+
+  const handleEditCharacters = () => {
+    setCurrentPage('edit-characters');
+    window.history.pushState({ page: 'edit-characters' }, '', '/edit-characters');
+  };
+
+  const handleFavorites = () => {
+    setCurrentPage('favorites');
+    window.history.pushState({ page: 'favorites' }, '', '/favorites');
+  };
+
+  const handleOpenUserGallery = (userId?: number) => {
+    setCurrentPage('user-gallery');
+    if (userId) {
+      window.history.pushState({ page: 'user-gallery', userId }, '', `/user-gallery?user=${userId}`);
+    } else {
+      window.history.pushState({ page: 'user-gallery' }, '', '/user-gallery');
+    }
+  };
+
+  const handleHistory = () => {
+    setCurrentPage('history');
+    window.history.pushState({ page: 'history' }, '', '/history');
+  };
+
+  const handleBugReport = () => {
+    setCurrentPage('bug-report');
+    window.history.pushState({ page: 'bug-report' }, '', '/bug-report');
+  };
+
+  const handlePaymentMethod = (subscriptionType: string) => {
+    // Этот метод больше не используется, так как кнопки оплаты теперь на странице магазина
+  };
+
+  const renderPage = () => {
+    switch (currentPage) {
+      case 'main':
+        return (
+          <MainPage
+            onCharacterSelect={handleCharacterSelect}
+            onMyCharacters={handleMyCharacters}
+            onCreateCharacter={handleCreateCharacter}
+            onShop={handleShop}
+            onProfile={handleProfile}
+            onMessages={handleMessages}
+            onPhotoGeneration={handlePhotoGeneration}
+            onPaidAlbum={handlePaidAlbum}
+            onEditCharacters={handleEditCharacters}
+            onFavorites={handleFavorites}
+            onHistory={handleHistory}
+            onHome={handleBackToMain}
+            onPaymentMethod={handlePaymentMethod}
+            contentMode={contentMode}
+            onLogin={handleLogin}
+            onLogout={handleLogout}
+            onRegister={handleRegister}
+          />
+        );
+      case 'chat':
+        // Показываем спиннер если персонаж загружается
+        if (isLoadingCharacter) {
+          return (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100vh',
+              color: '#ffffff',
+              flexDirection: 'column',
+              gap: '1rem',
+              backgroundColor: '#1a1a1a'
+            }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                border: '3px solid rgba(255,255,255,0.3)',
+                borderTop: '3px solid #ffffff',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }} />
+              <p>Загрузка чата...</p>
+              <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+            </div>
+          );
+        }
+        return (
+          <ErrorBoundary>
+            <ChatContainer
+              onBackToMain={handleBackToMain}
+              initialCharacter={memoizedInitialCharacter}
+              onShop={handleShop}
+              onProfile={handleProfile}
+              onOpenPaidAlbum={handlePaidAlbum}
+              onOpenPaidAlbumBuilder={(character) => {
+                setSelectedCharacter(character);
+                setCurrentPage('paid-album-builder');
+                if (character?.id) {
+                  localStorage.setItem(`character_${character.id}`, JSON.stringify(character));
+                  window.history.pushState({ page: 'paid-album-builder', character: character.id }, '', `/paid-album-builder?character=${character.id}`);
+                } else {
+                  window.history.pushState({ page: 'paid-album-builder' }, '', '/paid-album-builder');
+                }
+              }}
+              onNavigate={(page, character) => {
+                setSelectedCharacter(character);
+                setCurrentPage(page as PageType);
+                if (character?.id) {
+                  localStorage.setItem(`character_${character.id}`, JSON.stringify(character));
+                  window.history.pushState({ page, character: character.id }, '', `/${page}?character=${character.id}`);
+                } else {
+                  window.history.pushState({ page }, '', `/${page}`);
+                }
+              }}
+            />
+          </ErrorBoundary>
+        );
+      case 'my-characters':
+        return (
+          <MyCharactersPage
+            onBackToMain={handleBackToMain}
+            onCreateCharacter={handleCreateCharacter}
+            onShop={handleShop}
+            onEditCharacters={handleEditCharacters}
+            onPhotoGeneration={handlePhotoGeneration}
+            onPaidAlbum={handlePaidAlbum}
+            onCharacterSelect={handleCharacterSelect}
+            onProfile={handleProfile}
+          />
+        );
+      case 'create-character':
+        return (
+          <ErrorBoundary>
+            <CreateCharacterPage
+              onBackToMain={handleBackToMain}
+              onShop={handleShop}
+              onMyCharacters={handleMyCharacters}
+              onProfile={handleProfile}
+              contentMode={selectedContentRating ?? contentMode ?? 'safe'}
+              onOpenPaidAlbumBuilder={(character) => {
+                setSelectedCharacter(character);
+                setCurrentPage('paid-album-builder');
+                if (character?.id) {
+                  localStorage.setItem(`character_${character.id}`, JSON.stringify(character));
+                  window.history.pushState({ page: 'paid-album-builder', character: character.id }, '', `/paid-album-builder?character=${character.id}`);
+                } else if (character?.name) {
+                  localStorage.setItem(`character_${character.name}`, JSON.stringify(character));
+                  window.history.pushState({ page: 'paid-album-builder', character: character.name }, '', `/paid-album-builder?character=${encodeURIComponent(character.name)}`);
+                } else {
+                  window.history.pushState({ page: 'paid-album-builder' }, '', '/paid-album-builder');
+                }
+              }}
+              onOpenChat={handleCharacterSelect}
+              onPhotoGeneration={handlePhotoGeneration}
+              isAuthenticated={isAuthenticated}
+              userInfo={userInfo}
+              onLogin={handleLogin}
+              onRegister={handleRegister}
+            />
+          </ErrorBoundary>
+        );
+      case 'shop':
+        return (
+          <ShopPage
+            onBackToMain={handleBackToMain}
+            onCreateCharacter={handleCreateCharacter}
+            onShop={handleShop}
+            onPaymentMethod={handlePaymentMethod}
+            isAuthenticated={isAuthenticated}
+            userInfo={userInfo}
+            onProfile={handleProfile}
+            onHome={handleBackToMain}
+            onLogin={handleLogin}
+            onRegister={handleRegister}
+            onLogout={handleLogout}
+          />
+        );
+      case 'profile':
+        const urlParams = new URLSearchParams(window.location.search);
+        const profileUserId = urlParams.get('user') ? Number(urlParams.get('user')) : undefined;
+        return (
+          <ProfilePage
+            userId={profileUserId}
+            username={selectedProfileUsername || undefined}
+            onBackToMain={handleBackToMain}
+            onShop={handleShop}
+            onOpenUserGallery={handleOpenUserGallery}
+            onProfile={handleProfile}
+            onHome={handleBackToMain}
+            onFavorites={handleFavorites}
+            onMyCharacters={handleMyCharacters}
+            onMessages={handleMessages}
+            onHistory={handleHistory}
+            onCreateCharacter={handleCreateCharacter}
+            onEditCharacters={handleEditCharacters}
+            onCharacterSelect={handleCharacterSelect}
+            onLogout={handleLogout}
+            onPaidAlbum={handlePaidAlbum}
+          />
+        );
+      case 'messages':
+        return (
+          <MessagesPage
+            onBackToMain={handleBackToMain}
+            onShop={handleShop}
+            onCreateCharacter={handleCreateCharacter}
+            onEditCharacters={handleEditCharacters}
+            onOpenChat={handleCharacterSelect}
+            onProfile={handleProfile}
+          />
+        );
+      case 'history':
+        return (
+          <HistoryPage
+            onBackToMain={handleBackToMain}
+            onShop={handleShop}
+            onCreateCharacter={handleCreateCharacter}
+            onEditCharacters={handleEditCharacters}
+            onOpenChat={handleCharacterSelect}
+            onProfile={handleProfile}
+          />
+        );
+      case 'user-gallery':
+        const galleryUrlParams = new URLSearchParams(window.location.search);
+        const galleryUserId = galleryUrlParams.get('user') ? Number(galleryUrlParams.get('user')) : undefined;
+        return (
+          <UserGalleryPage
+            onBackToMain={handleBackToMain}
+            onShop={handleShop}
+            userId={galleryUserId}
+          />
+        );
+      case 'paid-album':
+        return selectedCharacter ? (
+          <PaidAlbumPage
+            character={selectedCharacter}
+            onBackToMain={handleBackToMain}
+            onShop={handleShop}
+            onProfile={handleProfile}
+            onHome={handleBackToMain}
+            onBackToChat={() => setCurrentPage('chat')}
+          />
+        ) : null;
+      case 'paid-album-builder':
+        return selectedCharacter ? (
+          <PaidAlbumBuilderPage
+            character={selectedCharacter}
+            onBackToMain={handleBackToMain}
+            onBackToAlbum={() => handlePaidAlbum(selectedCharacter)}
+            onBackToChat={() => setCurrentPage('chat')}
+            onShop={handleShop}
+            onProfile={handleProfile}
+          />
+        ) : null;
+      case 'photo-generation':
+        return selectedCharacter ? (
+          <PhotoGenerationPage3
+            character={selectedCharacter}
+            onBackToMain={handleBackToMain}
+            onCreateCharacter={handleCreateCharacter}
+            onShop={handleShop}
+            onProfile={handleProfile}
+            onChat={handleCharacterSelect}
+            onPaidAlbumBuilder={handlePaidAlbumBuilder}
+          />
+        ) : null;
+      case 'edit-characters':
+        return (
+          <EditCharactersPage
+            onBackToMain={handleBackToMain}
+            onCreateCharacter={handleCreateCharacter}
+            onShop={handleShop}
+            onProfile={handleProfile}
+            onEditCharacter={(character) => {
+
+
+
+
+
+              // Строгая проверка на валидность character
+              if (!character) {
+
+                alert('Ошибка: данные персонажа не найдены.');
+                return;
+              }
+
+              // Проверяем наличие хотя бы одного идентификатора
+              if (!character.name && !character.id) {
+
+                alert('Ошибка: персонаж не имеет имени или ID.');
+                return;
+              }
+
+              // Создаем безопасную копию character
+              const safeCharacter = {
+                ...character,
+                name: character.name || character.id?.toString() || 'Unknown',
+                id: character.id || character.name || 'unknown',
+                description: character.description || '',
+                avatar: character.avatar || '',
+                photos: character.photos || [],
+                tags: character.tags || [],
+                author: character.author || '',
+                likes: character.likes || 0,
+                views: character.views || 0,
+                comments: character.comments || 0
+              };
+
+
+
+
+              // КРИТИЧНО: Сначала устанавливаем selectedCharacter
+              setSelectedCharacter(safeCharacter);
+
+              // КРИТИЧНО: Сохраняем персонажа в localStorage и URL для восстановления при обновлении
+              if (safeCharacter.id) {
+                localStorage.setItem(`character_${safeCharacter.id}`, JSON.stringify(safeCharacter));
+                window.history.pushState({ page: 'edit-character', character: safeCharacter.id }, '', `/edit-character?character=${safeCharacter.id}`);
+              } else if (safeCharacter.name) {
+                // Если нет ID, используем имя как идентификатор
+                localStorage.setItem(`character_${safeCharacter.name}`, JSON.stringify(safeCharacter));
+                window.history.pushState({ page: 'edit-character', character: safeCharacter.name }, '', `/edit-character?character=${encodeURIComponent(safeCharacter.name)}`);
+              } else {
+                window.history.pushState({ page: 'edit-character' }, '', '/edit-character');
+              }
+
+              // КРИТИЧНО: Переключаем страницу ПОСЛЕ установки selectedCharacter
+
+              setCurrentPage('edit-character');
+
+            }}
+          />
+        );
+      case 'edit-character':
+
+
+
+
+
+        // Показываем спиннер если персонаж загружается
+        if (isLoadingCharacter) {
+          return (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100vh',
+              color: '#ffffff',
+              flexDirection: 'column',
+              gap: '1rem',
+              backgroundColor: '#1a1a1a'
+            }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                border: '3px solid rgba(255,255,255,0.3)',
+                borderTop: '3px solid #ffffff',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }} />
+              <p>Загрузка персонажа...</p>
+              <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+            </div>
+          );
+        }
+
+        // Более строгая проверка на валидность character
+        if (!selectedCharacter || (!selectedCharacter.name && !selectedCharacter.id)) {
+
+          return (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100vh',
+              color: '#ffffff',
+              flexDirection: 'column',
+              gap: '1rem',
+              backgroundColor: '#1a1a1a'
+            }}>
+              <h2>Ошибка загрузки</h2>
+              <p>Персонаж не найден или данные повреждены. Пожалуйста, вернитесь к списку персонажей.</p>
+              <button
+                onClick={() => {
+                  setSelectedCharacter(null);
+                  setCurrentPage('edit-characters');
+                }}
+                style={{
+                  marginTop: '1rem',
+                  padding: '0.5rem 1rem',
+                  cursor: 'pointer',
+                  background: 'rgba(100, 100, 100, 0.3)',
+                  border: '1px solid rgba(150, 150, 150, 0.5)',
+                  borderRadius: '8px',
+                  color: '#ffffff',
+                  fontSize: '16px'
+                }}
+              >
+                ← Назад к списку
+              </button>
+            </div>
+          );
+        }
+
+
+        return (
+          <EditCharacterPage
+            character={selectedCharacter}
+            onBackToEditList={() => {
+
+              setSelectedCharacter(null);
+              setCurrentPage('edit-characters');
+            }}
+            onBackToMain={handleBackToMain}
+            onShop={handleShop}
+            onProfile={handleProfile}
+            onEditCharacters={handleEditCharacters}
+            initialUserInfo={userInfo}
+          />
+        );
+      case 'favorites':
+        return (
+          <FavoritesPage
+            onBackToMain={handleBackToMain}
+            onCharacterSelect={handleCharacterSelect}
+            onShop={handleShop}
+            onPhotoGeneration={handlePhotoGeneration}
+            onPaidAlbum={handlePaidAlbum}
+            onProfile={handleProfile}
+          />
+        );
+      case 'history':
+        return (
+          <HistoryPage
+            onBackToMain={handleBackToMain}
+            onShop={handleShop}
+            onCreateCharacter={handleCreateCharacter}
+            onEditCharacters={handleEditCharacters}
+            onOpenChat={handleCharacterSelect}
+            onProfile={handleProfile}
+          />
+        );
+      case 'tags':
+        return (
+          <TagsPage
+            slug={selectedTagId || ''}
+            onBackToMain={handleBackToMain}
+            onCharacterSelect={handleCharacterSelect}
+            setTagName={setTagName}
+            onShop={handleShop}
+            onProfile={handleProfile}
+          />
+        );
+      case 'legal':
+        return <LegalPage />;
+      case 'about':
+        return <AboutPage />;
+      case 'how-it-works':
+        return <HowItWorksPage />;
+      case 'bug-report':
+        return <BugReportPage onBackToMain={handleBackToMain} onProfile={handleProfile} onLogout={handleLogout} />;
+      case 'admin-logs':
+        return (
+          <AdminLogsPage
+            onBackToMain={handleBackToMain}
+            onShop={handleShop}
+            onProfile={handleProfile}
+          />
+        );
+      case 'login':
+        return (
+          <AuthPage
+            onLogin={async (email, password) => {
+              try {
+                // Выполняем вход через API
+                const response = await fetch('/api/v1/auth/login/', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ email, password }),
+                });
+
+                if (!response.ok) {
+                  const errorData = await response.json().catch(() => ({}));
+                  throw new Error(errorData.detail || 'Ошибка авторизации');
+                }
+
+                const data = await response.json();
+                const accessToken = data.access_token || data.token;
+                const refreshToken = data.refresh_token;
+
+                if (accessToken) {
+                  // Сохраняем токены
+                  localStorage.setItem('authToken', accessToken);
+                  if (refreshToken) {
+                    localStorage.setItem('refreshToken', refreshToken);
+                  }
+
+                  // Обновляем состояние аутентификации
+                  setIsAuthenticated(true);
+
+                  // Отправляем событие успешной авторизации
+                  window.dispatchEvent(new Event('auth-success'));
+
+                  // Перенаправляем обратно или на главную
+                  const urlParams = new URLSearchParams(window.location.search);
+                  const redirectPath = urlParams.get('redirect');
+                  if (redirectPath && (redirectPath.startsWith('/') || redirectPath.startsWith(window.location.origin))) {
+                    const targetPath = redirectPath.startsWith(window.location.origin)
+                      ? redirectPath.substring(window.location.origin.length)
+                      : redirectPath;
+
+                    // Если это внутренняя страница, используем SPA навигацию
+                    if (targetPath.includes('/create-character')) {
+                      setCurrentPage('create-character');
+                      window.history.pushState({ page: 'create-character' }, '', targetPath);
+                    } else if (targetPath.includes('/chat')) {
+                      // Для чата нужно вытащить ID персонажа если есть
+                      const targetUrlParams = new URLSearchParams(targetPath.split('?')[1] || '');
+                      const charId = targetUrlParams.get('character');
+                      setCurrentPage('chat');
+                      window.history.pushState({ page: 'chat', character: charId }, '', targetPath);
+                    } else {
+                      window.location.href = targetPath;
+                    }
+                  } else {
+                    handleBackToMain();
+                  }
+                }
+              } catch (error) {
+                // Ошибка будет обработана в AuthPage
+                throw error;
+              }
+            }}
+            onGoogleLogin={() => {
+              // Перенаправляем на OAuth endpoint с учетом redirect
+              const urlParams = new URLSearchParams(window.location.search);
+              const redirectPath = urlParams.get('redirect');
+              const authUrl = redirectPath
+                ? `/auth/google/?redirect=${encodeURIComponent(redirectPath)}`
+                : '/auth/google/';
+              window.location.href = authUrl;
+            }}
+            onSignUp={() => {
+              // Переходим на страницу регистрации
+              handleRegister();
+            }}
+            onForgotPassword={() => {
+              // Переходим на страницу восстановления пароля
+              handleForgotPassword();
+            }}
+          />
+        );
+      case 'register':
+        return (
+          <RegisterPage
+            onRegister={async (email, password, username) => {
+              // Генерируем fingerprint для регистрации
+              const FingerprintJS = (await import('@fingerprintjs/fingerprintjs')).default;
+              const fp = await FingerprintJS.load();
+              const result = await fp.get();
+              const fingerprintId = result.visitorId;
+
+              // Сохраняем для использования при верификации
+              setRegistrationEmail(email);
+              setRegistrationFingerprintId(fingerprintId);
+
+              // Выполняем регистрацию через API
+              const response = await fetch('/api/v1/auth/register/', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  email,
+                  password,
+                  username: username || email,
+                  fingerprint_id: fingerprintId
+                }),
+              });
+
+              if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Ошибка регистрации');
+              }
+
+              // После успешной регистрации RegisterPage покажет поле для ввода кода
+            }}
+            onVerifyCode={async (code) => {
+              // Проверяем код верификации с правильными параметрами
+              const response = await fetch('/api/v1/auth/confirm-registration/', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  email: registrationEmail,
+                  verification_code: code,
+                  fingerprint_id: registrationFingerprintId
+                }),
+              });
+
+              if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Неверный код подтверждения');
+              }
+
+              const data = await response.json();
+              const accessToken = data.access_token || data.token;
+              const refreshToken = data.refresh_token;
+
+              if (accessToken) {
+                // Сохраняем токены
+                localStorage.setItem('authToken', accessToken);
+                if (refreshToken) {
+                  localStorage.setItem('refreshToken', refreshToken);
+                }
+
+                // Обновляем состояние аутентификации
+                setIsAuthenticated(true);
+
+                // Отправляем событие успешной авторизации
+                window.dispatchEvent(new Event('auth-success'));
+
+                // Перенаправляем обратно или на главную
+                const urlParams = new URLSearchParams(window.location.search);
+                const redirectPath = urlParams.get('redirect');
+                if (redirectPath && (redirectPath.startsWith('/') || redirectPath.startsWith(window.location.origin))) {
+                  const targetPath = redirectPath.startsWith(window.location.origin)
+                    ? redirectPath.substring(window.location.origin.length)
+                    : redirectPath;
+
+                  if (targetPath.includes('/create-character')) {
+                    setCurrentPage('create-character');
+                    window.history.pushState({ page: 'create-character' }, '', targetPath);
+                  } else if (targetPath.includes('/chat')) {
+                    const targetUrlParams = new URLSearchParams(targetPath.split('?')[1] || '');
+                    const charId = targetUrlParams.get('character');
+                    setCurrentPage('chat');
+                    window.history.pushState({ page: 'chat', character: charId }, '', targetPath);
+                  } else {
+                    window.location.href = targetPath;
+                  }
+                } else {
+                  handleBackToMain();
+                }
+              }
+            }}
+            onGoogleRegister={() => {
+              // Перенаправляем на OAuth endpoint с учетом redirect
+              const urlParams = new URLSearchParams(window.location.search);
+              const redirectPath = urlParams.get('redirect');
+              const authUrl = redirectPath
+                ? `/auth/google/?redirect=${encodeURIComponent(redirectPath)}`
+                : '/auth/google/';
+              window.location.href = authUrl;
+            }}
+            onLogin={() => {
+              // Переходим на страницу входа
+              handleLogin();
+            }}
+          />
+        );
+      case 'forgot-password':
+        return (
+          <ForgotPasswordPage
+            onBackToLogin={() => {
+              handleLogin();
+            }}
+          />
+        );
+      case 'character-comments':
+        if (selectedCharacter && selectedCharacter.name) {
+          return (
+            <CharacterCommentsPage
+              characterName={selectedCharacter.name}
+              onBack={() => {
+                // Возвращаемся на чат с тем же персонажем
+                setCurrentPage('chat');
+                const characterIdentifier = selectedCharacter?.id || selectedCharacter?.name || '';
+                if (characterIdentifier) {
+                  window.history.pushState({ page: 'chat', character: characterIdentifier }, '', `/chat?character=${encodeURIComponent(characterIdentifier)}`);
+                }
+              }}
+              onShop={handleShop}
+              onProfile={handleProfile}
+            />
+          );
+        } else {
+          // Если персонаж не выбран, показываем заглушку или перенаправляем
+          return null;
+        }
+      default:
+        return (
+          <MainPage
+            onCharacterSelect={handleCharacterSelect}
+            onMyCharacters={handleMyCharacters}
+            onCreateCharacter={handleCreateCharacter}
+            onShop={handleShop}
+            onProfile={handleProfile}
+            onMessages={handleMessages}
+            onPhotoGeneration={handlePhotoGeneration}
+            onPaidAlbum={handlePaidAlbum}
+            contentMode={contentMode}
+            onContentModeChange={setContentMode}
+          />
+        );
+    }
+  };
+
+  const [isAuthenticated, setIsAuthenticated] = React.useState(false);
+  const [userInfo, setUserInfo] = React.useState<{ username: string, coins: number, id?: number, is_admin?: boolean, subscription?: { subscription_type: string } } | null>(null);
+  const [isPaidAlbumModalOpen, setIsPaidAlbumModalOpen] = useState(false);
+  const [selectedAlbumCharacter, setSelectedAlbumCharacter] = useState<any>(null);
+  const [subscriptionStats, setSubscriptionStats] = useState<{ subscription_type?: string } | null>(null);
+  const [emptyAlbumToast, setEmptyAlbumToast] = useState(false);
+
+  // Состояние для регистрации
+  const [registrationEmail, setRegistrationEmail] = React.useState('');
+  const [registrationFingerprintId, setRegistrationFingerprintId] = React.useState('');
+
+  React.useEffect(() => {
+    const checkAuth = async () => {
+      // Даем время для загрузки токена после перезагрузки страницы
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      try {
+        const token = authManager.getToken();
+
+        if (!token) {
+          // Пытаемся обновить токен через refresh token
+          const refreshToken = authManager.getRefreshToken();
+          if (refreshToken) {
+            try {
+
+              await authManager.refreshAccessToken();
+
+            } catch (error) {
+
+              authManager.clearTokens();
+              setIsAuthenticated(false);
+              setUserInfo(null);
+              return;
+            }
+          } else {
+            setIsAuthenticated(false);
+            setUserInfo(null);
+            return;
+          }
+        }
+
+        const response = await authManager.fetchWithAuth('/api/v1/auth/me/');
+
+
+        if (response.ok) {
+          const text = await response.text();
+
+          if (!text) {
+
+          }
+
+          try {
+            const userData = text ? JSON.parse(text) : null;
+            if (userData) {
+
+              setUserInfo({
+                username: userData.username || userData.email || 'Пользователь',
+                coins: userData.coins || 0,
+                id: userData.id,
+                is_admin: userData.is_admin || false,
+                subscription: userData.subscription || { subscription_type: userData.subscription_type || 'free' }
+              });
+              setIsAuthenticated(true);
+
+              // Загружаем статистику подписки
+              if (userData.id) {
+                try {
+                  const statsResponse = await authManager.fetchWithAuth('/api/v1/profit/stats/');
+                  if (statsResponse.ok) {
+                    const statsData = await statsResponse.json();
+                    setSubscriptionStats(statsData);
+                  }
+                } catch (error) {
+
+                }
+              }
+            } else {
+              setIsAuthenticated(false);
+              setUserInfo(null);
+            }
+          } catch (e) {
+
+            setIsAuthenticated(false);
+            setUserInfo(null);
+          }
+        } else {
+
+          authManager.clearTokens();
+          setIsAuthenticated(false);
+          setUserInfo(null);
+        }
+      } catch (error) {
+
+        setIsAuthenticated(false);
+        setUserInfo(null);
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  // Слушаем события обновления баланса и обновляем userInfo
+  React.useEffect(() => {
+    const handleBalanceUpdate = async (event: Event) => {
+      const customEvent = event as CustomEvent;
+
+      // Если в событии есть данные о балансе - обновляем сразу
+      if (customEvent.detail && customEvent.detail.coins !== undefined) {
+        const newCoins = customEvent.detail.coins;
+
+        if (userInfo) {
+          setUserInfo({
+            ...userInfo,
+            coins: newCoins
+          });
+        }
+        return;
+      }
+
+      // Если данных нет, загружаем из API
+      try {
+        const response = await authManager.fetchWithAuth('/api/v1/auth/me/');
+        if (response.ok) {
+          const userData = await response.json();
+          if (userData && userData.coins !== undefined) {
+
+            setUserInfo({
+              username: userData.username || userData.email || 'Пользователь',
+              coins: userData.coins || 0,
+              id: userData.id,
+              subscription: userData.subscription || { subscription_type: userData.subscription_type || 'free' }
+            });
+          }
+        }
+      } catch (error) {
+
+      }
+    };
+
+    const handleSubscriptionUpdate = async () => {
+
+      // Загружаем баланс и статистику подписки из API при обновлении подписки
+      try {
+        const response = await authManager.fetchWithAuth('/api/v1/auth/me/');
+        if (response.ok) {
+          const userData = await response.json();
+          if (userData && userData.coins !== undefined) {
+            // Обновляем баланс без избыточного логирования
+            setUserInfo({
+              username: userData.username || userData.email || 'Пользователь',
+              coins: userData.coins || 0,
+              id: userData.id,
+              subscription: userData.subscription || { subscription_type: userData.subscription_type || 'free' }
+            });
+          }
+        }
+
+        // Загружаем статистику подписки
+        const statsResponse = await authManager.fetchWithAuth('/api/v1/profit/stats/');
+        if (statsResponse.ok) {
+          const statsData = await statsResponse.json();
+          setSubscriptionStats(statsData);
+        }
+      } catch (error) {
+
+      }
+    };
+
+    const handleAuthSuccess = async () => {
+
+      // Обновляем состояние авторизации
+      const token = authManager.getToken();
+      if (token) {
+        try {
+          const response = await authManager.fetchWithAuth('/api/v1/auth/me/');
+          if (response.ok) {
+            const userData = await response.json();
+            setIsAuthenticated(true);
+            setUserInfo({
+              username: userData.username || userData.email || 'Пользователь',
+              coins: userData.coins || 0,
+              id: userData.id,
+              subscription: userData.subscription || { subscription_type: userData.subscription_type || 'free' }
+            });
+
+          }
+        } catch (error) {
+
+        }
+      }
+    };
+
+    window.addEventListener('balance-update', handleBalanceUpdate);
+    window.addEventListener('subscription-update', handleSubscriptionUpdate);
+    window.addEventListener('auth-success', handleAuthSuccess);
+
+    return () => {
+      window.removeEventListener('balance-update', handleBalanceUpdate);
+      window.removeEventListener('subscription-update', handleSubscriptionUpdate);
+      window.removeEventListener('auth-success', handleAuthSuccess);
+    };
+  }, [userInfo]);
+
+  // Применяем темную тему
+  useEffect(() => {
+    document.documentElement.classList.add('dark');
+    document.body.classList.add('dark');
+    return () => {
+      document.documentElement.classList.remove('dark');
+      document.body.classList.remove('dark');
+    };
+  }, []);
+
+  const handleGoogleLogin = () => {
+    // Открываем popup окно для OAuth
+    const width = 500;
+    const height = 600;
+    const left = (window.screen.width - width) / 2;
+    const top = (window.screen.height - height) / 2;
+
+    const popup = window.open(
+      '/auth/google/?mode=popup',
+      'Google Login',
+      `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+    );
+
+    // Слушаем сообщения от popup окна
+    let messageHandler: ((event: MessageEvent) => void) | null = null;
+    let timeoutId: NodeJS.Timeout | null = null;
+
+    messageHandler = (event: MessageEvent) => {
+      // Проверяем origin для безопасности (разрешаем localhost и 127.0.0.1)
+      const allowedOrigins = [
+        window.location.origin,
+        'http://localhost:5175',
+        'http://127.0.0.1:5175',
+        'http://localhost:8000',
+        'http://127.0.0.1:8000'
+      ];
+
+      if (!allowedOrigins.includes(event.origin)) {
+
+        return;
+      }
+
+
+
+      if (event.data && event.data.type === 'oauth-success') {
+
+        // Сохраняем токены через authManager
+        if (event.data.accessToken) {
+          authManager.setTokens(event.data.accessToken, event.data.refreshToken || null);
+
+        }
+
+        // Закрываем popup (безопасно, без проверки closed)
+        try {
+          if (popup) {
+            popup.close();
+          }
+        } catch (e) {
+          // Игнорируем ошибки закрытия popup
+        }
+
+        // Удаляем слушатель
+        if (messageHandler) {
+          window.removeEventListener('message', messageHandler);
+        }
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+
+        // Небольшая задержка перед проверкой авторизации, чтобы токены точно сохранились
+        setTimeout(async () => {
+
+          // Проверяем авторизацию без перезагрузки страницы
+          try {
+            const authResult = await authManager.checkAuth();
+
+            if (authResult.isAuthenticated && authResult.userInfo) {
+              setIsAuthenticated(true);
+              setUserInfo({
+                username: authResult.userInfo.username || authResult.userInfo.email || 'Пользователь',
+                coins: authResult.userInfo.coins || 0,
+                id: authResult.userInfo.id
+              });
+              // Переходим на нужную страницу или на главную после успешной авторизации
+              const urlParams = new URLSearchParams(window.location.search);
+              const redirectPath = urlParams.get('redirect');
+
+              if (redirectPath && (redirectPath.startsWith('/') || redirectPath.startsWith(window.location.origin))) {
+                const targetPath = redirectPath.startsWith(window.location.origin)
+                  ? redirectPath.substring(window.location.origin.length)
+                  : redirectPath;
+
+                if (targetPath.includes('/create-character')) {
+                  setCurrentPage('create-character');
+                  window.history.pushState({ page: 'create-character' }, '', targetPath);
+                } else if (targetPath.includes('/chat')) {
+                  const targetUrlParams = new URLSearchParams(targetPath.split('?')[1] || '');
+                  const charId = targetUrlParams.get('character');
+                  setCurrentPage('chat');
+                  window.history.pushState({ page: 'chat', character: charId }, '', targetPath);
+                } else if (targetPath.includes('/shop')) {
+                  setCurrentPage('shop');
+                  window.history.pushState({ page: 'shop' }, '', targetPath);
+                } else {
+                  // Для остальных путей просто перезагружаем/переходим
+                  window.location.href = targetPath;
+                  return;
+                }
+              } else {
+                setCurrentPage('main');
+                window.history.pushState({ page: 'main' }, '', '/');
+              }
+            }
+          } catch (error) {
+
+            // В случае ошибки все равно перезагружаем страницу
+            window.location.reload();
+          }
+        }, 300);
+      } else if (event.data && event.data.type === 'oauth-error') {
+
+        try {
+          if (popup) {
+            popup.close();
+          }
+        } catch (e) {
+          // Игнорируем ошибки закрытия popup
+        }
+        if (messageHandler) {
+          window.removeEventListener('message', messageHandler);
+        }
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      }
+    };
+
+    window.addEventListener('message', messageHandler);
+
+    // Таймаут для очистки слушателя, если popup не ответил
+    timeoutId = setTimeout(() => {
+      if (messageHandler) {
+        window.removeEventListener('message', messageHandler);
+      }
+    }, 5 * 60 * 1000); // 5 минут таймаут
+  };
+
+  const handleLogin = () => {
+    // Переходим на страницу логина
+    const urlParams = new URLSearchParams(window.location.search);
+    let redirect = urlParams.get('redirect');
+
+    // Если в URL нет редиректа, но мы на какой-то серьезной странице, используем её
+    if (!redirect && window.location.pathname !== '/' && window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+      redirect = window.location.pathname + window.location.search;
+    }
+
+    setCurrentPage('login');
+    const path = redirect ? `/login?redirect=${encodeURIComponent(redirect)}` : '/login';
+    window.history.pushState({ page: 'login' }, '', path);
+  };
+
+  const handleRegister = () => {
+    // Переходим на страницу регистрации
+    const urlParams = new URLSearchParams(window.location.search);
+    let redirect = urlParams.get('redirect');
+
+    if (!redirect && window.location.pathname !== '/' && window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+      redirect = window.location.pathname + window.location.search;
+    }
+
+    setCurrentPage('register');
+    const path = redirect ? `/register?redirect=${encodeURIComponent(redirect)}` : '/register';
+    window.history.pushState({ page: 'register' }, '', path);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await authManager.logout();
+      // Явное удаление токенов (на всякий случай, хотя authManager должен это делать)
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('refreshToken');
+      setIsAuthenticated(false);
+      setUserInfo(null);
+      // Принудительная перезагрузка страницы для очистки всех состояний
+      window.location.href = '/';
+    } catch (error) {
+
+    }
+  };
+
+
+  return (
+    <>
+      <GlobalStyles />
+      <AppContainer $isMobile={isMobile}>
+        <BackgroundWrapper>
+          <DarkVeil speed={1.1} />
+        </BackgroundWrapper>
+        <StaggeredSidebar
+          isOpen={isSidebarOpen}
+          onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+          isMobile={isMobile}
+          onCreateCharacter={handleCreateCharacter}
+          onEditCharacters={handleEditCharacters}
+          onHistory={handleHistory}
+          onFavorites={handleFavorites}
+          onMyCharacters={handleMyCharacters}
+          onMessages={handleMessages}
+          onBugReport={handleBugReport}
+          onProfile={handleProfile}
+          onShop={handleShop}
+          isAuthenticated={isAuthenticated}
+          isAdmin={userInfo?.is_admin || false}
+          contentMode={contentMode}
+          onContentModeChange={setContentMode}
+          onRequireAuth={handleLogin}
+        />
+        <PageContainer className="app-scroll-container" $isMobile={isMobile} $isSidebarOpen={isSidebarOpen}>
+          {renderPage()}
+        </PageContainer>
+      </AppContainer>
+
+      {isPaidAlbumModalOpen && selectedAlbumCharacter && (
+        <PaidAlbumPurchaseModal
+          isOpen={isPaidAlbumModalOpen}
+          onClose={() => {
+            setIsPaidAlbumModalOpen(false);
+            setSelectedAlbumCharacter(null);
+          }}
+          onPurchase={handlePurchaseAlbum}
+          onOpenShop={handleShop}
+          characterName={selectedAlbumCharacter.name || selectedAlbumCharacter.id || 'Персонаж'}
+          subscriptionType={subscriptionStats?.subscription_type || userInfo?.subscription?.subscription_type || 'free'}
+          userCoins={userInfo?.coins || 0}
+        />
+      )}
+
+      {isPaidAlbumModalOpen && selectedAlbumCharacter && (
+        <PaidAlbumPurchaseModal
+          isOpen={isPaidAlbumModalOpen}
+          onClose={() => {
+            setIsPaidAlbumModalOpen(false);
+            setSelectedAlbumCharacter(null);
+          }}
+          onPurchase={handlePurchaseAlbum}
+          onOpenShop={handleShop}
+          characterName={selectedAlbumCharacter.name || selectedAlbumCharacter.id || 'Персонаж'}
+          subscriptionType={subscriptionStats?.subscription_type || userInfo?.subscription?.subscription_type || 'free'}
+          userCoins={userInfo?.coins || 0}
+        />
+      )}
+
+      <ContentRatingModal
+        isOpen={showContentRatingModal}
+        onClose={() => setShowContentRatingModal(false)}
+        onSelect={handleContentRatingSelect}
+      />
+
+      {emptyAlbumToast && (
+        <EmptyAlbumToast>В альбоме пока что нет фотографий</EmptyAlbumToast>
+      )}
+    </>
+  );
+}
+
+export default App;

@@ -5,7 +5,6 @@ import { theme } from '../theme';
 import { CharacterCard } from './CharacterCard';
 import { API_CONFIG } from '../config/api';
 import { AuthModal } from './AuthModal';
-import { GlobalHeader } from './GlobalHeader';
 import DarkVeil from '../../@/components/DarkVeil';
 
 const MainContainer = styled.div`
@@ -44,16 +43,16 @@ const CharactersGrid = styled.div`
   padding: ${theme.spacing.xs} ${theme.spacing.sm};
   overflow-y: auto;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 0;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
   align-content: start;
   width: 100%;
   box-sizing: border-box;
 
   @media (max-width: 768px) {
     padding: ${theme.spacing.xs} ${theme.spacing.sm};
-    gap: 0;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
   }
 `;
 
@@ -105,7 +104,19 @@ interface Character {
   dislikes?: number;
   views: number;
   comments: number;
-  prompt?: string;
+  personality_ru?: string;
+  personality_en?: string;
+  situation_ru?: string;
+  situation_en?: string;
+  instructions_ru?: string;
+  instructions_en?: string;
+  style_ru?: string;
+  style_en?: string;
+  appearance_ru?: string;
+  appearance_en?: string;
+  location_ru?: string;
+  location_en?: string;
+  translations?: any;
 }
 
 interface MyCharactersPageProps {
@@ -337,7 +348,21 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
               dislikes: char.dislikes || 0,
               views: char.views || 0,
               comments: char.comments || 0,
-              prompt: char.prompt || char.full_prompt || ''
+              prompt: char.prompt || char.full_prompt || '',
+              // Bilingual fields
+              personality_ru: char.personality_ru,
+              personality_en: char.personality_en,
+              situation_ru: char.situation_ru,
+              situation_en: char.situation_en,
+              instructions_ru: char.instructions_ru,
+              instructions_en: char.instructions_en,
+              style_ru: char.style_ru,
+              style_en: char.style_en,
+              appearance_ru: char.appearance_ru || char.character_appearance_ru,
+              appearance_en: char.appearance_en || char.character_appearance_en,
+              location_ru: char.location_ru,
+              location_en: char.location_en,
+              translations: char.translations
             };
           });
 
@@ -501,10 +526,6 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
       </BackgroundWrapper>
       <ContentWrapper>
         <div className="content-area vertical">
-          <GlobalHeader
-            onShop={onShop}
-            onProfile={onProfile}
-          />
           <CharactersGrid>
             {isLoading ? (
               <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2rem', color: '#a8a8a8' }}>

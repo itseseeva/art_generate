@@ -9,6 +9,7 @@ import {
   FiHeart as FavoritesIcon,
   FiClock as HistoryIcon
 } from 'react-icons/fi';
+import { useTranslation } from 'react-i18next';
 
 interface GlobalVerticalDockProps {
   onShop?: () => void;
@@ -29,33 +30,34 @@ export const GlobalVerticalDock: React.FC<GlobalVerticalDockProps> = ({
   onMyCharacters,
   onMessages
 }) => {
+  const { t } = useTranslation();
   return (
     <div className="vertical-dock-panel global-vertical-dock">
       <Dock
         items={[
           {
             icon: <ShopIcon size={24} />,
-            label: 'Магазин',
+            label: t('nav.shop'),
             onClick: () => onShop?.()
           },
           {
             icon: <CreateCharacterIcon size={24} />,
-            label: 'Создать персонажа',
+            label: t('nav.createCharacter'),
             onClick: () => onCreateCharacter?.()
           },
           {
             icon: <EditCharactersIcon size={24} />,
-            label: 'Редактировать',
+            label: t('nav.edit'),
             onClick: () => onEditCharacters?.() || onMyCharacters?.()
           },
           {
             icon: <FavoritesIcon size={24} />,
-            label: 'Избранное',
+            label: t('nav.favorites'),
             onClick: () => onFavorites?.() || (() => alert('Избранное будет реализовано в следующих версиях'))
           },
           {
             icon: <HistoryIcon size={24} />,
-            label: 'История',
+            label: t('nav.history'),
             onClick: () => onHistory?.() || onMessages?.()
           }
         ]}

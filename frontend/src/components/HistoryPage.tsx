@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useGridColumns } from '../hooks/useGridColumns';
+import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import { authManager } from '../utils/auth';
-import { GlobalHeader } from './GlobalHeader';
+// GlobalHeader import removed
 import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
 import { CharacterCard } from './CharacterCard';
@@ -44,23 +46,18 @@ const ContentWrapper = styled.div`
 
 const CharactersGrid = styled.div`
   flex: 1;
-  padding: ${theme.spacing.xs} ${theme.spacing.sm};
-  overflow-y: auto;
+  padding: 40px 16px 24px;
+  overflow-y: visible;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 0;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
   align-content: start;
+  width: 100%;
 
   @media (max-width: 768px) {
     padding: ${theme.spacing.xs} ${theme.spacing.sm};
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 0;
-  }
-
-  @media (max-width: 480px) {
-    padding: ${theme.spacing.xs} ${theme.spacing.sm};
     grid-template-columns: repeat(2, 1fr);
-    gap: 0;
+    gap: 8px;
   }
 `;
 
@@ -109,13 +106,29 @@ export interface CharacterWithHistory {
   comments: number;
   mode?: 'safe' | 'nsfw';
   lastMessageAt?: string | null;
+  messageCount?: number;
   raw?: any;
+  // Bilingual fields
+  personality_ru?: string;
+  personality_en?: string;
+  situation_ru?: string;
+  situation_en?: string;
+  instructions_ru?: string;
+  instructions_en?: string;
+  style_ru?: string;
+  style_en?: string;
+  appearance_ru?: string;
+  appearance_en?: string;
+  location_ru?: string;
+  location_en?: string;
+  translations?: any;
 }
 
 interface HistoryCharacter {
   name: string;
   last_message_at?: string | null;
   last_image_url?: string | null;
+  message_count?: number;
 }
 
 interface HistoryPageProps {
@@ -209,12 +222,12 @@ const extractPhotos = (source: any, fallbackImage?: string | null, characterName
 const buildCharacterData = (
   entry: HistoryCharacter,
   source?: any,
-  characterPhotos?: {[key: string]: string[]}
+  characterPhotos?: { [key: string]: string[] }
 ): CharacterWithHistory => {
   // Используем display_name если есть, иначе name (как на MainPage)
   const rawName = source?.name || entry.name;
   const displayName = source?.display_name || source?.name || entry.name;
-  
+
   // Для поиска фото используем rawName (как на MainPage)
   const mapKey = rawName.toLowerCase();
   const photos = characterPhotos?.[mapKey] || extractPhotos(source, entry.last_image_url, rawName);
@@ -236,7 +249,22 @@ const buildCharacterData = (
     comments: source?.comments || 0,
     mode: source?.is_nsfw ? 'nsfw' : 'safe',
     lastMessageAt: entry.last_message_at ?? null,
+    messageCount: entry.message_count,
     raw: source,
+    // Preserving bilingual fields from source
+    personality_ru: source?.personality_ru,
+    personality_en: source?.personality_en,
+    situation_ru: source?.situation_ru,
+    situation_en: source?.situation_en,
+    instructions_ru: source?.instructions_ru,
+    instructions_en: source?.instructions_en,
+    style_ru: source?.style_ru,
+    style_en: source?.style_en,
+    appearance_ru: source?.appearance_ru || source?.character_appearance_ru,
+    appearance_en: source?.appearance_en || source?.character_appearance_en,
+    location_ru: source?.location_ru,
+    location_en: source?.location_en,
+    translations: source?.translations
   };
 };
 
@@ -252,25 +280,27 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
   const [characters, setCharacters] = useState<CharacterWithHistory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [characterPhotos, setCharacterPhotos] = useState<{[key: string]: string[]}>({});
+  const [characterPhotos, setCharacterPhotos] = useState<{ [key: string]: string[] }>({});
   const [favoriteCharacterIds, setFavoriteCharacterIds] = useState<Set<number>>(new Set());
-  const [characterRatings, setCharacterRatings] = useState<{[key: number]: {likes: number, dislikes: number}}>({});
+  const [characterRatings, setCharacterRatings] = useState<{ [key: number]: { likes: number, dislikes: number } }>({});
+  const charactersGridRef = useRef<HTMLDivElement>(null);
+  const columnsCount = useGridColumns(charactersGridRef);
 
   // Загрузка рейтингов персонажей
   const loadCharacterRatings = async (charactersList: CharacterWithHistory[]) => {
-    const ratings: {[key: number]: {likes: number, dislikes: number}} = {};
-    
+    const ratings: { [key: number]: { likes: number, dislikes: number } } = {};
+
     for (const char of charactersList) {
       const characterId = typeof char.id === 'number' ? char.id : parseInt(char.id, 10);
       if (isNaN(characterId)) continue;
-      
+
       try {
         const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.GET_CHARACTER_RATINGS(characterId)}`, {
           headers: {
             'Cache-Control': 'no-cache'
           }
         });
-        
+
         if (response.ok) {
           const data = await response.json();
           ratings[characterId] = {
@@ -282,7 +312,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
         // Игнорируем ошибки
       }
     }
-    
+
     setCharacterRatings(ratings);
   };
 
@@ -290,7 +320,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
   const loadFavorites = async () => {
     try {
       const response = await authManager.fetchWithAuth(API_CONFIG.FAVORITES);
-      
+
       if (response.ok) {
         const favorites = await response.json();
         // Извлекаем ID избранных персонажей
@@ -305,7 +335,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
         setFavoriteCharacterIds(new Set());
       }
     } catch (error) {
-      
+
       setFavoriteCharacterIds(new Set());
     }
   };
@@ -314,13 +344,13 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
   const loadCharacterPhotos = async () => {
     try {
       // Загружаем фотографии из JSON файла как fallback
-      let initialPhotos: {[key: string]: string[]} = {};
+      let initialPhotos: { [key: string]: string[] } = {};
       const response = await fetch('/character-photos.json');
       if (response.ok) {
         initialPhotos = await response.json();
-        
+
       }
-      
+
       // Всегда загружаем свежие данные для получения актуальных фото
       const token = authManager.getToken();
       if (!token) {
@@ -350,8 +380,8 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
         return;
       }
 
-      const photosMap: {[key: string]: string[]} = {};
-      
+      const photosMap: { [key: string]: string[] } = {};
+
       for (const char of charactersData) {
         if (!char || !char.main_photos) {
           continue;
@@ -371,7 +401,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
           try {
             parsedPhotos = JSON.parse(char.main_photos);
           } catch (e) {
-            
+
             parsedPhotos = [];
           }
         } else {
@@ -406,202 +436,194 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
 
         if (photoUrls.length) {
           photosMap[normalizedKey] = photoUrls;
-          
+
         }
       }
 
       // Обновляем состояние с новыми фото
       // Объединяем фото из JSON и из API (API имеет приоритет)
       const finalPhotos = { ...initialPhotos, ...photosMap };
-      
+
       setCharacterPhotos(finalPhotos);
     } catch (err) {
-      
+
     }
   };
 
   const loadCharacters = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        // Всегда загружаем с принудительным обновлением, чтобы очистить кэш
-        const [historyResponse, charactersResponse] = await Promise.all([
-          authManager.fetchWithAuth(`/api/v1/chat-history/characters?force_refresh=true&_t=${Date.now()}`),
-          authManager.fetchWithAuth(`/api/v1/characters/?skip=0&limit=1000&force_refresh=true&_t=${Date.now()}`),
-        ]);
+    setIsLoading(true);
+    setError(null);
+    try {
+      // Всегда загружаем с принудительным обновлением, чтобы очистить кэш
+      const [historyResponse, charactersResponse] = await Promise.all([
+        authManager.fetchWithAuth(`/api/v1/chat-history/characters?force_refresh=true&_t=${Date.now()}`),
+        authManager.fetchWithAuth(`/api/v1/characters/?skip=0&limit=1000&force_refresh=true&_t=${Date.now()}`),
+      ]);
 
-        if (!historyResponse.ok) {
-          throw new Error('Не удалось получить список персонажей с историей сообщений');
-        }
-        if (!charactersResponse.ok) {
-          throw new Error('Не удалось загрузить информацию о персонажах');
-        }
-
-        const historyData = await historyResponse.json().catch(() => ({}));
-        const charactersData = await charactersResponse.json().catch(() => []);
-
-        
-        
-        
-        
-        
-        
-        // Проверяем, что ответ содержит массив characters
-        if (!historyData?.characters) {
-          
-        }
-
-        // Проверяем, что historyData содержит массив characters
-        const historyList: HistoryCharacter[] = Array.isArray(historyData?.characters)
-          ? historyData.characters
-              .filter((entry: any) => {
-                // Фильтруем только валидные записи с реальной историей
-                if (typeof entry === 'string') {
-                  return entry.trim().length > 0;
-                }
-                if (entry && typeof entry === 'object') {
-                  // Проверяем, что есть имя
-                  const hasName = typeof entry.name === 'string' && entry.name.trim().length > 0;
-                  if (!hasName) {
-                    return false;
-                  }
-                  // Проверяем, что есть либо время последнего сообщения, либо картинка
-                  // Это позволяет показывать персонажей с историей только из картинок
-                  const hasLastMessage = entry.last_message_at && entry.last_message_at.trim().length > 0;
-                  const hasImage = entry.last_image_url && entry.last_image_url.trim().length > 0;
-                  return hasLastMessage || hasImage;
-                }
-                return false;
-              })
-              .map((entry: any) => 
-                typeof entry === 'string'
-                  ? { name: entry.trim() }
-                  : {
-                      name: entry.name.trim(),
-                      last_message_at: entry.last_message_at,
-                      last_image_url: entry.last_image_url,
-                    }
-              )
-          : [];
-
-        
-        
-
-        const charactersArray = Array.isArray(charactersData) ? charactersData : [];
-        const charactersMap = new Map<string, any>();
-        // Создаем карту по name (основной ключ) и display_name (дополнительный ключ)
-        charactersArray.forEach((char: any) => {
-          // Используем name для ключа (как на MainPage)
-          const rawName = char.name;
-          if (typeof rawName !== 'string' || !rawName.trim()) {
-            return;
-          }
-          const key = rawName.trim().toLowerCase();
-          if (key) {
-            // Используем последнее значение, если есть дубликаты
-            charactersMap.set(key, char);
-          }
-          // Также добавляем по display_name, если он отличается от name
-          const displayName = char.display_name;
-          if (displayName && typeof displayName === 'string' && displayName.trim().toLowerCase() !== key) {
-            const displayKey = displayName.trim().toLowerCase();
-            if (displayKey) {
-              charactersMap.set(displayKey, char);
-            }
-          }
-        });
-
-        
-        
-        
-        
-
-        // Создаем данные персонажей, используя characterPhotos как на MainPage
-        const formatted = historyList
-          .map((entry) => {
-            const entryName = entry.name?.trim();
-            if (!entryName) {
-              return null;
-            }
-            
-            const key = entryName.toLowerCase();
-            const match = charactersMap.get(key);
-            
-            // Если не нашли по точному совпадению, пробуем найти по display_name
-            let finalMatch = match;
-            if (!finalMatch) {
-              for (const [mapKey, char] of charactersMap.entries()) {
-                const charDisplayName = (char.display_name || char.name || '').toLowerCase();
-                if (charDisplayName === key) {
-                  finalMatch = char;
-                  break;
-                }
-              }
-            }
-            
-            // КРИТИЧЕСКИ ВАЖНО: Если персонаж не найден в списке существующих персонажей,
-            // проверяем, может быть проблема с сопоставлением имен
-            if (!finalMatch) {
-              
-              
-              
-              
-              // Пробуем найти по частичному совпадению (без учета регистра и пробелов)
-              const normalizedEntryName = entryName.toLowerCase().replace(/\s+/g, '');
-              let foundByPartial = false;
-              for (const [mapKey, char] of charactersMap.entries()) {
-                const normalizedMapName = (char.name || '').toLowerCase().replace(/\s+/g, '');
-                if (normalizedMapName === normalizedEntryName || normalizedMapName.includes(normalizedEntryName) || normalizedEntryName.includes(normalizedMapName)) {
-                  
-                  finalMatch = char;
-                  foundByPartial = true;
-                  break;
-                }
-              }
-              
-              // Если все равно не нашли, создаем базовый объект персонажа из данных истории
-              if (!foundByPartial) {
-                
-                // Создаем минимальный объект персонажа из данных истории
-                finalMatch = {
-                  name: entryName,
-                  display_name: entryName,
-                  id: null,
-                  prompt: '',
-                  appearance: '',
-                  location: '',
-                  is_nsfw: false,
-                  photos: entry.last_image_url ? [entry.last_image_url] : []
-                };
-              }
-            }
-            
-            const char = buildCharacterData(entry, finalMatch, characterPhotos);
-            
-            // Логируем для отладки
-            
-            if (!char.photos || char.photos.length === 0) {
-              const rawName = finalMatch?.name || entryName;
-              const photoKey = rawName.toLowerCase();
-              
-            }
-            
-            return char;
-          })
-          .filter((char): char is CharacterWithHistory => char !== null);
-
-        
-        setCharacters(formatted);
-        
-        // Загружаем рейтинги для всех персонажей
-        await loadCharacterRatings(formatted);
-      } catch (err) {
-        
-        setError(err instanceof Error ? err.message : 'Неизвестная ошибка загрузки');
-      } finally {
-        setIsLoading(false);
+      if (!historyResponse.ok) {
+        throw new Error('Не удалось получить список персонажей с историей сообщений');
       }
-    };
+      if (!charactersResponse.ok) {
+        throw new Error('Не удалось загрузить информацию о персонажах');
+      }
+
+      const historyData = await historyResponse.json().catch(() => ({}));
+      const charactersData = await charactersResponse.json().catch(() => []);
+
+
+
+
+
+
+
+      // Проверяем, что ответ содержит массив characters
+      if (!historyData?.characters) {
+
+      }
+
+      // Проверяем, что historyData содержит массив characters
+      const historyList: HistoryCharacter[] = Array.isArray(historyData?.characters)
+        ? historyData.characters
+          .filter((entry: any) => {
+            // Доверяем бэкенду, фильтруем только явно битые записи без имени
+            if (typeof entry === 'string') {
+              return entry.trim().length > 0;
+            }
+            if (entry && typeof entry === 'object') {
+              return typeof entry.name === 'string' && entry.name.trim().length > 0;
+            }
+            return false;
+          })
+          .map((entry: any) =>
+            typeof entry === 'string'
+              ? { name: entry.trim() }
+              : {
+                name: entry.name.trim(),
+                last_message_at: entry.last_message_at,
+                last_image_url: entry.last_image_url,
+                message_count: entry.message_count,
+              }
+          )
+        : [];
+
+
+
+
+      const charactersArray = Array.isArray(charactersData) ? charactersData : [];
+      const charactersMap = new Map<string, any>();
+      // Создаем карту по name (основной ключ) и display_name (дополнительный ключ)
+      charactersArray.forEach((char: any) => {
+        // Используем name для ключа (как на MainPage)
+        const rawName = char.name;
+        if (typeof rawName !== 'string' || !rawName.trim()) {
+          return;
+        }
+        const key = rawName.trim().toLowerCase();
+        if (key) {
+          // Используем последнее значение, если есть дубликаты
+          charactersMap.set(key, char);
+        }
+        // Также добавляем по display_name, если он отличается от name
+        const displayName = char.display_name;
+        if (displayName && typeof displayName === 'string' && displayName.trim().toLowerCase() !== key) {
+          const displayKey = displayName.trim().toLowerCase();
+          if (displayKey) {
+            charactersMap.set(displayKey, char);
+          }
+        }
+      });
+
+
+
+
+
+
+      // Создаем данные персонажей, используя characterPhotos как на MainPage
+      const formatted = historyList
+        .map((entry) => {
+          const entryName = entry.name?.trim();
+          if (!entryName) {
+            return null;
+          }
+
+          const key = entryName.toLowerCase();
+          const match = charactersMap.get(key);
+
+          // Если не нашли по точному совпадению, пробуем найти по display_name
+          let finalMatch = match;
+          if (!finalMatch) {
+            for (const [mapKey, char] of charactersMap.entries()) {
+              const charDisplayName = (char.display_name || char.name || '').toLowerCase();
+              if (charDisplayName === key) {
+                finalMatch = char;
+                break;
+              }
+            }
+          }
+
+          // КРИТИЧЕСКИ ВАЖНО: Если персонаж не найден в списке существующих персонажей,
+          // проверяем, может быть проблема с сопоставлением имен
+          if (!finalMatch) {
+
+
+
+
+            // Пробуем найти по частичному совпадению (без учета регистра и пробелов)
+            const normalizedEntryName = entryName.toLowerCase().replace(/\s+/g, '');
+            let foundByPartial = false;
+            for (const [mapKey, char] of charactersMap.entries()) {
+              const normalizedMapName = (char.name || '').toLowerCase().replace(/\s+/g, '');
+              if (normalizedMapName === normalizedEntryName || normalizedMapName.includes(normalizedEntryName) || normalizedEntryName.includes(normalizedMapName)) {
+
+                finalMatch = char;
+                foundByPartial = true;
+                break;
+              }
+            }
+
+            // Если все равно не нашли, создаем базовый объект персонажа из данных истории
+            if (!foundByPartial) {
+
+              // Создаем минимальный объект персонажа из данных истории
+              finalMatch = {
+                name: entryName,
+                display_name: entryName,
+                id: null,
+                prompt: '',
+                appearance: '',
+                location: '',
+                is_nsfw: false,
+                photos: entry.last_image_url ? [entry.last_image_url] : []
+              };
+            }
+          }
+
+          const char = buildCharacterData(entry, finalMatch, characterPhotos);
+
+          // Логируем для отладки
+
+          if (!char.photos || char.photos.length === 0) {
+            const rawName = finalMatch?.name || entryName;
+            const photoKey = rawName.toLowerCase();
+
+          }
+
+          return char;
+        })
+        .filter((char): char is CharacterWithHistory => char !== null);
+
+
+      setCharacters(formatted);
+
+      // Загружаем рейтинги для всех персонажей
+      await loadCharacterRatings(formatted);
+    } catch (err) {
+
+      setError(err instanceof Error ? err.message : 'Неизвестная ошибка загрузки');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Загружаем фото и избранные при монтировании
   useEffect(() => {
@@ -629,21 +651,23 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
 
   // Используем ref для отслеживания первого вызова loadCharacters
   const photosLoadedRef = useRef(false);
-  
-  // Загружаем персонажей после загрузки фото (когда characterPhotos обновился)
+
+  // Загружаем персонажей после небольшой задержки для загрузки фото
   useEffect(() => {
-    const photosKeys = Object.keys(characterPhotos);
-    
-    // Если фото загружены (даже если их нет), загружаем персонажей
-    if (photosKeys.length > 0 || photosLoadedRef.current) {
-      
-      photosLoadedRef.current = true;
-      loadCharacters();
-    } else if (!isLoading && !photosLoadedRef.current) {
-      // Если фото не загружены, но загрузка завершена, все равно загружаем персонажей один раз
-      // (фото могут быть не у всех персонажей)
-      
-      photosLoadedRef.current = true;
+    // Даем время на загрузку фото, но не блокируем загрузку истории
+    const timer = setTimeout(() => {
+      if (!photosLoadedRef.current) {
+        photosLoadedRef.current = true;
+        loadCharacters();
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Перезагружаем персонажей при обновлении фото (если они уже были загружены)
+  useEffect(() => {
+    if (photosLoadedRef.current && Object.keys(characterPhotos).length > 0) {
       loadCharacters();
     }
   }, [characterPhotos]);
@@ -652,8 +676,8 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
   useEffect(() => {
     const handleHistoryCleared = async (event: CustomEvent) => {
       const { characterName } = event.detail;
-      
-      
+
+
       // Сразу удаляем персонажа локально для мгновенной обратной связи
       setCharacters(prev => {
         const filtered = prev.filter(char => {
@@ -662,29 +686,29 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
           const charDisplayName = char.raw?.display_name?.toLowerCase().trim() || '';
           const eventName = characterName.toLowerCase().trim();
           // Сравниваем по name, display_name и raw name (как возвращается из API)
-          const matches = charName === eventName || 
-                         charRawName === eventName || 
-                         charDisplayName === eventName;
+          const matches = charName === eventName ||
+            charRawName === eventName ||
+            charDisplayName === eventName;
           if (matches) {
-            
+
           }
           return !matches;
         });
-        
+
         return filtered;
       });
-      
+
       // Перезагружаем список персонажей с сервера для синхронизации
       try {
         // Перезагружаем персонажей напрямую (не ждем обновления фото)
         await loadCharacters();
       } catch (err) {
-        
+
       }
     };
-    
+
     window.addEventListener('chat-history-cleared', handleHistoryCleared as EventListener);
-    
+
     return () => {
       window.removeEventListener('chat-history-cleared', handleHistoryCleared as EventListener);
     };
@@ -699,161 +723,98 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
       </BackgroundWrapper>
       <ContentWrapper>
         <div className="content-area vertical">
-        <GlobalHeader
-          onShop={onShop}
-          onProfile={onProfile}
-          onLogout={() => {
-            localStorage.removeItem('authToken');
-            localStorage.removeItem('refreshToken');
-            window.location.reload();
-          }}
-          leftContent={
+          {createPortal(
             !isMobile && characters.length > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <button
-                  onClick={async () => {
-                    if (!window.confirm('Вы уверены, что хотите удалить всю историю чатов? Это действие нельзя отменить.')) {
-                      return;
-                    }
-                    try {
-                      const token = authManager.getToken();
-                      if (!token) {
-                        setError('Необходима авторизация');
-                        return;
-                      }
-                      const response = await authManager.fetchWithAuth('/api/v1/chat-history/clear-all-history', {
-                        method: 'POST'
-                      });
-                      if (response.ok) {
-                        // Очищаем список персонажей и перезагружаем
-                        setCharacters([]);
-                        await loadCharacters();
-                      } else {
-                        const errorData = await response.json().catch(() => ({}));
-                        setError(errorData.detail || 'Не удалось удалить историю');
-                      }
-                    } catch (err) {
-                      setError('Ошибка при удалении истории');
-                    }
-                  }}
-                  style={{
-                    background: 'rgba(239, 68, 68, 0.12)',
-                    border: '1px solid rgba(239, 68, 68, 0.25)',
-                    color: '#ff5c5c',
-                    padding: '0.25rem 0.6rem',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    transition: 'all 0.2s',
-                    whiteSpace: 'nowrap'
-                  }}
-                  onMouseOver={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'}
-                  onMouseOut={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)'}
-                >
-                  Удалить все
-                </button>
-              </div>
-            )
-          }
-        />
+              <div style={{ display: 'none' }}></div> // Скрываем глобальную кнопку удаления
+            ),
+            document.getElementById('header-left-portal') || document.body
+          )}
 
-        {isMobile && characters.length > 0 && (
-          <MobileActionContainer>
-            <button
-              onClick={async () => {
-                if (!window.confirm('Вы уверены, что хотите удалить всю историю чатов? Это действие нельзя отменить.')) {
-                  return;
-                }
-                try {
-                  const token = authManager.getToken();
-                  if (!token) {
-                    setError('Необходима авторизация');
-                    return;
-                  }
-                  const response = await authManager.fetchWithAuth('/api/v1/chat-history/clear-all-history', {
-                    method: 'POST'
-                  });
-                  if (response.ok) {
-                    setCharacters([]);
-                    await loadCharacters();
-                  } else {
-                    const errorData = await response.json().catch(() => ({}));
-                    setError(errorData.detail || 'Не удалось удалить историю');
-                  }
-                } catch (err) {
-                  setError('Ошибка при удалении истории');
-                }
-              }}
-              style={{
-                background: 'rgba(239, 68, 68, 0.15)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                color: '#ff4d4d',
-                padding: '0.4rem 0.8rem',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '0.8rem',
-                fontWeight: 600
-              }}
-            >
-              Удалить всю историю
-            </button>
-          </MobileActionContainer>
-        )}
+          {isMobile && characters.length > 0 && (
+            // Скрываем мобильную кнопку удаления
+            null
+          )}
 
-        {error && (
-          <div style={{ padding: '1rem' }}>
-            <ErrorMessage message={error} onClose={() => setError(null)} />
-          </div>
-        )}
+          {error && (
+            <div style={{ padding: '1rem' }}>
+              <ErrorMessage message={error} onClose={() => setError(null)} />
+            </div>
+          )}
 
-        {!isAuthenticated ? (
-          <CharactersGrid>
-            <EmptyState>
-              У вас пока нет переписки с персонажами
-            </EmptyState>
-          </CharactersGrid>
-        ) : isLoading ? (
-          <LoadingSpinner text="Загружаем историю сообщений..." />
-        ) : (
-          <CharactersGrid>
-            {characters.length === 0 ? (
+          {!isAuthenticated ? (
+            <CharactersGrid>
               <EmptyState>
-                Пока у вас нет сохранённых переписок. Начните диалог с любым персонажем!
+                У вас пока нет переписки с персонажами
               </EmptyState>
-            ) : (
-              characters.map((character) => {
-                // Проверяем, находится ли персонаж в избранном
-                const characterId = typeof character.id === 'number' 
-                  ? character.id 
-                  : parseInt(character.id, 10);
-                const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
-                const rating = !isNaN(characterId) ? characterRatings[characterId] : null;
-                
-                return (
-                <CardWrapper key={character.id} style={{ gap: 0 }}>
-                  <CharacterCard
-                    character={{
-                      ...character,
-                      likes: rating ? rating.likes : character.likes || 0,
-                      dislikes: rating ? rating.dislikes : character.dislikes || 0
-                    }}
-                    onClick={() => onOpenChat(character)}
-                    showPromptButton={true}
-                      isFavorite={isFavorite}
-                      onFavoriteToggle={loadFavorites}
-                  />
-                  <LastMessage>
-                    {character.lastMessageAt
-                      ? `Последнее сообщение: ${new Date(character.lastMessageAt).toLocaleString()}`
-                      : 'История появится после первого сообщения'}
-                  </LastMessage>
-                </CardWrapper>
-                );
-              })
-            )}
-          </CharactersGrid>
-        )}
+            </CharactersGrid>
+          ) : isLoading ? (
+            <LoadingSpinner text="Загружаем историю сообщений..." />
+          ) : (
+            <CharactersGrid ref={charactersGridRef}>
+              {characters.length === 0 ? (
+                <EmptyState>
+                  Пока у вас нет сохранённых переписок. Начните диалог с любым персонажем!
+                </EmptyState>
+              ) : (
+                characters.map((character, i) => {
+                  // Проверяем, находится ли персонаж в избранном
+                  const characterId = typeof character.id === 'number'
+                    ? character.id
+                    : parseInt(character.id, 10);
+                  const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
+                  const rating = !isNaN(characterId) ? characterRatings[characterId] : null;
+
+                  return (
+                    <CardWrapper key={character.id} style={{ gap: 0 }}>
+                      <CharacterCard
+                        character={{
+                          ...character,
+                          likes: rating ? rating.likes : character.likes || 0,
+                          dislikes: rating ? rating.dislikes : character.dislikes || 0
+                        }}
+                        onClick={() => onOpenChat(character)}
+                        isFavorite={isFavorite}
+                        onFavoriteToggle={loadFavorites}
+                        showEditButton={true} // Включаем отображение кнопок действий
+                        isRight={(i + 1) % columnsCount !== 0}
+                        onDelete={async (char) => {
+                          if (!window.confirm(`Вы уверены, что хотите удалить историю с персонажем ${char.name}?`)) {
+                            return;
+                          }
+                          try {
+                            const token = authManager.getToken();
+                            if (!token) return;
+
+                            // Используем имя из raw или name
+                            const charName = char.raw?.name || char.name;
+
+                            const response = await authManager.fetchWithAuth(`/api/v1/characters/${charName}/chat-history`, {
+                              method: 'DELETE'
+                            });
+
+                            if (response.ok) {
+                              // Удаляем персонажа из локального состояния
+                              setCharacters(prev => prev.filter(c => c.id !== char.id));
+                            } else {
+                              const errorData = await response.json().catch(() => ({}));
+                              setError(errorData.detail || 'Не удалось удалить историю');
+                            }
+                          } catch (err) {
+                            setError('Ошибка при удалении истории');
+                          }
+                        }}
+                      />
+                      <LastMessage>
+                        {character.lastMessageAt
+                          ? `Последнее сообщение: ${new Date(character.lastMessageAt).toLocaleString()}`
+                          : 'История появится после первого сообщения'}
+                      </LastMessage>
+                    </CardWrapper>
+                  );
+                })
+              )}
+            </CharactersGrid>
+          )}
         </div>
       </ContentWrapper>
     </MainContainer>

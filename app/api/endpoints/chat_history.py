@@ -254,6 +254,7 @@ async def get_prompt_by_image(
                     "debug_logs": debug_logs
                 }
         except Exception as e:
+            await db.rollback()
             log_debug(f"[PROMPT_DEBUG] ERROR in ImageGenerationHistory search: {e}")
 
         # --- 2. ChatHistory Search (Fallback) ---
@@ -353,7 +354,10 @@ async def get_prompt_by_image(
             prompt_content = message.message_content
             
             # --- 3. Sibling Lookup ---
-            if message.message_type == 'assistant' and (not prompt_content or prompt_content == "Generating..." or prompt_content == "🖼️ Генерирую фото..."):
+            # Если сообщение ассистента содержит placeholder текст вместо реального промпта,
+            # ищем промпт в предыдущем сообщении пользователя из той же сессии
+            placeholder_texts = ["Generating...", "🖼️ Генерирую фото...", "Генерация изображения"]
+            if message.message_type == 'assistant' and (not prompt_content or prompt_content in placeholder_texts):
                 log_debug(f"[PROMPT_DEBUG] 3. Sibling Lookup Triggered. SessionID: {message.session_id}")
                 try:
                     user_stmt = (

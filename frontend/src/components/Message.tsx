@@ -815,6 +815,8 @@ const MessageComponent: React.FC<MessageProps> = ({
   const [isAddingToGallery, setIsAddingToGallery] = useState(false);
   const [isAddedToGallery, setIsAddedToGallery] = useState(false);
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
+  const [selectedPromptRu, setSelectedPromptRu] = useState<string | null>(null);
+  const [selectedPromptEn, setSelectedPromptEn] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
   const [isVoiceLoading, setIsVoiceLoading] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -1050,14 +1052,24 @@ const MessageComponent: React.FC<MessageProps> = ({
       setIsLoadingPrompt(true);
 
       try {
-        const { prompt, errorMessage } = await fetchPromptByImage(message.imageUrl);
+        const result = await fetchPromptByImage(message.imageUrl);
 
-        if (prompt) {
-          // Переводим промпт на русский для отображения
-          const translatedPrompt = await translateToRussian(prompt);
-          setSelectedPrompt(translatedPrompt);
+        if (result.hasPrompt && (result.prompt || result.prompt_ru || result.prompt_en)) {
+          setSelectedPrompt(result.prompt);
+          setSelectedPromptRu(result.prompt_ru || null);
+          setSelectedPromptEn(result.prompt_en || null);
+
+          // Если нет русского промпта, но есть обычный - пробуем перевести (хотя бэкенд уже должен это делать)
+          if (!result.prompt_ru && result.prompt) {
+            try {
+              const translatedPrompt = await translateToRussian(result.prompt);
+              setSelectedPromptRu(translatedPrompt);
+            } catch (e) {
+              // ignore
+            }
+          }
         } else {
-          setPromptError(errorMessage || 'Промпт недоступен для этого изображения');
+          setPromptError(result.errorMessage || 'Промпт недоступен для этого изображения');
         }
       } catch (error) {
         setPromptError('Не удалось загрузить промпт');
@@ -1070,6 +1082,8 @@ const MessageComponent: React.FC<MessageProps> = ({
   const handleCloseFullscreen = () => {
     setIsFullscreen(false);
     setSelectedPrompt(null);
+    setSelectedPromptRu(null);
+    setSelectedPromptEn(null);
     setPromptError(null);
     setIsLoadingPrompt(false);
   };
@@ -1372,6 +1386,8 @@ const MessageComponent: React.FC<MessageProps> = ({
           imageUrl={message.imageUrl || ''}
           imageAlt="Fullscreen image"
           promptText={selectedPrompt}
+          promptTextRu={selectedPromptRu}
+          promptTextEn={selectedPromptEn}
           isLoading={isLoadingPrompt}
           error={promptError}
         />
@@ -1579,6 +1595,8 @@ const MessageComponent: React.FC<MessageProps> = ({
         imageUrl={message.imageUrl || ''}
         imageAlt="Fullscreen image"
         promptText={selectedPrompt}
+        promptTextRu={selectedPromptRu}
+        promptTextEn={selectedPromptEn}
         isLoading={isLoadingPrompt}
         error={promptError}
       />

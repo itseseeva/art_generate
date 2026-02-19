@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import { Footer } from './Footer';
@@ -197,6 +198,7 @@ const FeatureList = styled.ul`
 `;
 
 export const HowItWorksPage: React.FC = () => {
+  const { t } = useTranslation();
   const isMobile = useIsMobile();
 
   return (
@@ -206,55 +208,49 @@ export const HowItWorksPage: React.FC = () => {
       </BackgroundWrapper>
       <Container>
         <Content>
-        <Title>Как это работает</Title>
-        
-        <HowItWorksSection>
-          <Step>
-            <StepNumber>1</StepNumber>
-            <StepTitle>Создайте персонажа</StepTitle>
-            <StepDescription>Опишите внешность, характер и личность вашего персонажа. Пропишите его уникальные черты и особенности</StepDescription>
-          </Step>
-          <Step>
-            <StepNumber>2</StepNumber>
-            <StepTitle>Общайтесь</StepTitle>
-            <StepDescription>Ведите диалог с персонажем. ИИ будет отвечать в соответствии с заданным характером и личностью</StepDescription>
-          </Step>
-          <Step>
-            <StepNumber>3</StepNumber>
-            <StepTitle>Генерируйте фото</StepTitle>
-            <StepDescription>Создавайте фотореалистичные изображения вашего персонажа в любых позах и ситуациях. ИИ использует описанную внешность</StepDescription>
-          </Step>
-        </HowItWorksSection>
-        
-        <DetailedSection>
-          <DetailedTitle>Создание уникального персонажа</DetailedTitle>
-          <DetailedText>
-            Вы сами создаете своего персонажа с нуля. Опишите каждую деталь: цвет волос и глаз, черты лица, 
-            телосложение, стиль одежды. Определите характер: будет ли он застенчивым или уверенным, 
-            романтичным или игривым, серьезным или веселым.
-          </DetailedText>
-          
-          <FeatureList>
-            <li>Детальное описание внешности: волосы, глаза, фигура, особенности</li>
-            <li>Характер и личность: темперамент, манера общения, привычки</li>
-            <li>Предпочтения и интересы: хобби, любимые места, стиль жизни</li>
-            <li>Уникальные черты: татуировки, пирсинг, родинки, шрамы</li>
-          </FeatureList>
-          
-          <DetailedTitle>Интерактивное общение</DetailedTitle>
-          <DetailedText>
-            После создания персонажа вы можете общаться с ним в режиме реального времени. 
-            ИИ анализирует заданный вами характер и отвечает соответствующим образом, создавая 
-            естественный и живой диалог.
-          </DetailedText>
-          
-          <DetailedTitle>Генерация фотореалистичных изображений</DetailedTitle>
-          <DetailedText>
-            На основе описанной внешности ИИ генерирует фотореалистичные изображения вашего персонажа. 
-            Вы можете запросить любую позу, локацию или ситуацию. Технология использует мощные 
-            нейросети для создания детализированных и реалистичных изображений с идеальными лицами и глазами.
-          </DetailedText>
-        </DetailedSection>
+          <Title>{t('howItWorks.title')}</Title>
+
+          <HowItWorksSection>
+            <Step>
+              <StepNumber>1</StepNumber>
+              <StepTitle>{t('howItWorks.step1.title')}</StepTitle>
+              <StepDescription>{t('howItWorks.step1.description')}</StepDescription>
+            </Step>
+            <Step>
+              <StepNumber>2</StepNumber>
+              <StepTitle>{t('howItWorks.step2.title')}</StepTitle>
+              <StepDescription>{t('howItWorks.step2.description')}</StepDescription>
+            </Step>
+            <Step>
+              <StepNumber>3</StepNumber>
+              <StepTitle>{t('howItWorks.step3.title')}</StepTitle>
+              <StepDescription>{t('howItWorks.step3.description')}</StepDescription>
+            </Step>
+          </HowItWorksSection>
+
+          <DetailedSection>
+            <DetailedTitle>{t('howItWorks.uniqueChar.title')}</DetailedTitle>
+            <DetailedText>
+              {t('howItWorks.uniqueChar.text')}
+            </DetailedText>
+
+            <FeatureList>
+              <li>{t('howItWorks.uniqueChar.list.1')}</li>
+              <li>{t('howItWorks.uniqueChar.list.2')}</li>
+              <li>{t('howItWorks.uniqueChar.list.3')}</li>
+              <li>{t('howItWorks.uniqueChar.list.4')}</li>
+            </FeatureList>
+
+            <DetailedTitle>{t('howItWorks.interactive.title')}</DetailedTitle>
+            <DetailedText>
+              {t('howItWorks.interactive.text')}
+            </DetailedText>
+
+            <DetailedTitle>{t('howItWorks.photoGen.title')}</DetailedTitle>
+            <DetailedText>
+              {t('howItWorks.photoGen.text')}
+            </DetailedText>
+          </DetailedSection>
         </Content>
       </Container>
       <Footer />

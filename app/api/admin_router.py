@@ -308,9 +308,7 @@ async def get_users_list(
                 subscription_info = {
                     "type": user.subscription.subscription_type.value,
                     "status": user.subscription.status.value,
-                    "used_credits": user.subscription.used_credits,
                     "used_photos": user.subscription.used_photos,
-                    "monthly_credits": user.subscription.monthly_credits,
                     "monthly_photos": user.subscription.monthly_photos,
                     "images_limit": user.subscription.images_limit,
                     "images_used": user.subscription.images_used,
@@ -546,9 +544,7 @@ async def get_user_details(
             subscription_info = {
                 "type": user.subscription.subscription_type.value,
                 "status": user.subscription.status.value,
-                "monthly_credits": user.subscription.monthly_credits,
                 "monthly_photos": user.subscription.monthly_photos,
-                "used_credits": user.subscription.used_credits,
                 "used_photos": user.subscription.used_photos,
                 "images_limit": user.subscription.images_limit,
                 "images_used": user.subscription.images_used,

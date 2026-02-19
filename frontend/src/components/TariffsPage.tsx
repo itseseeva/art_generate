@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
+import { useTranslation } from 'react-i18next';
 import { authManager } from '../utils/auth';
 import { theme } from '../theme';
 
@@ -393,6 +394,7 @@ interface SubscriptionStats {
 }
 
 export const TariffsPage: React.FC = () => {
+  const { t } = useTranslation();
   const [stats, setStats] = useState<SubscriptionStats | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -676,44 +678,44 @@ export const TariffsPage: React.FC = () => {
   return (
     <Container>
       <Content>
-        <Title>Тарифные планы</Title>
-        <Subtitle>Выберите подходящий план для ваших творческих задач. НДС не облагается.</Subtitle>
+        <Title>{t('tariffs.title')}</Title>
+        <Subtitle>{t('tariffs.subtitle')}</Subtitle>
 
         <Grid>
           <Card>
-            <PlanName>Free</PlanName>
-            <Price>Бесплатно</Price>
+            <PlanName>{t('tariffs.plans.free.name')}</PlanName>
+            <Price>{t('tariffs.free')}</Price>
             <FeatureList>
-              <Feature>100 кредитов</Feature>
-              <Feature>10 сообщений</Feature>
-              <Feature>5 генераций фото</Feature>
-              <Feature>Доступ ко всем персонажам</Feature>
-              <Feature>Возможность создать своих персонажей</Feature>
+              <Feature>{t('tariffs.plans.free.features.credits')}</Feature>
+              <Feature>{t('tariffs.plans.free.features.messages')}</Feature>
+              <Feature>{t('tariffs.plans.free.features.photos')}</Feature>
+              <Feature>{t('tariffs.plans.free.features.allCharacters')}</Feature>
+              <Feature>{t('tariffs.plans.free.features.createCharacters')}</Feature>
             </FeatureList>
             <ActivateButton disabled>
-              Доступна при регистрации
+              {t('tariffs.availableOnRegistration')}
             </ActivateButton>
 
           </Card>
 
           <Card $highlight>
-            <PlanName>Стандарт</PlanName>
-            <Price>449₽ <span>/ месяц</span></Price>
+            <PlanName>{t('tariffs.plans.standard.name')}</PlanName>
+            <Price>449₽ <span>{t('tariffs.perMonth')}</span></Price>
             <FeatureList>
-              <Feature>2000 кредитов</Feature>
-              <Feature>100 генераций фото</Feature>
-              <Feature>100 голосовых сообщений</Feature>
-              <Feature>Доступ ко всем персонажам</Feature>
-              <Feature>Расширенная память (8 000 токенов)</Feature>
-              <Feature>Сохранение истории сообщений</Feature>
-              <Feature>Создание платных альбомов</Feature>
-              <Feature style={{ color: '#a78bfa', fontWeight: 'bold' }}>Бонус до +10% при оплате за год</Feature>
+              <Feature>{t('tariffs.plans.standard.features.credits')}</Feature>
+              <Feature>{t('tariffs.plans.standard.features.photos')}</Feature>
+              <Feature>{t('tariffs.plans.standard.features.voice')}</Feature>
+              <Feature>{t('tariffs.plans.standard.features.allCharacters')}</Feature>
+              <Feature>{t('tariffs.plans.standard.features.memory')}</Feature>
+              <Feature>{t('tariffs.plans.standard.features.history')}</Feature>
+              <Feature>{t('tariffs.plans.standard.features.albums')}</Feature>
+              <Feature style={{ color: '#a78bfa', fontWeight: 'bold' }}>{t('tariffs.plans.standard.features.bonus')}</Feature>
             </FeatureList>
             <ActivateButton
               onClick={() => handleActivateSubscription('standard')}
               disabled={isLoading || (stats?.subscription_type === 'standard')}
             >
-              {stats?.subscription_type === 'standard' ? 'Активна' : (selectedPlanForPayment === 'standard' ? 'Скрыть способы оплаты' : 'Активировать')}
+              {stats?.subscription_type === 'standard' ? t('tariffs.active') : (selectedPlanForPayment === 'standard' ? t('tariffs.hidePaymentMethods') : t('tariffs.activate'))}
             </ActivateButton>
 
             {selectedPlanForPayment === 'standard' && (
@@ -739,25 +741,25 @@ export const TariffsPage: React.FC = () => {
           </Card>
 
           <Card>
-            <PlanName>Премиум</PlanName>
-            <Price>1199₽ <span>/ месяц</span></Price>
+            <PlanName>{t('tariffs.plans.premium.name')}</PlanName>
+            <Price>1199₽ <span>{t('tariffs.perMonth')}</span></Price>
             <FeatureList>
-              <Feature>6000 кредитов</Feature>
-              <Feature>300 генераций фото</Feature>
-              <Feature>300 голосовых сообщений</Feature>
-              <Feature>Доступ ко всем персонажам</Feature>
-              <Feature>Глубокая память (16 000 токенов)</Feature>
-              <Feature>Сохранение истории сообщений</Feature>
-              <Feature>Создание платных альбомов</Feature>
-              <Feature>Доступ ко всем платным альбомам</Feature>
-              <Feature>Доступ ко всем галереям пользователей</Feature>
-              <Feature>Выбор модели (PREMIUM могут выбрать модель сами)</Feature>
+              <Feature>{t('tariffs.plans.premium.features.credits')}</Feature>
+              <Feature>{t('tariffs.plans.premium.features.photos')}</Feature>
+              <Feature>{t('tariffs.plans.premium.features.voice')}</Feature>
+              <Feature>{t('tariffs.plans.premium.features.allCharacters')}</Feature>
+              <Feature>{t('tariffs.plans.premium.features.memory')}</Feature>
+              <Feature>{t('tariffs.plans.premium.features.history')}</Feature>
+              <Feature>{t('tariffs.plans.premium.features.albums')}</Feature>
+              <Feature>{t('tariffs.plans.premium.features.paidAlbums')}</Feature>
+              <Feature>{t('tariffs.plans.premium.features.galleries')}</Feature>
+              <Feature>{t('tariffs.plans.premium.features.modelChoice')}</Feature>
             </FeatureList>
             <ActivateButton
               onClick={() => handleActivateSubscription('premium')}
               disabled={isLoading || (stats?.subscription_type === 'premium')}
             >
-              {stats?.subscription_type === 'premium' ? 'Активна' : (selectedPlanForPayment === 'premium' ? 'Скрыть способы оплаты' : 'Активировать')}
+              {stats?.subscription_type === 'premium' ? t('tariffs.active') : (selectedPlanForPayment === 'premium' ? t('tariffs.hidePaymentMethods') : t('tariffs.activate'))}
             </ActivateButton>
 
             {selectedPlanForPayment === 'premium' && (
@@ -784,17 +786,16 @@ export const TariffsPage: React.FC = () => {
         </Grid>
 
         <InfoBlock>
-          <InfoTitle>Информация о доставке</InfoTitle>
+          <InfoTitle>{t('tariffs.deliveryInfo')}</InfoTitle>
           <InfoText>
-            Доступ к услугам предоставляется автоматически в личном кабинете пользователя сразу после подтверждения оплаты.
-            Никаких дополнительных действий не требуется. История ваших генераций и баланс обновляются мгновенно.
+            {t('tariffs.deliveryDescription')}
           </InfoText>
         </InfoBlock>
 
         {/* Секция разовой докупки кредитов */}
         {isAuthenticated && stats?.is_active && (
           <SubscriptionSection>
-            <SectionTitle>Докупить кредиты</SectionTitle>
+            <SectionTitle>{t('tariffs.buyCredits')}</SectionTitle>
             <p style={{
               textAlign: 'center',
               color: '#b8b8b8',

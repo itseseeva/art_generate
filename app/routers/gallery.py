@@ -178,8 +178,9 @@ async def get_paid_album_status(
         subscription = await subscription_service.get_user_subscription(current_user.id)
         
         if subscription and subscription.is_active:
-            subscription_type = subscription.subscription_type.value.lower()
-            if subscription_type in ['standard', 'premium']:
+            # Используем .value для Enum и приводим к нижнему регистру для надежности
+            sub_type = str(subscription.subscription_type.value).lower()
+            if sub_type in ['standard', 'premium']:
                 has_subscription_access = True
     
     unlocked = bool(is_unlocked or is_owner or is_admin or has_subscription_access)
@@ -289,8 +290,8 @@ async def unlock_paid_gallery(
     
     has_subscription_access = False
     if subscription and subscription.is_active:
-        subscription_type = subscription.subscription_type.value.lower()
-        if subscription_type in ['standard', 'premium']:
+        sub_type = str(subscription.subscription_type.value).lower()
+        if sub_type in ['standard', 'premium']:
             has_subscription_access = True
     
     # Для FREE пользователей альбомы недоступны
@@ -358,8 +359,8 @@ async def save_paid_gallery_photos(
     
     can_create_album = False
     if subscription and subscription.is_active:
-        subscription_type = subscription.subscription_type.value.lower()
-        if subscription_type in ['standard', 'premium']:
+        sub_type = str(subscription.subscription_type.value).lower()
+        if sub_type in ['standard', 'premium']:
             can_create_album = True
     
     if not can_create_album and not current_user.is_admin:
@@ -443,8 +444,8 @@ async def list_paid_gallery(
         subscription = await subscription_service.get_user_subscription(current_user.id)
         
         if subscription and subscription.is_active:
-            subscription_type = subscription.subscription_type.value.lower()
-            if subscription_type in ['standard', 'premium']:
+            sub_type = str(subscription.subscription_type.value).lower()
+            if sub_type in ['standard', 'premium']:
                 has_subscription_access = True
 
     if not (unlocked or is_owner or current_user.is_admin or has_subscription_access):

@@ -104,6 +104,9 @@ export const API_CONFIG = {
   // Чат
   CHAT: '/chat',
 
+  // Поиск
+  SEARCH: '/api/v1/search/',
+
   // Делаем полные URL
   get AUTH_LOGIN() { return this.BASE_URL + this.LOGIN; },
   get AUTH_REGISTER() { return this.BASE_URL + this.REGISTER; },

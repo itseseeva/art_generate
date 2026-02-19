@@ -1,6 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { FiUser, FiLogIn, FiUserPlus, FiLogOut } from 'react-icons/fi';
+import { useTranslation } from 'react-i18next';
 import Dock from './Dock';
 import { theme } from '../theme';
 import './RightHeaderDock.css';
@@ -41,13 +42,14 @@ export const RightHeaderDock: React.FC<RightHeaderDockProps> = ({
   onLogout,
   isAuthenticated = false,
 }) => {
+  const { t } = useTranslation();
   const dockItems = [];
 
   // Профиль - только для авторизованных
   if (isAuthenticated && onProfile) {
     dockItems.push({
       icon: <FiUser size={14} />,
-      label: 'Профиль',
+      label: t('nav.profile'),
       onClick: () => onProfile?.(),
       className: 'dock-item-profile',
     });
@@ -57,7 +59,7 @@ export const RightHeaderDock: React.FC<RightHeaderDockProps> = ({
   if (onShop) {
     dockItems.push({
       icon: <span style={{ fontSize: '14px', fontWeight: 600 }}>$</span>,
-      label: 'Магазин',
+      label: t('nav.shop'),
       onClick: () => onShop?.(),
       className: 'dock-item-shop',
     });
@@ -68,7 +70,7 @@ export const RightHeaderDock: React.FC<RightHeaderDockProps> = ({
     if (onLogin) {
       dockItems.push({
         icon: <FiLogIn size={14} />,
-        label: 'Войти',
+        label: t('nav.login'),
         onClick: () => onLogin?.(),
         className: 'dock-item-login',
       });
@@ -76,7 +78,7 @@ export const RightHeaderDock: React.FC<RightHeaderDockProps> = ({
     if (onRegister) {
       dockItems.push({
         icon: <FiUserPlus size={14} />,
-        label: 'Регистрация',
+        label: t('nav.register'),
         onClick: () => onRegister?.(),
         className: 'dock-item-register',
       });
@@ -86,7 +88,7 @@ export const RightHeaderDock: React.FC<RightHeaderDockProps> = ({
     if (onLogout) {
       dockItems.push({
         icon: <FiLogOut size={14} />,
-        label: 'Выйти',
+        label: t('nav.logout'),
         onClick: () => onLogout?.(),
         className: 'dock-item-logout',
       });
@@ -115,4 +117,3 @@ export const RightHeaderDock: React.FC<RightHeaderDockProps> = ({
     </HeaderDockWrapper>
   );
 };
-

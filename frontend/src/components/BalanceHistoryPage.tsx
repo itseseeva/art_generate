@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
-import { GlobalHeader } from './GlobalHeader';
 import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
 import { authManager } from '../utils/auth';
@@ -215,10 +214,6 @@ export const BalanceHistoryPage: React.FC<BalanceHistoryPageProps> = ({
 
   return (
     <MainContainer>
-      <GlobalHeader
-        onShop={onShop}
-        onProfile={onProfile}
-      />
       <ContentContainer>
         <PageTitle>
           <FiDollarSign size={32} />

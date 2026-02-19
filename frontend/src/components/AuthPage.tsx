@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
+import { useParams, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
+import { useTranslation } from 'react-i18next';
 import { FiMail, FiLock, FiEye, FiEyeOff, FiMessageSquare, FiImage, FiZap, FiCpu } from 'react-icons/fi';
 import { FcGoogle } from 'react-icons/fc';
-import DarkVeil from '../../@/components/DarkVeil';
-import { GlobalHeader } from './GlobalHeader';
 
 const PageContainer = styled.div`
   min-height: 100vh;
   display: flex;
   position: relative;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-  
+
   @media (max-width: 968px) {
     flex-direction: column;
   }
@@ -28,6 +28,15 @@ const BackgroundWrapper = styled.div`
   pointer-events: none;
 `;
 
+const DarkVeil = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+`;
+
 const LeftSection = styled.div`
   flex: 1;
   padding: 60px 80px;
@@ -37,14 +46,12 @@ const LeftSection = styled.div`
   color: white;
   position: relative;
   z-index: 1;
-  
+
   @media (max-width: 968px) {
     padding: 40px 30px;
     min-height: 40vh;
   }
 `;
-
-
 
 const MainHeading = styled.h1`
   font-size: 48px;
@@ -59,7 +66,7 @@ const MainHeading = styled.h1`
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
-  
+
   @media (max-width: 968px) {
     font-size: 36px;
   }
@@ -69,7 +76,7 @@ const Subtitle = styled.p`
   font-size: 18px;
   color: rgba(255, 255, 255, 0.7);
   margin-bottom: 50px;
-  
+
   @media (max-width: 968px) {
     font-size: 16px;
   }
@@ -79,7 +86,7 @@ const FeaturesList = styled.div`
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 24px;
-  
+
   @media (max-width: 968px) {
     grid-template-columns: 1fr;
   }
@@ -127,7 +134,7 @@ const RightSection = styled.div`
   justify-content: center;
   position: relative;
   z-index: 1;
-  
+
   @media (max-width: 968px) {
     padding: 40px 30px;
   }
@@ -142,7 +149,7 @@ const FormContainer = styled.div`
   padding: 48px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  
+
   @media (max-width: 968px) {
     padding: 32px 24px;
   }
@@ -344,11 +351,20 @@ const SignUpLink = styled.div`
 interface AuthPageProps {
   onLogin?: (email: string, password: string) => void;
   onGoogleLogin?: () => void;
-  onSignUp?: () => void;
+  onSignUp?: (redirect?: string) => void;
   onForgotPassword?: () => void;
+  onBackToMain?: () => void;
 }
 
 const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onGoogleLogin, onSignUp, onForgotPassword }) => {
+  const { t } = useTranslation();
+  const { lang } = useParams<{ lang: string }>();
+  const location = useLocation();
+  const currentLang = lang || 'ru';
+
+  const searchParams = new URLSearchParams(location.search);
+  const redirect = searchParams.get('redirect');
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -365,7 +381,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onGoogleLogin, onSignUp, o
         await onLogin(email, password);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка авторизации');
+      setError(err instanceof Error ? err.message : t('auth.genericError'));
     } finally {
       setIsLoading(false);
     }
@@ -374,49 +390,37 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onGoogleLogin, onSignUp, o
   const features = [
     {
       icon: <FiMessageSquare />,
-      title: 'Общение с AI персонажами',
-      description: 'Создавайте и общайтесь с уникальными персонажами'
+      title: t('auth.feature1Title'),
+      description: t('auth.feature1Desc')
     },
     {
       icon: <FiImage />,
-      title: 'Генерация изображений',
-      description: 'Создавайте фото персонажей с помощью AI'
+      title: t('auth.feature2Title'),
+      description: t('auth.feature2Desc')
     },
     {
       icon: <FiZap />,
-      title: 'Генерация голосов',
-      description: 'Озвучивайте персонажей с помощью AI'
+      title: t('auth.feature3Title'),
+      description: t('auth.feature3Desc')
     },
     {
       icon: <FiCpu />,
-      title: 'Продвинутые модели',
-      description: 'Доступ к лучшим AI моделям для генерации'
+      title: t('auth.feature4Title'),
+      description: t('auth.feature4Desc')
     }
   ];
 
   return (
     <PageContainer>
-      <GlobalHeader
-        onRegister={onSignUp}
-        onHome={() => window.location.href = '/'}
-      />
       <BackgroundWrapper>
         <DarkVeil />
       </BackgroundWrapper>
 
       <LeftSection>
-
-
-        <MainHeading>
-          Получи свои первые <br />
-          <span>5 сообщений</span>, <br />
-          <span>5 фото генераций</span> и <br />
-          <span>5 голосовых генераций</span> <br />
-          при регистрации
-        </MainHeading>
+        <MainHeading dangerouslySetInnerHTML={{ __html: t('auth.loginHeading') }} />
 
         <Subtitle>
-          Присоединяйтесь к тысячам пользователей, которые уже создают своих уникальных AI персонажей
+          {t('auth.loginSubtitle')}
         </Subtitle>
 
         <FeaturesList>
@@ -434,8 +438,8 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onGoogleLogin, onSignUp, o
 
       <RightSection>
         <FormContainer>
-          <FormTitle>Вход в Candy Girls Chat</FormTitle>
-          <FormSubtitle>Войдите, чтобы продолжить</FormSubtitle>
+          <FormTitle>{t('auth.authTitle')}</FormTitle>
+          <FormSubtitle>{t('auth.authSubtitle')}</FormSubtitle>
 
           {error && <ErrorMessage>{error}</ErrorMessage>}
 
@@ -462,7 +466,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onGoogleLogin, onSignUp, o
                 </InputIcon>
                 <Input
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Пароль"
+                  placeholder={t('auth.password')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -479,26 +483,26 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onGoogleLogin, onSignUp, o
                   onForgotPassword();
                 }
               }}>
-                Забыли пароль?
+                {t('auth.forgotPassword')}
               </ForgotPassword>
             </InputGroup>
 
             <LoginButton type="submit" disabled={isLoading}>
-              {isLoading ? 'Вход...' : 'Войти'}
+              {isLoading ? t('auth.loggingIn') : t('auth.login')}
             </LoginButton>
           </form>
 
           <Divider>
-            <span>ИЛИ</span>
+            <span>{t('auth.or')}</span>
           </Divider>
 
           <GoogleButton type="button" onClick={onGoogleLogin}>
             <FcGoogle />
-            Войти через Google
+            {t('auth.loginWithGoogle')}
           </GoogleButton>
 
           <SignUpLink>
-            Нет аккаунта? <a onClick={onSignUp}>Зарегистрироваться</a>
+            {t('auth.dontHaveAccount')} <a onClick={() => onSignUp && onSignUp(redirect || undefined)}>{t('auth.register')}</a>
           </SignUpLink>
         </FormContainer>
       </RightSection>

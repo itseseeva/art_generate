@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
+import { useTranslation } from 'react-i18next';
 import { theme } from '../theme';
 import { API_CONFIG } from '../config/api';
 import { authManager } from '../utils/auth';
@@ -114,6 +115,7 @@ export const UsernameModal: React.FC<UsernameModalProps> = ({
   onClose,
   onSuccess
 }) => {
+  const { t } = useTranslation();
   const [username, setUsername] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -128,18 +130,18 @@ export const UsernameModal: React.FC<UsernameModalProps> = ({
     try {
       const trimmedUsername = username.trim();
       if (!trimmedUsername) {
-        throw new Error('Имя пользователя обязательно');
+        throw new Error(t('usernameModal.required'));
       }
       if (trimmedUsername.length < 3) {
-        throw new Error('Имя пользователя должно содержать минимум 3 символа');
+        throw new Error(t('usernameModal.minLength'));
       }
       if (trimmedUsername.length > 30) {
-        throw new Error('Имя пользователя не должно превышать 30 символов');
+        throw new Error(t('usernameModal.maxLength'));
       }
 
       const token = authManager.getToken();
       if (!token) {
-        throw new Error('Токен авторизации не найден');
+        throw new Error(t('auth.tokenNotFound'));
       }
 
       const response = await fetch(API_CONFIG.BASE_URL + API_CONFIG.SET_USERNAME, {
@@ -153,7 +155,7 @@ export const UsernameModal: React.FC<UsernameModalProps> = ({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        const message = errorData?.detail || 'Ошибка при установке имени пользователя';
+        const message = errorData?.detail || t('auth.authError');
         throw new Error(message);
       }
 
@@ -161,7 +163,7 @@ export const UsernameModal: React.FC<UsernameModalProps> = ({
       onSuccess();
       setUsername('');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Произошла ошибка';
+      const message = error instanceof Error ? error.message : t('auth.genericError');
       setError(message);
     } finally {
       setIsLoading(false);
@@ -172,19 +174,19 @@ export const UsernameModal: React.FC<UsernameModalProps> = ({
     <ModalOverlay>
       <ModalContent onClick={(e) => e.stopPropagation()}>
         <ModalHeader>
-          <h3>Введите имя пользователя</h3>
-          <p>Пожалуйста, укажите имя пользователя для завершения регистрации</p>
+          <h3>{t('usernameModal.title')}</h3>
+          <p>{t('usernameModal.subtitle')}</p>
         </ModalHeader>
 
         <Form onSubmit={handleSubmit}>
           <FormGroup>
-            <label htmlFor="username">Имя пользователя:</label>
+            <label htmlFor="username">{t('usernameModal.label')}</label>
             <input
               type="text"
               id="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="Введите имя пользователя"
+              placeholder={t('usernameModal.placeholder')}
               minLength={3}
               maxLength={30}
               required
@@ -202,11 +204,11 @@ export const UsernameModal: React.FC<UsernameModalProps> = ({
               color="purple"
             >
               {isLoading ? (
-                'Сохранение...'
+                t('common.saving')
               ) : (
                 <>
                   <UserIcon style={{ marginRight: '8px' }} />
-                  Сохранить
+                  {t('common.save')}
                 </>
               )}
             </Button>

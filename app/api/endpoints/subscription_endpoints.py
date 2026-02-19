@@ -68,9 +68,9 @@ async def activate_subscription(
         
         # Формируем сообщение в зависимости от типа подписки
         if request.subscription_type.lower() == "standard":
-            message = "Подписка Standard успешно активирована! Вы получили 2000 кредитов. Генерация фото оплачивается кредитами (10 кредитов за фото)."
+            message = "Подписка Standard успешно активирована!"
         else:  # premium
-            message = "Подписка Premium успешно активирована! Вы получили 6000 кредитов. Генерация фото оплачивается кредитами (10 кредитов за фото)."
+            message = "Подписка Premium успешно активирована!"
         
         return SubscriptionActivateResponse(
             success=True,
@@ -78,16 +78,17 @@ async def activate_subscription(
             subscription=SubscriptionStatsResponse(
                 subscription_type=subscription.subscription_type.value,
                 status=subscription.status.value,
-                monthly_credits=subscription.monthly_credits,
                 monthly_photos=subscription.monthly_photos,
-                used_credits=subscription.used_credits,
                 used_photos=subscription.used_photos,
-                credits_remaining=subscription.credits_remaining,
                 photos_remaining=subscription.photos_remaining,
                 days_left=subscription.days_until_expiry,
                 is_active=subscription.is_active,
                 expires_at=subscription.expires_at,
-                last_reset_at=subscription.last_reset_at
+                last_reset_at=subscription.last_reset_at,
+                images_limit=subscription.images_limit,
+                images_used=subscription.images_used,
+                voice_limit=subscription.voice_limit,
+                voice_used=subscription.voice_used
             )
         )
     except HTTPException:
@@ -179,10 +180,10 @@ async def get_credit_packages():
     Получает список доступных пакетов для разовой докупки кредитов.
     """
     try:
-        packages = get_all_packages()
         return {
             "success": True,
-            "packages": packages
+            "packages": [],
+            "message": "Система разовых пакетов кредитов отключена."
         }
     except Exception as e:
         raise HTTPException(

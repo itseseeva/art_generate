@@ -1,6 +1,7 @@
 import React from 'react';
 import Dock from './Dock';
 import { FiUserPlus, FiShoppingBag, FiUsers } from 'react-icons/fi';
+import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import './Dock.css';
@@ -58,26 +59,27 @@ export const VerticalDockSidebar: React.FC<VerticalDockSidebarProps> = ({
   onShop,
   onMyCharacters
 }) => {
+  const { t } = useTranslation();
   return (
     <VerticalDockContainer>
       <LogoContainer>♥</LogoContainer>
-      
+
       <div className="vertical-dock-wrapper">
         <Dock
           items={[
             {
               icon: <FiUserPlus size={24} />,
-              label: 'Персонаж',
+              label: t('nav.character'),
               onClick: onCreateCharacter
             },
             {
               icon: <FiUsers size={24} />,
-              label: 'Мои',
+              label: t('nav.my'),
               onClick: onMyCharacters
             },
             {
               icon: <FiShoppingBag size={24} />,
-              label: 'Магазин',
+              label: t('nav.shop'),
               onClick: onShop
             }
           ]}
@@ -91,4 +93,3 @@ export const VerticalDockSidebar: React.FC<VerticalDockSidebarProps> = ({
     </VerticalDockContainer>
   );
 };
-

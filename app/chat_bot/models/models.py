@@ -7,6 +7,7 @@ from sqlalchemy.orm import relationship
 from app.database.db import Base
 from slugify import slugify
 import json
+from typing import Optional
 
 
 class UTF8JSON(TypeDecorator):
@@ -83,8 +84,27 @@ class CharacterDB(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, index=True, nullable=False)
     display_name = Column(String(200), nullable=True, default=None)  # Display name
-    description = Column(UTF8Text, nullable=True, default=None)  # Character description
-    prompt = Column(UTF8Text, nullable=False)
+    description = Column(UTF8Text, nullable=True, default=None)  # Character description (RU)
+    # DEPRECATED: description_en = Column(UTF8Text, nullable=True, default=None)  # Character description (EN)
+    
+    # Новые поля для раздельного хранения (RU)
+    personality_ru = Column(UTF8Text, nullable=True)
+    situation_ru = Column(UTF8Text, nullable=True)
+    instructions_ru = Column(UTF8Text, nullable=True)
+    style_ru = Column(UTF8Text, nullable=True)
+    
+    # Новые поля для раздельного хранения (EN)
+    personality_en = Column(UTF8Text, nullable=True)
+    situation_en = Column(UTF8Text, nullable=True)
+    instructions_en = Column(UTF8Text, nullable=True)
+    style_en = Column(UTF8Text, nullable=True)
+    
+    # Новые поля для раздельного хранения внешности и локации
+    appearance_ru = Column(UTF8Text, nullable=True)
+    appearance_en = Column(UTF8Text, nullable=True)
+    location_ru = Column(UTF8Text, nullable=True)
+    location_en = Column(UTF8Text, nullable=True)
+    
     character_appearance = Column(UTF8Text, nullable=True, default=None)
     location = Column(UTF8Text, nullable=True, default=None)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)  # User relationship
@@ -94,7 +114,13 @@ class CharacterDB(Base):
     voice_url = Column(String(500), nullable=True, default=None)  # URL для образца голоса (TTS)
     voice_id = Column(String(100), nullable=True, default=None)  # ID голоса из папки default_character_voices
     tags = Column(JSON, nullable=True, default=list)  # Список тегов (имена из character_available_tags)
+    # DEPRECATED: translations = Column(JSON, nullable=True, default={})  # Переводы полей (name, description, etc.)
     # face_image removed (IP-Adapter removed)
+    
+    @property
+    def prompt(self) -> Optional[str]:
+        """Deprecated: Returns None as prompt column is removed."""
+        return None
 
 
 class PaidAlbumUnlock(Base):

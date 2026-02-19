@@ -1,0 +1,1442 @@
+{
+    "auth": {
+        "login": "Login",
+        "register": "Register",
+        "email": "Email",
+        "password": "Password",
+        "forgotPassword": "Forgot password?",
+        "dontHaveAccount": "Don't have an account?",
+        "alreadyHaveAccount": "Already have an account?",
+        "logout": "Logout",
+        "profile": "Profile",
+        "emailInvalid": "Invalid email address",
+        "passwordRequired": "Password is required",
+        "loginSuccess": "Successfully logged in",
+        "loginError": "Login failed",
+        "registerSuccess": "Registration successful! Enter the verification code from the email",
+        "registerError": "Registration failed",
+        "signInWithGoogle": "Sign in with Google",
+        "tokenNotFound": "Authorization token not found",
+        "authError": "Error setting username",
+        "genericError": "An error occurred",
+        "promptUnavailable": "Prompt not available for this image",
+        "promptLoadError": "Error loading prompt",
+        "authRequiredAlbum": "Authorization required to view paid album",
+        "loadAlbumError": "Failed to load paid album",
+        "characterNotSelected": "Character not selected",
+        "addToGalleryError": "Failed to add photo to gallery",
+        "alreadyAdded": "already added",
+        "authTitle": "Login to Candy Girls Chat",
+        "authSubtitle": "Login to continue",
+        "loginHeading": "Get your first <br /> <span>5 messages</span>, <br /> <span>5 photo generations</span> and <br /> <span>5 voice generations</span> <br /> on registration",
+        "loginSubtitle": "Join thousands of users who are already creating their unique AI characters",
+        "feature1Title": "Chat with AI characters",
+        "feature1Desc": "Create and chat with unique characters",
+        "feature2Title": "Image Generation",
+        "feature2Desc": "Create character photos using AI",
+        "feature3Title": "Voice Generation",
+        "feature3Desc": "Voice your characters using AI",
+        "feature4Title": "Advanced Models",
+        "feature4Desc": "Access to best AI models for generation",
+        "loggingIn": "Logging in...",
+        "or": "OR",
+        "loginWithGoogle": "Sign in with Google",
+        "registerTitle": "Register at Candy Girls Chat",
+        "registerSubtitle": "Create an account to get started",
+        "username": "Username",
+        "passwordPlaceholder": "Password (min 8 characters)",
+        "registering": "Registering...",
+        "registerWithGoogle": "Register with Google",
+        "verifyTitle": "Confirm Registration",
+        "verifySubtitle": "Check your email for confirmation",
+        "enterVerifyCode": "Enter verification code",
+        "verifying": "Confirming...",
+        "verify": "Confirm",
+        "backToRegister": "Back to registration",
+        "forgotPasswordTitle": "Forgot Password?",
+        "forgotPasswordSubtitle": "Enter your email and we will send you a code to reset your password",
+        "sendCode": "Send Code",
+        "sending": "Sending...",
+        "codeSent": "Recovery code sent to your email",
+        "resetPasswordTitle": "Reset Password",
+        "resetPasswordSubtitle": "Enter the code from the email and your new password",
+        "enterCode": "Code from email",
+        "newPassword": "New Password",
+        "confirmPassword": "Confirm Password",
+        "resetPassword": "Reset Password",
+        "resetting": "Resetting...",
+        "passwordResetSuccess": "Password changed successfully! Redirecting to login...",
+        "backToLogin": "Back to login",
+        "passwordsDoNotMatch": "Passwords do not match",
+        "passwordTooShort": "Password must be at least 6 characters",
+        "errorSendingCode": "Error sending code",
+        "errorResetPassword": "Error resetting password",
+        "serverError": "Server connection error"
+    },
+    "footer": {
+        "howItWorks": "How it works",
+        "about": "About us",
+        "legal": "Legal",
+        "terms": "Terms of Service",
+        "privacy": "Privacy Policy",
+        "rights": "All rights reserved."
+    },
+    "header": {
+        "balance": "Balance",
+        "logs": "Logs",
+        "changePlan": "Change Plan",
+        "logout": "Logout",
+        "login": "Login",
+        "register": "Register",
+        "home": "Home",
+        "create": "Create",
+        "shop": "Shop",
+        "favorites": "Favorites",
+        "profile": "Profile"
+    },
+    "seo": {
+        "mainTitle": "Candy Girls Chat — No Filter AI Character Chat",
+        "mainDescription": "The ultimate platform for AI roleplay chat with NSFW characters. Experience no-filter AI chat with anime girls and unique characters for free.",
+        "chatTitle": "Chat with AI {{name}} — CandyGirlsChat",
+        "chatDescription": "Chat with {{name}} on CandyGirlsChat. Unique AI character ready for deep conversation and roleplay.",
+        "loginTitle": "Login — Candy Girls Chat",
+        "loginDescription": "Login to your Candy Girls Chat account to continue chatting.",
+        "registerTitle": "Register — Candy Girls Chat",
+        "registerDescription": "Register at Candy Girls Chat and start chatting with AI characters.",
+        "shopTitle": "Shop — Candy Girls Chat",
+        "shopDescription": "Buy coins and subscriptions for advanced Candy Girls Chat features.",
+        "profileTitle": "Profile — Candy Girls Chat",
+        "profileDescription": "Manage your profile and settings in Candy Girls Chat.",
+        "favoritesTitle": "Favorites — Candy Girls Chat",
+        "favoritesDescription": "Your favorite AI characters in one place."
+    },
+    "nav": {
+        "home": "Home",
+        "shop": "Shop",
+        "character": "Character",
+        "my": "My",
+        "profile": "Profile",
+        "favorites": "Favorites",
+        "myCharacters": "My Characters",
+        "messages": "Messages",
+        "history": "History",
+        "gallery": "Gallery",
+        "createCharacter": "Create Character",
+        "create": "Create",
+        "logout": "Logout",
+        "login": "Login",
+        "register": "Register",
+        "adminLogs": "Admin Logs"
+    },
+    "sidebar": {
+        "menu": "Menu",
+        "createCharacter": "Create Character",
+        "editCharacters": "Edit Characters",
+        "history": "History",
+        "favorites": "Favorites",
+        "myCharacters": "My Characters",
+        "messages": "Messages",
+        "bugReport": "Report Bug",
+        "profile": "Profile",
+        "shop": "Shop"
+    },
+    "nsfwWarning": {
+        "title": "Content 18+",
+        "message": "You are switching to",
+        "explicitContent": "NSFW (18+) mode",
+        "description": "This mode may contain content not suitable for persons under 18 years of age. By enabling this mode, you confirm that you are 18 years or older.",
+        "ageVerification": "I am 18+ years old",
+        "enter": "Enter"
+    },
+    "common": {
+        "close": "Close",
+        "photo": "Photo",
+        "donate": "Donate",
+        "chat": "Chat",
+        "cancel": "Cancel",
+        "open": "Open",
+        "return": "Return"
+    },
+    "language": {
+        "ru": "Russian language",
+        "en": "English language"
+    },
+    "brevity": {
+        "brief": "Brief",
+        "detailed": "Detailed",
+        "tooltip": "Choose response length"
+    },
+    "notifications": {
+        "photoReady": "Photo ready!",
+        "character": "Character:",
+        "openChat": "Open chat"
+    },
+    "gallery": {
+        "title": "User Gallery",
+        "subtitle": "All photos you generated ({{count}})",
+        "loading": "Loading...",
+        "errorPrompt": "Error loading prompt",
+        "urlError": "Failed to determine image URL",
+        "addSuccess": "Photo successfully added to gallery",
+        "addError": "Failed to add photo to gallery",
+        "deleteSuccess": "Photo successfully deleted from gallery",
+        "deleteError": "Failed to delete photo from gallery",
+        "loadError": "Failed to load gallery",
+        "adding": "Adding...",
+        "addToGallery": "Add to Gallery",
+        "deleting": "Deleting...",
+        "delete": "Delete",
+        "loadMore": "Load More",
+        "promptUnavailable": "Prompt not available for this image"
+    },
+    "tipsCreator": {
+        "title": "Thank Creator",
+        "characterLabel": "Character:",
+        "info": "A thank-you gift in the form of photo or voice generations will be sent to the character creator",
+        "selectType": "Select gift type:",
+        "photoGenerations": "Photo generations",
+        "voiceGenerations": "Voice generations",
+        "balance": "Your balance: <0>{{count}}</0> {{label}}",
+        "selectAmount": "Select amount:",
+        "customAmountPlaceholder": "Or enter your amount (1-100)",
+        "messageLabel": "Message (optional):",
+        "messagePlaceholder": "Write a message to the creator...",
+        "sending": "Sending...",
+        "send": "Send {{amount}} {{label}}",
+        "error": {
+            "noAmount": "Please specify the number of generations",
+            "maxAmount": "Maximum 100 generations at a time",
+            "insufficient": "Insufficient {{label}}. You have: {{count}}",
+            "authRequired": "Authorization required",
+            "generic": "Error sending generations"
+        },
+        "labels": {
+            "photo": "photo generations",
+            "voice": "voice generations"
+        }
+    },
+    "promptModal": {
+        "loading": "Loading prompt...",
+        "title": "Prompt for image",
+        "genTime": "Generation time: {{time}}",
+        "timeUnit": {
+            "s": "s",
+            "m": "m"
+        },
+        "copy": "Copy prompt",
+        "hide": "Hide",
+        "show": "Show prompt",
+        "notFound": "Prompt not found",
+        "status": "Status: {{status}}",
+        "copyTooltip": "Copy prompt",
+        "copiedTooltip": "Copied!",
+        "saveToGallery": "Save to gallery",
+        "generating": "Generating...",
+        "description": "Description:",
+        "style": "Style:"
+    },
+    "photoGen": {
+        "title": "Photo Generation",
+        "subtitle": "Create unique photos for {{name}}",
+        "generatedPhotos": "Generated photos",
+        "createImage": "Create image",
+        "prompt": "Prompt (description)",
+        "promptPlaceholder": "Describe what you want to see in the photo...",
+        "generating": "Generating...",
+        "generate": "Generate",
+        "continue": "Continue",
+        "add": "Add",
+        "delete": "Delete",
+        "credits": "Your credits: <0>{{count}}</0> (you need 10 credits to generate 1 photo)",
+        "addedPhotos": "Added photos: {{count}}/3",
+        "modelLabel": "Generation model",
+        "models": {
+            "animeRealism": "Anime and realism mix",
+            "anime": "Classic anime style",
+            "realism": "Maximum photorealism"
+        },
+        "error": {
+            "authRequired": "You must log in",
+            "authCheck": "Authorization check error",
+            "notEnoughCredits": "Not enough credits! You need 10 credits to generate 1 photo.",
+            "generation": "Photo generation error",
+            "failedToGenerate": "Failed to generate photo",
+            "failedToGetImage": "Failed to get image",
+            "generationStatusCheck": "Error checking generation status",
+            "generationImageError": "Error generating image",
+            "timeout": "Generation wait timeout exceeded",
+            "promptUnavailable": "Prompt not available for this image",
+            "promptLoad": "Prompt load error",
+            "maxPhotos": "You can add maximum 3 photos for the character card",
+            "saveError": "Photo save error",
+            "deleteError": "Photo delete error"
+        },
+        "success": {
+            "generated": "Photo generated successfully!",
+            "added": "Photo added to character card!",
+            "deleted": "Photo removed from character card!"
+        },
+        "modal": {
+            "title": "Paid Album Creation",
+            "freeMessage": "You can only create paid albums and earn from them with a STANDARD or PREMIUM subscription. In the free version, you can only generate photos for your chat.",
+            "baseMessage": "You can only create paid albums and earn from them with a STANDARD or PREMIUM subscription. The BASE subscription does not provide this capability.",
+            "finish": "Finish creation",
+            "buy": "Buy subscription"
+        },
+        "closeTooltip": "Close (Esc)",
+        "fullSizeAlt": "Full size"
+    },
+    "photoGenHelp": {
+        "title": "Complete Photo Generation Instruction",
+        "close": "Got it, thanks! 🎉",
+        "sections": {
+            "intro": {
+                "title": "🎯 What is it?",
+                "text": "Image generation is creating a picture from your text description using artificial intelligence. You write what you want to see, and the neural network draws it for you.",
+                "highlight1": "In simple words:",
+                "text2": "You describe the picture in words, press the \"Generate\" button, and in 10-30 seconds you get a finished image!"
+            },
+            "steps": {
+                "title": "🚀 How to generate a photo for the first time (step by step)",
+                "step1": "Step 1:",
+                "step1Text": "Write a message to the character in chat (or leave it empty)",
+                "step2": "Step 2:",
+                "step2Text": "Press the button with the photo icon (📷) under the message input field",
+                "step3": "Step 3:",
+                "step3Text": "In the window that opens, you will see pre-filled text — this is the description of the future picture",
+                "step4": "Step 4:",
+                "step4Text": "Select the image style:",
+                "styles": {
+                    "animeRealism": "Anime and Realism mix",
+                    "anime": "Classic Anime style",
+                    "realism": "Maximum Photorealism"
+                },
+                "step5": "Step 5:",
+                "step5Text": "If necessary, edit the description (you can write in Russian or English)",
+                "step6": "Step 6:",
+                "step6Text": "Press \"Generate\" and wait 10-15 seconds",
+                "step7": "Step 7:",
+                "step7Text": "Done! The photo will appear in the chat"
+            },
+            "styles": {
+                "title": "🎨 Choice of image style (model)",
+                "intro": "Before generating, you can choose one of three styles:",
+                "anime": "Classic Anime style — bright colors, large eyes, stylized graphics",
+                "animeRealism": "Anime and Realism mix — a mix of anime and realism, more realistic proportions but preserves the anime aesthetic",
+                "realism": "Maximum Photorealism — maximally realistic images, like photographs",
+                "tip": "Tip:",
+                "tipText": "Try all three styles with the same description to see the difference!"
+            },
+            "whatIsPrompt": {
+                "title": "✍️ What is a prompt and how to write it?",
+                "highlight1": "Prompt",
+                "text1": " — is a text description of what you want to see in the picture. It's like an instruction for an artist, only a neural network works instead of an artist.",
+                "highlight2": "Important:",
+                "text2": "The neural network only remembers the first 40-50 words! Anything written beyond that, it might ignore."
+            },
+            "structure": {
+                "title": "📝 Correct prompt structure",
+                "intro": "To get a good result, write the description in the correct order:",
+                "label": "Correct order:",
+                "item1": "1. WHO (character, person, animal)",
+                "item2": "2. WHAT CLOTHES (outfit, costume)",
+                "item3": "3. WHERE IT IS (place, location)",
+                "item4": "4. BACKGROUND (what's in the background)",
+                "item5": "5. LIGHTING (light, time of day)",
+                "item6": "6. QUALITY DETAILS (at the end!)",
+                "rule": "Rule:",
+                "ruleText": "The most important things should be at the beginning, quality details at the end!"
+            },
+            "examples": {
+                "title": "✅ Examples of good prompts",
+                "ex1Label": "Example 1 (simple):",
+                "ex1Text": "beautiful girl in a red dress standing on a beach at sunset, cinematic lighting, volumetric light rays, beautiful deep shadows, masterpiece",
+                "ex2Label": "Example 2 (detailed):",
+                "ex2Text": "young man in a black suit sitting in a cafe, warm light from a window, city background, cinematic lighting, volumetric light rays, beautiful deep shadows, masterpiece",
+                "ex3Label": "Example 3 (with focus on details):",
+                "ex3Text": "girl with long hair in a white dress in a garden, flowers in background, sunlight, cinematic lighting, volumetric light rays, beautiful deep shadows, masterpiece"
+            },
+            "badExamples": {
+                "title": "❌ Examples of bad prompts (what to avoid)",
+                "label1": "Bad (too short):",
+                "text1": "girl",
+                "label2": "Bad (too long, important things at the end):",
+                "text2": "very beautiful picture with good quality, professional photography, high resolution, detailed, girl in a dress",
+                "problem": "Problem:",
+                "problemText": "In the first example there is too little information, in the second — the important thing (girl in a dress) is at the end, where the neural network might not notice it."
+            },
+            "brackets": {
+                "title": "🔧 The secret of brackets (if the neural network doesn't \"hear\")",
+                "text1": "If you wrote \"blue eyes\" and the picture has brown eyes — use weight amplification. Write the necessary word in parentheses with a number:",
+                "text2": "The neural network will understand: \"This is very important, do it by all means!\" The number 1.3 means 30% amplification.",
+                "weak": " — weak amplification (20%)",
+                "medium": " — medium amplification (30%) — recommended",
+                "strong": " — strong amplification (50%) — use with caution",
+                "veryStrong": " — very strong amplification (100%) — might distort the image",
+                "exLabel": "Usage examples:",
+                "exText": "girl with (long hair:1.3) in (red dress:1.5) standing on a beach, cinematic lighting, masterpiece"
+            },
+            "boosters": {
+                "title": "✨ Booster words (always add at the end!)",
+                "text1": "To make the picture look juicy, voluminous and professional, always add these words at the very end of the description:",
+                "item1": "cinematic lighting",
+                "item1Desc": " — makes the image look like a movie frame",
+                "item2": "volumetric light rays",
+                "item2Desc": " — create depth and atmosphere",
+                "item3": "beautiful deep shadows",
+                "item3Desc": " — add volume and realism",
+                "item4": "masterpiece",
+                "item4Desc": " — signals the neural network for high quality",
+                "item5": "detailed",
+                "item5Desc": " — more fine details",
+                "item6": "professional photography",
+                "item6Desc": " — improves overall quality",
+                "important": "Important:",
+                "importantText": "These words can be written in Russian or English — the neural network understands them. Always add them to the end of the prompt!"
+            },
+            "retry": {
+                "title": "🔄 What to do if you don't like the result?",
+                "v1": "Option 1:",
+                "v1Text": "Edit the prompt and generate again. Try changing the word order, adding details or using brackets for important elements",
+                "v2": "Option 2:",
+                "v2Text": "Try a different style (Anime and Realism mix, Classic Anime style, Maximum Photorealism) — sometimes this radically changes the result",
+                "v3": "Option 3:",
+                "v3Text": "Generate several times with the same prompt — each time the result will be slightly different",
+                "v4": "Option 4:",
+                "v4Text": "Simplify the prompt — sometimes less is more. Remove unnecessary details and leave only the most important things"
+            },
+            "tips": {
+                "title": "💡 Useful tips",
+                "tip1": "Write in Russian or English:",
+                "tip1Text": "The neural network understands both, no need to translate if you don't want to",
+                "tip2": "Use specific words:",
+                "tip2Text": "\"red dress\" is better than \"beautiful clothes\"",
+                "tip3": "Don't overload with details:",
+                "tip3Text": "30-40 words are usually enough for a good result",
+                "tip4": "Experiment:",
+                "tip4Text": "Try different combinations of words, styles and settings",
+                "tip5": "Save prompts you like:",
+                "tip5Text": "If the result is good, remember the prompt for future use"
+            },
+            "summary": {
+                "title": "🎓 Quick memo",
+                "item1": "1.",
+                "item1Text": " Important at the beginning, details at the end",
+                "item2": "2.",
+                "item2Text": " Use brackets (word:1.3) for important elements",
+                "item3": "3.",
+                "item3Text": " Always add \"cinematic lighting, volumetric light rays, beautiful deep shadows, masterpiece\" at the end",
+                "item4": "4.",
+                "item4Text": " Don't write more than 40-50 words",
+                "item5": "5.",
+                "item5Text": " Experiment with different styles and prompts"
+            }
+        }
+    },
+    "characterCard": {
+        "about": "About Character",
+        "appearance": "Appearance",
+        "location": "Location",
+        "personalityLabel": "Personality",
+        "personality": "Personality and Character",
+        "situation": "Role-playing Situation",
+        "tags": "Tags",
+        "noDescription": "No description available",
+        "noSituation": "Role-playing situation not specified",
+        "collapse": "Collapse",
+        "expand": "Expand"
+    },
+    "mainPage": {
+        "loading": "Loading...",
+        "createCharacterCard": {
+            "title": "Create your AI character"
+        },
+        "seo": {
+            "title": "Candy Girls Chat — No Filter AI Character Chat",
+            "subtitle": "Chat with virtual waifus and anime girls",
+            "description": "CandyGirlsChat is the ultimate platform for AI roleplay chat with NSFW characters. Experience no-filter AI chat on any topic. Chat with AI anime girls, virtual waifus, and unique characters for free and without registration. Our advanced AI provides the best virtual companion experience in English and Russian.",
+            "featuresTitle": "Candy Girls Chat Features",
+            "featuresIntro": "Why thousands of users choose us:",
+            "features": {
+                "unlimited": "Unlimited no-filter chat",
+                "images": "AI Character image generation",
+                "voice": "Realistic voice generation",
+                "create": "Create your own unique characters",
+                "roleplay": "Advanced roleplay experience",
+                "privacy": "Full privacy and confidentiality"
+            },
+            "whyChooseTitle": "Best AI Companion for You",
+            "whyChooseText": "Our platform uses state-of-the-art neural networks to provide the most realistic and immersive experience."
+        }
+    },
+    "album": {
+        "noPhotos": "No photos in this album yet",
+        "unlock": "Unlock album",
+        "purchase": {
+            "title": "Album Access",
+            "onlyForSubscribers": "For subscribers only",
+            "standardPremiumRequired": "STANDARD or PREMIUM subscription is required to view this album.",
+            "subscribe": "Subscribe",
+            "unlockTitle": "Unlock Album",
+            "standardPremiumFree": "Album for \"{{name}}\" is available for free with your {{type}} subscription.",
+            "clickUnlock": "Click \"Unlock\" to gain access.",
+            "unlocking": "Unlocking...",
+            "unlock": "Unlock"
+        },
+        "unlocked": "Album unlocked. You can expand your photo collection.",
+        "open": "Open Album",
+        "expand": "Expand Album",
+        "paidAlbumTitle": "Paid Album of {{name}}",
+        "paidAlbumDesc": "Here are character photos created by the user.",
+        "addPhoto": "Add photo",
+        "backToChat": "Back to chat",
+        "backToMain": "Back to main",
+        "loading": "Loading album...",
+        "noPhotosWithOwner": "Add images to make the paid album look attractive.",
+        "noPhotosWithoutOwner": "The character creator has not added paid photos yet.",
+        "adding": "Adding...",
+        "addToGallery": "To gallery",
+        "upgradeRequiredTitle": "Album unlocking unavailable",
+        "upgradeRequiredDesc": "Unlocking and adding photos to the album is only available for Standard and Premium subscribers. Subscribe to get access to this feature.",
+        "gotIt": "Got it"
+    },
+    "chat": {
+        "placeholder": "Type something...",
+        "send": "Send",
+        "generating": "Generating...",
+        "clearHistory": "Clear history",
+        "characterNotFound": "Character not found",
+        "generateImage": "Image generation",
+        "generatePhoto": "Generate Photo",
+        "paidAlbum": "Paid Album",
+        "roleplayingSituation": "Role-playing Situation",
+        "replyMode": "Reply mode",
+        "enterMessage": "Enter message...",
+        "chatDisabled": "Chat disabled",
+        "writeMessage": "Type a message...",
+        "sendEnter": "Send (Enter)",
+        "selectModel": "Select model",
+        "generatePhotoButton": "Generate photo",
+        "help": "Help",
+        "thankCreator": "Thank creator",
+        "comments": "Comments",
+        "clearChat": "Clear chat",
+        "loading": "Loading...",
+        "infoNotAvailable": "Information not available",
+        "user": "User",
+        "characterNotFoundLong": "Character \"{{name}}\" not found. It may have been deleted.",
+        "unknownError": "Unknown error",
+        "loadCharacterError": "Failed to load character data: {{error}}",
+        "loadCharacterErrorGeneric": "Failed to load character data",
+        "generationStatusError": "Error checking generation status",
+        "imageGenerationError": "Image generation error",
+        "generationTimeout": "Image generation timeout exceeded",
+        "generationLimitReached": "Maximum {{limit}} can be generated simultaneously. Wait for current generations to complete.",
+        "onePhoto": "one photo",
+        "validationError": "Validation error: {{messages}}",
+        "getImageError": "Failed to retrieve image",
+        "userDataError": "Failed to get user data. Please try logging in again.",
+        "sessionExpired": "Session expired. Please log in again.",
+        "insufficientCredits": "Insufficient subscription credits or coins to send message! Need 2 credits or 2 coins.",
+        "chatNotFound": "Chat not found. Creating new chat...",
+        "sendMessageError": "Error sending message",
+        "sendMessageErrorStatus": "Error sending message ({{status}})",
+        "streamError": "Failed to receive data stream",
+        "invalidResponse": "Invalid server response",
+        "characterIdError": "Failed to determine character identifier",
+        "characterWithIdNotFound": "Character with ID \"{{id}}\" not found. It may have been deleted.",
+        "loadCharacterErrorWithId": "Failed to load character: {{error}}"
+    },
+    "shop": {
+        "specialOffer": "Special Offer",
+        "discountUpTo": "Up to 30% OFF",
+        "vpnWarning": "If something doesn't work, disable VPN",
+        "freeForever": "Free Forever",
+        "messageLimit": "5 messages per day",
+        "createOneCharacter": "Create 1 character",
+        "currentPlan": "Current Plan",
+        "perMonth": "mo",
+        "billing": {
+            "yearly": "Year",
+            "sixMonths": "6 Months",
+            "threeMonths": "3 Months",
+            "monthly": "Month",
+            "save": "SAVE"
+        },
+        "bestChoice": "Best Choice",
+        "buyFor": "Buy for",
+        "buy": "Buy",
+        "oneTimePayment": "One-time payment",
+        "creditsNeverExpire": "Credits never expire",
+        "forAnyGeneration": "For any generation",
+        "credits": "Credits",
+        "creditsLower": "credits",
+        "subscription": "Subscription",
+        "popular": "Popular",
+        "stats": {
+            "title": "📊 Subscription Stats",
+            "usedCredits": "Used credits",
+            "totalCredits": "Total credits",
+            "usedPhotos": "Used photos",
+            "totalPhotos": "Total photos",
+            "daysLeft": "Days left"
+        },
+        "plans": {
+            "title": "Subscription Plans",
+            "basic": {
+                "name": "Basic",
+                "features": {
+                    "credits": "100 credits per month",
+                    "photos": "10 photo generations",
+                    "characters": "Basic characters",
+                    "support": "24/7 Support"
+                }
+            },
+            "premium": {
+                "name": "Premium",
+                "features": {
+                    "credits": "500 credits per month",
+                    "photos": "50 photo generations",
+                    "characters": "All characters",
+                    "support": "Priority support",
+                    "exclusive": "Exclusive functions"
+                }
+            },
+            "vip": {
+                "name": "VIP",
+                "features": {
+                    "credits": "1000 credits per month",
+                    "characters": "All characters + new ones",
+                    "manager": "Personal manager",
+                    "earlyAccess": "Early access to features",
+                    "custom": "Custom character creation"
+                }
+            }
+        },
+        "buttons": {
+            "activating": "Activating...",
+            "activate": "Activate"
+        },
+        "errors": {
+            "loginRequired": "Login required",
+            "activationError": "Subscription activation error"
+        }
+    },
+    "tariffs": {
+        "freeLabel": "Free",
+        "plans": {
+            "free": {
+                "name": "Free",
+                "features": {
+                    "credits": "5 credits per day",
+                    "photos": "5 photos per day",
+                    "allCharacters": "Access to all characters"
+                }
+            },
+            "standard": {
+                "name": "Standard",
+                "features": {
+                    "photoGenerations": "photo generations",
+                    "voiceMessages": "voice messages",
+                    "allCharacters": "Access to all characters",
+                    "expandedMemory": "Expanded memory (8,000)",
+                    "saveHistory": "Saving history",
+                    "createTenCharacters": "Create 10 characters",
+                    "createPaidAlbums": "Create paid albums",
+                    "accessPaidAlbums": "Access to all paid albums",
+                    "accessGalleries": "Access to others' galleries",
+                    "premiumModels": "Access to Premium models",
+                    "priorityQueue": "Priority in queue",
+                    "ownVoices": "Own voices for dubbing",
+                    "premiumVoices": "Access to Premium voices"
+                }
+            },
+            "premium": {
+                "name": "Premium",
+                "features": {
+                    "photoGenerations": "photo generations",
+                    "voiceMessages": "voice messages",
+                    "allCharacters": "Access to all characters",
+                    "deepMemory": "Deep memory (16,000)",
+                    "saveHistory": "Saving history",
+                    "createPaidAlbums": "Create paid albums",
+                    "accessPaidAlbums": "Access to all paid albums",
+                    "accessGalleries": "Access to others' galleries",
+                    "premiumModels": "Access to Premium models",
+                    "priorityQueue": "Priority in queue",
+                    "ownVoices": "Own voices for dubbing",
+                    "unlimitedCreation": "Unlimited creation",
+                    "premiumVoices": "Access to Premium voices"
+                }
+            }
+        }
+    },
+    "profile": {
+        "editProfile": "Edit Profile",
+        "userGallery": "User Gallery",
+        "photoGeneration": "Photo Generation",
+        "voiceMessages": "Voice Messages",
+        "charactersCreated": "Characters Created",
+        "usernameUpdated": "Username updated",
+        "passwordMismatch": "Passwords do not match",
+        "codeSent": "Code sent to your email",
+        "passwordChanged": "Password changed successfully",
+        "username": "Username",
+        "enterUsername": "Enter username",
+        "changePassword": "Change Password",
+        "oldPassword": "Old Password",
+        "newPassword": "New Password",
+        "repeatPassword": "Repeat Password",
+        "loginRequired": "Login Required",
+        "loading": "Loading...",
+        "settings": "Settings",
+        "changeAccountData": "Change your account data",
+        "loadError": "Loading Error",
+        "images": "images",
+        "thisWeek": "This week",
+        "logout": "Logout",
+        "updateError": "Update Error"
+    },
+    "createCharacter": {
+        "buttons": {
+            "create": "Create Character",
+            "save": "Save Character",
+            "back": "Back",
+            "continue": "Continue",
+            "next": "Next",
+            "creating": "Creating...",
+            "updating": "Updating..."
+        },
+        "steps": {
+            "1": {
+                "nav": "General",
+                "title": "General Information",
+                "description": "Come up with a name and description for your character"
+            },
+            "2": {
+                "nav": "Personality",
+                "title": "Personality and Character",
+                "description": "Describe the character's personality and behavior"
+            },
+            "3": {
+                "nav": "Appearance",
+                "title": "Appearance and Style",
+                "description": "Describe in detail how your character looks"
+            },
+            "4": {
+                "nav": "Generation",
+                "title": "Photo Generation",
+                "description": "Generate photos for your character"
+            },
+            "voice": {
+                "label": "Character Voice",
+                "add": {
+                    "label": "add your voice"
+                },
+                "custom": {
+                    "show": "Show custom voices",
+                    "hide": "Hide custom voices"
+                },
+                "premium": {
+                    "notice": "Premium only"
+                },
+                "uploading": "Uploading..."
+            }
+        },
+        "form": {
+            "name": {
+                "label": "Name",
+                "placeholder": "Enter character name"
+            },
+            "description": {
+                "label": "Description",
+                "placeholder": "Brief character description"
+            },
+            "personality": {
+                "label": "Personality",
+                "placeholder": "Describe character personality"
+            },
+            "appearance": {
+                "label": "Appearance",
+                "placeholder": "Describe appearance"
+            },
+            "location": {
+                "label": "Location",
+                "placeholder": "Describe location"
+            },
+            "situation": {
+                "label": "Role-playing Situation",
+                "placeholder": "Describe the situation"
+            },
+            "instructions": {
+                "label": "Instructions",
+                "placeholder": "Additional instructions for the character"
+            }
+        },
+        "tags": {
+            "title": "Tags",
+            "categories": {
+                "ROLE": "ROLE",
+                "MOOD": "MOOD",
+                "GENRE": "GENRE",
+                "TYPE": "TYPE",
+                "OTHER": "OTHER"
+            },
+            "values": {
+                "Босс": "Boss",
+                "Горничная": "Maid",
+                "Незнакомка": "Stranger",
+                "Подруга": "Friend",
+                "Слуга": "Servant",
+                "Студентка": "Student",
+                "Учитель": "Teacher",
+                "Грубая": "Rude",
+                "Доминирование": "Dominant",
+                "Милая": "Cute",
+                "Цундере": "Tsundere",
+                "Киберпанк": "Cyberpunk",
+                "Фэнтези": "Fantasy",
+                "NSFW": "NSFW",
+                "New": "New",
+                "Original": "Original",
+                "SFW": "SFW",
+                "Пользовательские": "Custom"
+            }
+        },
+        "photo": {
+            "style": "Style",
+            "styles": {
+                "animeRealism": "Anime Realism",
+                "animeRealismDesc": "Balanced style",
+                "anime": "Anime",
+                "animeDesc": "Classic 2D style",
+                "realism": "Realism",
+                "realismDesc": "Maximum photorealism"
+            },
+            "buttons": {
+                "add": "Add",
+                "remove": "Remove"
+            },
+            "designTip": {
+                "title": "Design Tip",
+                "text": "Add {{count}} more {{photo_form}} for a complete collection! Three different photos will make the character card much more attractive to users.",
+                "photo_one": "photo",
+                "photo_other": "photos"
+            },
+            "queue": {
+                "label": "GENERATION QUEUE",
+                "counter": "Queue: {{active}}/{{limit}}"
+            },
+            "preview": {
+                "placeholder": "Preview will appear here",
+                "namePlaceholder": "Character Name"
+            },
+            "prompt": {
+                "label": "Prompt",
+                "placeholder": "Enter prompt for photo generation...",
+                "helpers": "Helper Tags"
+            },
+            "generate": "Generate",
+            "generateMore": "Generate More",
+            "warning": "Generation may take up to 30 seconds",
+            "progress": {
+                "text": "Generating...",
+                "step1": "Initializing",
+                "step2": "Processing",
+                "step3": "Finalizing"
+            }
+        },
+        "voice": {
+            "edit": "Edit"
+        }
+    },
+    "howItWorks": {
+        "title": "How it works",
+        "step1": {
+            "title": "Create a character",
+            "description": "Describe the appearance, character and personality of your character. Specify their unique traits and features"
+        },
+        "step2": {
+            "title": "Chat",
+            "description": "Engage in dialogue with the character. The AI will respond according to the defined character and personality"
+        },
+        "step3": {
+            "title": "Generate photos",
+            "description": "Create photorealistic images of your character in any poses and situations. The AI uses the described appearance"
+        },
+        "uniqueChar": {
+            "title": "Creating a unique character",
+            "text": "You create your character from scratch yourself. Describe every detail: hair and eye color, facial features, physique, clothing style. Define the character: will they be shy or confident, romantic or playful, serious or cheerful.",
+            "list": {
+                "1": "Detailed description of appearance: hair, eyes, figure, features",
+                "2": "Character and personality: temperament, manner of communication, habits",
+                "3": "Preferences and interests: hobbies, favorite places, lifestyle",
+                "4": "Unique traits: tattoos, piercings, birthmarks, scars"
+            }
+        },
+        "interactive": {
+            "title": "Interactive communication",
+            "text": "After creating a character, you can chat with them in real time. The AI analyzes the character you defined and responds accordingly, creating a natural and lively dialogue."
+        },
+        "photoGen": {
+            "title": "Generating photorealistic images",
+            "text": "Based on the described appearance, the AI generates photorealistic images of your character. You can request any pose, location, or situation. The technology uses powerful neural networks to create detailed and realistic images with perfect faces and eyes."
+        }
+    },
+    "about": {
+        "title": "About project",
+        "intro": "Welcome to CandyGirlsChat — an innovative platform where cutting-edge AI technologies meet boundless imagination.",
+        "description": "Our mission is to create the most realistic and immersive experience possible when interacting with virtual companions. We believe that modern LLMs (Large Language Models) are capable of much more than just answering questions — they can be full participants in role-played adventures, capable of empathy, humor, and surprise.",
+        "mission": {
+            "title": "Our Mission",
+            "text": "We strive to blur the line between human and machine in digital communication, providing users with a safe space for self-expression and the exploration of their boldest fantasies."
+        },
+        "technology": {
+            "title": "Technology",
+            "text": "CandyGirlsChat is built upon the latest neural networks for natural language processing and visual content generation. Our engineers continuously train models to ensure every character has a unique 'voice', memory, and personality."
+        },
+        "keyFeatures": {
+            "title": "Why Choose Us:",
+            "list": {
+                "1": "<strong>Maximum Realism:</strong> Characters remember the context of the conversation and grow with you.",
+                "2": "<strong>Roleplay Without Borders:</strong> We have no rigid filters on plots — your imagination is the only limit.",
+                "3": "<strong>Visualization:</strong> Every character can generate photos matching the current situation.",
+                "4": "<strong>Constant Growth:</strong> We add new characters and features every single week."
+            }
+        },
+        "access": "Basic access to the service is free. For those who want more, we offer premium plans with expanded generation capabilities and no limits.",
+        "contacts": {
+            "title": "Contact us",
+            "inn": "TIN:",
+            "email": "Email:",
+            "phone": "Phone:"
+        }
+    },
+    "legal": {
+        "title": "Legal Information",
+        "offer": {
+            "title": "Offer Agreement",
+            "intro": "This document is an official offer (public offer) of Kretsu Vasile (TIN 772426525886), providing access to an online image generation service using artificial intelligence technologies.",
+            "items": {
+                "1": {
+                    "title": "1. Subject of the Agreement",
+                    "text": "1.1. The Contractor provides the Customer with access to the service functionality after payment of the selected plan.<br/>1.2. Services are provided remotely, in electronic form.<br/>1.3. The service provides the ability to create personalized characters, generate images, and interact with artificial intelligence.<br/>1.4. Access to the service is provided via a web interface after user registration and authorization."
+                },
+                "2": {
+                    "title": "2. Procedure for Granting Access",
+                    "text": "2.1. After payment is completed, access is granted automatically in the user's personal account.<br/>2.2. The volume of available functions depends on the selected plan (FREE, STANDARD, PREMIUM).<br/>2.3. The fact of payment is confirmed by an electronic receipt.<br/>2.4. Subscription renewal is possible at any time before the current period expires."
+                },
+                "3": {
+                    "title": "3. Payment for Services",
+                    "text": "3.1. Payment is made by non-cash method through connected payment systems (YooKassa, YooMoney, FPS).<br/>3.2. The cost of plans is indicated on the website and may be changed by the Contractor unilaterally, while changes do not apply to already paid services.<br/>3.3. Services are not subject to VAT (Art. 346.11 of the Tax Code of the Russian Federation).<br/>3.4. Payment is considered made from the moment funds are credited to the Contractor's account."
+                },
+                "4": {
+                    "title": "4. Refund Policy",
+                    "text": "4.1. Refunds are made if access to the service was not provided due to a technical error on the part of the Contractor.<br/>4.2. A refund request is sent to the support service email pixotujepayo06@gmail.com within 14 days from the date of payment.<br/>4.3. Refunds are not made if the service was actually rendered (access provided and used).<br/>4.4. Refunds are made to the same payment instrument from which the payment was made, within 10 working days.<br/>4.5. When making a refund, the Contractor has the right to withhold the commission of payment systems, if applied."
+                },
+                "5": {
+                    "title": "5. Rights and Obligations of the Parties",
+                    "text": "5.1. The Customer undertakes to use the service in accordance with its purpose and not to violate the rights of third parties.<br/>5.2. The Contractor undertakes to ensure the operability of the service within technical capabilities.<br/>5.3. The Contractor is not responsible for the inability to use the service for reasons beyond their control (technical failures of providers, actions of third parties, etc.).<br/>5.4. The Customer is responsible for the confidentiality of their credentials and for all actions performed under their account."
+                }
+            }
+        },
+        "privacy": {
+            "title": "Privacy Policy",
+            "lastUpdated": "Last Updated: January 24, 2026",
+            "intro": "Your privacy matters to us. This Privacy Policy describes what data we collect, how we use it, and how we protect it.",
+            "items": {
+                "1": {
+                    "title": "1. Introduction",
+                    "text": "This Privacy Policy (the \"Policy\") applies to the Candy Girls Chat service (the \"Service\") and describes the procedure for processing users' personal data in accordance with applicable data protection laws."
+                },
+                "2": {
+                    "title": "2. Definitions",
+                    "list": {
+                        "1": "<strong>Personal Data</strong> — any information relating to an identified or identifiable natural person",
+                        "2": "<strong>Processing of Personal Data</strong> — any action with personal data, including collection, recording, systematization, accumulation, storage, clarification, extraction, use, transfer, depersonalization, blocking, deletion, destruction",
+                        "3": "<strong>Operator</strong> — Individual Entrepreneur Kretsu Vasile, TIN 772426525886",
+                        "4": "<strong>User</strong> — a person using the Service"
+                    }
+                },
+                "3": {
+                    "title": "3. What Data We Collect",
+                    "subsections": {
+                        "1": {
+                            "title": "3.1. Data You Provide",
+                            "text": "When registering and using the Service, we may collect the following information:",
+                            "list": {
+                                "1": "<strong>Contact Information:</strong> email address",
+                                "2": "<strong>Account Credentials:</strong> username, password (encrypted)",
+                                "3": "<strong>Payment Information:</strong> data for processing payments (processed through secure payment systems)",
+                                "4": "<strong>Content:</strong> characters you create, messages, images"
+                            }
+                        },
+                        "2": {
+                            "title": "3.2. Automatically Collected Data",
+                            "list": {
+                                "1": "<strong>Technical Data:</strong> IP address, browser type, operating system, screen resolution",
+                                "2": "<strong>Usage Data:</strong> visit time, pages viewed, actions in the Service",
+                                "3": "<strong>Cookies:</strong> cookie files to improve the Service",
+                                "4": "<strong>Device Data:</strong> unique device identifiers"
+                            }
+                        }
+                    }
+                },
+                "4": {
+                    "title": "4. Purposes of Data Processing",
+                    "text": "We use your personal data for the following purposes:",
+                    "table": [
+                        {
+                            "col1": "Service Provision",
+                            "col2": "Creating and managing account, access to Service features"
+                        },
+                        {
+                            "col1": "Payment Processing",
+                            "col2": "Conducting transactions, invoicing"
+                        },
+                        {
+                            "col1": "Service Improvement",
+                            "col2": "Usage analysis, development of new features"
+                        },
+                        {
+                            "col1": "Communication",
+                            "col2": "Sending notifications, news, technical support"
+                        },
+                        {
+                            "col1": "Security",
+                            "col2": "Fraud prevention, protection against unauthorized access"
+                        },
+                        {
+                            "col1": "Legal Compliance",
+                            "col2": "Fulfilling legal obligations"
+                        }
+                    ]
+                },
+                "5": {
+                    "title": "5. Legal Basis for Processing",
+                    "text": "Personal data processing is carried out on the basis of:",
+                    "list": {
+                        "1": "Your consent when registering in the Service",
+                        "2": "Necessity to fulfill the contract (Terms of Service)",
+                        "3": "Legitimate interests of the Operator",
+                        "4": "Requirements of applicable legislation"
+                    }
+                },
+                "6": {
+                    "title": "6. Data Sharing with Third Parties",
+                    "subsections": {
+                        "1": {
+                            "title": "6.1. When We Share Data",
+                            "text": "We may share your data with the following categories of recipients:",
+                            "list": {
+                                "1": "<strong>Payment Systems:</strong> to process payments (data is transmitted in encrypted form)",
+                                "2": "<strong>Cloud Services:</strong> for data storage and ensuring Service operation",
+                                "3": "<strong>AI Providers:</strong> for processing requests and generating content (data is anonymized)",
+                                "4": "<strong>Analytics Services:</strong> for analyzing Service usage",
+                                "5": "<strong>Government Authorities:</strong> upon official requests in accordance with legislation"
+                            }
+                        },
+                        "2": {
+                            "title": "6.2. International Data Transfer",
+                            "text": "Some of our partners may be located outside the Russian Federation. We ensure adequate protection of your data during cross-border transfer in accordance with legal requirements."
+                        }
+                    }
+                },
+                "7": {
+                    "title": "7. Personal Data Protection",
+                    "text": "We apply modern technical and organizational measures to protect your data:",
+                    "list": {
+                        "1": "<strong>Encryption:</strong> SSL/TLS for data transmission, password encryption",
+                        "2": "<strong>Access Control:</strong> limited employee access to personal data",
+                        "3": "<strong>Monitoring:</strong> continuous security monitoring of systems",
+                        "4": "<strong>Backup:</strong> regular backup creation",
+                        "5": "<strong>Updates:</strong> timely software updates"
+                    }
+                },
+                "8": {
+                    "title": "8. Data Retention Period",
+                    "text": "We store your personal data for the following periods:",
+                    "list": {
+                        "1": "<strong>Account Data:</strong> until account deletion or consent withdrawal",
+                        "2": "<strong>Payment Information:</strong> in accordance with tax legislation requirements (minimum 5 years)",
+                        "3": "<strong>Logs and Technical Data:</strong> up to 1 year",
+                        "4": "<strong>User Content:</strong> until account deletion"
+                    }
+                },
+                "9": {
+                    "title": "9. Your Rights",
+                    "text": "In accordance with applicable legislation, you have the following rights:",
+                    "subsections": {
+                        "1": {
+                            "title": "9.1. Right to Access",
+                            "text": "You can request information about what personal data we process."
+                        },
+                        "2": {
+                            "title": "9.2. Right to Rectification",
+                            "text": "You can correct inaccurate or incomplete data through account settings or by contacting support."
+                        },
+                        "3": {
+                            "title": "9.3. Right to Erasure",
+                            "text": "You can request deletion of your personal data. Please note that some data may be retained in accordance with legislation."
+                        },
+                        "4": {
+                            "title": "9.4. Right to Restriction of Processing",
+                            "text": "You can request restriction of processing your data in certain cases."
+                        },
+                        "5": {
+                            "title": "9.5. Right to Withdraw Consent",
+                            "text": "You can withdraw consent to personal data processing at any time by contacting us using the contacts below."
+                        },
+                        "6": {
+                            "title": "9.6. Right to Object",
+                            "text": "You can object to processing your data for marketing purposes."
+                        }
+                    }
+                },
+                "10": {
+                    "title": "10. Cookies and Similar Technologies",
+                    "subsections": {
+                        "1": {
+                            "title": "10.1. What Are Cookies",
+                            "text": "Cookies are small text files that are saved on your device when visiting the Service."
+                        },
+                        "2": {
+                            "title": "10.2. Types of Cookies Used",
+                            "list": {
+                                "1": "<strong>Necessary Cookies:</strong> ensure operation of basic Service functions",
+                                "2": "<strong>Functional Cookies:</strong> remember your preferences",
+                                "3": "<strong>Analytics Cookies:</strong> help understand how you use the Service",
+                                "4": "<strong>Advertising Cookies:</strong> used to show relevant advertising"
+                            }
+                        },
+                        "3": {
+                            "title": "10.3. Managing Cookies",
+                            "text": "You can manage cookies through browser settings. Please note that disabling cookies may limit Service functionality."
+                        }
+                    }
+                },
+                "11": {
+                    "title": "11. Children",
+                    "text": "<strong>The Service is not intended for persons under 18 years of age.</strong> We do not knowingly collect personal data of children. If you become aware that a child has provided us with their data, please contact us."
+                },
+                "12": {
+                    "title": "12. Changes to the Policy",
+                    "text": "We may periodically update this Policy. We will notify you of significant changes through:",
+                    "list": {
+                        "1": "Notification in the Service",
+                        "2": "Email",
+                        "3": "Publication on the website"
+                    },
+                    "note": "The date of the last update is indicated at the beginning of the document."
+                },
+                "13": {
+                    "title": "13. Contact Information",
+                    "text": "For all questions related to personal data processing, you can contact:",
+                    "list": {
+                        "1": "<strong>Operator:</strong> Individual Entrepreneur Kretsu Vasile",
+                        "2": "<strong>TIN:</strong> 772426525886",
+                        "3": "<strong>Email:</strong> privacy@candygirlschat.com",
+                        "4": "<strong>Support Email:</strong> support@candygirlschat.com",
+                        "5": "<strong>Telegram:</strong> <a href=\"https://t.me/candygirlschat\" target=\"_blank\">@CandyGirlsChat</a>"
+                    }
+                },
+                "14": {
+                    "title": "14. Complaints to Supervisory Authority",
+                    "text": "If you believe your rights have been violated, you can contact the relevant data protection authority in your jurisdiction."
+                }
+            },
+            "agreement": "By using the Service, you confirm that you have read this Privacy Policy and agree to the terms of processing your personal data."
+        },
+        "terms": {
+            "title": "Terms of Service",
+            "lastUpdated": "Last Updated: January 24, 2026",
+            "intro": "Attention! By using the Candy Girls Chat service, you confirm that you are 18 years of age or older and that you agree to the conditions of this agreement.",
+            "items": {
+                "1": {
+                    "title": "1. General Provisions",
+                    "text": "This Terms of Service (hereinafter referred to as the \"Agreement\") regulates the relationship between the owner of the Candy Girls Chat service (hereinafter referred to as the \"Service\") and the user (hereinafter referred to as the \"User\") when using the platform for creating and interacting with AI characters.",
+                    "subsections": {
+                        "1": {
+                            "title": "1.1. Acceptance of Terms",
+                            "text": "By registering and using the Service, the User fully and unconditionally accepts all terms of this Agreement. If you do not agree with any terms, please do not use the Service."
+                        }
+                    }
+                },
+                "2": {
+                    "title": "2. Service Description",
+                    "text": "Candy Girls Chat is a platform for creating personalized AI characters with the ability to:",
+                    "list": {
+                        "1": "Create unique characters with individual characteristics",
+                        "2": "Text chat with AI characters",
+                        "3": "Voice interaction with characters",
+                        "4": "Generate images of characters"
+                    }
+                },
+                "3": {
+                    "title": "3. Age Restrictions",
+                    "text": "<strong>The Service is intended exclusively for persons aged 18 and over.</strong> By using the Service, you confirm that:",
+                    "list": {
+                        "1": "You are 18 years of age or older",
+                        "2": "You have the right to enter into legally binding agreements",
+                        "3": "Use of the Service does not violate the laws of your country"
+                    }
+                },
+                "4": {
+                    "title": "4. Registration and Account",
+                    "subsections": {
+                        "1": {
+                            "title": "4.1. Account Creation",
+                            "text": "To use the Service, you must create an account by providing accurate information. You undertake to:",
+                            "list": {
+                                "1": "Provide accurate and up-to-date information",
+                                "2": "Maintain the security of your password",
+                                "3": "Immediately notify us of any unauthorized access",
+                                "4": "Not transfer account access to third parties"
+                            }
+                        },
+                        "2": {
+                            "title": "4.2. Responsibility for Account",
+                            "text": "You bear full responsibility for all actions performed through your account."
+                        }
+                    }
+                },
+                "5": {
+                    "title": "5. Paid Services and Subscriptions",
+                    "subsections": {
+                        "1": {
+                            "title": "5.1. Tariffs",
+                            "text": "The Service offers various tariff plans with different functionality:",
+                            "list": {
+                                "1": "<strong>Free Plan:</strong> basic functions with limitations",
+                                "2": "<strong>Premium Subscriptions:</strong> extended functionality, including voice communication, image generation, and additional features"
+                            }
+                        },
+                        "2": {
+                            "title": "5.2. Payment",
+                            "text": "Payment is made through integrated payment systems. All prices are indicated in Rubles and include VAT, if applicable."
+                        },
+                        "3": {
+                            "title": "5.3. Refunds",
+                            "text": "Refunds are possible in the following cases:",
+                            "list": {
+                                "1": "Technical problems preventing the use of paid services",
+                                "2": "Erroneous payment (within 24 hours from the moment of payment)"
+                            },
+                            "note": "Refunds are not made if the service was partially or fully used."
+                        }
+                    }
+                },
+                "6": {
+                    "title": "6. Terms of Use",
+                    "subsections": {
+                        "1": {
+                            "title": "6.1. Prohibited Actions",
+                            "text": "When using the Service, it is prohibited to:",
+                            "list": {
+                                "1": "Create characters depicting real people without their consent",
+                                "2": "Generate content that violates the legislation of the Russian Federation",
+                                "3": "Use the Service for fraud or illegal activities",
+                                "4": "Attempt to gain unauthorized access to the system",
+                                "5": "Distribute malicious software",
+                                "6": "Use automated means for mass account creation",
+                                "7": "Resell access to the Service"
+                            }
+                        },
+                        "2": {
+                            "title": "6.2. User Content",
+                            "text": "You retain rights to the content created by you, but grant the Service a non-exclusive license to use it to ensure the operation of the platform."
+                        }
+                    }
+                },
+                "7": {
+                    "title": "7. Intellectual Property",
+                    "text": "All rights to the Service, including design, code, logos, and AI technologies, belong to the owner of Candy Girls Chat. Unauthorized use is prohibited."
+                },
+                "8": {
+                    "title": "8. Privacy",
+                    "text": "Personal data processing is carried out in accordance with the <a href=\"/privacy\">Privacy Policy</a>."
+                },
+                "9": {
+                    "title": "9. Limitation of Liability",
+                    "text": "The Service is provided \"as is\". We do not guarantee:",
+                    "list": {
+                        "1": "Uninterrupted operation of the Service",
+                        "2": "Absence of errors or failures",
+                        "3": "Compliance with your expectations"
+                    },
+                    "note": "We are not responsible for:",
+                    "sublist": {
+                        "1": "Indirect losses from using the Service",
+                        "2": "Data loss due to technical failures",
+                        "3": "Actions of third parties"
+                    }
+                },
+                "10": {
+                    "title": "10. Termination of Access",
+                    "text": "We reserve the right to suspend or terminate your access to the Service in case of:",
+                    "list": {
+                        "1": "Violation of the terms of this Agreement",
+                        "2": "Suspicion of fraudulent activity",
+                        "3": "By request of government authorities"
+                    }
+                },
+                "11": {
+                    "title": "11. Changes to the Agreement",
+                    "text": "We reserve the right to change the terms of the Agreement. Significant changes will be brought to the attention of users via notifications in the Service or by email."
+                },
+                "12": {
+                    "title": "12. Applicable Law",
+                    "text": "This Agreement is governed by the legislation of the Russian Federation. All disputes are resolved in accordance with current legislation of the Russian Federation."
+                },
+                "13": {
+                    "title": "13. Contact Information",
+                    "text": "For all questions related to this Agreement, you can contact:",
+                    "list": {
+                        "1": "<strong>Entrepreneur:</strong> Kretsu Vasile",
+                        "2": "<strong>TIN:</strong> 772426525886",
+                        "3": "<strong>Email:</strong> support@candygirlschat.com",
+                        "4": "<strong>Telegram:</strong> <a href=\"https://t.me/candygirlschat\" target=\"_blank\">@CandyGirlsChat</a>"
+                    }
+                }
+            },
+            "agreement": "By using the Service, you confirm that you have read, understood, and agree to the terms of this User Agreement."
+        },
+        "contacts": {
+            "title": "Details and Contacts",
+            "sub1": {
+                "title": "Kretsu Vasile",
+                "fio": "Name:",
+                "inn": "TIN:",
+                "ogrnip": "OGRNIP:",
+                "ogrnipVal": "(indicated if available)"
+            },
+            "sub2": {
+                "title": "Contact Information",
+                "email": "Email for contact:",
+                "emailSupport": "Support Email:",
+                "phone": "Phone:",
+                "hours": "Support hours:",
+                "hoursVal": "Monday - Friday, 10:00 to 18:00 (MSC)"
+            },
+            "sub3": {
+                "title": "Payment Systems",
+                "text": "Payments are accepted via:<br/>- YooKassa (payment system)<br/>- YooMoney (electronic money)<br/>- Fast Payment System (FPS)<br/>All payment transactions are secured in accordance with payment system security requirements."
+            }
+        },
+        "final": {
+            "title": "Final Provisions",
+            "items": {
+                "1": {
+                    "title": "1. Dispute Resolution",
+                    "text": "1.1. All disputes and disagreements are resolved through negotiations between the parties.<br/>1.2. If it is impossible to resolve the dispute through negotiations, disputes are resolved in accordance with the legislation of the Russian Federation.<br/>1.3. The claim procedure for dispute resolution is mandatory. Claims are sent to the specified contact details."
+                },
+                "2": {
+                    "title": "2. Applicable Law",
+                    "text": "2.1. This agreement is governed by the legislation of the Russian Federation.<br/>2.2. All issues not regulated by this agreement are resolved in accordance with the current legislation of the Russian Federation."
+                },
+                "3": {
+                    "title": "3. Acceptance of Terms",
+                    "text": "3.1. Registration on the site and use of the service means full and unconditional acceptance by the user of all terms of this agreement.<br/>3.2. If the user does not agree with any terms of the agreement, they must stop using the service.<br/>3.3. Date of last update of terms:"
+                }
+            }
+        }
+    },
+    "photoPrompts": {
+        "highDetail": {
+            "label": "Porno Realism",
+            "value": "porno realism, maximum quality 8k, skin pores visible, wet body, detailed genitals, nipples, harsh lighting"
+        },
+        "cyberpunk": {
+            "label": "Cyber Slut",
+            "value": "naked cyber-slut, neon light, latex, harness, cyber-implants, spread legs, techno-fetish, vulgar, 18+"
+        },
+        "fantasy": {
+            "label": "Nude Elf",
+            "value": "naked elf, huge tits, magic tattoos on body, transparent cape, forest, nymphomaniac, fantasy erotica"
+        },
+        "portrait": {
+            "label": "Ahegao Face",
+            "value": "blowjob face, face in cum, open mouth, tongue out, smeared lipstick, looking at viewer, ahegao"
+        },
+        "fullBody": {
+            "label": "Fully Naked",
+            "value": "fully naked, front view, spread legs, shaved pussy, big natural tits, model look, erotic pose"
+        },
+        "anime": {
+            "label": "Hentai",
+            "value": "hentai style, huge boobs, anime waifu, naked, squirt, blush, ahegao, very vulgar, uncensored"
+        },
+        "realism": {
+            "label": "Home Porn",
+            "value": "amateur porn photo, natural tits, hairy, home porn, flash, realistic body, no photoshop"
+        },
+        "cinematic": {
+            "label": "Elite Prostitute",
+            "value": "elite prostitute, expensive lingerie, stockings, sex scene, cinematic lighting, deep cleavage, passion, intimate atmosphere"
+        },
+        "beach": {
+            "label": "Nudist Beach",
+            "value": "nudist beach, wet naked girl, sand on ass, back view, thong, tan, oil on body, beach sex"
+        },
+        "city": {
+            "label": "Exhibitionism",
+            "value": "exhibitionism, naked on street, night city, coat on naked body, public place, risk, urban crazy"
+        },
+        "forest": {
+            "label": "Wild Nymph",
+            "value": "wild sex-nymph, naked in forest, dirt on body, doggy style, animal passion, nature, naturalism"
+        },
+        "office": {
+            "label": "Sex with Secretary",
+            "value": "secretary under table, unbuttoned blouse, naked tits, skirt lifted, stockings, office, sex at work, cum on glasses"
+        },
+        "summerDress": {
+            "label": "No Panties",
+            "value": "no panties, dress lifted by wind, see everything, wet dress, see-through, nipples poking, summer sex"
+        },
+        "eveningLight": {
+            "label": "Intimate Dim Light",
+            "value": "romantic sex, candles, oil, massage, naked bodies, shadows, intimate, relaxed, evening foreplay"
+        },
+        "winter": {
+            "label": "Snow Maiden 18+",
+            "value": "naked on snow, red nose, steam from mouth, ushanka hat on naked body, hardening, snow maiden 18+, contrast"
+        },
+        "elegant": {
+            "label": "Expensive Whore",
+            "value": "expensive whore, diamonds on naked body, champagne, luxury interior, elite escort, inviting pose"
+        },
+        "closeUp": {
+            "label": "Pussy Close-up",
+            "value": "close up pussy, macro shot, clitoris, wetness, arousal, fingers, detailed, gynecology"
+        },
+        "park": {
+            "label": "Sex in Bushes",
+            "value": "sex in bushes, naked in park, on bench, doggy style, exhibitionism, risk of being caught, adrenaline"
+        },
+        "cafe": {
+            "label": "No Underwear in Cafe",
+            "value": "no panties in cafe, legs on table, showing off, voyeurism, public place, daring, flirt"
+        },
+        "nature": {
+            "label": "Sex in Nature",
+            "value": "sex on grass, naked on rock, waterfall, wet body, unity with nature, nudism, freedom"
+        },
+        "eveningOutfit": {
+            "label": "Deep Cleavage",
+            "value": "deep cleavage, tits falling out, slit to hip, no underwear, evening makeup, socialite, debauchery"
+        },
+        "casual": {
+            "label": "Sexy Neighbor",
+            "value": "home clothes, no bra, short shorts, cameltoe, messy bun, sexy neighbor, cozy"
+        },
+        "sport": {
+            "label": "Fitness Babe",
+            "value": "sweaty after gym, tight leggings, cameltoe, sports bra, locker room, fitness babe, flexibility"
+        },
+        "romantic": {
+            "label": "BDSM Light",
+            "value": "bed with rose petals, sex toys, handcuffs, BDSM light, lace lingerie, passion, love"
+        }
+    }
+}

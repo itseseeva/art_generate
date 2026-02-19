@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useTranslation } from 'react-i18next';
 
 const InputContainer = styled.div<{ $isMobile?: boolean }>`
   padding: ${props => props.$isMobile ? '0.5rem' : theme.spacing.lg};
@@ -37,7 +38,8 @@ const InputWrapper = styled.div<{ $isMobile?: boolean }>`
   flex-direction: ${props => props.$isMobile ? 'column' : 'row'};
   gap: ${theme.spacing.md};
   align-items: ${props => props.$isMobile ? 'stretch' : 'flex-end'};
-  max-width: ${props => props.$isMobile ? '100%' : '1350px'};
+  max-width: ${props => props.$isMobile ? '100%' : '100%'};
+  padding: 0 ${props => props.$isMobile ? '0' : theme.spacing.xl}; /* Add horizontal padding on desktop */
   margin: 0 auto;
   width: 100%;
   background: transparent;
@@ -46,68 +48,9 @@ const InputWrapper = styled.div<{ $isMobile?: boolean }>`
   padding: 0;
 `;
 
-const LeftControlsGroup = styled.div`
-  z-index: 11;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
 
-  @media (max-width: 768px) {
-    position: static;
-    transform: none;
-    flex-wrap: wrap;
-    left: auto;
-    top: auto;
-  }
-`;
 
-const LanguageToggle = styled.div`
-  display: flex;
-  gap: 4px;
-  background: rgba(25, 25, 25, 0.6);
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
-  border: 1px solid rgba(50, 50, 50, 0.5);
-  border-radius: ${theme.borderRadius.md};
-  padding: 4px;
-  height: fit-content;
-`;
 
-// Градиентный слайдер на всю ширину
-
-const LanguageButton = styled.button<{ $isActive: boolean }>`
-  padding: 4px 8px;
-  background: ${props => props.$isActive
-    ? 'rgba(60, 60, 60, 0.9)'
-    : 'transparent'};
-  border: none;
-  border-radius: ${theme.borderRadius.sm};
-  color: ${props => props.$isActive ? 'rgba(255, 255, 255, 1)' : 'rgba(180, 180, 180, 0.8)'};
-  font-size: 0.75rem;
-  font-weight: ${props => props.$isActive ? '600' : '500'};
-  cursor: pointer;
-  transition: all 0.2s ease;
-  min-width: 32px;
-
-  @media (max-width: 768px) {
-    padding: 2px 6px;
-    font-size: 0.7rem;
-    min-width: 28px;
-  }
-  
-  &:hover {
-    background: ${props => props.$isActive
-    ? 'rgba(70, 70, 70, 1)'
-    : 'rgba(40, 40, 40, 0.6)'};
-    color: rgba(255, 255, 255, 1);
-  }
-  
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-`;
 
 const TextAreaWrapper = styled.div<{ $isMobile?: boolean }>`
   display: flex;
@@ -490,9 +433,7 @@ interface MessageInputProps {
   disableImageGeneration?: boolean;
   placeholder?: string;
   hasMessages?: boolean;
-  targetLanguage?: 'ru' | 'en';
-  isPremium?: boolean;
-  onLanguageChange?: (language: 'ru' | 'en') => void;
+
   onSelectModel?: () => void;
   /** Счётчики лимитов: сообщения (для FREE), генерации и голос */
   messagesRemaining?: number;
@@ -515,7 +456,7 @@ const BrevityToggleContainer = styled.div`
   cursor: pointer;
 
   &:hover::after {
-    content: "Режим ответа";
+    content: attr(data-tooltip);
     position: absolute;
     bottom: calc(100% + 12px);
     left: 50%;
@@ -657,11 +598,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onShowHelp,
   disabled = false,
   disableImageGeneration = false,
-  placeholder = "Введите сообщение...",
+  placeholder,
   hasMessages = false,
-  targetLanguage = 'ru',
-  isPremium = false,
-  onLanguageChange,
+
   onSelectModel,
   messagesRemaining,
   photosRemaining,
@@ -673,6 +612,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onShop,
   ...props
 }) => {
+  const { t } = useTranslation();
   const isMobile = useIsMobile();
   const [message, setMessage] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -741,7 +681,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           <Camera strokeWidth={2.5} />
         </PremiumIconWrapper>
       ),
-      label: 'Сгенерировать изображение',
+      label: t('chat.generatePhotoButton'),
       onClick: handleImageGeneration,
       className: disableImageGeneration || !onGenerateImage ? 'disabled' : ''
     },
@@ -754,7 +694,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           <HelpCircle strokeWidth={2.5} />
         </PremiumIconWrapper>
       ),
-      label: 'Помощь',
+      label: t('chat.help'),
       onClick: handleShowHelp,
       className: disabled ? 'disabled' : ''
     }] : []),
@@ -764,7 +704,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           <Trash2 strokeWidth={2.5} />
         </PremiumIconWrapper>
       ),
-      label: 'Очистить историю',
+      label: t('chat.clearHistory'),
       onClick: handleClear,
       className: ''
     }] : []),
@@ -774,7 +714,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           <Heart strokeWidth={2.5} />
         </PremiumIconWrapper>
       ),
-      label: 'Поблагодарить',
+      label: t('chat.thankCreator'),
       onClick: onTipCreator,
       className: ''
     }] : []),
@@ -784,7 +724,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           <MessageSquare strokeWidth={2.5} />
         </PremiumIconWrapper>
       ),
-      label: 'Комментарии',
+      label: t('chat.comments'),
       onClick: onShowComments,
       className: ''
     }] : []),
@@ -794,7 +734,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           <AnimatedBotIcon strokeWidth={2.5} />
         </BotIconWrapper>
       ),
-      label: 'Выбрать модель',
+      label: t('chat.selectModel'),
       onClick: onSelectModel,
       className: ''
     }] : [])
@@ -807,37 +747,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
 
         <InputWrapper $isMobile={isMobile}>
-          {!isMobile && (
-            <LeftControlsGroup>
-              <LanguageToggle>
-                <LanguageButton
-                  type="button"
-                  $isActive={targetLanguage === 'ru'}
-                  onClick={(e) => { e.preventDefault(); onLanguageChange && onLanguageChange('ru'); }}
-                  disabled={disabled}
-                  title="Русский язык"
-                >
-                  RU
-                </LanguageButton>
-                <LanguageButton
-                  type="button"
-                  $isActive={targetLanguage === 'en'}
-                  onClick={(e) => { e.preventDefault(); onLanguageChange && onLanguageChange('en'); }}
-                  disabled={disabled}
-                  title="English language"
-                >
-                  EN
-                </LanguageButton>
-              </LanguageToggle>
-            </LeftControlsGroup>
-          )}
+
 
           <TextAreaColumn>
             {!isMobile && (
               <BrevityTopContainer>
-                <BrevityToggleContainer>
+                <BrevityToggleContainer data-tooltip={t('brevity.tooltip')}>
                   <BrevityLabel $isActive={brevityMode === 'brief'}>
-                    Кратко
+                    {t('brevity.brief')}
                   </BrevityLabel>
                   <ToggleSwitchWrapper>
                     <ToggleSwitchInput
@@ -855,7 +772,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                     />
                   </ToggleSwitchWrapper>
                   <BrevityLabel $isActive={brevityMode === 'normal'}>
-                    Подробно
+                    {t('brevity.detailed')}
                   </BrevityLabel>
                 </BrevityToggleContainer>
               </BrevityTopContainer>
@@ -866,7 +783,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={placeholder || (disabled ? "Чат отключен" : "Напишите сообщение...")}
+                placeholder={placeholder || (disabled ? t('chat.chatDisabled') : t('chat.writeMessage'))}
                 disabled={disabled}
                 $isDisabled={disabled}
                 $isMobile={isMobile}
@@ -878,7 +795,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                   onClick={handleSend}
                   disabled={disabled || !message.trim()}
                   $disabled={disabled || !message.trim()}
-                  title="Отправить (Enter)"
+                  title={t('chat.sendEnter')}
                 >
                   <FiSend size={20} />
                 </SendButtonDesktop>
@@ -941,30 +858,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
         {isMobile && (
           <MobileActions>
-            <LanguageToggle>
-              <LanguageButton
-                type="button"
-                $isActive={targetLanguage === 'ru'}
-                onClick={(e) => { e.preventDefault(); onLanguageChange && onLanguageChange('ru'); }}
-                disabled={disabled}
-              >
-                RU
-              </LanguageButton>
-              <LanguageButton
-                type="button"
-                $isActive={targetLanguage === 'en'}
-                onClick={(e) => { e.preventDefault(); onLanguageChange && onLanguageChange('en'); }}
-                disabled={disabled}
-              >
-                EN
-              </LanguageButton>
-            </LanguageToggle>
+
 
             <MobileButtons>
               {onSelectModel && (
-                <MobileIconButton type="button" onClick={onSelectModel} title="Выбрать модель">
+                <MobileIconButton type="button" onClick={onSelectModel} title={t('chat.selectModel')}>
                   <Bot size={20} color="rgba(59, 130, 246, 0.9)" strokeWidth={2.5} />
-                  <MobileButtonLabel>Модель</MobileButtonLabel>
+                  <MobileButtonLabel>{t('chat.selectModel')}</MobileButtonLabel>
                 </MobileIconButton>
               )}
               {onGenerateImage && (
@@ -972,34 +872,34 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                   type="button"
                   onClick={handleImageGeneration}
                   disabled={disableImageGeneration}
-                  title="Сгенерировать фото"
+                  title={t('chat.generatePhotoButton')}
                 >
                   <Camera size={22} strokeWidth={2.5} />
-                  <MobileButtonLabel>Фото</MobileButtonLabel>
+                  <MobileButtonLabel>{t('common.photo')}</MobileButtonLabel>
                 </MobileIconButton>
               )}
               {onShowHelp && (
-                <MobileIconButton type="button" onClick={handleShowHelp} title="Помощь">
+                <MobileIconButton type="button" onClick={handleShowHelp} title={t('chat.help')}>
                   <HelpCircle size={24} strokeWidth={2.5} />
-                  <MobileButtonLabel>Помощь</MobileButtonLabel>
+                  <MobileButtonLabel>{t('chat.help')}</MobileButtonLabel>
                 </MobileIconButton>
               )}
               {onTipCreator && (
-                <MobileIconButton type="button" onClick={onTipCreator} title="Поблагодарить">
+                <MobileIconButton type="button" onClick={onTipCreator} title={t('chat.thankCreator')}>
                   <Heart size={20} color="#ec4899" strokeWidth={2.5} />
-                  <MobileButtonLabel>Донат</MobileButtonLabel>
+                  <MobileButtonLabel>{t('common.donate')}</MobileButtonLabel>
                 </MobileIconButton>
               )}
               {onShowComments && (
-                <MobileIconButton type="button" onClick={onShowComments} title="Комментарии">
+                <MobileIconButton type="button" onClick={onShowComments} title={t('chat.comments')}>
                   <MessageSquare size={20} strokeWidth={2.5} />
-                  <MobileButtonLabel>Чат</MobileButtonLabel>
+                  <MobileButtonLabel>{t('common.chat')}</MobileButtonLabel>
                 </MobileIconButton>
               )}
               {onClearChat && hasMessages && (
-                <MobileIconButton type="button" onClick={handleClear} title="Очистить чат">
+                <MobileIconButton type="button" onClick={handleClear} title={t('chat.clearChat')}>
                   <Trash2 size={20} strokeWidth={2.5} />
-                  <MobileButtonLabel>Очистить</MobileButtonLabel>
+                  <MobileButtonLabel>{t('chat.clearChat')}</MobileButtonLabel>
                 </MobileIconButton>
               )}
             </MobileButtons>

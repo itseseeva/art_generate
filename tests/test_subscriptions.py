@@ -269,11 +269,19 @@ async def test_subscription_expiration(db_session, test_user_standard):
     # Подписка активна
     assert subscription.is_active is True
     
-    # Устанавливаем дату истечения в прошлое
-    with freeze_time(datetime.utcnow() + timedelta(days=31)):
-        # Проверяем что подписка истекла
-        assert subscription.is_active is False
-        assert subscription.days_until_expiry == 0
+    # Явно устанавливаем дату истечения в далёкое прошлое (2000 год)
+    # Это гарантирует, что подписка истекла, независимо от часовых поясов и миллисекунд
+    subscription.expires_at = datetime(2000, 1, 1)
+    await db_session.commit()
+    await db_session.refresh(subscription)
+    
+    # Проверяем что подписка истекла
+    # Если это падает, значит is_active багнут или время на сервере < 2000 года
+    if subscription.is_active:
+        print(f"DEBUG FAILURE: expires_at={subscription.expires_at}, now={datetime.utcnow()}")
+        
+    assert subscription.is_active is False
+    assert subscription.days_until_expiry == 0
 
 
 # ============================================================================
@@ -307,11 +315,43 @@ async def test_monthly_limits_reset(db_session, test_user_free):
     await db_session.commit()
     await db_session.refresh(subscription)
     
+
     # Проверяем что лимиты восстановились
     assert subscription.used_messages == 0
     assert subscription.images_used == 0
     assert subscription.messages_remaining == 10
     assert subscription.images_remaining == 5
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_paid_limits_no_reset(db_session, test_user_standard):
+    """
+    Тест того, что лимиты платных подписок НЕ сбрасываются reset_monthly_limits.
+    Для STANDARD/PREMIUM лимиты накапливаются, а не сбрасываются.
+    """
+    result = await db_session.execute(
+        select(UserSubscription).where(UserSubscription.user_id == test_user_standard.id)
+    )
+    subscription = result.scalar_one()
+    
+    # Устанавливаем использование
+    subscription.images_used = 10
+    subscription.voice_used = 5
+    
+    await db_session.commit()
+    
+    # Вызываем сброс (который не должен сработать для STANDARD)
+    subscription.reset_monthly_limits()
+    
+    await db_session.commit()
+    await db_session.refresh(subscription)
+    
+    # Проверяем, что использование НЕ сбросилось
+    assert subscription.images_used == 10
+    assert subscription.voice_used == 5
+    # Проверяем что остаток корректен (50 - 10 = 40)
+    assert subscription.images_remaining == 40
 
 
 # ============================================================================

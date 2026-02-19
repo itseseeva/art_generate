@@ -61,8 +61,8 @@ services:
       - REDIS_LOCAL=redis://redis:6379/0
       - IS_DOCKER=true
       - APP_SD_API_URL=http://host.docker.internal:7860
-      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:///./app.db}
-      - APP_DATABASE_URL=${APP_DATABASE_URL:-sqlite+aiosqlite:///./app.db}
+      - DATABASE_URL=postgresql+asyncpg://postgres:Kohkau11999@host.docker.internal:5432/art_generate_db
+      - APP_DATABASE_URL=postgresql+asyncpg://postgres:Kohkau11999@host.docker.internal:5432/art_generate_db
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
     extra_hosts:

@@ -72,11 +72,8 @@ async def activate_subscription(
             subscription=SubscriptionStatsResponse(
                 subscription_type=subscription.subscription_type.value,
                 status=subscription.status.value,
-                monthly_credits=subscription.monthly_credits,
                 monthly_photos=subscription.monthly_photos,
-                used_credits=subscription.used_credits,
                 used_photos=subscription.used_photos,
-                credits_remaining=subscription.credits_remaining,
                 photos_remaining=subscription.photos_remaining,
                 days_left=subscription.days_until_expiry,
                 is_active=subscription.is_active,

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
+import { useTranslation, Trans } from 'react-i18next';
 import { theme } from '../theme';
 import { FiHeart, FiX, FiImage, FiMic } from 'react-icons/fi';
 import { API_CONFIG } from '../config/api';
@@ -388,6 +389,7 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
   voiceGenerations,
   onSuccess
 }) => {
+  const { t } = useTranslation();
   const [tipType, setTipType] = useState<'photo' | 'voice'>('photo');
   const [selectedAmount, setSelectedAmount] = useState<number | null>(5);
   const [customAmount, setCustomAmount] = useState<string>('');
@@ -399,7 +401,7 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
   if (!isOpen) return null;
 
   const currentBalance = tipType === 'photo' ? photoGenerations : voiceGenerations;
-  const balanceLabel = tipType === 'photo' ? 'фото-генераций' : 'голосовых генераций';
+  const balanceLabel = tipType === 'photo' ? t('tipsCreator.labels.photo') : t('tipsCreator.labels.voice');
 
   const getActualAmount = (): number => {
     if (customAmount) {
@@ -432,17 +434,17 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
 
     // Валидация
     if (amount <= 0) {
-      setError('Пожалуйста, укажите количество генераций');
+      setError(t('tipsCreator.error.noAmount'));
       return;
     }
 
     if (amount > 100) {
-      setError('Максимум 100 генераций за один раз');
+      setError(t('tipsCreator.error.maxAmount'));
       return;
     }
 
     if (amount > currentBalance) {
-      setError(`Недостаточно ${balanceLabel}. У вас: ${currentBalance}`);
+      setError(t('tipsCreator.error.insufficient', { label: balanceLabel, count: currentBalance }));
       return;
     }
 
@@ -453,7 +455,7 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
     try {
       const token = localStorage.getItem('authToken');
       if (!token) {
-        setError('Необходима авторизация');
+        setError(t('tipsCreator.error.authRequired'));
         return;
       }
 
@@ -473,7 +475,7 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || 'Ошибка при отправке генераций');
+        throw new Error(errorData.detail || t('tipsCreator.error.generic'));
       }
 
       const data = await response.json();
@@ -493,7 +495,7 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
       onClose();
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Произошла ошибка');
+      setError(err instanceof Error ? err.message : t('tipsCreator.error.generic'));
     } finally {
       setIsLoading(false);
     }
@@ -507,7 +509,7 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
       <ModalContent onClick={(e) => e.stopPropagation()}>
         <ModalHeader>
           <h3>
-            <FiHeart /> Поблагодарить создателя
+            <FiHeart /> {t('tipsCreator.title')}
           </h3>
           <CloseButton onClick={onClose}>
             <FiX size={24} />
@@ -516,15 +518,15 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
 
         <CharacterInfo>
           <p>
-            <strong>Персонаж:</strong> {displayName}
+            <strong>{t('tipsCreator.characterLabel')}</strong> {displayName}
           </p>
           <p style={{ fontSize: '14px', marginTop: '8px' }}>
-            Создателю персонажа будет отправлена благодарность в виде фото-генераций или голосовых генераций
+            {t('tipsCreator.info')}
           </p>
         </CharacterInfo>
 
         <TipTypeSelector>
-          <label>Выберите тип благодарности:</label>
+          <label>{t('tipsCreator.selectType')}</label>
           <TipTypeButtons>
             <TipTypeButton
               selected={tipType === 'photo'}
@@ -532,7 +534,7 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
               disabled={isLoading}
             >
               <FiImage />
-              Фото-генерации
+              {t('tipsCreator.photoGenerations')}
             </TipTypeButton>
             <TipTypeButton
               selected={tipType === 'voice'}
@@ -540,19 +542,21 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
               disabled={isLoading}
             >
               <FiMic />
-              Голосовые генерации
+              {t('tipsCreator.voiceGenerations')}
             </TipTypeButton>
           </TipTypeButtons>
         </TipTypeSelector>
 
         <BalanceInfo>
           <p>
-            Ваш баланс: <strong>{currentBalance}</strong> {balanceLabel}
+            <Trans i18nKey="tipsCreator.balance" values={{ count: currentBalance, label: balanceLabel }}>
+              Ваш баланс: <strong>{currentBalance}</strong> {balanceLabel}
+            </Trans>
           </p>
         </BalanceInfo>
 
         <AmountSelector>
-          <label>Выберите количество:</label>
+          <label>{t('tipsCreator.selectAmount')}</label>
           <AmountButtons>
             {PRESET_AMOUNTS.map(amount => (
               <AmountButton
@@ -568,7 +572,7 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
           </AmountButtons>
           <CustomAmountInput
             type="number"
-            placeholder="Или введите свою сумму (1-100)"
+            placeholder={t('tipsCreator.customAmountPlaceholder')}
             value={customAmount}
             onChange={handleCustomAmountChange}
             min={1}
@@ -585,10 +589,10 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
             fontSize: theme.fontSize.sm,
             marginBottom: theme.spacing.md
           }}>
-            Сообщение (необязательно):
+            {t('tipsCreator.messageLabel')}
           </label>
           <MessageInput
-            placeholder="Напишите сообщение создателю..."
+            placeholder={t('tipsCreator.messagePlaceholder')}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             maxLength={500}
@@ -604,13 +608,13 @@ export const TipCreatorModal: React.FC<TipCreatorModalProps> = ({
             onClick={handleSubmit}
             disabled={isLoading || actualAmount <= 0 || actualAmount > currentBalance}
           >
-            {isLoading ? 'Отправка...' : `Отправить ${actualAmount} ${balanceLabel}`}
+            {isLoading ? t('tipsCreator.sending') : t('tipsCreator.send', { amount: actualAmount, label: balanceLabel })}
           </SubmitButton>
           <CancelButton
             onClick={onClose}
             disabled={isLoading}
           >
-            Отмена
+            {t('common.cancel')}
           </CancelButton>
         </ButtonGroup>
       </ModalContent>

@@ -51,6 +51,7 @@ async def test_chat_with_character_success(mock_db, mock_user):
     char.id = 1
     char.name = "Aya"
     char.prompt = "Default prompt"
+    char.location = "Somewhere"
     
     char_res = MagicMock()
     char_res.scalar_one_or_none.return_value = char
@@ -62,14 +63,28 @@ async def test_chat_with_character_success(mock_db, mock_user):
     sub_res = MagicMock()
     sub_res.scalar_one_or_none.return_value = sub
     
-    # Mock Session
-    sess_res = MagicMock()
-    sess_res.scalar_one_or_none.return_value = None
+    # Mock execute sequences
+    def execute_se(q, *args, **kwargs):
+        # We can analyze the query to return char or sub or session
+        q_str = str(q).lower()
+        res = MagicMock()
+        if "character" in q_str:
+            res.scalar_one_or_none.return_value = char
+        elif "subscription" in q_str:
+            res.scalar_one_or_none.return_value = sub
+        elif "chatsession" in q_str:
+            res.scalar_one_or_none.return_value = None
+        else:
+            res.scalar_one_or_none.return_value = None
+            res.scalars.return_value.all.return_value = []
+        return res
+
+    mock_db.execute.side_effect = AsyncMock(side_effect=execute_se)
     
-    # Mock execute sequences: 1. char, 2. sub, 3. session
-    mock_db.execute.side_effect = [char_res, sub_res, sess_res]
-    
-    with patch("app.chat_bot.api.chat_endpoints.openrouter_service", new_callable=AsyncMock) as mock_service:
+    with patch("app.chat_bot.api.chat_endpoints.openrouter_service", new_callable=AsyncMock) as mock_service, \
+         patch("app.utils.model_manager.get_active_model", new_callable=AsyncMock) as mock_model_get:
+        
+        mock_model_get.return_value = "sao10k/l3-euryale-70b"
         mock_service.generate_text.return_value = "Hello from AI"
         
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
@@ -77,6 +92,9 @@ async def test_chat_with_character_success(mock_db, mock_user):
                 "character": "Aya",
                 "message": "Hi"
             })
+            
+        if response.status_code != 200:
+            print(f"Chat error detail: {response.json()}")
             
         assert response.status_code == 200
         assert response.json()["response"] == "Hello from AI"
@@ -121,8 +139,10 @@ async def test_chat_stream_success(mock_db, mock_user):
     app.dependency_overrides[get_current_user_optional] = override_get_current_user_optional
 
     char = MagicMock(spec=CharacterDB)
+    char.id = 1
     char.name = "Aya"
     char.prompt = "Aya prompt"
+    char.location = "Some location"
     char_res = MagicMock()
     char_res.scalar_one_or_none.return_value = char
     
@@ -132,7 +152,11 @@ async def test_chat_stream_success(mock_db, mock_user):
     sub_res = MagicMock()
     sub_res.scalar_one_or_none.return_value = None # Free
     
-    mock_db.execute.side_effect = [char_res, sess_res, sub_res]
+    # For stream save logic (L709)
+    sub_res_save = MagicMock()
+    sub_res_save.scalar_one_or_none.return_value = None
+    
+    mock_db.execute.side_effect = [char_res, sess_res, sub_res, sub_res_save]
 
     async def mock_stream(*args, **kwargs):
         yield "Hello "

@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { FiMail, FiLock, FiArrowLeft } from 'react-icons/fi';
 import DarkVeil from '../../@/components/DarkVeil';
 import { API_CONFIG } from '../config/api';
+import { useTranslation } from 'react-i18next';
 
 const PageContainer = styled.div`
   min-height: 100vh;
@@ -160,9 +161,11 @@ const Message = styled.div<{ $type: 'success' | 'error' }>`
 
 interface ForgotPasswordPageProps {
     onBackToLogin: () => void;
+    onBackToMain?: () => void;
 }
 
 const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onBackToLogin }) => {
+    const { t } = useTranslation();
     const [step, setStep] = useState<'email' | 'reset'>('email');
     const [email, setEmail] = useState('');
     const [verificationCode, setVerificationCode] = useState('');
@@ -186,14 +189,14 @@ const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onBackToLogin }
             });
 
             if (response.ok) {
-                setMessage({ type: 'success', text: 'Код восстановления отправлен на ваш email' });
+                setMessage({ type: 'success', text: t('auth.codeSent') });
                 setStep('reset');
             } else {
                 const error = await response.json();
-                setMessage({ type: 'error', text: error.detail || 'Ошибка отправки кода' });
+                setMessage({ type: 'error', text: error.detail || t('auth.errorSendingCode') });
             }
         } catch (error) {
-            setMessage({ type: 'error', text: 'Ошибка соединения с сервером' });
+            setMessage({ type: 'error', text: t('auth.serverError') });
         } finally {
             setLoading(false);
         }
@@ -203,12 +206,12 @@ const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onBackToLogin }
         e.preventDefault();
 
         if (newPassword !== confirmPassword) {
-            setMessage({ type: 'error', text: 'Пароли не совпадают' });
+            setMessage({ type: 'error', text: t('auth.passwordsDoNotMatch') });
             return;
         }
 
         if (newPassword.length < 6) {
-            setMessage({ type: 'error', text: 'Пароль должен быть не менее 6 символов' });
+            setMessage({ type: 'error', text: t('auth.passwordTooShort') });
             return;
         }
 
@@ -229,16 +232,16 @@ const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onBackToLogin }
             });
 
             if (response.ok) {
-                setMessage({ type: 'success', text: 'Пароль успешно изменен! Перенаправление на страницу входа...' });
+                setMessage({ type: 'success', text: t('auth.passwordResetSuccess') });
                 setTimeout(() => {
                     onBackToLogin();
                 }, 2000);
             } else {
                 const error = await response.json();
-                setMessage({ type: 'error', text: error.detail || 'Ошибка сброса пароля' });
+                setMessage({ type: 'error', text: error.detail || t('auth.errorResetPassword') });
             }
         } catch (error) {
-            setMessage({ type: 'error', text: 'Ошибка соединения с сервером' });
+            setMessage({ type: 'error', text: t('auth.serverError') });
         } finally {
             setLoading(false);
         }
@@ -253,14 +256,14 @@ const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onBackToLogin }
             <FormContainer>
                 <BackButton onClick={onBackToLogin}>
                     <FiArrowLeft size={18} />
-                    Назад к входу
+                    {t('auth.backToLogin')}
                 </BackButton>
 
                 {step === 'email' ? (
                     <>
-                        <Title>Забыли пароль?</Title>
+                        <Title>{t('auth.forgotPasswordTitle')}</Title>
                         <Subtitle>
-                            Введите ваш email, и мы отправим вам код для восстановления пароля
+                            {t('auth.forgotPasswordSubtitle')}
                         </Subtitle>
 
                         <Form onSubmit={handleSendCode}>
@@ -280,15 +283,15 @@ const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onBackToLogin }
                             {message && <Message $type={message.type}>{message.text}</Message>}
 
                             <Button type="submit" disabled={loading}>
-                                {loading ? 'Отправка...' : 'Отправить код'}
+                                {loading ? t('auth.sending') : t('auth.sendCode')}
                             </Button>
                         </Form>
                     </>
                 ) : (
                     <>
-                        <Title>Сброс пароля</Title>
+                        <Title>{t('auth.resetPasswordTitle')}</Title>
                         <Subtitle>
-                            Введите код из письма и новый пароль
+                            {t('auth.resetPasswordSubtitle')}
                         </Subtitle>
 
                         <Form onSubmit={handleResetPassword}>
@@ -298,7 +301,7 @@ const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onBackToLogin }
                                 </InputIcon>
                                 <Input
                                     type="text"
-                                    placeholder="Код из письма"
+                                    placeholder={t('auth.enterCode')}
                                     value={verificationCode}
                                     onChange={(e) => setVerificationCode(e.target.value)}
                                     required
@@ -311,7 +314,7 @@ const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onBackToLogin }
                                 </InputIcon>
                                 <Input
                                     type="password"
-                                    placeholder="Новый пароль"
+                                    placeholder={t('auth.newPassword')}
                                     value={newPassword}
                                     onChange={(e) => setNewPassword(e.target.value)}
                                     required
@@ -324,7 +327,7 @@ const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onBackToLogin }
                                 </InputIcon>
                                 <Input
                                     type="password"
-                                    placeholder="Подтвердите пароль"
+                                    placeholder={t('auth.confirmPassword')}
                                     value={confirmPassword}
                                     onChange={(e) => setConfirmPassword(e.target.value)}
                                     required
@@ -334,7 +337,7 @@ const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onBackToLogin }
                             {message && <Message $type={message.type}>{message.text}</Message>}
 
                             <Button type="submit" disabled={loading}>
-                                {loading ? 'Сброс...' : 'Сбросить пароль'}
+                                {loading ? t('auth.resetting') : t('auth.resetPassword')}
                             </Button>
                         </Form>
                     </>

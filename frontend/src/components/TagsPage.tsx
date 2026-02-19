@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import { CharacterCard } from './CharacterCard';
-import { GlobalHeader } from './GlobalHeader';
 import { API_CONFIG } from '../config/api';
 import { authManager } from '../utils/auth';
 import { Footer } from './Footer';
@@ -61,8 +62,8 @@ const CharactersGrid = styled.div`
   padding: 0 ${theme.spacing.sm} ${theme.spacing.xs};
   overflow-y: visible;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 0;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
   align-content: start;
   width: 100%;
   min-height: 0;
@@ -71,7 +72,7 @@ const CharactersGrid = styled.div`
     flex: none;
     overflow-y: visible;
     grid-template-columns: repeat(2, 1fr);
-    gap: ${theme.spacing.sm};
+    gap: 8px;
   }
 `;
 
@@ -206,6 +207,11 @@ export const TagsPage: React.FC<TagsPageProps> = ({
     onShop,
     onProfile
 }) => {
+    const { tagSlug } = useParams<{ tagSlug: string }>();
+    const navigate = useNavigate();
+    const { i18n } = useTranslation();
+    const effectiveSlug = slug || tagSlug || '';
+
     const [tagNameLocal, setTagNameLocal] = useState('');
     const [seoDescription, setSeoDescription] = useState('');
     const [characters, setCharacters] = useState<any[]>([]);
@@ -245,12 +251,16 @@ export const TagsPage: React.FC<TagsPageProps> = ({
         const fetchData = async () => {
             setIsLoading(true);
             try {
-                const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/tags/${slug}`);
+                const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/tags/${effectiveSlug}`);
                 if (response.ok) {
                     const data = await response.json();
-                    setTagNameLocal(data.tag_name);
-                    setTagName(data.tag_name);
-                    setSeoDescription(data.seo_description || '');
+                    const isRu = i18n.language === 'ru';
+                    const name = isRu ? data.tag_name_ru || data.tag_name : data.tag_name_en || data.tag_name;
+                    const seo = isRu ? data.seo_description_ru || data.seo_description : data.seo_description_en || data.seo_description;
+
+                    setTagNameLocal(name);
+                    setTagName(name);
+                    setSeoDescription(seo || '');
 
                     // Мапим персонажей в формат, ожидаемый CharacterCard
                     const formattedChars = data.characters.map((char: any) => {
@@ -272,7 +282,21 @@ export const TagsPage: React.FC<TagsPageProps> = ({
                             comments: Number(char.comments) || 0,
                             views: Number(char.views) || 0,
                             creator_username: char.creator_username,
-                            raw: char
+                            raw: char,
+                            // Bilingual fields
+                            personality_ru: char.personality_ru,
+                            personality_en: char.personality_en,
+                            situation_ru: char.situation_ru,
+                            situation_en: char.situation_en,
+                            instructions_ru: char.instructions_ru,
+                            instructions_en: char.instructions_en,
+                            style_ru: char.style_ru,
+                            style_en: char.style_en,
+                            appearance_ru: char.appearance_ru || char.character_appearance_ru,
+                            appearance_en: char.appearance_en || char.character_appearance_en,
+                            location_ru: char.location_ru,
+                            location_en: char.location_en,
+                            translations: char.translations
                         };
                     });
 
@@ -285,33 +309,29 @@ export const TagsPage: React.FC<TagsPageProps> = ({
             }
         };
 
-        if (slug) {
+        if (effectiveSlug) {
             fetchData();
         }
-    }, [slug]);
+    }, [effectiveSlug]);
 
     return (
         <TagsContainer>
-            <GlobalHeader
-                onHome={onBackToMain}
-                onShop={onShop}
-                onProfile={onProfile}
-            />
             {availableTags.length > 0 && (
                 <TagFilterBar>
                     {availableTags.map((tagObj) => (
                         <TagFilterButton
                             key={tagObj.slug || tagObj.name}
                             type="button"
-                            $active={tagObj.slug === slug}
+                            $active={tagObj.slug === effectiveSlug}
                             onClick={() => {
                                 if (tagObj.slug) {
-                                    window.history.pushState({ page: 'tags', slug: tagObj.slug }, '', `/tags/${tagObj.slug}`);
-                                    window.dispatchEvent(new CustomEvent('navigate-to-tags', { detail: { slug: tagObj.slug } }));
+                                    const currentLang = i18n.language || 'ru';
+                                    const path = currentLang === 'en' ? `/tags/${tagObj.slug}` : `/${currentLang}/tags/${tagObj.slug}`;
+                                    navigate(path);
                                 }
                             }}
                         >
-                            {tagObj.name}
+                            {i18n.language === 'ru' ? tagObj.name_ru || tagObj.name : tagObj.name_en || tagObj.name}
                         </TagFilterButton>
                     ))}
                 </TagFilterBar>

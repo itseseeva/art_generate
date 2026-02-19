@@ -4,6 +4,8 @@ import { authManager } from './auth';
 export type PromptFetchResult = {
   hasPrompt: boolean;
   prompt: string | null;
+  prompt_ru: string | null;
+  prompt_en: string | null;
   promptLength: number;
   characterName: string | null;
   hasErrorMessage: boolean;
@@ -19,12 +21,14 @@ const buildPromptEndpoint = (imageUrl: string, characterName?: string | null): s
 const parsePromptResponse = async (response: Response): Promise<PromptFetchResult> => {
   try {
     const data = await response.json();
-    
-    if (response.ok && data?.success && data.prompt) {
+
+    if (response.ok && data?.success && (data.prompt || data.prompt_ru || data.prompt_en)) {
       const prompt = data.prompt || '';
       return {
         hasPrompt: true,
         prompt: prompt,
+        prompt_ru: data.prompt_ru || prompt,
+        prompt_en: data.prompt_en || prompt,
         promptLength: prompt.length,
         characterName: data.character_name ?? null,
         hasErrorMessage: false,
@@ -36,6 +40,8 @@ const parsePromptResponse = async (response: Response): Promise<PromptFetchResul
     return {
       hasPrompt: false,
       prompt: null,
+      prompt_ru: null,
+      prompt_en: null,
       promptLength: 0,
       characterName: data?.character_name ?? null,
       hasErrorMessage: true,
@@ -45,6 +51,8 @@ const parsePromptResponse = async (response: Response): Promise<PromptFetchResul
     return {
       hasPrompt: false,
       prompt: null,
+      prompt_ru: null,
+      prompt_en: null,
       promptLength: 0,
       characterName: null,
       hasErrorMessage: true,
@@ -61,6 +69,8 @@ export const fetchPromptByImage = async (
     return {
       hasPrompt: false,
       prompt: null,
+      prompt_ru: null,
+      prompt_en: null,
       promptLength: 0,
       characterName: null,
       hasErrorMessage: true,
@@ -75,7 +85,7 @@ export const fetchPromptByImage = async (
     // Используем обычный fetch, если нет токена, иначе используем авторизованный запрос
     const token = authManager.getToken();
     let response: Response;
-    
+
     if (token) {
       // Если есть токен, используем авторизованный запрос
       response = await authManager.fetchWithAuth(endpoint);
@@ -83,7 +93,7 @@ export const fetchPromptByImage = async (
       // Если нет токена, используем обычный fetch
       response = await fetch(endpoint);
     }
-    
+
     const result = await parsePromptResponse(response);
     return result;
   } catch (error) {
@@ -91,6 +101,8 @@ export const fetchPromptByImage = async (
     return {
       hasPrompt: false,
       prompt: null,
+      prompt_ru: null,
+      prompt_en: null,
       promptLength: 0,
       characterName: null,
       hasErrorMessage: true,

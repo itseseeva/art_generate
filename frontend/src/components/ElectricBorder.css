@@ -3,7 +3,7 @@
   --eb-border-width: 2px;
   position: relative;
   border-radius: inherit;
-  overflow: visible;
+  overflow: hidden; /* CRITICAL FIX: предотвращает выход изображения за границы */
   isolation: isolate;
 }
 

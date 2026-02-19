@@ -10,7 +10,8 @@ from app.models.subscription import SubscriptionType
 from app.services.subscription_service import SubscriptionService
 from app.utils.redis_cache import (
     cache_get, cache_set, cache_delete,
-    key_chat_history, TTL_CHAT_HISTORY
+    key_chat_history, TTL_CHAT_HISTORY,
+    key_user_characters, TTL_USER_CHARACTERS
 )
 
 
@@ -24,14 +25,20 @@ class ChatHistoryService:
     async def can_save_history(self, user_id: int) -> bool:
         """
         Проверяет, может ли пользователь сохранять историю чата.
-        КРИТИЧЕСКИ ВАЖНО: PREMIUM обрабатывается так же, как STANDARD - никаких различий.
+        КРИТИЧЕСКИ ВАЖНО: История сохраняется для ВСЕХ пользователей с подпиской (даже неактивной).
+        Это позволяет пользователям просматривать свою историю после истечения подписки.
         """
         subscription = await self.subscription_service.get_user_subscription(user_id)
-        if not subscription or not subscription.is_active:
+        if not subscription:
             return False
         
-        # КРИТИЧЕСКИ ВАЖНО: История должна быть доступна для ВСЕХ подписок, включая FREE
-        # PREMIUM должен работать так же, как STANDARD и FREE
+        # КРИТИЧЕСКИ ВАЖНО: Убираем проверку is_active для СОХРАНЕНИЯ истории
+        # Пользователи должны иметь возможность сохранять историю даже с неактивной подпиской
+        # Ограничения на отправку сообщений применяются в других местах (лимиты подписки)
+        # if not subscription.is_active:
+        #     return False
+        
+        # История должна быть доступна для ВСЕХ подписок, включая FREE
         can_save = subscription.subscription_type in [
             SubscriptionType.FREE, 
             SubscriptionType.STANDARD, 
@@ -212,6 +219,284 @@ class ChatHistoryService:
 
     async def get_user_characters_with_history(self, user_id: int, force_refresh: bool = False) -> List[Dict[str, Any]]:
         """
+        Получает список персонажей, с которыми у пользователя была история переписки.
+        Агрегирует данные из нескольких источников:
+        1. Активные сессии (ChatSession + ChatMessageDB)
+        2. Архивная история (ChatHistory)
+        3. История генерации изображений (ImageGenerationHistory)
+        
+        Гарантирует, что все персонажи, с которыми было взаимодействие, будут в списке.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # 1. Проверяем кэш (если не force_refresh)
+        cache_key = key_user_characters(user_id)
+        if not force_refresh:
+            cached = await cache_get(cache_key)
+            if cached:
+                return cached
+        
+        logger.info(f"[HISTORY_AGGREGATION] Начало агрегации истории для user_id={user_id}")
+        
+        # Словарь для агрегации: key -> Character Data
+        # key: lowercase name (для уникальности)
+        aggregated_chars = {}
+        
+        # Импорты моделей
+        from app.chat_bot.models.models import ChatSession, ChatMessageDB, CharacterDB
+        from app.models.image_generation_history import ImageGenerationHistory
+        from sqlalchemy import func, desc, case
+        
+        try:
+            # === ИСТОЧНИК 1: Активные сессии (ChatSession) ===
+            # Получаем id персонажа, время последнего сообщения, кол-во сообщений
+            # JOIN с ChatMessageDB гарантирует, что сессия не пустая
+            # JOIN с CharacterDB для получения данных персонажа
+            
+            stmt_sessions = (
+                select(
+                    ChatSession.character_id, 
+                    func.max(ChatMessageDB.timestamp).label("last_message_at"),
+                    func.count(ChatMessageDB.id).label("message_count"),
+                    CharacterDB.name,
+                    CharacterDB.display_name,
+                    CharacterDB.main_photos,
+                    CharacterDB.is_nsfw
+                )
+                .join(ChatMessageDB, ChatMessageDB.session_id == ChatSession.id)
+                .join(CharacterDB, CharacterDB.id == ChatSession.character_id)
+                .where(
+                    # Поддержка строкового user_id в ChatSession (legacy)
+                    or_(
+                        ChatSession.user_id == str(user_id),
+                        ChatSession.user_id == f"user_{user_id}",
+                    )
+                )
+                .group_by(ChatSession.character_id, CharacterDB.id) # Group by ID to be safe
+            )
+            
+            result_sessions = await self.db.execute(stmt_sessions)
+            for row in result_sessions:
+                char_id = row[0]
+                last_msg = row[1]
+                msg_count = row[2]
+                name = row[3]
+                display_name = row[4]
+                photos_json = row[5]
+                is_nsfw = row[6]
+                
+                if not name: continue
+                
+                # Основной ключ - имя в нижнем регистре
+                key = name.lower().strip()
+                
+                # Парсим фото
+                last_image_url = None
+                if photos_json:
+                    try:
+                        import json
+                        parsed = json.loads(photos_json)
+                        if isinstance(parsed, list) and parsed:
+                            photos = parsed
+                        elif isinstance(parsed, str):
+                             if parsed.startswith('['):
+                                 photos = json.loads(parsed)
+                             else:
+                                 photos = [parsed]
+                        else:
+                            photos = []
+                        
+                        if photos:
+                             # Если это URL
+                             if isinstance(photos[0], str) and photos[0].startswith('http'):
+                                 last_image_url = photos[0]
+                             # Если это ID фото (static)
+                             elif isinstance(photos[0], str):
+                                 last_image_url = f"/static/photos/{key}/{photos[0]}.png"
+                    except:
+                        pass
+                
+                aggregated_chars[key] = {
+                    "id": char_id,
+                    "name": name,
+                    "display_name": display_name or name,
+                    "last_message_at": last_msg,
+                    "message_count": msg_count,
+                    "last_image_url": last_image_url,
+                    "is_nsfw": is_nsfw,
+                    "source": "session",
+                    "timestamp_obj": last_msg 
+                }
+            
+            logger.info(f"[HISTORY_AGGREGATION] Найдено {len(aggregated_chars)} персонажей в ChatSession")
+            
+            # === ИСТОЧНИК 2: ChatHistory (Архив/Free) ===
+            # КРИТИЧЕСКИ ВАЖНО: JOIN с CharacterDB, чтобы исключить удаленных персонажей ("призраков")
+            stmt_history = (
+                select(
+                    ChatHistory.character_name,
+                    func.max(ChatHistory.created_at).label("last_message_at"),
+                    func.count(ChatHistory.id).label("message_count"),
+                    func.max(ChatHistory.image_url).label("last_image_url")
+                )
+                .join(CharacterDB, func.lower(CharacterDB.name) == func.lower(ChatHistory.character_name))
+                .where(ChatHistory.user_id == user_id)
+                .where(ChatHistory.session_id != 'system')
+                .where(ChatHistory.session_id != 'photo_generation')
+                .group_by(ChatHistory.character_name)
+            )
+            
+            result_history = await self.db.execute(stmt_history)
+            for row in result_history:
+                name = row[0]
+                last_msg = row[1]
+                msg_count = row[2]
+                last_image_url = row[3]
+                
+                if not name: continue
+                
+                key = name.lower().strip()
+                
+                if key in aggregated_chars:
+                    existing = aggregated_chars[key]
+                    existing["message_count"] += msg_count
+                    if last_msg and (not existing["timestamp_obj"] or last_msg > existing["timestamp_obj"]):
+                         existing["last_message_at"] = last_msg
+                         existing["timestamp_obj"] = last_msg
+                         if last_image_url:
+                             existing["last_image_url"] = last_image_url
+                else:
+                    # Новый персонаж из истории. Пробуем найти его в CharacterDB
+                    stmt_char = select(CharacterDB).where(func.lower(CharacterDB.name) == key).limit(1)
+                    char_in_db = (await self.db.execute(stmt_char)).scalar_one_or_none()
+                    
+                    char_id = char_in_db.id if char_in_db else None
+                    display_name = char_in_db.display_name if char_in_db else name
+                    is_nsfw = char_in_db.is_nsfw if char_in_db else False
+                    
+                    if not last_image_url and char_in_db and char_in_db.main_photos:
+                         try:
+                             import json
+                             parsed = json.loads(char_in_db.main_photos)
+                             if parsed:
+                                 p = parsed if isinstance(parsed, list) else [parsed]
+                                 if p:
+                                     last_image_url = p[0] if p[0].startswith('http') else f"/static/photos/{key}/{p[0]}.png"
+                         except: pass
+
+                    aggregated_chars[key] = {
+                        "id": char_id if char_id else name, # Fallback ID to name if not found
+                        "name": name,
+                        "display_name": display_name,
+                        "last_message_at": last_msg,
+                        "message_count": msg_count,
+                        "last_image_url": last_image_url,
+                        "is_nsfw": is_nsfw,
+                        "source": "history",
+                        "timestamp_obj": last_msg
+                    }
+            
+            # === ИСТОЧНИК 3: ImageGenerationHistory ===
+            stmt_images = (
+                select(
+                    ImageGenerationHistory.character_name,
+                    func.max(ImageGenerationHistory.created_at).label("last_gen_at"),
+                    func.max(ImageGenerationHistory.image_url)
+                )
+                .join(CharacterDB, func.lower(CharacterDB.name) == func.lower(ImageGenerationHistory.character_name))
+                .where(ImageGenerationHistory.user_id == user_id)
+                .where(ImageGenerationHistory.character_name.isnot(None))
+                .group_by(ImageGenerationHistory.character_name)
+            )
+            
+            result_images = await self.db.execute(stmt_images)
+            for row in result_images:
+                name = row[0]
+                last_gen = row[1]
+                image_url = row[2]
+                
+                if not name: continue
+                key = name.lower().strip()
+                
+                if key in aggregated_chars:
+                    existing = aggregated_chars[key]
+                    if last_gen and (not existing["timestamp_obj"] or last_gen > existing["timestamp_obj"]):
+                        existing["last_message_at"] = last_gen
+                        existing["timestamp_obj"] = last_gen
+                        if image_url:
+                            existing["last_image_url"] = image_url
+                else:
+                    # Новый персонаж из галереи
+                    # Также пробуем найти его данные
+                    stmt_char = select(CharacterDB).where(func.lower(CharacterDB.name) == key).limit(1)
+                    char_in_db = (await self.db.execute(stmt_char)).scalar_one_or_none()
+                    
+                    char_id = char_in_db.id if char_in_db else None
+                    display_name = char_in_db.display_name if char_in_db else name
+                    
+                    if not image_url and char_in_db and char_in_db.main_photos:
+                         try:
+                             import json
+                             parsed = json.loads(char_in_db.main_photos)
+                             if parsed:
+                                 p = parsed if isinstance(parsed, list) else [parsed]
+                                 if p:
+                                     image_url = p[0] if p[0].startswith('http') else f"/static/photos/{key}/{p[0]}.png"
+                         except: pass
+                    
+                    aggregated_chars[key] = {
+                        "id": char_id if char_id else name,
+                        "name": name,
+                        "display_name": display_name,
+                        "last_message_at": last_gen,
+                        "message_count": 0,
+                        "last_image_url": image_url,
+                        "is_nsfw": char_in_db.is_nsfw if char_in_db else False,
+                        "source": "gallery",
+                        "timestamp_obj": last_gen
+                    }
+
+            # === Формирование финала ===
+            final_list = []
+            
+            for key, data in aggregated_chars.items():
+                if not data["last_message_at"]:
+                    continue
+                    
+                ts = data["last_message_at"]
+                iso_time = ts.isoformat() if hasattr(ts, 'isoformat') else str(ts)
+                
+                final_item = {
+                    "id": data["id"], 
+                    "name": data["name"], # Frontend expects 'name'
+                    "display_name": data["display_name"],
+                    "last_message_at": iso_time,
+                    "message_count": data["message_count"],
+                    "last_image_url": data["last_image_url"],
+                    "is_nsfw": data["is_nsfw"],
+                    "photos": [data["last_image_url"]] if data["last_image_url"] else []
+                }
+                final_list.append(final_item)
+            
+            final_list.sort(key=lambda x: x["last_message_at"] or "", reverse=True)
+            
+            logger.info(f"[HISTORY_AGGREGATION] Итоговый список: {len(final_list)} персонажей")
+            
+            await cache_set(cache_key, final_list, ttl_seconds=TTL_USER_CHARACTERS)
+            
+            return final_list
+            
+        except Exception as e:
+            logger.error(f"[HISTORY_AGGREGATION_ERROR] {e}", exc_info=True)
+            try:
+                await self.db.rollback()
+            except Exception:
+                pass
+            return []
+
+    async def _old_get_user_characters_with_history(self, user_id: int, force_refresh: bool = False) -> List[Dict[str, Any]]:
+        """
         Получает список персонажей, с которыми у пользователя есть НЕЗАКОНЧЕННЫЙ диалог.
         Показывает только тех персонажей, с которыми пользователь реально общался (есть сообщения).
         Для STANDARD и PREMIUM подписок возвращает персонажей с незаконченными диалогами.
@@ -254,11 +539,14 @@ class ChatHistoryService:
             #     print(f"[DEBUG] Пользователь {user_id} имеет FREE подписку - возвращаем пустой список")
             #     return []
             
-            if not subscription.is_active:
-                print(f"[DEBUG] Пользователь {user_id} имеет неактивную подписку {subscription_type_value} - возвращаем пустой список")
-                return []
+            # КРИТИЧЕСКИ ВАЖНО: Убираем проверку is_active для ОТОБРАЖЕНИЯ истории
+            # Пользователи должны видеть свою историю даже с неактивной подпиской
+            # Проверка is_active остаётся только для СОХРАНЕНИЯ новых сообщений (в can_save_history)
+            # if not subscription.is_active:
+            #     print(f"[DEBUG] Пользователь {user_id} имеет неактивную подписку {subscription_type_value} - возвращаем пустой список")
+            #     return []
             
-            print(f"[DEBUG] Пользователь {user_id} имеет активную подписку {subscription_type_value} - получаем персонажей с историей")
+            print(f"[DEBUG] Пользователь {user_id} имеет подписку {subscription_type_value} (active={is_active}) - получаем персонажей с историей")
 
             characters: Dict[str, Dict[str, Any]] = {}
 
@@ -488,6 +776,7 @@ class ChatHistoryService:
                         "name": character_name,
                         "last_message_at": display_time.isoformat() if hasattr(display_time, 'isoformat') else str(display_time),
                         "last_image_url": last_image_url,
+                        "message_count": message_count  # Добавляем количество сообщений
                     }
                     print(f"[DEBUG] ДОБАВЛЕН персонаж {character_name} (id={character_id}) с историей: message_count={message_count}, last_message_at={display_time.isoformat() if hasattr(display_time, 'isoformat') else str(display_time)}, has_image={bool(last_image_url)}")
             except Exception as e:
@@ -580,6 +869,7 @@ class ChatHistoryService:
                             "name": character_name,
                             "last_message_at": last_message_at.isoformat() if last_message_at else None,
                             "last_image_url": last_image_url,
+                            "message_count": message_count  # Добавляем количество сообщений
                         }
                     print(f"[DEBUG] Добавлен персонаж из ChatHistory {character_name} (id={character_id}) с историей: message_count={message_count}, last_message_at={last_message_at}, has_image={bool(last_image_url)}")
             except Exception as e:
@@ -861,11 +1151,17 @@ class ChatHistoryService:
                         if not has_image:
                             continue
                 
+                # Добавляем message_count если его нет
+                if 'message_count' not in char:
+                    char['message_count'] = 0
+                
                 final_result.append(char)
             
             # Финальная сортировка по времени
-            final_result = list(characters.values())
+            # КРИТИЧЕСКИ ВАЖНО: Сортируем уже отфильтрованный список final_result, а не characters.values()
             final_result.sort(key=lambda x: x.get('last_message_at') or "", reverse=True)
+            
+            print(f"[DEBUG] Возвращаем {len(final_result)} персонажей с историей: {[c['name'] for c in final_result]}")
             
             # Сохраняем в кэш
             await cache_set(cache_key, final_result, ttl_seconds=TTL_USER_CHARACTERS)

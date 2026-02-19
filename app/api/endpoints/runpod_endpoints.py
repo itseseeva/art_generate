@@ -8,7 +8,7 @@ from celery.result import AsyncResult
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database.db import get_db
+from app.database.db_depends import get_db
 from app.tasks.runpod_tasks import (
     generate_image_runpod_task,
     generate_image_batch_task,

@@ -1,5 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
+import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { theme } from '../theme';
 
 const SidebarContainer = styled.div`
@@ -303,16 +305,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
   modelInfo = "Загрузка...",
   userInfo
 }) => {
+  const { t } = useTranslation();
   return (
     <SidebarContainer>
       <Logo>
         <h2>AI Chat</h2>
-        <p>Выберите персонажа для общения</p>
+        <p>{t('sidebar.selectCharacter')}</p>
       </Logo>
 
       <CharactersSection>
         <InfoSection>
-          <SectionTitle>Доступные персонажи</SectionTitle>
+          <SectionTitle>{t('sidebar.availableCharacters')}</SectionTitle>
           <CharacterList>
             {characters.map((character) => (
               <CharacterItem
@@ -334,22 +337,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </CharactersSection>
 
       <InfoSection>
-        <SectionTitle>Информация</SectionTitle>
+        <SectionTitle>{t('sidebar.info')}</SectionTitle>
         <ModelInfo>{modelInfo}</ModelInfo>
       </InfoSection>
 
       <QuickActions>
         <QuickActionButton onClick={() => onQuickAction('gallery')}>
-          Платная галерея
+          {t('nav.paidGallery')}
         </QuickActionButton>
         <QuickActionButton onClick={() => onQuickAction('shop')}>
-          Магазин
+          {t('nav.shop')}
         </QuickActionButton>
         <QuickActionButton onClick={() => onQuickAction('create')}>
-          Создать персонажа
+          {t('nav.createCharacter')}
         </QuickActionButton>
         <QuickActionButton onClick={() => onQuickAction('clear')}>
-          Очистить чат
+          {t('nav.clearChat')}
         </QuickActionButton>
       </QuickActions>
 
@@ -357,11 +360,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {isAuthenticated && userInfo ? (
           <UserInfo>
             <UserName>{userInfo.username}</UserName>
-            <UserStatus>Авторизован</UserStatus>
+            <UserStatus>{t('sidebar.authenticated')}</UserStatus>
           </UserInfo>
         ) : (
           <AuthButton onClick={onAuthClick}>
-            Войти в систему
+            {t('sidebar.login')}
           </AuthButton>
         )}
       </AuthSection>

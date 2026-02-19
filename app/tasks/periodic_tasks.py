@@ -169,111 +169,15 @@ def clear_expired_cache_task(self) -> Dict[str, Any]:
 )
 def transfer_expired_subscription_credits_task(self) -> Dict[str, Any]:
     """
-    Переводит остатки кредитов истекших подписок на баланс пользователей.
-    Выполняется ежедневно для обработки истекших подписок.
-    
-    Returns:
-        Dict с результатами обработки
+    DEPRECATED: Система кредитов удалена.
+    Эта задача больше не выполняется.
     """
-    try:
-        import asyncio
-        from app.database.db import async_session_maker
-        from app.models.subscription import UserSubscription, SubscriptionStatus
-        from app.models.user import Users
-        from sqlalchemy import select
-        
-        async def transfer_credits():
-            async with async_session_maker() as db:
-                stats = {
-                    "processed": 0,
-                    "credits_transferred": 0,
-                    "errors": []
-                }
-                
-                try:
-                    # Находим истекшие подписки со статусом ACTIVE
-                    now = datetime.utcnow()
-                    query = select(UserSubscription).where(
-                        UserSubscription.status == SubscriptionStatus.ACTIVE,
-                        UserSubscription.expires_at < now
-                    )
-                    result = await db.execute(query)
-                    expired_subscriptions = result.scalars().all()
-                    
-                    for subscription in expired_subscriptions:
-                        try:
-                            # Вычисляем остатки кредитов
-                            credits_remaining = max(0, subscription.monthly_credits - subscription.used_credits)
-                            
-                            if credits_remaining > 0:
-                                # Получаем пользователя
-                                user_query = select(Users).where(Users.id == subscription.user_id)
-                                user_result = await db.execute(user_query)
-                                user = user_result.scalars().first()
-                                
-                                if user:
-                                    # Переводим кредиты на баланс
-                                    old_balance = user.coins
-                                    user.coins += credits_remaining
-                                    
-                                    # Записываем историю баланса
-                                    try:
-                                        from app.utils.balance_history import record_balance_change
-                                        await record_balance_change(
-                                            db=db,
-                                            user_id=user.id,
-                                            amount=credits_remaining,
-                                            reason=f"Остатки кредитов истекшей подписки {subscription.subscription_type.value.upper()} переведены на баланс"
-                                        )
-                                    except Exception as e:
-                                        logger.warning(f"Не удалось записать историю баланса для user_id={user.id}: {e}")
-                                    
-                                    # Устанавливаем статус EXPIRED
-                                    subscription.status = SubscriptionStatus.EXPIRED
-                                    subscription.used_credits = subscription.monthly_credits  # Сбрасываем остатки
-                                    
-                                    stats["processed"] += 1
-                                    stats["credits_transferred"] += credits_remaining
-                                    
-                                    logger.info(
-                                        f"[EXPIRED SUBSCRIPTION] user_id={user.id}, "
-                                        f"credits_transferred={credits_remaining}, "
-                                        f"balance: {old_balance} -> {user.coins}"
-                                    )
-                        except Exception as e:
-                            error_msg = f"Ошибка обработки подписки user_id={subscription.user_id}: {e}"
-                            stats["errors"].append(error_msg)
-                            logger.error(error_msg)
-                    
-                    await db.commit()
-                    
-                except Exception as e:
-                    await db.rollback()
-                    stats["errors"].append(str(e))
-                    logger.error(f"[EXPIRED SUBSCRIPTION] Ошибка обработки: {e}")
-                    raise
-                
-                return stats
-        
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            stats = loop.run_until_complete(transfer_credits())
-        finally:
-            loop.close()
-        
-        logger.info(f"[EXPIRED SUBSCRIPTION] Обработка завершена: {stats}")
-        return {
-            "success": True,
-            "stats": stats
-        }
-        
-    except Exception as exc:
-        logger.error(f"[EXPIRED SUBSCRIPTION] Критическая ошибка: {exc}")
-        return {
-            "success": False,
-            "error": str(exc)
-        }
+    logger.info("[DEPRECATED] transfer_expired_subscription_credits_task больше не используется")
+    return {
+        "success": True,
+        "deprecated": True,
+        "message": "Система кредитов удалена"
+    }
 
 
 @celery_app.task(
@@ -523,10 +427,15 @@ def check_subscription_limits_reset_task(self) -> Dict[str, Any]:
                     
                     for sub in subscriptions:
                         try:
-                            if sub.should_reset_limits():
-                                logger.info(f"[LIMIT RESET] Сброс лимитов для user_id={sub.user_id}, last_reset={sub.last_reset_at}")
+                            # Сбрасываем лимиты ТОЛЬКО для FREE подписок
+                            from app.models.subscription import SubscriptionType
+                            if sub.subscription_type == SubscriptionType.FREE and sub.should_reset_limits():
+                                logger.info(f"[LIMIT RESET] Сброс лимитов для FREE user_id={sub.user_id}, last_reset={sub.last_reset_at}")
                                 sub.reset_monthly_limits()
                                 stats["reset_count"] += 1
+                            elif sub.subscription_type in [SubscriptionType.STANDARD, SubscriptionType.PREMIUM]:
+                                # Для платных подписок лимиты НЕ сбрасываются - они накапливаются
+                                pass
                         except Exception as e:
                             error_msg = f"Ошибка при сбросе лимитов для user_id={sub.user_id}: {e}"
                             stats["errors"].append(error_msg)

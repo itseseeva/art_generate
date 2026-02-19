@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
-import { GlobalHeader } from './GlobalHeader';
 import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
 import { FiArrowLeft, FiAlertTriangle, FiSend, FiMessageSquare, FiTrash2 } from 'react-icons/fi';
@@ -758,11 +757,6 @@ export const BugReportPage: React.FC<BugReportPageProps> = ({
 
   return (
     <MainContainer>
-      <GlobalHeader
-        onHome={onBackToMain}
-        onProfile={onProfile}
-        onLogout={handleLogout}
-      />
       <ContentContainer>
         <LeftColumn>
           <PageTitle>

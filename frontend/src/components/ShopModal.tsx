@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
+import { useTranslation } from 'react-i18next';
 
 const ModalOverlay = styled.div`
   position: fixed;
@@ -108,10 +109,10 @@ const SubscriptionPlans = styled.div`
   gap: ${theme.spacing.lg};
 `;
 
-const PlanCard = styled.div<{ $isPopular?: boolean }>`
+const PlanCard = styled.div<{ $isPopular?: boolean; $popularText?: string }>`
   background: ${theme.colors.background.secondary};
-  border: 2px solid ${props => props.$isPopular 
-    ? theme.colors.accent.primary 
+  border: 2px solid ${props => props.$isPopular
+    ? theme.colors.accent.primary
     : theme.colors.border.primary
   };
   border-radius: ${theme.borderRadius.lg};
@@ -127,7 +128,7 @@ const PlanCard = styled.div<{ $isPopular?: boolean }>`
   
   ${props => props.$isPopular && `
     &::before {
-      content: 'Популярный';
+      content: '${props.$popularText}';
       position: absolute;
       top: -10px;
       left: 50%;
@@ -198,7 +199,7 @@ const ActivateButton = styled.button`
 `;
 
 const ErrorMessage = styled.div`
-  color: ${theme.colors.error};
+  color: ${theme.colors.status.error};
   font-size: ${theme.fontSize.sm};
   margin-top: ${theme.spacing.sm};
   text-align: center;
@@ -225,6 +226,7 @@ export const ShopModal: React.FC<ShopModalProps> = ({
   isAuthenticated,
   onActivateSubscription
 }) => {
+  const { t } = useTranslation();
   const [stats, setStats] = useState<SubscriptionStats | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -245,30 +247,30 @@ export const ShopModal: React.FC<ShopModalProps> = ({
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (response.ok) {
         const statsData = await response.json();
         setStats(statsData);
       }
     } catch (error) {
-      
+
     }
   };
 
   const handleActivateSubscription = async (subscriptionType: string) => {
     if (!isAuthenticated) {
-      setError('Необходимо войти в систему');
+      setError(t('shop.errors.loginRequired'));
       return;
     }
 
     setIsLoading(true);
     setError(null);
-    
+
     try {
       await onActivateSubscription(subscriptionType);
       await loadSubscriptionStats(); // Обновляем статистику
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Ошибка активации подписки');
+      setError(error instanceof Error ? error.message : t('shop.errors.activationError'));
     } finally {
       setIsLoading(false);
     }
@@ -287,96 +289,96 @@ export const ShopModal: React.FC<ShopModalProps> = ({
     <ModalOverlay onClick={handleClose}>
       <ModalContent onClick={(e) => e.stopPropagation()}>
         <ModalHeader>
-          <ModalTitle>Магазин</ModalTitle>
+          <ModalTitle>{t('nav.shop')}</ModalTitle>
           <CloseButton onClick={handleClose}>×</CloseButton>
         </ModalHeader>
-        
+
         {isAuthenticated && stats && (
           <StatsSection>
-            <StatsTitle>📊 Статистика подписки</StatsTitle>
+            <StatsTitle>{t('shop.stats.title')}</StatsTitle>
             <StatsGrid>
               <StatItem>
                 <StatValue>{stats.used_credits || 0}</StatValue>
-                <StatLabel>Использовано кредитов</StatLabel>
+                <StatLabel>{t('shop.stats.usedCredits')}</StatLabel>
               </StatItem>
               <StatItem>
                 <StatValue>{stats.total_credits || 100}</StatValue>
-                <StatLabel>Всего кредитов</StatLabel>
+                <StatLabel>{t('shop.stats.totalCredits')}</StatLabel>
               </StatItem>
               <StatItem>
                 <StatValue>{stats.used_photos || 0}</StatValue>
-                <StatLabel>Использовано фото</StatLabel>
+                <StatLabel>{t('shop.stats.usedPhotos')}</StatLabel>
               </StatItem>
               <StatItem>
                 <StatValue>{stats.total_photos || 10}</StatValue>
-                <StatLabel>Всего фото</StatLabel>
+                <StatLabel>{t('shop.stats.totalPhotos')}</StatLabel>
               </StatItem>
               <StatItem>
                 <StatValue>{stats.days_left || 30}</StatValue>
-                <StatLabel>Дней осталось</StatLabel>
+                <StatLabel>{t('shop.stats.daysLeft')}</StatLabel>
               </StatItem>
             </StatsGrid>
           </StatsSection>
         )}
-        
+
         <SubscriptionSection>
-          <SectionTitle>Планы подписки</SectionTitle>
+          <SectionTitle>{t('shop.plans.title')}</SectionTitle>
           <SubscriptionPlans>
             <PlanCard>
-              <PlanName>Базовый</PlanName>
+              <PlanName>{t('shop.plans.basic.name')}</PlanName>
               <PlanPrice>299₽</PlanPrice>
               <PlanFeatures>
-                <PlanFeature>100 кредитов в месяц</PlanFeature>
-                <PlanFeature>10 генераций фото</PlanFeature>
-                <PlanFeature>Базовые персонажи</PlanFeature>
-                <PlanFeature>Поддержка 24/7</PlanFeature>
+                <PlanFeature>{t('shop.plans.basic.features.credits')}</PlanFeature>
+                <PlanFeature>{t('shop.plans.basic.features.photos')}</PlanFeature>
+                <PlanFeature>{t('shop.plans.basic.features.characters')}</PlanFeature>
+                <PlanFeature>{t('shop.plans.basic.features.support')}</PlanFeature>
               </PlanFeatures>
-              <ActivateButton 
+              <ActivateButton
                 onClick={() => handleActivateSubscription('basic')}
                 disabled={isLoading}
               >
-                {isLoading ? 'Активация...' : 'Активировать'}
+                {isLoading ? t('shop.buttons.activating') : t('shop.buttons.activate')}
               </ActivateButton>
             </PlanCard>
-            
-            <PlanCard $isPopular>
-              <PlanName>Премиум</PlanName>
+
+            <PlanCard $isPopular $popularText={t('shop.popular')}>
+              <PlanName>{t('shop.plans.premium.name')}</PlanName>
               <PlanPrice>1299₽</PlanPrice>
               <PlanFeatures>
-                <PlanFeature>500 кредитов в месяц</PlanFeature>
-                <PlanFeature>50 генераций фото</PlanFeature>
-                <PlanFeature>Все персонажи</PlanFeature>
-                <PlanFeature>Приоритетная поддержка</PlanFeature>
-                <PlanFeature>Эксклюзивные функции</PlanFeature>
+                <PlanFeature>{t('shop.plans.premium.features.credits')}</PlanFeature>
+                <PlanFeature>{t('shop.plans.premium.features.photos')}</PlanFeature>
+                <PlanFeature>{t('shop.plans.premium.features.characters')}</PlanFeature>
+                <PlanFeature>{t('shop.plans.premium.features.support')}</PlanFeature>
+                <PlanFeature>{t('shop.plans.premium.features.exclusive')}</PlanFeature>
               </PlanFeatures>
-              <ActivateButton 
+              <ActivateButton
                 onClick={() => handleActivateSubscription('premium')}
                 disabled={isLoading}
               >
-                {isLoading ? 'Активация...' : 'Активировать'}
+                {isLoading ? t('shop.buttons.activating') : t('shop.buttons.activate')}
               </ActivateButton>
             </PlanCard>
-            
+
             <PlanCard>
-              <PlanName>VIP</PlanName>
+              <PlanName>{t('shop.plans.vip.name')}</PlanName>
               <PlanPrice>999₽</PlanPrice>
               <PlanFeatures>
-                <PlanFeature>1000 кредитов в месяц</PlanFeature>
-                <PlanFeature>Все персонажи + новые</PlanFeature>
-                <PlanFeature>Персональный менеджер</PlanFeature>
-                <PlanFeature>Ранний доступ к функциям</PlanFeature>
-                <PlanFeature>Создание кастомных персонажей</PlanFeature>
+                <PlanFeature>{t('shop.plans.vip.features.credits')}</PlanFeature>
+                <PlanFeature>{t('shop.plans.vip.features.characters')}</PlanFeature>
+                <PlanFeature>{t('shop.plans.vip.features.manager')}</PlanFeature>
+                <PlanFeature>{t('shop.plans.vip.features.earlyAccess')}</PlanFeature>
+                <PlanFeature>{t('shop.plans.vip.features.custom')}</PlanFeature>
               </PlanFeatures>
-              <ActivateButton 
+              <ActivateButton
                 onClick={() => handleActivateSubscription('vip')}
                 disabled={isLoading}
               >
-                {isLoading ? 'Активация...' : 'Активировать'}
+                {isLoading ? t('shop.buttons.activating') : t('shop.buttons.activate')}
               </ActivateButton>
             </PlanCard>
           </SubscriptionPlans>
         </SubscriptionSection>
-        
+
         {error && <ErrorMessage>{error}</ErrorMessage>}
       </ModalContent>
     </ModalOverlay>

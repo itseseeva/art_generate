@@ -1,5 +1,6 @@
 import React from 'react';
 import styled, { keyframes } from 'styled-components';
+import { useTranslation } from 'react-i18next';
 import { theme } from '../../theme';
 
 const CircularProgressContainer = styled.div`
@@ -69,11 +70,12 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
   size = 64,
   showLabel = true
 }) => {
+  const { t } = useTranslation();
   const radius = size / 2 - 5;
   const circumference = 2 * Math.PI * radius;
   const clampedProgress = Math.min(100, Math.max(0, progress));
   const offset = circumference * (1 - clampedProgress / 100);
-  
+
   // Создаем уникальный ID для градиента (не зависит от прогресса для стабильности)
   const gradientId = `gradient-${size}`;
 
@@ -116,7 +118,7 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
         </CircularProgressText>
       </CircularProgressWrapper>
       {showLabel && (
-        <ProgressLabel style={{ marginTop: '8px' }}>Генерация изображения</ProgressLabel>
+        <ProgressLabel style={{ marginTop: '8px' }}>{t('photoGen.generatingImage')}</ProgressLabel>
       )}
     </CircularProgressContainer>
   );

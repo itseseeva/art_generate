@@ -12,6 +12,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime
+from app.models.subscription import UserSubscription, SubscriptionType, SubscriptionStatus
 
 from app.chat_bot.config.chat_config import chat_config
 from app.chat_bot.schemas.chat import SimpleChatRequest, ChatMessage
@@ -25,8 +26,11 @@ from app.chat_bot.schemas.chat import TTSRequest, VoicePreviewRequest
 from app.services.tts_service import generate_tts_audio, generate_voice_preview
 from app.services.coins_service import CoinsService
 from app.services.profit_activate import emit_profile_update
+from app.chat_bot.utils.prompt_utils import get_system_prompt
 
 logger = logging.getLogger(__name__)
+
+# get_system_prompt moved to app.chat_bot.utils.prompt_utils
 
 router = APIRouter()
 
@@ -78,37 +82,9 @@ async def chat_with_character(
         if not character:
             raise HTTPException(status_code=404, detail=f"Персонаж '{character_name}' не найден")
         
-        character_config = CharacterConfig(
-            id=character.id,
-            name=character.name,
-            prompt=character.prompt,
-            location=character.location
-        )
-        
-        # Формируем языковую инструкцию
+        # Формируем системный промпт
         target_lang = request.target_language or "ru"
-        if target_lang == "ru":
-            lang_instruction = """\n\nCRITICAL LANGUAGE REQUIREMENTS:
-- You MUST write your response STRICTLY in RUSSIAN language
-- NEVER use Chinese, Japanese, Korean or any Asian languages
-- NEVER use Chinese characters (我, 你, 的, 是, 在, 我的手, 轻轻, 抚摸, 触摸, 你的脸庞, 我等待, etc.)
-- NEVER use any hieroglyphs or Asian symbols
-- Write in Russian using normal Cyrillic alphabet
-- If you use Chinese characters, you will be penalized. STRICTLY RUSSIAN ONLY."""
-        elif target_lang == "en":
-            lang_instruction = """\n\nCRITICAL LANGUAGE REQUIREMENTS:
-- You MUST write your response STRICTLY in ENGLISH language
-- NEVER use Russian, Chinese, Japanese, or any other languages
-- NEVER use Chinese characters (我, 你, 的, 是, 在, 触摸, etc.) or any hieroglyphs
-- Write in English using Latin alphabet only
-- If you use any other characters, you will be penalized. STRICTLY ENGLISH ONLY."""
-        else:
-            lang_instruction = """\n\nCRITICAL LANGUAGE REQUIREMENTS:
-- You MUST write your response STRICTLY in RUSSIAN language
-- NEVER use Chinese, Japanese, Korean or any Asian languages
-- NEVER use Chinese characters or hieroglyphs
-- Write in Russian using Cyrillic alphabet
-- STRICTLY RUSSIAN ONLY."""
+        system_prompt = get_system_prompt(character, target_lang)
 
         # Получаем данные о подписке пользователя
         from app.models.subscription import UserSubscription, SubscriptionType, SubscriptionStatus
@@ -138,8 +114,13 @@ async def chat_with_character(
         # subscription_type_enum УЖЕ определен выше на строках 114-128
         
         # Определяем модель ПЕРЕД расчетом лимитов
+        # Определяем модель ПЕРЕД расчетом лимитов
         from app.chat_bot.services.openrouter_service import get_model_for_subscription
-        model_to_pass = request.model if request.model and subscription_type_enum == SubscriptionType.PREMIUM else None
+        
+        # Исправленная проверка прав (аналогично gallery.py)
+        sub_type_str = str(subscription_type_enum.value).lower() if hasattr(subscription_type_enum, 'value') else str(subscription_type_enum).lower()
+        model_to_pass = request.model if request.model and sub_type_str == 'premium' else None
+        
         model_to_use = model_to_pass if model_to_pass else await get_model_for_subscription(subscription_type_enum)
         
         # Определяем лимиты контекста
@@ -153,29 +134,11 @@ async def chat_with_character(
         if request.max_tokens:
             max_tokens = max(100, min(800, request.max_tokens))
         
-        # Добавляем инструкцию краткости если режим "brief" (НЕ влияет на max_tokens, только на промпт)
-        brevity_instruction = ""
-        if request.brevity_mode == "brief":
-            # УСИЛЕННАЯ инструкция краткости
-            brevity_instruction = (
-                "\n\n[SYSTEM] IMPERATIVE: Keep the answer CONCISE and COMPACT. "
-                "Do not write long paragraphs. Get straight to the point. "
-                "Maximum 1-2 paragraphs (~150 words). Avoid fluffy language."
-            )
-
-        # --- BEST PRACTICE: ПРЕДОТВРАЩЕНИЕ ОБРЫВОВ ТЕКСТА ---
-        # 1. Задаем модели целевой лимит в промпте
-        target_token_limit = max_tokens
-        
-        # 2. Даем API запас (buffer) +25%, чтобы модель могла закончить мысль (было 15%)
-        # Если модель выйдет за лимит, она просто будет обрезана API, но мы пытаемся этого избежать промптом
-        api_max_tokens = int(max_tokens * 1.25)
-        
-        # 3. Добавляем КРИТИЧЕСКУЮ инструкцию в промпт
-        completion_instruction = f"\n\n[SYSTEM] ATTENTION: Your response MUST BE COMPLETE. You have a limit of approx {target_token_limit} tokens. Be concise, dense, but ALWAYS finish your last sentence naturally. NEVER stop in the middle of a thought."
-        
         # Обновляем системный промпт
-        system_prompt_with_limit = character.prompt + brevity_instruction + completion_instruction + lang_instruction
+        system_prompt_with_limit = system_prompt + brevity_instruction + completion_instruction
+        
+        # ВЫВОДИМ ДЕФОЛТНЫЙ ПРОМПТ В КОНСОЛЬ
+        logger.info(f"\n{'#'*80}\n[SYSTEM PROMPT]\n{system_prompt_with_limit}\n{'#'*80}")
         
         # Используем api_max_tokens для запроса
         effective_max_tokens = api_max_tokens
@@ -235,7 +198,7 @@ async def chat_with_character(
             # 3. Текущее сообщение пользователя
             openai_messages.append({
                 "role": "user",
-                "content": request.message
+                "content": request.message or ""
             })
             
             # 4. Проверяем и обрезаем по лимиту токенов контекста
@@ -260,7 +223,7 @@ async def chat_with_character(
                 },
                 {
                     "role": "user",
-                    "content": request.message
+                    "content": request.message or ""
                 }
             ]
             
@@ -279,6 +242,19 @@ async def chat_with_character(
         final_tokens = count_messages_tokens(messages)
         logger.info(f"[CHAT_BOT] ОТПРАВКА ЗАПРОСА: Модель={model_to_use}, Контекст={final_tokens}/{max_context_tokens} токенов, Подписка={subscription_type_enum.value if subscription_type_enum else 'FREE'}")
         
+        # DEBUG LOGGING TO CONSOLE
+        try:
+            log_entry = {
+                "timestamp": datetime.now().isoformat(),
+                "mode": "chat",
+                "model": model_to_use,
+                "max_tokens": effective_max_tokens,
+                "messages": messages
+            }
+            logger.info(f"[DEBUG-PROMPT] Payload: {json.dumps(log_entry, ensure_ascii=False)}")
+        except Exception as e:
+            logger.error(f"Failed to log debug info: {e}")
+
         response_text = await openrouter_service.generate_text(
             messages=messages,
             max_tokens=effective_max_tokens,
@@ -312,9 +288,6 @@ async def chat_with_character(
             can_save_session = False
             if current_user:
                 from app.models.subscription import UserSubscription, SubscriptionType, SubscriptionStatus
-                from sqlalchemy import select
-                import logging
-                logger = logging.getLogger(__name__)
                 
                 # Получаем самую новую активную подписку (если есть несколько записей)
                 subscription_query = await db.execute(
@@ -415,10 +388,14 @@ async def chat_with_character_stream(
         if not character:
             raise HTTPException(status_code=404, detail=f"Персонаж '{character_name}' не найден")
         
+        # Формируем системный промпт
+        target_lang = request.target_language or "ru"
+        system_prompt = get_system_prompt(character, target_lang)
+        
         character_config = CharacterConfig(
             id=character.id,
             name=character.name,
-            prompt=character.prompt,
+            prompt=constructed_prompt,
             location=character.location
         )
         
@@ -464,7 +441,10 @@ async def chat_with_character_stream(
                 subscription_type_enum = user_subscription.subscription_type
 
         # Для премиум-пользователей проверяем выбранную модель
-        model_to_pass = request.model if request.model and subscription_type_enum == SubscriptionType.PREMIUM else None
+        # Для премиум-пользователей проверяем выбранную модель
+        # Исправленная проверка прав (аналогично gallery.py)
+        sub_type_str = str(subscription_type_enum.value).lower() if hasattr(subscription_type_enum, 'value') else str(subscription_type_enum).lower()
+        model_to_pass = request.model if request.model and sub_type_str == 'premium' else None
         
         # Определяем модель для внутренних расчетов (лимиты, промпты)
         from app.chat_bot.services.openrouter_service import get_model_for_subscription
@@ -505,7 +485,7 @@ async def chat_with_character_stream(
         completion_instruction = f"\n\n[SYSTEM] ATTENTION: Your response MUST BE COMPLETE. You have a limit of approx {target_token_limit} tokens. Be concise, dense, but ALWAYS finish your last sentence naturally. NEVER stop in the middle of a thought."
         
         # Собираем базовый системный промпт (персонаж)
-        system_prompt_with_limit = character.prompt
+        system_prompt_with_limit = system_prompt
         
         # Используем api_max_tokens для запроса
         effective_max_tokens = api_max_tokens
@@ -519,44 +499,18 @@ async def chat_with_character_stream(
         
         logger.info(f"[CONTEXT STREAM] Модель: {model_to_use}, Коридор токенов: target={target_token_limit}, api={effective_max_tokens}")
         
-        # Формируем языковую инструкцию
-        target_lang = request.target_language or "ru"
-        if target_lang == "ru":
-            lang_instruction = """\n\nCRITICAL LANGUAGE REQUIREMENTS:
-- You MUST write your response STRICTLY in RUSSIAN language
-- NEVER use Chinese, Japanese, Korean or any Asian languages
-- NEVER use Chinese characters (我, 你, 的, 是, 在, 我的手, 轻轻, 抚摸, 触摸, 你的脸庞, 我等待, etc.)
-- NEVER use any hieroglyphs or Asian symbols
-- Write in Russian using normal Cyrillic alphabet
-- If you use Chinese characters, you will be penalized. STRICTLY RUSSIAN ONLY."""
-        elif target_lang == "en":
-            lang_instruction = """\n\nCRITICAL LANGUAGE REQUIREMENTS:
-- You MUST write your response STRICTLY in ENGLISH language
-- NEVER use Russian, Chinese, Japanese, or any other languages
-- NEVER use Chinese characters (我, 你, 的, 是, 在, 触摸, etc.) or any hieroglyphs
-- Write in English using Latin alphabet only
-- If you use any other characters, you will be penalized. STRICTLY ENGLISH ONLY."""
-        else:
-            lang_instruction = """\n\nCRITICAL LANGUAGE REQUIREMENTS:
-- You MUST write your response STRICTLY in RUSSIAN language
-- NEVER use Chinese, Japanese, Korean or any Asian languages
-- NEVER use Chinese characters or hieroglyphs
-- Write in Russian using Cyrillic alphabet
-- STRICTLY RUSSIAN ONLY."""
-
-        # Добавляем языковую инструкцию
-        system_prompt_with_limit += lang_instruction
-        
         # !!! ВАЖНО !!! Добавляем инструкции по длине и завершению В САМЫЙ КОНЕЦ
         # Это использует Recency Bias - модели лучше следуют последним инструкциям
         system_prompt_with_limit += "\n\n" + "-"*20 + "\nFORMAT INSTRUCTIONS:"
         system_prompt_with_limit += brevity_instruction
         system_prompt_with_limit += completion_instruction
         
+        # ВЫВОДИМ ДЕФОЛТНЫЙ ПРОМПТ В КОНСОЛЬ
+        logger.info(f"\n{'#'*80}\n[SYSTEM PROMPT STREAM]\n{system_prompt_with_limit}\n{'#'*80}")
+        
         # Формируем массив messages для OpenAI API
         if chat_session:
             # Получаем историю сообщений
-            from app.chat_history.models.chat_history import ChatMessageDB
             messages_query = (
                 select(ChatMessageDB)
                 .where(ChatMessageDB.session_id == chat_session.id)
@@ -592,7 +546,7 @@ async def chat_with_character_stream(
             # 3. Текущее сообщение пользователя
             openai_messages.append({
                 "role": "user",
-                "content": request.message
+                "content": request.message or ""
             })
             
             # 4. Обрезаем по лимиту токенов контекста
@@ -617,7 +571,7 @@ async def chat_with_character_stream(
                 },
                 {
                     "role": "user",
-                    "content": request.message
+                    "content": request.message or ""
                 }
             ]
         
@@ -647,6 +601,19 @@ async def chat_with_character_stream(
             full_response = ""  # Собираем полный ответ для сохранения в БД
             
             try:
+                # DEBUG LOGGING TO CONSOLE
+                try:
+                    log_entry = {
+                        "timestamp": datetime.now().isoformat(),
+                        "mode": "stream",
+                        "model": model_to_use,
+                        "max_tokens": effective_max_tokens,
+                        "messages": messages
+                    }
+                    logger.info(f"[DEBUG-PROMPT] Payload: {json.dumps(log_entry, ensure_ascii=False)}")
+                except Exception as e:
+                    logger.error(f"Failed to log debug info: {e}")
+
                 # Получаем поток от OpenRouter
                 async for chunk in openrouter_service.generate_text_stream(
                     messages=messages,
@@ -826,15 +793,34 @@ async def generate_voice(
         
         # 1. Проверяем подписку
         subscription = await subscription_service.get_user_subscription(current_user.id)
-        if not subscription or not subscription.is_active:
+        
+        # ЛОГИРОВАНИЕ ДЛЯ ОТЛАДКИ 403
+        if subscription:
+            logger.info(f"[GENERATE_VOICE CHECK] Subscription found: type={subscription.subscription_type.value}, status={subscription.status.value}, is_active={subscription.is_active}")
+        else:
+            logger.info(f"[GENERATE_VOICE CHECK] Subscription NOT found for user_id={current_user.id}")
+
+        if not subscription or subscription.status != SubscriptionStatus.ACTIVE:
+             logger.warning(f"[GENERATE_VOICE CHECK] ❌ 403 ERROR: Subscription invalid. Sub={subscription}, Status={subscription.status.value if subscription else 'N/A'}")
              raise HTTPException(status_code=403, detail="Необходима активная подписка для генерации голоса")
         
         # 2. Проверяем тип подписки (разрешаем FREE, если есть квота)
         # У FREE пользователей теперь есть стартовые 5 генераций
         pass
 
+
+        # Логируем состояние подписки перед проверкой
+        logger.info(f"[GENERATE_VOICE] Проверка подписки для user_id={current_user.id}")
+        logger.info(f"[GENERATE_VOICE]   subscription_type: {subscription.subscription_type.value}")
+        logger.info(f"[GENERATE_VOICE]   status: {subscription.status.value}")
+        logger.info(f"[GENERATE_VOICE]   is_active: {subscription.is_active}")
+        logger.info(f"[GENERATE_VOICE]   voice_limit: {subscription.voice_limit}")
+        logger.info(f"[GENERATE_VOICE]   voice_used: {subscription.voice_used}")
+        logger.info(f"[GENERATE_VOICE]   voice_remaining: {subscription.voice_remaining}")
+
         # 3. Рассчитываем стоимость и проверяем квоту
         cost = calculate_voice_cost(request.text)
+        logger.info(f"[GENERATE_VOICE] Стоимость запроса: {cost} (длина текста: {len(request.text)})")
         
         if not subscription.can_use_voice(cost):
             raise HTTPException(

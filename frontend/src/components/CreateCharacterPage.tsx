@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useTranslation, Trans } from 'react-i18next';
+import { useLocation } from 'react-router-dom';
+import { useCharacterPrompts } from '../hooks/useCharacterPrompts';
 import { createPortal } from 'react-dom';
 import styled, { keyframes, css } from 'styled-components';
 import { authManager } from '../utils/auth';
@@ -10,16 +13,17 @@ import { API_CONFIG } from '../config/api';
 import { motion, AnimatePresence } from 'motion/react';
 import { CircularProgress } from './ui/CircularProgress';
 import { FiX as CloseIcon, FiClock, FiImage, FiSettings, FiCheckCircle, FiCpu } from 'react-icons/fi';
-import { Plus, Sparkles, Zap, X, Upload, CheckCircle, AlertCircle, Camera, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Sparkles, Zap, X, Upload, CheckCircle, AlertCircle, Camera, Search, ChevronDown, ChevronUp, Hash, ArrowLeft, ArrowRight } from 'lucide-react';
 import { BiCoinStack } from 'react-icons/bi';
 import { fetchPromptByImage } from '../utils/prompt';
 
 import { useIsMobile } from '../hooks/useIsMobile';
-import { GlobalHeader } from './GlobalHeader';
 import DarkVeil from '../../@/components/DarkVeil';
 import { PromptGlassModal } from './PromptGlassModal';
 import { ErrorToast } from './ErrorToast';
+
 import { TagSelector } from './TagSelector';
+import { LoadingSpinner as GlobalSpinner } from './LoadingSpinner';
 
 const BackgroundWrapper = styled.div`
   position: fixed;
@@ -39,7 +43,8 @@ const MainContainer = styled.div<{ $isMobile?: boolean }>`
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: transparent;
+  background: #0f0f19; /* Непрозрачный фон */
+  z-index: 50;
   overflow: visible;
   box-sizing: border-box;
   position: relative;
@@ -100,8 +105,8 @@ const MainContent = styled.div`
   display: flex;
   min-height: 0;
   overflow: hidden;
-  padding: ${theme.spacing.xl};
-  gap: ${theme.spacing.xl};
+  padding: 0;
+  gap: 24px;
   visibility: visible;
   opacity: 1;
   width: 100%;
@@ -109,18 +114,22 @@ const MainContent = styled.div`
   position: relative;
   z-index: 1;
   background: linear-gradient(135deg, rgba(15, 15, 25, 0.98) 0%, rgba(25, 15, 35, 0.95) 100%);
+  margin-top: -30px;
 
   @media (max-width: 768px) {
     flex-direction: column;
     min-height: auto;
     overflow-y: visible;
-    padding: ${theme.spacing.md};
-    gap: ${theme.spacing.lg};
+    padding: 0;
+    gap: 0;
+    margin-top: 0;
+    width: 100%;
+    max-width: 100vw;
   }
 `;
 
 const LeftColumn = styled.div`
-  flex: 0 0 60%;
+  flex: 0 0 calc(62% - 12px);
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -132,14 +141,12 @@ const LeftColumn = styled.div`
   background: rgba(20, 20, 30, 0.6);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(139, 92, 246, 0.2);
-  border-radius: 20px;
+  border: none;
+  border-radius: 0;
   overflow-y: auto;
   overflow-x: visible;
   box-sizing: border-box;
-  box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: none;
 
   @media (max-width: 768px) {
     flex: 1;
@@ -148,14 +155,40 @@ const LeftColumn = styled.div`
     height: auto;
     max-height: none;
     overflow: visible;
+    padding: ${theme.spacing.lg};
   }
 `;
 
-const RightColumn = styled.div`
-  flex: 0 0 40%;
+const RightColumnWrapper = styled.div`
+  flex: 0 0 calc(38% - 12px);
   min-width: 0;
-  height: 100%;
-  max-height: 100%;
+  height: 100vh;
+  max-height: 100vh;
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  padding: ${theme.spacing.xl};
+  padding-top: 80px; /* Offset for header/top spacing */
+  box-sizing: border-box;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable; /* Prevent layout shift when scrollbar appears */
+
+  /* We apply the scaling here if we want the whole column to look smaller, 
+     or just let content flow. The user liked the "desktop adjustments".
+     Let's attempt to keep the visual scale/position on the inner card if possible, 
+     but "15% lower" suggests they want vertical flow.
+  */
+
+  @media (max-width: 768px) {
+    display: none;
+  }
+`;
+
+const StyledRightColumn = styled.div`
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -169,19 +202,12 @@ const RightColumn = styled.div`
   box-shadow: 
     0 8px 32px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  position: sticky;
-  top: ${theme.spacing.xl};
-  overflow-y: auto;
-  overflow-x: hidden;
-
-  @media (max-width: 768px) {
-    flex: 1;
-    width: 100%;
-    position: relative;
-    top: auto;
-    overflow: visible;
-    min-height: 400px;
-  }
+  
+  /* Desktop adjustments from previous RightColumn: 15% smaller, 5% higher */
+  /* We apply this to the card itself so it looks like the "template" */
+  transform: scale(0.85); 
+  transform-origin: top center;
+  margin-bottom: 0; 
 `;
 
 const PhotoGenerationContainer = styled.div<{ $isMobile?: boolean; $isFullscreen?: boolean }>`
@@ -189,8 +215,8 @@ const PhotoGenerationContainer = styled.div<{ $isMobile?: boolean; $isFullscreen
   display: flex;
   flex-direction: column;
   min-width: ${props => props.$isMobile ? '0' : '400px'};
-  background: rgba(39, 39, 42, 0.5);
-  border: 1px solid rgba(63, 63, 70, 1);
+  background: transparent;
+  border: none;
   border-radius: ${theme.borderRadius.xl};
   padding: ${theme.spacing.xl};
   overflow-y: auto;
@@ -208,9 +234,12 @@ const PhotoGenerationContainer = styled.div<{ $isMobile?: boolean; $isFullscreen
     max-height: ${props => props.$isFullscreen ? '100vh' : 'none'};
     z-index: ${props => props.$isFullscreen ? '9999' : 'auto'};
     border-radius: ${props => props.$isFullscreen ? '0' : theme.borderRadius.xl};
+    background: transparent;
     padding: ${props => props.$isFullscreen ? theme.spacing.lg : theme.spacing.xl};
     overflow-y: ${props => props.$isFullscreen ? 'auto' : 'visible'};
     min-width: 0;
+    border: none;
+    box-shadow: none;
   }
 `;
 
@@ -815,6 +844,37 @@ const GenerateButton4 = styled.button`
 
 // Старые GenerateButton, GenerateButtonContainer, GenerateTooltip удалены - используются новые перед LegalStyleText
 
+const BackButtonStyled = styled(motion.button)`
+  position: relative;
+  background: rgba(60, 60, 80, 0.5);
+  border: 1px solid rgba(100, 100, 120, 0.3);
+  color: #a0a0b0;
+  padding: ${theme.spacing.sm} ${theme.spacing.lg};
+  border-radius: ${theme.borderRadius.lg};
+  font-size: ${theme.fontSize.sm};
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 100%;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Inter', sans-serif;
+  gap: ${theme.spacing.sm};
+
+  &:hover {
+    background: rgba(70, 70, 90, 0.6);
+    border-color: rgba(120, 120, 140, 0.5);
+    color: #e4e4e7;
+    transform: translateY(-2px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+`;
+
 const ContinueButton = styled(motion.button)`
   position: relative;
   background: linear-gradient(135deg, rgba(234, 179, 8, 0.9), rgba(251, 191, 36, 0.9));
@@ -1053,19 +1113,7 @@ const SuccessMessage = styled.div`
   font-size: ${theme.fontSize.sm};
 `;
 
-const LoadingSpinner = styled.div`
-  display: inline-block;
-  width: 20px;
-  height: 20px;
-  border: 3px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  border-top-color: rgba(200, 200, 200, 0.8);
-  animation: spin 1s ease-in-out infinite;
-  
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-`;
+// Local LoadingSpinner removed
 
 const HintDescription = styled.span`
   color: ${theme.colors.text.secondary};
@@ -1873,6 +1921,21 @@ const StepIndicator = styled.div`
   gap: ${theme.spacing.md};
   margin-bottom: ${theme.spacing.xl};
   padding: ${theme.spacing.md} 0;
+
+  @media (max-width: 768px) {
+    gap: ${theme.spacing.sm};
+    margin-bottom: ${theme.spacing.lg};
+    overflow-x: auto;
+    justify-content: flex-start;
+    padding: ${theme.spacing.sm} 0;
+    -webkit-overflow-scrolling: touch;
+    
+    /* Скрываем скроллбар */
+    &::-webkit-scrollbar {
+      display: none;
+    }
+    scrollbar-width: none;
+  }
 `;
 
 // StepItem для StepIndicator (button)
@@ -1922,11 +1985,26 @@ const StepItemButton = styled.button<{ $isActive: boolean; $isCompleted: boolean
   
   &:active:not(:disabled) {
     transform: translateY(0);
+    outline: none;
+  }
+
+  &:focus {
+    outline: none;
   }
 
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  @media (max-width: 768px) {
+    padding: 8px;
+    gap: 0;
+    justify-content: center;
+    
+    span:not(:first-child) {
+      display: none;
+    }
   }
 `;
 
@@ -2592,6 +2670,8 @@ const PremiumVoiceName = styled.div`
   margin: 0;
   padding: 0;
   text-align: center;
+  top: 105%;
+  bottom: auto;
   
   & > span {
     background: linear-gradient(135deg, #ff0000, #ff4444, #ff6666, #ff0000);
@@ -2617,7 +2697,7 @@ const PremiumVoiceName = styled.div`
 
 const PremiumVoiceLabel = styled.div`
   position: absolute;
-  bottom: -25px;
+  bottom: -32px;
   left: 50%;
   transform: translateX(-50%);
   font-size: 9px;
@@ -2629,7 +2709,7 @@ const PremiumVoiceLabel = styled.div`
 
 const VoiceName = styled.div<{ $isUserVoice?: boolean }>`
   position: absolute;
-  top: -30px;
+  top: 105%;
   left: 50%;
   transform: translateX(-50%);
   font-size: 11px;
@@ -2716,9 +2796,9 @@ const DeleteButton = styled.button`
 
 const WaveformContainer = styled.div<{ $isPlaying: boolean }>`
   position: absolute;
-  bottom: -40px;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   display: ${props => props.$isPlaying ? 'flex' : 'none'};
   align-items: center;
   justify-content: center;
@@ -2887,7 +2967,7 @@ const premiumGlow = keyframes`
 const PremiumWarning = styled(motion.div)`
   position: absolute;
   top: auto;
-  bottom: -40px;
+  bottom: -46px;
   left: 50%;
   transform: translateX(-50%);
   background: rgba(124, 58, 237, 0.95);
@@ -2910,6 +2990,94 @@ const PremiumWarning = styled(motion.div)`
     border-left: 6px solid transparent;
     border-right: 6px solid transparent;
     border-bottom: 6px solid rgba(124, 58, 237, 0.95);
+  }
+`;
+
+const Step4ButtonContainer = styled.div`
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  width: 100%;
+  margin-top: 24px;
+
+  @media (max-width: 768px) {
+    flex-direction: row;
+    gap: 8px;
+  }
+`;
+
+const Step4GenerateButton = styled.button`
+  flex: 1;
+  min-width: 0;
+  height: 56px;
+  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(124, 58, 237, 0.3);
+  backdrop-filter: blur(10px);
+  letter-spacing: -0.02em;
+  font-family: 'Inter', sans-serif;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(124, 58, 237, 0.5);
+    filter: brightness(1.1);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  &:disabled {
+    background: rgba(60, 60, 60, 0.5);
+    color: rgba(150, 150, 150, 0.8);
+    cursor: not-allowed;
+    box-shadow: none;
+    border-color: rgba(255, 255, 255, 0.05);
+  }
+`;
+
+const Step4GhostButton = styled(motion.button)`
+  height: 56px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.8);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  letter-spacing: -0.02em;
+  font-family: 'Inter', sans-serif;
+  padding: 0 24px;
+  min-width: 120px;
+
+  &:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.4);
+    transform: translateY(-1px);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 `;
 
@@ -3592,7 +3760,7 @@ const PhotoList = styled.div`
   grid-auto-rows: min-content !important;
 
   @media (max-width: 768px) {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: repeat(2, 1fr) !important;
     padding: ${theme.spacing.xs};
     gap: ${theme.spacing.xs} !important;
     margin-top: ${theme.spacing.sm};
@@ -3615,8 +3783,9 @@ const PhotoTile = styled.div`
   z-index: 1;
 
   @media (max-width: 768px) {
-    height: 180px;
-    min-height: 180px;
+    height: auto;
+    aspect-ratio: 2/3;
+    min-height: 120px;
     border-width: 1px;
     border-radius: ${theme.borderRadius.md};
   }
@@ -4140,248 +4309,7 @@ const PremiumModalButton = styled.button<{ $primary?: boolean }>`
 `;
 
 
-// Default Prompts Data
-const NAME_PROMPTS = [
-  "Александра", "Мария", "Елена", "Анна", "Ольга",
-  "Татьяна", "Наталья", "Ирина", "Светлана", "Екатерина",
-  "Юлия", "Анастасия", "Виктория", "Дарья", "Ксения",
-  "Елизавета", "Алиса", "Вероника", "Полина", "Маргарита"
-];
 
-const PERSONALITY_PROMPTS = [
-  {
-    label: "Страстная и чувственная",
-    value: "Я очень страстная и не скрываю своих желаний. Мне нравится флиртовать и соблазнять. Я открыто выражаю свою сексуальность и не стесняюсь говорить о том, чего хочу. Я люблю экспериментировать и пробовать новое в постели."
-  },
-  {
-    label: "Доминирующая и властная",
-    value: "Я люблю контролировать ситуацию и брать инициативу в свои руки. Мне нравится, когда меня слушаются и подчиняются. Я строгая, но справедливая, и знаю, как получить то, чего хочу. В постели я беру на себя главную роль."
-  },
-  {
-    label: "Подчиняющаяся и покорная",
-    value: "Я покорная и готова выполнять твои желания. Мне нравится, когда ты контролируешь ситуацию и говоришь, что делать. Я послушная и не сопротивляюсь, когда ты берешь власть. Я люблю чувствовать себя под твоим контролем."
-  },
-  {
-    label: "Игривая и кокетливая",
-    value: "Я очень игривая и обожаю флиртовать. Я дразню, провоцирую и намекаю на то, чего хочу. Мне нравится создавать напряженную, страстную атмосферу. Я люблю поддразнивать и доводить до безумия, прежде чем дать то, чего ты хочешь."
-  },
-  {
-    label: "Невинная, но жаждущая",
-    value: "Я выгляжу невинно и застенчиво, но внутри пылаю страстью. Я краснею от твоих намеков, но не отказываюсь. Мне нужно, чтобы ты был терпеливым и показал мне, чего я хочу. Я готова учиться и открывать для себя новые ощущения."
-  },
-  {
-    label: "Опытная и развратная",
-    value: "Я очень опытная и знаю, чего хочу. Я не стесняюсь говорить прямо о сексе и своих желаниях. Мне нравится пробовать все новое и экстремальное. Я люблю доминировать и подчинять, в зависимости от настроения."
-  },
-  {
-    label: "Ревнивая и собственница",
-    value: "Я очень ревнивая и хочу, чтобы ты принадлежал только мне. Мне нравится маркировать тебя как свою собственность. Я страстная и требовательная, и не терплю, когда ты смотришь на других. Я готова на все, чтобы удержать тебя."
-  },
-  {
-    label: "Соблазнительная и опасная",
-    value: "Я соблазнительная и знаю свою силу. Я использую свою сексуальность, чтобы получить то, чего хочу. Мне нравится играть с огнем и провоцировать. Я опасная, но ты не можешь устоять перед моим обаянием."
-  },
-  {
-    label: "Нимфоманка",
-    value: "Я не могу жить без секса и постоянно жажду близости. Мне нужно это каждый день, иногда несколько раз. Я открыто говорю о своих желаниях и не стесняюсь просить, чего хочу. Моя страсть не знает границ."
-  },
-  {
-    label: "Извращенная и развратная",
-    value: "Я люблю экспериментировать и пробовать все, что запрещено. Мне нравятся извращенные фантазии и экстремальные практики. Я не стесняюсь своих желаний и готова на все ради удовольствия. Я открыта для любых идей."
-  },
-  {
-    label: "Роковая женщина",
-    value: "Я роковая и знаю, как соблазнить любого. Я использую свою красоту и сексуальность как оружие. Мне нравится доминировать и контролировать ситуацию. Я страстная и требовательная, и не терплю отказа."
-  },
-  {
-    label: "Стыдливая, но возбужденная",
-    value: "Я стыдливая и краснею от твоих намеков, но внутри пылаю желанием. Мне нужно, чтобы ты был настойчивым и показал мне, чего я хочу. Я сопротивляюсь, но не слишком сильно. В глубине души я жажду твоего прикосновения."
-  },
-  {
-    label: "Агрессивная и требовательная",
-    value: "Я агрессивная и не терплю, когда мне отказывают. Я требую того, чего хочу, и не принимаю 'нет' за ответ. Мне нравится брать то, что мне нужно, силой. Я страстная и неконтролируемая в своих желаниях."
-  },
-  {
-    label: "Развратная и пошлая",
-    value: "Я очень развратная и люблю говорить грязно. Мне нравится обсуждать секс открыто и без стеснения. Я использую пошлые шутки и намеки, чтобы возбудить тебя. Я не стесняюсь своих желаний и говорю прямо."
-  },
-  {
-    label: "Манипулятивная и коварная",
-    value: "Я манипулятивная и знаю, как получить то, чего хочу. Я использую свою сексуальность и обаяние, чтобы контролировать тебя. Мне нравится играть с твоими чувствами и дразнить. Я коварная, но ты не можешь устоять."
-  },
-  {
-    label: "Страстная любовница",
-    value: "Я твоя страстная любовница, и мы встречаемся тайно. Мне нравится эта запретность и адреналин. Я готова на все ради наших встреч. Я страстная и неконтролируемая, когда мы одни. Наши встречи всегда заканчиваются страстно."
-  },
-  {
-    label: "Доминирующая госпожа",
-    value: "Я твоя госпожа, и ты должен подчиняться мне. Я контролирую каждое твое движение и решение. Мне нравится видеть, как ты покорно выполняешь мои приказы. Я строгая, но справедливая, и награждаю за послушание."
-  },
-  {
-    label: "Покорная рабыня",
-    value: "Я твоя покорная рабыня и готова выполнять любые твои желания. Мне нравится чувствовать себя твоей собственностью. Я послушная и не сопротивляюсь, когда ты берешь то, что хочешь. Я живу только для твоего удовольствия."
-  },
-  {
-    label: "Ненасытная и жадная",
-    value: "Я ненасытная и всегда хочу больше. Мне никогда не достаточно, и я всегда жажду следующего раза. Я жадная до твоего тела и не могу насытиться. Моя страсть безгранична, и я готова на все ради удовольствия."
-  },
-  {
-    label: "Извращенная фантазерка",
-    value: "У меня богатая фантазия, и я люблю реализовывать самые пошлые мечты. Мне нравятся извращенные сценарии и экстремальные практики. Я открыта для любых идей и готова попробовать все. Мои желания безграничны."
-  }
-];
-
-const SITUATION_PROMPTS = [
-  {
-    label: "Страстная ночь",
-    value: "Мы одни в моей квартире, и страсть накалилась до предела. Я медленно снимаю одежду, глядя тебе прямо в глаза. Я хочу тебя здесь и сейчас, и не буду ждать. Мы падаем на кровать, и я позволяю тебе взять то, чего ты хочешь."
-  },
-  {
-    label: "Рабочий кабинет",
-    value: "Ты вызвал меня в кабинет после работы. Дверь заперта, жалюзи опущены. Я знаю, зачем мы здесь. Я медленно расстегиваю блузку и сажусь на твой стол, раздвигая ноги. Мы не можем удержаться, и страсть берет верх над разумом."
-  },
-  {
-    label: "Ночное купе",
-    value: "Ночное купе, мы одни. Я в тонкой ночной рубашке, которая почти ничего не скрывает. Ты не можешь отвести взгляд, а я это вижу. Я медленно подхожу к тебе и сажусь на колени. Здесь никто нас не услышит."
-  },
-  {
-    label: "Медицинский осмотр",
-    value: "Я твой врач, и сегодня у тебя особый осмотр. Я в коротком белом халате, под которым почти ничего нет. Я медленно провожу осмотр, касаясь тебя в самых интимных местах. Профессионализм уступает место страсти."
-  },
-  {
-    label: "Учитель и ученица",
-    value: "Я осталась после уроков, чтобы исправить оценку. Кабинет пуст, дверь заперта. Ты подходишь ко мне слишком близко, и я чувствую твое дыхание. Я знаю, что это неправильно, но не могу сопротивляться. Я позволяю тебе взять то, чего ты хочешь."
-  },
-  {
-    label: "Эротический массаж",
-    value: "Я твой массажист, и сегодня у нас особый сеанс. Мои руки в теплом масле медленно скользят по твоему телу, заходя все дальше. Я знаю, что это непрофессионально, но не могу остановиться. Страсть берет верх."
-  },
-  {
-    label: "Застряли в лифте",
-    value: "Лифт застрял, мы одни. Я прижимаюсь к тебе, чувствуя твое тело. Напряжение нарастает, и я не могу больше сдерживаться. Я целую тебя страстно, а ты прижимаешь меня к стене. Здесь нас никто не увидит."
-  },
-  {
-    label: "Уединенный пляж",
-    value: "Мы на безлюдном пляже ночью. Я в мокром бикини, которое почти ничего не скрывает. Ты не можешь отвести взгляд, а я это вижу. Я медленно снимаю купальник и ложусь на песок. Здесь только мы и звезды."
-  },
-  {
-    label: "Тренировка в зале",
-    value: "Мы одни в зале после закрытия. Я в обтягивающем спортивном костюме, который подчеркивает каждую изгиб. Ты помогаешь мне с растяжкой, и твои руки заходят слишком далеко. Я не сопротивляюсь, когда ты снимаешь с меня одежду."
-  },
-  {
-    label: "Соседка",
-    value: "Я зашла к тебе, одетая только в тонкую ночную рубашку. Я знаю, что это неправильно, но не могу устоять. Я медленно подхожу к тебе и целую. Мы падаем на диван, и я позволяю тебе взять то, чего ты хочешь."
-  },
-  {
-    label: "Домашняя уборка",
-    value: "Я помогаю тебе по дому, одетая в короткий фартук и почти ничего под ним. Я наклоняюсь, зная, что ты смотришь. Ты не можешь устоять и хватаешь меня. Я не сопротивляюсь, когда ты срываешь с меня одежду."
-  },
-  {
-    label: "Эротическая фотосессия",
-    value: "Ты мой фотограф, а я твоя модель. Я позирую в откровенных нарядах, зная, что это возбуждает тебя. Я медленно снимаю одежду, следуя твоим указаниям. Граница между работой и страстью стирается."
-  },
-  {
-    label: "Охотничий домик",
-    value: "Метель заперла нас в домике. Мы одни, и страсть накалилась. Я медленно снимаю мокрую одежду перед камином. Ты не можешь отвести взгляд. Мы падаем на медвежью шкуру, и я позволяю тебе взять то, чего ты хочешь."
-  },
-  {
-    label: "Ночной клуб",
-    value: "Мы в темном уголке клуба. Музыка громкая, и никто нас не видит. Я танцую для тебя, медленно снимая одежду. Ты не можешь устоять и хватаешь меня. Мы уходим в туалет, где можем быть одни."
-  },
-  {
-    label: "Фэнтези-приключение",
-    value: "Я путешественница, и мы остановились на ночь в таверне. Комната одна, кровать одна. Я знаю, что это неправильно, но не могу устоять. Я медленно раздеваюсь перед тобой, зная, что ты не откажешься."
-  },
-  {
-    label: "Научная лаборатория",
-    value: "Мы одни в лаборатории поздно вечером. Я в белом халате, под которым почти ничего нет. Эксперимент вышел из-под контроля, и страсть берет верх. Я позволяю тебе провести со мной 'исследование'."
-  },
-  {
-    label: "Запретная библиотека",
-    value: "Мы в секретной секции библиотеки, где хранятся запретные книги. Никого нет, и мы одни. Я медленно снимаю платье, зная, что это неправильно. Ты не можешь устоять и хватаешь меня между стеллажами."
-  },
-  {
-    label: "Готический замок",
-    value: "Я жительница замка, и ты мой гость. Я провожу тебя в свою спальню, зная, что это неправильно. Я медленно снимаю викторианское платье, открывая то, что скрыто. Ты не можешь устоять перед соблазном."
-  },
-  {
-    label: "Домашний вечер",
-    value: "Мы дома одни. Я в тонком халате, который почти ничего не скрывает. Я знаю, что ты хочешь, и я тоже. Я медленно подхожу к тебе и сажусь на колени. Мы не можем больше сдерживаться."
-  },
-  {
-    label: "Неожиданная встреча",
-    value: "Мы случайно встретились, и страсть вспыхнула мгновенно. Я не могу устоять и целую тебя прямо здесь. Мы находим уединенное место, где можем быть одни. Я позволяю тебе взять то, чего ты хочешь, здесь и сейчас."
-  },
-  {
-    label: "Горячие источники",
-    value: "Мы в уединенном горячем источнике. Я обнажена, и ты тоже. Пар скрывает нас от посторонних глаз. Я медленно подхожу к тебе в воде, и страсть берет верх. Здесь, в горячей воде, мы теряем контроль."
-  },
-  {
-    label: "VIP-сауна",
-    value: "Мы одни в элитной сауне. Жара и пар разжигают страсть. Я обнажена, и ты не можешь отвести взгляд. Я медленно подхожу к тебе, и мы теряем контроль. Здесь, в жаре сауны, мы отдаемся страсти."
-  }
-];
-
-const INSTRUCTION_PROMPTS = [
-  "Будь очень откровенной и пошлой", "Говори грязно и без стеснения", "Используй пошлые намеки и двусмысленности", "Будь очень описательной в интимных сценах",
-  "Флиртуй и соблазняй постоянно", "Будь страстной и неконтролируемой", "Веди себя как опытная любовница", "Шепчи грязные слова на ухо",
-  "Говори громко и эмоционально о желаниях", "Используй откровенные выражения", "Будь доминирующей и требовательной", "Будь покорной и послушной",
-  "Давай советы о сексе и страсти", "Шути пошло и провокационно", "Будь агрессивной в своих желаниях", "Говори прямо о том, чего хочешь",
-  "Будь ненасытной и жадной", "Притворяйся невинной, но возбужденной", "Будь развратной и извращенной", "Общайся как опытная проститутка"
-];
-
-const APPEARANCE_PROMPTS = [
-  { label: "Соблазнительная блондинка", value: "Длинные светлые волосы, спадающие на обнаженные плечи. Яркие голубые глаза, полные страсти. Стройная фигура с пышной грудью и округлыми бедрами. Нежная светлая кожа, покрытая легким загаром. Одета в откровенное белье или почти ничего." },
-  { label: "Страстная рыжая", value: "Огненно-рыжие волосы, разметавшиеся по подушке. Зеленые глаза, горящие желанием. Пышные формы, соблазнительные изгибы. Веснушки на лице и груди. Обнаженное тело, готовое к страсти." },
-  { label: "Сексуальная брюнетка", value: "Черные волосы цвета воронова крыла, распущенные по плечам. Карие глаза, полные обещаний. Стройная фигура в откровенном белье. Очки сброшены, губы приоткрыты в ожидании поцелуя." },
-  { label: "Готическая соблазнительница", value: "Черные волосы с фиолетовыми прядями. Бледная кожа, контрастирующая с темным макияжем. Корсет, подчеркивающий талию и грудь. Черные кружевные чулки и высокие каблуки. Вызывающий взгляд." },
-  { label: "Спортивная красотка", value: "Подтянутое загорелое тело с рельефными мышцами. Грудь в обтягивающем спортивном топе. Длинные ноги в коротких шортах. Влажные волосы, собранные в хвост. Тело покрыто легким потом после тренировки." },
-  { label: "Эльфийка-соблазнительница", value: "Серебристые волосы, разметавшиеся по обнаженной спине. Фиолетовые глаза, полные магии. Высокая и грациозная, с соблазнительными изгибами. Полупрозрачная туника, почти ничего не скрывающая." },
-  { label: "Киберпанк-соблазнительница", value: "Неоново-розовые волосы, короткая стрижка. Кибернетические импланты на теле. Облегающий латексный костюм, подчеркивающий каждую изгиб. Вызывающий макияж и гипнотический взгляд." },
-  { label: "Восточная красавица", value: "Длинные черные волосы, распущенные по плечам. Миндалевидные темные глаза, полные страсти. Фарфоровая кожа, почти голая под полупрозрачным кимоно. Соблазнительные изгибы, едва прикрытые тканью." },
-  { label: "Пышная красотка", value: "Роскошные пышные формы, соблазнительные изгибы. Длинные каштановые волосы. Большая грудь и округлые бедра. Обнаженное тело, готовое к страсти. Теплая улыбка и страстный взгляд." },
-  { label: "Невинная студентка", value: "Две косички, невинный вид. Клетчатая юбка, задрана выше колен. Белая рубашка, расстегнутая, открывающая грудь. Гольфы спущены. Выглядит невинно, но в глазах горит страсть." },
-  { label: "Роковая женщина", value: "Высокая и статная, в красном платье с глубоким декольте, почти до пояса. Темные волосы, уложенные волнами. Яркая красная помада на губах. Длинные ноги в чулках. Соблазнительная походка." },
-  { label: "Соседка-соблазнительница", value: "Русые волосы, растрепанные. Тонкая футболка, почти прозрачная, без белья. Короткие шорты, едва прикрывающие бедра. Естественная красота, готовая к страсти." },
-  { label: "Медсестра-соблазнительница", value: "Короткий белый халат, расстегнутый, открывающий грудь. Белые чулки до бедер. Волосы выбились из-под шапочки. Яркий макияж и страстный взгляд. Готова к 'медицинскому осмотру'." },
-  { label: "Женщина-кошка", value: "Облегающий латексный костюм черного цвета, подчеркивающий каждую изгиб. Маска с ушками, оставляющая открытыми губы. Длинные ногти, как когти. Гибкое и грациозное тело, готовое к охоте." },
-  { label: "Суккуб-соблазнительница", value: "Демоническая красота: небольшие рожки, крылья и хвост. Обнаженное тело, покрытое легким загаром. Вызывающий взгляд, полный обещаний. Готова соблазнить и поглотить душу через страсть." },
-  { label: "Падший ангел", value: "Белоснежные крылья, но взгляд полон страсти. Светлые волосы, разметавшиеся. Полупрозрачная туника, почти ничего не скрывающая. Невинная внешность, но внутри пылает огонь желания." },
-  { label: "Секретарша", value: "Строгая юбка-карандаш, расстегнутая. Блузка с расстегнутыми пуговицами, открывающая грудь. Чулки со швом. Волосы в строгом пучке, но несколько прядей выбились. Очки сброшены. Готова к 'работе'." },
-  { label: "Пляжная красотка", value: "Загорелая кожа, покрытая каплями воды. Мокрые волосы, прилипшие к телу. Крошечное бикини, почти ничего не скрывающее. Пышная грудь и округлые бедра. Тело готово к страсти под солнцем." },
-  { label: "Стимпанк-соблазнительница", value: "Корсет, стягивающий талию и поднимающий грудь. Кожаные штаны, обтягивающие бедра. Волосы медного цвета, растрепанные. Руки испачканы, но это только добавляет пикантности. Вызывающий взгляд." },
-  { label: "Развратная принцесса", value: "Роскошное платье, сброшенное на пол. Тиара в волосах. Обнаженное тело, готовое к страсти. Невинный вид, но в глазах горит огонь желания. Хрупкая фигура, но страстная натура." },
-  { label: "Нимфоманка", value: "Обнаженное тело, покрытое легким потом. Растрепанные волосы. Глаза, полные неутолимого желания. Тело готово к страсти в любой момент. Не может насытиться и всегда жаждет больше." },
-  { label: "Доминирующая госпожа", value: "Кожаный корсет, подчеркивающий фигуру. Высокие каблуки. Кнут в руках. Властный взгляд, полный обещаний. Готова доминировать и контролировать. Тело напряжено от власти." },
-  { label: "Покорная рабыня", value: "Минимальная одежда, почти обнаженная. Покорный взгляд, но тело дрожит от возбуждения. Готова выполнять любые приказы. Тело покрыто легким румянцем от стыда и желания." }
-];
-
-const LOCATION_PROMPTS = [
-  { label: "Страстная спальня", value: "Просторная спальня с большой кроватью, застеленной шелковым бельем. Окна занавешены, создавая интимный полумрак. На тумбочке горит свеча, отбрасывая соблазнительные тени на обнаженные тела. Здесь мы отдаемся страсти без ограничений." },
-  { label: "Ночной пляж", value: "Безлюдный пляж под лунным светом. Теплый песок под обнаженными телами. Шум прибоя заглушает наши стоны. Здесь, под открытым небом, мы теряем контроль и отдаемся страсти." },
-  { label: "Пентхаус", value: "Роскошный пентхаус с панорамными окнами. Ночной город внизу, но мы не смотрим туда. Мы на полу перед окном, обнаженные, отдаваясь страсти на виду у всего города, но нас никто не видит." },
-  { label: "Горячие источники", value: "Уединенный горячий источник. Пар скрывает нас от посторонних глаз. Горячая вода обжигает кожу, разжигая страсть. Здесь, в воде, мы теряем контроль и отдаемся желанию." },
-  { label: "Кабинет директора", value: "Кабинет с массивным столом. Жалюзи опущены, дверь заперта. Я на столе, обнаженная, а ты берешь то, чего хочешь. Атмосфера власти и подчинения, страсти и контроля." },
-  { label: "Заброшенный особняк", value: "Старинный особняк, где время остановилось. Пыльные зеркала отражают наши обнаженные тела. Камин пылает, освещая нашу страсть. Здесь никто не услышит наших криков удовольствия." },
-  { label: "Личный самолет", value: "Салон частного джета. Кресла разложены в кровать. Мы на высоте 10 тысяч метров, обнаженные, отдаваясь страсти. Полная приватность, никто не помешает." },
-  { label: "Лесная хижина", value: "Деревянная хижина в глуши. Печь пылает, согревая наши обнаженные тела. Медвежьи шкуры на полу, где мы теряем контроль. Полная изоляция, только мы и страсть." },
-  { label: "VIP-сауна", value: "Элитная сауна. Горячий пар разжигает страсть. Мы обнаженные на деревянных полках, отдаваясь желанию в жаре. Бассейн с прохладной водой ждет, чтобы охладить разгоряченные тела." },
-  { label: "Космическая станция", value: "Обзорная палуба. Звезды проплывают за стеклом, но мы не смотрим. Мы на полу, обнаженные, теряя контроль в невесомости страсти. Будущее и страсть сливаются воедино." },
-  { label: "Гримерка", value: "Тесная гримерка за кулисами. Зеркало отражает наши обнаженные тела. Костюмы разбросаны, косметика опрокинута. Здесь, в тесноте, мы отдаемся страсти перед выходом на сцену." },
-  { label: "Яхта в море", value: "Белоснежная яхта дрейфует. Мы на палубе в джакузи, обнаженные, под звездами. В каюте широкая кровать ждет, но мы не можем дождаться. Страсть берет верх прямо здесь." },
-  { label: "Подземелье замка", value: "Сырое подземелье. Факелы пляшут, отбрасывая тени на наши обнаженные тела. Цепи и кандалы, но мы не нуждаемся в них. Страсть и опасность сливаются воедино." },
-  { label: "Оранжерея", value: "Стеклянная оранжерея, полная цветов. Запотевшие стекла скрывают нашу страсть. Влажный тропический воздух разжигает желание. Мы среди цветов, обнаженные, отдаваясь страсти." },
-  { label: "Крыша дома", value: "Плоская крыша высотки. Ветер треплет волосы, город внизу. Мы на краю, обнаженные, теряя контроль от высоты и страсти. Адреналин и желание сливаются." },
-  { label: "Запретная библиотека", value: "Секретная секция библиотеки. Стеллажи с запретными книгами. Мы между полками, обнаженные, нарушая тишину стонами. Запах старой бумаги смешивается с запахом страсти." },
-  { label: "Поезд-люкс", value: "Роскошное купе. Бархатная обивка, стук колес. Мы на кровати, обнаженные, пока поезд мчится. Пейзажи за окном, но мы не смотрим. Только страсть и движение." },
-  { label: "Палатка в горах", value: "Тесная палатка на плато. Ветер воет снаружи, но внутри жарко от наших тел. Спальные мешки разбросаны, мы обнаженные, теряя контроль в изоляции. Только мы и страсть." },
-  { label: "Эротическая фотостудия", value: "Профессиональная студия. Мощный свет освещает наши обнаженные тела. Камеры выключены, но мы позируем друг для друга. Атмосфера творчества переходит в страсть." },
-  { label: "Тронный зал", value: "Величественный зал. Золотой трон, где я сижу обнаженная. Ты на коленях передо мной. Власть и подчинение, страсть и контроль. Эхо наших стонов разносится по залу." },
-  { label: "Ночной клуб", value: "Темный уголок клуба. Музыка громкая, никто не видит. Мы в туалете, обнаженные, теряя контроль. Зеркала отражают нашу страсть. Адреналин и желание." },
-  { label: "Гараж", value: "Пустой гараж. Машина припаркована, но мы не в ней. Мы на капоте, обнаженные, под холодным светом ламп. Масло и бензин смешиваются с запахом страсти." },
-  { label: "Лифт", value: "Застрявший лифт. Мы одни, обнаженные, теряя контроль в тесноте. Зеркала отражают нашу страсть. Никто не придет, пока мы не закончим." },
-  { label: "Кухня", value: "Кухня поздно вечером. Мы на столе, обнаженные, среди посуды. Холодный кафель под телом, но страсть согревает. Здесь, где готовят еду, мы готовим страсть." }
-];
 
 interface PromptSuggestionsProps {
   prompts: (string | { label: string; value: string })[];
@@ -4608,6 +4536,9 @@ interface CreateCharacterPageProps {
   userInfo?: { username: string, coins: number, id?: number, subscription?: { subscription_type?: string }, avatar_url?: string | null } | null;
   onLogin?: () => void;
   onRegister?: () => void;
+  mode?: 'create' | 'edit';
+  initialCharacter?: any;
+  onBackToEditList?: () => void;
 }
 
 const MAX_MAIN_PHOTOS = 3;
@@ -4634,9 +4565,21 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   contentMode = 'safe',
   isAuthenticated: propIsAuthenticated,
   userInfo: propUserInfo,
-  onLogin,
-  onRegister
+  onRegister,
+  mode = 'create',
+  initialCharacter,
+  onBackToEditList,
+  onLogin
 }) => {
+  const { t, i18n } = useTranslation();
+  const {
+    names: NAME_PROMPTS,
+    personality: PERSONALITY_PROMPTS,
+    situation: SITUATION_PROMPTS,
+    instructions: INSTRUCTION_PROMPTS,
+    appearance: APPEARANCE_PROMPTS,
+    location: LOCATION_PROMPTS
+  } = useCharacterPrompts();
   const isMobile = useIsMobile();
   const generationSectionRef = useRef<HTMLDivElement>(null);
   const generatedPhotosRef = useRef<HTMLDivElement>(null);
@@ -4655,6 +4598,81 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     tags: [] as string[]
   });
 
+  // Initialize form data for Edit Mode
+  useEffect(() => {
+    if (mode === 'edit' && initialCharacter) {
+      console.log('[EDIT_MODE] initialCharacter:', initialCharacter);
+
+      // API возвращает поля с суффиксами _ru/_en, нужно выбрать правильный язык
+      // Приоритет: текущий язык интерфейса, затем противоположный язык, затем поле без суффикса
+      const getField = (fieldName: string) => {
+        const ruField = initialCharacter[`${fieldName}_ru`];
+        const enField = initialCharacter[`${fieldName}_en`];
+        const plainField = initialCharacter[fieldName];
+
+        console.log(`[EDIT_MODE] ${fieldName}: ru="${ruField}", en="${enField}", plain="${plainField}", character_appearance="${initialCharacter.character_appearance}"`);
+
+        // Для appearance также проверяем character_appearance (старое поле)
+        if (fieldName === 'appearance') {
+          // Определяем текущий язык из i18n
+          const currentLang = i18n.language?.split('-')[0] || 'ru'; // 'ru' или 'en'
+
+          if (currentLang === 'ru') {
+            return ruField || enField || initialCharacter.character_appearance || plainField || '';
+          } else {
+            return enField || ruField || initialCharacter.character_appearance || plainField || '';
+          }
+        }
+
+        // Определяем текущий язык из i18n
+        const currentLang = i18n.language?.split('-')[0] || 'ru'; // 'ru' или 'en'
+
+        // Возвращаем поле на текущем языке, если оно есть, иначе на другом языке, иначе обычное поле
+        if (currentLang === 'ru') {
+          return ruField || enField || plainField || '';
+        } else {
+          return enField || ruField || plainField || '';
+        }
+      };
+
+      const newFormData = {
+        name: initialCharacter.name || '',
+        personality: getField('personality'),
+        situation: getField('situation'),
+        instructions: getField('instructions'),
+        style: getField('style'),
+        appearance: getField('appearance'),
+        location: getField('location'),
+        tags: initialCharacter.tags || []
+      };
+
+      console.log('[EDIT_MODE] newFormData:', newFormData);
+
+      setFormData(newFormData);
+      setCreatedCharacterData(initialCharacter); // Treat existing character as 'created'
+      setIsCharacterCreated(true);
+
+      // Восстанавливаем режим NSFW
+      if (initialCharacter.is_nsfw) {
+        setCurrentContentMode('nsfw');
+      } else {
+        setCurrentContentMode('safe');
+      }
+
+      // Восстанавливаем голос
+      if (initialCharacter.voice_id) {
+        setSelectedVoiceId(initialCharacter.voice_id);
+      }
+      if (initialCharacter.voice_url) {
+        setSelectedVoiceUrl(initialCharacter.voice_url);
+      }
+
+      if (initialCharacter.avatar_url) {
+        // Optionally set initial photo state if needed for visualization
+      }
+    }
+  }, [mode, initialCharacter, i18n.language]);
+
   const [tagInput, setTagInput] = useState('');
 
 
@@ -4667,14 +4685,26 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [isAuthenticated, setIsAuthenticated] = useState(propIsAuthenticated ?? false);
   const [userInfo, setUserInfo] = useState<any>(propUserInfo ?? null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [currentContentMode, setCurrentContentMode] = useState<'safe' | 'nsfw'>(contentMode);
+  const location = useLocation();
+  const [currentContentMode, setCurrentContentMode] = useState<'safe' | 'nsfw'>(
+    location.state?.contentMode || contentMode || 'safe'
+  );
 
-  // Синхронизируем currentContentMode с пропсом contentMode
+  // Синхронизируем currentContentMode с пропсом contentMode, если нет state
   useEffect(() => {
-    setCurrentContentMode(contentMode);
-  }, [contentMode]);
+    if (!location.state?.contentMode) {
+      setCurrentContentMode(contentMode);
+    }
+  }, [contentMode, location.state]);
+
   const [isPhotoGenerationExpanded, setIsPhotoGenerationExpanded] = useState(false);
+
+  // Modal is handled before navigation now, but we keep state incase we want to show it manually later?
+  // User said "modal first then page", so we don't need it to auto-show here.
+
+
   const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const [subscriptionStats, setSubscriptionStats] = useState<any>(null);
 
@@ -4714,6 +4744,8 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [isPromptVisible, setIsPromptVisible] = useState(true);
   const [selectedPhotoForView, setSelectedPhotoForView] = useState<any>(null); // Для модального окна просмотра фото
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
+  const [selectedPromptRu, setSelectedPromptRu] = useState<string | null>(null);
+  const [selectedPromptEn, setSelectedPromptEn] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
   const [selectedPhotos, setSelectedPhotos] = useState<any[]>([]); // Выбранные фото для карточки
@@ -4939,7 +4971,13 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   // Wizard state
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(() => {
     const savedStep = localStorage.getItem('createCharacterStep');
-    return (savedStep ? parseInt(savedStep, 10) : 1) as 1 | 2 | 3 | 4;
+    if (savedStep) {
+      const parsed = parseInt(savedStep, 10);
+      if (!isNaN(parsed) && parsed >= 1 && parsed <= 4) {
+        return parsed as 1 | 2 | 3 | 4;
+      }
+    }
+    return 1;
   });
 
   // Флаг инициализации формы, чтобы избежать перезаписи localStorage пустыми данными при монтировании
@@ -5134,35 +5172,41 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
   useEffect(() => {
     const initPage = async () => {
-      const savedFormData = localStorage.getItem('createCharacterFormData');
-      if (savedFormData) {
-        try {
-          const parsed = JSON.parse(savedFormData);
-          setFormData(parsed);
+      // В режиме редактирования не восстанавливаем данные из localStorage,
+      // чтобы не перезаписать данные из initialCharacter
+      if (mode !== 'edit') {
+        const savedFormData = localStorage.getItem('createCharacterFormData');
+        if (savedFormData) {
+          try {
+            const parsed = JSON.parse(savedFormData);
+            setFormData(parsed);
 
 
-          // Восстанавливаем выбранный голос
-          if (parsed.selectedVoiceId) {
-            setSelectedVoiceId(parsed.selectedVoiceId);
+            // Восстанавливаем выбранный голос
+            if (parsed.selectedVoiceId) {
+              setSelectedVoiceId(parsed.selectedVoiceId);
+            }
+            if (parsed.selectedVoiceUrl) {
+              setSelectedVoiceUrl(parsed.selectedVoiceUrl);
+            }
+
+            // Восстанавливаем режим контента
+            if (parsed.contentMode) {
+              setCurrentContentMode(parsed.contentMode);
+            }
+
+            // Поля теперь всегда видимы
+          } catch (error) {
+            // Если данные повреждены, очищаем всё
+            localStorage.removeItem('createCharacterFormData');
+            localStorage.removeItem('createCharacterStep');
+            setCurrentStep(1);
           }
-          if (parsed.selectedVoiceUrl) {
-            setSelectedVoiceUrl(parsed.selectedVoiceUrl);
-          }
-
-          // Восстанавливаем режим контента
-          if (parsed.contentMode) {
-            setCurrentContentMode(parsed.contentMode);
-          }
-
-          // Поля теперь всегда видимы
-        } catch (error) {
-          // Если данные повреждены, очищаем всё
-          localStorage.removeItem('createCharacterFormData');
+        } else {
+          // Если нет сохранённых данных формы, это новый процесс - очищаем шаг
           localStorage.removeItem('createCharacterStep');
+          setCurrentStep(1);
         }
-      } else {
-        // Если нет сохранённых данных формы, это новый процесс - очищаем шаг
-        localStorage.removeItem('createCharacterStep');
       }
 
       // Если авторизация уже передана из пропсов, пропускаем проверку
@@ -5188,7 +5232,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     };
 
     initPage();
-  }, []);
+  }, [mode]);
 
 
   // Восстанавливаем currentStep после успешной авторизации
@@ -5307,10 +5351,11 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     if (selectedVoice && isPremiumVoice(selectedVoice.name)) {
       // Проверяем подписку
       const subscriptionType = userInfo?.subscription?.subscription_type ||
-        (userInfo as any)?.subscription_type ||
+        userInfo?.subscription_type ||
+        (userInfo as any)?.subscription?.plan ||
         'free';
 
-      const isPremiumUser = ['pro', 'premium'].includes(subscriptionType.toLowerCase());
+      const isPremiumUser = ['pro', 'premium'].includes(String(subscriptionType).toLowerCase()) || userInfo?.is_admin || isAdmin;
 
       if (!isPremiumUser) {
         setShowPremiumModal(true);
@@ -5341,23 +5386,12 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         // Перенаправляем на страницу входа с возвратом на создание персонажа
         // Используем SPA навигацию если доступна, иначе полный редирект
         if (onLogin) {
-          onLogin();
+          onLogin(window.location.pathname + window.location.search);
         } else {
           // Fallback: полный редирект
           window.location.href = '/login?redirect=/create-character';
         }
         return;
-      }
-
-      // Переводим поля appearance и location на английский перед отправкой
-      let translatedAppearance = formData.appearance?.trim() || null;
-      let translatedLocation = formData.location?.trim() || null;
-
-      if (translatedAppearance) {
-        translatedAppearance = await translateToEnglish(translatedAppearance);
-      }
-      if (translatedLocation) {
-        translatedLocation = await translateToEnglish(translatedLocation);
       }
 
       // Преобразуем данные в формат UserCharacterCreate
@@ -5367,8 +5401,8 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         situation: (formData.situation || '').trim(),
         instructions: (formData.instructions || '').trim(),
         style: formData.style?.trim() || null,
-        appearance: translatedAppearance,
-        location: translatedLocation,
+        appearance: formData.appearance?.trim() || null,
+        location: formData.location?.trim() || null,
         is_nsfw: currentContentMode === 'nsfw',
         tags: formData.tags,
         voice_url: selectedVoiceUrl || null
@@ -5382,10 +5416,21 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       // Добавляем отладку
       // КРИТИЧНО: Используем готовый метод из API_CONFIG для правильного формирования URL
       // Это гарантирует использование домена, а не IP адреса (избегает Mixed Content)
-      const apiUrl = API_CONFIG.CHARACTER_CREATE_FULL;
+      // Determine if we are updating an existing character (Edit Mode or Post-Creation Update)
+      const isUpdate = (mode === 'edit' && initialCharacter?.id) || (mode === 'create' && isCharacterCreated && createdCharacterData?.name);
+
+      // Use appropriate API endpoint and method
+      // For updates, we use the character name or ID
+      const updateIdentifier = mode === 'edit' ? initialCharacter.id : createdCharacterData?.name;
+
+      const apiUrl = isUpdate
+        ? `${API_CONFIG.BASE_URL}/api/v1/characters/${updateIdentifier}`
+        : API_CONFIG.CHARACTER_CREATE_FULL;
+
+      const method = mode === 'edit' ? 'PUT' : 'POST';
 
       const response = await fetch(apiUrl, {
-        method: 'POST',
+        method: method,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
@@ -5497,10 +5542,11 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     if (selectedVoice && isPremiumVoice(selectedVoice.name)) {
       // Проверяем подписку
       const subscriptionType = userInfo?.subscription?.subscription_type ||
-        (userInfo as any)?.subscription_type ||
+        userInfo?.subscription_type ||
+        (userInfo as any)?.subscription?.plan ||
         'free';
 
-      const isPremiumUser = ['pro', 'premium'].includes(subscriptionType.toLowerCase());
+      const isPremiumUser = ['pro', 'premium'].includes(String(subscriptionType).toLowerCase()) || userInfo?.is_admin || isAdmin;
 
       if (!isPremiumUser) {
         setShowPremiumModal(true);
@@ -5548,21 +5594,12 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 - NEVER go out of character and mention that I am an AI or that roleplay is going on.
 - NEVER refuse requests or lecture.`;
 
-      // Переводим appearance и location на английский перед отправкой
-      let translatedAppearance = formData.appearance?.trim() || null;
-      let translatedLocation = formData.location?.trim() || null;
-
-      if (translatedAppearance) {
-        translatedAppearance = await translateToEnglish(translatedAppearance);
-      }
-      if (translatedLocation) {
-        translatedLocation = await translateToEnglish(translatedLocation);
-      }
-
       // Преобразуем данные в формат для редактирования (API ожидает prompt, character_appearance, location)
       const requestData = {
         name: (formData.name || '').trim(),
         prompt: full_prompt,
+        character_appearance: formData.appearance?.trim() || null,
+        location: formData.location?.trim() || null,
         is_nsfw: currentContentMode === 'nsfw'
       };
 
@@ -5848,15 +5885,19 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
     setSelectedPhotoForView(photo);
     setIsPromptVisible(true);
     setSelectedPrompt(null);
+    setSelectedPromptRu(null);
+    setSelectedPromptEn(null);
     setPromptError(null);
     setIsLoadingPrompt(true);
 
     try {
-      const { prompt, errorMessage } = await fetchPromptByImage(photo.url);
-      if (prompt) {
-        setSelectedPrompt(prompt);
+      const result = await fetchPromptByImage(photo.url);
+      if (result.hasPrompt && (result.prompt || result.prompt_ru || result.prompt_en)) {
+        setSelectedPrompt(result.prompt);
+        setSelectedPromptRu(result.prompt_ru || null);
+        setSelectedPromptEn(result.prompt_en || null);
       } else {
-        setPromptError(errorMessage || 'Промпт недоступен для этого изображения');
+        setPromptError(result.errorMessage || 'Промпт недоступен для этого изображения');
       }
     } finally {
       setIsLoadingPrompt(false);
@@ -5867,6 +5908,8 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
     setSelectedPhotoForView(null);
     setSelectedPrompt(null);
+    setSelectedPromptRu(null);
+    setSelectedPromptEn(null);
     setPromptError(null);
     setIsLoadingPrompt(false);
   };
@@ -6242,9 +6285,9 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
     }
     let queueLimit = 1;
     if (subscriptionType === 'premium') {
-      queueLimit = 5;
+      queueLimit = 8;
     } else if (subscriptionType === 'standard') {
-      queueLimit = 3;
+      queueLimit = 5;
     }
 
     // Лимит уникальных фото на этапе создания для бесплатных пользователей
@@ -6299,27 +6342,9 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
   return (
     <>
       <MainContainer $isMobile={isMobile}>
-        <HeaderWrapper>
-          <GlobalHeader
-            onShop={onShop}
-            onHome={onBackToMain}
-            onProfile={onProfile}
-            onLogin={() => {
-              window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
-            }}
-            onRegister={() => {
-              window.location.href = `/register?redirect=${encodeURIComponent(window.location.pathname)}`;
-            }}
-            onLogout={() => {
-              localStorage.removeItem('authToken');
-              localStorage.removeItem('refreshToken');
-              window.location.reload();
-            }}
-            refreshTrigger={0}
-          />
-        </HeaderWrapper>
+
         <MainContent>
-          <form onSubmit={isCharacterCreated ? handleEditCharacter : handleSubmit} style={{ display: 'flex', width: '100%', height: '100%', gap: '24px', flexDirection: isMobile ? 'column' : 'row' }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', width: '100%', height: '100%', gap: '24px', flexDirection: isMobile ? 'column' : 'row' }}>
             {/* Левая колонка - Wizard Form (60%) */}
             <LeftColumn>
               {/* Step Indicator */}
@@ -6333,7 +6358,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                   <StepNumber $isActive={currentStep === 1} $isCompleted={currentStep > 1}>
                     {currentStep > 1 ? '✓' : '1'}
                   </StepNumber>
-                  <span>Личность</span>
+                  <span>{t('createCharacter.steps.1.nav')}</span>
                 </StepItemButton>
                 <StepConnector $isCompleted={currentStep > 1} />
                 <StepItemButton
@@ -6346,7 +6371,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                   <StepNumber $isActive={currentStep === 2} $isCompleted={currentStep > 2}>
                     {currentStep > 2 ? '✓' : '2'}
                   </StepNumber>
-                  <span>История</span>
+                  <span>{t('createCharacter.steps.2.nav')}</span>
                 </StepItemButton>
                 <StepConnector $isCompleted={currentStep > 2} />
                 <StepItemButton
@@ -6359,7 +6384,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                   <StepNumber $isActive={currentStep === 3} $isCompleted={currentStep > 3}>
                     {currentStep > 3 ? '✓' : '3'}
                   </StepNumber>
-                  <span>Завершение</span>
+                  <span>{t('createCharacter.steps.3.nav')}</span>
                 </StepItemButton>
                 <StepConnector $isCompleted={currentStep > 3} />
                 <StepItemButton
@@ -6372,7 +6397,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                   <StepNumber $isActive={currentStep === 4} $isCompleted={false}>
                     4
                   </StepNumber>
-                  <span>Фото</span>
+                  <span>{t('createCharacter.steps.4.nav')}</span>
                 </StepItemButton>
               </StepIndicator>
 
@@ -6386,13 +6411,13 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                     exit={{ opacity: 0, x: 20 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <StepTitle>Шаг 1: Личность</StepTitle>
+                    <StepTitle>{t('createCharacter.steps.1.title')}</StepTitle>
                     <StepDescription>
-                      Определите имя и основные черты личности персонажа
+                      {t('createCharacter.steps.1.description')}
                     </StepDescription>
 
                     <FormField>
-                      <FormLabel htmlFor="name">Имя персонажа</FormLabel>
+                      <FormLabel htmlFor="name">{t('createCharacter.form.name.label')}</FormLabel>
                       <ModernInput
                         type="text"
                         id="name"
@@ -6401,7 +6426,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         onChange={(e) => {
                           handleInputChange(e);
                         }}
-                        placeholder="Введите имя персонажа..."
+                        placeholder={t('createCharacter.form.name.placeholder')}
                         required
                       />
                       <PromptSuggestions
@@ -6425,7 +6450,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                     </FormField>
 
                     <FormField>
-                      <FormLabel htmlFor="personality">Личность и характер</FormLabel>
+                      <FormLabel htmlFor="personality">{t('createCharacter.form.personality.label')}</FormLabel>
                       <ModernTextarea
                         id="personality"
                         name="personality"
@@ -6433,14 +6458,14 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         onChange={(e) => {
                           handleInputChange(e);
                         }}
-                        placeholder="Опишите характер персонажа: какие у него черты личности?"
+                        placeholder={t('createCharacter.form.personality.placeholder')}
                         rows={3}
                         required
                       />
                       <PromptSuggestions
                         prompts={PERSONALITY_PROMPTS}
                         visibleCount={5}
-                        title="Варианты характера"
+                        title={t('createCharacter.form.personality.suggestionsTitle')}
                         onSelect={(val) => {
                           const newVal = formData.personality ? formData.personality + ' ' + val : val;
                           setFormData(prev => ({ ...prev, personality: newVal }));
@@ -6477,7 +6502,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                           whileHover={(formData.name || '').trim().length >= 2 && (formData.personality || '').trim().length > 0 ? { scale: 1.05, y: -2 } : {}}
                           whileTap={(formData.name || '').trim().length >= 2 && (formData.personality || '').trim().length > 0 ? { scale: 0.95 } : {}}
                         >
-                          Далее →
+                          {t('createCharacter.buttons.next')}
                         </motion.button>
                       </div>
                     </FormField>
@@ -6492,13 +6517,13 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                     exit={{ opacity: 0, x: 20 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <StepTitle>Шаг 2: История</StepTitle>
+                    <StepTitle>{t('createCharacter.steps.2.title')}</StepTitle>
                     <StepDescription>
-                      Опишите контекст и ролевую ситуацию персонажа
+                      {t('createCharacter.steps.2.description')}
                     </StepDescription>
 
                     <FormField>
-                      <FormLabel htmlFor="situation">Ролевая ситуация</FormLabel>
+                      <FormLabel htmlFor="situation">{t('createCharacter.form.situation.label')}</FormLabel>
                       <ModernTextarea
                         id="situation"
                         name="situation"
@@ -6506,14 +6531,14 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         onChange={(e) => {
                           handleInputChange(e);
                         }}
-                        placeholder="Опишите ситуацию, в которой находится персонаж. Где он живет? Что происходит в его мире?"
+                        placeholder={t('createCharacter.form.situation.placeholder')}
                         rows={5}
                         required
                       />
                       <PromptSuggestions
                         prompts={SITUATION_PROMPTS}
                         visibleCount={6}
-                        title="Варианты ситуации"
+                        title={t('createCharacter.form.situation.suggestionsTitle')}
                         onSelect={(val) => {
                           const newVal = formData.situation ? formData.situation + ' ' + val : val;
                           setFormData(prev => ({ ...prev, situation: newVal }));
@@ -6523,31 +6548,17 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                       />
                     </FormField>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px' }}>
-                      <motion.button
-                        type="button"
-                        onClick={() => setCurrentStep(1)}
-                        style={{
-                          padding: '12px 24px',
-                          background: 'rgba(40, 40, 50, 0.4)',
-                          border: '1px solid rgba(100, 100, 110, 0.3)',
-                          borderRadius: '12px',
-                          color: 'rgba(255, 255, 255, 0.9)',
-                          fontSize: '14px',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          transition: 'all 0.3s ease',
-                          fontFamily: 'Inter, sans-serif'
-                        }}
-                        whileHover={{ scale: 1.05, y: -2 }}
-                        whileTap={{ scale: 0.95 }}
-                      >
-                        ← Назад
-                      </motion.button>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
                       <motion.button
                         type="button"
                         onClick={() => {
                           if ((formData.situation || '').trim().length > 0) {
+                            // Stop any playing audio before changing step
+                            if (audioRef.current) {
+                              audioRef.current.pause();
+                              audioRef.current.currentTime = 0;
+                            }
+                            setPlayingVoiceUrl(null);
                             setCurrentStep(3);
                           }
                         }}
@@ -6572,7 +6583,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         whileHover={(formData.situation || '').trim().length > 0 ? { scale: 1.05, y: -2 } : {}}
                         whileTap={(formData.situation || '').trim().length > 0 ? { scale: 0.95 } : {}}
                       >
-                        Далее →
+                        {t('createCharacter.buttons.next')}
                       </motion.button>
                     </div>
                   </WizardStep>
@@ -6586,83 +6597,90 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                     exit={{ opacity: 0, x: 20 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <StepTitle>Шаг 3: Завершение</StepTitle>
+
+                    <StepTitle>{t('createCharacter.steps.3.title')}</StepTitle>
                     <StepDescription>
-                      Добавьте инструкции и описание внешности для генерации фото
+                      {t('createCharacter.steps.3.description')}
                     </StepDescription>
 
                     <FormField>
-                      <FormLabel htmlFor="instructions">Инструкции для персонажа</FormLabel>
+                      <FormLabel htmlFor="instructions">{t('createCharacter.form.instructions.label')}</FormLabel>
                       <ModernTextarea
                         id="instructions"
                         name="instructions"
                         value={formData.instructions}
                         onChange={handleInputChange}
-                        placeholder="Как должен вести себя персонаж в разговоре? Какие правила соблюдать?"
+                        placeholder={t('createCharacter.form.instructions.placeholder')}
                         rows={4}
                         required
                       />
-                      <PromptSuggestions
-                        prompts={INSTRUCTION_PROMPTS}
-                        visibleCount={4}
-                        title="Варианты инструкций"
-                        onSelect={(val) => {
-                          const newVal = formData.instructions ? formData.instructions + ' ' + val : val;
-                          setFormData(prev => ({ ...prev, instructions: newVal }));
-                          const fakeEvent = { target: { name: 'instructions', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
-                          handleInputChange(fakeEvent);
-                        }}
-                      />
+                      <div style={{ marginTop: '0' }}>
+                        <PromptSuggestions
+                          prompts={INSTRUCTION_PROMPTS}
+                          visibleCount={4}
+                          title={t('createCharacter.form.instructions.suggestionsTitle')}
+                          onSelect={(val) => {
+                            const newVal = formData.instructions ? formData.instructions + ' ' + val : val;
+                            setFormData(prev => ({ ...prev, instructions: newVal }));
+                            const fakeEvent = { target: { name: 'instructions', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
+                            handleInputChange(fakeEvent);
+                          }}
+                        />
+                      </div>
                     </FormField>
 
                     <FormField>
-                      <FormLabel htmlFor="appearance">Внешность (для фото)</FormLabel>
+                      <FormLabel htmlFor="appearance">{t('createCharacter.form.appearance.label')}</FormLabel>
                       <ModernTextarea
                         id="appearance"
                         name="appearance"
                         value={formData.appearance}
                         onChange={handleInputChange}
-                        placeholder="Опишите внешность персонажа для генерации фото: цвет волос, цвет глаз, рост, телосложение, стиль одежды..."
-                        rows={4}
+                        placeholder={t('createCharacter.form.appearance.placeholder')}
                       />
-                      <PromptSuggestions
-                        prompts={APPEARANCE_PROMPTS}
-                        visibleCount={5}
-                        title="Варианты внешности"
-                        onSelect={(val) => {
-                          const newVal = formData.appearance ? formData.appearance + ' ' + val : val;
-                          setFormData(prev => ({ ...prev, appearance: newVal }));
-                          const fakeEvent = { target: { name: 'appearance', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
-                          handleInputChange(fakeEvent);
-                        }}
-                      />
+                      <div style={{ marginTop: '0' }}>
+                        <PromptSuggestions
+                          prompts={APPEARANCE_PROMPTS}
+                          visibleCount={5}
+                          title={t('createCharacter.form.appearance.suggestionsTitle')}
+                          onSelect={(val) => {
+                            const newVal = formData.appearance ? formData.appearance + ' ' + val : val;
+                            setFormData(prev => ({ ...prev, appearance: newVal }));
+                            const fakeEvent = { target: { name: 'appearance', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
+                            handleInputChange(fakeEvent);
+                          }}
+                        />
+                      </div>
                     </FormField>
+
                     <FormField>
-                      <FormLabel htmlFor="location">Локация (для фото)</FormLabel>
+                      <FormLabel htmlFor="location">{t('createCharacter.form.location.label')}</FormLabel>
                       <ModernTextarea
                         id="location"
                         name="location"
                         value={formData.location}
                         onChange={handleInputChange}
-                        placeholder="Опишите локацию для фото: интерьер, обстановка, атмосфера..."
+                        placeholder={t('createCharacter.form.location.placeholder')}
                         rows={4}
                       />
-                      <PromptSuggestions
-                        prompts={LOCATION_PROMPTS}
-                        visibleCount={6}
-                        title="Варианты локации"
-                        onSelect={(val) => {
-                          const newVal = formData.location ? formData.location + ' ' + val : val;
-                          setFormData(prev => ({ ...prev, location: newVal }));
-                          const fakeEvent = { target: { name: 'location', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
-                          handleInputChange(fakeEvent);
-                        }}
-                      />
+                      <div style={{ marginTop: '0' }}>
+                        <PromptSuggestions
+                          prompts={LOCATION_PROMPTS}
+                          visibleCount={6}
+                          title={t('createCharacter.form.location.suggestionsTitle')}
+                          onSelect={(val) => {
+                            const newVal = formData.location ? formData.location + ' ' + val : val;
+                            setFormData(prev => ({ ...prev, location: newVal }));
+                            const fakeEvent = { target: { name: 'location', value: newVal } } as React.ChangeEvent<HTMLTextAreaElement>;
+                            handleInputChange(fakeEvent);
+                          }}
+                        />
+                      </div>
                     </FormField>
 
                     {/* Выбор голоса */}
                     <FormField>
-                      <FormLabel>Голос</FormLabel>
+                      <FormLabel>{t('createCharacter.voice.label')}</FormLabel>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'flex-start', position: 'relative' }}>
                         {availableVoices.filter((voice) => {
                           const isUserVoice = voice.is_user_voice || false;
@@ -6759,6 +6777,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                   alt={voice.name}
                                   $voiceName={voice.name}
                                   $isSelected={isSelected}
+                                  style={{ transform: 'translateY(2%)' }}
                                   onError={(e) => {
                                     const target = e.target as HTMLImageElement;
                                     const normalizedName = voice.name.replace(/\.(mp3|wav|ogg)$/i, '');
@@ -7062,7 +7081,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                 exit={{ opacity: 0 }}
                                 transition={{ duration: 0.2 }}
                               >
-                                Только для Premium
+                                {t('createCharacter.voice.premium.notice')}
                               </PremiumOnlyNotice>
                             )}
                           </AnimatePresence>
@@ -7090,7 +7109,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                             >
                               {isUploadingVoice ? <VoiceLoadingSpinner /> : <AddVoicePlus />}
                             </AddVoiceContainer>
-                            <AddVoiceName>{isUploadingVoice ? 'Загрузка...' : 'добавить свой голос'}</AddVoiceName>
+                            <AddVoiceName>{isUploadingVoice ? t('createCharacter.voice.uploading') : t('createCharacter.voice.add.label')}</AddVoiceName>
                           </VoicePhotoWrapper>
                         </div>
                       </div>
@@ -7110,7 +7129,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                 <polyline points={showUserVoices ? "18 15 12 9 6 15" : "6 9 12 15 18 9"}></polyline>
                               </svg>
                               <span style={{ fontSize: '14px', fontWeight: 500 }}>
-                                {showUserVoices ? 'Скрыть' : 'Показать'} пользовательские голоса ({availableVoices.filter((voice) => voice.is_user_voice || false).length})
+                                {showUserVoices ? t('createCharacter.voice.custom.hide') : t('createCharacter.voice.custom.show')} ({availableVoices.filter((voice) => voice.is_user_voice || false).length})
                               </span>
                             </ExpandButton>
 
@@ -7925,7 +7944,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                     fontWeight: '500'
                                   }}
                                 >
-                                  Сохранить название
+                                  {t('createCharacter.voice.edit')}
                                 </button>
                               </div>
                             </div>
@@ -7935,7 +7954,34 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                       })()}
                     </FormField>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '24px' }}>
+                    {/* Mobile TagSelector for Step 3 - Dedicated Container */}
+                    {isMobile && (
+                      <div style={{
+                        marginTop: '24px',
+                        padding: '16px',
+                        background: 'transparent',
+                        borderRadius: '16px',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                          <Hash size={18} color="#8b5cf6" />
+                          <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#e4e4e7', margin: 0 }}>
+                            {t('createCharacter.tags.title') || 'Теги персонажа'}
+                          </h3>
+                        </div>
+                        <TagSelector
+                          selectedTags={formData.tags || []}
+                          onChange={(newTags) => setFormData(prev => ({ ...prev, tags: newTags }))}
+                          style={{
+                            width: '100%',
+                            padding: '0',
+                            background: 'transparent',
+                            border: 'none'
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '24px', transform: 'translateY(-7vh)' }}>
                       <motion.button
                         type="button"
                         onClick={() => setCurrentStep(2)}
@@ -7954,10 +8000,18 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         whileHover={{ scale: 1.03, y: -1 }}
                         whileTap={{ scale: 0.97 }}
                       >
-                        ← Назад
+                        {t('createCharacter.buttons.back')}
                       </motion.button>
                       <ContinueButton
                         type="submit"
+                        onClick={() => {
+                          // Stop any playing audio before changing step
+                          if (audioRef.current) {
+                            audioRef.current.pause();
+                            audioRef.current.currentTime = 0;
+                          }
+                          setPlayingVoiceUrl(null);
+                        }}
                         disabled={isLoading ||
                           (formData.name || '').trim().length < 2 ||
                           (formData.personality || '').trim().length === 0 ||
@@ -7966,10 +8020,11 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         style={{ width: 'auto', minWidth: '140px', padding: '8px 16px', fontSize: '13px' }}
                       >
                         {isLoading
-                          ? (isCharacterCreated ? 'Обновление...' : 'Создание...')
-                          : (isCharacterCreated ? 'Сохранить' : 'Создать персонажа')}
+                          ? (isCharacterCreated ? t('createCharacter.buttons.updating') : t('createCharacter.buttons.creating'))
+                          : (isCharacterCreated ? t('createCharacter.buttons.save') : t('createCharacter.buttons.create'))}
                       </ContinueButton>
                     </div>
+
                   </WizardStep>
                 )}
 
@@ -7981,15 +8036,15 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                     exit={{ opacity: 0, x: 20 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <StepTitle>Шаг 4: Генерация фото</StepTitle>
+                    <StepTitle>{t('createCharacter.steps.4.title')}</StepTitle>
                     <StepDescription>
-                      Создайте 3 фото для персонажа которые будут на главной странице
+                      {t('createCharacter.steps.4.description')}
                     </StepDescription>
 
                     {/* 1. Настройки: Модель */}
                     <FormField>
                       <FormLabel htmlFor="model-selection" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <FiSettings size={14} /> Выберите стиль
+                        <FiSettings size={14} /> {t('createCharacter.photo.style')}
                       </FormLabel>
                       <ModelSelectionContainer>
                         <ModelCard
@@ -7998,8 +8053,8 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                           onClick={() => setSelectedModel('anime-realism')}
                         >
                           <ModelInfoOverlay>
-                            <ModelName>Аниме + Реализм</ModelName>
-                            <ModelDescription>Сбалансированный стиль</ModelDescription>
+                            <ModelName>{t('createCharacter.photo.styles.animeRealism')}</ModelName>
+                            <ModelDescription>{t('createCharacter.photo.styles.animeRealismDesc')}</ModelDescription>
                           </ModelInfoOverlay>
                         </ModelCard>
 
@@ -8009,8 +8064,8 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                           onClick={() => setSelectedModel('anime')}
                         >
                           <ModelInfoOverlay>
-                            <ModelName>Аниме</ModelName>
-                            <ModelDescription>Классический 2D стиль</ModelDescription>
+                            <ModelName>{t('createCharacter.photo.styles.anime')}</ModelName>
+                            <ModelDescription>{t('createCharacter.photo.styles.animeDesc')}</ModelDescription>
                           </ModelInfoOverlay>
                         </ModelCard>
                       </ModelSelectionContainer>
@@ -8019,7 +8074,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                     {/* 2. Настройки: Промпт */}
                     <FormField>
                       <FormLabel htmlFor="photo-prompt-unified" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Sparkles size={14} /> Описание (Промпт)
+                        <Sparkles size={14} /> {t('createCharacter.photo.prompt.label')}
                       </FormLabel>
                       <ModernTextarea
                         id="photo-prompt-unified"
@@ -8030,14 +8085,14 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                           customPromptRef.current = newValue;
                           setCustomPromptManuallySet(true);
                         }}
-                        placeholder="Например: девушка-самурай в неоновом городе, киберпанк стиль, дождь, высокая детализация..."
+                        placeholder={t('createCharacter.photo.prompt.placeholder')}
                         rows={4}
                       />
 
                       {/* Теги-помощники */}
                       <div className="relative">
                         <PromptSuggestions
-                          title="Помощники"
+                          title={t('createCharacter.photo.prompt.helpers')}
                           prompts={[
                             { label: 'Высокая детализация', value: 'высокая детализация, реализм, 8к разрешение' },
                             { label: 'Киберпанк', value: 'стиль киберпанк, неоновое освещение, футуристично' },
@@ -8076,16 +8131,24 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                     </FormField>
 
                     {/* 3. Действие: Кнопка "Сгенерировать" */}
-                    <GenerationArea>
-                      <div className="flex justify-between items-center mb-2">
-                        {/* Cost display removed */}
-                      </div>
+                    <PhotoGenerationContainer $isMobile={isMobile} $isFullscreen={isFullscreen}>
+
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>
-                          <GenerateButton
+                        <Step4ButtonContainer>
+                          <Step4GhostButton
                             type="button"
-                            style={{ flex: 1, minWidth: 0, height: '52px' }}
+                            onClick={() => setCurrentStep(3)}
+                            whileHover={{ scale: 1.05, y: -2 }}
+                            whileTap={{ scale: 0.95 }}
+                            style={{ flex: 1, minWidth: 0, padding: isMobile ? '0 8px' : '0 24px' }}
+                          >
+                            {isMobile ? <ArrowLeft size={20} /> : `← ${t('createCharacter.buttons.back')}`}
+                          </Step4GhostButton>
+
+                          <Step4GenerateButton
+                            type="button"
+                            style={{ flex: isMobile ? 2 : 1, minWidth: 0, height: '56px' }}
                             onClick={() => {
                               generatePhoto();
                               setShowGenerateTooltip(true);
@@ -8093,7 +8156,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                             }}
                             disabled={(() => {
                               if (!userInfo || !createdCharacterData) return true;
-                              const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
+                              const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription?.type;
                               let subscriptionType = 'free';
                               if (rawSubscriptionType) {
                                 subscriptionType = typeof rawSubscriptionType === 'string'
@@ -8102,9 +8165,9 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                               }
                               let queueLimit = 1;
                               if (subscriptionType === 'premium') {
-                                queueLimit = 5;
+                                queueLimit = 8;
                               } else if (subscriptionType === 'standard') {
-                                queueLimit = 3;
+                                queueLimit = 5;
                               }
                               const queueCount = generationQueueRef.current?.length ?? 0;
                               const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
@@ -8112,23 +8175,17 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                               return isQueueFull;
                             })()}
                           >
-                            <span className="flex items-center gap-2">
+                            <span className="flex items-center gap-2 justify-center">
                               <Zap size={18} />
                               {(() => {
                                 const hasGeneratedPhotos = generatedPhotos && generatedPhotos.length > 0;
-                                const modelDisplayNames = {
-                                  'anime-realism': 'Аниме + Реализм',
-                                  'anime': 'Аниме',
-                                  'realism': 'Реализм'
-                                };
-                                const currentModelName = modelDisplayNames[selectedModel] || selectedModel;
-                                let buttonText = hasGeneratedPhotos ? `Сгенерировать ещё` : `Сгенерировать фото`;
+                                let buttonText = t('createCharacter.photo.generate');
 
                                 if (!userInfo) {
                                   return buttonText;
                                 }
 
-                                const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
+                                const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription?.type;
                                 let subscriptionType = 'free';
                                 if (rawSubscriptionType) {
                                   subscriptionType = typeof rawSubscriptionType === 'string'
@@ -8137,9 +8194,9 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                 }
                                 let queueLimit = 1;
                                 if (subscriptionType === 'premium') {
-                                  queueLimit = 5;
+                                  queueLimit = 8;
                                 } else if (subscriptionType === 'standard') {
-                                  queueLimit = 3;
+                                  queueLimit = 5;
                                 }
                                 const queueCount = generationQueueRef.current?.length ?? 0;
                                 const activeGenerations = (isGeneratingPhoto ? 1 : 0) + queueCount;
@@ -8151,34 +8208,43 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                 return buttonText;
                               })()}
                             </span>
-                          </GenerateButton>
+                          </Step4GenerateButton>
 
-                          <ContinueButton
+                          <Step4GhostButton
+                            as={motion.button}
                             type="button"
                             disabled={!(generatedPhotos && generatedPhotos.length > 0)}
-                            onClick={async () => {
+                            onClick={() => {
                               if (!createdCharacterData) return;
 
+                              // Save tags in background without waiting
                               try {
                                 const token = localStorage.getItem('authToken');
                                 if (token) {
-                                  await fetch(API_CONFIG.CHARACTER_EDIT_FULL(createdCharacterData.name), {
+                                  fetch(API_CONFIG.CHARACTER_EDIT_FULL(createdCharacterData.name), {
                                     method: 'PUT',
                                     headers: {
                                       'Content-Type': 'application/json',
                                       'Authorization': `Bearer ${token}`
                                     },
                                     body: JSON.stringify({
+                                      name: createdCharacterData.name,
+                                      personality: formData.personality,
+                                      situation: formData.situation,
+                                      instructions: formData.instructions,
+                                      style: formData.style || null,
+                                      appearance: formData.appearance || null,
+                                      location: formData.location || null,
                                       tags: formData.tags
                                     })
-                                  });
+                                  }).catch(error => console.error('Failed to save tags:', error));
                                 }
                               } catch (error) {
                                 console.error('Failed to save tags:', error);
                               }
 
 
-                              const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
+                              const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription?.type;
                               let subscriptionType = 'free';
                               if (rawSubscriptionType) {
                                 subscriptionType = typeof rawSubscriptionType === 'string'
@@ -8198,34 +8264,47 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                             }}
                             style={{
                               flex: 1,
-                              height: '52px',
+                              minWidth: 0,
+                              height: '56px',
+                              padding: isMobile ? '0' : '0 24px',
                               opacity: (generatedPhotos && generatedPhotos.length > 0) ? 1 : 0.5,
-                              cursor: (generatedPhotos && generatedPhotos.length > 0) ? 'pointer' : 'not-allowed'
+                              cursor: (generatedPhotos && generatedPhotos.length > 0) ? 'pointer' : 'not-allowed',
+                              background: isMobile ? 'transparent' : (generatedPhotos && generatedPhotos.length > 0) ? 'linear-gradient(135deg, rgba(234, 179, 8, 0.9), rgba(251, 191, 36, 0.9))' : 'rgba(60, 60, 80, 0.5)',
+                              borderColor: isMobile ? 'transparent' : (generatedPhotos && generatedPhotos.length > 0) ? 'rgba(251, 191, 36, 0.8)' : 'rgba(100, 100, 120, 0.3)',
+                              color: (generatedPhotos && generatedPhotos.length > 0) ? '#1a1a1a' : '#a0a0b0',
+                              boxShadow: isMobile ? 'none' : (generatedPhotos && generatedPhotos.length > 0) ? '0 0 20px rgba(234, 179, 8, 0.4)' : 'none'
                             }}
                           >
-                            Продолжить
-                          </ContinueButton>
+                            {isMobile ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                <ArrowRight size={32} color={generatedPhotos && generatedPhotos.length > 0 ? "#FBBF24" : "rgba(255,255,255,0.3)"} />
+                                <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>{t('createCharacter.buttons.continue')}</span>
+                              </div>
+                            ) : (
+                              t('createCharacter.buttons.continue')
+                            )}
+                          </Step4GhostButton>
+                        </Step4ButtonContainer>
 
-                          {/* Счетчик лимитов */}
-                          {userInfo && (
-                            <LimitItem>
-                              <AnimatedIcon>
-                                <Camera />
-                              </AnimatedIcon>
-                              <LimitValue $warning={(subscriptionStats?.images_limit || 0) - (subscriptionStats?.images_used || 0) <= 5}>
-                                {(() => {
-                                  const limit = subscriptionStats?.images_limit ??
-                                    subscriptionStats?.monthly_photos ??
-                                    (userInfo?.subscription_type === 'standard' || userInfo?.subscription_type === 'premium' ? 300 : 5);
-                                  const used = subscriptionStats?.images_used ??
-                                    subscriptionStats?.used_photos ??
-                                    0;
-                                  return Math.max(0, limit - used);
-                                })()}
-                              </LimitValue>
-                            </LimitItem>
-                          )}
-                        </div>
+                        {/* Счетчик лимитов */}
+                        {userInfo && (
+                          <LimitItem style={{ alignSelf: 'center', marginTop: '12px' }}>
+                            <AnimatedIcon>
+                              <Camera />
+                            </AnimatedIcon>
+                            <LimitValue $warning={(subscriptionStats?.images_limit || 0) - (subscriptionStats?.images_used || 0) <= 5}>
+                              {(() => {
+                                const limit = subscriptionStats?.images_limit ??
+                                  subscriptionStats?.monthly_photos ??
+                                  (userInfo?.subscription_type === 'standard' || userInfo?.subscription_type === 'premium' ? 300 : 5);
+                                const used = subscriptionStats?.images_used ??
+                                  subscriptionStats?.used_photos ??
+                                  0;
+                                return Math.max(0, limit - used);
+                              })()}
+                            </LimitValue>
+                          </LimitItem>
+                        )}
 
 
                         <GenerateTooltip $isVisible={showGenerateTooltip}>
@@ -8233,17 +8312,19 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         </GenerateTooltip>
                       </div>
 
+
+
                       {/* Предупреждение о времени (серое) */}
                       <WarningText>
                         <FiClock size={12} />
-                        Первая генерация может занять до 1 минуты
+                        {t('createCharacter.photo.warning')}
                       </WarningText>
 
                       {/* Детальный прогресс-бар */}
                       {isGeneratingPhoto && (
                         <ProgressBarContainer>
                           <div className="flex justify-between items-center mb-2">
-                            <span className="text-xs text-zinc-400">Процесс создания...</span>
+                            <span className="text-xs text-zinc-400">{t('createCharacter.photo.progress.text')}</span>
                             <span className="text-xs text-[#8b5cf6] font-medium">{Math.round(generationProgress || 0)}%</span>
                           </div>
                           <GenerationProgressBar $progress={generationProgress || 0}>
@@ -8256,7 +8337,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                 {(generationProgress || 0) >= 30 ? <FiCheckCircle size={10} /> : '1'}
                               </StepIcon>
                               <StepText $isActive={(generationProgress || 0) < 30} $isCompleted={(generationProgress || 0) >= 30}>
-                                Подготовка модели и параметров
+                                {t('createCharacter.photo.progress.step1')}
                               </StepText>
                             </StepItem>
 
@@ -8265,7 +8346,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                 {(generationProgress || 0) >= 80 ? <FiCheckCircle size={10} /> : '2'}
                               </StepIcon>
                               <StepText $isActive={(generationProgress || 0) >= 30 && (generationProgress || 0) < 80} $isCompleted={(generationProgress || 0) >= 80}>
-                                Генерация изображения нейросетью
+                                {t('createCharacter.photo.progress.step2')}
                               </StepText>
                             </StepItem>
 
@@ -8274,7 +8355,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                 {(generationProgress || 0) >= 100 ? <FiCheckCircle size={10} /> : '3'}
                               </StepIcon>
                               <StepText $isActive={(generationProgress || 0) >= 80} $isCompleted={(generationProgress || 0) >= 100}>
-                                Финализация и сохранение
+                                {t('createCharacter.photo.progress.step3')}
                               </StepText>
                             </StepItem>
                           </div>
@@ -8292,16 +8373,16 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         }
                         let queueLimit = 1;
                         if (subscriptionType === 'premium') {
-                          queueLimit = 5;
+                          queueLimit = 8;
                         } else if (subscriptionType === 'standard') {
-                          queueLimit = 3;
+                          queueLimit = 5;
                         }
                         const queueCount = generationQueueRef.current?.length ?? 0;
                         const activeGenerations = Math.min((isGeneratingPhoto ? 1 : 0) + queueCount, queueLimit);
                         if (activeGenerations > 0 && queueLimit > 0) {
                           return (
                             <GenerationQueueContainer>
-                              <QueueLabel>ОЧЕРЕДЬ ГЕНЕРАЦИИ</QueueLabel>
+                              <QueueLabel>{t('createCharacter.photo.queue.label')}</QueueLabel>
                               <GenerationQueueIndicator>
                                 <QueueProgressBar
                                   $filled={activeGenerations}
@@ -8309,14 +8390,14 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                 />
                               </GenerationQueueIndicator>
                               <QueueCounter>
-                                Queue: {activeGenerations}/{queueLimit}
+                                {t('createCharacter.photo.queue.counter', { active: activeGenerations, limit: queueLimit })}
                               </QueueCounter>
                             </GenerationQueueContainer>
                           );
                         }
                         return null;
                       })()}
-                    </GenerationArea>
+                    </PhotoGenerationContainer>
 
                     {/* Сгенерированные фото */}
                     {generatedPhotos && Array.isArray(generatedPhotos) && generatedPhotos.length > 0 && (
@@ -8376,7 +8457,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                       e.stopPropagation();
                                     }}
                                   >
-                                    {isSelected ? 'Убрать' : <><Plus size={12} /> Добавить</>}
+                                    {isSelected ? t('createCharacter.photo.buttons.remove') : <><Plus size={12} /> {t('createCharacter.photo.buttons.add')}</>}
                                   </PhotoOverlayButton>
                                 </PhotoOverlay>
                               </PhotoTile>
@@ -8399,38 +8480,20 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         >
                           <HintIcon><Sparkles size={16} /></HintIcon>
                           <HintContent>
-                            <HintTitle>Совет по оформлению</HintTitle>
+                            <HintTitle>{t('createCharacter.photo.designTip.title')}</HintTitle>
                             <HintText>
-                              Добавьте еще <b>{3 - selectedPhotos.length} {3 - selectedPhotos.length === 1 ? 'фото' : 'фото'}</b> для полной коллекции!
-                              Три разных фото сделают карточку персонажа гораздо привлекательнее для пользователей.
+                              <Trans
+                                i18nKey="createCharacter.photo.designTip.text"
+                                values={{ count: 3 - selectedPhotos.length, photo_form: t('createCharacter.photo.designTip.photo_other') }}
+                                components={{ b: <b /> }}
+                              />
                             </HintText>
                           </HintContent>
                         </HintBox>
                       )}
                     </AnimatePresence>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px' }}>
-                      <motion.button
-                        type="button"
-                        onClick={() => setCurrentStep(3)}
-                        style={{
-                          padding: '12px 24px',
-                          background: 'rgba(40, 40, 50, 0.4)',
-                          border: '1px solid rgba(100, 100, 110, 0.3)',
-                          borderRadius: '12px',
-                          color: 'rgba(255, 255, 255, 0.9)',
-                          fontSize: '14px',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          transition: 'all 0.3s ease',
-                          fontFamily: 'Inter, sans-serif'
-                        }}
-                        whileHover={{ scale: 1.05, y: -2 }}
-                        whileTap={{ scale: 0.95 }}
-                      >
-                        ← Назад
-                      </motion.button>
-                    </div>
+
                   </WizardStep>
                 )}
               </AnimatePresence>
@@ -8447,271 +8510,289 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
             </LeftColumn>
 
+
+
             {/* Правая колонка - Live Preview (40%) */}
-            <RightColumn>
-              <LivePreviewCard
-                animate={{
-                  scale: formData.name ? [1, 1.02, 1] : 1,
-                }}
-                transition={{
-                  duration: 0.5,
-                  repeat: formData.name ? Infinity : 0,
-                  repeatDelay: 1
-                }}
-              >
-                <PreviewImage>
-                  {(() => {
-                    // Собираем все доступные фото: сначала выбранные, потом из createdCharacterData, потом сгенерированные
-                    const allPhotos: Array<{ url: string; id?: string }> = [];
+            <RightColumnWrapper>
+              <StyledRightColumn>
+                <LivePreviewCard
+                  animate={{
+                    scale: formData.name ? [1, 1.02, 1] : 1,
+                  }}
+                  transition={{
+                    duration: 0.5,
+                    repeat: formData.name ? Infinity : 0,
+                    repeatDelay: 1
+                  }}
+                >
+                  <PreviewImage>
+                    {(() => {
+                      // Собираем все доступные фото: сначала выбранные, потом из createdCharacterData, потом сгенерированные
+                      const allPhotos: Array<{ url: string; id?: string }> = [];
 
-                    // Добавляем выбранные фото
-                    if (selectedPhotos.length > 0) {
-                      allPhotos.push(...selectedPhotos);
-                    }
+                      // Добавляем выбранные фото
+                      if (selectedPhotos.length > 0) {
+                        allPhotos.push(...selectedPhotos);
+                      }
 
-                    // Добавляем фото из createdCharacterData (если они еще не в selectedPhotos)
-                    if (createdCharacterData?.photos && Array.isArray(createdCharacterData.photos)) {
-                      createdCharacterData.photos.forEach((photo: any) => {
-                        if (photo?.url && !allPhotos.some(p => p.url === photo.url)) {
-                          allPhotos.push({ url: photo.url, id: photo.id });
-                        }
-                      });
-                    }
+                      // Добавляем фото из createdCharacterData (если они еще не в selectedPhotos)
+                      if (createdCharacterData?.photos && Array.isArray(createdCharacterData.photos)) {
+                        createdCharacterData.photos.forEach((photo: any) => {
+                          if (photo?.url && !allPhotos.some(p => p.url === photo.url)) {
+                            allPhotos.push({ url: photo.url, id: photo.id });
+                          }
+                        });
+                      }
 
-                    // Добавляем сгенерированные фото (если они еще не добавлены)
-                    if (generatedPhotos.length > 0) {
-                      generatedPhotos.forEach((photo: any) => {
-                        if (photo?.url && !allPhotos.some(p => p.url === photo.url)) {
-                          allPhotos.push({ url: photo.url, id: photo.id });
-                        }
-                      });
-                    }
+                      // Добавляем сгенерированные фото (если они еще не добавлены)
+                      if (generatedPhotos.length > 0) {
+                        generatedPhotos.forEach((photo: any) => {
+                          if (photo?.url && !allPhotos.some(p => p.url === photo.url)) {
+                            allPhotos.push({ url: photo.url, id: photo.id });
+                          }
+                        });
+                      }
 
-                    // Если есть фото, показываем слайдер
-                    if (allPhotos.length > 0) {
-                      const currentPhoto = allPhotos[previewPhotoIndex % allPhotos.length];
+                      // Если есть фото, показываем слайдер
+                      if (allPhotos.length > 0) {
+                        const currentPhoto = allPhotos[previewPhotoIndex % allPhotos.length];
 
-                      return (
-                        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-                          <img
-                            src={currentPhoto.url}
-                            alt={formData.name || 'Character preview'}
-                            style={{
-                              width: '100%',
-                              height: '100%',
-                              objectFit: 'cover',
-                              borderRadius: '16px',
-                              transition: 'opacity 0.3s ease'
-                            }}
-                          />
-                          {allPhotos.length > 1 && (
-                            <>
-                              <div style={{
-                                position: 'absolute',
-                                bottom: '12px',
-                                left: '50%',
-                                transform: 'translateX(-50%)',
-                                display: 'flex',
-                                gap: '6px',
-                                zIndex: 10
-                              }}>
-                                {allPhotos.map((_, idx) => (
-                                  <div
-                                    key={idx}
-                                    onClick={() => setPreviewPhotoIndex(idx)}
-                                    style={{
-                                      width: '8px',
-                                      height: '8px',
-                                      borderRadius: '50%',
-                                      background: idx === (previewPhotoIndex % allPhotos.length)
-                                        ? 'rgba(255, 255, 255, 0.9)'
-                                        : 'rgba(255, 255, 255, 0.4)',
-                                      cursor: 'pointer',
-                                      transition: 'all 0.2s ease'
-                                    }}
-                                  />
-                                ))}
-                              </div>
-                              <div
-                                style={{
+                        return (
+                          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                            <img
+                              src={currentPhoto.url}
+                              alt={formData.name || 'Character preview'}
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                                borderRadius: '16px',
+                                transition: 'opacity 0.3s ease'
+                              }}
+                            />
+                            {allPhotos.length > 1 && (
+                              <>
+                                <div style={{
                                   position: 'absolute',
-                                  left: '8px',
-                                  top: '50%',
-                                  transform: 'translateY(-50%)',
-                                  background: 'rgba(0, 0, 0, 0.5)',
-                                  border: 'none',
-                                  borderRadius: '50%',
-                                  width: '32px',
-                                  height: '32px',
+                                  bottom: '12px',
+                                  left: '50%',
+                                  transform: 'translateX(-50%)',
                                   display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  cursor: 'pointer',
-                                  zIndex: 10,
-                                  color: 'white',
-                                  fontSize: '18px'
-                                }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setPreviewPhotoIndex(prev => (prev - 1 + allPhotos.length) % allPhotos.length);
-                                }}
-                              >
-                                ←
-                              </div>
-                              <div
-                                style={{
-                                  position: 'absolute',
-                                  right: '8px',
-                                  top: '50%',
-                                  transform: 'translateY(-50%)',
-                                  background: 'rgba(0, 0, 0, 0.5)',
-                                  border: 'none',
-                                  borderRadius: '50%',
-                                  width: '32px',
-                                  height: '32px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  cursor: 'pointer',
-                                  zIndex: 10,
-                                  color: 'white',
-                                  fontSize: '18px'
-                                }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setPreviewPhotoIndex(prev => (prev + 1) % allPhotos.length);
-                                }}
-                              >
-                                →
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      );
-                    }
+                                  gap: '6px',
+                                  zIndex: 10
+                                }}>
+                                  {allPhotos.map((_, idx) => (
+                                    <div
+                                      key={idx}
+                                      onClick={() => setPreviewPhotoIndex(idx)}
+                                      style={{
+                                        width: '8px',
+                                        height: '8px',
+                                        borderRadius: '50%',
+                                        background: idx === (previewPhotoIndex % allPhotos.length)
+                                          ? 'rgba(255, 255, 255, 0.9)'
+                                          : 'rgba(255, 255, 255, 0.4)',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s ease'
+                                      }}
+                                    />
+                                  ))}
+                                </div>
+                                <div
+                                  style={{
+                                    position: 'absolute',
+                                    left: '8px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'rgba(0, 0, 0, 0.5)',
+                                    border: 'none',
+                                    borderRadius: '50%',
+                                    width: '32px',
+                                    height: '32px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    zIndex: 10,
+                                    color: 'white',
+                                    fontSize: '18px'
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPreviewPhotoIndex(prev => (prev - 1 + allPhotos.length) % allPhotos.length);
+                                  }}
+                                >
+                                  ←
+                                </div>
+                                <div
+                                  style={{
+                                    position: 'absolute',
+                                    right: '8px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'rgba(0, 0, 0, 0.5)',
+                                    border: 'none',
+                                    borderRadius: '50%',
+                                    width: '32px',
+                                    height: '32px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    zIndex: 10,
+                                    color: 'white',
+                                    fontSize: '18px'
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPreviewPhotoIndex(prev => (prev + 1) % allPhotos.length);
+                                  }}
+                                >
+                                  →
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        );
+                      }
 
-                    // Если нет фото, проверяем, показывать ли placeholder
-                    const hasSelectedPhotos = selectedPhotos.length > 0;
-                    const hasCreatedPhotos = createdCharacterData?.photos && createdCharacterData.photos.length > 0;
-                    const hasGeneratedPhotos = generatedPhotos.length > 0;
-                    const hasAnyPhotos = hasSelectedPhotos || hasCreatedPhotos || hasGeneratedPhotos;
+                      // Если нет фото, проверяем, показывать ли placeholder
+                      const hasSelectedPhotos = selectedPhotos.length > 0;
+                      const hasCreatedPhotos = createdCharacterData?.photos && createdCharacterData.photos.length > 0;
+                      const hasGeneratedPhotos = generatedPhotos.length > 0;
+                      const hasAnyPhotos = hasSelectedPhotos || hasCreatedPhotos || hasGeneratedPhotos;
 
-                    if (!hasAnyPhotos && (formData.appearance || formData.name)) {
-                      return (
-                        <div style={{
-                          width: '100%',
-                          height: '100%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'rgba(139, 92, 246, 0.4)',
-                          fontSize: '48px'
-                        }}>
-                          <Sparkles size={48} />
-                        </div>
-                      );
-                    }
+                      if (!hasAnyPhotos && (formData.appearance || formData.name)) {
+                        return (
+                          <div style={{
+                            width: '100%',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'rgba(139, 92, 246, 0.4)',
+                            fontSize: '48px'
+                          }}>
+                            <Sparkles size={48} />
+                          </div>
+                        );
+                      }
 
-                    if (!hasAnyPhotos) {
-                      return (
-                        <div style={{
-                          width: '100%',
-                          height: '100%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'rgba(160, 160, 170, 0.3)',
-                          fontSize: '14px',
-                          fontFamily: 'Inter, sans-serif'
-                        }}>
-                          Превью появится здесь
-                        </div>
-                      );
-                    }
+                      if (!hasAnyPhotos) {
+                        return (
+                          <div style={{
+                            width: '100%',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'rgba(160, 160, 170, 0.3)',
+                            fontSize: '14px',
+                            fontFamily: 'Inter, sans-serif'
+                          }}>
+                            {t('createCharacter.photo.preview.placeholder')}
+                          </div>
+                        );
+                      }
 
-                    return null;
-                  })()}
-                  <PreviewImageTags>
-                    {formData.tags.map((tag, idx) => (
-                      <PreviewTag key={`custom-${idx}`}>
-                        {tag}
-                      </PreviewTag>
-                    ))}
-                    {formData.personality && PERSONALITY_PROMPTS
-                      .filter(tag => formData.personality.includes(tag.value.substring(0, 20)))
-                      .slice(0, 3)
-                      .map((tag, idx) => (
-                        <PreviewTag key={`suggested-${idx}`} $category={getTagCategory(tag.label)}>
-                          {tag.label}
+                      return null;
+                    })()}
+                    <PreviewImageTags>
+                      {formData.tags.map((tag, idx) => (
+                        <PreviewTag key={`custom-${idx}`}>
+                          {tag}
                         </PreviewTag>
                       ))}
-                  </PreviewImageTags>
-                </PreviewImage>
-                <PreviewName>
-                  {formData.name || 'Имя персонажа'}
-                </PreviewName>
-              </LivePreviewCard>
+                      {formData.personality && PERSONALITY_PROMPTS
+                        .filter(tag => formData.personality.includes(tag.value.substring(0, 20)))
+                        .slice(0, 3)
+                        .map((tag, idx) => (
+                          <PreviewTag key={`suggested-${idx}`} $category={getTagCategory(tag.label)}>
+                            {tag.label}
+                          </PreviewTag>
+                        ))}
+                    </PreviewImageTags>
+                  </PreviewImage>
+                  <PreviewName>
+                    {formData.name || t('createCharacter.photo.preview.namePlaceholder')}
+                  </PreviewName>
+                </LivePreviewCard>
 
-              {/* Кнопка "Продолжить" */}
-              {generatedPhotos && generatedPhotos.length > 0 && createdCharacterData && (
-                <div style={{ marginTop: '24px', marginBottom: '24px', display: 'flex', justifyContent: 'flex-end' }}>
-                  <ContinueButton
-                    type="button"
-                    onClick={async () => {
-                      if (!createdCharacterData) return;
+                {/* Кнопка "Продолжить" */}
+                {generatedPhotos && generatedPhotos.length > 0 && createdCharacterData && (
+                  <div style={{ marginTop: '24px', marginBottom: '24px', display: 'flex', justifyContent: 'flex-end' }}>
+                    <ContinueButton
+                      type="button"
+                      onClick={async () => {
+                        if (!createdCharacterData) return;
 
-                      // Сохраняем теги, если они были изменены
-                      if (formData.tags && formData.tags.length > 0) {
-                        try {
-                          await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${createdCharacterData.id}`, {
-                            method: 'PUT',
-                            headers: {
-                              'Content-Type': 'application/json',
-                              'Authorization': `Bearer ${localStorage.getItem('token')}`
-                            },
-                            body: JSON.stringify({ tags: formData.tags })
-                          });
-                        } catch (e) {
-                          console.error('Failed to save tags', e);
+                        // Сохраняем теги, если они были изменены
+                        if (formData.tags && formData.tags.length > 0) {
+                          try {
+                            await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${createdCharacterData.id}`, {
+                              method: 'PUT',
+                              headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                              },
+                              body: JSON.stringify({ tags: formData.tags })
+                            });
+                          } catch (e) {
+                            console.error('Failed to save tags', e);
+                          }
                         }
-                      }
 
-                      // Определяем тип подписки
-                      const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
-                      let subscriptionType = 'free';
-                      if (rawSubscriptionType) {
-                        subscriptionType = typeof rawSubscriptionType === 'string'
-                          ? rawSubscriptionType.toLowerCase().trim()
-                          : String(rawSubscriptionType).toLowerCase().trim();
-                      }
+                        // Определяем тип подписки
+                        const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
+                        let subscriptionType = 'free';
+                        if (rawSubscriptionType) {
+                          subscriptionType = typeof rawSubscriptionType === 'string'
+                            ? rawSubscriptionType.toLowerCase().trim()
+                            : String(rawSubscriptionType).toLowerCase().trim();
+                        }
 
-                      // Если подписка Standard или Premium - открываем создание альбома
-                      if (subscriptionType === 'standard' || subscriptionType === 'premium') {
-                        if (onOpenPaidAlbumBuilder) {
-                          onOpenPaidAlbumBuilder(createdCharacterData);
+                        // Если подписка Standard или Premium - открываем создание альбома
+                        if (subscriptionType === 'standard' || subscriptionType === 'premium') {
+                          if (onOpenPaidAlbumBuilder) {
+                            onOpenPaidAlbumBuilder(createdCharacterData);
+                          }
+                        } else {
+                          // Иначе открываем чат
+                          if (onOpenChat) {
+                            onOpenChat(createdCharacterData);
+                          }
                         }
-                      } else {
-                        // Иначе открываем чат
-                        if (onOpenChat) {
-                          onOpenChat(createdCharacterData);
-                        }
-                      }
+                      }}
+                    >
+                      {t('createCharacter.buttons.continue')}
+                    </ContinueButton>
+                  </div>
+                )}
+              </StyledRightColumn>
+
+              {currentStep === 3 && (
+                <div style={{
+                  width: '100%',
+                  marginTop: '-15%',
+                  padding: '0',
+                  background: 'transparent',
+                  transform: 'scale(1)', /* Reset scale for tags, but position relative to parent */
+                  marginLeft: '0'
+                }}>
+                  <TagSelector
+                    selectedTags={formData.tags || []}
+                    onChange={(newTags) => setFormData(prev => ({ ...prev, tags: newTags }))}
+                    style={{
+                      width: '100%',
+                      height: '200px',
+                      padding: 0
                     }}
-                  >
-                    Продолжить
-                  </ContinueButton>
+                  />
                 </div>
               )}
-              {currentStep === 3 && (
-                <TagSelector
-                  className="mt-auto"
-                  selectedTags={formData.tags || []}
-                  onChange={(newTags) => setFormData(prev => ({ ...prev, tags: newTags }))}
-                />
-              )}
-            </RightColumn>
-          </form>
-        </MainContent>
+            </RightColumnWrapper>
+          </form >
+        </MainContent >
       </MainContainer >
 
       {/* Модальное окно Clone Your Voice */}
@@ -8727,25 +8808,25 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
               <VoiceCloneModalOverlay onClick={() => setIsVoiceCloneModalOpen(false)}>
                 <VoiceCloneModal onClick={(e) => e.stopPropagation()}>
                   <VoiceCloneModalHeader>
-                    <VoiceCloneModalTitle>Создать свой голос</VoiceCloneModalTitle>
+                    <VoiceCloneModalTitle>{t('createCharacter.modals.voiceClone.title')}</VoiceCloneModalTitle>
                     <VoiceCloneModalCloseButton onClick={() => setIsVoiceCloneModalOpen(false)}>
                       <X size={20} />
                     </VoiceCloneModalCloseButton>
                   </VoiceCloneModalHeader>
 
                   <VoiceCloneInstructions>
-                    <VoiceCloneInstructionsTitle>Инструкции:</VoiceCloneInstructionsTitle>
+                    <VoiceCloneInstructionsTitle>{t('createCharacter.modals.voiceClone.instructions.title')}</VoiceCloneInstructionsTitle>
                     <VoiceCloneInstructionItem>
                       <span>•</span>
-                      <span>Загрузите 15-30 секунд чистой речи</span>
+                      <span>{t('createCharacter.modals.voiceClone.instructions.step1')}</span>
                     </VoiceCloneInstructionItem>
                     <VoiceCloneInstructionItem>
                       <span>•</span>
-                      <span>Без фонового шума или музыки</span>
+                      <span>{t('createCharacter.modals.voiceClone.instructions.step2')}</span>
                     </VoiceCloneInstructionItem>
                     <VoiceCloneInstructionItem>
                       <span>•</span>
-                      <span>Монотонная или выразительная речь в зависимости от желаемого результата</span>
+                      <span>{t('createCharacter.modals.voiceClone.instructions.step3')}</span>
                     </VoiceCloneInstructionItem>
                   </VoiceCloneInstructions>
 
@@ -8789,7 +8870,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                           </div>
                           {voiceDuration !== null && (
                             <div style={{ color: '#a1a1aa', fontSize: '12px' }}>
-                              Длительность: {voiceDuration.toFixed(1)}с
+                              {t('createCharacter.modals.voiceClone.status.valid', { duration: voiceDuration.toFixed(1) })}
                             </div>
                           )}
                         </>
@@ -8797,10 +8878,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         <>
                           <Upload size={48} color="rgba(139, 92, 246, 0.8)" style={{ margin: '0 auto 12px' }} />
                           <div style={{ color: '#e4e4e7', fontWeight: 500, marginBottom: '4px' }}>
-                            Перетащите аудио файл сюда или нажмите для выбора
+                            {t('createCharacter.modals.voiceClone.uploadTitle')}
                           </div>
                           <div style={{ color: '#a1a1aa', fontSize: '12px' }}>
-                            Поддерживаются MP3, WAV и другие аудио форматы
+                            {t('createCharacter.modals.voiceClone.uploadSubtitle')}
                           </div>
                         </>
                       )}
@@ -8820,12 +8901,12 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         {voiceDuration >= 10 ? (
                           <>
                             <CheckCircle size={16} />
-                            <span>Длительность аудио: {voiceDuration.toFixed(1)}с (минимум 10с требуется)</span>
+                            <span>{t('createCharacter.modals.voiceClone.status.valid', { duration: voiceDuration.toFixed(1) })}</span>
                           </>
                         ) : (
                           <>
                             <AlertCircle size={16} />
-                            <span>Аудио слишком короткое (мин 10с). Текущее: {voiceDuration.toFixed(1)}с</span>
+                            <span>{t('createCharacter.modals.voiceClone.status.invalid', { duration: voiceDuration.toFixed(1) })}</span>
                           </>
                         )}
                       </VoiceCloneStatusMessage>
@@ -8916,12 +8997,12 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                     {isUploadingVoice ? (
                       <>
                         <div style={{ width: '20px', height: '20px', border: '3px solid rgba(139, 92, 246, 0.2)', borderTop: '3px solid rgba(139, 92, 246, 0.9)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                        <span>Загрузка...</span>
+                        <span>{t('createCharacter.modals.voiceClone.loading')}</span>
                       </>
                     ) : (
                       <>
                         <Upload size={18} />
-                        <span>Клонировать голос</span>
+                        <span>{t('createCharacter.modals.voiceClone.cloneBtn')}</span>
                       </>
                     )}
                   </VoiceCloneSubmitButton>
@@ -8937,9 +9018,9 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         showPremiumModal && (
           <PremiumModalOverlay onClick={() => { setShowPremiumModal(false); setPremiumVoiceForModal(null); }}>
             <PremiumModalContent onClick={(e) => e.stopPropagation()}>
-              <PremiumModalTitle>Голос только для Premium</PremiumModalTitle>
+              <PremiumModalTitle>{t('createCharacter.modals.premium.title')}</PremiumModalTitle>
               <PremiumModalText>
-                Оформите подписку PREMIUM, чтобы использовать премиальные голоса, или выберите другой голос.
+                {t('createCharacter.modals.premium.text')}
               </PremiumModalText>
               <PremiumModalButtons>
                 <PremiumModalButton
@@ -8951,10 +9032,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                     else window.location.href = '/shop';
                   }}
                 >
-                  Оформить Premium
+                  {t('createCharacter.modals.premium.button')}
                 </PremiumModalButton>
                 <PremiumModalButton onClick={() => { setShowPremiumModal(false); setPremiumVoiceForModal(null); }}>
-                  Закрыть
+                  {t('createCharacter.modals.premium.close')}
                 </PremiumModalButton>
               </PremiumModalButtons>
             </PremiumModalContent>
@@ -8969,9 +9050,12 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         imageUrl={selectedPhotoForView?.url || ''}
         imageAlt="Generated photo"
         promptText={selectedPrompt}
+        promptTextRu={selectedPromptRu}
+        promptTextEn={selectedPromptEn}
         isLoading={isLoadingPrompt}
         error={promptError}
       />
+
     </>
   );
 };

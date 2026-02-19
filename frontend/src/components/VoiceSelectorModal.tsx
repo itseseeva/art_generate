@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled, { keyframes, css } from 'styled-components';
+import { useTranslation } from 'react-i18next';
 import { theme } from '../theme';
 import { FiX } from 'react-icons/fi';
 import { API_CONFIG } from '../config/api';
@@ -703,6 +704,7 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
   userInfo,
   onShop
 }) => {
+  const { t } = useTranslation();
   const [availableVoices, setAvailableVoices] = useState<Voice[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'default' | 'user'>('default');
@@ -845,7 +847,7 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
     <ModalOverlay onClick={onClose}>
       <ModalContent onClick={(e) => e.stopPropagation()}>
         <ModalHeader>
-          <ModalTitle>Выберите голос</ModalTitle>
+          <ModalTitle>{t('voiceSelector.title')}</ModalTitle>
           <CloseButton onClick={onClose}>
             <FiX />
           </CloseButton>
@@ -856,13 +858,13 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
             $isActive={activeTab === 'default'}
             onClick={() => { setActiveTab('default'); setIsExpanded(false); }}
           >
-            Стандартные ({defaultVoices.length})
+            {t('voiceSelector.defaultTab')} ({defaultVoices.length})
           </Tab>
           <Tab
             $isActive={activeTab === 'user'}
             onClick={() => setActiveTab('user')}
           >
-            Пользовательские ({userVoices.length})
+            {t('voiceSelector.userTab')} ({userVoices.length})
           </Tab>
         </TabsContainer>
 
@@ -965,7 +967,7 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>
-                <span>{isExpanded ? 'Скрыть остальные голоса' : 'Показать остальные голоса'}</span>
+                <span>{isExpanded ? t('voiceSelector.showLess') : t('voiceSelector.showMore')}</span>
               </ExpandButton>
             )}
           </>
@@ -973,7 +975,7 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
         {selectedVoice && (
           <SaveButtonContainer>
             <SaveButton onClick={handleSaveVoice}>
-              Сохранить
+              {t('voiceSelector.save')}
             </SaveButton>
           </SaveButtonContainer>
         )}
@@ -982,9 +984,9 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
       {showPremiumModal && (
         <PremiumModalOverlay onClick={() => setShowPremiumModal(false)}>
           <PremiumModalContent onClick={(e) => e.stopPropagation()}>
-            <PremiumModalTitle>Голос только для Premium</PremiumModalTitle>
+            <PremiumModalTitle>{t('voiceSelector.premiumOnly')}</PremiumModalTitle>
             <PremiumModalText>
-              Оформите подписку PREMIUM, чтобы использовать премиальные голоса, или выберите другой голос.
+              {t('voiceSelector.premiumMessage')}
             </PremiumModalText>
             <PremiumModalButtons>
               <PremiumModalButton
@@ -994,10 +996,10 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
                   if (onShop) onShop();
                 }}
               >
-                Перейти в магазин
+                {t('voiceSelector.goToShop')}
               </PremiumModalButton>
               <PremiumModalButton onClick={() => setShowPremiumModal(false)}>
-                Закрыть
+                {t('common.close')}
               </PremiumModalButton>
             </PremiumModalButtons>
           </PremiumModalContent>

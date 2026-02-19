@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useGridColumns } from '../hooks/useGridColumns';
+import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { authManager } from '../utils/auth';
+import { LoadingSpinner } from './LoadingSpinner';
 import { theme } from '../theme';
 import '../styles/ContentArea.css';
 import { CharacterCard } from './CharacterCard';
-import { GlobalHeader } from './GlobalHeader';
 import { AuthModal } from './AuthModal';
 import SplitText from './SplitText';
 import { API_CONFIG } from '../config/api';
@@ -37,6 +39,25 @@ const ContentWrapper = styled.div`
   width: 100%;
   display: flex;
   flex-direction: column;
+  flex: 1;
+`;
+
+const PageLayout = styled.div`
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  width: 100%;
+  overflow: hidden;
+`;
+
+const SidebarSpacer = styled.div`
+  width: 300px;
+  min-width: 300px;
+  flex-shrink: 0;
+  display: none;
+  @media (min-width: 1024px) {
+    display: block;
+  }
 `;
 
 
@@ -54,7 +75,7 @@ const BackButton = styled.button`
   background: transparent;
   border: none;
   color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.md};
+  font-size: ${theme.fontSize.base};
   cursor: pointer;
   transition: color ${theme.transition.fast};
   
@@ -156,10 +177,17 @@ const AuthButton = styled.button`
 
 const MainContent = styled.div`
   flex: 1;
-  padding: 0;
+  padding: ${theme.spacing.lg} ${theme.spacing.sm};
+  padding-top: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  
+  /* Скрываем скроллбар */
+  scrollbar-width: none; /* Firefox */
+  &::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
 
   @media (max-width: 768px) {
     padding: 0;
@@ -168,29 +196,24 @@ const MainContent = styled.div`
 
 const CharactersGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 0;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
   margin-top: ${theme.spacing.lg};
-  padding: ${theme.spacing.xs} ${theme.spacing.sm};
-  overflow-y: auto;
+  padding: 16px ${theme.spacing.sm} ${theme.spacing.xs};
+  overflow-y: visible;
   align-content: start;
+  width: 100%;
+  margin-top: ${theme.spacing.lg};
 
   @media (max-width: 768px) {
     grid-template-columns: repeat(2, 1fr);
-    gap: 0;
+    gap: 8px;
     padding: ${theme.spacing.xs} ${theme.spacing.sm};
     margin-top: ${theme.spacing.md};
   }
 `;
 
-const LoadingSpinner = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 200px;
-  font-size: ${theme.fontSize.lg};
-  color: ${theme.colors.text.secondary};
-`;
+// Local LoadingSpinner removed
 
 const EmptyState = styled.div`
   display: flex;
@@ -209,7 +232,7 @@ const EmptyTitle = styled.h3`
 
 const EmptyDescription = styled.p`
   color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.md};
+  font-size: ${theme.fontSize.base};
   margin-bottom: ${theme.spacing.xl};
 `;
 
@@ -219,7 +242,7 @@ const CreateButton = styled.button`
   border: none;
   border-radius: ${theme.borderRadius.lg};
   padding: ${theme.spacing.md} ${theme.spacing.xl};
-  font-size: ${theme.fontSize.md};
+  font-size: ${theme.fontSize.base};
   font-weight: 600;
   cursor: pointer;
   transition: ${theme.transition.fast};
@@ -245,7 +268,19 @@ interface Character {
   likes: number;
   dislikes?: number;
   views: number;
-  comments: number;
+  personality_ru?: string;
+  personality_en?: string;
+  situation_ru?: string;
+  situation_en?: string;
+  instructions_ru?: string;
+  instructions_en?: string;
+  style_ru?: string;
+  style_en?: string;
+  appearance_ru?: string;
+  appearance_en?: string;
+  location_ru?: string;
+  location_en?: string;
+  translations?: any;
 }
 
 interface EditCharactersPageProps {
@@ -263,6 +298,9 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
   onEditCharacter,
   onProfile
 }) => {
+  const { t } = useTranslation();
+  const charactersGridRef = useRef<HTMLDivElement>(null);
+  const columnsCount = useGridColumns(charactersGridRef);
   useEffect(() => {
     window.history.pushState({ page: 'edit-characters' }, '', window.location.href);
 
@@ -278,14 +316,14 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
   const [characters, setCharacters] = useState<Character[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userInfo, setUserInfo] = useState<{username: string, coins: number, is_admin?: boolean} | null>(null);
+  const [userInfo, setUserInfo] = useState<{ username: string, coins: number, is_admin?: boolean } | null>(null);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authCheckComplete, setAuthCheckComplete] = useState(false);
-  const [characterPhotos, setCharacterPhotos] = useState<{[key: string]: string[]}>({});
+  const [characterPhotos, setCharacterPhotos] = useState<{ [key: string]: string[] }>({});
   const [favoriteCharacterIds, setFavoriteCharacterIds] = useState<Set<number>>(new Set());
-  const [characterRatings, setCharacterRatings] = useState<{[key: number]: {likes: number, dislikes: number}}>({});
+  const [characterRatings, setCharacterRatings] = useState<{ [key: number]: { likes: number, dislikes: number } }>({});
 
   // Загрузка фото персонажей
   const loadCharacterPhotos = async (userId: number, isAdmin: boolean = false) => {
@@ -296,21 +334,21 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
     try {
       // Используем force_refresh=true чтобы получить актуальный список после редактирования
       const charactersResponse = await authManager.fetchWithAuth(`/api/v1/characters/?force_refresh=true&_t=${Date.now()}`);
-      
+
       if (charactersResponse.ok) {
         const charactersData = await charactersResponse.json();
-        
-        const photosMap: {[key: string]: string[]} = {};
-        
+
+        const photosMap: { [key: string]: string[] } = {};
+
         // Для админов загружаем всех персонажей, для обычных пользователей - только своих
-        const myCharacters = isAdmin 
-          ? charactersData 
+        const myCharacters = isAdmin
+          ? charactersData
           : charactersData.filter((char: any) => char.user_id === userId);
-        
+
         for (const char of myCharacters) {
-          
+
           if (!char.main_photos) {
-            
+
             continue;
           }
 
@@ -338,22 +376,22 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
               })
               .filter((url): url is string => Boolean(url) && url.startsWith('http'));
 
-            
+
             photosMap[char.name.toLowerCase()] = photoUrls;
           } catch (e) {
-            
+
           }
         }
-        
-        
+
+
         setCharacterPhotos(photosMap);
         return photosMap;
       } else {
-        
+
         return {};
       }
     } catch (error) {
-      
+
       return {};
     }
   };
@@ -367,17 +405,17 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
     try {
       setIsLoading(true);
       const photosMap = await loadCharacterPhotos(userId, isAdmin); // Загружаем фото
-      
+
       // Используем force_refresh=true чтобы получить актуальный список после редактирования
       const response = await authManager.fetchWithAuth(`/api/v1/characters/?force_refresh=true&_t=${Date.now()}`);
 
       if (response.ok) {
         const charactersData = await response.json();
         // Для админов загружаем всех персонажей, для обычных пользователей - только своих
-        const myCharacters = isAdmin 
-          ? charactersData 
+        const myCharacters = isAdmin
+          ? charactersData
           : charactersData.filter((char: any) => char.user_id === userId);
-        
+
         const formattedCharacters: Character[] = myCharacters.map((char: any) => {
           const isOwnCharacter = char.user_id === userId;
           return {
@@ -391,21 +429,35 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
             likes: char.likes || 0,
             dislikes: char.dislikes || 0,
             views: char.views || 0,
-            comments: char.comments || 0
+            comments: char.comments || 0,
+            // Bilingual fields
+            personality_ru: char.personality_ru,
+            personality_en: char.personality_en,
+            situation_ru: char.situation_ru,
+            situation_en: char.situation_en,
+            instructions_ru: char.instructions_ru,
+            instructions_en: char.instructions_en,
+            style_ru: char.style_ru,
+            style_en: char.style_en,
+            appearance_ru: char.appearance_ru || char.character_appearance_ru,
+            appearance_en: char.appearance_en || char.character_appearance_en,
+            location_ru: char.location_ru,
+            location_en: char.location_en,
+            translations: char.translations
           };
         });
-        
+
         // Загружаем рейтинги для всех персонажей
         await loadCharacterRatings(formattedCharacters);
-        
+
         setCharacters(formattedCharacters);
         setIsAuthenticated(true);
       } else {
-        
+
         setIsAuthenticated(false);
       }
     } catch (error) {
-      
+
       setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
@@ -414,19 +466,19 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
 
   // Загрузка рейтингов персонажей
   const loadCharacterRatings = async (charactersList: Character[]) => {
-    const ratings: {[key: number]: {likes: number, dislikes: number}} = {};
-    
+    const ratings: { [key: number]: { likes: number, dislikes: number } } = {};
+
     for (const char of charactersList) {
       const characterId = typeof char.id === 'number' ? char.id : parseInt(char.id, 10);
       if (isNaN(characterId)) continue;
-      
+
       try {
         const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.GET_CHARACTER_RATINGS(characterId)}`, {
           headers: {
             'Cache-Control': 'no-cache'
           }
         });
-        
+
         if (response.ok) {
           const data = await response.json();
           ratings[characterId] = {
@@ -438,7 +490,7 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
         // Игнорируем ошибки
       }
     }
-    
+
     setCharacterRatings(ratings);
   };
 
@@ -452,7 +504,7 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
       }
 
       const response = await authManager.fetchWithAuth(API_CONFIG.FAVORITES);
-      
+
       if (response.ok) {
         const favorites = await response.json();
         // Извлекаем ID избранных персонажей
@@ -467,7 +519,7 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
         setFavoriteCharacterIds(new Set());
       }
     } catch (error) {
-      
+
       setFavoriteCharacterIds(new Set());
     }
   };
@@ -476,7 +528,7 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
   const checkAuth = async () => {
     try {
       const { isAuthenticated, userInfo } = await authManager.checkAuth();
-      
+
       setIsAuthenticated(isAuthenticated);
       if (isAuthenticated && userInfo) {
         setCurrentUserId(userInfo.id);
@@ -491,7 +543,7 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
         return userInfo.id as number;
       }
     } catch (error) {
-      
+
       setIsAuthenticated(false);
     } finally {
       setAuthCheckComplete(true);
@@ -556,30 +608,14 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
         <DarkVeil speed={1.1} />
       </BackgroundWrapper>
       <ContentWrapper>
-      <div className="content-area vertical">
-        <GlobalHeader 
-          onShop={onShop}
-          onProfile={onProfile}
-          onLogin={() => {
-            setAuthMode('login');
-            setIsAuthModalOpen(true);
-          }}
-          onRegister={() => {
-            setAuthMode('register');
-            setIsAuthModalOpen(true);
-          }}
-          onLogout={handleLogout}
-          onBalance={() => alert('Баланс пользователя')}
-        />
-        
         <MainContent>
           {isLoading ? (
-            <LoadingSpinner>Загрузка персонажей...</LoadingSpinner>
+            <LoadingSpinner text={t('editCharacters.loading', 'Загрузка персонажей...')} />
           ) : characters.length === 0 ? (
             <EmptyState>
               <EmptyTitle>{userInfo?.is_admin ? 'Персонажей не найдено' : 'У вас пока нет персонажей'}</EmptyTitle>
               <EmptyDescription>
-                {userInfo?.is_admin 
+                {userInfo?.is_admin
                   ? 'В системе пока нет персонажей для редактирования'
                   : 'Создайте своего первого персонажа, чтобы начать редактирование'
                 }
@@ -591,66 +627,66 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
               )}
             </EmptyState>
           ) : (
-            <CharactersGrid>
-              {characters.map((character) => {
+            <CharactersGrid ref={charactersGridRef}>
+              {characters.map((character, i) => {
                 // Добавляем фото к персонажу
                 const characterWithPhotos = {
                   ...character,
                   photos: characterPhotos[character.name.toLowerCase()] || []
                 };
-                
+
                 // Проверяем, находится ли персонаж в избранном
-                const characterId = typeof character.id === 'number' 
-                  ? character.id 
+                const characterId = typeof character.id === 'number'
+                  ? character.id
                   : parseInt(character.id, 10);
                 const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
                 const rating = !isNaN(characterId) ? characterRatings[characterId] : null;
-                
+
                 return (
-                <CharacterCard
-                  key={character.id}
+                  <CharacterCard
+                    key={character.id}
                     character={{
                       ...characterWithPhotos,
                       likes: rating ? rating.likes : characterWithPhotos.likes || 0,
                       dislikes: rating ? rating.dislikes : characterWithPhotos.dislikes || 0
                     }}
-                  onClick={handleCharacterClick}
-                  showEditButton={false}
-                  isFavorite={isFavorite}
-                  onFavoriteToggle={loadFavorites}
-                />
+                    onClick={handleCharacterClick}
+                    showEditButton={false}
+                    isFavorite={isFavorite}
+                    onFavoriteToggle={loadFavorites}
+                    isRight={(i + 1) % columnsCount !== 0}
+                  />
                 );
               })}
             </CharactersGrid>
           )}
         </MainContent>
-      </div>
 
-      {isAuthModalOpen && (
-        <AuthModal
-          isOpen={isAuthModalOpen}
-          mode={authMode}
-          onModeChange={setAuthMode}
-          onClose={() => {
-            setIsAuthModalOpen(false);
-            setAuthMode('login');
-            // Если закрыл без входа - на главную
-            if (!isAuthenticated) {
+
+        {isAuthModalOpen && (
+          <AuthModal
+            isOpen={isAuthModalOpen}
+            mode={authMode}
+            onClose={() => {
+              setIsAuthModalOpen(false);
+              setAuthMode('login');
+              // Если закрыл без входа - на главную
+              if (!isAuthenticated) {
+                onBackToMain();
+              }
+            }}
+            onAuthSuccess={(accessToken, refreshToken) => {
+              authManager.setTokens(accessToken, refreshToken || '');
+              setIsAuthModalOpen(false);
+              setAuthMode('login');
+              // Диспатчим событие для обновления App.tsx
+              window.dispatchEvent(new Event('auth-success'));
+              // Перебрасываем на главную после входа
               onBackToMain();
-            }
-          }}
-          onAuthSuccess={({ accessToken, refreshToken }) => {
-            authManager.setTokens(accessToken, refreshToken);
-            setIsAuthModalOpen(false);
-            setAuthMode('login');
-            // Диспатчим событие для обновления App.tsx
-            window.dispatchEvent(new Event('auth-success'));
-            // Перебрасываем на главную после входа
-            onBackToMain();
-          }}
-        />
-      )}
+            }}
+          />
+        )}
       </ContentWrapper>
-    </MainContainer>
+    </MainContainer >
   );
 };

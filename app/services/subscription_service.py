@@ -91,7 +91,6 @@ class SubscriptionService:
             existing_subscription = await self.get_user_subscription(user_id)
             if existing_subscription:
                 raise ValueError("Бесплатная подписка доступна только при регистрации и не может быть активирована повторно.")
-            monthly_credits = 0  # 0 кредитов для FREE подписки (вместо 200)
             monthly_photos = 5  # 5 генераций фото для FREE подписки
             
             # Новые лимиты
@@ -100,8 +99,7 @@ class SubscriptionService:
             
             max_message_length = 100
         elif normalized_enum == SubscriptionType.STANDARD:
-            monthly_credits = 2000  # Стандартный тариф: 2000 кредитов в месяц
-            monthly_photos = 0  # Без лимита - генерация оплачивается кредитами (10 кредитов за фото)
+            monthly_photos = 0  # Без лимита
             
             # Новые лимиты для STANDARD
             images_limit = 100
@@ -109,8 +107,7 @@ class SubscriptionService:
             
             max_message_length = 200
         elif normalized_enum == SubscriptionType.PREMIUM:
-            monthly_credits = 6000  # Премиум тариф: 6000 кредитов в месяц
-            monthly_photos = 0  # Без лимита - генерация оплачивается кредитами (10 кредитов за фото)
+            monthly_photos = 0  # Без лимита
             
             # Новые лимиты для PREMIUM
             images_limit = 300
@@ -122,7 +119,7 @@ class SubscriptionService:
             raise ValueError(f"Неподдерживаемый тип подписки: {subscription_type}")
         
         monthly_messages = 5 if normalized_enum == SubscriptionType.FREE else 0
-        print(f"[OK] DEBUG: Параметры подписки - кредиты: {monthly_credits}, фото: {monthly_photos}, сообщения: {monthly_messages}, длина: {max_message_length}")
+        print(f"[OK] DEBUG: Параметры подписки - фото: {monthly_photos}, сообщения: {monthly_messages}, длина: {max_message_length}")
         print(f"[OK] DEBUG: Новые лимиты - изображения: {images_limit}, голос: {voice_limit}")
         
         # Проверяем, есть ли уже подписка
@@ -150,23 +147,17 @@ class SubscriptionService:
                 
                 return existing_subscription
             
-            # БЕЗОПАСНОСТЬ: Сохраняем остатки перед обновлением
-            old_credits_remaining = existing_subscription.credits_remaining
+            # Сохраняем остатки фото перед обновлением
             old_photos_remaining = existing_subscription.photos_remaining
             
-            # Для изображений и голоса не переносим остатки при смене тарифа (они "сгорают" или заменяются новыми),
-            # так как это месячные лимиты, а не накапливаемые кредиты.
-            # Но если пользователь делает upgrade, логично дать ему полный пакет нового тарифа.
-            
             print(f"🔄 DEBUG: Обновляем подписку {existing_subscription.subscription_type.value} -> {subscription_type}")
-            print(f"💰 DEBUG: Сохраняем остатки: кредиты={old_credits_remaining}, фото={old_photos_remaining}")
+            print(f"💰 DEBUG: Сохраняем остатки фото: {old_photos_remaining}")
             
             # Обновляем существующую подписку
             existing_subscription.subscription_type = normalized_enum
             existing_subscription.status = SubscriptionStatus.ACTIVE
-            existing_subscription.monthly_credits = monthly_credits
             
-            # ФОТО: СУММИРУЕМ старые остатки с новым лимитом (только для legacy monthly_photos)
+            # ФОТО: СУММИРУЕМ старые остатки с новым лимитом (legacy monthly_photos)
             total_photos_available = monthly_photos + old_photos_remaining
             existing_subscription.monthly_photos = total_photos_available
             
@@ -179,7 +170,6 @@ class SubscriptionService:
             
             existing_subscription.max_message_length = max_message_length
             existing_subscription.monthly_messages = monthly_messages
-            existing_subscription.used_credits = 0  # Сбрасываем, т.к. остатки идут на баланс
             existing_subscription.used_photos = 0  # Сбрасываем, получаем полный новый лимит + остатки
             existing_subscription.used_messages = 0
             existing_subscription.activated_at = datetime.utcnow()
@@ -192,14 +182,9 @@ class SubscriptionService:
             await cache_delete(key_subscription(user_id))
             await cache_delete(key_subscription_stats(user_id))
             
-            # БЕЗОПАСНОСТЬ: Переводим на баланс новые кредиты + старые остатки
-            total_credits_to_add = monthly_credits + old_credits_remaining
-            await self.add_credits_to_user_balance(user_id, total_credits_to_add)
-            
             total_photos_available = monthly_photos + old_photos_remaining
             
-            print(f"✅ [CREDITS] Переведено на баланс: {monthly_credits} (новая) + {old_credits_remaining} (остаток) = {total_credits_to_add}")
-            print(f"✅ [PHOTOS] Суммировано фото: {monthly_photos} (новая) + {old_photos_remaining} (остаток) = {total_photos_available}")
+            print(f"✅ [ФОТО] Суммировано фото: {monthly_photos} (новая) + {old_photos_remaining} (остаток) = {total_photos_available}")
             
             return existing_subscription
         
@@ -208,7 +193,6 @@ class SubscriptionService:
             user_id=user_id,
             subscription_type=normalized_enum,
             status=SubscriptionStatus.ACTIVE,
-            monthly_credits=monthly_credits,
             monthly_photos=monthly_photos,
             monthly_messages=monthly_messages,
             # Новые лимиты
@@ -216,7 +200,6 @@ class SubscriptionService:
             voice_limit=voice_limit,
             
             max_message_length=max_message_length,
-            used_credits=0,
             used_photos=0,
             used_messages=0,
             # Сброс использования
@@ -235,56 +218,7 @@ class SubscriptionService:
         await cache_delete(key_subscription(user_id))
         await cache_delete(key_subscription_stats(user_id))
         
-        # Переводим средства на баланс пользователя
-        await self.add_credits_to_user_balance(user_id, monthly_credits)
-        
         return subscription
-    
-    async def add_credits_to_user_balance(self, user_id: int, credits: int) -> bool:
-        """Добавляет кредиты на баланс пользователя с логированием для безопасности."""
-        try:
-            # Получаем пользователя
-            user_query = select(Users).where(Users.id == user_id)
-            result = await self.db.execute(user_query)
-            user = result.scalars().first()
-            
-            if not user:
-                print(f"[ERROR] Пользователь {user_id} не найден!")
-                return False
-            
-            # БЕЗОПАСНОСТЬ: Логируем ДО изменения баланса
-            old_balance = user.coins
-            print(f"💰 [CREDITS ADD] Пользователь {user_id}: баланс ДО = {old_balance}")
-            print(f"💰 [CREDITS ADD] Добавляем: {credits} кредитов")
-            
-            # Обновляем баланс пользователя
-            user.coins += credits
-            
-            # БЕЗОПАСНОСТЬ: Логируем ПОСЛЕ изменения баланса
-            print(f"💰 [CREDITS ADD] Баланс ПОСЛЕ = {user.coins} ({old_balance} + {credits})")
-            
-            # Записываем историю баланса
-            try:
-                from app.utils.balance_history import record_balance_change
-                await record_balance_change(
-                    db=self.db,
-                    user_id=user_id,
-                    amount=credits,
-                    reason="Начисление кредитов при активации подписки"
-                )
-            except Exception as e:
-                print(f"[WARNING] Не удалось записать историю баланса: {e}")
-            
-            await self.db.commit()
-            # БЕЗОПАСНОСТЬ: Финальная проверка
-            print(f"✅ [CREDITS ADD] Транзакция завершена! Финальный баланс: {user.coins}")
-            
-            await emit_profile_update(user_id, self.db)
-            return True
-        except Exception as e:
-            print(f"[ERROR] ❌ Ошибка добавления кредитов на баланс: {e}")
-            await self.db.rollback()
-            return False
     
     async def create_free_subscription(self, user_id: int) -> UserSubscription:
         """Создает бесплатную подписку для пользователя."""
@@ -307,11 +241,8 @@ class SubscriptionService:
             return {
                 "subscription_type": "none",
                 "status": "inactive",
-                "monthly_credits": 0,
                 "monthly_photos": 0,
-                "used_credits": 0,
                 "used_photos": 0,
-                "credits_remaining": 0,
                 "photos_remaining": 0,
                 # Новые поля
                 "images_limit": 0,
@@ -360,11 +291,8 @@ class SubscriptionService:
         stats = {
             "subscription_type": subscription.subscription_type.value,
             "status": subscription.status.value,
-            "monthly_credits": subscription.monthly_credits,
             "monthly_photos": subscription.monthly_photos,
-            "used_credits": subscription.used_credits,
             "used_photos": subscription.used_photos,
-            "credits_remaining": subscription.credits_remaining,
             "photos_remaining": subscription.photos_remaining,
             
             # Новые лимиты
@@ -399,11 +327,7 @@ class SubscriptionService:
             await self.db.refresh(subscription)
         
         # Проверяем длину сообщения
-        if not subscription.can_send_message(message_length):
-            return False
-        
-        # Для сообщений требуется 2 кредита
-        return subscription.can_use_credits(2)
+        return subscription.can_send_message(message_length)
     
     async def can_user_generate_photo(self, user_id: int) -> bool:
         """Проверяет, может ли пользователь сгенерировать фото."""
@@ -419,29 +343,7 @@ class SubscriptionService:
         
         return subscription.can_generate_photo()
     
-    async def use_message_credits(self, user_id: int) -> bool:
-        """Тратит кредиты за отправку сообщения."""
-        subscription = await self.get_user_subscription(user_id)
-        if not subscription:
-            return False
-        
-        # Проверяем, нужно ли сбросить месячные лимиты
-        if subscription.should_reset_limits():
-            subscription.reset_monthly_limits()
-            await self.db.commit()
-            await self.db.refresh(subscription)
-        
-        # Тратим 2 кредита за сообщение
-        success = subscription.use_credits(2)
-        if success:
-            await self.db.commit()
-            await self.db.refresh(subscription)
-            # Инвалидируем кэш подписки
-            await cache_delete(key_subscription(user_id))
-            await cache_delete(key_subscription_stats(user_id))
-        
-        return success
-    
+
     async def use_photo_generation(self, user_id: int) -> bool:
         """Тратит генерацию фото."""
         subscription = await self.get_user_subscription(user_id)
@@ -481,15 +383,16 @@ class SubscriptionService:
             user_id=subscription.user_id,
             subscription_type=subscription.subscription_type.value,
             status=subscription.status.value,
-            monthly_credits=subscription.monthly_credits,
             monthly_photos=subscription.monthly_photos,
-            used_credits=subscription.used_credits,
             used_photos=subscription.used_photos,
-            credits_remaining=subscription.credits_remaining,
             photos_remaining=subscription.photos_remaining,
             activated_at=subscription.activated_at,
             expires_at=subscription.expires_at,
             last_reset_at=subscription.last_reset_at,
             is_active=subscription.is_active,
-            days_until_expiry=subscription.days_until_expiry
+            days_until_expiry=subscription.days_until_expiry,
+            images_limit=subscription.images_limit,
+            images_used=subscription.images_used,
+            voice_limit=subscription.voice_limit,
+            voice_used=subscription.voice_used
         )

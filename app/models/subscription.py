@@ -85,13 +85,11 @@ class UserSubscription(Base):
     status = Column(Enum(SubscriptionStatus), nullable=False, default=SubscriptionStatus.ACTIVE)
     
     # Лимиты подписки
-    monthly_credits = Column(Integer, nullable=False, default=0)  # Для FREE/BASE: 0 кредитов
     monthly_photos = Column(Integer, nullable=False, default=5)  # Для FREE/BASE: 5 генераций фото
     monthly_messages = Column(Integer, nullable=False, default=5)  # Для FREE: 5 сообщений; 0 = без лимита
     max_message_length = Column(Integer, nullable=False, default=100)  # Максимальная длина сообщения
     
     # Использование в текущем месяце
-    used_credits = Column(Integer, nullable=False, default=0)
     used_photos = Column(Integer, nullable=False, default=0)
     used_messages = Column(Integer, nullable=False, default=0)  # Для FREE: счётчик сообщений (лимит 10)
     
@@ -136,11 +134,6 @@ class UserSubscription(Base):
         return max(0, delta.days)
     
     @property
-    def credits_remaining(self) -> int:
-        """Возвращает оставшиеся кредиты."""
-        return max(0, self.monthly_credits - self.used_credits)
-    
-    @property
     def photos_remaining(self) -> int:
         """Возвращает оставшиеся генерации фото."""
         return max(0, self.monthly_photos - self.used_photos)
@@ -162,19 +155,18 @@ class UserSubscription(Base):
         """Возвращает оставшиеся единицы голоса."""
         return max(0, self.voice_limit - self.voice_used)
     
-    def can_use_credits(self, amount: int) -> bool:
-        """Проверяет, может ли пользователь потратить указанное количество кредитов."""
-        return self.is_active and self.credits_remaining >= amount
-    
     def can_generate_photo(self) -> bool:
         """
         Проверяет, может ли пользователь сгенерировать фото.
         Использует новую систему лимитов: проверяет images_remaining.
         """
-        if not self.is_active:
+        # Проверяем лимит изображений
+        # ВАЖНО: Если у пользователя есть оставшиеся генерации (accumulated logic),
+        # мы разрешаем их тратить даже если срок подписки технически истек (expires_at),
+        # но сама подписка не отменена и не забанена (status == ACTIVE).
+        if self.status != SubscriptionStatus.ACTIVE:
             return False
-        
-        # Проверяем лимит изображений для всех типов подписок
+            
         return self.images_remaining > 0
     
     def can_send_message(self, message_length: int) -> bool:
@@ -186,14 +178,6 @@ class UserSubscription(Base):
             return False
         if self.monthly_messages > 0 and self.used_messages >= self.monthly_messages:
             return False
-        return True
-    
-    def use_credits(self, amount: int) -> bool:
-        """Тратит кредиты пользователя."""
-        if not self.can_use_credits(amount):
-            return False
-        
-        self.used_credits += amount
         return True
     
     def use_photo_generation(self) -> bool:
@@ -209,8 +193,12 @@ class UserSubscription(Base):
         return True
     
     def can_use_voice(self, cost: int) -> bool:
-        """Проверяет, может ли пользователь использовать голос с указанной стоимостью."""
-        if not self.is_active:
+        """
+        Проверяет, может ли пользователь использовать голос с указанной стоимостью.
+        Аналогично фото, разрешаем использовать накопленный лимит, если статус ACTIVE,
+        даже если expires_at уже прошел.
+        """
+        if self.status != SubscriptionStatus.ACTIVE:
             return False
         return self.voice_used + cost <= self.voice_limit
     
@@ -222,23 +210,23 @@ class UserSubscription(Base):
         return True
     
     def reset_monthly_limits(self):
-        """Сбрасывает месячные лимиты."""
-        self.used_credits = 0
-        self.used_photos = 0
-        self.used_messages = 0
-        
-        # Для бесплатных подписок сбрасываем лимиты генераций каждый месяц
+        """
+        Сбрасывает месячные лимиты ТОЛЬКО для FREE подписки.
+        Для STANDARD и PREMIUM лимиты НЕ сбрасываются - они накапливаются!
+        """
+        # Сбрасываем только для FREE подписки
         if self.subscription_type == SubscriptionType.FREE:
+            self.used_photos = 0
+            self.used_messages = 0
             self.images_used = 0
             self.voice_used = 0
             
-        self.last_reset_at = datetime.utcnow()
-        
-        # Продлеваем дату окончания только если подписка бесплатная или уже истекает
-        # Это предотвращает обрезание срока многомесячных оплаченных подписок
-        new_expiry = datetime.utcnow() + timedelta(days=31) # 31 день для запаса
-        if self.subscription_type == SubscriptionType.FREE or self.expires_at < new_expiry:
-            self.expires_at = new_expiry
+            self.last_reset_at = datetime.utcnow()
+            
+            # Продлеваем дату окончания только для FREE
+            new_expiry = datetime.utcnow() + timedelta(days=31)
+            if self.expires_at < new_expiry:
+                self.expires_at = new_expiry
     
     def should_reset_limits(self) -> bool:
         """Проверяет, нужно ли сбросить месячные лимиты."""
@@ -253,14 +241,11 @@ class UserSubscription(Base):
             "user_id": self.user_id,
             "subscription_type": self.subscription_type.value,
             "status": self.status.value,
-            "monthly_credits": self.monthly_credits,
             "monthly_photos": self.monthly_photos,
             "monthly_messages": self.monthly_messages,
             "max_message_length": self.max_message_length,
-            "used_credits": self.used_credits,
             "used_photos": self.used_photos,
             "used_messages": self.used_messages,
-            "credits_remaining": self.credits_remaining,
             "photos_remaining": self.photos_remaining,
             "messages_remaining": self.messages_remaining if self.monthly_messages > 0 else None,
             # Новые поля для лимитов изображений и голоса

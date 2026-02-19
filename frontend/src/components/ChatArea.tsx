@@ -3,6 +3,8 @@ import styled from 'styled-components';
 import { theme } from '../theme';
 import { Message } from './Message';
 import { CharacterInfoBlock } from './CharacterInfoBlock';
+import { useCharacterTranslation } from '../hooks/useCharacterTranslation';
+import { useTranslation } from 'react-i18next';
 
 // --- Обновленный стиль контейнера ---
 const MessagesContainer = styled.div`
@@ -117,19 +119,21 @@ const RoleSituationCard = styled.div`
   align-items: center;
   justify-content: center;
   padding: ${theme.spacing.xl};
-  margin: ${theme.spacing.xl} auto 0 auto;
-  background: linear-gradient(135deg, rgba(30, 30, 30, 0.8) 0%, rgba(20, 20, 20, 0.9) 100%);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  margin: 0 auto 0 auto;
+  background: linear-gradient(135deg, rgba(30, 30, 30, 0.85) 0%, rgba(20, 20, 20, 0.95) 100%);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
   border-radius: ${theme.borderRadius.xl};
-  border: 1px solid rgba(236, 72, 153, 0.2);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(236, 72, 153, 0.1), 0 0 15px rgba(236, 72, 153, 0.05);
-  color: rgba(200, 200, 200, 1);
+  border: 1px solid rgba(236, 72, 153, 0.3);
+  box-shadow: 
+    0 12px 40px rgba(0, 0, 0, 0.5), 
+    0 0 20px rgba(236, 72, 153, 0.15);
+  color: white;
   position: relative;
-  z-index: 1;
+  z-index: 10;
   text-align: center;
-  max-width: 600px;
-  width: 100%;
+  max-width: 700px;
+  width: 90%;
   
   h3 {
     font-size: ${theme.fontSize.xl};
@@ -138,16 +142,35 @@ const RoleSituationCard = styled.div`
     font-weight: 700;
     text-align: center;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 2px;
+    text-shadow: 0 0 10px rgba(236, 72, 153, 0.4);
   }
   
   p {
     font-size: ${theme.fontSize.base};
     line-height: 1.7;
-    color: rgba(220, 220, 220, 0.9);
+    color: rgba(220, 220, 220, 0.95);
     white-space: pre-wrap;
-    margin: 0;
+    margin: 0 auto;
     text-align: center;
+    max-width: 500px;
+  }
+  
+  @media (max-width: 768px) {
+    padding: ${theme.spacing.lg};
+    margin: 0 auto;
+    width: 95%;
+    
+    h3 {
+      font-size: ${theme.fontSize.lg};
+      margin-bottom: ${theme.spacing.sm};
+      letter-spacing: 1px;
+    }
+    
+    p {
+      font-size: ${theme.fontSize.sm};
+      line-height: 1.5;
+    }
   }
 `;
 
@@ -214,6 +237,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onOutOfLimits,
   character,
 }) => {
+  const { t } = useTranslation('common');
+  const { tChar } = useCharacterTranslation(character);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const wasScrolledToBottomRef = useRef(true);
@@ -270,8 +295,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         <MessagesList style={{ position: 'relative', zIndex: 11 }}>
           {characterSituation && (
             <RoleSituationCard>
-              <h3>Ролевая ситуация</h3>
-              <p>{characterSituation}</p>
+              <h3>{t('chat.roleplayingSituation')}</h3>
+              <p>{tChar('situation') || characterSituation}</p>
             </RoleSituationCard>
           )}
 

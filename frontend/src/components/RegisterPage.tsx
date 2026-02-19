@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
+import { useParams, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
-import { FiMail, FiLock, FiEye, FiEyeOff, FiUser, FiMessageSquare, FiImage, FiZap, FiCpu } from 'react-icons/fi';
+import { useTranslation } from 'react-i18next';
+import { FiUser, FiMail, FiLock, FiEye, FiEyeOff, FiMessageSquare, FiImage, FiZap, FiCpu } from 'react-icons/fi';
 import { FcGoogle } from 'react-icons/fc';
-import DarkVeil from '../../@/components/DarkVeil';
-import { GlobalHeader } from './GlobalHeader';
 
 const PageContainer = styled.div`
   min-height: 100vh;
   display: flex;
   position: relative;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-  
+
   @media (max-width: 968px) {
     flex-direction: column;
   }
@@ -28,6 +28,15 @@ const BackgroundWrapper = styled.div`
   pointer-events: none;
 `;
 
+const DarkVeil = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+`;
+
 const LeftSection = styled.div`
   flex: 1;
   padding: 60px 80px;
@@ -37,14 +46,12 @@ const LeftSection = styled.div`
   color: white;
   position: relative;
   z-index: 1;
-  
+
   @media (max-width: 968px) {
     padding: 40px 30px;
     min-height: 40vh;
   }
 `;
-
-
 
 const MainHeading = styled.h1`
   font-size: 48px;
@@ -59,7 +66,7 @@ const MainHeading = styled.h1`
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
-  
+
   @media (max-width: 968px) {
     font-size: 36px;
   }
@@ -69,7 +76,7 @@ const Subtitle = styled.p`
   font-size: 18px;
   color: rgba(255, 255, 255, 0.7);
   margin-bottom: 50px;
-  
+
   @media (max-width: 968px) {
     font-size: 16px;
   }
@@ -79,7 +86,7 @@ const FeaturesList = styled.div`
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 24px;
-  
+
   @media (max-width: 968px) {
     grid-template-columns: 1fr;
   }
@@ -127,7 +134,7 @@ const RightSection = styled.div`
   justify-content: center;
   position: relative;
   z-index: 1;
-  
+
   @media (max-width: 968px) {
     padding: 40px 30px;
   }
@@ -142,7 +149,7 @@ const FormContainer = styled.div`
   padding: 48px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  
+
   @media (max-width: 968px) {
     padding: 32px 24px;
   }
@@ -342,10 +349,19 @@ interface RegisterPageProps {
   onRegister?: (email: string, password: string, username: string) => Promise<void>;
   onVerifyCode?: (code: string) => Promise<void>;
   onGoogleRegister?: () => void;
-  onLogin?: () => void;
+  onLogin?: (redirect?: string) => void;
+  onBackToMain?: () => void;
 }
 
 const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onVerifyCode, onGoogleRegister, onLogin }) => {
+  const { t } = useTranslation();
+  const { lang } = useParams<{ lang: string }>();
+  const location = useLocation();
+  const currentLang = lang || 'ru';
+
+  const searchParams = new URLSearchParams(location.search);
+  const redirect = searchParams.get('redirect');
+
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -367,7 +383,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onVerifyCode, o
         setShowVerification(true);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка регистрации');
+      setError(err instanceof Error ? err.message : t('auth.genericError'));
     } finally {
       setIsLoading(false);
     }
@@ -383,7 +399,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onVerifyCode, o
         await onVerifyCode(verificationCode);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка подтверждения');
+      setError(err instanceof Error ? err.message : t('auth.genericError'));
     } finally {
       setIsLoading(false);
     }
@@ -392,49 +408,37 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onVerifyCode, o
   const features = [
     {
       icon: <FiMessageSquare />,
-      title: 'Общение с AI персонажами',
-      description: 'Создавайте и общайтесь с уникальными персонажами'
+      title: t('auth.feature1Title'),
+      description: t('auth.feature1Desc')
     },
     {
       icon: <FiImage />,
-      title: 'Генерация изображений',
-      description: 'Создавайте фото персонажей с помощью AI'
+      title: t('auth.feature2Title'),
+      description: t('auth.feature2Desc')
     },
     {
       icon: <FiZap />,
-      title: 'Генерация голосов',
-      description: 'Озвучивайте персонажей с помощью AI'
+      title: t('auth.feature3Title'),
+      description: t('auth.feature3Desc')
     },
     {
       icon: <FiCpu />,
-      title: 'Продвинутые модели',
-      description: 'Доступ к лучшим AI моделям для генерации'
+      title: t('auth.feature4Title'),
+      description: t('auth.feature4Desc')
     }
   ];
 
   return (
     <PageContainer>
-      <GlobalHeader
-        onLogin={onLogin}
-        onHome={() => window.location.href = '/'}
-      />
       <BackgroundWrapper>
         <DarkVeil />
       </BackgroundWrapper>
 
       <LeftSection>
-
-
-        <MainHeading>
-          Получи свои первые <br />
-          <span>5 сообщений</span>, <br />
-          <span>5 фото генераций</span> и <br />
-          <span>5 голосовых генераций</span> <br />
-          при регистрации
-        </MainHeading>
+        <MainHeading dangerouslySetInnerHTML={{ __html: t('auth.loginHeading') }} />
 
         <Subtitle>
-          Присоединяйтесь к тысячам пользователей, которые уже создают своих уникальных AI персонажей
+          {t('auth.loginSubtitle')}
         </Subtitle>
 
         <FeaturesList>
@@ -454,8 +458,8 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onVerifyCode, o
         <FormContainer>
           {!showVerification ? (
             <>
-              <FormTitle>Регистрация в Candy Girls Chat</FormTitle>
-              <FormSubtitle>Создайте аккаунт, чтобы начать</FormSubtitle>
+              <FormTitle>{t('auth.registerTitle')}</FormTitle>
+              <FormSubtitle>{t('auth.registerSubtitle')}</FormSubtitle>
 
               {error && <ErrorMessage>{error}</ErrorMessage>}
 
@@ -467,7 +471,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onVerifyCode, o
                     </InputIcon>
                     <Input
                       type="text"
-                      placeholder="Имя пользователя"
+                      placeholder={t('auth.username')}
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       required
@@ -499,7 +503,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onVerifyCode, o
                     </InputIcon>
                     <Input
                       type={showPassword ? 'text' : 'password'}
-                      placeholder="Пароль (минимум 8 символов)"
+                      placeholder={t('auth.passwordPlaceholder')}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
@@ -515,30 +519,30 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onVerifyCode, o
                 </InputGroup>
 
                 <RegisterButton type="submit" disabled={isLoading}>
-                  {isLoading ? 'Регистрация...' : 'Зарегистрироваться'}
+                  {isLoading ? t('auth.registering') : t('auth.register')}
                 </RegisterButton>
               </form>
 
               <Divider>
-                <span>ИЛИ</span>
+                <span>{t('auth.or')}</span>
               </Divider>
 
               <GoogleButton type="button" onClick={onGoogleRegister}>
                 <FcGoogle />
-                Зарегистрироваться через Google
+                {t('auth.registerWithGoogle')}
               </GoogleButton>
 
               <LoginLink>
-                Уже есть аккаунт? <a onClick={onLogin}>Войти</a>
+                {t('auth.alreadyHaveAccount')} <a onClick={() => onLogin && onLogin(redirect || undefined)}>{t('auth.login')}</a>
               </LoginLink>
             </>
           ) : (
             <>
-              <FormTitle>Подтверждение регистрации</FormTitle>
-              <FormSubtitle>Проверьте вашу почту для подтверждения</FormSubtitle>
+              <FormTitle>{t('auth.verifyTitle')}</FormTitle>
+              <FormSubtitle>{t('auth.verifySubtitle')}</FormSubtitle>
 
               <SuccessMessage>
-                Регистрация успешна! Введите код подтверждения из письма
+                {t('auth.registerSuccess')}
               </SuccessMessage>
 
               {error && <ErrorMessage>{error}</ErrorMessage>}
@@ -547,7 +551,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onVerifyCode, o
                 <InputGroup>
                   <Input
                     type="text"
-                    placeholder="Введите код подтверждения"
+                    placeholder={t('auth.enterVerifyCode')}
                     value={verificationCode}
                     onChange={(e) => setVerificationCode(e.target.value)}
                     required
@@ -556,12 +560,12 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onVerifyCode, o
                 </InputGroup>
 
                 <RegisterButton type="submit" disabled={isLoading}>
-                  {isLoading ? 'Подтверждение...' : 'Подтвердить'}
+                  {isLoading ? t('auth.verifying') : t('auth.verify')}
                 </RegisterButton>
               </form>
 
               <LoginLink>
-                <a onClick={() => setShowVerification(false)}>Назад к регистрации</a>
+                <a onClick={() => setShowVerification(false)}>{t('auth.backToRegister')}</a>
               </LoginLink>
             </>
           )}

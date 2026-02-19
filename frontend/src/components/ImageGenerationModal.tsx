@@ -2,6 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { FiSettings, FiX, FiZap, FiRefreshCw, FiCheck, FiChevronDown } from 'react-icons/fi';
 import { Sparkles, Plus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface ModelCardProps {
     $isSelected: boolean;
@@ -39,39 +40,54 @@ export const ImageGenerationModal: React.FC<ImageGenerationModalProps> = ({
     generationQueueLimit,
     isMobile
 }) => {
-
+    const { t } = useTranslation('common');
 
     const tags = [
-        { label: 'Высокая детализация', value: 'высокая детализация, реализм, 8к разрешение' },
-        { label: 'Киберпанк', value: 'стиль киберпанк, неоновое освещение, футуристично' },
-        { label: 'Фэнтези', value: 'фэнтези стиль, магическая атмосфера' },
-        { label: 'Портрет', value: 'крупный план, детальное лицо, выразительный взгляд' },
-        { label: 'В полный рост', value: 'в полный рост, изящная поза' },
-        { label: 'Аниме стиль', value: 'красивый аниме стиль, четкие линии, яркие цвета' },
-        { label: 'Реализм', value: 'фотореалистично, натуральные текстуры кожи' },
-        { label: 'Кинематографично', value: 'кинематографичный свет, глубокие тени, драматично' },
-        { label: 'На пляже', value: 'на берегу океана, золотой песок, закатное солнце' },
-        { label: 'В городе', value: 'на оживленной улице города, ночные огни, боке' },
-        { label: 'В лесу', value: 'в сказочном лесу, лучи солнца сквозь листву' },
-        { label: 'Офисный стиль', value: 'в строгом офисном костюме, деловая обстановка' },
-        { label: 'Летнее платье', value: 'в легком летнем платье, летящая ткань' },
-        { label: 'Вечерний свет', value: 'мягкий вечерний свет, теплые тона' },
-        { label: 'Зима', value: 'зимний пейзаж, падающий снег, меховая одежда' },
-        { label: 'Элегантный образ', value: 'элегантная поза, утонченный стиль, изысканность' },
-        { label: 'Портрет крупным планом', value: 'крупный план лица, выразительный взгляд, детализированные черты' },
-        { label: 'В парке', value: 'в городском парке, зеленая трава, солнечный свет' },
-        { label: 'В кафе', value: 'в уютном кафе, теплая атмосфера, приятная обстановка' },
-        { label: 'На природе', value: 'на природе, свежий воздух, красивые пейзажи' },
-        { label: 'Вечерний наряд', value: 'в красивом вечернем наряде, элегантный стиль' },
-        { label: 'Повседневный образ', value: 'в повседневной одежде, комфортный стиль' },
-        { label: 'Спортивный стиль', value: 'в спортивной одежде, активный образ жизни' },
-        { label: 'Романтичная атмосфера', value: 'романтичная обстановка, мягкое освещение, уют' }
+        { id: 'highDetail', label: t('photoPrompts.highDetail.label'), value: t('photoPrompts.highDetail.value') },
+        { id: 'cyberpunk', label: t('photoPrompts.cyberpunk.label'), value: t('photoPrompts.cyberpunk.value') },
+        { id: 'fantasy', label: t('photoPrompts.fantasy.label'), value: t('photoPrompts.fantasy.value') },
+        { id: 'portrait', label: t('photoPrompts.portrait.label'), value: t('photoPrompts.portrait.value') },
+        { id: 'fullBody', label: t('photoPrompts.fullBody.label'), value: t('photoPrompts.fullBody.value') },
+        { id: 'anime', label: t('photoPrompts.anime.label'), value: t('photoPrompts.anime.value') },
+        { id: 'realism', label: t('photoPrompts.realism.label'), value: t('photoPrompts.realism.value') },
+        { id: 'cinematic', label: t('photoPrompts.cinematic.label'), value: t('photoPrompts.cinematic.value') },
+        { id: 'beach', label: t('photoPrompts.beach.label'), value: t('photoPrompts.beach.value') },
+        { id: 'city', label: t('photoPrompts.city.label'), value: t('photoPrompts.city.value') },
+        { id: 'forest', label: t('photoPrompts.forest.label'), value: t('photoPrompts.forest.value') },
+        { id: 'office', label: t('photoPrompts.office.label'), value: t('photoPrompts.office.value') },
+        { id: 'summerDress', label: t('photoPrompts.summerDress.label'), value: t('photoPrompts.summerDress.value') },
+        { id: 'eveningLight', label: t('photoPrompts.eveningLight.label'), value: t('photoPrompts.eveningLight.value') },
+        { id: 'winter', label: t('photoPrompts.winter.label'), value: t('photoPrompts.winter.value') },
+        { id: 'elegant', label: t('photoPrompts.elegant.label'), value: t('photoPrompts.elegant.value') },
+        { id: 'closeUp', label: t('photoPrompts.closeUp.label'), value: t('photoPrompts.closeUp.value') },
+        { id: 'park', label: t('photoPrompts.park.label'), value: t('photoPrompts.park.value') },
+        { id: 'cafe', label: t('photoPrompts.cafe.label'), value: t('photoPrompts.cafe.value') },
+        { id: 'nature', label: t('photoPrompts.nature.label'), value: t('photoPrompts.nature.value') },
+        { id: 'eveningOutfit', label: t('photoPrompts.eveningOutfit.label'), value: t('photoPrompts.eveningOutfit.value') },
+        { id: 'casual', label: t('photoPrompts.casual.label'), value: t('photoPrompts.casual.value') },
+        { id: 'sport', label: t('photoPrompts.sport.label'), value: t('photoPrompts.sport.value') },
+        { id: 'romantic', label: t('photoPrompts.romantic.label'), value: t('photoPrompts.romantic.value') }
     ];
 
     const handleTagClick = (tagValue: string) => {
-        const separator = imagePromptInput.length > 0 && !imagePromptInput.trim().endsWith(',') ? ', ' : '';
-        const newValue = imagePromptInput + separator + tagValue;
-        setImagePromptInput(newValue);
+        const trimmedInput = imagePromptInput.trim();
+        // Улучшенная проверка наличия тега (учитываем возможные вариации пробелов)
+        const escapedTagValue = tagValue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const tagRegex = new RegExp(`(^|,\\s*)${escapedTagValue}(\\s*(,|$))`, 'g');
+
+        if (tagRegex.test(trimmedInput)) {
+            // Если есть, удаляем его
+            const newValue = trimmedInput.replace(tagRegex, (match, p1, p2, p3) => {
+                // Если это был единственный элемент или в середине
+                return p1 === ',' && p3 === ',' ? ',' : '';
+            }).replace(/,\s*,/g, ',').replace(/^,\s*/, '').replace(/,\s*$/, '').trim();
+            setImagePromptInput(newValue);
+        } else {
+            // Если нет, добавляем
+            const separator = trimmedInput.length > 0 && !trimmedInput.endsWith(',') ? ', ' : '';
+            const newValue = trimmedInput + separator + tagValue;
+            setImagePromptInput(newValue.trim());
+        }
     };
 
     return (
@@ -82,7 +98,6 @@ export const ImageGenerationModal: React.FC<ImageGenerationModalProps> = ({
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     className="fixed inset-0 z-[1000] flex items-start justify-center pt-4 md:pt-12 p-4 bg-black/60 backdrop-blur-md overflow-y-auto"
-                    onClick={onClose}
                 >
                     {/* Background Blobs */}
                     <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-600/20 rounded-full blur-[120px] pointer-events-none" />
@@ -215,21 +230,32 @@ export const ImageGenerationModal: React.FC<ImageGenerationModalProps> = ({
                                 </div>
 
                                 <div className={`flex flex-wrap gap-2 transition-all duration-300 ease-in-out overflow-hidden ${isTagsExpanded ? 'max-h-[300px]' : 'max-h-[70px]'} relative`}>
-                                    {tags.map((tag, idx) => (
-                                        <motion.button
-                                            key={idx}
-                                            whileHover={{ scale: 1.05, backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
-                                            whileTap={{ scale: 0.95 }}
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                handleTagClick(tag.value);
-                                            }}
-                                            className="group flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-full text-xs text-gray-400 hover:text-white hover:border-white/20 transition-all cursor-pointer whitespace-nowrap"
-                                        >
-                                            <Plus className="w-3 h-3 text-gray-500 group-hover:text-purple-400 transition-colors" />
-                                            {tag.label}
-                                        </motion.button>
-                                    ))}
+                                    {tags.map((tag, idx) => {
+                                        const escapedTagValue = tag.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                        const isActive = new RegExp(`(^|,\\s*)${escapedTagValue}(\\s*(,|$))`).test(imagePromptInput);
+                                        return (
+                                            <motion.button
+                                                key={idx}
+                                                whileHover={{ scale: 1.05, backgroundColor: isActive ? 'rgba(34, 197, 94, 0.2)' : 'rgba(255, 255, 255, 0.1)' }}
+                                                whileTap={{ scale: 0.95 }}
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    handleTagClick(tag.value);
+                                                }}
+                                                className={`group flex items-center gap-1.5 px-3 py-1.5 border rounded-full text-xs transition-all cursor-pointer whitespace-nowrap ${isActive
+                                                    ? 'bg-green-500/10 border-green-500/50 text-green-400'
+                                                    : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+                                                    }`}
+                                            >
+                                                {isActive ? (
+                                                    <FiCheck className="w-3 h-3 text-green-400" />
+                                                ) : (
+                                                    <Plus className="w-3 h-3 text-gray-500 group-hover:text-purple-400 transition-colors" />
+                                                )}
+                                                {tag.label}
+                                            </motion.button>
+                                        );
+                                    })}
 
                                     {/* Fade gradient for collapsed state */}
                                     {!isTagsExpanded && (

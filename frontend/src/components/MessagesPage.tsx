@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
-import { GlobalHeader } from './GlobalHeader';
 import { authManager } from '../utils/auth';
 import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
@@ -355,15 +354,6 @@ export const MessagesPage: React.FC<MessagesPageProps> = ({
   return (
     <MainContainer>
       <div className="content-area vertical">
-        <GlobalHeader
-          onShop={onShop}
-          onProfile={onProfile}
-          onLogout={() => {
-            localStorage.removeItem('authToken');
-            localStorage.removeItem('refreshToken');
-            window.location.reload();
-          }}
-        />
 
         {error && (
           <div style={{ padding: '1rem' }}>

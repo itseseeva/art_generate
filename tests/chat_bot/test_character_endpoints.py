@@ -77,6 +77,10 @@ async def test_create_character_success(
         assert data["name"] == payload["name"]
         assert data["id"] is not None
         assert data["user_id"] == test_user_standard.id
+        # Since payload is English, it should populate _en fields
+        assert data["personality_en"] == payload["personality"]
+        assert data["situation_en"] == payload["situation"]
+        assert data["instructions_en"] == payload["instructions"]
 
 @pytest.mark.asyncio
 async def test_get_character_details(
@@ -87,11 +91,11 @@ async def test_get_character_details(
 ):
     """Test getting character details."""
     # Create a character directly in DB
+    # Create a character directly in DB
     from app.chat_bot.models.models import CharacterDB
     character = CharacterDB(
         name="Existing Char",
         description="Desc",
-        prompt="Prompt",
         user_id=test_user_standard.id
     )
     db_session.add(character)
@@ -121,7 +125,6 @@ async def test_update_character(
     character = CharacterDB(
         name="Update Me",
         description="Desc",
-        prompt="Prompt",
         user_id=test_user_standard.id
     )
     db_session.add(character)
@@ -144,7 +147,7 @@ async def test_update_character(
         }
         
         response = await client.put(
-            f"/api/v1/characters/{character.id}/user-edit",
+            f"/api/v1/characters/{character.name}/user-edit",
             json=payload,
             headers=auth_headers_standard
         )
@@ -152,8 +155,9 @@ async def test_update_character(
         assert response.status_code == 200
         data = response.json()
         assert data["name"] == "Updated Name"
-        # Since prompt is composed, we check if it contains the new values
-        assert "New Personality" in data["prompt"]
+        # Check specific fields instead of prompt
+        # Assuming EN input leads to EN fields
+        assert data.get("personality_en") == "New Personality"
 
 @pytest.mark.asyncio
 async def test_delete_character(
@@ -168,7 +172,6 @@ async def test_delete_character(
     character = CharacterDB(
         name="Delete Me",
         description="Desc",
-        prompt="Prompt",
         user_id=test_user_standard.id
     )
     db_session.add(character)

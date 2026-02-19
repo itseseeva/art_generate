@@ -5,7 +5,6 @@ import { authManager } from '../utils/auth';
 import { FiArrowLeft, FiEdit2, FiTrash2, FiSend, FiMessageSquare } from 'react-icons/fi';
 import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
-import { GlobalHeader } from './GlobalHeader';
 import { API_CONFIG } from '../config/api';
 
 const PageContainer = styled.div`
@@ -133,8 +132,8 @@ const Avatar = styled.div<{ $avatarUrl?: string }>`
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: ${props => props.$avatarUrl 
-    ? `url(${props.$avatarUrl}) center/cover` 
+  background: ${props => props.$avatarUrl
+    ? `url(${props.$avatarUrl}) center/cover`
     : 'rgba(60, 60, 60, 0.8)'};
   display: flex;
   align-items: center;
@@ -261,8 +260,8 @@ const FormActions = styled.div`
 
 const SubmitButton = styled.button<{ $disabled?: boolean }>`
   padding: 0.75rem 1.5rem;
-  background: ${props => props.$disabled 
-    ? 'rgba(50, 50, 50, 0.5)' 
+  background: ${props => props.$disabled
+    ? 'rgba(50, 50, 50, 0.5)'
     : 'rgba(60, 60, 60, 0.8)'};
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -314,6 +313,7 @@ interface Comment {
 interface CharacterCommentsPageProps {
   characterName: string;
   onBack: () => void;
+  onBackToMain?: () => void;
   onShop?: () => void;
   onProfile?: (userId?: number) => void;
 }
@@ -549,10 +549,6 @@ export const CharacterCommentsPage: React.FC<CharacterCommentsPageProps> = ({
 
   return (
     <PageContainer>
-      <GlobalHeader
-        onShop={onShop}
-        onProfile={onProfile}
-      />
       <ContentWrapper>
         <Header>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -568,9 +564,9 @@ export const CharacterCommentsPage: React.FC<CharacterCommentsPageProps> = ({
         </Header>
 
         {error && (
-          <ErrorMessage 
-            message={error} 
-            onClose={() => setError(null)} 
+          <ErrorMessage
+            message={error}
+            onClose={() => setError(null)}
           />
         )}
 
@@ -592,7 +588,7 @@ export const CharacterCommentsPage: React.FC<CharacterCommentsPageProps> = ({
                           {!comment.avatar_url && getUserInitial(comment.username, comment.email)}
                         </Avatar>
                         <UserDetails>
-                          <Username 
+                          <Username
                             $clickable={!!onProfile && !!comment.user_id}
                             onClick={() => {
                               if (onProfile && comment.user_id) {

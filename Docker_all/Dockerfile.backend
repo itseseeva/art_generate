@@ -58,9 +58,12 @@ ENV PYTHONPATH="/app"
 # Copy code
 COPY . .
 
-# Обновление тегов персонажей фактически выполняется при старте контейнера через docker-compose command
-# RUN python -m app.scripts.update_character_tags || true
+# Startup script configuration
+# Make sure .dockerignore allows Docker_all/startup.sh
+COPY Docker_all/startup.sh /app/startup.sh
+RUN chmod +x /app/startup.sh
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Запуск через startup скрипт (миграции + переводы + uvicorn)
+CMD ["/app/startup.sh"]

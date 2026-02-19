@@ -4,13 +4,13 @@ import { theme } from '../theme';
 import { authManager } from '../utils/auth';
 import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
-import { GlobalHeader } from './GlobalHeader';
 import { FiImage as ImageIcon } from 'react-icons/fi';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToRussian } from '../utils/translate';
 import { API_CONFIG } from '../config/api';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { PromptGlassModal } from './PromptGlassModal';
+import { useTranslation } from 'react-i18next';
 
 const MainContainer = styled.div`
   width: 100%;
@@ -156,7 +156,7 @@ const ActionButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   cursor: pointer;
   transition: ${theme.transition.fast};
 
-  ${({ $variant }) => 
+  ${({ $variant }) =>
     $variant === 'secondary'
       ? `
         background: transparent;
@@ -338,6 +338,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
   canEditAlbum = false,
   onUpgradeSubscription
 }) => {
+  const { t } = useTranslation();
   const isMobile = useIsMobile();
   const [images, setImages] = useState<PaidAlbumImage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -348,27 +349,30 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
   const [addingToGallery, setAddingToGallery] = useState<string | null>(null);
   const [galleryImageUrls, setGalleryImageUrls] = useState<Set<string>>(new Set());
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
+  const [selectedPromptRu, setSelectedPromptRu] = useState<string | null>(null);
+  const [selectedPromptEn, setSelectedPromptEn] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
 
   const handleOpenImage = async (image: PaidAlbumImage) => {
     setPreviewImage(image);
     setSelectedPrompt(null);
+    setSelectedPromptRu(null);
+    setSelectedPromptEn(null);
     setPromptError(null);
     setIsLoadingPrompt(true);
 
     try {
-      const { prompt, errorMessage } = await fetchPromptByImage(image.url);
-      if (prompt) {
-        // Переводим промпт на русский для отображения
-        const translatedPrompt = await translateToRussian(prompt);
-        setSelectedPrompt(translatedPrompt);
+      const result = await fetchPromptByImage(image.url);
+      if (result.hasPrompt && (result.prompt || result.prompt_ru || result.prompt_en)) {
+        setSelectedPrompt(result.prompt);
+        setSelectedPromptRu(result.prompt_ru || null);
+        setSelectedPromptEn(result.prompt_en || null);
       } else {
-        setPromptError(errorMessage || 'Промпт недоступен для этого изображения');
+        setPromptError(result.errorMessage || t('auth.promptUnavailable'));
       }
     } catch (error) {
-      
-      setPromptError('Ошибка загрузки промпта');
+      setPromptError(t('auth.promptLoadError'));
     } finally {
       setIsLoadingPrompt(false);
     }
@@ -391,7 +395,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
         setGalleryImageUrls(urls);
       }
     } catch (err) {
-      
+
     }
   }, []);
 
@@ -427,13 +431,12 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
           try {
             await authManager.refreshAccessToken();
           } catch (error) {
-            
-            setError('Требуется авторизация для просмотра платного альбома');
+            setError(t('auth.authRequiredAlbum'));
             setIsLoading(false);
             return;
           }
         } else {
-          setError('Требуется авторизация для просмотра платного альбома');
+          setError(t('auth.authRequiredAlbum'));
           setIsLoading(false);
           return;
         }
@@ -453,7 +456,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
         const response = await authManager.fetchWithAuth(`/api/v1/paid-gallery/${encodedName}`);
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
-          const message = (data && (data.detail || data.message)) || 'Не удалось загрузить платный альбом';
+          const message = (data && (data.detail || data.message)) || t('auth.loadAlbumError');
           throw new Error(message);
         }
 
@@ -462,17 +465,17 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
         // Обрабатываем URL'ы, чтобы они были абсолютными
         const processedImages = loadedImages.map((img: any) => {
           let imageUrl: string | null = null;
-          
+
           if (typeof img === 'string') {
             imageUrl = img;
           } else if (img && typeof img === 'object') {
             imageUrl = img.url || null;
           }
-          
+
           if (!imageUrl) {
             return null;
           }
-          
+
           // Конвертируем старые Yandex.Cloud URL в новые через прокси
           if (imageUrl.includes('.storage.yandexcloud.net/')) {
             // Извлекаем object_key из URL и создаем прокси URL
@@ -492,9 +495,9 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
             // Если это относительный путь, добавляем BASE_URL
             imageUrl = imageUrl.startsWith('/') ? `${API_CONFIG.BASE_URL}${imageUrl}` : `${API_CONFIG.BASE_URL}/${imageUrl}`;
           }
-          
+
           return {
-            id: typeof img === 'string' 
+            id: typeof img === 'string'
               ? img.split('/').pop()?.split('.')[0] || img
               : (img.id || imageUrl?.split('/').pop()?.split('.')[0] || `${Date.now()}-${Math.random()}`),
             url: imageUrl,
@@ -503,8 +506,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
         }).filter((img: any): img is PaidAlbumImage => img !== null);
         setImages(processedImages);
       } catch (albumError) {
-        
-        setError(albumError instanceof Error ? albumError.message : 'Не удалось загрузить платный альбом');
+        setError(albumError instanceof Error ? albumError.message : t('auth.loadAlbumError'));
       } finally {
         setIsLoading(false);
       }
@@ -518,12 +520,12 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
   const handleAddToGallery = async (imageUrl: string, imageId: string) => {
     const token = authManager.getToken();
     if (!token) {
-      alert('Необходима авторизация');
+      alert(t('auth.loginRequired'));
       return;
     }
 
     if (!character?.name) {
-      alert('Персонаж не выбран');
+      alert(t('auth.characterNotSelected'));
       return;
     }
 
@@ -547,9 +549,9 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        const errorMessage = errorData.detail || errorData.message || 'Не удалось добавить фото в галерею';
+        const errorMessage = errorData.detail || errorData.message || t('auth.addToGalleryError');
         // Если фото уже добавлено, это не критическая ошибка
-        if (response.status === 400 && (errorMessage.includes('уже добавлено') || errorMessage.includes('already'))) {
+        if (response.status === 400 && (errorMessage.includes(t('auth.alreadyAdded')) || errorMessage.includes('already'))) {
           setGalleryImageUrls(prev => new Set(prev).add(imageUrl));
           return;
         }
@@ -560,7 +562,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
       setGalleryImageUrls(prev => new Set(prev).add(imageUrl));
       window.dispatchEvent(new CustomEvent('gallery-update'));
     } catch (err: any) {
-      alert(err.message || 'Не удалось добавить фото в галерею');
+      alert(err.message || t('auth.addToGalleryError'));
     } finally {
       setAddingToGallery(null);
     }
@@ -569,115 +571,112 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
   return (
     <MainContainer>
       <HeaderWrapper>
-        <GlobalHeader 
-          onShop={onShop}
-          onProfile={onProfile}
-          onHome={onHome || onBackToMain}
-        />
       </HeaderWrapper>
       <PageContainer>
         <Header>
-        <div>
-          <Title>Платный альбом {displayName}</Title>
-          <Description>
-            Здесь собраны фотографии персонажа, которые создал пользователь. 
-          </Description>
-        </div>
+          <div>
+            <Title>{t('album.paidAlbumTitle', { name: displayName })}</Title>
+            <Description>
+              {t('album.paidAlbumDesc')}
+            </Description>
+          </div>
 
-        <Actions>
-          {isOwner && onOpenBuilder && character && (
-            <ActionButton
-              onClick={() => {
-                if (!canEditAlbum) {
-                  setIsUpgradeModalOpen(true);
-                  return;
-                }
+          <Actions>
+            {isOwner && onOpenBuilder && character && (
+              <ActionButton
+                onClick={() => {
+                  if (!canEditAlbum) {
+                    setIsUpgradeModalOpen(true);
+                    return;
+                  }
 
-                onOpenBuilder(character);
-              }}
-            >
-              Добавить фото
+                  onOpenBuilder(character);
+                }}
+              >
+                {t('album.addPhoto')}
+              </ActionButton>
+            )}
+            <ActionButton $variant="secondary" onClick={onBackToChat}>
+              {t('album.backToChat')}
             </ActionButton>
-          )}
-          <ActionButton $variant="secondary" onClick={onBackToChat}>
-            Вернуться в чат
-          </ActionButton>
-          <ActionButton $variant="secondary" onClick={onBackToMain}>
-            На главную
-          </ActionButton>
-        </Actions>
-      </Header>
+            <ActionButton $variant="secondary" onClick={onBackToMain}>
+              {t('nav.home')}
+            </ActionButton>
+          </Actions>
+        </Header>
 
-      {isLoading ? (
-        <LoadingSpinner text="Загружаем альбом..." />
-      ) : error ? (
-        <ErrorMessage message={error} onClose={() => setError(null)} />
-      ) : images.length === 0 ? (
-        <EmptyState>
-          <strong>В альбоме пока нет фотографий</strong>
-          {isOwner ? (
-            <span>Добавьте изображения, чтобы платный альбом выглядел привлекательно.</span>
-          ) : (
-            <span>Создатель персонажа ещё не добавил платные фотографии.</span>
-          )}
-        </EmptyState>
-      ) : (
-        <GalleryGrid>
-          {images.map((image) => (
-            <Card key={image.id} onClick={() => handleOpenImage(image)}>
-              <CardImage
-                src={image.url}
-                alt={displayName}
-                loading="lazy"
-              />
-              <CardOverlay>
-                <OverlayActions>
-                  {!isOwner && !galleryImageUrls.has(image.url) && (
-                    <OverlayButton 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleAddToGallery(image.url, image.id);
-                      }}
-                      disabled={addingToGallery === image.id}
-                    >
-                      <ImageIcon />
-                      {addingToGallery === image.id ? 'Добавление...' : 'В галерею'}
-                    </OverlayButton>
-                  )}
-                </OverlayActions>
-              </CardOverlay>
-            </Card>
-          ))}
-        </GalleryGrid>
-      )}
+        {isLoading ? (
+          <LoadingSpinner text={t('album.loading')} />
+        ) : error ? (
+          <ErrorMessage message={error} onClose={() => setError(null)} />
+        ) : images.length === 0 ? (
+          <EmptyState>
+            <strong>{t('album.noPhotos')}</strong>
+            {isOwner ? (
+              <span>{t('album.noPhotosWithOwner')}</span>
+            ) : (
+              <span>{t('album.noPhotosWithoutOwner')}</span>
+            )}
+          </EmptyState>
+        ) : (
+          <GalleryGrid>
+            {images.map((image) => (
+              <Card key={image.id} onClick={() => handleOpenImage(image)}>
+                <CardImage
+                  src={image.url}
+                  alt={displayName}
+                  loading="lazy"
+                />
+                <CardOverlay>
+                  <OverlayActions>
+                    {!isOwner && !galleryImageUrls.has(image.url) && (
+                      <OverlayButton
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAddToGallery(image.url, image.id);
+                        }}
+                        disabled={addingToGallery === image.id}
+                      >
+                        <ImageIcon />
+                        {addingToGallery === image.id ? t('album.adding') : t('album.addToGallery')}
+                      </OverlayButton>
+                    )}
+                  </OverlayActions>
+                </CardOverlay>
+              </Card>
+            ))}
+          </GalleryGrid>
+        )}
 
-      <PromptGlassModal
-        isOpen={!!previewImage}
-        onClose={() => setPreviewImage(null)}
-        imageUrl={previewImage?.url || ''}
-        imageAlt={displayName}
-        promptText={selectedPrompt}
-        isLoading={isLoadingPrompt}
-        error={promptError}
-      />
+        <PromptGlassModal
+          isOpen={!!previewImage}
+          onClose={() => setPreviewImage(null)}
+          imageUrl={previewImage?.url || ''}
+          imageAlt={displayName}
+          promptText={selectedPrompt}
+          promptTextRu={selectedPromptRu}
+          promptTextEn={selectedPromptEn}
+          isLoading={isLoadingPrompt}
+          error={promptError}
+        />
 
       </PageContainer>
       {isUpgradeModalOpen && (
         <UpgradeOverlay onClick={() => setIsUpgradeModalOpen(false)}>
           <UpgradeModal onClick={(e) => e.stopPropagation()}>
-            <UpgradeTitle>Разблокировка альбома недоступна</UpgradeTitle>
+            <UpgradeTitle>{t('album.upgradeRequiredTitle')}</UpgradeTitle>
             <UpgradeText>
-              Разблокировка и добавление фотографий в альбом доступны только подписчикам Standard и Premium. Оформите подписку, чтобы получить доступ к этой функции.
+              {t('album.upgradeRequiredDesc')}
             </UpgradeText>
             <UpgradeActions>
               <ActionButton onClick={() => {
                 setIsUpgradeModalOpen(false);
                 onUpgradeSubscription?.();
               }}>
-                Оформить подписку
+                {t('album.subscribe')}
               </ActionButton>
               <ActionButton $variant="secondary" onClick={() => setIsUpgradeModalOpen(false)}>
-                Понятно
+                {t('album.gotIt')}
               </ActionButton>
             </UpgradeActions>
           </UpgradeModal>

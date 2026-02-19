@@ -365,58 +365,94 @@ async def get_prompt_by_image(
                     break
             
             if image_history_record:
-                # Приоритет: сначала admin_prompt, затем обычный prompt
-                clean_prompt = None
-                if image_history_record.admin_prompt:
-                    clean_prompt = image_history_record.admin_prompt
-                elif image_history_record.prompt:
-                    clean_prompt = image_history_record.prompt
+                # 1.1 Получаем базовые значения
+                raw_prompt = image_history_record.prompt
+                raw_prompt_en = image_history_record.prompt_en
+                raw_prompt_ru = image_history_record.prompt_ru
+                admin_prompt = image_history_record.admin_prompt
+
+                # 1.2 Приоритет admin_prompt - если есть, он перезаписывает все
+                if admin_prompt:
+                    # Считаем admin_prompt источником истины
+                    # Пытаемся определить язык админского промпта
+                    import re
+                    has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', admin_prompt))
+                    if has_cyrillic:
+                        raw_prompt_ru = admin_prompt
+                        # Если нет английского или он старый, переведем (позже)
+                    else:
+                        raw_prompt_en = admin_prompt
+                        # Если нет русского, переведем (позже)
+
+                # 1.3 Логика заполнения пропусков (translation fallback)
+                final_prompt_en = raw_prompt_en
+                final_prompt_ru = raw_prompt_ru
                 
-                if clean_prompt:
-                    # Очищаем промпт от JSON если он там есть
-                    try:
-                        import json
-                        if clean_prompt.strip().startswith('{'):
-                            data = json.loads(clean_prompt)
-                            if isinstance(data, dict) and 'prompt' in data:
-                                clean_prompt = data['prompt']
-                    except:
-                        pass
-                        
-                    # Переводим промпт на русский если он на английском
-                    try:
-                        import re
-                        has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', clean_prompt))
-                        if not has_cyrillic:
-                            # Если нет кириллицы, значит промпт на английском - переводим на русский
-                            from deep_translator import GoogleTranslator
-                            translator = GoogleTranslator(source='en', target='ru')
-                            # Разбиваем длинный текст на части для более надежного перевода
-                            if len(clean_prompt) > 4000:
-                                parts = clean_prompt.split('\n')
-                                translated_parts = []
-                                for part in parts:
-                                    if part.strip():
-                                        translated_parts.append(translator.translate(part))
-                                clean_prompt = '\n'.join(translated_parts)
-                            else:
-                                clean_prompt = translator.translate(clean_prompt)
-                    except (ImportError, Exception) as translate_error:
-                        # Если перевод не удался, возвращаем оригинальный промпт
-                        logger.warning(f"[TRANSLATE] Ошибка перевода промпта на русский: {translate_error}")
-                        
-                    result = {
-                        "success": True,
-                        "prompt": clean_prompt,
-                        "character_name": image_history_record.character_name,
-                        "generation_time": image_history_record.generation_time
-                    }
-                    
-                    # Сохраняем в кэш
-                    await cache_set(cache_key, result, ttl_seconds=TTL_IMAGE_METADATA, timeout=0.5)
-                    
-                    return result
+                # Если нет ни того ни другого, берем raw_prompt
+                if not final_prompt_en and not final_prompt_ru and raw_prompt:
+                     # Определяем язык raw_prompt
+                     import re
+                     has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', raw_prompt))
+                     if has_cyrillic:
+                         final_prompt_ru = raw_prompt
+                     else:
+                         final_prompt_en = raw_prompt
+
+                # Helper для перевода
+                def translate_text(text: str, target_lang: str) -> str:
+                     if not text: return ""
+                     try:
+                         # Очистка от JSON если есть
+                         clean_text = text
+                         if clean_text.strip().startswith('{'):
+                             import json
+                             try:
+                                 data = json.loads(clean_text)
+                                 if isinstance(data, dict) and 'prompt' in data:
+                                     clean_text = data['prompt']
+                             except: pass
+                         
+                         from deep_translator import GoogleTranslator
+                         source_lang = 'en' if target_lang == 'ru' else 'ru'
+                         translator = GoogleTranslator(source=source_lang, target=target_lang)
+                         
+                         if len(clean_text) > 4000:
+                             parts = clean_text.split('\n')
+                             translated_parts = []
+                             for part in parts:
+                                 if part.strip():
+                                     translated_parts.append(translator.translate(part))
+                             return '\n'.join(translated_parts)
+                         else:
+                             return translator.translate(clean_text)
+                     except Exception as e:
+                         logger.warning(f"[TRANSLATE] Error translating validation to {target_lang}: {e}")
+                         return text # Fallback to original
+
+                # Если все еще нет en, но есть ru -> переводим
+                if not final_prompt_en and final_prompt_ru:
+                    final_prompt_en = translate_text(final_prompt_ru, 'en')
+                
+                # Если все еще нет ru, но есть en -> переводим
+                if not final_prompt_ru and final_prompt_en:
+                     final_prompt_ru = translate_text(final_prompt_en, 'ru')
+
+                result = {
+                    "success": True,
+                    "prompt": final_prompt_ru, # Legacy field for compatibility (defaults to RU)
+                    "prompt_ru": final_prompt_ru,
+                    "prompt_en": final_prompt_en,
+                    "character_name": image_history_record.character_name,
+                    "generation_time": image_history_record.generation_time
+                }
+                
+                # Сохраняем в кэш
+                await cache_set(cache_key, result, ttl_seconds=TTL_IMAGE_METADATA, timeout=0.5)
+                
+                return result
         except Exception as img_history_err:
+            await db.rollback()
+            logger.warning(f"[PROMPT_DEBUG] ERROR in ImageGenerationHistory search: {img_history_err}")
             pass
 
         # 2. Если не нашли в ImageGenerationHistory, ищем в ChatHistory (там сообщения чата)
@@ -485,31 +521,43 @@ async def get_prompt_by_image(
         
         if message and message.message_content:
             prompt_text = message.message_content
-            # Переводим промпт на русский если он на английском
-            try:
+            # Helper для перевода (дубль, можно вынести но пока оставим тут для изоляции)
+            def translate_chat_prompt(text: str):
                 import re
-                has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', prompt_text))
-                if not has_cyrillic:
-                    # Если нет кириллицы, значит промпт на английском - переводим на русский
-                    from deep_translator import GoogleTranslator
-                    translator = GoogleTranslator(source='en', target='ru')
-                    # Разбиваем длинный текст на части для более надежного перевода
-                    if len(prompt_text) > 4000:
-                        parts = prompt_text.split('\n')
-                        translated_parts = []
-                        for part in parts:
-                            if part.strip():
-                                translated_parts.append(translator.translate(part))
-                        prompt_text = '\n'.join(translated_parts)
+                has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', text))
+                
+                from deep_translator import GoogleTranslator
+                
+                prompt_ru = text
+                prompt_en = text
+                
+                try:
+                    if has_cyrillic:
+                        # Есть кириллица -> это RU. Переводим в EN
+                         translator = GoogleTranslator(source='ru', target='en')
+                         if len(text) > 4000:
+                             prompt_en = text # Too long, skip helper for now
+                         else:
+                             prompt_en = translator.translate(text)
                     else:
-                        prompt_text = translator.translate(prompt_text)
-            except (ImportError, Exception) as translate_error:
-                # Если перевод не удался, возвращаем оригинальный промпт
-                logger.warning(f"[TRANSLATE] Ошибка перевода промпта на русский: {translate_error}")
-            
+                        # Нет кириллицы -> это EN. Переводим в RU
+                         translator = GoogleTranslator(source='en', target='ru')
+                         if len(text) > 4000:
+                             prompt_ru = text 
+                         else:
+                             prompt_ru = translator.translate(text)
+                except Exception as e:
+                    logger.warning(f"Translate error: {e}")
+                    
+                return prompt_ru, prompt_en
+
+            p_ru, p_en = translate_chat_prompt(prompt_text)
+
             result = {
                 "success": True,
-                "prompt": prompt_text,
+                "prompt": p_ru, # Legacy
+                "prompt_ru": p_ru,
+                "prompt_en": p_en,
                 "character_name": message.character_name,
                 "generation_time": message.generation_time
             }
@@ -546,31 +594,43 @@ async def get_prompt_by_image(
                 break
         if message and message.message_content:
             prompt_text = message.message_content
-            # Переводим промпт на русский если он на английском
-            try:
+            # Helper для перевода (дубль 2)
+            def translate_chat_prompt_2(text: str):
                 import re
-                has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', prompt_text))
-                if not has_cyrillic:
-                    # Если нет кириллицы, значит промпт на английском - переводим на русский
-                    from deep_translator import GoogleTranslator
-                    translator = GoogleTranslator(source='en', target='ru')
-                    # Разбиваем длинный текст на части для более надежного перевода
-                    if len(prompt_text) > 4000:
-                        parts = prompt_text.split('\n')
-                        translated_parts = []
-                        for part in parts:
-                            if part.strip():
-                                translated_parts.append(translator.translate(part))
-                        prompt_text = '\n'.join(translated_parts)
+                has_cyrillic = bool(re.search(r'[а-яёА-ЯЁ]', text))
+                
+                from deep_translator import GoogleTranslator
+                
+                prompt_ru = text
+                prompt_en = text
+                
+                try:
+                    if has_cyrillic:
+                        # Есть кириллица -> это RU. Переводим в EN
+                         translator = GoogleTranslator(source='ru', target='en')
+                         if len(text) > 4000:
+                             prompt_en = text
+                         else:
+                             prompt_en = translator.translate(text)
                     else:
-                        prompt_text = translator.translate(prompt_text)
-            except (ImportError, Exception) as translate_error:
-                # Если перевод не удался, возвращаем оригинальный промпт
-                logger.warning(f"[TRANSLATE] Ошибка перевода промпта на русский: {translate_error}")
-            
+                        # Нет кириллицы -> это EN. Переводим в RU
+                         translator = GoogleTranslator(source='en', target='ru')
+                         if len(text) > 4000:
+                             prompt_ru = text 
+                         else:
+                             prompt_ru = translator.translate(text)
+                except Exception as e:
+                    logger.warning(f"Translate error: {e}")
+                    
+                return prompt_ru, prompt_en
+
+            p_ru, p_en = translate_chat_prompt_2(prompt_text)
+
             result = {
                 "success": True,
-                "prompt": prompt_text,
+                "prompt": p_ru, # Legacy
+                "prompt_ru": p_ru,
+                "prompt_en": p_en,
                 "character_name": message.character_name,
                 "generation_time": message.generation_time
             }
@@ -583,9 +643,15 @@ async def get_prompt_by_image(
         # Fallback для главной страницы: если URL из paid_gallery/static (не совпадает с БД),
         # и передан character_name — возвращаем последний известный промпт для этого персонажа.
         if character_name and character_name.strip():
+            # Расширенная логика fallback для любых статических/загруженных изображений
+            # Если это не сгенерированное изображение (нет /generated/), считаем его статическим
             is_static_like_url = (
                 "/paid_gallery/" in normalized_url
-                or "/static/photos/" in normalized_url
+                or "/static/" in normalized_url
+                or "/media/" in normalized_url
+                or "cloudinary" in normalized_url
+                or "/user_uploads/" in normalized_url
+                or not "/generated/" in normalized_url
             )
             if is_static_like_url:
                 try:
@@ -641,6 +707,7 @@ async def get_prompt_by_image(
                             await cache_set(fallback_cache_key, result, ttl_seconds=TTL_IMAGE_METADATA, timeout=0.5)
                             return result
                 except Exception as fallback_err:
+                    await db.rollback()
                     logger.warning(f"[PROMPT FALLBACK] Ошибка fallback по character_name: {fallback_err}")
 
         return {

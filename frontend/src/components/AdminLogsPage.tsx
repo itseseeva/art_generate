@@ -7,7 +7,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
-import { GlobalHeader } from './GlobalHeader';
 import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
 import { authManager } from '../utils/auth';
@@ -723,11 +722,6 @@ export const AdminLogsPage: React.FC<AdminLogsPageProps> = ({
 
   return (
     <MainContainer>
-      <GlobalHeader
-        onShop={onShop}
-        onProfile={onProfile}
-        onHome={onBackToMain}
-      />
       <ContentContainer>
         <BackButton type="button" onClick={onBackToMain}>
           <FiArrowLeft size={20} />

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { FiPlusCircle, FiEdit, FiClock, FiHeart, FiGrid, FiMessageSquare, FiTrendingUp, FiChevronRight, FiAlertTriangle, FiUser, FiLogIn, FiUserPlus, FiLogOut, FiDollarSign, FiRefreshCw, FiFileText, FiBarChart2, FiMenu } from 'react-icons/fi';
 import { Crown } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import Dock, { type DockItemData } from './Dock';
 import { theme } from '../theme';
@@ -291,6 +292,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   onContentModeChange,
   onRequireAuth,
 }) => {
+  const { t } = useTranslation();
   const [isCollapsed, setIsCollapsed] = useState(false); // Панель развернута по умолчанию
   const [arrowTop, setArrowTop] = useState<string>('50%');
   const dockWrapperRef = useRef<HTMLDivElement>(null);
@@ -324,22 +326,22 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   const topDockItems = [
     {
       icon: <FiPlusCircle size={18} />,
-      label: 'Создать',
+      label: t('nav.create'),
       onClick: () => onCreateCharacter?.(),
     },
     {
       icon: <FiEdit size={18} />,
-      label: 'Редактор',
+      label: t('sidebar.editCharacters'),
       onClick: () => onEditCharacters?.(),
     },
     {
       icon: <FiClock size={18} />,
-      label: 'История',
+      label: t('nav.history'),
       onClick: () => onHistory?.(),
     },
     {
       icon: <FiHeart size={18} />,
-      label: 'Избранное',
+      label: t('nav.favorites'),
       onClick: () => onFavorites?.(),
     },
   ];
@@ -348,13 +350,13 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   const mainBottomDockItems: DockItemData[] = [
     {
       icon: <FiGrid size={18} />,
-      label: 'Персонажи',
+      label: t('nav.characters'),
       onClick: () => onMyCharacters?.(),
       className: 'dock-item-characters',
     },
     {
       icon: <FiAlertTriangle size={18} />,
-      label: 'Жалоба',
+      label: t('sidebar.bugReport'),
       onClick: () => onBugReport?.(),
       className: 'dock-item-bug',
     },
@@ -366,7 +368,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
     if (onMessages) {
       mainBottomDockItems.push({
         icon: <FiMessageSquare size={18} />,
-        label: 'Сообщения',
+        label: t('nav.messages'),
         onClick: () => onMessages?.(),
         className: 'dock-item-messages',
         badgeCount: unreadMessagesCount > 0 ? unreadMessagesCount : undefined,
@@ -377,7 +379,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   if (isAuthenticated && isAdmin) {
     mainBottomDockItems.push({
       icon: <FiBarChart2 size={18} />,
-      label: 'Логи',
+      label: t('nav.adminLogs'),
       onClick: () => window.dispatchEvent(new CustomEvent('navigate-to-admin-logs')),
       className: 'dock-item-admin-logs',
     });
@@ -391,7 +393,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   if (isAuthenticated && onProfile) {
     additionalDockItems.push({
       icon: <FiUser size={18} />,
-      label: 'Профиль',
+      label: t('nav.profile'),
       onClick: () => onProfile?.(),
       className: 'dock-item-profile',
     });
@@ -401,7 +403,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
   if (onShop) {
     additionalDockItems.push({
       icon: <Crown size={20} color="#22d3ee" style={{ filter: 'drop-shadow(0 0 6px rgba(34, 211, 238, 0.8))' }} />,
-      label: 'Магазин',
+      label: t('nav.shop'),
       onClick: () => onShop?.(),
       className: 'dock-item-shop',
     });

@@ -90,6 +90,12 @@ class ImageGenerationHistoryService:
             # Но не нормализуем pending URL, так как они временные
             normalized_image_url = image_url.split('?')[0].split('#')[0] if image_url and not image_url.startswith("pending:") else image_url
             
+            # Если task_id был передан, но запись не найдена, и user_id=None — не создаём "сиротскую" запись
+            if task_id and not user_id:
+                logger.warning(f"[IMAGE_HISTORY] task_id={task_id} не найден в БД, user_id=None — пропускаем создание записи")
+                return False
+
+            
             # Проверяем по image_url (на случай если task_id нет, но пропускаем pending записи)
             if normalized_image_url and not normalized_image_url.startswith("pending:"):
                 existing = await self.db.execute(

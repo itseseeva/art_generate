@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styled from 'styled-components';
 import { authManager } from '../utils/auth';
 import { theme } from '../theme';
-import { GlobalHeader } from './GlobalHeader';
 import '../styles/ContentArea.css';
 import { AuthModal } from './AuthModal';
 import { LoadingSpinner } from './LoadingSpinner';
@@ -688,9 +687,6 @@ useEffect(() => {
     return (
       <MainContainer>
         <div className="content-area vertical">
-          <GlobalHeader 
-            onShop={onShop}
-          />
           <MainContent>
             <div style={{ textAlign: 'center', padding: '2rem' }}>
               <p>Необходимо войти в систему для генерации фото персонажа</p>
@@ -705,25 +701,6 @@ useEffect(() => {
     <MainContainer>
       
       <div className="content-area vertical">
-        <GlobalHeader 
-          onShop={onShop}
-          onLogin={() => {
-            setAuthMode('login');
-            setIsAuthModalOpen(true);
-          }}
-          onRegister={() => {
-            setAuthMode('register');
-            setIsAuthModalOpen(true);
-          }}
-          onLogout={() => {
-            localStorage.removeItem('authToken');
-            localStorage.removeItem('refreshToken');
-            window.location.reload();
-          }}
-          onProfile={onProfile}
-          onBalance={() => alert('Баланс пользователя')}
-          currentCharacterId={character?.id}
-        />
         
         <MainContent>
           <CharacterInfo>

@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
+import { useParams } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
 import { authManager } from '../utils/auth';
 import { theme } from '../theme';
-import { GlobalHeader } from './GlobalHeader';
 import SplitText from './SplitText';
 import { AuthModal } from './AuthModal';
 import { API_CONFIG } from '../config/api';
@@ -40,6 +40,8 @@ import { motion } from 'motion/react';
 import { CharacterCard } from './CharacterCard';
 import { GalleryAccessModal } from './GalleryAccessModal';
 import { GalleryAccessDeniedModal } from './GalleryAccessDeniedModal';
+import { useTranslation } from 'react-i18next';
+import { useGridColumns } from '../hooks/useGridColumns';
 
 
 const UNLOCKED_USER_GALLERIES_KEY = 'userGalleryUnlocked';
@@ -89,6 +91,25 @@ const forgetUnlockedUserGallery = (userId: number): number[] => {
   return updated;
 };
 
+
+
+const PageLayout = styled.div`
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  width: 100%;
+  overflow: hidden;
+`;
+
+const SidebarSpacer = styled.div`
+  width: 300px;
+  min-width: 300px;
+  flex-shrink: 0;
+  display: none;
+  @media (min-width: 1024px) {
+    display: block;
+  }
+`;
 
 // Компонент уведомления снизу от кнопки
 const FreeSubscriptionTooltip = styled.div<{ $show: boolean }>`
@@ -469,537 +490,553 @@ const SectionSubtitle = styled.p`
 
 const CharactersGrid = styled.div`
   flex: 1;
-  padding: ${theme.spacing.xs} ${theme.spacing.sm};
+  padding: 16px ${theme.spacing.sm} ${theme.spacing.xs};
   overflow-y: visible;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 0;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
   align-content: start;
   width: 100%;
+  width: 100%;
   min-height: 0;
-  
+
   @media (max-width: 768px) {
     flex: none;
     overflow-y: visible;
     grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    padding-top: 8px;
   }
 `;
 
 const StatsGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: ${theme.spacing.lg};
-  margin-top: ${theme.spacing.xl};
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+gap: ${theme.spacing.lg};
+margin-top: ${theme.spacing.xl};
 `;
 
 const StatCard = styled.div`
-  position: relative;
-  border-radius: ${theme.borderRadius.lg};
-  padding: ${theme.spacing.xl};
-  min-height: 120px;
-  overflow: hidden;
-  border: 1px solid rgba(150, 150, 150, 0.3);
-  background: linear-gradient(
-    135deg,
-    rgba(60, 60, 60, 0.5) 0%,
-    rgba(50, 50, 50, 0.3) 50%,
-    rgba(30, 30, 30, 0.8) 100%
+position: relative;
+border-radius: ${theme.borderRadius.lg};
+padding: ${theme.spacing.xl};
+min-height: 120px;
+overflow: hidden;
+border: 1px solid rgba(150, 150, 150, 0.3);
+background: linear-gradient(
+  135deg,
+  rgba(60, 60, 60, 0.5) 0%,
+  rgba(50, 50, 50, 0.3) 50%,
+  rgba(30, 30, 30, 0.8) 100%
   );
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  display: flex;
-  align-items: center;
-  gap: ${theme.spacing.lg};
+box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+display: flex;
+align-items: center;
+gap: ${theme.spacing.lg};
 `;
 
 const StatIcon = styled.div<{ color?: string }>`
-  width: 64px;
-  height: 64px;
-  border-radius: ${theme.borderRadius.lg};
-  background: ${props => props.color || 'rgba(80, 80, 80, 0.3)'};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+width: 64px;
+height: 64px;
+border-radius: ${theme.borderRadius.lg};
+background: ${props => props.color || 'rgba(80, 80, 80, 0.3)'};
+display: flex;
+align-items: center;
+justify-content: center;
+flex-shrink: 0;
   
   svg {
-    width: 32px;
-    height: 32px;
-    color: ${props => props.color?.replace('0.15', '1').replace('0.3', '1') || 'rgba(200, 200, 200, 1)'};
-  }
+  width: 32px;
+  height: 32px;
+  color: ${props => props.color?.replace('0.15', '1').replace('0.3', '1') || 'rgba(200, 200, 200, 1)'};
+}
 `;
 
 const StatContent = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: ${theme.spacing.xs};
+flex: 1;
+display: flex;
+flex-direction: column;
+gap: ${theme.spacing.xs};
 `;
 
 const StatValue = styled.span`
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize['2xl']};
-  font-weight: 700;
+color: ${theme.colors.text.primary};
+font-size: ${theme.fontSize['2xl']};
+font-weight: 700;
 `;
 
 const StatLabel = styled.span`
-  color: ${theme.colors.text.muted};
-  font-size: ${theme.fontSize.base};
-  font-weight: 500;
+color: ${theme.colors.text.muted};
+font-size: ${theme.fontSize.base};
+font-weight: 500;
 `;
 
 const TwoColumnLayout = styled.div`
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: ${theme.spacing.xxl};
-  
-  @media (min-width: 1024px) {
-    grid-template-columns: 2fr 1fr;
-  }
+display: grid;
+grid-template-columns: 1fr;
+gap: ${theme.spacing.xxl};
+
+@media(min-width: 1024px) {
+  grid-template-columns: 2fr 1fr;
+}
 `;
 
 const LeftColumn = styled.div`
-  margin-left: 0;
-  padding-left: 0;
+margin-left: 0;
+padding-left: 0;
   
   ${Section} {
-    max-width: none;
-    margin-left: 0;
-    margin-right: auto;
-  }
+  max-width: none;
+  margin-left: 0;
+  margin-right: auto;
+}
 `;
 
 const RightColumn = styled.div`
-  margin-right: 0;
-  padding-right: 0;
+margin-right: 0;
+padding-right: 0;
   
   ${Section} {
-    max-width: none;
-    margin-left: auto;
-    margin-right: 0;
-  }
+  max-width: none;
+  margin-left: auto;
+  margin-right: 0;
+}
 `;
 
 const ActivityList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${theme.spacing.md};
+display: flex;
+flex-direction: column;
+gap: ${theme.spacing.md};
 `;
 
 const ActivityItem = styled.div`
-  display: flex;
-  align-items: flex-start;
-  gap: ${theme.spacing.md};
-  padding-bottom: ${theme.spacing.md};
-  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+display: flex;
+align-items: flex-start;
+gap: ${theme.spacing.md};
+padding-bottom: ${theme.spacing.md};
+border-bottom: 1px solid rgba(148, 163, 184, 0.1);
   
-  &:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
-  }
+  &: last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
 `;
 
 const ActivityDot = styled.div<{ color?: string }>`
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: ${props => props.color || theme.colors.accent.primary};
-  margin-top: ${theme.spacing.xs};
-  flex-shrink: 0;
+width: 8px;
+height: 8px;
+border-radius: 50%;
+background: ${props => props.color || theme.colors.accent.primary};
+margin-top: ${theme.spacing.xs};
+flex-shrink: 0;
 `;
 
 const ActivityContent = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: ${theme.spacing.xs};
+flex: 1;
+display: flex;
+flex-direction: column;
+gap: ${theme.spacing.xs};
 `;
 
 const ActivityText = styled.p`
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.sm};
-  margin: 0;
+color: ${theme.colors.text.primary};
+font-size: ${theme.fontSize.sm};
+margin: 0;
   
   span {
-    color: ${theme.colors.text.muted};
-  }
+  color: ${theme.colors.text.muted};
+}
   
   strong {
-    font-weight: 600;
-  }
+  font-weight: 600;
+}
 `;
 
 const ActivityTime = styled.span`
-  color: ${theme.colors.text.tertiary};
-  font-size: ${theme.fontSize.xs};
+color: ${theme.colors.text.tertiary};
+font-size: ${theme.fontSize.xs};
 `;
 
 const SkillsContainer = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: ${theme.spacing.sm};
+display: flex;
+flex-wrap: wrap;
+gap: ${theme.spacing.sm};
 `;
 
 const SkillBadge = styled.span`
-  padding: ${theme.spacing.xs} ${theme.spacing.md};
-  background: rgba(80, 80, 80, 0.3);
-  border: 1px solid rgba(150, 150, 150, 0.3);
-  border-radius: ${theme.borderRadius.md};
-  color: rgba(240, 240, 240, 1);
-  font-size: ${theme.fontSize.sm};
-  font-weight: 500;
+padding: ${theme.spacing.xs} ${theme.spacing.md};
+background: rgba(80, 80, 80, 0.3);
+border: 1px solid rgba(150, 150, 150, 0.3);
+border-radius: ${theme.borderRadius.md};
+color: rgba(240, 240, 240, 1);
+font-size: ${theme.fontSize.sm};
+font-weight: 500;
 `;
 
 
 
 const InfoGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: ${theme.spacing.lg};
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+gap: ${theme.spacing.lg};
 `;
 
 const InfoCard = styled.div`
-  background: rgba(40, 40, 40, 0.5);
-  border: 1px solid rgba(150, 150, 150, 0.3);
-  border-radius: ${theme.borderRadius.lg};
-  padding: ${theme.spacing.lg};
-  display: flex;
-  flex-direction: column;
-  gap: ${theme.spacing.xs};
+background: rgba(40, 40, 40, 0.5);
+border: 1px solid rgba(150, 150, 150, 0.3);
+border-radius: ${theme.borderRadius.lg};
+padding: ${theme.spacing.lg};
+display: flex;
+flex-direction: column;
+gap: ${theme.spacing.xs};
 `;
 
 const InfoLabel = styled.span`
-  color: ${theme.colors.text.muted};
-  font-size: ${theme.fontSize.xs};
-  text-transform: uppercase;
-  letter-spacing: 0.2rem;
+color: ${theme.colors.text.muted};
+font-size: ${theme.fontSize.xs};
+text-transform: uppercase;
+letter-spacing: 0.2rem;
 `;
 
 const InfoValue = styled.span`
-  color: ${theme.colors.text.primary};
-  font-size: ${theme.fontSize.lg};
-  font-weight: 600;
+color: ${theme.colors.text.primary};
+font-size: ${theme.fontSize.lg};
+font-weight: 600;
 `;
 
 const StatDescription = styled.span`
-  display: block;
-  margin-top: ${theme.spacing.xs};
-  color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.sm};
+display: block;
+margin-top: ${theme.spacing.xs};
+color: ${theme.colors.text.secondary};
+font-size: ${theme.fontSize.sm};
 `;
 
 const ProgressBarContainer = styled.div`
-  margin-top: ${theme.spacing.sm};
-  width: 100%;
+margin-top: ${theme.spacing.sm};
+width: 100%;
 `;
 
 const ProgressBar = styled.div<{ $percentage: number }>`
-  width: 100%;
-  height: 8px;
-  background: rgba(80, 80, 80, 0.3);
-  border-radius: ${theme.borderRadius.full};
-  overflow: hidden;
-  position: relative;
+width: 100%;
+height: 8px;
+background: rgba(80, 80, 80, 0.3);
+border-radius: ${theme.borderRadius.full};
+overflow: hidden;
+position: relative;
   
   &::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 100%;
-    width: ${props => Math.min(100, Math.max(0, props.$percentage))}%;
-    background: linear-gradient(90deg, rgba(59, 130, 246, 0.8), rgba(99, 102, 241, 0.8));
-    border-radius: ${theme.borderRadius.full};
-    transition: width 0.3s ease;
-  }
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: ${props => Math.min(100, Math.max(0, props.$percentage))}%;
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.8), rgba(99, 102, 241, 0.8));
+  border-radius: ${theme.borderRadius.full};
+  transition: width 0.3s ease;
+}
 `;
 
 const ProgressText = styled.span`
-  display: block;
-  margin-top: ${theme.spacing.xs};
-  color: ${theme.colors.text.muted};
-  font-size: ${theme.fontSize.xs};
+display: block;
+margin-top: ${theme.spacing.xs};
+color: ${theme.colors.text.muted};
+font-size: ${theme.fontSize.xs};
 `;
 
 const QuickActionsContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${theme.spacing.md};
-  margin-top: ${theme.spacing.xl};
+display: flex;
+flex-direction: column;
+gap: ${theme.spacing.md};
+margin-top: ${theme.spacing.xl};
 `;
 
 const QuickActionButton = styled.button`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: ${theme.spacing.md} ${theme.spacing.lg};
-  background: rgba(60, 60, 60, 0.5);
-  border: 1px solid rgba(150, 150, 150, 0.3);
-  border-radius: ${theme.borderRadius.lg};
-  color: rgba(240, 240, 240, 1);
-  font-size: ${theme.fontSize.base};
-  font-weight: 500;
-  cursor: pointer;
-  transition: all ${theme.transition.normal};
+display: flex;
+align-items: center;
+justify-content: space-between;
+padding: ${theme.spacing.md} ${theme.spacing.lg};
+background: rgba(60, 60, 60, 0.5);
+border: 1px solid rgba(150, 150, 150, 0.3);
+border-radius: ${theme.borderRadius.lg};
+color: rgba(240, 240, 240, 1);
+font-size: ${theme.fontSize.base};
+font-weight: 500;
+cursor: pointer;
+transition: all ${theme.transition.normal};
   
   &:hover {
-    background: rgba(80, 80, 80, 0.7);
-    border-color: rgba(200, 200, 200, 0.5);
-    transform: translateX(4px);
-  }
+  background: rgba(80, 80, 80, 0.7);
+  border - color: rgba(200, 200, 200, 0.5);
+  transform: translateX(4px);
+}
   
   svg {
-    width: 20px;
-    height: 20px;
-    color: rgba(200, 200, 200, 0.8);
-  }
+  width: 20px;
+  height: 20px;
+  color: rgba(200, 200, 200, 0.8);
+}
 `;
 
 const QuickActionLabel = styled.span`
-  display: flex;
-  align-items: center;
-  gap: ${theme.spacing.sm};
+display: flex;
+align-items: center;
+gap: ${theme.spacing.sm};
 `;
 
 const ErrorBanner = styled.div`
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: ${theme.colors.status.error};
-  padding: ${theme.spacing.lg};
-  border-radius: ${theme.borderRadius.lg};
-  font-size: ${theme.fontSize.base};
-  text-align: center;
-  max-width: 700px;
-  margin: ${theme.spacing.xl} auto;
+background: rgba(239, 68, 68, 0.1);
+border: 1px solid rgba(239, 68, 68, 0.3);
+color: ${theme.colors.status.error};
+padding: ${theme.spacing.lg};
+border-radius: ${theme.borderRadius.lg};
+font-size: ${theme.fontSize.base};
+text-align: center;
+max-width: 700px;
+margin: ${theme.spacing.xl} auto;
 `;
 
 const slideIn = keyframes`
   from {
-    transform: translate(-50%, -50%) scale(0.7);
-    opacity: 0;
-  }
+  transform: translate(-50%, -50%) scale(0.7);
+  opacity: 0;
+}
   to {
-    transform: translate(-50%, -50%) scale(1);
-    opacity: 1;
-  }
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+}
 `;
 
 const slideOut = keyframes`
   from {
-    transform: translate(-50%, -50%) scale(1);
-    opacity: 1;
-  }
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+}
   to {
-    transform: translate(-50%, -50%) scale(0.7);
-    opacity: 0;
-  }
+  transform: translate(-50%, -50%) scale(0.7);
+  opacity: 0;
+}
 `;
 
 const NotificationOverlay = styled.div`
-  position: fixed;
+position: fixed;
+top: 0;
+left: 0;
+right: 0;
+bottom: 0;
+background: rgba(0, 0, 0, 0.7);
+backdrop-filter: blur(20px);
+-webkit-backdrop-filter: blur(20px);
+z-index: 99998;
+pointer-events: auto;
+`;
+
+const NotificationContainer = styled.div<{ $isClosing: boolean }>`
+position: fixed;
+top: 50%;
+left: 50%;
+transform: translate(-50%, -50%);
+z-index: 99999;
+animation: ${props => props.$isClosing ? slideOut : slideIn} 0.4s ease-out forwards;
+pointer-events: auto;
+`;
+
+const NotificationContent = styled.div<{ $variant?: 'error' | 'warning' }>`
+background: ${props => props.$variant === 'warning'
+    ? 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)'
+    : 'linear-gradient(135deg, rgb(244, 63, 94), rgb(220, 38, 38))'
+  };
+border: ${props => props.$variant === 'warning'
+    ? '2px solid rgba(150, 150, 150, 0.3)'
+    : '3px solid rgba(244, 63, 94, 0.7)'
+  };
+border-radius: ${theme.borderRadius.xl};
+padding: ${theme.spacing.xxl};
+box-shadow: ${props => props.$variant === 'warning'
+    ? '0 20px 60px rgba(0, 0, 0, 0.8), 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05) inset'
+    : '0 20px 60px rgba(244, 63, 94, 0.5), 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.1) inset'
+  };
+min-width: 450px;
+max-width: 550px;
+text-align: center;
+position: relative;
+overflow: hidden;
+  
+  &::before {
+  content: '';
+  position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  z-index: 99998;
-  pointer-events: auto;
-`;
-
-const NotificationContainer = styled.div<{ $isClosing: boolean }>`
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 99999;
-  animation: ${props => props.$isClosing ? slideOut : slideIn} 0.4s ease-out forwards;
-  pointer-events: auto;
-`;
-
-const NotificationContent = styled.div<{ $variant?: 'error' | 'warning' }>`
   background: ${props => props.$variant === 'warning'
-    ? 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)'
-    : 'linear-gradient(135deg, rgb(244, 63, 94), rgb(220, 38, 38))'};
-  border: ${props => props.$variant === 'warning'
-    ? '2px solid rgba(150, 150, 150, 0.3)'
-    : '3px solid rgba(244, 63, 94, 0.7)'};
-  border-radius: ${theme.borderRadius.xl};
-  padding: ${theme.spacing.xxl};
-  box-shadow: ${props => props.$variant === 'warning'
-    ? '0 20px 60px rgba(0, 0, 0, 0.8), 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05) inset'
-    : '0 20px 60px rgba(244, 63, 94, 0.5), 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.1) inset'};
-  min-width: 450px;
-  max-width: 550px;
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: ${props => props.$variant === 'warning'
     ? 'radial-gradient(circle at top right, rgba(255, 255, 255, 0.05), transparent 70%)'
-    : 'radial-gradient(circle at top right, rgba(255, 255, 255, 0.1), transparent 70%)'};
-    pointer-events: none;
-  }
+    : 'radial-gradient(circle at top right, rgba(255, 255, 255, 0.1), transparent 70%)'
+  };
+  pointer-events: none;
+}
 `;
 
 const IconWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 80px;
-  height: 80px;
-  background: rgba(255, 255, 255, 0.25);
-  border-radius: ${theme.borderRadius.full};
-  margin: 0 auto ${theme.spacing.lg};
-  border: 3px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
-  position: relative;
-  z-index: 1;
+display: flex;
+align-items: center;
+justify-content: center;
+width: 80px;
+height: 80px;
+background: rgba(255, 255, 255, 0.25);
+border-radius: ${theme.borderRadius.full};
+margin: 0 auto ${theme.spacing.lg};
+border: 3px solid rgba(255, 255, 255, 0.3);
+box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+position: relative;
+z-index: 1;
   
   svg {
-    color: white;
-    width: 40px;
-    height: 40px;
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
-  }
+  color: white;
+  width: 40px;
+  height: 40px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
 `;
 
 const NotificationTitle = styled.h3<{ $variant?: 'error' | 'warning' }>`
-  margin: 0 0 ${theme.spacing.md} 0;
-  font-size: ${theme.fontSize['2xl']};
-  font-weight: 800;
-  color: ${props => props.$variant === 'warning' ? '#ffffff' : 'white'};
-  text-shadow: ${props => props.$variant === 'warning'
+margin: 0 0 ${theme.spacing.md} 0;
+font-size: ${theme.fontSize['2xl']};
+font-weight: 800;
+color: ${props => props.$variant === 'warning' ? '#ffffff' : 'white'};
+text-shadow: ${props => props.$variant === 'warning'
     ? '0 2px 8px rgba(0, 0, 0, 0.6)'
-    : '0 2px 8px rgba(0, 0, 0, 0.4)'};
-  position: relative;
-  z-index: 1;
-  letter-spacing: 0.5px;
+    : '0 2px 8px rgba(0, 0, 0, 0.4)'
+  };
+position: relative;
+z-index: 1;
+letter-spacing: 0.5px;
 `;
 
 const NotificationMessage = styled.p<{ $variant?: 'error' | 'warning' }>`
-  margin: 0 0 ${theme.spacing.xl} 0;
-  font-size: ${theme.fontSize.lg};
-  color: ${props => props.$variant === 'warning'
+margin: 0 0 ${theme.spacing.xl} 0;
+font-size: ${theme.fontSize.lg};
+color: ${props => props.$variant === 'warning'
     ? 'rgba(255, 255, 255, 0.9)'
-    : 'rgba(255, 255, 255, 0.95)'};
-  line-height: 1.7;
-  position: relative;
-  z-index: 1;
-  font-weight: 500;
+    : 'rgba(255, 255, 255, 0.95)'
+  };
+line-height: 1.7;
+position: relative;
+z-index: 1;
+font-weight: 500;
 `;
 
 const NotificationButton = styled.button`
-  display: inline-flex;
-  align-items: center;
-  gap: ${theme.spacing.md};
-  padding: ${theme.spacing.lg} ${theme.spacing.xxl};
-  background: rgba(255, 255, 255, 0.25);
-  color: white;
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  border-radius: ${theme.borderRadius.lg};
-  font-size: ${theme.fontSize.lg};
-  font-weight: 700;
-  cursor: pointer;
-  transition: all ${theme.transition.normal};
-  position: relative;
-  z-index: 1;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+display: inline - flex;
+align-items: center;
+gap: ${theme.spacing.md};
+padding: ${theme.spacing.lg} ${theme.spacing.xxl};
+background: rgba(255, 255, 255, 0.25);
+color: white;
+border: 2px solid rgba(255, 255, 255, 0.4);
+border-radius: ${theme.borderRadius.lg};
+font-size: ${theme.fontSize.lg};
+font-weight: 700;
+cursor: pointer;
+transition: all ${theme.transition.normal};
+position: relative;
+z-index: 1;
+text-transform: uppercase;
+letter-spacing: 1px;
+box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
   
   &:hover {
-    background: rgba(255, 255, 255, 0.35);
-    border-color: rgba(255, 255, 255, 0.6);
-    transform: translateY(-3px) scale(1.02);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
-  }
+  background: rgba(255, 255, 255, 0.35);
+  border - color: rgba(255, 255, 255, 0.6);
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
   
   &:active {
-    transform: translateY(-1px) scale(0.98);
-  }
+  transform: translateY(-1px) scale(0.98);
+}
   
   svg {
-    width: 24px;
-    height: 24px;
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
-  }
+  width: 24px;
+  height: 24px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
 `;
 
 const NotificationButtonGroup = styled.div`
-  display: flex;
-  gap: ${theme.spacing.md};
-  justify-content: center;
-  align-items: center;
-  flex-wrap: wrap;
+display: flex;
+gap: ${theme.spacing.md};
+justify-content: center;
+align-items: center;
+flex-wrap: wrap;
 `;
 
 const NotificationCancelButton = styled.button<{ $variant?: 'error' | 'warning' }>`
-  display: inline-flex;
-  align-items: center;
-  gap: ${theme.spacing.md};
-  padding: ${theme.spacing.lg} ${theme.spacing.xxl};
-  background: ${props => props.$variant === 'warning'
+display: inline - flex;
+align-items: center;
+gap: ${theme.spacing.md};
+padding: ${theme.spacing.lg} ${theme.spacing.xxl};
+background: ${props => props.$variant === 'warning'
     ? 'rgba(60, 60, 60, 0.6)'
-    : 'rgba(255, 255, 255, 0.15)'};
-  color: ${props => props.$variant === 'warning'
+    : 'rgba(255, 255, 255, 0.15)'
+  };
+color: ${props => props.$variant === 'warning'
     ? 'rgba(255, 255, 255, 0.9)'
-    : 'rgba(255, 255, 255, 0.9)'};
-  border: ${props => props.$variant === 'warning'
+    : 'rgba(255, 255, 255, 0.9)'
+  };
+border: ${props => props.$variant === 'warning'
     ? '1px solid rgba(150, 150, 150, 0.3)'
-    : '2px solid rgba(255, 255, 255, 0.3)'};
-  border-radius: ${theme.borderRadius.lg};
-  font-size: ${theme.fontSize.lg};
-  font-weight: 600;
-  cursor: pointer;
-  transition: all ${theme.transition.normal};
-  position: relative;
-  z-index: 1;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  box-shadow: ${props => props.$variant === 'warning'
+    : '2px solid rgba(255, 255, 255, 0.3)'
+  };
+border-radius: ${theme.borderRadius.lg};
+font-size: ${theme.fontSize.lg};
+font-weight: 600;
+cursor: pointer;
+transition: all ${theme.transition.normal};
+position: relative;
+z-index: 1;
+text-transform: uppercase;
+letter-spacing: 1px;
+box-shadow: ${props => props.$variant === 'warning'
     ? '0 4px 15px rgba(0, 0, 0, 0.3)'
-    : '0 4px 15px rgba(0, 0, 0, 0.2)'};
+    : '0 4px 15px rgba(0, 0, 0, 0.2)'
+  };
   
   &:hover {
-    background: ${props => props.$variant === 'warning'
+  background: ${props => props.$variant === 'warning'
     ? 'rgba(80, 80, 80, 0.8)'
-    : 'rgba(255, 255, 255, 0.25)'};
-    border-color: ${props => props.$variant === 'warning'
+    : 'rgba(255, 255, 255, 0.25)'
+  };
+  border - color: ${props => props.$variant === 'warning'
     ? 'rgba(150, 150, 150, 0.5)'
-    : 'rgba(255, 255, 255, 0.5)'};
-    color: white;
-    transform: translateY(-2px);
-    box-shadow: ${props => props.$variant === 'warning'
+    : 'rgba(255, 255, 255, 0.5)'
+  };
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: ${props => props.$variant === 'warning'
     ? '0 6px 20px rgba(0, 0, 0, 0.4)'
-    : '0 6px 20px rgba(0, 0, 0, 0.3)'};
-  }
+    : '0 6px 20px rgba(0, 0, 0, 0.3)'
+  };
+}
   
   &:active {
-    transform: translateY(0);
-  }
+  transform: translateY(0);
+}
 `;
 
 
 const InfoBanner = styled.div`
-  background: rgba(60, 60, 60, 0.5);
-  border: 1px solid rgba(150, 150, 150, 0.3);
-  color: rgba(240, 240, 240, 1);
-  padding: ${theme.spacing.lg};
-  border-radius: ${theme.borderRadius.lg};
-  font-size: ${theme.fontSize.sm};
-  text-align: center;
-  max-width: 900px;
-  margin: 0 auto ${theme.spacing.xl};
-  line-height: 1.6;
-  box-shadow: 0 20px 35px rgba(0, 0, 0, 0.3);
+background: rgba(60, 60, 60, 0.5);
+border: 1px solid rgba(150, 150, 150, 0.3);
+color: rgba(240, 240, 240, 1);
+padding: ${theme.spacing.lg};
+border-radius: ${theme.borderRadius.lg};
+font-size: ${theme.fontSize.sm};
+text-align: center;
+max-width: 900px;
+margin: 0 auto ${theme.spacing.xl};
+line-height: 1.6;
+box-shadow: 0 20px 35px rgba(0, 0, 0, 0.3);
 `;
 
 const formatDate = (value?: string | null): string => {
@@ -1021,77 +1058,77 @@ const formatDate = (value?: string | null): string => {
 };
 
 const EditForm = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${theme.spacing.xl};
+display: flex;
+flex-direction: column;
+gap: ${theme.spacing.xl};
 `;
 
 const EditField = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${theme.spacing.sm};
+display: flex;
+flex-direction: column;
+gap: ${theme.spacing.sm};
 `;
 
 const EditLabel = styled.label`
-  color: ${theme.colors.text.secondary};
-  font-size: ${theme.fontSize.sm};
-  font-weight: 600;
+color: ${theme.colors.text.secondary};
+font-size: ${theme.fontSize.sm};
+font-weight: 600;
 `;
 
 const EditInput = styled.input`
-  padding: ${theme.spacing.md};
-  background: rgba(40, 40, 40, 0.5);
-  border: 2px solid rgba(150, 150, 150, 0.3);
-  border-radius: ${theme.borderRadius.lg};
-  color: rgba(240, 240, 240, 1);
-  font-size: ${theme.fontSize.base};
-  transition: ${theme.transition.fast};
+padding: ${theme.spacing.md};
+background: rgba(40, 40, 40, 0.5);
+border: 2px solid rgba(150, 150, 150, 0.3);
+border-radius: ${theme.borderRadius.lg};
+color: rgba(240, 240, 240, 1);
+font-size: ${theme.fontSize.base};
+transition: ${theme.transition.fast};
   
   &:focus {
-    border-color: rgba(200, 200, 200, 0.8);
-    box-shadow: 0 0 0 3px rgba(100, 100, 100, 0.2);
-    outline: none;
-  }
+  border - color: rgba(200, 200, 200, 0.8);
+  box-shadow: 0 0 0 3px rgba(100, 100, 100, 0.2);
+  outline: none;
+}
   
   &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
+  opacity: 0.5;
+  cursor: not - allowed;
+}
 `;
 
 const EditButton = styled.button`
-  padding: ${theme.spacing.md} ${theme.spacing.lg};
-  background: rgba(80, 80, 80, 0.8);
-  color: rgba(240, 240, 240, 1);
-  border: none;
-  border-radius: ${theme.borderRadius.lg};
-  font-size: ${theme.fontSize.sm};
-  font-weight: 600;
-  cursor: pointer;
-  transition: ${theme.transition.fast};
+padding: ${theme.spacing.md} ${theme.spacing.lg};
+background: rgba(80, 80, 80, 0.8);
+color: rgba(240, 240, 240, 1);
+border: none;
+border-radius: ${theme.borderRadius.lg};
+font-size: ${theme.fontSize.sm};
+font-weight: 600;
+cursor: pointer;
+transition: ${theme.transition.fast};
   
-  &:hover:not(:disabled) {
-    background: rgba(100, 100, 100, 0.9);
-    transform: translateY(-1px);
-  }
+  &: hover:not(:disabled) {
+  background: rgba(100, 100, 100, 0.9);
+  transform: translateY(-1px);
+}
   
   &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
+  opacity: 0.5;
+  cursor: not - allowed;
+}
 `;
 
 const EditButtonGroup = styled.div`
-  display: flex;
-  gap: ${theme.spacing.md};
+display: flex;
+gap: ${theme.spacing.md};
 `;
 
 const EditMessage = styled.div<{ $error?: boolean }>`
-  padding: ${theme.spacing.md};
-  border-radius: ${theme.borderRadius.lg};
-  font-size: ${theme.fontSize.sm};
-  background: ${props => props.$error ? 'rgba(239, 68, 68, 0.1)' : 'rgba(34, 197, 94, 0.1)'};
-  color: ${props => props.$error ? theme.colors.status.error : theme.colors.status.success};
+padding: ${theme.spacing.md};
+border-radius: ${theme.borderRadius.lg};
+font-size: ${theme.fontSize.sm};
+background: ${props => props.$error ? 'rgba(239, 68, 68, 0.1)' : 'rgba(34, 197, 94, 0.1)'};
+color: ${props => props.$error ? theme.colors.status.error : theme.colors.status.success};
 `;
 
 const getInitials = (username?: string | null, email?: string): string => {
@@ -1111,6 +1148,7 @@ interface EditProfileFormProps {
 }
 
 const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, onUpdate }) => {
+  const { t } = useTranslation();
   const [username, setUsername] = useState(userInfo?.username || '');
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -1142,7 +1180,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, onUpdate })
         const error = await response.json();
         throw new Error(error.detail || 'Ошибка обновления username');
       }
-      setMessage({ text: 'Username успешно обновлен', error: false });
+      setMessage({ text: t('profile.usernameUpdated'), error: false });
       onUpdate();
     } catch (error: any) {
       setMessage({ text: error.message || 'Ошибка обновления username', error: true });
@@ -1156,7 +1194,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, onUpdate })
 
     // Проверяем, что новый пароль и повтор совпадают
     if (newPassword !== confirmPassword) {
-      setMessage({ text: 'Новый пароль и повтор не совпадают', error: true });
+      setMessage({ text: t('profile.passwordMismatch'), error: true });
       return;
     }
 
@@ -1179,7 +1217,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, onUpdate })
         throw new Error(error.detail || 'Ошибка запроса смены пароля');
       }
       setPasswordChangeStep('code');
-      setMessage({ text: 'Код верификации отправлен на email', error: false });
+      setMessage({ text: t('profile.codeSent'), error: false });
     } catch (error: any) {
       setMessage({ text: error.message || 'Ошибка запроса смены пароля', error: true });
     } finally {
@@ -1203,7 +1241,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, onUpdate })
         const error = await response.json();
         throw new Error(error.detail || 'Ошибка подтверждения смены пароля');
       }
-      setMessage({ text: 'Пароль успешно изменен', error: false });
+      setMessage({ text: t('profile.passwordChanged'), error: false });
       setPasswordChangeStep('form');
       setOldPassword('');
       setNewPassword('');
@@ -1221,37 +1259,37 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, onUpdate })
       {message && <EditMessage $error={message.error}>{message.text}</EditMessage>}
 
       <EditField>
-        <EditLabel>Имя пользователя</EditLabel>
+        <EditLabel>{t('profile.username')}</EditLabel>
         <EditInput
           type="text"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          placeholder="Введите имя пользователя"
+          placeholder={t('profile.enterUsername')}
           disabled={isLoading}
         />
         <EditButtonGroup>
           <EditButton onClick={handleUpdateUsername} disabled={isLoading || !username.trim()}>
-            Сохранить
+            {t('common.save')}
           </EditButton>
         </EditButtonGroup>
       </EditField>
 
       <EditField>
-        <EditLabel>Смена пароля</EditLabel>
+        <EditLabel>{t('profile.changePassword')}</EditLabel>
         {passwordChangeStep === 'form' ? (
           <>
             <EditInput
               type="password"
               value={oldPassword}
               onChange={(e) => setOldPassword(e.target.value)}
-              placeholder="Старый пароль"
+              placeholder={t('profile.oldPassword')}
               disabled={isLoading}
             />
             <EditInput
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Новый пароль"
+              placeholder={t('profile.newPassword')}
               disabled={isLoading}
               style={{ marginTop: '12px' }}
             />
@@ -1259,13 +1297,13 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, onUpdate })
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Повтор нового пароля"
+              placeholder={t('profile.repeatPassword')}
               disabled={isLoading}
               style={{ marginTop: '12px' }}
             />
             <EditButtonGroup style={{ marginTop: '12px' }}>
               <EditButton onClick={handleRequestPasswordChange} disabled={isLoading || !oldPassword.trim() || !newPassword.trim() || !confirmPassword.trim()}>
-                Готово
+                {t('common.save')}
               </EditButton>
             </EditButtonGroup>
           </>
@@ -1287,7 +1325,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, onUpdate })
             />
             <EditButtonGroup style={{ marginTop: '12px' }}>
               <EditButton onClick={handleConfirmPasswordChange} disabled={isLoading || !passwordVerificationCode.trim() || passwordVerificationCode.length !== 6}>
-                Подтвердить
+                {t('common.confirm')}
               </EditButton>
               <EditButton onClick={() => {
                 setPasswordChangeStep('form');
@@ -1296,7 +1334,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, onUpdate })
                 setNewPassword('');
                 setConfirmPassword('');
               }} disabled={isLoading}>
-                Отмена
+                {t('common.cancel')}
               </EditButton>
             </EditButtonGroup>
           </>
@@ -1324,7 +1362,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   userId: profileUserId,
   username: profileUsername
 }) => {
-
+  const { t } = useTranslation();
+  const { userId: routeUserId } = useParams<{ userId: string }>();
+  // Use prop if available, otherwise use route param
+  const resolvedUserId = profileUserId || (routeUserId ? Number(routeUserId) : undefined);
   const [userInfo, setUserInfo] = useState<UserInfoResponse | null>(null);
   const [stats, setStats] = useState<SubscriptionStats | null>(null);
   const [isLoading, setIsLoading] = useState(() => {
@@ -1353,6 +1394,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [rawCharactersData, setRawCharactersData] = useState<any[]>([]);
   const [photosMap, setPhotosMap] = useState<Record<string, string[]>>({});
   const [favoriteCharacterIds, setFavoriteCharacterIds] = useState<Set<number>>(new Set());
+  const charactersGridRef = useRef<HTMLDivElement>(null);
+  const columnsCount = useGridColumns(charactersGridRef);
 
   // Определяем, просматривает ли пользователь свой профиль
   // 1. Если нет ни ID, ни username в параметрах - это "/profile" (свой)
@@ -1360,16 +1403,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   // 3. Если есть username, сравниваем ID загруженного пользователя с currentUserId
   const isViewingOwnProfile = useMemo(() => {
     // 1. Если нет ни ID, ни username в параметрах - это "/profile" (свой)
-    if (!profileUserId && !profileUsername) return true;
+    if (!resolvedUserId && !profileUsername) return true;
 
     // 2. Если есть ID, сравниваем с currentUserId
-    if (profileUserId && currentUserId !== null && Number(profileUserId) === Number(currentUserId)) return true;
+    if (resolvedUserId && currentUserId !== null && Number(resolvedUserId) === Number(currentUserId)) return true;
 
     // 3. Если есть username, сравниваем ID загруженного пользователя с currentUserId
     if (profileUsername && currentUserId !== null && userInfo?.id === currentUserId) return true;
 
     return false;
-  }, [profileUserId, profileUsername, currentUserId, userInfo?.id]);
+  }, [resolvedUserId, profileUsername, currentUserId, userInfo?.id]);
 
   // Загрузка избранных персонажей
   const loadFavorites = useCallback(async () => {
@@ -1407,8 +1450,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       let targetUserId: number | null = null;
 
       // Если передан profileUserId, используем его (для чужого профиля)
-      if (profileUserId) {
-        targetUserId = profileUserId;
+      if (resolvedUserId) {
+        targetUserId = resolvedUserId;
       } else if (profileUsername) {
         // Если передан username, ждем загрузки userInfo, чтобы получить ID
         if (userInfo) {
@@ -1423,7 +1466,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         if (currentUserId !== null) {
           targetUserId = currentUserId;
         } else {
-          const userResponse = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/auth/me/`);
+          const userResponse = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/auth/me/ `);
 
           if (!userResponse.ok) {
             return;
@@ -1447,7 +1490,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       // Для своего профиля можно использовать эндпоинт /my-characters
       // Для чужого профиля используем общий эндпоинт и фильтруем
       let response: Response;
-      if (!profileUserId && currentUserId === targetUserId) {
+      if (!resolvedUserId && currentUserId === targetUserId) {
         // Свой профиль - используем специальный эндпоинт
         response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/characters/my-characters`);
       } else {
@@ -1465,7 +1508,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
         // Если использовали /my-characters, персонажи уже отфильтрованы
         // Если использовали общий эндпоинт, фильтруем по user_id или username
-        const myCharacters = (!profileUserId && !profileUsername && currentUserId === targetUserId)
+        const myCharacters = (!resolvedUserId && !profileUsername && currentUserId === targetUserId)
           ? charactersData  // Уже отфильтрованы
           : charactersData.filter((char: any) => {
             if (!char) return false;
@@ -1538,7 +1581,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               else if (typeof photo === 'string') {
                 photoUrl = photo.startsWith('http')
                   ? photo
-                  : `/static/photos/${normalizedKey}/${photo}.png`;
+                  : `/static/photos/ ${normalizedKey}/${photo}.png`;
               }
               // Если это объект с id, но без url (как в HistoryPage)
               else if (typeof photo === 'object' && photo !== null && photo.id) {
@@ -2163,7 +2206,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       return (
         <div className="w-full min-h-screen bg-black p-6 md:p-8 flex items-center justify-center">
           <div className="p-6 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 backdrop-blur-md max-w-md text-center">
-            Для просмотра профиля необходимо войти в систему.
+            {t('profile.loginRequired')}
           </div>
         </div>
       );
@@ -2172,7 +2215,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     if (isLoading) {
       return (
         <div className="w-full min-h-screen bg-black p-6 md:p-8 flex items-center justify-center">
-          <LoadingSpinner size="lg" text="Загрузка профиля..." />
+          <LoadingSpinner size="lg" text={t('profile.loading')} />
         </div>
       );
     }
@@ -2201,8 +2244,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   <ArrowLeftIcon className="w-5 h-5 text-white" />
                 </button>
                 <div>
-                  <h2 className="text-2xl font-bold text-white">Настройки профиля</h2>
-                  <p className="text-white/60 text-sm mt-1">Изменить данные учетной записи</p>
+                  <h2 className="text-2xl font-bold text-white">{t('profile.settings')}</h2>
+                  <p className="text-white/60 text-sm mt-1">{t('profile.changeAccountData')}</p>
                 </div>
               </div>
               <EditProfileForm userInfo={userInfo} onUpdate={loadProfileData} />
@@ -2217,14 +2260,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       return (
         <div className="w-full min-h-screen bg-black p-6 md:p-8 flex items-center justify-center">
           <div className="p-6 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 backdrop-blur-md max-w-md text-center">
-            Не удалось загрузить данные профиля. Пожалуйста, обновите страницу.
+            {t('profile.loadError')}
           </div>
         </div>
       );
     }
 
     const recentActivities = [
-      { action: 'Создано', item: `${stats?.used_photos ?? 0} изображений`, time: 'На этой неделе', type: 'photos' },
+      { action: 'Создано', item: `${stats?.used_photos ?? 0} ${t('profile.images')}`, time: t('profile.thisWeek'), type: 'photos' },
     ].filter(activity => {
       if (activity.type === 'photos') return (stats?.used_photos ?? 0) > 0;
       return true;
@@ -2238,335 +2281,355 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       : 0;
 
     return (
-      <div className="w-full min-h-screen bg-black p-6 md:p-8">
+      <div className="w-full min-h-screen bg-black">
         {error && (
-          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 backdrop-blur-md">
-            {error}
+          <div className="p-6 md:p-8">
+            <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 backdrop-blur-md">
+              {error}
+            </div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 max-w-7xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="md:col-span-2 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 md:p-8 hover:border-pink-500/30 transition-all duration-300 shadow-lg shadow-pink-500/5 relative group/card"
-          >
-            {isViewingOwnProfile && (
-              <button
-                onClick={() => {
-                  if (onLogout) {
-                    onLogout();
-                  } else {
-                    localStorage.removeItem('authToken');
-                    localStorage.removeItem('refreshToken');
-                    setAuthToken(null);
-                    window.location.href = '/';
-                  }
-                }}
-                className="absolute top-4 right-4 p-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 rounded-xl text-red-400 transition-all duration-300 flex items-center gap-2 group/logout shadow-lg shadow-red-500/5 hover:shadow-red-500/10"
-                title="Выйти из аккаунта"
-              >
-                <LogOut className="w-4 h-4 transition-transform group-hover/logout:scale-110" />
-                <span className="text-xs font-bold hidden sm:inline uppercase tracking-wider">Выйти</span>
-              </button>
-            )}
-            <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
-              <div className="relative">
-                <div className={`w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden border-2 ${isPremium
-                  ? 'border-yellow-400/50 shadow-[0_0_20px_rgba(250,204,21,0.3)]'
-                  : 'border-pink-500/50 shadow-[0_0_20px_rgba(236,72,153,0.3)]'
-                  } relative ${isViewingOwnProfile ? 'cursor-pointer' : ''}`}>
-                  {userInfo?.avatar_url ? (
-                    <img
-                      src={userInfo.avatar_url}
-                      alt="Avatar"
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
-                  ) : userInfo?.username || userInfo?.email ? (
-                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-500/20 to-purple-500/20 text-3xl md:text-4xl font-bold text-white">
-                      {getInitials(userInfo.username, userInfo.email)}
-                    </div>
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-500/20 to-purple-500/20">
-                      <User className="w-12 h-12 text-white/70" />
-                    </div>
-                  )}
-                  {isViewingOwnProfile && (
-                    <input
-                      id="avatar-upload"
-                      type="file"
-                      accept="image/*"
-                      onChange={async (e) => {
-                        if (isUploadingRef.current) {
-                          e.target.value = '';
-                          return;
-                        }
-                        const file = e.target.files?.[0];
-                        if (!file || !authToken) {
-                          e.target.value = '';
-                          return;
-                        }
-                        isUploadingRef.current = true;
-
-                        const formData = new FormData();
-                        formData.append('avatar', file);
-                        try {
-                          const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/avatar/`, {
-                            method: 'POST',
-                            headers: { Authorization: `Bearer ${authToken}` },
-                            body: formData
-                          });
-                          if (response.ok) {
-                            const data = await response.json();
-
-                            setUserInfo(prev => prev ? { ...prev, avatar_url: data.avatar_url } : null);
-                          } else {
-                            const errorData = await response.json().catch(() => ({ detail: 'Неизвестная ошибка' }));
-
-                            setError(errorData.detail || 'Не удалось загрузить фото');
+        {/* Top Section with Padding */}
+        <div className="p-6 md:p-8 pb-0">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 max-w-7xl mx-auto">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="md:col-span-2 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 md:p-8 hover:border-pink-500/30 transition-all duration-300 shadow-lg shadow-pink-500/5 relative group/card"
+            >
+              {isViewingOwnProfile && (
+                <button
+                  onClick={() => {
+                    if (onLogout) {
+                      onLogout();
+                    } else {
+                      localStorage.removeItem('authToken');
+                      localStorage.removeItem('refreshToken');
+                      setAuthToken(null);
+                      window.location.href = '/';
+                    }
+                  }}
+                  className="absolute top-4 right-4 p-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 rounded-xl text-red-400 transition-all duration-300 flex items-center gap-2 group/logout shadow-lg shadow-red-500/5 hover:shadow-red-500/10"
+                  title="Выйти из аккаунта"
+                >
+                  <LogOut className="w-4 h-4 transition-transform group-hover/logout:scale-110" />
+                  <span className="text-xs font-bold hidden sm:inline uppercase tracking-wider">{t('profile.logout')}</span>
+                </button>
+              )}
+              <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
+                <div className="relative">
+                  <div className={`w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden border-2 ${isPremium
+                    ? 'border-yellow-400/50 shadow-[0_0_20px_rgba(250,204,21,0.3)]'
+                    : 'border-pink-500/50 shadow-[0_0_20px_rgba(236,72,153,0.3)]'
+                    } relative ${isViewingOwnProfile ? 'cursor-pointer' : ''}`}>
+                    {userInfo?.avatar_url ? (
+                      <img
+                        src={userInfo.avatar_url}
+                        alt="Avatar"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    ) : userInfo?.username || userInfo?.email ? (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-500/20 to-purple-500/20 text-3xl md:text-4xl font-bold text-white">
+                        {getInitials(userInfo.username, userInfo.email)}
+                      </div>
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-500/20 to-purple-500/20">
+                        <User className="w-12 h-12 text-white/70" />
+                      </div>
+                    )}
+                    {isViewingOwnProfile && (
+                      <input
+                        id="avatar-upload"
+                        type="file"
+                        accept="image/*"
+                        onChange={async (e) => {
+                          if (isUploadingRef.current) {
+                            e.target.value = '';
+                            return;
                           }
-                        } catch (err) {
+                          const file = e.target.files?.[0];
+                          if (!file || !authToken) {
+                            e.target.value = '';
+                            return;
+                          }
+                          isUploadingRef.current = true;
 
-                          setError('Ошибка при загрузке фото');
-                        } finally {
-                          isUploadingRef.current = false;
-                          e.target.value = '';
-                        }
-                      }}
-                      className="absolute inset-0 opacity-0 cursor-pointer"
-                    />
-                  )}
+                          const formData = new FormData();
+                          formData.append('avatar', file);
+                          try {
+                            const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/avatar/`, {
+                              method: 'POST',
+                              headers: { Authorization: `Bearer ${authToken}` },
+                              body: formData
+                            });
+                            if (response.ok) {
+                              const data = await response.json();
+
+                              setUserInfo(prev => prev ? { ...prev, avatar_url: data.avatar_url } : null);
+                            } else {
+                              const errorData = await response.json().catch(() => ({ detail: 'Неизвестная ошибка' }));
+
+                              setError(errorData.detail || 'Не удалось загрузить фото');
+                            }
+                          } catch (err) {
+                            setError(t('profile.updateError'));
+                          } finally {
+                            isUploadingRef.current = false;
+                            e.target.value = '';
+                          }
+                        }}
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                      />
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div className="flex-1">
-                <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">{viewedUserName}</h1>
-                {isViewingOwnProfile && userInfo?.email && <p className="text-white/60 mb-4">{userInfo.email}</p>}
-                <div className="flex items-center gap-3 flex-wrap">
-                  {isViewingOwnProfile && subscriptionTypeUpper && (
-                    <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm ${isPremium
-                      ? 'bg-gradient-to-r from-yellow-400/20 to-yellow-600/20 text-yellow-300 border border-yellow-400/30 shadow-[0_0_15px_rgba(250,204,21,0.2)]'
-                      : 'bg-gradient-to-r from-pink-500/20 to-rose-500/20 text-pink-300 border border-pink-500/30 shadow-[0_0_15px_rgba(236,72,153,0.2)]'
-                      }`}>
-                      <Crown className={`w-4 h-4 ${isPremium ? 'text-yellow-400' : 'text-pink-400'}`} />
-                      {subscriptionTypeUpper}
-                    </div>
-                  )}
-                  {isViewingOwnProfile && (
-                    <>
-                      <button
-                        onClick={() => setShowSettingsPage(true)}
-                        className="px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-white font-semibold text-sm transition-all duration-200 flex items-center gap-2"
-                      >
-                        <EditIcon className="w-4 h-4" />
-                        Редактировать профиль
-                      </button>
+                <div className="flex-1">
+                  <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">{viewedUserName}</h1>
+                  {isViewingOwnProfile && userInfo?.email && <p className="text-white/60 mb-4">{userInfo.email}</p>}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {isViewingOwnProfile && subscriptionTypeUpper && (
+                      <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm ${isPremium
+                        ? 'bg-gradient-to-r from-yellow-400/20 to-yellow-600/20 text-yellow-300 border border-yellow-400/30 shadow-[0_0_15px_rgba(250,204,21,0.2)]'
+                        : 'bg-gradient-to-r from-pink-500/20 to-rose-500/20 text-pink-300 border border-pink-500/30 shadow-[0_0_15px_rgba(236,72,153,0.2)]'
+                        }`}>
+                        <Crown className={`w-4 h-4 ${isPremium ? 'text-yellow-400' : 'text-pink-400'}`} />
+                        {subscriptionTypeUpper}
+                      </div>
+                    )}
+                    {isViewingOwnProfile && (
+                      <>
+                        <button
+                          onClick={() => setShowSettingsPage(true)}
+                          className="px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-white font-semibold text-sm transition-all duration-200 flex items-center gap-2"
+                        >
+                          <EditIcon className="w-4 h-4" />
+                          {t('profile.editProfile')}
+                        </button>
+                        <GalleryButtonWrapper>
+                          <button
+                            ref={galleryButtonRef}
+                            onClick={handleOpenUserGallery}
+                            className="px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-600 rounded-lg text-white font-semibold text-sm hover:from-pink-600 hover:to-rose-700 transition-all duration-200 shadow-lg shadow-pink-500/25"
+                          >
+                            {t('profile.userGallery')}
+                          </button>
+                        </GalleryButtonWrapper>
+                      </>
+                    )}
+                    {!isViewingOwnProfile && (
                       <GalleryButtonWrapper>
                         <button
                           ref={galleryButtonRef}
                           onClick={handleOpenUserGallery}
                           className="px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-600 rounded-lg text-white font-semibold text-sm hover:from-pink-600 hover:to-rose-700 transition-all duration-200 shadow-lg shadow-pink-500/25"
                         >
-                          Галерея пользователя
+                          {t('profile.userGallery')}
                         </button>
                       </GalleryButtonWrapper>
-                    </>
-                  )}
-                  {!isViewingOwnProfile && (
-                    <GalleryButtonWrapper>
-                      <button
-                        ref={galleryButtonRef}
-                        onClick={handleOpenUserGallery}
-                        className="px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-600 rounded-lg text-white font-semibold text-sm hover:from-pink-600 hover:to-rose-700 transition-all duration-200 shadow-lg shadow-pink-500/25"
-                      >
-                        Галерея пользователя
-                      </button>
-                    </GalleryButtonWrapper>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
+            </motion.div>
+
+            {/* Блок 2 (1x1): Виджет баланса - только для своего профиля */}
+
+
+            {/* Блок 3 (1x1): Прогресс подписки - только для своего профиля */}
+            {isViewingOwnProfile && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                className="md:col-span-1 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 hover:border-pink-500/30 transition-all duration-300 shadow-lg shadow-pink-500/5"
+              >
+                <div className="flex flex-col gap-4">
+                  {/* Photo Generation */}
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-pink-500/20 flex items-center justify-center border border-pink-500/30">
+                          <ImageIcon className="w-4 h-4 text-pink-400" />
+                        </div>
+                        <span className="text-white/60 text-sm">{t('profile.photoGeneration')}</span>
+                      </div>
+                      <span className="text-white font-bold text-sm">
+                        {Math.min(stats?.images_used ?? stats?.used_photos ?? 0, stats?.images_limit ?? stats?.monthly_photos ?? 0)} / {stats?.images_limit ?? stats?.monthly_photos ?? 0}
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{
+                          width: `${Math.min(100, ((stats?.images_used ?? stats?.used_photos ?? 0) / ((stats?.images_limit ?? stats?.monthly_photos) || 1)) * 100)}%`
+                        }}
+                        transition={{ duration: 1, delay: 0.3 }}
+                        className={`h-full rounded-full ${isPremium
+                          ? 'bg-gradient-to-r from-yellow-400 to-yellow-600'
+                          : 'bg-gradient-to-r from-pink-500 to-rose-600'
+                          }`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Voice Messages */}
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
+                          <MicIcon className="w-4 h-4 text-blue-400" />
+                        </div>
+                        <span className="text-white/60 text-sm">{t('profile.voiceMessages')}</span>
+                      </div>
+                      <span className="text-white font-bold text-sm">
+                        {Math.min(stats?.voice_used ?? 0, stats?.voice_limit ?? 0)} / {stats?.voice_limit ?? 0}
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.min(100, ((stats?.voice_used ?? 0) / (stats?.voice_limit || 1)) * 100)}%` }}
+                        transition={{ duration: 1, delay: 0.4 }}
+                        className={`h-full rounded-full ${isPremium
+                          ? 'bg-gradient-to-r from-yellow-400 to-yellow-600'
+                          : 'bg-gradient-to-r from-blue-400 to-blue-600'
+                          }`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Characters Created */}
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center border border-purple-500/30">
+                          <UserPlusIcon className="w-4 h-4 text-purple-400" />
+                        </div>
+                        <span className="text-white/60 text-sm">{t('profile.charactersCreated')}</span>
+                      </div>
+                      <span className="text-white font-bold text-sm">
+                        {stats?.characters_limit === null
+                          ? `${stats?.characters_count ?? 0} (∞)`
+                          : `${stats?.characters_count ?? 0} / ${stats?.characters_limit ?? 0}`
+                        }
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{
+                          width: stats?.characters_limit === null
+                            ? '100%'
+                            : `${Math.min(100, ((stats?.characters_count ?? 0) / (stats?.characters_limit || 1)) * 100)}%`
+                        }}
+                        transition={{ duration: 1, delay: 0.5 }}
+                        className={`h-full rounded-full ${isPremium
+                          ? 'bg-gradient-to-r from-yellow-400 to-yellow-600'
+                          : 'bg-gradient-to-r from-purple-400 to-purple-600'
+                          }`}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+          </div>
+        </div>
+
+        {/* Block 6 (3x1): Галерея персонажей - Вынесен из max-w-7xl сетки для полной ширины */}
+        {rawCharactersData.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.5 }}
+            className="w-full"
+            style={{ background: 'transparent', border: 'none', boxShadow: 'none' }}
+          >
+            <div className="flex flex-col" style={{ position: 'relative', zIndex: 10 }}>
+              <div className="p-6 md:p-8 pt-0 pb-0">
+                <h3 className="text-xl font-bold text-white mb-4">{t('profile.charactersCreated')}</h3>
+              </div>
+              <CharactersGrid ref={charactersGridRef}>
+                {rawCharactersData.map((rawChar, i) => {
+                  const charName = rawChar.name || rawChar.display_name || 'Unknown';
+                  const normalizedId = (rawChar.id ?? charName).toString();
+                  const normalizedKey = charName.toLowerCase();
+
+                  // Используем name в первую очередь для ключа, как на главной странице
+                  const keyForPhotos = rawChar.name ? rawChar.name.toLowerCase() : (rawChar.display_name || '').toLowerCase();
+                  const photos = photosMap[keyForPhotos] || [];
+                  // Если не нашли по name, пробуем по display_name
+                  const fallbackKey = rawChar.display_name ? rawChar.display_name.toLowerCase() : null;
+                  const fallbackPhotos = photos.length === 0 && fallbackKey && fallbackKey !== keyForPhotos
+                    ? (photosMap[fallbackKey] || [])
+                    : [];
+                  const finalPhotos = photos.length > 0 ? photos : fallbackPhotos;
+
+                  const character = {
+                    id: normalizedId,
+                    name: charName,
+                    description: rawChar.description || rawChar.character_appearance || 'No description available',
+                    avatar: charName.charAt(0).toUpperCase(),
+                    photos: finalPhotos,
+                    tags: Array.isArray(rawChar.tags) && rawChar.tags.length ? rawChar.tags : [],
+                    author: 'User',
+                    likes: Number(rawChar.likes) || 0,
+                    views: Number(rawChar.views) || 0,
+                    comments: Number(rawChar.comments) || 0,
+                    is_nsfw: rawChar.is_nsfw === true,
+                    raw: rawChar,
+                    // Bilingual fields and translations
+                    translations: rawChar.translations,
+                    personality_ru: rawChar.personality_ru,
+                    personality_en: rawChar.personality_en,
+                    situation_ru: rawChar.situation_ru,
+                    situation_en: rawChar.situation_en,
+                    instructions_ru: rawChar.instructions_ru,
+                    instructions_en: rawChar.instructions_en,
+                    style_ru: rawChar.style_ru,
+                    style_en: rawChar.style_en,
+                    appearance_ru: rawChar.appearance_ru || rawChar.character_appearance_ru,
+                    appearance_en: rawChar.appearance_en || rawChar.character_appearance_en,
+                    location_ru: rawChar.location_ru,
+                    location_en: rawChar.location_en
+                  };
+
+                  // Проверяем, находится ли персонаж в избранном
+                  const characterId = typeof character.id === 'number'
+                    ? character.id
+                    : parseInt(character.id, 10);
+                  const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
+
+                  return (
+                    <CharacterCard
+                      key={character.id}
+                      character={character}
+                      onClick={onCharacterSelect}
+                      isAuthenticated={!!authToken}
+                      onPhotoGeneration={onOpenUserGallery ? (char) => {
+                        // Если это свой профиль, открываем свою галерею.
+                        // Если чужой - тоже открываем свою галерею, так как генерация привязана к текущему пользователю
+                        onOpenUserGallery(currentUserId || undefined);
+                      } : undefined}
+                      onPaidAlbum={onPaidAlbum ? (char) => {
+                        onPaidAlbum(char);
+                      } : undefined}
+                      isFavorite={isFavorite}
+                      onFavoriteToggle={loadFavorites}
+                      isRight={(i + 1) % columnsCount !== 0}
+                    />
+                  );
+                })}
+              </CharactersGrid>
             </div>
           </motion.div>
-
-          {/* Блок 2 (1x1): Виджет баланса - только для своего профиля */}
-
-
-          {/* Блок 3 (1x1): Прогресс подписки - только для своего профиля */}
-          {isViewingOwnProfile && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="md:col-span-1 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 hover:border-pink-500/30 transition-all duration-300 shadow-lg shadow-pink-500/5"
-            >
-              <div className="flex flex-col gap-4">
-                {/* Photo Generation */}
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-pink-500/20 flex items-center justify-center border border-pink-500/30">
-                        <ImageIcon className="w-4 h-4 text-pink-400" />
-                      </div>
-                      <span className="text-white/60 text-sm">Генерация фото</span>
-                    </div>
-                    <span className="text-white font-bold text-sm">
-                      {Math.min(stats?.images_used ?? stats?.used_photos ?? 0, stats?.images_limit ?? stats?.monthly_photos ?? 0)} / {stats?.images_limit ?? stats?.monthly_photos ?? 0}
-                    </span>
-                  </div>
-                  <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{
-                        width: `${Math.min(100, ((stats?.images_used ?? stats?.used_photos ?? 0) / ((stats?.images_limit ?? stats?.monthly_photos) || 1)) * 100)}%`
-                      }}
-                      transition={{ duration: 1, delay: 0.3 }}
-                      className={`h-full rounded-full ${isPremium
-                        ? 'bg-gradient-to-r from-yellow-400 to-yellow-600'
-                        : 'bg-gradient-to-r from-pink-500 to-rose-600'
-                        }`}
-                    />
-                  </div>
-                </div>
-
-                {/* Voice Messages */}
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
-                        <MicIcon className="w-4 h-4 text-blue-400" />
-                      </div>
-                      <span className="text-white/60 text-sm">Голосовые сообщения</span>
-                    </div>
-                    <span className="text-white font-bold text-sm">
-                      {Math.min(stats?.voice_used ?? 0, stats?.voice_limit ?? 0)} / {stats?.voice_limit ?? 0}
-                    </span>
-                  </div>
-                  <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${Math.min(100, ((stats?.voice_used ?? 0) / (stats?.voice_limit || 1)) * 100)}%` }}
-                      transition={{ duration: 1, delay: 0.4 }}
-                      className={`h-full rounded-full ${isPremium
-                        ? 'bg-gradient-to-r from-yellow-400 to-yellow-600'
-                        : 'bg-gradient-to-r from-blue-400 to-blue-600'
-                        }`}
-                    />
-                  </div>
-                </div>
-
-                {/* Characters Created */}
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center border border-purple-500/30">
-                        <UserPlusIcon className="w-4 h-4 text-purple-400" />
-                      </div>
-                      <span className="text-white/60 text-sm">Создано персонажей</span>
-                    </div>
-                    <span className="text-white font-bold text-sm">
-                      {stats?.characters_limit === null
-                        ? `${stats?.characters_count ?? 0} (∞)`
-                        : `${stats?.characters_count ?? 0} / ${stats?.characters_limit ?? 0}`
-                      }
-                    </span>
-                  </div>
-                  <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{
-                        width: stats?.characters_limit === null
-                          ? '100%'
-                          : `${Math.min(100, ((stats?.characters_count ?? 0) / (stats?.characters_limit || 1)) * 100)}%`
-                      }}
-                      transition={{ duration: 1, delay: 0.5 }}
-                      className={`h-full rounded-full ${isPremium
-                        ? 'bg-gradient-to-r from-yellow-400 to-yellow-600'
-                        : 'bg-gradient-to-r from-purple-400 to-purple-600'
-                        }`}
-                    />
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-
-
-          {/* Блок 6 (3x1): Галерея персонажей */}
-          {rawCharactersData.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.5 }}
-              className="md:col-span-3 p-0 md:p-6"
-              style={{ background: 'transparent', border: 'none', boxShadow: 'none' }}
-            >
-              <div className="flex flex-col gap-4" style={{ position: 'relative', zIndex: 10 }}>
-                <h3 className="text-xl font-bold text-white text-center">Персонажи</h3>
-                <CharactersGrid>
-                  {rawCharactersData.map((rawChar) => {
-                    const charName = rawChar.name || rawChar.display_name || 'Unknown';
-                    const normalizedId = (rawChar.id ?? charName).toString();
-                    const normalizedKey = charName.toLowerCase();
-
-                    // Используем name в первую очередь для ключа, как на главной странице
-                    const keyForPhotos = rawChar.name ? rawChar.name.toLowerCase() : (rawChar.display_name || '').toLowerCase();
-                    const photos = photosMap[keyForPhotos] || [];
-                    // Если не нашли по name, пробуем по display_name
-                    const fallbackKey = rawChar.display_name ? rawChar.display_name.toLowerCase() : null;
-                    const fallbackPhotos = photos.length === 0 && fallbackKey && fallbackKey !== keyForPhotos
-                      ? (photosMap[fallbackKey] || [])
-                      : [];
-                    const finalPhotos = photos.length > 0 ? photos : fallbackPhotos;
-
-                    const character = {
-                      id: normalizedId,
-                      name: charName,
-                      description: rawChar.description || rawChar.character_appearance || 'No description available',
-                      avatar: charName.charAt(0).toUpperCase(),
-                      photos: finalPhotos,
-                      tags: Array.isArray(rawChar.tags) && rawChar.tags.length ? rawChar.tags : [],
-                      author: 'User',
-                      likes: Number(rawChar.likes) || 0,
-                      views: Number(rawChar.views) || 0,
-                      comments: Number(rawChar.comments) || 0,
-                      is_nsfw: rawChar.is_nsfw === true,
-                      raw: rawChar,
-                    };
-
-                    // Проверяем, находится ли персонаж в избранном
-                    const characterId = typeof character.id === 'number'
-                      ? character.id
-                      : parseInt(character.id, 10);
-                    const isFavorite = !isNaN(characterId) && favoriteCharacterIds.has(characterId);
-
-                    return (
-                      <CharacterCard
-                        key={character.id}
-                        character={character}
-                        onClick={onCharacterSelect}
-                        isAuthenticated={!!authToken}
-                        onPhotoGeneration={onOpenUserGallery ? (char) => {
-                          // Если это свой профиль, открываем свою галерею.
-                          // Если чужой - тоже открываем свою галерею, так как генерация привязана к текущему пользователю
-                          onOpenUserGallery(currentUserId || undefined);
-                        } : undefined}
-                        onPaidAlbum={onPaidAlbum ? (char) => {
-                          onPaidAlbum(char);
-                        } : undefined}
-                        isFavorite={isFavorite}
-                        onFavoriteToggle={loadFavorites}
-                      />
-                    );
-                  })}
-                </CharactersGrid>
-              </div>
-            </motion.div>
-          )}
-        </div>
+        )}
       </div>
     );
   };
@@ -2577,39 +2640,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         <DarkVeil speed={1.1} />
       </BackgroundWrapper>
       <div className="content-area vertical flex-1 flex flex-col">
-        <GlobalHeader
-          onShop={onShop}
-          onLogin={() => {
-            setAuthMode('login');
-            setIsAuthModalOpen(true);
-          }}
-          onRegister={() => {
-            setAuthMode('register');
-            setIsAuthModalOpen(true);
-          }}
-          onLogout={() => {
-            if (onLogout) {
-              onLogout();
-            } else {
-              localStorage.removeItem('authToken');
-              localStorage.removeItem('refreshToken');
-              setAuthToken(null);
-              window.location.href = '/';
-            }
-          }}
-          onProfile={onProfile ? () => {
-            onProfile();
-          } : undefined}
-          onHome={() => {
-            if (onBackToMain) {
-              onBackToMain();
-            } else {
-              window.location.href = '/';
-            }
-          }}
-          onBalance={() => { }}
-        />
-
         <div className="flex-1 overflow-y-auto">{renderContent()}</div>
       </div>
 

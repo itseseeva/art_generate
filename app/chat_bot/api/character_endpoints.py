@@ -26,7 +26,11 @@ import asyncio
 import re
 from pathlib import Path
 import httpx
+import httpx
 import json
+from fastapi import BackgroundTasks
+from app.services.translation_service import translate_character_fields, detect_language, auto_translate_and_save_character
+from app.database.db import async_session_maker
 
 logger = logging.getLogger(__name__)
 
@@ -324,24 +328,6 @@ async def charge_for_character_creation(user_id: int, db: AsyncSession) -> None:
     except Exception as e:
         logger.warning(f"Не удалось записать историю баланса: {e}")
 
-    if await subscription_service.can_user_use_credits_amount(user_id, CHARACTER_CREATION_COST):
-        credits_spent = await subscription_service.use_credits_amount(
-            user_id, CHARACTER_CREATION_COST, commit=False
-        )
-        if not credits_spent:
-            logger.warning(
-                "Не удалось списать кредиты подписки у пользователя %s при создании персонажа",
-                user_id,
-            )
-            raise HTTPException(
-                status_code=403,
-                detail="Не удалось списать ресурсы подписки при создании персонажа. Попробуйте позже."
-            )
-    else:
-        logger.info(
-            "У пользователя %s закончился лимит подписки, продолжаем за счет монет", user_id
-        )
-
     await db.flush()
 
 
@@ -350,57 +336,33 @@ async def charge_for_photo_generation(user_id: int, db: AsyncSession, character_
     coins_service = CoinsService(db)
     subscription_service = ProfitActivateService(db)
 
-    # Проверяем баланс пользователя (обязательно для всех)
-    if not await coins_service.can_user_afford(user_id, PHOTO_GENERATION_COST):
+    # Проверяем возможность генерации фото через сервис подписок (для всех типов подписок)
+    if not await subscription_service.can_user_generate_photo(user_id):
+        subscription = await subscription_service.get_user_subscription(user_id)
+        subscription_type = subscription.subscription_type.value if subscription else "free"
+        
+        if subscription_type == "free":
+            detail = "Лимит генераций фото исчерпан (5). Оформите подписку для продолжения генерации."
+        else:
+            detail = f"Лимит генераций фото по подписке {subscription_type.upper()} исчерпан. Лимиты накопятся при следующем продлении."
+            
         raise HTTPException(
             status_code=403,
-            detail=f"Недостаточно монет. Для генерации фотографий требуется {PHOTO_GENERATION_COST} монет."
+            detail=detail
         )
 
-    # Получаем подписку для определения типа
-    subscription = await subscription_service.get_user_subscription(user_id)
-    subscription_type = subscription.subscription_type.value if subscription else "free"
+    # Списываем генерацию
+    photo_spent = await subscription_service.use_photo_generation(user_id, commit=False)
+    if not photo_spent:
+        logger.warning(
+            "Не удалось списать лимит генераций подписки у пользователя %s", user_id
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Не удалось списать лимит генераций подписки. Попробуйте позже."
+        )
     
-    # Для FREE: списываем только лимит генераций, БЕЗ монет
-    if subscription_type == "free":
-        if not await subscription_service.can_user_generate_photo(user_id):
-            raise HTTPException(
-                status_code=403,
-                detail="Лимит генераций фото исчерпан (5). Оформите подписку для продолжения генерации."
-            )
-        photo_spent = await subscription_service.use_photo_generation(user_id, commit=False)
-        if not photo_spent:
-            logger.warning(
-                "Не удалось списать лимит генераций подписки у пользователя %s", user_id
-            )
-            raise HTTPException(
-                status_code=403,
-                detail="Не удалось списать лимит генераций подписки. Попробуйте позже."
-            )
-        logger.info(f"[FREE] Списан лимит генераций для user_id={user_id}, персонаж '{character_name}' (монеты НЕ списаны)")
-    
-    # Для STANDARD/PREMIUM: списываем монеты
-    else:
-        coins_spent = await coins_service.spend_coins(user_id, PHOTO_GENERATION_COST, commit=False)
-        if not coins_spent:
-            raise HTTPException(
-                status_code=403,
-                detail=f"Не удалось списать {PHOTO_GENERATION_COST} монет за генерацию фото."
-            )
-        
-        # Записываем историю баланса
-        try:
-            from app.utils.balance_history import record_balance_change
-            await record_balance_change(
-                db=db,
-                user_id=user_id,
-                amount=-PHOTO_GENERATION_COST,
-                reason=f"Генерация фото для персонажа '{character_name}'"
-            )
-        except Exception as e:
-            logger.warning(f"Не удалось записать историю баланса: {e}")
-        
-        logger.info(f"[{subscription_type.upper()}] Списано {PHOTO_GENERATION_COST} монет для user_id={user_id}, персонаж '{character_name}'")
+    logger.info(f"[PHOTO] Списан лимит генераций для user_id={user_id}, персонаж '{character_name}'")
 
     await db.flush()
 
@@ -1207,6 +1169,15 @@ async def create_character(character: CharacterCreate, db: AsyncSession = Depend
         await db.commit()
         await db.refresh(db_char)
         
+        # Автоматически переводим нового персонажа на английский
+        try:
+            from app.services.translation_service import auto_translate_and_save_character
+            await auto_translate_and_save_character(db_char, db, target_lang='en')
+            logger.info(f"[CREATE] Персонаж {db_char.id} автоматически переведен на EN")
+        except Exception as e:
+            logger.warning(f"[CREATE] Не удалось перевести персонажа {db_char.id}: {e}")
+            # Не падаем, персонаж уже создан
+        
         # Инвалидируем кэш персонажей
         await cache_delete(key_characters_list())
         await cache_delete_pattern("characters:list:*")
@@ -1244,7 +1215,10 @@ async def read_characters(
         
         # Пытаемся получить из кэша (cache_get уже имеет внутренний таймаут)
         # Используем разумный таймаут, чтобы не блокировать запросы слишком долго
-        cached_characters = None if force_refresh else await cache_get(cache_key, timeout=2.0)
+        # Пытаемся получить из кэша (cache_get уже имеет внутренний таймаут)
+        # Используем разумный таймаут, чтобы не блокировать запросы слишком долго
+        # DISABLED CACHE FOR DEBUGGING TRANSLATIONS
+        cached_characters = None # if force_refresh else await cache_get(cache_key, timeout=2.0)
         
         if cached_characters is not None:
             try:
@@ -1280,7 +1254,20 @@ async def read_characters(
                                     "voice_id": voice_id_cached,
                                     "voice_url": voice_url_cached,
                                     "tags": char_data.get('tags') if isinstance(char_data.get('tags'), list) else [],
-                                    "creator_username": char_data.get('creator_username')
+                                    "creator_username": char_data.get('creator_username'),
+                                    "personality_ru": char_data.get('personality_ru'),
+                                    "situation_ru": char_data.get('situation_ru'),
+                                    "instructions_ru": char_data.get('instructions_ru'),
+                                    "style_ru": char_data.get('style_ru'),
+                                    "personality_en": char_data.get('personality_en'),
+                                    "situation_en": char_data.get('situation_en'),
+                                    "instructions_en": char_data.get('instructions_en'),
+                                    "style_en": char_data.get('style_en'),
+                                    # Add missing fields (from cache dict)
+                                    "appearance_ru": char_data.get('appearance_ru'),
+                                    "appearance_en": char_data.get('appearance_en'),
+                                    "location_ru": char_data.get('location_ru'),
+                                    "location_en": char_data.get('location_en')
                                 }
                                 valid_characters.append(valid_char)
                         elif hasattr(char_data, 'id') and hasattr(char_data, 'name'):
@@ -1481,7 +1468,20 @@ async def read_characters(
                 "comments": messages_map.get(char.id, 0),
                 "creator_username": username_map.get(char.id),
                 "paid_album_photos_count": album_counts_map.get(char.id, 0),
-                "paid_album_preview_urls": [process_url(u) for u in album_previews_map.get(char.id, [])]
+                "paid_album_preview_urls": [process_url(u) for u in album_previews_map.get(char.id, [])],
+                "situation_ru": char.situation_ru,
+                "situation_en": char.situation_en,
+                "personality_ru": char.personality_ru,
+                "personality_en": char.personality_en,
+                "instructions_ru": char.instructions_ru,
+                "instructions_en": char.instructions_en,
+                "style_ru": char.style_ru,
+                "style_en": char.style_en,
+                # Add missing fields (from DB)
+                "appearance_ru": char.appearance_ru,
+                "appearance_en": char.appearance_en,
+                "location_ru": char.location_ru,
+                "location_en": char.location_en,
             }
             characters_data.append(char_dict)
         
@@ -1622,6 +1622,50 @@ SEO_MAPPING = {
     "Аниме": "Твои любимые герои аниме оживают в Cherry Lust. Погрузись в миры популярных тайтлов, общайся с вайфу и кунами на русском языке без цензуры. ИИ чат с персонажами аниме 18+ — это возможность переписать сюжет или создать свою уникальную историю в стиле японской анимации бесплатно."
 }
 
+TAG_NAME_EN_MAPPING = {
+    "New": "New",
+    "NSFW": "NSFW",
+    "Original": "Original",
+    "SFW": "SFW",
+    "Пользовательские": "User Created",
+    "Босс": "Boss",
+    "Грубая": "Rude",
+    "Доминирование": "Dominance",
+    "Киберпанк": "Cyberpunk",
+    "Незнакомка": "Stranger",
+    "Слуга": "Servant",
+    "Учитель": "Teacher",
+    "Фэнтези": "Fantasy",
+    "Горничная": "Maid",
+    "Подруга": "Friend",
+    "Студентка": "Student",
+    "Цундере": "Tsundere",
+    "Милая": "Cute",
+    "Аниме": "Anime"
+}
+
+TAG_DESC_EN_MAPPING = {
+    "New": "The latest AI characters recently added to Cherry Lust. Be the first to start a chat with new virtual heroes and experience the capabilities of our neural network.",
+    "NSFW": "Hot 18+ AI chat without censorship or restrictions. Explicit roleplay with virtual characters ready to fulfill any fantasy online.",
+    "Original": "Exclusive AI heroes from the creators of Cherry Lust. Handcrafted characters with unique lore, deep personalities, and detailed photos for perfect immersion.",
+    "SFW": "Pleasant and safe AI communication on any topic. Friendly interlocutors, support, psychology, and interesting dialogues without adult content.",
+    "Пользовательские": "Creativity from our community. A huge selection of user-created characters: from classic archetypes to the wildest roleplay ideas.",
+    "Босс": "Strict managers and powerful bosses. Try an office romance with an AI or negotiate with a harsh superior in this office roleplay simulator.",
+    "Грубая": "AI characters with a challenging personality. Expect sass, sarcasm, and provocation. Can you tame the stubborn heroine in this limitless chat?",
+    "Доминирование": "Games of power and submission. AI characters who love to dominate or seek someone to take control. Psychological and roleplay tension guaranteed.",
+    "Киберпанк": "Atmosphere of the future: neon cities, cyborgs, and high tech. Roleplay AI chat in Cyberpunk style for fans of sci-fi scenarios.",
+    "Незнакомка": "A chance encounter that could change everything. Mysterious heroines whose story starts from a clean slate. Perfect for a new beginning.",
+    "Слуга": "Loyal helpers and obedient assistants. Characters ready to fulfill your every command in fantasy worlds or modern reality.",
+    "Учитель": "Forbidden lessons and strict discipline. A popular roleplay scenario: communicate with a teacher or professor without censorship.",
+    "Фэнтези": "Elves, demons, mages, and knights. Dive into magical worlds and start your adventure in the best fantasy AI chat with unique mythical creatures.",
+    "Горничная": "A roleplay classic in Cherry Lust. AI chat with a maid: from devoted service to the boldest 18+ scenarios. Chat for free with obedient virtual characters.",
+    "Подруга": "Looking for a cozy chat? AI friend chat is the perfect place for heart-to-heart talks, support, or escaping the friend zone. Roleplay with a virtual friend without censorship.",
+    "Студентка": "The most popular student scenarios in Cherry Lust AI chat. Chat with young and ambitious heroines. The best 18+ roleplay chat: free and without barriers.",
+    "Цундере": "Unique AI chat with Tsundere characters. Go from sharp remarks to true tenderness. Try to melt the heart of an unapproachable heroine for free in Cherry Lust.",
+    "Милая": "The most tender and kind AI characters for cozy communication. If you want care and affection, choose cute heroines in Cherry Lust. Sincere emotions and pleasant 18+ dialogues.",
+    "Аниме": "Your favorite anime heroes come to life in Cherry Lust. Immerse yourself in popular titles, chat with waifus and husbandos without censorship. Create your own story in anime style."
+}
+
 
 @router.get("/available-tags")
 async def get_available_character_tags(db: AsyncSession = Depends(get_db)):
@@ -1658,14 +1702,26 @@ async def get_available_character_tags(db: AsyncSession = Depends(get_db)):
                 slug = slugify(name)
                 has_user_custom = True
                 
-            tags.append({"name": name, "slug": slug})
+            tags.append({
+                "name": name,
+                "name_ru": name,
+                "name_en": TAG_NAME_EN_MAPPING.get(name, name),
+                "slug": slug
+            })
+
             
         # 3. Принудительно добавляем базовые теги, если их нет (на случай очистки БД или ошибок миграции)
         base_tags = ["Пользовательские", "Original", "NSFW", "SFW", "Незнакомка", "Фэнтези", "Киберпанк", "Учитель", "Слуга", "Босс", "Доминирование", "Аниме"]
         for b_name in base_tags:
             if not any(t["name"].lower() == b_name.lower() for t in tags):
                 from slugify import slugify
-                tags.append({"name": b_name, "slug": slugify(b_name)})
+                tags.append({
+                    "name": b_name,
+                    "name_ru": b_name,
+                    "name_en": TAG_NAME_EN_MAPPING.get(b_name, b_name),
+                    "slug": slugify(b_name)
+                })
+
             
         # Удаляем дубликаты по имени (на всякий случай после нормализации)
         seen_names = set()
@@ -1848,12 +1904,24 @@ async def get_characters_by_tag_slug(slug: str, db: AsyncSession = Depends(get_d
             char_dict['creator_username'] = username_map.get(char.id)
             formatted_characters.append(char_dict)
         
+        # Определяем локализованные имена и описания
+        tag_name_ru = "Незнакомка" if tag.name.lower() == "незнакомец" else tag.name
+        tag_name_en = TAG_NAME_EN_MAPPING.get(tag_name_ru, tag_name_ru)
+        
+        seo_ru = seo_description or ""
+        seo_en = TAG_DESC_EN_MAPPING.get(tag_name_ru, seo_ru)
+
         return {
-            "tag_name": "Незнакомка" if tag.name.lower() == "незнакомец" else tag.name,
+            "tag_name": tag_name_ru, # fallback
+            "tag_name_ru": tag_name_ru,
+            "tag_name_en": tag_name_en,
             "slug": tag.slug,
-            "seo_description": seo_description,
+            "seo_description": seo_ru, # fallback
+            "seo_description_ru": seo_ru,
+            "seo_description_en": seo_en,
             "characters": formatted_characters
         }
+
     except HTTPException:
         raise
     except Exception as e:
@@ -1861,9 +1929,76 @@ async def get_characters_by_tag_slug(slug: str, db: AsyncSession = Depends(get_d
         raise HTTPException(status_code=500, detail=str(e))
 
 
+async def translate_character_task(character_id: int, source_lang: str, original_data: dict):
+    """
+    Background task to translate character fields.
+    """
+    import time
+    # Create a new session for the background task
+    async with async_session_maker() as db:
+        try:
+            from app.chat_bot.models.models import CharacterDB
+            from sqlalchemy import select
+            
+            # Fetch character
+            result = await db.execute(select(CharacterDB).where(CharacterDB.id == character_id))
+            character = result.scalar_one_or_none()
+            
+            if not character:
+                logger.error(f"Character {character_id} not found for translation task")
+                return
+                
+            # Determine target language
+            # If source is RU, target is EN. If source is EN (or other), target is RU.
+            target_lang = 'en' if source_lang == 'ru' else 'ru'
+            
+            start_time = time.time()
+            logger.info(f"Starting background translation for character {character_id} ({source_lang} -> {target_lang})")
+            
+            # Prepare data for translation
+            char_data = {
+                'name': original_data.get('name', ''),
+                'personality': original_data.get('personality', ''),
+                'situation': original_data.get('situation', ''),
+                'instructions': original_data.get('instructions', ''),
+                'style': original_data.get('style', ''),
+                'appearance': original_data.get('appearance', ''),
+                'location': original_data.get('location', '')
+            }
+            
+            # Translate
+            translations = await translate_character_fields(char_data, target_lang)
+            
+            if translations:
+                # Update character fields directly based on target language
+                if target_lang == 'en':
+                    character.personality_en = translations.get('personality')
+                    character.situation_en = translations.get('situation')
+                    character.instructions_en = translations.get('instructions')
+                    character.style_en = translations.get('style')
+                    character.appearance_en = translations.get('appearance')
+                    character.location_en = translations.get('location')
+                elif target_lang == 'ru':
+                    character.personality_ru = translations.get('personality')
+                    character.situation_ru = translations.get('situation')
+                    character.instructions_ru = translations.get('instructions')
+                    character.style_ru = translations.get('style')
+                    character.appearance_ru = translations.get('appearance')
+                    character.location_ru = translations.get('location')
+                
+                await db.commit()
+                logger.info(f"Translated character {character_id} to {target_lang} columns in {time.time() - start_time:.2f}s")
+            else:
+                logger.info(f"No translations generated for character {character_id}")
+                
+        except Exception as e:
+            logger.error(f"Error in translation task for character {character_id}: {e}", exc_info=True)
+
+
 @router.post("/create/", response_model=CharacterInDB)
 async def create_user_character(
     character: UserCharacterCreate, 
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -2026,11 +2161,18 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         tags_value = list(tags_set)
         logger.info(f"[CREATE_CHAR] Финальные теги персонажа: {tags_value}")
         
+        # Determine source language to save to correct columns
+        source_text_for_detect = (character.name or "") + " " + (character.personality or "")
+        source_lang_detected = detect_language(source_text_for_detect)
+        
+        # Initialize new character
+        # We NO LONGER construct a single 'prompt' string.
+        # The 'prompt' column will remain None or empty, as it is deprecated.
         new_character = CharacterDB(
             name=ensure_unicode(character.name),
             display_name=ensure_unicode(character.name),
             description=ensure_unicode(character.name),
-            prompt=full_prompt,
+            # prompt=None, # DEPRECATED - removed
             character_appearance=appearance_text,
             location=location_text,
             user_id=current_user.id,
@@ -2039,6 +2181,56 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
             voice_url=voice_url_to_save,
             tags=tags_value
         )
+        
+        # 1. Personality (Core)
+        personality_lang = detect_language(character.personality)
+        if personality_lang == 'ru':
+            new_character.personality_ru = ensure_unicode(character.personality)
+        else:
+            new_character.personality_en = ensure_unicode(character.personality)
+            
+        # 2. Situation
+        if character.situation:
+            situation_lang = detect_language(character.situation)
+            if situation_lang == 'ru':
+                new_character.situation_ru = ensure_unicode(character.situation)
+            else:
+                new_character.situation_en = ensure_unicode(character.situation)
+                
+        # 3. Instructions
+        if character.instructions:
+            instructions_lang = detect_language(character.instructions)
+            if instructions_lang == 'ru':
+                new_character.instructions_ru = ensure_unicode(character.instructions)
+            else:
+                new_character.instructions_en = ensure_unicode(character.instructions)
+        
+        # 4. Style
+        if character.style:
+            style_lang = detect_language(character.style)
+            if style_lang == 'ru':
+                new_character.style_ru = ensure_unicode(character.style)
+            else:
+                new_character.style_en = ensure_unicode(character.style)
+
+        # 5. Appearance
+        appearance_text = character.appearance or character.character_appearance
+        if appearance_text:
+            appearance_lang = detect_language(appearance_text)
+            if appearance_lang == 'ru':
+                new_character.appearance_ru = ensure_unicode(appearance_text)
+            else:
+                new_character.appearance_en = ensure_unicode(appearance_text)
+                
+        # 6. Location
+        location_text = character.location
+        if location_text:
+            location_lang = detect_language(location_text)
+            if location_lang == 'ru':
+                new_character.location_ru = ensure_unicode(location_text)
+            else:
+                new_character.location_en = ensure_unicode(location_text)
+
         
         db.add(new_character)
         
@@ -2070,6 +2262,33 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         if new_character.voice_id and not new_character.voice_url and not _is_user_voice_id(new_character.voice_id):
             new_character.voice_url = f"/default_character_voices/{new_character.voice_id}"
         
+        # Schedule background translation tasks for BOTH languages to fill missing gaps
+        # If we filled _ru fields, this will translate them to _en.
+        # If we filled _en fields, this will translate them to _ru.
+        # If we have mixed fields, both tasks will run and fill the respective missing counterparts.
+        
+        async def background_mixed_translation(char_id: int):
+             from app.database.db import async_session_maker
+             
+             logger.info(f"[BG_TASK] Starting mixed translation for char {char_id}")
+             async with async_session_maker() as session:
+                 stmt = select(CharacterDB).where(CharacterDB.id == char_id)
+                 result = await session.execute(stmt)
+                 char = result.scalar_one_or_none()
+                 if char:
+                     # Force translation to fill holes. 
+                     # We try to translate TO English (filling gaps from RU source)
+                     await auto_translate_and_save_character(char, session, target_lang='en')
+                     # And TO Russian (filling gaps from EN source)
+                     await auto_translate_and_save_character(char, session, target_lang='ru')
+                 else:
+                     logger.warning(f"[BG_TASK] Character {char_id} not found for translation")
+
+        # Since background_tasks.add_task accepts coroutines in FastAPI:
+        background_tasks.add_task(background_mixed_translation, new_character.id)
+        
+        logger.info(f"Character {new_character.id} created. Scheduled mixed-language translation.")
+
         # Инвалидируем кэш списка персонажей
         await cache_delete(key_characters_list())
         await cache_delete_pattern("characters:list:*")
@@ -2083,6 +2302,24 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         except Exception as ws_error:
             logger.warning(f"[CREATE_CHAR] Не удалось отправить WebSocket событие: {ws_error}")
         
+        # КРИТИЧНО: Запускаем фоновую задачу перевода
+        # Определяем исходный язык на основе имени и описания
+        source_text = (character.name or "") + " " + (character.personality or "")
+        source_lang = detect_language(source_text)
+        
+        original_data = {
+            "name": character.name,
+            "personality": character.personality,
+            "situation": character.situation,
+            "instructions": character.instructions,
+            "style": character.style,
+            "appearance": character.appearance,
+            "location": character.location
+        }
+        
+        background_tasks.add_task(translate_character_task, new_character.id, source_lang, original_data)
+        logger.info(f"[CREATE_CHAR] Scheduled translation task from {source_lang}")
+
         return CharacterInDB.model_validate(new_character)
         
     except HTTPException:
@@ -2114,10 +2351,15 @@ async def read_character(character_name: str, db: AsyncSession = Depends(get_db)
         cache_key = key_character(decoded_name)
         
         # Пытаемся получить из кэша
-        cached_data = await cache_get(cache_key)
+        # Пытаемся получить из кэша
+        # DISABLED CACHE FOR DEBUGGING TRANSLATIONS
+        cached_data = None # await cache_get(cache_key)
         if cached_data is not None:
-            from app.chat_bot.schemas.chat import CharacterInDB
-            return CharacterInDB(**cached_data)
+            # Check for new bilingual field
+            if cached_data.get('situation_en'):
+                from app.chat_bot.schemas.chat import CharacterInDB
+                return CharacterInDB(**cached_data)
+            logger.info(f"Cache hit for {decoded_name} but situation_en missing. Fetching from DB.")
         
         from app.chat_bot.models.models import CharacterDB, CharacterMainPhoto
         from sqlalchemy import select
@@ -2158,6 +2400,10 @@ async def read_character(character_name: str, db: AsyncSession = Depends(get_db)
                 # Только для дефолтных голосов формируем voice_url из voice_id
                 voice_url_value = f"/default_character_voices/{db_char.voice_id}"
         
+        # Checking translation
+        if not db_char.situation_en:
+             await auto_translate_and_save_character(db_char, db, 'en')
+        
         char_data = {
             "id": db_char.id,
             "name": db_char.name,
@@ -2171,9 +2417,21 @@ async def read_character(character_name: str, db: AsyncSession = Depends(get_db)
             "is_nsfw": db_char.is_nsfw,
             "voice_id": db_char.voice_id,
             "voice_url": voice_url_value,
-            # Добавляем все поля, необходимые для CharacterInDB
-             "created_at": db_char.created_at.isoformat() if db_char.created_at else None
+            "created_at": db_char.created_at.isoformat() if db_char.created_at else None,
+             # New fields
+            "personality_ru": db_char.personality_ru,
+            "situation_ru": db_char.situation_ru,
+            "instructions_ru": db_char.instructions_ru,
+            "personality_en": db_char.personality_en,
+            "situation_en": db_char.situation_en,
+            "instructions_en": db_char.instructions_en,
+            # Add missing fields
+            "appearance_ru": db_char.appearance_ru,
+            "appearance_en": db_char.appearance_en,
+            "location_ru": db_char.location_ru,
+            "location_en": db_char.location_en,
         }
+
         await cache_set(cache_key, char_data, ttl_seconds=TTL_CHARACTER)
         
         # КРИТИЧНО: Устанавливаем voice_url в объект перед возвратом
@@ -2226,6 +2484,10 @@ async def read_character_with_creator(
         # КРИТИЧНО: Формируем voice_url из voice_id для корректной работы TTS
         if db_char.voice_id and not db_char.voice_url:
             db_char.voice_url = f"/default_character_voices/{db_char.voice_id}"
+
+        # Checking translation
+        if not db_char.situation_en:
+             await auto_translate_and_save_character(db_char, db, 'en')
         
         # Получаем информацию о создателе, если есть user_id
         creator_info = None
@@ -2339,6 +2601,33 @@ async def clear_character_chat_history(
             # Удаляем саму сессию
             await db.delete(session)
             deleted_sessions += 1
+            
+        # Также удаляем историю из ChatHistory (архив)
+        if current_user:
+            from app.models.chat_history import ChatHistory
+            result_history = await db.execute(
+                delete(ChatHistory).where(
+                    ChatHistory.user_id == current_user.id,
+                    func.lower(ChatHistory.character_name) == character.name.lower()
+                )
+            )
+            deleted_history = result_history.rowcount
+            logger.info(f"Deleted {deleted_history} records from ChatHistory for user {current_user.id} and character {character_name}")
+            
+            # И из ImageGenerationHistory
+            from app.models.image_generation_history import ImageGenerationHistory
+            result_images = await db.execute(
+                delete(ImageGenerationHistory).where(
+                    ImageGenerationHistory.user_id == current_user.id,
+                    func.lower(ImageGenerationHistory.character_name) == character.name.lower()
+                )
+            )
+            deleted_images = result_images.rowcount
+            logger.info(f"Deleted {deleted_images} records from ImageGenerationHistory for user {current_user.id} and character {character_name}")
+            
+            # Инвалидация кэша списка персонажей
+            from app.utils.redis_cache import key_user_characters, cache_delete
+            await cache_delete(key_user_characters(current_user.id))
         
         await db.commit()
         
@@ -2369,6 +2658,8 @@ async def get_character_chat_history(
 ):
     """Получает историю чатов с персонажем для текущего пользователя."""
     try:
+        logger.info(f"[CHAT_HISTORY] Запрос истории для персонажа: '{character_name}', user_id={current_user.id if current_user else 'guest'}")
+        
         from app.chat_bot.models.models import CharacterDB, ChatSession, ChatMessageDB
         from sqlalchemy import select
         
@@ -2379,7 +2670,10 @@ async def get_character_chat_history(
         character = result.scalar_one_or_none()
         
         if not character:
+            logger.warning(f"[CHAT_HISTORY] Персонаж '{character_name}' не найден в БД")
             raise HTTPException(status_code=404, detail=f"Персонаж '{character_name}' не найден")
+        
+        logger.info(f"[CHAT_HISTORY] Персонаж найден: id={character.id}, name='{character.name}'")
         
         # Получаем последнюю сессию чата с этим персонажем для текущего пользователя
         chat_session = None
@@ -2408,12 +2702,14 @@ async def get_character_chat_history(
                 )
             
             chat_session = chat_session_result.scalar_one_or_none()
+            logger.info(f"[CHAT_HISTORY] ChatSession найдена: {chat_session is not None}, user_id={current_user.id if current_user else 'guest'}")
         else:
             # Если персонаж не найден в БД, все равно пытаемся получить историю из ChatHistory
             logger.info(f"Character '{character_name}' not found in DB, checking ChatHistory directly")
         
         # Если нет ChatSession, проверяем ChatHistory (для фото из генерации)
         if not chat_session:
+            logger.info(f"[CHAT_HISTORY] ChatSession отсутствует, проверяем ChatHistory для user_id={current_user.id if current_user else 'guest'}")
             if current_user:
                 # Сохраняем user_id ДО выполнения запросов, чтобы избежать lazy loading после ошибок
                 user_id_for_history = current_user.id
@@ -2423,6 +2719,10 @@ async def get_character_chat_history(
                     from sqlalchemy import text
                     # Пытаемся выбрать с generation_time, если поле существует
                     history_list = []  # Инициализируем пустым списком
+                    
+                    # ДИАГНОСТИКА: Логируем точные параметры запроса
+                    logger.info(f"[CHAT_HISTORY DEBUG] Поиск в ChatHistory: user_id={user_id_for_history}, character_name='{character_name}'")
+                    
                     try:
                         result = await db.execute(
                             text("""
@@ -2437,6 +2737,7 @@ async def get_character_chat_history(
                             {"user_id": user_id_for_history, "character_name": character_name}  # Используем сохраненный user_id
                         )
                         rows = result.fetchall()
+                        logger.info(f"[CHAT_HISTORY] Найдено {len(rows)} строк в ChatHistory для user_id={user_id_for_history}, character='{character_name}'")
                         # Преобразуем в объекты для совместимости
                         class HistoryRow:
                             def __init__(self, row):
@@ -2502,11 +2803,12 @@ async def get_character_chat_history(
                             
                             formatted_messages.append({
                                 "id": msg.id,
-                                "type": msg.message_type,  # 'user' или 'assistant'
+                                "role": msg.message_type,  # 'user' или 'assistant'
                                 "content": msg.message_content or "",
                                 "timestamp": msg.created_at.isoformat(),
                                 "image_url": image_url_converted,
-                                "generation_time": generation_time_value  # Безопасно получаем generation_time
+                                "generation_time": generation_time_value,  # Безопасно получаем generation_time
+                                "type": msg.message_type  # Явно указываем type для фронтенда
                             })
                         
                         logger.info(f"Found {len(formatted_messages)} messages in ChatHistory for user {user_id_for_history}, character {character_name}")
@@ -2568,6 +2870,67 @@ async def get_character_chat_history(
             .limit(20)
         )
         messages = messages.scalars().all()
+        
+        # КРИТИЧНО: Если ChatSession найдена, но в ней нет сообщений в ChatMessageDB,
+        # проверяем ChatHistory (для случая, когда сообщения сохраняются только в ChatHistory)
+        if not messages and current_user:
+            logger.info(f"[CHAT_HISTORY] ChatSession найдена, но пустая. Проверяем ChatHistory для user_id={current_user.id}")
+            # Используем тот же код, что и для случая "нет ChatSession"
+            user_id_for_history = current_user.id
+            from app.models.chat_history import ChatHistory
+            try:
+                from sqlalchemy import text
+                result = await db.execute(
+                    text("""
+                        SELECT id, user_id, character_name, session_id, message_type, 
+                               message_content, image_url, image_filename, generation_time, created_at
+                        FROM chat_history
+                        WHERE user_id = :user_id 
+                          AND character_name ILIKE :character_name
+                        ORDER BY created_at ASC
+                        LIMIT 100
+                    """),
+                    {"user_id": user_id_for_history, "character_name": character_name}
+                )
+                rows = result.fetchall()
+                logger.info(f"[CHAT_HISTORY] Найдено {len(rows)} строк в ChatHistory для user_id={user_id_for_history}, character='{character_name}'")
+                
+                if rows:
+                    # Форматируем сообщения из ChatHistory
+                    formatted_messages = []
+                    for row in rows:
+                        msg_id = row[0]  # id
+                        message_type = row[4]  # message_type
+                        message_content = row[5]  # message_content
+                        image_url = row[6]  # image_url
+                        created_at = row[9]  # created_at
+                        generation_time = float(row[8]) if row[8] is not None else None
+                        
+                        formatted_messages.append({
+                            "id": msg_id,
+                            "role": message_type,
+                            "content": message_content or "",
+                            "timestamp": created_at.isoformat() if created_at else None,
+                            "image_url": image_url,
+                            "generation_time": generation_time,
+                            "type": message_type  # Явно указываем type для фронтенда
+                        })
+                    
+                    
+                    logger.info(f"Found {len(formatted_messages)} messages in ChatHistory for user {user_id_for_history}, character {character_name}")
+                    # ДИАГНОСТИКА: Логируем первые 2 сообщения для проверки
+                    for i, msg in enumerate(formatted_messages[:2]):
+                        logger.info(f"[CHAT_HISTORY DEBUG] Message {i+1}: role={msg['role']}, content_length={len(msg.get('content', ''))}, timestamp={msg.get('timestamp')}")
+                    
+                    return {
+                        "messages": formatted_messages,
+                        "session_id": session_id_str,
+                        "character_name": character_name_final,
+                        "user_type": "authenticated"
+                    }
+            except Exception as e:
+                logger.error(f"Error querying ChatHistory for empty ChatSession: {e}", exc_info=True)
+                # Продолжаем с пустым списком сообщений
         
         # Загружаем все атрибуты сообщений заранее, чтобы избежать lazy loading
         # Преобразуем в список и получаем все необходимые данные
@@ -2856,6 +3219,25 @@ async def update_character(
         await cache_delete(key_characters_list())
         await cache_delete_pattern("characters:list:*")
         
+        # Автоматически переводим обновленного персонажа на английский
+        # (сбрасываем старый перевод, так как данные изменились)
+        try:
+            from app.services.translation_service import auto_translate_and_save_character
+            # Очищаем старый перевод чтобы пересоздать его
+            # Clear old translation fields to trigger re-translation
+            db_char.situation_en = None
+            db_char.personality_en = None
+            db_char.instructions_en = None
+            db_char.style_en = None
+            await db.commit()
+            await db.refresh(db_char)
+            
+            await auto_translate_and_save_character(db_char, db, target_lang='en')
+            logger.info(f"[UPDATE] Персонаж {db_char.id} автоматически переведен на EN")
+        except Exception as e:
+            logger.warning(f"[UPDATE] Не удалось перевести персонажа {db_char.id}: {e}")
+            # Не падаем, персонаж уже обновлен
+        
         logger.info(f"Character '{character_name}' updated successfully by user {current_user.id}")
         return db_char
         
@@ -2960,55 +3342,29 @@ async def update_user_character(
         # Сохраняем старое имя для инвалидации кэша ДО любых изменений
         old_character_name = db_char.name
         
-        # КРИТИЧНО: Извлекаем текущие текстовые поля из промпта для сравнения
-        # Парсим текущий промпт, чтобы получить текущие значения полей
-        current_prompt = db_char.prompt or ""
+        # КРИТИЧНО: Определяем язык входных данных, чтобы обновить правильные колонки
+        input_text_for_detect = (character.name or "") + " " + (character.personality or "")
+        input_lang = detect_language(input_text_for_detect)
         
-        # Извлекаем текущие значения полей из промпта
-        def extract_field_from_prompt(prompt: str, field_name: str) -> str:
-            """Извлекает значение поля из промпта."""
-            patterns = {
-                "name": r"Character:\s*(.+?)(?:\n|$)",
-                "personality": r"Personality and Character:\s*(.+?)(?=\n\s*Role-playing Situation:|$)",
-                "situation": r"Role-playing Situation:\s*(.+?)(?=\n\s*Instructions:|$)",
-                "instructions": r"Instructions:\s*(.+?)(?=\n\s*Response Style:|$)",
-                "style": r"Response Style:\s*(.+?)(?=\n\s*IMPORTANT:|$)"
-            }
-            
-            if field_name in patterns:
-                match = re.search(patterns[field_name], prompt, re.DOTALL | re.MULTILINE)
-                if match:
-                    return match.group(1).strip()
-            return ""
-        
+        # Получаем текущие значения из соответствующих колонок
         current_name = db_char.name or ""
-        current_personality = extract_field_from_prompt(current_prompt, "personality")
-        current_situation = extract_field_from_prompt(current_prompt, "situation")
-        current_instructions = extract_field_from_prompt(current_prompt, "instructions")
-        current_style = extract_field_from_prompt(current_prompt, "style")
+        
+        if input_lang == 'ru':
+            current_personality = db_char.personality_ru or ""
+            current_situation = db_char.situation_ru or ""
+            current_instructions = db_char.instructions_ru or ""
+            current_style = db_char.style_ru or ""
+        else:
+            # Default to EN handling for other languages or explicit EN
+            current_personality = db_char.personality_en or ""
+            current_situation = db_char.situation_en or ""
+            current_instructions = db_char.instructions_en or ""
+            current_style = db_char.style_en or ""
         current_appearance = db_char.character_appearance or ""
         current_location = db_char.location or ""
         current_voice_id = db_char.voice_id or ""
         current_voice_url = db_char.voice_url or ""
         current_tags = list(db_char.tags) if db_char.tags else []
-        
-        # Удаляем дефолтные инструкции из текущих instructions для корректного сравнения
-        DEFAULT_INSTRUCTIONS_MARKER = "IMPORTANT: Always end your answers with the correct punctuation"
-        if DEFAULT_INSTRUCTIONS_MARKER in current_instructions:
-            marker_index = current_instructions.find(DEFAULT_INSTRUCTIONS_MARKER)
-            if marker_index >= 0:
-                current_instructions = current_instructions[:marker_index].rstrip() if marker_index > 0 else ''
-        
-        # Удаляем дефолтные инструкции из новых instructions для корректного сравнения
-        # Но сохраняем оригинальные instructions для сохранения, если пользователь их явно вставил
-        original_user_instructions = character.instructions
-        user_instructions_for_comparison = original_user_instructions
-        user_had_default_instructions = DEFAULT_INSTRUCTIONS_MARKER in original_user_instructions
-        if user_had_default_instructions:
-            marker_index = original_user_instructions.find(DEFAULT_INSTRUCTIONS_MARKER)
-            if marker_index >= 0:
-                # Для сравнения используем обрезанную версию
-                user_instructions_for_comparison = original_user_instructions[:marker_index].rstrip() if marker_index > 0 else ''
         
         # Нормализуем значения для сравнения (убираем лишние пробелы и переносы строк)
         def normalize_text(text: str) -> str:
@@ -3044,7 +3400,9 @@ async def update_user_character(
         name_changed = normalize_text(character.name) != normalize_text(current_name)
         personality_changed = normalize_text(character.personality) != normalize_text(current_personality)
         situation_changed = normalize_text(character.situation) != normalize_text(current_situation)
-        instructions_changed = normalize_text(user_instructions_for_comparison) != normalize_text(current_instructions)
+        instructions_changed = normalize_text(character.instructions) != normalize_text(current_instructions) 
+        # Note: default instructions logic removed as requested, comparing raw input instructions
+        
         style_changed = normalize_text(character.style or "") != normalize_text(current_style)
         appearance_changed = normalize_text(character.appearance or "") != normalize_text(current_appearance)
         location_changed = normalize_text(character.location or "") != normalize_text(current_location)
@@ -3075,31 +3433,8 @@ async def update_user_character(
             tags_changed
         )
         
-        # ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: Убеждаемся, что действительно есть изменения
-        # Сравниваем нормализованные значения всех полей для финальной проверки
-        # Это гарантирует, что если пользователь ничего не менял, но нажал "Сохранить",
-        # кредиты не будут списаны, даже если есть небольшие различия в форматировании
-        all_fields_match = (
-            not name_changed and
-            not personality_changed and
-            not situation_changed and
-            not instructions_changed and
-            not style_changed and
-            not appearance_changed and
-            not location_changed and
-            not voice_id_changed and
-            not voice_url_changed and
-            not tags_changed
-        )
-        
-        # КРИТИЧНО: Если все поля совпадают после нормализации, считаем что изменений нет
-        # Это защита от ложных срабатываний из-за форматирования (пробелы, переносы строк и т.д.)
-        # Если пользователь ничего не менял, кредиты не списываются
-        if all_fields_match:
-            text_fields_changed = False
-        
         if text_fields_changed:
-            logger.debug(f"[UPDATE CHARACTER] изменения текстовых полей для '{decoded_name}'")
+            logger.debug(f"[UPDATE CHARACTER] изменения текстовых полей для '{decoded_name}' (Input Lang: {input_lang})")
         else:
             logger.debug(f"[UPDATE CHARACTER] текстовые поля '{decoded_name}' без изменений")
         
@@ -3154,62 +3489,30 @@ async def update_user_character(
         
         # Используем оригинальные instructions для сохранения
         # Если пользователь явно вставил дефолтные инструкции, они сохранятся
-        instructions_to_save = original_user_instructions
+        instructions_to_save = character.instructions
         logger.debug(f"[UPDATE CHARACTER] instructions len={len(instructions_to_save)}, remove_default={character.remove_default_instructions}")
         
-        # Формируем новый промпт из данных пользователя
-        full_prompt = f"""Character: {character.name}
-
-Personality and Character:
-{character.personality}
-
-Role-playing Situation:
-{character.situation}
-
-Instructions:
-{instructions_to_save}"""
-
-        if character.style:
-            full_prompt += f"""
-
-Response Style:
-{character.style}"""
-
-        # Если пользователь явно нажал кнопку удаления дефолтных инструкций,
-        # не добавляем их в промпт и удаляем из instructions, если они там есть
-        if character.remove_default_instructions:
-            logger.debug(f"[UPDATE CHARACTER] удаление дефолтных инструкций для '{decoded_name}'")
-            # Удаляем дефолтные инструкции из instructions_to_save, если они там есть
-            if DEFAULT_INSTRUCTIONS_MARKER in instructions_to_save:
-                marker_index = instructions_to_save.find(DEFAULT_INSTRUCTIONS_MARKER)
-                if marker_index >= 0:
-                    instructions_to_save = instructions_to_save[:marker_index].rstrip() if marker_index > 0 else ''
-                    logger.debug("[UPDATE CHARACTER] дефолтные инструкции удалены из поля")
-            
-            # Формируем промпт БЕЗ дефолтных инструкций в конце
-            full_prompt = f"""Character: {character.name}
-
-Personality and Character:
-{character.personality}
-
-Role-playing Situation:
-{character.situation}
-
-Instructions:
-{instructions_to_save}"""
-            if character.style:
-                full_prompt += f"""
-
-Response Style:
-{character.style}"""
-            # НЕ добавляем дефолтные инструкции в конец промпта
-            logger.debug("[UPDATE CHARACTER] промпт без дефолтных инструкций")
+        # Обновляем поля в зависимости от языка ввода
+        if input_lang == 'ru':
+            db_char.personality_ru = character.personality
+            db_char.situation_ru = character.situation
+            db_char.instructions_ru = instructions_to_save
+            db_char.style_ru = character.style
+            db_char.appearance_ru = character.appearance
+            db_char.location_ru = character.location
         else:
-            # Если remove_default_instructions = False, дефолтные инструкции не добавляются автоматически
-            logger.debug("[UPDATE CHARACTER] дефолтные инструкции не удаляются")
+             # Default to EN for others
+            db_char.personality_en = character.personality
+            db_char.situation_en = character.situation
+            db_char.instructions_en = instructions_to_save
+            db_char.style_en = character.style
+            db_char.appearance_en = character.appearance
+            db_char.location_en = character.location
+            
+            
+        # Clear/Ignore prompt column as it is deprecated
+        # db_char.prompt = None # Removed because prompt is now a property without setter
         
-        # Обновляем поля
-        db_char.prompt = full_prompt
         db_char.character_appearance = character.appearance
         db_char.location = character.location
         # Автоматически добавляем теги в зависимости от создателя персонажа
@@ -3345,6 +3648,17 @@ Response Style:
         # КРИТИЧНО: Формируем voice_url из voice_id для корректной работы TTS
         if db_char.voice_id and not db_char.voice_url:
             db_char.voice_url = f"/default_character_voices/{db_char.voice_id}"
+            
+        # Автоматически переводим обновленного персонажа
+        if text_fields_changed:
+            target_lang = 'en' if input_lang == 'ru' else 'ru'
+            try:
+                from app.services.translation_service import auto_translate_and_save_character
+                # Используем force=True, так как исходные поля изменились, и нам нужно обновить перевод
+                await auto_translate_and_save_character(db_char, db, target_lang=target_lang, force=True)
+                logger.info(f"[UPDATE_CHAR] Персонаж {db_char.id} автоматически переведен на {target_lang}")
+            except Exception as e:
+                logger.warning(f"[UPDATE_CHAR] Не удалось перевести персонажа {db_char.id}: {e}")
         
         if text_fields_changed:
             logger.info(f"Персонаж '{new_character_name}' обновлён (user {current_user.id})")
@@ -4394,12 +4708,38 @@ async def upload_image_file(
         character_name: Имя персонажа (для main_photos или платного альбома)
         is_paid_album: Если True, добавляет в платный альбом, иначе в main_photos
     """
-    # Проверяем права доступа - только админы
-    if not current_user.is_admin:
+    # Проверяем подписку
+    from app.services.subscription_service import SubscriptionService
+    subscription_service = SubscriptionService(db)
+    subscription = await subscription_service.get_user_subscription(current_user.id)
+    
+    is_premium = False
+    if subscription and subscription.is_active:
+        if subscription.subscription_type.value.lower() in ['standard', 'premium']:
+            is_premium = True
+
+    # Проверяем права доступа - только админы или PREMIUM/STANDARD для своих персонажей
+    if not current_user.is_admin and not is_premium:
         raise HTTPException(
             status_code=403,
-            detail="Только администраторы могут загружать изображения с компьютера"
+            detail="Только администраторы или пользователи с подпиской Standard/Premium могут загружать изображения"
         )
+    
+    # Если указан персонаж, проверяем владение
+    character = None
+    if character_name:
+        from app.chat_bot.models.models import CharacterDB
+        result = await db.execute(
+            select(CharacterDB).where(CharacterDB.name.ilike(character_name))
+        )
+        character = result.scalar_one_or_none()
+        
+        if character and not current_user.is_admin:
+            if character.user_id != current_user.id:
+                 raise HTTPException(
+                    status_code=403,
+                    detail="Вы можете загружать фото только для своих персонажей"
+                )
     
     # Проверяем тип файла
     if not file.content_type or not file.content_type.startswith('image/'):
@@ -4442,13 +4782,8 @@ async def upload_image_file(
         # Если указан персонаж и is_paid_album=True, добавляем фото в платный альбом
         # Для main_photos фото НЕ добавляется автоматически - пользователь должен выбрать его из списка "Сгенерированные фото"
         if character_name and is_paid_album:
-            from app.chat_bot.models.models import CharacterDB, PaidAlbumPhoto
+            from app.chat_bot.models.models import PaidAlbumPhoto
             from app.routers.gallery import PAID_ALBUM_LIMIT
-            
-            result = await db.execute(
-                select(CharacterDB).where(CharacterDB.name.ilike(character_name))
-            )
-            character = result.scalar_one_or_none()
             
             if character:
                 # Проверяем лимит

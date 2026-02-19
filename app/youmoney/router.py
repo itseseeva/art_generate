@@ -287,27 +287,10 @@ async def youmoney_quickpay_notify(request: Request):
 		service = ProfitActivateService(db)
 		
 		try:
-			if payment_type == "topup" and package_id:
-				# Разовая покупка кредитов
-				package = get_credit_package(package_id)
-				if not package:
-					logging.warning("[YOUMONEY NOTIFY] unknown package_id: %s", package_id)
-					raise HTTPException(status_code=400, detail=f"Unknown package: {package_id}")
-				
-				# Проверяем сумму (допускаем небольшую погрешность из-за комиссий)
-				if amount_val + 1e-6 < package.price * 0.95:  # Минимум 95% от цены
-					logging.warning("[YOUMONEY NOTIFY] amount too low: %s (expected ~%s) for package=%s", amount_val, package.price, package_id)
-					raise HTTPException(status_code=400, detail=f"amount too low ({amount_val} < {package.price * 0.95})")
-				
-				result = await service.add_credits_topup(user_id, package.credits)
-				logging.info("[YOUMONEY NOTIFY] credits top-up: user_id=%s package=%s credits=%s", user_id, package_id, package.credits)
-				
-				# Помечаем транзакцию как обработанную
-				transaction.processed = True
-				transaction.processed_at = datetime.utcnow()
-				await db.commit()
-				
-				return {"ok": True, "user_id": user_id, "type": "topup", "package": package_id, "credits": package.credits}
+			if payment_type == "topup":
+				# Разовая покупка кредитов (ОТКЛЮЧЕНО)
+				logging.warning("[YOUMONEY NOTIFY] Topup attempt (DEPRECATED): user_id=%s, package_id=%s", user_id, package_id)
+				return {"ok": True, "message": "Credit top-up is deprecated.", "type": "topup"}
 			else:
 				# Обычная подписка
 				min_amount = (cfg["min_premium"] if plan == "premium" else cfg["min_standard"])

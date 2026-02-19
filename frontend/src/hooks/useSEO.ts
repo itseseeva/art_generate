@@ -8,11 +8,12 @@ export interface SEOConfig {
     ogTitle?: string;
     ogDescription?: string;
     ogImage?: string;
+    hreflangs?: { hreflang: string; href: string }[];
 }
 
 /**
  * Custom hook для управления SEO мета-тегами
- * Обновляет title, description, canonical link и Open Graph теги
+ * Обновляет title, description, canonical link, Open Graph теги и hreflang
  */
 export const useSEO = (config: SEOConfig) => {
     useEffect(() => {
@@ -143,5 +144,28 @@ export const useSEO = (config: SEOConfig) => {
             }
             metaTwitterImage.setAttribute('content', config.ogImage);
         }
-    }, [config.title, config.description, config.canonical, config.keywords, config.ogTitle, config.ogDescription, config.ogImage]);
+
+        // Обновление hreflang
+        const existingHreflangs = document.querySelectorAll('link[rel="alternate"][hreflang]');
+        existingHreflangs.forEach(el => el.remove());
+
+        if (config.hreflangs && config.hreflangs.length > 0) {
+            config.hreflangs.forEach(lang => {
+                const link = document.createElement('link');
+                link.setAttribute('rel', 'alternate');
+                link.setAttribute('hreflang', lang.hreflang);
+                link.setAttribute('href', lang.href);
+                document.head.appendChild(link);
+            });
+        }
+    }, [
+        config.title,
+        config.description,
+        config.canonical,
+        config.keywords,
+        config.ogTitle,
+        config.ogDescription,
+        config.ogImage,
+        JSON.stringify(config.hreflangs)
+    ]);
 };

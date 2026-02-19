@@ -114,8 +114,8 @@ def count_message_tokens(message: Dict[str, str]) -> int:
         return (len(role) + len(content)) // 4
     
     # Подсчитываем токены для role и content
-    role = message.get("role", "")
-    content = message.get("content", "")
+    role = message.get("role") or ""
+    content = message.get("content") or ""
     
     # Формируем строку для подсчета (как в OpenAI API)
     # Формат: "role: {role}\ncontent: {content}"
@@ -148,7 +148,9 @@ def count_messages_tokens(messages: List[Dict[str, str]]) -> int:
 async def trim_messages_to_token_limit(
     messages: List[Dict[str, str]],
     max_tokens: int,
-    system_message_index: int = 0
+    system_message_index: int = 0,
+    target_language: str = None,
+    brevity_mode: str = None
 ) -> List[Dict[str, str]]:
     """
     Асинхронно обрезает массив сообщений, чтобы не превысить лимит токенов.
@@ -158,6 +160,8 @@ async def trim_messages_to_token_limit(
         messages: Массив сообщений
         max_tokens: Максимальное количество токенов для контекста
         system_message_index: Индекс системного сообщения (обычно 0)
+        target_language: Целевой язык (для логирования)
+        brevity_mode: Режим краткости (для логирования)
 
     Returns:
         Обрезанный массив сообщений
@@ -184,10 +188,39 @@ async def trim_messages_to_token_limit(
     # Подсчитываем токены системного сообщения
     system_tokens = count_message_tokens(system_message)
     available_tokens = max_tokens - system_tokens
+    
+    # Формируем доп. инфо для логов
+    extra_info = ""
+    if target_language:
+        extra_info += f"  ├─ [LANGUAGE] Target language: {target_language}\n"
+    if brevity_mode:
+        extra_info += f"  ├─ [PROMPT DEBUG] Brevity Mode: {brevity_mode}\n"
+        
+    # Ищем правило 7 (Character set) в системном промпте для подтверждения
+    if system_message and "content" in system_message:
+        content = system_message["content"]
+        if "7. Character set:" in content:
+            try:
+                start_idx = content.find("7. Character set:")
+                # Ищем конец строки или логический конец правила
+                end_idx = content.find("\n", start_idx)
+                if end_idx == -1:
+                    rule_7_content = content[start_idx:]
+                else:
+                    rule_7_content = content[start_idx:end_idx]
+                
+                # Обрезаем длинную строку если нужно
+                if len(rule_7_content) > 200:
+                    rule_7_content = rule_7_content[:200] + "..."
+                    
+                extra_info += f"  ├─ [RULE 7 CHECK] {rule_7_content}\n"
+            except Exception:
+                pass
 
     logger.info(
         f"\n{'='*80}\n"
         f"[КОНТЕКСТ] 📊 Анализ памяти диалога:\n"
+        f"{extra_info}"
         f"  ├─ Лимит контекста: {max_tokens} токенов\n"
         f"  ├─ System prompt: {system_tokens} токенов\n"
         f"  ├─ Доступно для истории: {available_tokens} токенов\n"

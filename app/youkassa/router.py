@@ -319,72 +319,10 @@ async def process_yookassa_webhook(
 		
 		service = ProfitActivateService(db)
 		
-		if payment_type == "topup" and package_id:
-			# Покупка кредитов
-			package = get_credit_package(package_id)
-			if not package:
-				logger.error(f"[YOOKASSA WEBHOOK] Unknown package: {package_id}")
-				raise HTTPException(status_code=400, detail=f"Unknown package: {package_id}")
-			
-			# Определяем комиссию в зависимости от метода оплаты
-			# Комиссии YooKassa:
-			# - СБП: 0.4%
-			# - Банковские карты: 3.5%
-			# - SberPay: 3.5%
-			# - ЮMoney: 3.5%
-			commission_rates = {
-				"sbp": 0.004,  # 0.4% для СБП
-				"bank_card": 0.035,  # 3.5% для банковских карт
-				"sberbank": 0.035,  # 3.5% для SberPay
-				"yoo_money": 0.035,  # 3.5% для ЮMoney
-				"tinkoff_bank": 0.035,  # 3.5% для Тинькофф (по умолчанию)
-			}
-			
-			# Получаем комиссию для метода оплаты (по умолчанию 3.5%)
-			commission_rate = commission_rates.get(payment_method, 0.035)
-			
-			# Рассчитываем минимальную сумму с учетом комиссии
-			# Если пользователь заплатил X, то после комиссии мы получим X * (1 - commission_rate)
-			# Для методов с комиссией 3.5% и суммой 15 руб получаем 14.475 руб
-			# Поэтому используем 95% от цены пакета для учета комиссий
-			amount_after_commission = amount * (1 - commission_rate)
-			min_expected_amount = package.price * 0.95  # 95% от цены пакета (учет комиссий до 3.5%)
-			
-			if amount_after_commission < min_expected_amount:
-				logger.error(
-					f"[YOOKASSA WEBHOOK] Amount too low after commission: "
-					f"amount={amount}, method={payment_method}, commission_rate={commission_rate}, "
-					f"amount_after_commission={amount_after_commission:.2f} < {min_expected_amount:.2f} "
-					f"(package price: {package.price}, package_id: {package_id})"
-				)
-				raise HTTPException(
-					status_code=400,
-					detail=f"Amount too low after commission: {amount_after_commission:.2f} < {min_expected_amount:.2f} (expected ~{package.price})"
-				)
-			
-			logger.info(
-				f"[YOOKASSA WEBHOOK] Amount check passed: amount={amount}, "
-				f"method={payment_method}, commission_rate={commission_rate}, "
-				f"amount_after_commission={amount_after_commission:.2f}, "
-				f"package_price={package.price}"
-			)
-			
-			logger.info(
-				f"[YOOKASSA WEBHOOK] Processing topup: user_id={user_id}, "
-				f"package_id={package_id}, amount={amount}, expected={package.price}, "
-				f"credits={package.credits}"
-			)
-			
-			result = await service.add_credits_topup(user_id, package.credits)
-			logger.info(
-				f"[YOOKASSA WEBHOOK] ✅ Credits added successfully: "
-				f"user_id={user_id}, credits={package.credits}"
-			)
-			
-			transaction.processed = True
-			await db.commit()
-			
-			return {"status": "ok", "type": "topup", "credits": package.credits}
+		if payment_type == "topup":
+			# Покупка кредитов (ОТКЛЮЧЕНО)
+			logger.warning(f"[YOOKASSA WEBHOOK] Topup attempt (DEPRECATED): user_id={user_id}, package_id={package_id}")
+			return {"status": "error", "message": "Система кредитов удалена. Пожалуйста, используйте подписки."}
 			
 		elif payment_type == "subscription" and plan:
 			# Активация подписки
@@ -571,21 +509,9 @@ async def process_transaction_manually(
 	
 	service = ProfitActivateService(db)
 	
-	if transaction.payment_type == "topup" and transaction.package_id:
-		package = get_credit_package(transaction.package_id)
-		if not package:
-			raise HTTPException(status_code=400, detail=f"Unknown package: {transaction.package_id}")
+	if transaction.payment_type == "topup":
+		return {"status": "error", "message": "Credit top-up is deprecated."}
 		
-		await service.add_credits_topup(transaction.user_id, package.credits)
-		logger.info(
-			f"[YOOKASSA MANUAL] Credits added: user_id={transaction.user_id}, "
-			f"credits={package.credits}, operation_id={operation_id}"
-		)
-		
-		transaction.processed = True
-		await db.commit()
-		
-		return {"status": "ok", "type": "topup", "credits": package.credits}
 	
 	elif transaction.payment_type == "subscription" and transaction.subscription_type:
 		months = getattr(transaction, 'months', 1) or 1

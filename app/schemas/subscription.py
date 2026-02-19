@@ -12,11 +12,8 @@ class SubscriptionStatsResponse(BaseModel):
     
     subscription_type: str
     status: str
-    monthly_credits: int
     monthly_photos: int
-    used_credits: int
     used_photos: int
-    credits_remaining: int
     photos_remaining: int
     days_left: int
     is_active: bool
@@ -51,11 +48,8 @@ class SubscriptionInfoResponse(BaseModel):
     user_id: int
     subscription_type: str
     status: str
-    monthly_credits: int
     monthly_photos: int
-    used_credits: int
     used_photos: int
-    credits_remaining: int
     photos_remaining: int
     activated_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None

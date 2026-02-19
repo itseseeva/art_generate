@@ -1,177 +1,24 @@
 import React from 'react';
-import styled from 'styled-components';
-import { theme } from '../theme';
+import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../hooks/useIsMobile';
-
 import { Footer } from './Footer';
 import DarkVeil from '../../@/components/DarkVeil';
-
-const MainContainer = styled.div`
-  width: 100%;
-  min-height: 100vh;
-  padding: 0;
-  overflow-y: visible;
-  position: relative;
-  font-family: 'Inter', sans-serif;
-  color: white;
-`;
-
-const BackgroundWrapper = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 0;
-  pointer-events: none;
-`;
-
-const Container = styled.div`
-  padding: 4rem 2rem;
-  max-width: 1000px;
-  margin: 0 auto;
-  color: ${theme.colors.text.primary};
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-`;
-
-const Content = styled.div`
-  flex: 1;
-  position: relative;
-  z-index: 1;
-`;
-
-const Title = styled.h1`
-  font-size: 3.5rem;
-  margin-bottom: 3rem;
-  background: linear-gradient(135deg, #ffffff 0%, #a78bfa 50%, #8b5cf6 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  text-align: center;
-  position: relative;
-  
-  &::after {
-    content: '';
-    position: absolute;
-    bottom: -10px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 200px;
-    height: 3px;
-    background: linear-gradient(90deg, transparent, #8b5cf6, transparent);
-    border-radius: 2px;
-  }
-`;
-
-const Section = styled.section`
-  margin-bottom: 3.5rem;
-  padding: 2.5rem;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 
-              inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 4px;
-    height: 100%;
-    background: linear-gradient(180deg, #8b5cf6, #6366f1);
-    opacity: 0.6;
-  }
-  
-  &:hover {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
-    border-color: rgba(139, 92, 246, 0.3);
-    transform: translateX(5px);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3), 
-                inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  }
-`;
-
-const SectionTitle = styled.h2`
-  font-size: 2rem;
-  margin-bottom: 1.5rem;
-  background: linear-gradient(135deg, #ffffff 0%, #a78bfa 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  font-weight: 600;
-  position: relative;
-  padding-left: 1rem;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 4px;
-    height: 24px;
-    background: linear-gradient(180deg, #8b5cf6, #6366f1);
-    border-radius: 2px;
-  }
-`;
-
-const Text = styled.p`
-  font-size: 1.05rem;
-  line-height: 1.8;
-  margin-bottom: 1.25rem;
-  color: #d1d1d1;
-  
-  strong {
-    color: #ffffff;
-    font-weight: 600;
-    background: linear-gradient(135deg, #ffffff 0%, #a78bfa 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-  
-  br {
-    line-height: 2;
-  }
-`;
-
-const List = styled.ul`
-  margin-left: 1.5rem;
-  margin-bottom: 1rem;
-  color: #d1d1d1;
-`;
-
-const ListItem = styled.li`
-  margin-bottom: 0.75rem;
-  line-height: 1.6;
-  list-style-type: disc;
-`;
-
-const Subsection = styled.div`
-  margin-top: 1.5rem;
-  padding-left: 1rem;
-  border-left: 2px solid rgba(139, 92, 246, 0.3);
-`;
-
-const SubsectionTitle = styled.h3`
-  font-size: 1.3rem;
-  margin-bottom: 0.75rem;
-  color: #e5e5e5;
-  font-weight: 600;
-`;
+import {
+  MainContainer,
+  BackgroundWrapper,
+  Container,
+  Content,
+  Title,
+  Section,
+  SectionTitle,
+  Text,
+  Subsection,
+  SubsectionTitle,
+  RecursiveContent
+} from './LegalStyles';
 
 export const LegalPage: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const isMobile = useIsMobile();
 
   return (
@@ -181,175 +28,72 @@ export const LegalPage: React.FC = () => {
       </BackgroundWrapper>
       <Container>
         <Content>
-        <Title>Правовая информация</Title>
+          <Title>{t('legal.title')}</Title>
 
-        <Section>
-          <SectionTitle>Договор оферты</SectionTitle>
-          <Text>
-            Настоящий документ является официальным предложением (публичной офертой) Крецу Василе (ИНН 772426525886), предоставляющего доступ к онлайн-сервису генерации изображений с использованием технологий искусственного интеллекта.
-          </Text>
-          <Text>
-            <strong>1. Предмет договора</strong><br/>
-            1.1. Исполнитель предоставляет Заказчику доступ к функционалу сервиса после оплаты выбранного тарифа.<br/>
-            1.2. Услуги оказываются дистанционно, в электронном виде.<br/>
-            1.3. Сервис предоставляет возможность создания персонализированных персонажей, генерации изображений и взаимодействия с искусственным интеллектом.<br/>
-            1.4. Доступ к сервису предоставляется через веб-интерфейс после регистрации и авторизации пользователя.
-          </Text>
-          <Text>
-            <strong>2. Порядок предоставления доступа</strong><br/>
-            2.1. После завершения оплаты доступ предоставляется автоматически в личном кабинете пользователя.<br/>
-            2.2. Объём доступных функций зависит от выбранного тарифа (FREE, STANDARD, PREMIUM).<br/>
-            2.3. Факт оплаты подтверждается электронным чеком.<br/>
-            2.4. Продление подписки возможно в любое время до истечения текущего периода.
-          </Text>
-          <Text>
-            <strong>3. Оплата услуг</strong><br/>
-            3.1. Оплата осуществляется безналичным способом через подключённые платёжные системы (ЮKassa, ЮMoney, СБП).<br/>
-            3.2. Стоимость тарифов указана на сайте и может быть изменена Исполнителем в одностороннем порядке, при этом изменения не применяются к уже оплаченным услугам.<br/>
-            3.3. Услуги не облагаются НДС (ст. 346.11 НК РФ).<br/>
-            3.4. Оплата считается произведённой с момента поступления денежных средств на счёт Исполнителя.<br/>
-          </Text>
-          <Text>
-            <strong>4. Возврат средств</strong><br/>
-            4.1. Возврат осуществляется в случае, если доступ к сервису не был предоставлен по технической ошибке со стороны Исполнителя.<br/>
-            4.2. Обращение на возврат направляется на email службы поддержки pixotujepayo06@gmail.com в течение 14 дней с момента оплаты.<br/>
-            4.3. Возвраты не осуществляются, если услуга фактически оказана (доступ предоставлен и использован).<br/>
-            4.4. Возврат средств производится на тот же платёжный инструмент, с которого была произведена оплата, в срок до 10 рабочих дней.<br/>
-            4.5. При возврате средств Исполнитель вправе удержать комиссию платёжных систем, если таковая была применена.
-          </Text>
-          <Text>
-            <strong>5. Права и обязанности сторон</strong><br/>
-            5.1. Заказчик обязуется использовать сервис в соответствии с его назначением и не нарушать права третьих лиц.<br/>
-            5.2. Исполнитель обязуется обеспечивать работоспособность сервиса в пределах технических возможностей.<br/>
-            5.3. Исполнитель не несёт ответственности за невозможность использования сервиса по причинам, не зависящим от него (технические сбои у провайдеров, действия третьих лиц и т.д.).<br/>
-            5.4. Заказчик несёт ответственность за конфиденциальность своих учетных данных и за все действия, совершённые под его учётной записью.
-          </Text>
-        </Section>
+          {/* Offer Section */}
+          <Section>
+            <SectionTitle>{t('legal.offer.title')}</SectionTitle>
+            <Text>{t('legal.offer.intro')}</Text>
+            {['1', '2', '3', '4', '5'].map(key => (
+              <Text key={key}>
+                <strong>{t(`legal.offer.items.${key}.title`)}</strong><br />
+                <span dangerouslySetInnerHTML={{ __html: t(`legal.offer.items.${key}.text`) }} />
+              </Text>
+            ))}
+          </Section>
 
-        <Section>
-          <SectionTitle>Политика конфиденциальности</SectionTitle>
-          <Text>
-            <strong>1. Какие данные собираются</strong><br/>
-            1.1. Email для регистрации и авторизации.<br/>
-            1.2. Технические данные (IP-адрес, cookie, тип браузера, операционная система) для работы сайта и обеспечения безопасности.<br/>
-            1.3. Данные об использовании сервиса (история сообщений, созданные персонажи, сгенерированные изображения) для предоставления функционала.<br/>
-            1.4. Платёжные данные обрабатываются платёжными системами и не сохраняются на серверах Исполнителя.
-          </Text>
-          <Text>
-            <strong>2. Как используются данные</strong><br/>
-            2.1. Для создания и ведения личного кабинета пользователя.<br/>
-            2.2. Для обеспечения работы сервиса и его функционала.<br/>
-            2.3. Для обработки платежей и управления подписками.<br/>
-            2.4. Для улучшения качества сервиса и разработки новых функций.<br/>
-            2.5. Для связи с пользователем по вопросам, связанным с использованием сервиса.<br/>
-            2.6. Данные не передаются третьим лицам, за исключением случаев, предусмотренных законом или необходимым для работы сервиса (платёжные системы, хостинг-провайдеры).
-          </Text>
-          <Text>
-            <strong>3. Безопасность данных</strong><br/>
-            3.1. Доступ к данным ограничен и защищён техническими мерами безопасности.<br/>
-            3.2. Используются современные методы шифрования для передачи данных.<br/>
-            3.3. Регулярно проводятся проверки безопасности системы.<br/>
-            3.4. Пароли хранятся в зашифрованном виде и недоступны для администраторов сервиса.<br/>
-            3.5. В случае обнаружения утечки данных пользователи будут уведомлены в кратчайшие сроки.
-          </Text>
-          <Text>
-            <strong>4. Хранение данных</strong><br/>
-            4.1. Данные хранятся в течение всего периода использования сервиса пользователем.<br/>
-            4.2. После удаления аккаунта данные удаляются в течение 30 дней, за исключением случаев, когда их хранение требуется по закону.<br/>
-            4.3. Пользователь вправе запросить удаление своих данных в любое время.
-          </Text>
-          <Text>
-            <strong>5. Cookies и аналогичные технологии</strong><br/>
-            5.1. Сервис использует cookies для обеспечения функциональности и улучшения пользовательского опыта.<br/>
-            5.2. Пользователь может отключить cookies в настройках браузера, однако это может ограничить функциональность сервиса.<br/>
-            5.3. Используются как сессионные, так и постоянные cookies для авторизации и сохранения настроек.
-          </Text>
-        </Section>
+          {/* Privacy Section (dynamic) */}
+          <Section>
+            <RecursiveContent data={t('common:legal.privacy', { returnObjects: true })} isTopLevel={true} />
+          </Section>
 
-        <Section>
-          <SectionTitle>Условия использования сервиса</SectionTitle>
-          <Text>
-            <strong>1. Правила использования</strong><br/>
-            1.1. Пользователь обязуется использовать сервис только в законных целях.<br/>
-            1.2. Запрещается создание, распространение или использование контента, нарушающего права третьих лиц, законодательство или этические нормы.<br/>
-            1.3. Запрещается использование сервиса для создания контента, содержащего незаконные, оскорбительные, дискриминационные материалы.<br/>
-            1.4. Пользователь несёт полную ответственность за создаваемый с помощью сервиса контент.<br/>
-            1.5. Исполнитель оставляет за собой право удалить любой контент, нарушающий правила использования, без предварительного уведомления.
-          </Text>
-          <Text>
-            <strong>2. Ограничение ответственности</strong><br/>
-            2.1. Сервис предоставляется "как есть" без каких-либо гарантий.<br/>
-            2.2. Исполнитель не гарантирует бесперебойную работу сервиса и не несёт ответственности за временные сбои или недоступность сервиса.<br/>
-            2.3. Исполнитель не несёт ответственности за ущерб, возникший в результате использования или невозможности использования сервиса.<br/>
-            2.4. Исполнитель не несёт ответственности за контент, созданный пользователями с помощью сервиса.
-          </Text>
-          <Text>
-            <strong>3. Интеллектуальная собственность</strong><br/>
-            3.1. Все права на сервис, его дизайн, функционал и программное обеспечение принадлежат Исполнителю.<br/>
-            3.2. Пользователь получает право использования сервиса в рамках выбранного тарифа.<br/>
-            3.3. Контент, созданный пользователем с помощью сервиса, является его собственностью при условии соблюдения правил использования.<br/>
-            3.4. Пользователь предоставляет Исполнителю право использовать созданный контент для демонстрации возможностей сервиса (с указанием авторства, если требуется).
-          </Text>
-          <Text>
-            <strong>4. Изменение условий</strong><br/>
-            4.1. Исполнитель оставляет за собой право изменять условия использования сервиса в одностороннем порядке.<br/>
-            4.2. Изменения вступают в силу с момента публикации на сайте.<br/>
-            4.3. Продолжение использования сервиса после внесения изменений означает согласие пользователя с новыми условиями.<br/>
-            4.4. Существенные изменения условий будут доведены до сведения пользователей через уведомления в сервисе или по email.
-          </Text>
-        </Section>
+          {/* Terms Section (dynamic) */}
+          <Section>
+            <RecursiveContent data={t('common:legal.terms', { returnObjects: true })} isTopLevel={true} />
+          </Section>
 
-        <Section>
-          <SectionTitle>Реквизиты и контакты</SectionTitle>
-          <Subsection>
-            <SubsectionTitle>Крецу Василе</SubsectionTitle>
+          {/* Contacts Section */}
+          <Section>
+            <SectionTitle>{t('legal.contacts.title')}</SectionTitle>
+            <Subsection>
+              <SubsectionTitle>{t('legal.contacts.sub1.title')}</SubsectionTitle>
+              <Text>
+                <strong>{t('legal.contacts.sub1.fio')}</strong> {t('legal.contacts.sub1.title')}<br />
+                <strong>{t('legal.contacts.sub1.inn')}</strong> 772426525886<br />
+                <strong>{t('legal.contacts.sub1.ogrnip')}</strong> {t('legal.contacts.sub1.ogrnipVal')}
+              </Text>
+            </Subsection>
+            <Subsection>
+              <SubsectionTitle>{t('legal.contacts.sub2.title')}</SubsectionTitle>
+              <Text>
+                <strong>{t('legal.contacts.sub2.email')}</strong> Vasilexretsu@proton.me<br />
+                <strong>{t('legal.contacts.sub2.emailSupport')}</strong> pixotujepayo06@gmail.com<br />
+                <strong>{t('legal.contacts.sub2.phone')}</strong> +7 995 232-72-19<br />
+                <strong>{t('legal.contacts.sub2.hours')}</strong> {t('legal.contacts.sub2.hoursVal')}
+              </Text>
+            </Subsection>
+            <Subsection>
+              <SubsectionTitle>{t('legal.contacts.sub3.title')}</SubsectionTitle>
+              <Text>
+                <span dangerouslySetInnerHTML={{ __html: t('legal.contacts.sub3.text') }} />
+              </Text>
+            </Subsection>
+          </Section>
+
+          {/* Final Section */}
+          <Section>
+            <SectionTitle>{t('legal.final.title')}</SectionTitle>
+            {['1', '2'].map(key => (
+              <Text key={key}>
+                <strong>{t(`legal.final.items.${key}.title`)}</strong><br />
+                <span dangerouslySetInnerHTML={{ __html: t(`legal.final.items.${key}.text`) }} />
+              </Text>
+            ))}
             <Text>
-              <strong>ФИО:</strong> Крецу Василе<br/>
-              <strong>ИНН:</strong> 772426525886<br/>
-              <strong>ОГРНИП:</strong> (указывается при наличии)
+              <strong>{t(`legal.final.items.3.title`)}</strong><br />
+              <span dangerouslySetInnerHTML={{ __html: t(`legal.final.items.3.text`) }} /> {new Date().toLocaleDateString(i18n.language, { year: 'numeric', month: 'long', day: 'numeric' })}
             </Text>
-          </Subsection>
-          <Subsection>
-            <SubsectionTitle>Контактная информация</SubsectionTitle>
-            <Text>
-              <strong>Email для связи:</strong> Vasilexretsu@proton.me<br/>
-              <strong>Email службы поддержки:</strong> pixotujepayo06@gmail.com<br/>
-              <strong>Телефон:</strong> +7 995 232-72-19<br/>
-              <strong>Время работы поддержки:</strong> Понедельник - Пятница, с 10:00 до 18:00 (МСК)
-            </Text>
-          </Subsection>
-          <Subsection>
-            <SubsectionTitle>Платёжные системы</SubsectionTitle>
-            <Text>
-              Приём платежей осуществляется через:<br/>
-              - ЮKassa (платёжная система)<br/>
-              - ЮMoney (электронные деньги)<br/>
-              - Система быстрых платежей (СБП)<br/>
-              Все платёжные операции защищены в соответствии с требованиями безопасности платёжных систем.
-            </Text>
-          </Subsection>
-        </Section>
-
-        <Section>
-          <SectionTitle>Заключительные положения</SectionTitle>
-          <Text>
-            <strong>1. Разрешение споров</strong><br/>
-            1.1. Все споры и разногласия решаются путём переговоров между сторонами.<br/>
-            1.2. В случае невозможности разрешения спора путём переговоров, споры разрешаются в соответствии с законодательством Российской Федерации.<br/>
-            1.3. Претензионный порядок рассмотрения споров является обязательным. Претензии направляются по указанным контактным данным.
-          </Text>
-          <Text>
-            <strong>2. Применимое право</strong><br/>
-            2.1. Настоящий договор регулируется законодательством Российской Федерации.<br/>
-            2.2. Все вопросы, не урегулированные настоящим договором, решаются в соответствии с действующим законодательством РФ.
-          </Text>
-          <Text>
-            <strong>3. Согласие с условиями</strong><br/>
-            3.1. Регистрация на сайте и использование сервиса означает полное и безоговорочное принятие пользователем всех условий настоящего договора.<br/>
-            3.2. Если пользователь не согласен с какими-либо условиями договора, он должен прекратить использование сервиса.<br/>
-            3.3. Дата последнего обновления условий: {new Date().toLocaleDateString('ru-RU', { year: 'numeric', month: 'long', day: 'numeric' })}.
-          </Text>
-        </Section>
+          </Section>
         </Content>
       </Container>
       <Footer />

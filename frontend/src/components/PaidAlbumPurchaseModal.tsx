@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { theme } from '../theme';
 import { FiAlertCircle as AlertIcon, FiShoppingBag as ShopIcon, FiUnlock as UnlockIcon } from 'react-icons/fi';
 import { authManager } from '../utils/auth';
+import { useTranslation } from 'react-i18next';
 
 const NotificationOverlay = styled.div`
   position: fixed;
@@ -209,6 +210,7 @@ export const PaidAlbumPurchaseModal: React.FC<PaidAlbumPurchaseModalProps> = ({
   userCoins = 0,
   isLoading = false
 }) => {
+  const { t } = useTranslation();
   const [isPurchasing, setIsPurchasing] = useState(false);
 
   useEffect(() => {
@@ -255,20 +257,20 @@ export const PaidAlbumPurchaseModal: React.FC<PaidAlbumPurchaseModalProps> = ({
             <IconWrapper $variant="success">
               <UnlockIcon />
             </IconWrapper>
-            <NotificationTitle $variant="success">Доступ к альбому</NotificationTitle>
+            <NotificationTitle $variant="success">{t('album.purchase.title')}</NotificationTitle>
             <NotificationMessage $variant="success">
-              Только для подписчиков
+              {t('album.purchase.onlyForSubscribers')}
             </NotificationMessage>
             <NotificationMessage $variant="success">
-              Для просмотра этого альбома необходима подписка STANDARD или PREMIUM.
+              {t('album.purchase.standardPremiumRequired')}
             </NotificationMessage>
             <NotificationButtonGroup>
               <NotificationButton onClick={handleShopClick} $variant="success">
                 <ShopIcon />
-                Оформить подписку
+                {t('album.purchase.subscribe')}
               </NotificationButton>
               <NotificationCancelButton onClick={onClose}>
-                Отмена
+                {t('common.cancel')}
               </NotificationCancelButton>
             </NotificationButtonGroup>
           </NotificationContent>
@@ -287,10 +289,10 @@ export const PaidAlbumPurchaseModal: React.FC<PaidAlbumPurchaseModalProps> = ({
             <IconWrapper $variant="success">
               <UnlockIcon />
             </IconWrapper>
-            <NotificationTitle $variant="success">Разблокировать альбом</NotificationTitle>
+            <NotificationTitle $variant="success">{t('album.purchase.unlockTitle')}</NotificationTitle>
             <NotificationMessage $variant="success">
-              Альбом персонажа "{characterName}" доступен бесплатно для вашей подписки {subscriptionType.toUpperCase()}.
-              Нажмите "Разблокировать", чтобы получить доступ.
+              {t('album.purchase.standardPremiumFree', { name: characterName, type: subscriptionType.toUpperCase() })}
+              {t('album.purchase.clickUnlock')}
             </NotificationMessage>
             <NotificationButtonGroup>
               <NotificationButton
@@ -298,10 +300,10 @@ export const PaidAlbumPurchaseModal: React.FC<PaidAlbumPurchaseModalProps> = ({
                 disabled={isPurchasing || isLoading}
                 $variant="success"
               >
-                {isPurchasing || isLoading ? 'Разблокировка...' : 'Разблокировать'}
+                {isPurchasing || isLoading ? t('album.purchase.unlocking') : t('album.purchase.unlock')}
               </NotificationButton>
               <NotificationCancelButton onClick={onClose}>
-                Отмена
+                {t('common.cancel')}
               </NotificationCancelButton>
             </NotificationButtonGroup>
           </NotificationContent>

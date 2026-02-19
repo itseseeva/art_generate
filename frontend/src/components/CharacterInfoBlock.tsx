@@ -2,48 +2,23 @@ import React, { useState, useMemo, useEffect } from 'react';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import { ChevronDown, ChevronUp, MapPin, User, Sparkles, Brain } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { API_CONFIG } from '../config/api';
 
 import { translateToRussian } from '../utils/translate';
+import { useCharacterTranslation } from '../hooks/useCharacterTranslation';
 
 interface CharacterInfoBlockProps {
   character: any;
 }
 
 export const CharacterInfoBlock: React.FC<CharacterInfoBlockProps> = ({ character }) => {
+  const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
   const [availableTags, setAvailableTags] = useState<any[]>([]);
-  const [translatedAppearance, setTranslatedAppearance] = useState<string>('');
-  const [translatedLocation, setTranslatedLocation] = useState<string>('');
+  const { tChar } = useCharacterTranslation(character);
 
   if (!character) return null;
-
-  // Автоматический перевод полей на русский язык
-  useEffect(() => {
-    let isMounted = true;
-
-    const translateFields = async () => {
-      if (character.character_appearance) {
-        const translated = await translateToRussian(character.character_appearance);
-        if (isMounted) setTranslatedAppearance(translated);
-      } else {
-        if (isMounted) setTranslatedAppearance('');
-      }
-
-      if (character.location) {
-        const translated = await translateToRussian(character.location);
-        if (isMounted) setTranslatedLocation(translated);
-      } else {
-        if (isMounted) setTranslatedLocation('');
-      }
-    };
-
-    translateFields();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [character.character_appearance, character.location]);
 
   // Загружаем список всех доступных тегов из API один раз при монтировании
   useEffect(() => {
@@ -122,14 +97,33 @@ export const CharacterInfoBlock: React.FC<CharacterInfoBlockProps> = ({ characte
     };
   }, [prompt]);
 
-  const description = character.description || character.greeting || "Описание отсутствует";
+  const description = tChar('description') || character.description || character.greeting || t('characterCard.noDescription');
 
-  // Генерация JSON-LD для SEO
+  // Приоритет: 1. tChar (берет из новых полей), 2. extract из prompt, 3. fallback (не имя)
+  const displayPersonality = tChar('personality') || extractedData.personality || "";
+
+  const displaySituation = useMemo(() => {
+    const fromT = tChar('situation');
+    if (fromT) return fromT;
+
+    // Only use description if it's NOT just the character name
+    const fallbackDesc = (character.description && character.description.toLowerCase() !== character.name.toLowerCase())
+      ? character.description
+      : "";
+
+    if (extractedData.situation) return extractedData.situation;
+    return fallbackDesc;
+  }, [tChar, extractedData.situation, character.description, character.name]);
+
+  const displayAppearance = tChar('appearance') || character.character_appearance || "";
+  const displayLocation = tChar('location') || character.location || "";
+  const translatedTagsList = tChar<string[]>('tags');
+
   const jsonLd = useMemo(() => {
     return {
       "@context": "https://schema.org",
       "@type": "Person",
-      "name": character.display_name || character.name,
+      "name": tChar('name') || character.display_name || character.name,
       "description": description,
       "image": character.avatar,
       "identifier": character.id,
@@ -137,22 +131,22 @@ export const CharacterInfoBlock: React.FC<CharacterInfoBlockProps> = ({ characte
         {
           "@type": "PropertyValue",
           "name": "Appearance",
-          "value": translatedAppearance || character.character_appearance || "Not specified"
+          "value": displayAppearance || "Not specified"
         },
         {
           "@type": "PropertyValue",
           "name": "Location",
-          "value": translatedLocation || character.location || "Not specified"
+          "value": displayLocation || "Not specified"
         },
         {
           "@type": "PropertyValue",
           "name": "Personality",
-          "value": extractedData.personality || "Not specified"
+          "value": displayPersonality || "Not specified"
         },
         {
           "@type": "PropertyValue",
           "name": "Role-playing Situation",
-          "value": extractedData.situation || "Not specified"
+          "value": displaySituation || "Not specified"
         },
         {
           "@type": "PropertyValue",
@@ -161,7 +155,7 @@ export const CharacterInfoBlock: React.FC<CharacterInfoBlockProps> = ({ characte
         }
       ]
     };
-  }, [character, description, extractedData, tags, translatedAppearance, translatedLocation]);
+  }, [character, description, displayPersonality, displaySituation, displayAppearance, displayLocation, tags, tChar]);
 
   const handleTagClick = (tag: { name: string; slug: string }) => {
     const slug = tag.slug;
@@ -177,12 +171,12 @@ export const CharacterInfoBlock: React.FC<CharacterInfoBlockProps> = ({ characte
         {JSON.stringify(jsonLd)}
       </script>
 
-      <Title>О ПЕРСОНАЖЕ</Title>
+      <Title>{t('characterCard.about')}</Title>
 
       <ExpandButtonContainer
         $isExpanded={isExpanded}
         onClick={() => setIsExpanded(!isExpanded)}
-        aria-label={isExpanded ? "Свернуть" : "Подробнее"}
+        aria-label={isExpanded ? t('characterCard.collapse') : t('characterCard.expand')}
       >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="6 9 12 15 18 9"></polyline>
@@ -196,37 +190,55 @@ export const CharacterInfoBlock: React.FC<CharacterInfoBlockProps> = ({ characte
           </DescriptionText>
 
           <ExtraDetailsWrapper>
-            {character.character_appearance && (
+            {displayAppearance && (
               <DetailRow>
-                <DetailLabel><User size={12} /> Внешность:</DetailLabel>
-                <span>{translatedAppearance || character.character_appearance}</span>
+                <DetailLabel><User size={12} /> {t('characterCard.appearance')}:</DetailLabel>
+                <span>{displayAppearance}</span>
               </DetailRow>
             )}
 
-            {character.location && (
+            {displayLocation && (
               <DetailRow>
-                <DetailLabel><MapPin size={12} /> Локация:</DetailLabel>
-                <span>{translatedLocation || character.location}</span>
+                <DetailLabel><MapPin size={12} /> {t('characterCard.location')}:</DetailLabel>
+                <span>{displayLocation}</span>
               </DetailRow>
             )}
 
-            {extractedData.personality && (
+            {displayPersonality && (
               <DetailRow>
-                <DetailLabel><Brain size={12} /> Личность:</DetailLabel>
-                <span>{extractedData.personality}</span>
+                <DetailLabel><Brain size={12} /> {t('characterCard.personality')}:</DetailLabel>
+                <span>{displayPersonality}</span>
+              </DetailRow>
+            )}
+
+            {displaySituation && (
+              <DetailRow>
+                <DetailLabel><Sparkles size={12} /> {t('characterCard.situation')}:</DetailLabel>
+                <span>{displaySituation}</span>
               </DetailRow>
             )}
 
             {tags.length > 0 && (
               <div style={{ marginTop: 8 }}>
-                <DetailLabel style={{ marginBottom: 6 }}><Sparkles size={12} /> Теги:</DetailLabel>
+                <DetailLabel style={{ marginBottom: 6 }}><Sparkles size={12} /> {t('characterCard.tags')}:</DetailLabel>
                 <TagContainer>
-                  {tags.map((tag, idx) => (
-                    <Tag key={idx} onClick={(e) => {
-                      e.stopPropagation();
-                      handleTagClick(tag);
-                    }}>{tag.name}</Tag>
-                  ))}
+                  {tags.map((tag, idx) => {
+                    let displayText = tag.name;
+
+                    if (Array.isArray(translatedTagsList) && Array.isArray(character.tags)) {
+                      const originalIndex = character.tags.indexOf(tag.name);
+                      if (originalIndex !== -1 && translatedTagsList[originalIndex]) {
+                        displayText = translatedTagsList[originalIndex];
+                      }
+                    }
+
+                    return (
+                      <Tag key={idx} onClick={(e) => {
+                        e.stopPropagation();
+                        handleTagClick(tag);
+                      }}>{displayText}</Tag>
+                    );
+                  })}
                 </TagContainer>
               </div>
             )}
@@ -242,7 +254,8 @@ const RootWrapper = styled.div`
   flex-direction: column;
   align-items: center;
   width: 100%;
-  margin-top: -${theme.spacing.lg};
+  margin-top: 0;
+  margin-bottom: ${theme.spacing.xl};
   position: relative;
   z-index: 5;
 `;
