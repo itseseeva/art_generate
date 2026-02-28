@@ -42,12 +42,13 @@ async def populate_tags():
     async with async_session_maker() as db:
         # 1. Проверяем наличие колонки seo_description и добавляем если нет
         try:
-            await db.execute(text("ALTER TABLE character_available_tags ADD COLUMN seo_description TEXT"))
+            # Используем IF NOT EXISTS для PostgreSQL, чтобы избежать ошибки
+            await db.execute(text("ALTER TABLE character_available_tags ADD COLUMN IF NOT EXISTS seo_description TEXT"))
             await db.commit()
-            logger.info("Добавлена колонка seo_description.")
+            logger.info("Проверка колонки seo_description успешно выполнена.")
         except Exception as e:
             # Если колонка уже есть, будет ошибка, просто игнорируем
-            # logger.info(f"Колонка seo_description уже существует или произошла ошибка: {e}")
+            logger.info(f"Колонка seo_description уже существует или произошла ошибка: {e}")
             await db.rollback()
 
         for name, seo in TAGS_DATA.items():
