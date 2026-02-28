@@ -214,6 +214,36 @@ const SidebarContent = styled.div<{ $isCollapsed?: boolean; $isMobile?: boolean 
   }
 `;
 
+const FooterLinks = styled.div<{ $isCollapsed?: boolean }>`
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.6rem 0.8rem;
+  padding: 1rem;
+  margin-top: auto;
+  opacity: ${props => props.$isCollapsed ? 0 : 0.4};
+  transition: opacity 0.3s ease;
+
+  &:hover {
+    opacity: ${props => props.$isCollapsed ? 0 : 0.8};
+  }
+
+  a {
+    color: white;
+    font-size: 0.65rem;
+    text-decoration: none;
+    text-align: center;
+    white-space: nowrap;
+    transition: color 0.2s ease;
+
+    &:hover {
+      color: #22d3ee;
+    }
+  }
+`;
+
 const NSFWToggleWrapper = styled.div`
   display: flex;
   flex-direction: column;
@@ -541,6 +571,13 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
               showLabels={false}
             />
           </DockWrapper>
+          <FooterLinks $isCollapsed={isCollapsed}>
+            <a href="/how-it-works">How it works</a>
+            <a href="/about">About us</a>
+            <a href="/legal">Legal</a>
+            <a href="/terms">Terms of Service</a>
+            <a href="/privacy">Privacy Policy</a>
+          </FooterLinks>
         </SidebarContent>
       </SidebarContainer>
       {showNSFWWarning && (

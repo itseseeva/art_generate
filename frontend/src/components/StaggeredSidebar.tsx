@@ -54,8 +54,8 @@ const SidebarWrapper = styled(motion.div) <{ $isOpen: boolean }>`
   pointer-events: ${props => props.$isOpen ? 'auto' : 'none'};
 
   @media (max-width: 768px) {
-    width: ${props => props.$isOpen ? '100%' : '60px'};
-    max-width: ${props => props.$isOpen ? '300px' : '60px'};
+    width: ${props => props.$isOpen ? '226px' : '60px'};
+    max-width: ${props => props.$isOpen ? '226px' : '60px'};
   }
 `;
 
@@ -134,6 +134,37 @@ const NSFWContainer = styled(motion.div)`
   overflow: hidden;
   white-space: nowrap;
   white-space: nowrap;
+`;
+
+const FooterLinks = styled(motion.div) <{ $isOpen: boolean }>`
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.6rem 0.8rem;
+  padding: 1rem;
+  margin-top: auto;
+  opacity: ${props => props.$isOpen ? 0.4 : 0};
+  transition: opacity 0.3s ease;
+  pointer-events: ${props => props.$isOpen ? 'auto' : 'none'};
+
+  &:hover {
+    opacity: ${props => props.$isOpen ? 0.8 : 0};
+  }
+
+  a {
+    color: white;
+    font-size: 0.65rem;
+    text-decoration: none;
+    text-align: center;
+    white-space: nowrap;
+    transition: color 0.2s ease;
+
+    &:hover {
+      color: #22d3ee;
+    }
+  }
 `;
 
 // --- Animations ---
@@ -318,6 +349,13 @@ export const StaggeredSidebar: React.FC<StaggeredSidebarProps> = ({
                     ))}
                 </MenuContainer>
 
+                <FooterLinks $isOpen={isOpen}>
+                    <a href="/how-it-works">How it works</a>
+                    <a href="/about">About us</a>
+                    <a href="/legal">Legal</a>
+                    <a href="/terms">Terms of Service</a>
+                    <a href="/privacy">Privacy Policy</a>
+                </FooterLinks>
 
             </SidebarWrapper>
 

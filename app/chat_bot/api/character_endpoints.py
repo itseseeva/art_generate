@@ -1402,22 +1402,13 @@ async def read_characters(
             logger.error(f"Ошибка загрузки персонажей из БД: {db_error}")
             return []  # Возвращаем пустой список вместо зависания
         
-        # Функция для обработки URL (проксирование Yandex Cloud)
+        # Функция для обработки URL (используем сервис CDN)
         def process_url(url):
             if not url or not isinstance(url, str):
                 return url
-            if 'storage.yandexcloud.net/' in url:
-                if '.storage.yandexcloud.net/' in url:
-                    object_key = url.split('.storage.yandexcloud.net/')[1]
-                    if object_key:
-                        return f"/media/{object_key}"
-                else:
-                    parts = url.split('storage.yandexcloud.net/')[1]
-                    if parts:
-                        path_segments = parts.split('/')
-                        if len(path_segments) > 1:
-                            return f"/media/{'/'.join(path_segments[1:])}"
-            return url
+            from app.services.yandex_storage import get_yandex_storage_service
+            service = get_yandex_storage_service()
+            return service.convert_yandex_url_to_cdn(url)
 
         # Преобразуем объекты CharacterDB в словари для сериализации
         # Убеждаемся, что обязательные поля присутствуют и не None
@@ -3129,6 +3120,7 @@ async def get_character_chat_history(
 async def update_character(
     character_name: str, 
     character: CharacterUpdate, 
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: Users = Depends(get_current_user)
 ):
@@ -3136,30 +3128,42 @@ async def update_character(
     from app.chat_bot.models.models import CharacterDB
     
     try:
+        # Декодируем имя, так как оно может быть URL-encoded
+        from urllib.parse import unquote
+        decoded_name = unquote(character_name)
+
         # Check character ownership
-        await check_character_ownership(character_name, current_user, db)
+        await check_character_ownership(decoded_name, current_user, db)
         
         # Find character
+        from sqlalchemy import select
         result = await db.execute(
-            select(CharacterDB).where(CharacterDB.name == character_name)
+            select(CharacterDB).where(CharacterDB.name.ilike(decoded_name))
         )
         db_char = result.scalar_one_or_none()
         
+        # Если не найдено по имени, пробуем по ID, если это число
+        if not db_char and decoded_name.isdigit():
+            result = await db.execute(
+                select(CharacterDB).where(CharacterDB.id == int(decoded_name))
+            )
+            db_char = result.scalar_one_or_none()
+
         if not db_char:
             raise HTTPException(
                 status_code=404, 
-                detail=f"Character '{character_name}' not found"
+                detail=f"Character '{decoded_name}' not found"
             )
         
         # Update fields
         if character.name is not None:
             # Check that new name is not taken by another character
-            if character.name != character_name:
+            if character.name != db_char.name:
                 existing_char_result = await db.execute(
                     select(CharacterDB).where(CharacterDB.name == character.name)
                 )
                 existing_char = existing_char_result.scalars().first()
-                if existing_char:
+                if existing_char and existing_char.id != db_char.id:
                     raise HTTPException(
                         status_code=400, 
                         detail=f"Персонаж с именем '{character.name}' уже существует"
@@ -3232,10 +3236,26 @@ async def update_character(
             await db.commit()
             await db.refresh(db_char)
             
-            await auto_translate_and_save_character(db_char, db, target_lang='en')
-            logger.info(f"[UPDATE] Персонаж {db_char.id} автоматически переведен на EN")
+            async def background_translation(char_id: int):
+                from app.database.db import async_session_maker
+                
+                logger.info(f"[BG_TASK_UPDATE] Starting translation for updated char {char_id}")
+                async with async_session_maker() as session:
+                    from sqlalchemy import select
+                    from app.chat_bot.models.models import CharacterDB
+                    stmt = select(CharacterDB).where(CharacterDB.id == char_id)
+                    result = await session.execute(stmt)
+                    char = result.scalar_one_or_none()
+                    if char:
+                        await auto_translate_and_save_character(char, session, target_lang='en')
+                        logger.info(f"[BG_TASK_UPDATE] Character {char_id} translation finished")
+                    else:
+                        logger.warning(f"[BG_TASK_UPDATE] Character {char_id} not found for translation")
+
+            background_tasks.add_task(background_translation, db_char.id)
+            logger.info(f"[UPDATE] Запланирован фоновый перевод на EN для персонажа {db_char.id}")
         except Exception as e:
-            logger.warning(f"[UPDATE] Не удалось перевести персонажа {db_char.id}: {e}")
+            logger.warning(f"[UPDATE] Не удалось запланировать перевод персонажа {db_char.id}: {e}")
             # Не падаем, персонаж уже обновлен
         
         logger.info(f"Character '{character_name}' updated successfully by user {current_user.id}")
@@ -3304,6 +3324,7 @@ async def toggle_character_nsfw(
 async def update_user_character(
     character_name: str, 
     character: UserCharacterCreate, 
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: Users = Depends(get_current_user)
 ):
@@ -3653,12 +3674,22 @@ async def update_user_character(
         if text_fields_changed:
             target_lang = 'en' if input_lang == 'ru' else 'ru'
             try:
-                from app.services.translation_service import auto_translate_and_save_character
-                # Используем force=True, так как исходные поля изменились, и нам нужно обновить перевод
-                await auto_translate_and_save_character(db_char, db, target_lang=target_lang, force=True)
-                logger.info(f"[UPDATE_CHAR] Персонаж {db_char.id} автоматически переведен на {target_lang}")
+                from app.services.translation_service import auto_translate_and_save_character_by_id
+                from app.database.config import get_db_context
+                
+                # Запускаем перевод в фоновой задаче, чтобы не блокировать ответ клиенту
+                async def run_translation_in_background(char_id: int):
+                    async with get_db_context() as bg_db:
+                        try:
+                            await auto_translate_and_save_character_by_id(char_id, bg_db, target_lang=target_lang, force=True)
+                            logger.info(f"[UPDATE_CHAR] Персонаж {char_id} успешно переведен в фоне на {target_lang}")
+                        except Exception as e:
+                            logger.warning(f"[UPDATE_CHAR] Ошибка фонового перевода персонажа {char_id}: {e}")
+                
+                background_tasks.add_task(run_translation_in_background, db_char.id)
+                logger.info(f"[UPDATE_CHAR] Задача перевода для персонажа {db_char.id} добавлена в фон")
             except Exception as e:
-                logger.warning(f"[UPDATE_CHAR] Не удалось перевести персонажа {db_char.id}: {e}")
+                logger.warning(f"[UPDATE_CHAR] Не удалось добавить задачу перевода для персонажа {db_char.id}: {e}")
         
         if text_fields_changed:
             logger.info(f"Персонаж '{new_character_name}' обновлён (user {current_user.id})")
@@ -4592,10 +4623,11 @@ async def set_main_photos(
                 )
             )
             
-            # Save generation_time to ImageGenerationHistory if provided
-            # This ensures the time persists when viewing photos on EditCharacterPage
+            # Save generation_time and prompt to ImageGenerationHistory if provided
+            # This ensures the time and prompt persist when viewing photos on EditCharacterPage
             generation_time = entry.get("generation_time")
-            if generation_time is not None:
+            prompt_from_entry = entry.get("prompt")
+            if generation_time is not None or prompt_from_entry:
                 try:
                     from app.services.image_generation_history_service import ImageGenerationHistoryService
                     from app.models.image_generation_history import ImageGenerationHistory
@@ -4609,23 +4641,26 @@ async def set_main_photos(
                     existing_record = existing_result.scalar_one_or_none()
                     
                     if existing_record:
-                        # Update existing record with generation_time
-                        existing_record.generation_time = float(generation_time)
-                        logger.info(f"Updated generation_time={generation_time} for existing photo {entry['url']}")
+                        # Update existing record with generation_time and/or prompt
+                        if generation_time is not None:
+                            existing_record.generation_time = float(generation_time)
+                        if prompt_from_entry and not existing_record.prompt:
+                            existing_record.prompt = prompt_from_entry
+                        logger.info(f"Updated generation_time={generation_time}, prompt={'set' if prompt_from_entry else 'unchanged'} for existing photo {entry['url']}")
                     else:
-                        # Create new record with generation_time
+                        # Create new record with generation_time and prompt
                         history_service = ImageGenerationHistoryService(db)
                         await history_service.save_generation(
                             user_id=current_user.id,
                             character_name=character_name,
                             image_url=entry["url"],
-                            prompt=None,  # We don't have prompt here
-                            generation_time=float(generation_time),
+                            prompt=prompt_from_entry,  # Save prompt if provided
+                            generation_time=float(generation_time) if generation_time is not None else None,
                             task_id=None
                         )
-                        logger.info(f"Saved generation_time={generation_time} for new photo {entry['url']}")
+                        logger.info(f"Saved generation_time={generation_time}, prompt={'set' if prompt_from_entry else 'None'} for new photo {entry['url']}")
                 except Exception as e:
-                    logger.warning(f"Failed to save generation_time for photo {entry['url']}: {e}")
+                    logger.warning(f"Failed to save generation_time/prompt for photo {entry['url']}: {e}")
 
 
         character.main_photos = json.dumps(unique_photos, ensure_ascii=False)

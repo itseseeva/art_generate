@@ -204,7 +204,7 @@
         },
         "brunette": {
             "label": "Sexy Brunette",
-            "value": "Raven black hair loose over her shoulders. Brown eyes full of promises. Slender figure in revealing lingerie. Glasses off, lips parted waiting for a kiss."
+            "value": "Raven black hair loose over her shoulders. Brown eyes full of promises. Slender figure in revealing lingerie."
         },
         "gothic": {
             "label": "Gothic Seductress",
@@ -290,99 +290,99 @@
     "location": {
         "bedroom": {
             "label": "Passionate Bedroom",
-            "value": "Spacious bedroom with a large bed made with silk sheets. Windows curtained, creating intimate dimness. A candle burns on the nightstand, casting seductive shadows on naked bodies. Here we surrender to passion without limits."
+            "value": "A spacious bedroom with a large bed dressed in satin sheets. Dark curtains drawn, the room in soft dimness. Candles flicker on the nightstand casting a warm glow. A faint scent of perfume lingers. A perfectly private, intimate space."
         },
         "beach": {
             "label": "Night Beach",
-            "value": "Deserted beach in moonlight. Warm sand under naked bodies. The sound of surf drowns out our moans. Here, under the open sky, we lose control and surrender to passion."
+            "value": "A deserted beach under the full moon. Warm fine sand, the gentle lapping of waves at the shore. City lights glimmer in the distance. A starry sky overhead, salty sea air all around. Complete solitude and silence."
         },
         "penthouse": {
             "label": "Penthouse",
-            "value": "Luxurious penthouse with panoramic windows. The night city below, but we don't look there. We're on the floor before the window, naked, surrendering to passion in view of the whole city, but no one sees us."
+            "value": "A luxurious penthouse with floor-to-ceiling panoramic windows. The night city sparkles far below. A spacious living area with designer furniture, soft ambient lighting, and an open terrace overlooking the horizon."
         },
         "springs": {
             "label": "Hot Springs",
-            "value": "Secluded hot spring. Steam hides us from prying eyes. Hot water burns the skin, igniting passion. Here, in the water, we lose control and surrender to desire."
+            "value": "A secluded natural spring nestled among rocks. Hot mineral water steams in the cool night air. Dense forest surrounds it for miles with no one in sight. Stars glimmer through drifting clouds of steam. Absolute silence and isolation."
         },
         "office": {
             "label": "Director's Office",
-            "value": "Office with a massive desk. Blinds down, door locked. I'm on the desk, naked, and you take what you want. Atmosphere of power and submission, passion and control."
+            "value": "A spacious office with a heavy wooden desk. Blinds lowered, silence beyond the door. Shelves lined with documents, a laptop open on the desk. The scent of expensive coffee in the air. Door locked. An atmosphere of authority and order."
         },
         "mansion": {
             "label": "Abandoned Mansion",
-            "value": "An old mansion where time stood still. Dusty mirrors reflect our naked bodies. The fireplace blazes, illuminating our passion. Here no one will hear our cries of pleasure."
+            "value": "An old mansion where time seems to have stopped. High ceilings with ornate plasterwork, tarnished mirrors in gilded frames. A fire crackles in the hearth. Dust on antique furniture, creaking floorboards. A mysterious atmosphere from a bygone era."
         },
         "plane": {
             "label": "Private Jet",
-            "value": "Cabin of a private jet. Seats folded into a bed. We're at 10,000 meters altitude, naked, surrendering to passion. Complete privacy, no one will interfere."
+            "value": "The cabin of a private jet: leather seats, soft lighting, the muffled hum of engines. Clouds and a night sky beyond the porthole. Complete privacy at 10,000 metres altitude."
         },
         "cabin": {
             "label": "Forest Cabin",
-            "value": "Wooden cabin in the wilderness. The stove blazes, warming our naked bodies. Bear skins on the floor where we lose control. Complete isolation, just us and passion."
+            "value": "A wooden cabin deep in the forest. The stove roars, logs crackling. Outside a blizzard rages; inside it is warm and cosy. A bearskin rug on the floor, the smell of timber and woodsmoke. Completely cut off from the outside world."
         },
         "sauna": {
             "label": "VIP Sauna",
-            "value": "Elite sauna. Hot steam ignites passion. We're naked on wooden benches, surrendering to desire in the heat. A pool of cool water waits to cool our heated bodies."
+            "value": "An elite Finnish sauna with cedar benches and a stone stove. Hot steam billows toward the ceiling. A small pool of ice-cold water waits nearby. The scent of juniper in the air. Fully private, no one around."
         },
         "space": {
             "label": "Space Station",
-            "value": "Observation deck. Stars drift past the glass, but we don't look. We're on the floor, naked, losing control in the weightlessness of passion. Future and passion merge into one."
+            "value": "The observation deck of an orbital station. A vast porthole reveals endless black space and the slowly rotating Earth. The quiet hum of life-support systems. Weightlessness and absolute silence outside."
         },
         "dressing": {
             "label": "Dressing Room",
-            "value": "Tight dressing room backstage. Mirror reflects our naked bodies. Costumes scattered, makeup knocked over. Here, in the tightness, we surrender to passion before going on stage."
+            "value": "A cramped dressing room backstage. A mirror framed in bright bulbs, counters covered in cosmetics. Costumes hang on rails, the smell of greasepaint in the air. The audience murmurs just beyond the thin wall. Minutes until curtain call."
         },
         "yacht": {
             "label": "Yacht at Sea",
-            "value": "Snow-white yacht drifting. We're on deck in the jacuzzi, naked, under the stars. A wide bed in the cabin waits, but we can't wait. Passion takes over right here."
+            "value": "A gleaming white yacht adrift in open water. Nothing around but sea and sky. A bubbling jacuzzi on deck, a wide bed and portholes in the cabin below. The swell barely perceptible. Total seclusion."
         },
         "dungeon": {
             "label": "Castle Dungeon",
-            "value": "Damp dungeon. Torches dance, casting shadows on our naked bodies. Chains and shackles, but we don't need them. Passion and danger merge into one."
+            "value": "A damp stone dungeon beneath a medieval castle. Torches on the walls flicker, throwing long shadows. A heavy smell of stone and moisture. Chains hang from the ceiling. A dark and mysterious atmosphere."
         },
         "greenhouse": {
             "label": "Greenhouse",
-            "value": "Glass greenhouse full of flowers. Fogged glass hides our passion. Humid tropical air ignites desire. We're among the flowers, naked, surrendering to passion."
+            "value": "A spacious glass greenhouse filled with tropical plants. The air is warm and humid, fragrant with flowers and soil. Misted panes diffuse the light softly. Rare exotic orchids in every corner. A quiet, secluded spot hidden from the world."
         },
         "roof": {
             "label": "Rooftop",
-            "value": "Flat roof of a high-rise. Wind tosses hair, city below. We're at the edge, naked, losing control from the height and passion. Adrenaline and desire merge."
+            "value": "The flat roof of a high-rise in the city centre. A breeze stirs the air; the night skyline glitters far below. Stars overhead, the hum of traffic barely audible. The feeling that the whole city lies at your feet. Not a soul in sight."
         },
         "library": {
             "label": "Forbidden Library",
-            "value": "Secret section of the library. Shelves with forbidden books. We're between the shelves, naked, breaking the silence with moans. The smell of old paper mixes with the smell of passion."
+            "value": "A secret section of an old library. Towering shelves reaching the ceiling, lined with rare editions. Half-light, the smell of aged paper and leather bindings. Rarely visited. Absolute silence, broken only by the occasional creak of a floorboard."
         },
         "train": {
             "label": "Luxury Train",
-            "value": "Luxurious compartment. Velvet upholstery, sound of wheels. We're on the bed, naked, while the train rushes. Landscapes outside the window, but we don't look. Only passion and motion."
+            "value": "A first-class compartment on a night express. Velvet upholstery, soft lighting, the rhythmic clatter of wheels. Dark forests rush past the window. The carriage is nearly empty, no neighbours."
         },
         "tent": {
             "label": "Mountain Tent",
-            "value": "Tight tent on a plateau. Wind howls outside, but inside it's hot from our bodies. Sleeping bags scattered, we're naked, losing control in isolation. Just us and passion."
+            "value": "A small tent on a high alpine plateau. Outside the wind howls and drives icy pellets against the fabric. Inside it is cramped but warm. A scattering of stars visible through a gap in the tent. The nearest settlement is hours away."
         },
         "studio": {
             "label": "Erotic Photo Studio",
-            "value": "Professional studio. Powerful lights illuminate our naked bodies. Cameras off, but we pose for each other. The atmosphere of creativity transitions to passion."
+            "value": "A professional photo studio. Powerful lights, colour gels, several backdrop rolls. A daybed and a chair in the centre. Cameras on tripods stand idle. The space is locked and entirely private."
         },
         "throne": {
             "label": "Throne Room",
-            "value": "Majestic hall. Golden throne where I sit naked. You're on your knees before me. Power and submission, passion and control. The echo of our moans fills the hall."
+            "value": "A majestic throne room in a medieval palace. A high gilded throne on a dais, a red carpet runner. Columns, tapestries, torches around the perimeter. Every sound echoes through the vast space. An atmosphere of absolute power."
         },
         "club": {
             "label": "Nightclub",
-            "value": "Dark corner of the club. Music loud, no one sees. We're in the bathroom, naked, losing control. Mirrors reflect our passion. Adrenaline and desire."
+            "value": "A dark, secluded corner of a nightclub VIP section. Music pounds so hard the air vibrates. Coloured strobes cut through the haze. In this tucked-away spot it is perfectly dark and completely deserted."
         },
         "garage": {
             "label": "Garage",
-            "value": "Empty garage. Car parked, but we're not in it. We're on the hood, naked, under cold lamp light. Oil and gasoline mix with the smell of passion."
+            "value": "A spacious private garage. Dim fluorescent light, the smell of engine oil and rubber. An expensive car parked against the wall, metal shelving loaded with tools. The roller door is shut, nobody outside."
         },
         "elevator": {
             "label": "Elevator",
-            "value": "Stuck elevator. We're alone, naked, losing control in the tightness. Mirrors reflect our passion. No one will come until we're done."
+            "value": "A stuck elevator in a business centre. Mirrors covering every wall, chrome handrails. The emergency light blinks; the ventilation hums faintly. The intercom button gets no response. A tight, enclosed space."
         },
         "kitchen": {
             "label": "Kitchen",
-            "value": "Kitchen late at night. We're on the table, naked, among the dishes. Cold tile under the body, but passion warms us. Here, where food is cooked, we cook passion."
+            "value": "A spacious kitchen late in the evening. Soft light over the worktop, the lingering smell of a recent meal. A large wooden table in the centre. Everything tidied up, the sink clean. Quiet, the others retired to their rooms long ago."
         }
     }
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { Loader2 } from 'lucide-react';
@@ -726,7 +727,8 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
   onChat,
   onPaidAlbumBuilder
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const [prompt, setPrompt] = useState('');
   const [images, setImages] = useState<GeneratedPhoto[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -1276,7 +1278,8 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
       onShop();
     } else {
       // Fallback: переход через URL
-      window.location.href = '/shop';
+      const currentLang = (i18n.language || 'ru').split('-')[0];
+      navigate(`/${currentLang}/shop`);
     }
   };
 

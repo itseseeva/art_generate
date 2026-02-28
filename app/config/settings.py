@@ -121,6 +121,24 @@ class Settings(BaseSettings):
         description="ID чата Telegram для уведомлений об ошибках"
     )
     
+    # --- NOWPayments ---
+    NOWPAYMENTS_API_KEY: Optional[str] = Field(
+        default_factory=lambda: os.getenv("nowpayments_api_key"),
+        description="API ключ NOWPayments"
+    )
+    NOWPAYMENTS_API_PUBLIC_KEY: Optional[str] = Field(
+        default_factory=lambda: os.getenv("nowpayments_api_public_key"),
+        description="IPN Secret Key для Webhooks от NOWPayments"
+    )
+    NOWPAYMENTS_API_KEY_TEST: Optional[str] = Field(
+        default_factory=lambda: os.getenv("nowpayments_api_key_test"),
+        description="Тестовый API ключ NOWPayments"
+    )
+    NOWPAYMENTS_API_PUBLIC_KEY_TEST: Optional[str] = Field(
+        default_factory=lambda: os.getenv("nowpayments_api_public_key_test"),
+        description="Тестовый IPN Secret Key для Webhooks от NOWPayments"
+    )
+    
     model_config = ConfigDict(
         env_prefix="APP_",
         case_sensitive=False,

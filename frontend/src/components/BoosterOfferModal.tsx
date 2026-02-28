@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import styled, { keyframes, css } from 'styled-components';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageSquare, Image, X, Sparkles, Mic, Crown } from 'lucide-react';
@@ -41,8 +43,8 @@ const Overlay = styled(motion.div)`
 const ModalContainer = styled(motion.div)`
   background: linear-gradient(160deg, #0a0a0d 0%, #12121a 50%, #0d0d12 100%);
   border-radius: 24px;
-  padding: 2rem;
-  max-width: 480px;
+  padding: 1.5rem;
+  max-width: 672px;
   width: 100%;
   position: relative;
   border: 1px solid rgba(236, 72, 153, 0.25);
@@ -54,8 +56,8 @@ const ModalContainer = styled(motion.div)`
   -webkit-backface-visibility: hidden;
 
 
-  @media (max-width: 520px) {
-    padding: 1.5rem;
+  @media (max-width: 700px) {
+    padding: 1.25rem;
     max-width: 95%;
   }
 
@@ -147,7 +149,7 @@ const CloseButton = styled.button`
 const ClockContainer = styled.div`
   display: flex;
   justify-content: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 `;
 
 const ClockFace = styled.div<{ $expired?: boolean }>`
@@ -276,7 +278,7 @@ const Subtitle = styled.p`
   font-size: 1rem;
   font-weight: 600;
   text-align: center;
-  margin: 0 0 1rem 0;
+  margin: 0 0 0.75rem 0;
   background: linear-gradient(
     90deg,
     #f472b6 0%,
@@ -296,9 +298,9 @@ const Subtitle = styled.p`
 
 const Message = styled.p`
   font-size: 0.95rem;
-  line-height: 1.7;
+  line-height: 1.5;
   text-align: center;
-  margin: 0 0 1.5rem 0;
+  margin: 0 0 1rem 0;
   color: rgba(255, 255, 255, 0.9);
 `;
 
@@ -346,8 +348,8 @@ const OfferBox = styled.div`
   backdrop-filter: blur(10px);
   border: 1px solid rgba(168, 85, 247, 0.25);
   border-radius: 16px;
-  padding: 1.25rem;
-  margin-bottom: 1.5rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
   text-align: center;
 `;
 
@@ -547,6 +549,8 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
   isAdmin,
   onShop
 }) => {
+  const navigate = useNavigate();
+  const { i18n } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState(OFFER_DURATION);
   const [offerExpired, setOfferExpired] = useState(false);
@@ -705,7 +709,12 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
 
   const handleGoToSubscription = () => {
     onClose();
-    window.location.href = isOutOfLimits ? '/shop' : '/shop?tab=subscription';
+    if (onShop) {
+      onShop();
+    } else {
+      const currentLang = (i18n.language || 'ru').split('-')[0];
+      navigate(`/${currentLang}/shop${variant === 'out_of_limits' ? '' : '?tab=subscription'}`);
+    }
   };
 
   const handleStandardPurchase = async () => {

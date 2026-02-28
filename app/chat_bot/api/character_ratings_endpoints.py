@@ -23,29 +23,39 @@ logger = logging.getLogger(__name__)
 ratings_router = APIRouter(tags=["Character Ratings"])
 
 
+
+async def _count_ratings(character_id: int, db: AsyncSession):
+    """Вспомогательная функция: считает лайки и дизлайки персонажа."""
+    from sqlalchemy import func
+    likes_result = await db.execute(
+        select(func.count(CharacterRating.id)).where(
+            CharacterRating.character_id == character_id,
+            CharacterRating.is_like == True
+        )
+    )
+    dislikes_result = await db.execute(
+        select(func.count(CharacterRating.id)).where(
+            CharacterRating.character_id == character_id,
+            CharacterRating.is_like == False
+        )
+    )
+    return likes_result.scalar() or 0, dislikes_result.scalar() or 0
+
+
 @ratings_router.post("/character-ratings/{character_id}/like")
 async def like_character(
     character_id: int,
     current_user: Users = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Ставит лайк персонажу."""
-    print("=" * 80)
-    print(f"[RATINGS] POST /character-ratings/{character_id}/like вызван!")
-    print(f"[RATINGS] User ID: {current_user.id if current_user else 'None'}")
-    print("=" * 80)
-    logger.info("=" * 80)
-    logger.info(f"[RATINGS] POST /character-ratings/{character_id}/like вызван!")
-    logger.info(f"[RATINGS] User ID: {current_user.id if current_user else 'None'}")
-    logger.info("=" * 80)
+    """Ставит лайк персонажу. Голос можно поставить только 1 раз."""
+    logger.info(f"[RATINGS] POST /character-ratings/{character_id}/like, user_id={current_user.id}")
     try:
-        # Проверяем, существует ли персонаж
         result = await db.execute(select(CharacterDB).where(CharacterDB.id == character_id))
         character = result.scalar_one_or_none()
         if not character:
             raise HTTPException(status_code=404, detail="Character not found")
-        
-        # Проверяем, есть ли уже рейтинг от этого пользователя
+
         existing_result = await db.execute(
             select(CharacterRating).where(
                 CharacterRating.user_id == current_user.id,
@@ -53,38 +63,46 @@ async def like_character(
             )
         )
         existing = existing_result.scalar_one_or_none()
-        
+
         if existing:
-            # Если уже есть лайк, удаляем его
             if existing.is_like:
+                # Уже стоит лайк — снимаем (та же кнопка)
                 await db.delete(existing)
                 await db.commit()
-                # Инвалидируем кэш рейтингов для этого персонажа
-                await cache_delete(key_character_ratings(character_id))
-                await cache_delete(key_character_ratings(character_id, current_user.id))
-                return {"success": True, "message": "Like removed", "user_rating": None}
             else:
-                # Если есть дизлайк, меняем на лайк
+                # Стоит дизлайк — переключаем на лайк
                 existing.is_like = True
-                existing.updated_at = datetime.utcnow()
                 await db.commit()
-                # Инвалидируем кэш рейтингов для этого персонажа
-                await cache_delete(key_character_ratings(character_id))
-                await cache_delete(key_character_ratings(character_id, current_user.id))
-                return {"success": True, "message": "Changed from dislike to like", "user_rating": "like"}
-        else:
-            # Создаем новый лайк
-            rating = CharacterRating(
-                user_id=current_user.id,
-                character_id=character_id,
-                is_like=True
-            )
-            db.add(rating)
-            await db.commit()
-            # Инвалидируем кэш рейтингов для этого персонажа
             await cache_delete(key_character_ratings(character_id))
             await cache_delete(key_character_ratings(character_id, current_user.id))
-            return {"success": True, "message": "Character liked", "user_rating": "like"}
+            likes, dislikes = await _count_ratings(character_id, db)
+            new_vote = None if existing.is_like is not True else "like"
+            # После delete existing.is_like может быть любым — проверяем через БД
+            check = await db.execute(
+                select(CharacterRating).where(
+                    CharacterRating.user_id == current_user.id,
+                    CharacterRating.character_id == character_id
+                )
+            )
+            current = check.scalar_one_or_none()
+            new_vote = ("like" if current and current.is_like else
+                        "dislike" if current and not current.is_like else None)
+            return {"success": True, "message": "Vote updated", "user_vote": new_vote,
+                    "likes": likes, "dislikes": dislikes}
+
+        # Создаём лайк
+        rating = CharacterRating(
+            user_id=current_user.id,
+            character_id=character_id,
+            is_like=True
+        )
+        db.add(rating)
+        await db.commit()
+        await cache_delete(key_character_ratings(character_id))
+        await cache_delete(key_character_ratings(character_id, current_user.id))
+        likes, dislikes = await _count_ratings(character_id, db)
+        return {"success": True, "message": "Character liked", "user_vote": "like",
+                "likes": likes, "dislikes": dislikes}
     except HTTPException:
         raise
     except Exception as e:
@@ -99,23 +117,14 @@ async def dislike_character(
     current_user: Users = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Ставит дизлайк персонажу."""
-    print("=" * 80)
-    print(f"[RATINGS] POST /character-ratings/{character_id}/dislike вызван!")
-    print(f"[RATINGS] User ID: {current_user.id if current_user else 'None'}")
-    print("=" * 80)
-    logger.info("=" * 80)
-    logger.info(f"[RATINGS] POST /character-ratings/{character_id}/dislike вызван!")
-    logger.info(f"[RATINGS] User ID: {current_user.id if current_user else 'None'}")
-    logger.info("=" * 80)
+    """Ставит дизлайк персонажу. Голос можно поставить только 1 раз."""
+    logger.info(f"[RATINGS] POST /character-ratings/{character_id}/dislike, user_id={current_user.id}")
     try:
-        # Проверяем, существует ли персонаж
         result = await db.execute(select(CharacterDB).where(CharacterDB.id == character_id))
         character = result.scalar_one_or_none()
         if not character:
             raise HTTPException(status_code=404, detail="Character not found")
-        
-        # Проверяем, есть ли уже рейтинг от этого пользователя
+
         existing_result = await db.execute(
             select(CharacterRating).where(
                 CharacterRating.user_id == current_user.id,
@@ -123,44 +132,51 @@ async def dislike_character(
             )
         )
         existing = existing_result.scalar_one_or_none()
-        
+
         if existing:
-            # Если уже есть дизлайк, удаляем его
             if not existing.is_like:
+                # Уже стоит дизлайк — снимаем (та же кнопка)
                 await db.delete(existing)
                 await db.commit()
-                # Инвалидируем кэш рейтингов для этого персонажа
-                await cache_delete(key_character_ratings(character_id))
-                await cache_delete(key_character_ratings(character_id, current_user.id))
-                return {"success": True, "message": "Dislike removed", "user_rating": None}
             else:
-                # Если есть лайк, меняем на дизлайк
+                # Стоит лайк — переключаем на дизлайк
                 existing.is_like = False
-                existing.updated_at = datetime.utcnow()
                 await db.commit()
-                # Инвалидируем кэш рейтингов для этого персонажа
-                await cache_delete(key_character_ratings(character_id))
-                await cache_delete(key_character_ratings(character_id, current_user.id))
-                return {"success": True, "message": "Changed from like to dislike", "user_rating": "dislike"}
-        else:
-            # Создаем новый дизлайк
-            rating = CharacterRating(
-                user_id=current_user.id,
-                character_id=character_id,
-                is_like=False
-            )
-            db.add(rating)
-            await db.commit()
-            # Инвалидируем кэш рейтингов для этого персонажа
             await cache_delete(key_character_ratings(character_id))
             await cache_delete(key_character_ratings(character_id, current_user.id))
-            return {"success": True, "message": "Character disliked", "user_rating": "dislike"}
+            likes, dislikes = await _count_ratings(character_id, db)
+            check = await db.execute(
+                select(CharacterRating).where(
+                    CharacterRating.user_id == current_user.id,
+                    CharacterRating.character_id == character_id
+                )
+            )
+            current = check.scalar_one_or_none()
+            new_vote = ("like" if current and current.is_like else
+                        "dislike" if current and not current.is_like else None)
+            return {"success": True, "message": "Vote updated", "user_vote": new_vote,
+                    "likes": likes, "dislikes": dislikes}
+
+        # Создаём дизлайк
+        rating = CharacterRating(
+            user_id=current_user.id,
+            character_id=character_id,
+            is_like=False
+        )
+        db.add(rating)
+        await db.commit()
+        await cache_delete(key_character_ratings(character_id))
+        await cache_delete(key_character_ratings(character_id, current_user.id))
+        likes, dislikes = await _count_ratings(character_id, db)
+        return {"success": True, "message": "Character disliked", "user_vote": "dislike",
+                "likes": likes, "dislikes": dislikes}
     except HTTPException:
         raise
     except Exception as e:
         await db.rollback()
         logger.error(f"Error disliking character: {e}")
         raise HTTPException(status_code=500, detail=f"Error disliking character: {str(e)}")
+
 
 
 @ratings_router.get("/character-ratings/{character_id}")

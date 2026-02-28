@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 const MessagesContainer = styled.div`
   flex: 1;
   padding: ${theme.spacing.xl} ${theme.spacing.lg};
-  overflow-y: auto;
+  overflow-y: scroll; /* Changed to scroll to prevent shift when info block toggles */
   overflow-x: hidden;
   /* Фон теперь задается через DarkVeil в BackgroundWrapper */
   background: transparent;
@@ -180,6 +180,7 @@ interface Message {
   content: string;
   timestamp: Date;
   imageUrl?: string;
+  isPhotoPrompt?: boolean;
 }
 
 interface ChatAreaProps {

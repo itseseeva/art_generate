@@ -12,6 +12,9 @@ import { Sparkles, Plus, X, ArrowLeft, Save, Wand2, Settings, Upload, Camera } f
 import { FiSettings } from 'react-icons/fi';
 import DarkVeil from '../../@/components/DarkVeil';
 import { PromptGlassModal } from './PromptGlassModal';
+import { useTranslation } from 'react-i18next';
+import { useParams, useNavigate } from 'react-router-dom';
+import { API_CONFIG } from '../config/api';
 
 // Animations
 const shimmer = keyframes`
@@ -1427,7 +1430,7 @@ interface PaidAlbumBuilderPageProps {
 const MAX_PAID_ALBUM_PHOTOS = 20;
 
 export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
-  character,
+  character: propCharacter,
   onBackToAlbum,
   onBackToMain,
   onBackToChat,
@@ -1436,6 +1439,52 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
   canEditAlbum = false,
   onUpgradeSubscription
 }) => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [character, setCharacter] = useState<any>(propCharacter);
+
+  useEffect(() => {
+    if (propCharacter) {
+      setCharacter(propCharacter);
+      return;
+    }
+
+    const fetchCharacter = async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        const headers: Record<string, string> = {};
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        let targetId = id;
+        if (!targetId) {
+          const urlParams = new URLSearchParams(window.location.search);
+          targetId = urlParams.get('character') || undefined;
+        }
+
+        if (targetId) {
+          const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${encodeURIComponent(targetId)}/with-creator`, { headers });
+          if (response.ok) {
+            const data = await response.json();
+            setCharacter(data);
+          } else {
+            const fallbackResponse = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${encodeURIComponent(targetId)}`, { headers });
+            if (fallbackResponse.ok) {
+              const fallbackData = await fallbackResponse.json();
+              setCharacter(fallbackData);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching character:', error);
+      }
+    };
+
+    fetchCharacter();
+  }, [propCharacter, id]);
+
+  const { t, i18n } = useTranslation();
   const displayName = character?.display_name || character?.name || '';
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -1615,19 +1664,34 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
           const appearance = characterData?.character_appearance || characterData?.appearance || character?.character_appearance || character?.appearance || '';
           const location = characterData?.location || character?.location || '';
 
-          const needsAppearanceTranslation = appearance && appearance.trim() && !/[а-яёА-ЯЁ]/.test(appearance);
-          const needsLocationTranslation = location && location.trim() && !/[а-яёА-ЯЁ]/.test(location);
-
           let translatedAppearance = appearance;
           let translatedLocation = location;
 
-          if (needsAppearanceTranslation || needsLocationTranslation) {
-            const translations = await Promise.all([
-              needsAppearanceTranslation ? translateToRussian(appearance) : Promise.resolve(appearance),
-              needsLocationTranslation ? translateToRussian(location) : Promise.resolve(location)
-            ]);
-            translatedAppearance = translations[0];
-            translatedLocation = translations[1];
+          const hasCyrillicAppearance = /[а-яёА-ЯЁ]/.test(appearance);
+          const hasCyrillicLocation = /[а-яёА-ЯЁ]/.test(location);
+
+          if (i18n.language === 'ru') {
+            const needsAppTrans = appearance && appearance.trim() && !hasCyrillicAppearance;
+            const needsLocTrans = location && location.trim() && !hasCyrillicLocation;
+            if (needsAppTrans || needsLocTrans) {
+              const translations = await Promise.all([
+                needsAppTrans ? translateToRussian(appearance) : Promise.resolve(appearance),
+                needsLocTrans ? translateToRussian(location) : Promise.resolve(location)
+              ]);
+              translatedAppearance = translations[0];
+              translatedLocation = translations[1];
+            }
+          } else {
+            const needsAppTrans = appearance && appearance.trim() && hasCyrillicAppearance;
+            const needsLocTrans = location && location.trim() && hasCyrillicLocation;
+            if (needsAppTrans || needsLocTrans) {
+              const translations = await Promise.all([
+                needsAppTrans ? translateToEnglish(appearance) : Promise.resolve(appearance),
+                needsLocTrans ? translateToEnglish(location) : Promise.resolve(location)
+              ]);
+              translatedAppearance = translations[0];
+              translatedLocation = translations[1];
+            }
           }
 
           const parts = [translatedAppearance, translatedLocation].filter(p => p && p.trim());
@@ -1644,19 +1708,34 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
           const appearance = character.character_appearance || character.appearance || '';
           const location = character.location || '';
 
-          const needsAppearanceTranslation = appearance && appearance.trim() && !/[а-яёА-ЯЁ]/.test(appearance);
-          const needsLocationTranslation = location && location.trim() && !/[а-яёА-ЯЁ]/.test(location);
-
           let translatedAppearance = appearance;
           let translatedLocation = location;
 
-          if (needsAppearanceTranslation || needsLocationTranslation) {
-            const translations = await Promise.all([
-              needsAppearanceTranslation ? translateToRussian(appearance) : Promise.resolve(appearance),
-              needsLocationTranslation ? translateToRussian(location) : Promise.resolve(location)
-            ]);
-            translatedAppearance = translations[0];
-            translatedLocation = translations[1];
+          const hasCyrillicAppearance = /[а-яёА-ЯЁ]/.test(appearance);
+          const hasCyrillicLocation = /[а-яёА-ЯЁ]/.test(location);
+
+          if (i18n.language === 'ru') {
+            const needsAppTrans = appearance && appearance.trim() && !hasCyrillicAppearance;
+            const needsLocTrans = location && location.trim() && !hasCyrillicLocation;
+            if (needsAppTrans || needsLocTrans) {
+              const translations = await Promise.all([
+                needsAppTrans ? translateToRussian(appearance) : Promise.resolve(appearance),
+                needsLocTrans ? translateToRussian(location) : Promise.resolve(location)
+              ]);
+              translatedAppearance = translations[0];
+              translatedLocation = translations[1];
+            }
+          } else {
+            const needsAppTrans = appearance && appearance.trim() && hasCyrillicAppearance;
+            const needsLocTrans = location && location.trim() && hasCyrillicLocation;
+            if (needsAppTrans || needsLocTrans) {
+              const translations = await Promise.all([
+                needsAppTrans ? translateToEnglish(appearance) : Promise.resolve(appearance),
+                needsLocTrans ? translateToEnglish(location) : Promise.resolve(location)
+              ]);
+              translatedAppearance = translations[0];
+              translatedLocation = translations[1];
+            }
           }
 
           const parts = [translatedAppearance, translatedLocation].filter(p => p && p.trim());
@@ -2113,10 +2192,9 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
       </BackgroundWrapper>
       <ContentWrapper>
         <Header>
-          <Title>Платный альбом {displayName}</Title>
+          <Title>{t('paidAlbum.title')} {displayName}</Title>
           <Subtitle>
-            Сгенерируйте новые изображения и выберите до {MAX_PAID_ALBUM_PHOTOS} фотографий для платного альбома персонажа.
-            Если кто-то купит ваш альбом, вы получите 15%
+            {t('paidAlbum.subtitle', { max: MAX_PAID_ALBUM_PHOTOS })}
           </Subtitle>
         </Header>
 
@@ -2125,10 +2203,9 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         {isUpgradeModalOpen && (
           <UpgradeOverlay onClick={() => setIsUpgradeModalOpen(false)}>
             <UpgradeModal onClick={(e) => e.stopPropagation()}>
-              <UpgradeTitle>Платный альбом недоступен</UpgradeTitle>
+              <UpgradeTitle>{t('paidAlbum.upgrade.title')}</UpgradeTitle>
               <UpgradeText>
-                Добавление фотографий в платный альбом доступно только подписчикам Standard и Premium.
-                Оформите подписку, чтобы получать 15% от продаж.
+                {t('paidAlbum.upgrade.text')}
               </UpgradeText>
               <UpgradeActions>
                 <PrimaryButton onClick={() => {
@@ -2136,10 +2213,10 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                   onUpgradeSubscription?.();
                   onBackToMain();
                 }}>
-                  Оформить подписку
+                  {t('paidAlbum.upgrade.btn')}
                 </PrimaryButton>
                 <GhostButton onClick={() => setIsUpgradeModalOpen(false)}>
-                  Понятно
+                  {t('paidAlbum.upgrade.dismiss')}
                 </GhostButton>
               </UpgradeActions>
             </UpgradeModal>
@@ -2149,11 +2226,11 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         <Layout>
           <GenerationSection>
             <GlassCard>
-              <SectionTitle>Генерация изображений</SectionTitle>
+              <SectionTitle>{t('paidAlbum.generate.title')}</SectionTitle>
 
               <ModelSelectWrapper>
                 <Label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                  <FiSettings size={16} /> Выберите стиль
+                  <FiSettings size={16} /> {t('createCharacter.imageModal.selectStyle')}
                 </Label>
                 <ModelSelectionContainer>
                   <ModelCard
@@ -2162,8 +2239,8 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                     onClick={() => setSelectedModel('anime-realism')}
                   >
                     <ModelInfoOverlay>
-                      <ModelName>Аниме + Реализм</ModelName>
-                      <ModelDescription>Сбалансированный стиль</ModelDescription>
+                      <ModelName>{t('createCharacter.photo.styles.animeRealism')}</ModelName>
+                      <ModelDescription>{t('createCharacter.photo.styles.animeRealismDesc')}</ModelDescription>
                     </ModelInfoOverlay>
                   </ModelCard>
 
@@ -2173,8 +2250,8 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                     onClick={() => setSelectedModel('anime')}
                   >
                     <ModelInfoOverlay>
-                      <ModelName>Аниме</ModelName>
-                      <ModelDescription>Классический 2D стиль</ModelDescription>
+                      <ModelName>{t('createCharacter.photo.styles.anime')}</ModelName>
+                      <ModelDescription>{t('createCharacter.photo.styles.animeDesc')}</ModelDescription>
                     </ModelInfoOverlay>
                   </ModelCard>
                 </ModelSelectionContainer>
@@ -2188,7 +2265,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                     setPrompt(v);
                     promptRef.current = v;
                   }}
-                  placeholder="Опишите изображение, которое хотите получить..."
+                  placeholder={t('paidAlbum.generate.placeholder')}
                 />
                 <MagicIcon>
                   <Wand2 size={20} />
@@ -2198,31 +2275,30 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                 <div className="relative">
                   <TagsContainer $isExpanded={isTagsExpanded}>
                     {[
-                      // Нормальные промпты
-                      { label: 'Высокая детализация', value: 'высокая детализация, реализм, 8к разрешение' },
-                      { label: 'Киберпанк', value: 'стиль киберпанк, неоновое освещение, футуристично' },
-                      { label: 'Фэнтези', value: 'фэнтези стиль, магическая атмосфера' },
-                      { label: 'Портрет', value: 'крупный план, детальное лицо, выразительный взгляд' },
-                      { label: 'В полный рост', value: 'в полный рост, изящная поза' },
-                      { label: 'Аниме стиль', value: 'красивый аниме стиль, четкие линии, яркие цвета' },
-                      { label: 'Реализм', value: 'фотореалистично, натуральные текстуры кожи' },
-                      { label: 'Кинематографично', value: 'кинематографичный свет, глубокие тени, драматично' },
-                      { label: 'На пляже', value: 'на берегу океана, золотой песок, закатное солнце' },
-                      { label: 'В городе', value: 'на оживленной улице города, ночные огни, боке' },
-                      { label: 'В лесу', value: 'в сказочном лесу, лучи солнца сквозь листву' },
-                      { label: 'Офисный стиль', value: 'в строгом офисном костюме, деловая обстановка' },
-                      { label: 'Летнее платье', value: 'в легком летнем платье, летящая ткань' },
-                      { label: 'Вечерний свет', value: 'мягкий вечерний свет, теплые тона' },
-                      { label: 'Зима', value: 'зимний пейзаж, падающий снег, меховая одежда' },
-                      { label: 'Элегантный образ', value: 'элегантная поза, утонченный стиль, изысканность' },
-                      { label: 'Портрет крупным планом', value: 'крупный план лица, выразительный взгляд, детализированные черты' },
-                      { label: 'В парке', value: 'в городском парке, зеленая трава, солнечный свет' },
-                      { label: 'В кафе', value: 'в уютном кафе, теплая атмосфера, приятная обстановка' },
-                      { label: 'На природе', value: 'на природе, свежий воздух, красивые пейзажи' },
-                      { label: 'Вечерний наряд', value: 'в красивом вечернем наряде, элегантный стиль' },
-                      { label: 'Повседневный образ', value: 'в повседневной одежде, комфортный стиль' },
-                      { label: 'Спортивный стиль', value: 'в спортивной одежде, активный образ жизни' },
-                      { label: 'Романтичная атмосфера', value: 'романтичная обстановка, мягкое освещение, уют' }
+                      { label: t('photoPrompts.highDetail.label'), value: t('photoPrompts.highDetail.value') },
+                      { label: t('photoPrompts.cyberpunk.label'), value: t('photoPrompts.cyberpunk.value') },
+                      { label: t('photoPrompts.fantasy.label'), value: t('photoPrompts.fantasy.value') },
+                      { label: t('photoPrompts.portrait.label'), value: t('photoPrompts.portrait.value') },
+                      { label: t('photoPrompts.fullBody.label'), value: t('photoPrompts.fullBody.value') },
+                      { label: t('photoPrompts.animeStyle.label'), value: t('photoPrompts.animeStyle.value') },
+                      { label: t('photoPrompts.realism.label'), value: t('photoPrompts.realism.value') },
+                      { label: t('photoPrompts.cinematic.label'), value: t('photoPrompts.cinematic.value') },
+                      { label: t('photoPrompts.beach.label'), value: t('photoPrompts.beach.value') },
+                      { label: t('photoPrompts.city.label'), value: t('photoPrompts.city.value') },
+                      { label: t('photoPrompts.forest.label'), value: t('photoPrompts.forest.value') },
+                      { label: t('photoPrompts.office.label'), value: t('photoPrompts.office.value') },
+                      { label: t('photoPrompts.summerDress.label'), value: t('photoPrompts.summerDress.value') },
+                      { label: t('photoPrompts.eveningLight.label'), value: t('photoPrompts.eveningLight.value') },
+                      { label: t('photoPrompts.winter.label'), value: t('photoPrompts.winter.value') },
+                      { label: t('photoPrompts.elegant.label'), value: t('photoPrompts.elegant.value') },
+                      { label: t('photoPrompts.closeup.label'), value: t('photoPrompts.closeup.value') },
+                      { label: t('photoPrompts.park.label'), value: t('photoPrompts.park.value') },
+                      { label: t('photoPrompts.cafe.label'), value: t('photoPrompts.cafe.value') },
+                      { label: t('photoPrompts.nature.label'), value: t('photoPrompts.nature.value') },
+                      { label: t('photoPrompts.eveningOutfit.label'), value: t('photoPrompts.eveningOutfit.value') },
+                      { label: t('photoPrompts.casual.label'), value: t('photoPrompts.casual.value') },
+                      { label: t('photoPrompts.sport.label'), value: t('photoPrompts.sport.value') },
+                      { label: t('photoPrompts.romantic.label'), value: t('photoPrompts.romantic.value') }
                     ].map((tag, idx) => (
                       <TagButton
                         key={idx}
@@ -2253,8 +2329,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
               </PromptWrapper>
 
               <InfoText>
-                Используйте подробное описание внешности, окружения и атмосферы.
-                Если оставить поле пустым, будут использованы описания персонажа.
+                {t('paidAlbum.generate.hint')}
               </InfoText>
 
               <GenerateActionContainer>
@@ -2262,6 +2337,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                   onClick={handleGeneratePhoto}
                   disabled={(() => {
                     if (!userInfo) return true;
+                    if (!character?.name) return true;
                     const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userSubscription;
                     let subscriptionType = 'free';
                     if (rawSubscriptionType) {
@@ -2307,22 +2383,22 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                     if (isGenerating) {
                       return (
                         <>
-                          <LoadingSpinner size="sm" /> Генерация... {fakeProgress}%
+                          <LoadingSpinner size="sm" /> {t('paidAlbum.generate.progress')} {fakeProgress}%
                         </>
                       );
                     } else {
                       const hasGeneratedPhotos = generatedPhotos && generatedPhotos.length > 0;
-                      const modelDisplayNames = {
-                        'anime-realism': 'Аниме + Реализм',
-                        'anime': 'Аниме',
-                        'realism': 'Реализм'
+                      const modelDisplayNames: Record<string, string> = {
+                        'anime-realism': t('createCharacter.photo.styles.animeRealism'),
+                        'anime': t('createCharacter.photo.styles.anime'),
+                        'realism': t('createCharacter.photo.styles.realism')
                       };
                       const currentModelName = modelDisplayNames[selectedModel] || selectedModel;
 
-                      const actionText = hasGeneratedPhotos ? 'Сгенерировать' : 'Сгенерировать фото';
+                      const actionText = hasGeneratedPhotos ? t('paidAlbum.generate.again') : t('paidAlbum.generate.btn');
                       const baseText = isQueueFull
-                        ? `${actionText} (${currentModelName}) (10 монет) • Очередь заполнена`
-                        : `${actionText} (${currentModelName}) (10 монет)`;
+                        ? `${actionText} (${currentModelName}) • ${t('createCharacter.imageModal.queueFull')}`
+                        : `${actionText} (${currentModelName})`;
 
                       return (
                         <>
@@ -2334,7 +2410,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                 </GenerateButton>
 
                 {userInfo && (
-                  <LimitItem title="Осталось фото-генераций">
+                  <LimitItem title={t('paidAlbum.generate.remaining')}>
                     <AnimatedIcon>
                       <Camera />
                     </AnimatedIcon>
@@ -2446,7 +2522,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                     style={{ background: 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)' }}
                   >
                     <span className="flex items-center gap-2">
-                      <Upload size={20} /> Загрузить фото с компьютера
+                      <Upload size={20} /> {t('paidAlbum.generate.upload')}
                     </span>
                   </GenerateButton>
                 </div>
@@ -2474,7 +2550,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                 if (activeGenerations > 0 && queueLimit > 0) {
                   return (
                     <GenerationQueueContainer>
-                      <QueueLabel>ОЧЕРЕДЬ ГЕНЕРАЦИИ</QueueLabel>
+                      <QueueLabel>{t('paidAlbum.generate.queue')}</QueueLabel>
                       <GenerationQueueIndicator>
                         <QueueProgressBar
                           $filled={activeGenerations}
@@ -2492,10 +2568,10 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
             </GlassCard>
 
             <GlassCard>
-              <SectionTitle>Свежие изображения</SectionTitle>
+              <SectionTitle>{t('paidAlbum.recent.title')}</SectionTitle>
               {generatedPhotos.length === 0 ? (
                 <InfoText style={{ textAlign: 'center', padding: '2rem' }}>
-                  Сгенерированные изображения появятся здесь
+                  {t('paidAlbum.recent.empty')}
                 </InfoText>
               ) : (
                 <PhotoGrid>
@@ -2525,10 +2601,10 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                               }}
                             >
                               {isSelected ? (
-                                <>Убрать</>
+                                <>{t('paidAlbum.photo.remove')}</>
                               ) : (
                                 <>
-                                  <Plus size={14} /> Добавить
+                                  <Plus size={14} /> {t('paidAlbum.photo.add')}
                                 </>
                               )}
                             </OverlayButton>
@@ -2543,11 +2619,11 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
           </GenerationSection>
 
           <AlbumSummaryCard>
-            <SectionTitle style={{ marginBottom: '1rem' }}>Альбом</SectionTitle>
+            <SectionTitle style={{ marginBottom: '1rem' }}>{t('paidAlbum.album.title')}</SectionTitle>
 
             <ProgressContainer>
               <ProgressHeader>
-                <ProgressLabel>Фотографий в альбоме</ProgressLabel>
+                <ProgressLabel>{t('paidAlbum.album.photosLabel')}</ProgressLabel>
                 <ProgressCount $isFull={isFull}>
                   {selectedPhotos.length} / {MAX_PAID_ALBUM_PHOTOS}
                 </ProgressCount>
@@ -2557,18 +2633,18 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
               </ProgressBarWrapper>
               {isFull && (
                 <LimitWarning>
-                  Достигнут лимит. Удалите лишние изображения перед добавлением новых.
+                  {t('paidAlbum.album.limitWarning')}
                 </LimitWarning>
               )}
             </ProgressContainer>
 
             {albumLoading ? (
               <div style={{ textAlign: 'center', padding: '2rem' }}>
-                <LoadingSpinner text="Загружаем альбом..." />
+                <LoadingSpinner text={t('paidAlbum.album.loading')} />
               </div>
             ) : selectedPhotos.length === 0 ? (
               <InfoText style={{ textAlign: 'center', padding: '2rem' }}>
-                Добавьте первые изображения в платный альбом
+                {t('paidAlbum.album.empty')}
               </InfoText>
             ) : (
               <SelectedPhotosGrid>
@@ -2592,17 +2668,13 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
             )}
 
             <ActionButtonGroup>
-              {onBackToChat && (
-                <ChatButton onClick={() => onBackToChat()}>
-                  <ArrowLeft size={18} />
-                  Перейти в чат
-                </ChatButton>
-              )}
-
-              <GhostButton onClick={onBackToMain}>
+              <ChatButton onClick={() => {
+                if (onBackToChat) onBackToChat();
+                else navigate(`/chat/${character?.id || character?.name}`);
+              }}>
                 <ArrowLeft size={18} />
-                На главную
-              </GhostButton>
+                {t('paidAlbum.nav.toChat')}
+              </ChatButton>
             </ActionButtonGroup>
           </AlbumSummaryCard>
         </Layout>

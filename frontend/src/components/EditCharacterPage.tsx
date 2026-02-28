@@ -106,7 +106,8 @@ const MainContainer = styled.div<{ $isMobile?: boolean }>`
   overflow: visible;
   box-sizing: border-box;
   position: relative;
-  background: linear-gradient(135deg, rgba(15, 15, 25, 0.98) 0%, rgba(25, 15, 35, 0.95) 100%);
+  background: #0f0f19;
+  z-index: 50;
   margin-top: -30px;
 
   @media (max-width: 768px) {
@@ -314,57 +315,60 @@ background: transparent;
 `;
 
 const MainContent = styled.div`
-flex: 1;
-display: flex;
-min - height: 0;
-overflow: hidden;
-padding: 0;
-  gap: 24px;
-visibility: visible;
-opacity: 1;
-width: 100 %;
-box - sizing: border - box;
-position: relative;
-z - index: 1;
-background: linear - gradient(135deg, rgba(15, 15, 25, 0.98) 0 %, rgba(25, 15, 35, 0.95) 100 %);
-
-@media(max - width: 768px) {
-  flex - direction: column;
-  min - height: auto;
-  overflow - y: visible;
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  height: 100vh;
+  overflow: hidden;
   padding: 0;
-  gap: 0;
-}
+  gap: 24px;
+  visibility: visible;
+  opacity: 1;
+  width: 100%;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+  background: linear-gradient(135deg, rgba(15, 15, 25, 0.98) 0%, rgba(25, 15, 35, 0.95) 100%);
+  margin-top: -30px;
+
+  @media(max-width: 768px) {
+    flex-direction: column;
+    min-height: auto;
+    overflow-y: visible;
+    padding: 0;
+    gap: 0;
+    margin-top: 0;
+  }
 `;
 
 const LeftColumn = styled.div`
   flex: 0 0 calc(62% - 12px);
-display: flex;
-flex - direction: column;
-min - width: 0;
-height: 100 %;
-max - height: 100 %;
-visibility: visible;
-opacity: 1;
-padding: ${theme.spacing.xl};
-background: rgba(20, 20, 30, 0.6);
-backdrop - filter: blur(20px);
--webkit - backdrop - filter: blur(20px);
-border: none;
-border - radius: 0;
-overflow - y: auto;
-overflow - x: visible;
-box - sizing: border - box;
-box - shadow: none;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+  max-height: 100%;
+  visibility: visible;
+  opacity: 1;
+  padding: ${theme.spacing.xl};
+  background: rgba(20, 20, 30, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: none;
+  border-radius: 0;
+  overflow-y: auto;
+  overflow-x: visible;
+  box-sizing: border-box;
+  box-shadow: none;
 
-@media(max - width: 768px) {
-  flex: 1;
-  width: 100 %;
-  min - width: 0;
-  height: auto;
-  max - height: none;
-  overflow: visible;
-}
+  @media(max-width: 768px) {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
 `;
 
 // ... (keep component imports)
@@ -385,36 +389,50 @@ align-items: stretch;
 }
 `;
 
-const RightColumn = styled.div`
+const RightColumnWrapper = styled.div`
   flex: 0 0 calc(38% - 12px);
-min - width: 0;
-height: 100 %;
-max - height: 100 %;
-display: flex;
-flex - direction: column;
-align - items: center;
-justify - content: flex - start; /* Changed from center */
-padding: 0; /* Removed padding */
-background: rgba(15, 15, 25, 0.4);
-backdrop - filter: blur(20px);
--webkit - backdrop - filter: blur(20px);
-border: 1px solid rgba(139, 92, 246, 0.15);
-border - radius: 20px;
-box - shadow:
-0 8px 32px rgba(0, 0, 0, 0.3),
-  inset 0 1px 0 rgba(255, 255, 255, 0.05);
-position: sticky;
-top: ${theme.spacing.xl};
-overflow: hidden; /* Changed from overflow-y: auto */
+  min-width: 0;
+  height: 100vh;
+  max-height: 100vh;
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  padding: ${theme.spacing.xl};
+  padding-top: 80px; /* Offset for header/top spacing */
+  box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable; /* Prevent layout shift when scrollbar appears */
 
-/* Desktop adjustments: 15% smaller, 5% higher */
-transform: scale(0.85) translateY(-5%);
-transform-origin: top center;
-
-@media (max-width: 768px) {
-  display: none;
-}
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
+
+const StyledRightColumn = styled.div`
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: ${theme.spacing.xl};
+  background: rgba(15, 15, 25, 0.4);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(139, 92, 246, 0.15);
+  border-radius: 20px;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  
+  /* Desktop adjustments from previous RightColumn: 15% smaller, 5% higher */
+  transform: scale(0.85); 
+  transform-origin: top center;
+  margin-bottom: 0; 
+`;
+
+const RightColumn = RightColumnWrapper;
 
 
 
@@ -935,19 +953,19 @@ overflow - x: hidden;
 `;
 
 const Form = styled.form`
-display: flex;
-flex - direction: row;
-flex: 1;
-width: 100 %;
-gap: ${theme.spacing.lg};
-min - height: 0;
-visibility: visible;
-opacity: 1;
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  width: 100%;
+  gap: ${theme.spacing.lg};
+  min-height: 0;
+  visibility: visible;
+  opacity: 1;
 
-@media(max - width: 768px) {
-  flex - direction: column;
-  height: auto;
-}
+  @media(max-width: 768px) {
+    flex-direction: column;
+    height: auto;
+  }
 `;
 
 const ColumnContent = styled.div`
@@ -3422,67 +3440,78 @@ border: 1px solid ${({ $limitReached }) =>
 `;
 
 const PhotoList = styled.div`
-display: grid!important;
-grid - template - columns: repeat(auto - fill, minmax(200px, 1fr))!important;
-gap: ${theme.spacing.sm} !important;
-margin - top: ${theme.spacing.md};
-padding: ${theme.spacing.md};
-visibility: visible!important;
-opacity: 1!important;
-width: 100 % !important;
-box - sizing: border - box!important;
-align - content: start!important;
-grid - auto - rows: 300px!important;
-contain: layout style paint;
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
+  gap: ${theme.spacing.md} !important;
+  margin-top: ${theme.spacing.md};
+  padding: ${theme.spacing.md};
+  visibility: visible !important;
+  opacity: 1 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  contain: layout style paint;
 
-@media(max - width: 768px) {
-  grid - template - columns: 1fr!important;
-  padding: ${theme.spacing.xs};
-  gap: ${theme.spacing.xs} !important;
-  margin - top: ${theme.spacing.sm};
-}
+  @media(max-width: 768px) {
+    grid-template-columns: repeat(2, 1fr) !important;
+    padding: ${theme.spacing.xs};
+    gap: ${theme.spacing.sm} !important;
+    margin-top: ${theme.spacing.sm};
+  }
 `;
 
 const PhotoTile = styled.div`
-position: relative;
-border - radius: ${theme.borderRadius.lg};
-overflow: hidden;
-border: 2px solid rgba(120, 120, 120, 0.3);
-box - shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-background: rgba(30, 30, 30, 0.95);
-transition: transform 0.2s ease, box - shadow 0.2s ease, border - color 0.2s ease;
-height: 300px;
-min - height: 300px;
-max - height: 300px;
-display: block!important;
-visibility: visible!important;
-opacity: 1!important;
-cursor: pointer;
-z - index: 1;
-will - change: transform;
-transform: translateZ(0);
-backface - visibility: hidden;
-contain: layout style paint;
+  position: relative;
+  width: 231px !important;
+  height: 339px !important;
+  min-width: 231px !important;
+  max-width: 231px !important;
+  min-height: 339px !important;
+  max-height: 339px !important;
+  border-radius: ${theme.borderRadius.lg};
+  overflow: hidden;
+  border: 2px solid rgba(120, 120, 120, 0.3);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  background: rgba(30, 30, 30, 0.95);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  display: block!important;
+  visibility: visible!important;
+  opacity: 1!important;
+  cursor: pointer;
+  z-index: 1;
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  contain: layout style paint;
 
-@media(max - width: 768px) {
-  height: 180px;
-  min - height: 180px;
-  border - width: 1px;
-  border - radius: ${theme.borderRadius.md};
-}
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  @media(max-width: 768px) {
+    width: calc(50% - ${theme.spacing.sm}) !important;
+    min-width: 140px !important;
+    max-width: none !important;
+    height: 220px !important;
+    min-height: 220px !important;
+    max-height: 220px !important;
+    border-width: 1px;
+    border-radius: ${theme.borderRadius.md};
+  }
 
   &:hover {
-  transform: translateY(-2px);
-  box - shadow: 0 0 20px rgba(232, 121, 249, 0.5);
-  border - color: rgba(180, 180, 180, 0.5);
-  z - index: 10;
-}
-
-@media(max - width: 768px) {
-    &:hover {
-    transform: none;
+    transform: translateY(-2px);
+    box-shadow: 0 0 20px rgba(232, 121, 249, 0.5);
+    border-color: rgba(180, 180, 180, 0.5);
+    z-index: 10;
   }
-}
+
+  @media(max-width: 768px) {
+    &:hover {
+      transform: none;
+    }
+  }
 `;
 
 const GenerationTimer = styled.div`
@@ -3914,6 +3943,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 }) => {
   const isMobile = useIsMobile();
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const {
     names: NAME_PROMPTS,
     personality: PERSONALITY_PROMPTS,
@@ -4160,7 +4190,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
     return name;
   });
-  type SelectedPhoto = { id: string; url: string; generation_time?: number | null };
+  type SelectedPhoto = { id: string; url: string; generation_time?: number | null; prompt?: string | null };
   const [generatedPhotos, setGeneratedPhotos] = useState<any[]>([]);
   const [isGeneratingPhoto, setIsGeneratingPhoto] = useState(false);
   const [isLoadingPhotos, setIsLoadingPhotos] = useState(true);
@@ -4180,7 +4210,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const generationQueueRef = useRef<QueuedGeneration[]>([]); // Очередь: промпт и модель на момент клика
   const initialPhotosCountRef = useRef<number>(0); // Количество фото при загрузке страницы
   const customPromptRef = useRef<string>(''); // Ref для актуального промпта
-  const lastAppearanceLocationRef = useRef<{ appearance: string; location: string }>({ appearance: '', location: '' }); // Ref для отслеживания предыдущих значений
   const formRef = useRef<HTMLFormElement>(null);
   const submitInProgressRef = useRef<boolean>(false); // Защита от повторной отправки (двойной клик, requestSubmit)
   const generationStartTimeRef = useRef<number | null>(null); // Время начала генерации для автозаполнения прогресса
@@ -4471,7 +4500,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       updatedSelection = [...selectedPhotos, {
         id: targetPhoto.id,
         url: targetPhoto.url,
-        generation_time: targetPhoto.generationTime
+        generation_time: targetPhoto.generationTime,
+        prompt: targetPhoto.prompt || null
       }];
     }
 
@@ -4707,7 +4737,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         };
 
         // Обновляем ref для отслеживания изменений appearance и location
-        // lastAppearanceLocationRef.current = { appearance: appearance, location: location };
 
 
 
@@ -4790,34 +4819,37 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   // Автоматически заполняем customPrompt на основе appearance и location после загрузки данных
   // НО только если пользователь еще не устанавливал его вручную
   useEffect(() => {
-    const currentAppearance = formData.appearance || '';
-    const currentLocation = formData.location || '';
-    const lastAppearance = lastAppearanceLocationRef.current.appearance;
-    const lastLocation = lastAppearanceLocationRef.current.location;
+    console.log('[DEBUG] customPrompt useEffect triggered:', {
+      customPromptManuallySet,
+      appearance: formData.appearance,
+      location: formData.location,
+      name: formData.name,
+      personality: formData.personality,
+      situation: formData.situation,
+      currentCustomPrompt: customPrompt
+    });
 
-    // Проверяем, изменились ли appearance или location
-    const appearanceChanged = currentAppearance !== lastAppearance;
-    const locationChanged = currentLocation !== lastLocation;
-
-    if (!customPromptManuallySet && (appearanceChanged || locationChanged) && (currentAppearance || currentLocation)) {
+    if (!customPromptManuallySet) {
+      const currentAppearance = formData.appearance || '';
+      const currentLocation = formData.location || '';
       const parts = [currentAppearance, currentLocation].filter(p => p && p.trim());
-      if (parts.length > 0) {
-        const defaultPrompt = parts.join(' | ');
-        // Обновляем промпт только если он пустой или совпадает со старым автоматически сгенерированным
-        const currentPrompt = customPrompt.trim();
-        const oldPrompt = [lastAppearance, lastLocation].filter(p => p && p.trim()).join(' | ');
-        if (!currentPrompt || currentPrompt === oldPrompt) {
-          setCustomPrompt(defaultPrompt);
-          customPromptRef.current = defaultPrompt; // Обновляем ref
-        }
+      let defaultPrompt = parts.join(' | ');
+
+      // Fallback для старых персонажей у которых нет appearance и location
+      if (!defaultPrompt) {
+        const fallbackParts = [formData.name, formData.personality, formData.situation].filter(p => p && p.trim());
+        defaultPrompt = fallbackParts.join(', ');
       }
-      // Обновляем ref с новыми значениями
-      lastAppearanceLocationRef.current = { appearance: currentAppearance, location: currentLocation };
-    } else if (!appearanceChanged && !locationChanged) {
-      // Если значения не изменились, просто обновляем ref (на случай первой загрузки)
-      lastAppearanceLocationRef.current = { appearance: currentAppearance, location: currentLocation };
+
+      console.log('[DEBUG] Calculated defaultPrompt:', defaultPrompt);
+
+      if (customPrompt !== defaultPrompt) {
+        console.log('[DEBUG] Setting customPrompt to:', defaultPrompt);
+        setCustomPrompt(defaultPrompt);
+        customPromptRef.current = defaultPrompt;
+      }
     }
-  }, [formData.appearance, formData.location, customPromptManuallySet, customPrompt]); // Зависимости от appearance, location и флага
+  }, [formData.appearance, formData.location, formData.name, formData.personality, formData.situation, customPromptManuallySet, customPrompt]);
 
   // Синхронизируем выбранную модель в ref (для актуальной модели при генерации из очереди / после смены модели во время генерации)
   useEffect(() => {
@@ -5268,13 +5300,16 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       const locationChanged = oldLocation !== newLocation;
 
       if (appearanceChanged || locationChanged) {
-        // Обновляем ref с новыми значениями для отслеживания изменений
-        lastAppearanceLocationRef.current = { appearance: newAppearance, location: newLocation };
-
         // Если пользователь не вводил промпт вручную, обновляем его автоматически из appearance | location
         if (!customPromptManuallySet) {
           const parts = [newAppearance, newLocation].filter(p => p && p.trim());
-          const newPrompt = parts.length > 0 ? parts.join(' | ') : '';
+          let newPrompt = parts.length > 0 ? parts.join(' | ') : '';
+
+          if (!newPrompt) {
+            const fallbackParts = [requestData.name, requestData.personality, requestData.situation].filter(p => p && p.trim());
+            newPrompt = fallbackParts.join(', ');
+          }
+
           setCustomPrompt(newPrompt);
           customPromptRef.current = newPrompt;
         }
@@ -5445,7 +5480,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   };
 
   // Ожидание завершения генерации через task_id
-  const waitForGeneration = async (taskId: string, token: string): Promise<{ id: string; url: string, generationTime?: number } | null> => {
+  const waitForGeneration = async (taskId: string, token: string): Promise<{ id: string; url: string, generationTime?: number, prompt?: string } | null> => {
     const maxAttempts = 60; // Максимум 2 минуты (60 * 2 секунды) - как в ChatContainer
     const pollInterval = 2000; // Опрашиваем каждые 2 секунды - как в ChatContainer
     let attempts = 0;
@@ -5542,6 +5577,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
             (Array.isArray(resultData.saved_paths) && resultData.saved_paths[0]);
           const imageId = resultData.image_id || resultData.id || resultData.task_id || resultData.filename || `${Date.now()}-${taskId}`;
           const generationTime = resultData.generation_time || status.generation_time;
+          const generatedPrompt = resultData.prompt || status.prompt;
 
           if (rawImageUrl) {
             // Останавливаем автозаполнение прогресса
@@ -5557,7 +5593,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
             return {
               id: imageId,
               url: imageUrl,
-              generationTime
+              generationTime,
+              prompt: generatedPrompt
             };
           }
         } else if (status.status === 'FAILURE') {
@@ -5595,7 +5632,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const generateSinglePhoto = async (
     promptToUse?: string,
     modelToUse?: 'anime-realism' | 'anime' | 'realism'
-  ): Promise<{ id: string; url: string, generationTime?: number } | null> => {
+  ): Promise<{ id: string; url: string, generationTime?: number, prompt?: string } | null> => {
     const token = authManager.getToken();
     if (!token) throw new Error('Необходимо войти в систему');
 
@@ -5607,6 +5644,10 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       } else {
         const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
         prompt = parts.length > 0 ? parts.join(' | ') : '';
+        if (!prompt) {
+          const fallbackParts = [formData.name, formData.personality, formData.situation].filter(p => p && p.trim());
+          prompt = fallbackParts.join(', ');
+        }
       }
     }
 
@@ -5663,6 +5704,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     let imageId: string | undefined;
     let generationTime: number | undefined;
 
+    let photoPrompt: string | undefined;
     if (result.task_id) {
       const generatedPhoto = await waitForGeneration(result.task_id, token);
       if (!generatedPhoto) {
@@ -5671,6 +5713,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       imageUrl = generatedPhoto.url; // Уже нормализован в waitForGeneration
       imageId = generatedPhoto.id;
       generationTime = generatedPhoto.generationTime;
+      photoPrompt = generatedPhoto.prompt;
     } else {
       // Нормализуем URL для локальной разработки
       imageUrl = normalizeImageUrl(result.cloud_url || result.image_url);
@@ -5709,7 +5752,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     return {
       id: imageId || Date.now().toString(),
       url: imageUrl,
-      generationTime
+      generationTime,
+      prompt: photoPrompt
     };
   };
 
@@ -5719,6 +5763,10 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     if (!raw) {
       const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
       raw = parts.length > 0 ? parts.join(' | ') : '';
+      if (!raw) {
+        const fallbackParts = [formData.name, formData.personality, formData.situation].filter(p => p && p.trim());
+        raw = fallbackParts.join(', ');
+      }
     }
     return raw;
   };
@@ -5732,13 +5780,19 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
       if (!currentPrompt) {
         const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
         currentPrompt = parts.length > 0 ? parts.join(' | ') : '';
+        if (!currentPrompt) {
+          const fallbackParts = [formData.name, formData.personality, formData.situation].filter(p => p && p.trim());
+          currentPrompt = fallbackParts.join(', ');
+        }
       }
       const photo = await generateSinglePhoto(currentPrompt, model);
       if (photo) {
         setGeneratedPhotos(prev => {
           const existingIds = new Set(prev.map(p => p.id));
           if (existingIds.has(photo.id)) return prev;
-          return [{ ...photo, isSelected: false }, ...prev];
+          // Используем промпт, полученный с бэка, или локальный как fallback
+          const finalPrompt = photo.prompt || currentPrompt;
+          return [{ ...photo, prompt: finalPrompt, isSelected: false }, ...prev];
         });
         setSuccess('Фото успешно сгенерировано!');
       }
@@ -5847,7 +5901,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         return {
           id: selectedPhoto.id,
           url: selectedPhoto.url,
-          generation_time: fullPhoto?.generationTime ?? null
+          generation_time: fullPhoto?.generationTime ?? null,
+          prompt: fullPhoto?.prompt || selectedPhoto.prompt || null
         };
       });
 
@@ -5889,11 +5944,15 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
 
     setSelectedPhotoForView(photo);
     setIsPromptVisible(true);
-    setSelectedPrompt(null);
+    setSelectedPrompt(photo.prompt || null);
     setSelectedPromptRu(null);
     setSelectedPromptEn(null);
     setPromptError(null);
-    setIsLoadingPrompt(true);
+    setIsLoadingPrompt(!photo.prompt);
+
+    if (photo.prompt) {
+      return;
+    }
 
     try {
       const result = await fetchPromptByImage(photo.url);
@@ -6079,7 +6138,26 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                   <StepItemButton
                     $isActive={currentStep === 4}
                     $isCompleted={false}
-                    onClick={() => setCurrentStep(4)}
+                    onClick={() => {
+                      setCurrentStep(4);
+                      // Принудительно генерируем промпт при переходе на 4 шаг, если он пуст
+                      if (!customPromptManuallySet && !customPrompt.trim()) {
+                        const currentAppearance = formData.appearance || '';
+                        const currentLocation = formData.location || '';
+                        const parts = [currentAppearance, currentLocation].filter(p => p && p.trim());
+                        let defaultPrompt = parts.join(' | ');
+
+                        if (!defaultPrompt) {
+                          const fallbackParts = [formData.name, formData.personality, formData.situation].filter(p => p && p.trim());
+                          defaultPrompt = fallbackParts.join(', ');
+                        }
+
+                        if (defaultPrompt) {
+                          setCustomPrompt(defaultPrompt);
+                          customPromptRef.current = defaultPrompt;
+                        }
+                      }
+                    }}
                     type="button"
                   >
                     <StepNumber $isActive={currentStep === 4} $isCompleted={false}>4</StepNumber>
@@ -6700,7 +6778,16 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                             </FormLabel>
                             <ModernTextarea
                               id="photo-prompt-unified"
-                              value={customPrompt}
+                              value={(() => {
+                                if (customPromptManuallySet || customPrompt.trim()) return customPrompt;
+                                const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
+                                let defaultPrompt = parts.join(' | ');
+                                if (!defaultPrompt) {
+                                  const fallbackParts = [formData.name, formData.personality, formData.situation].filter(p => p && p.trim());
+                                  defaultPrompt = fallbackParts.join(', ');
+                                }
+                                return defaultPrompt;
+                              })()}
                               onChange={(e) => {
                                 const newValue = e.target.value;
                                 setCustomPrompt(newValue);
@@ -6714,8 +6801,18 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                             <PromptSuggestions
                               prompts={[...APPEARANCE_PROMPTS, ...LOCATION_PROMPTS]}
                               onSelect={(val) => {
-                                const separator = customPrompt.length > 0 && !customPrompt.endsWith(', ') && !customPrompt.endsWith(',') ? ', ' : '';
-                                const newValue = customPrompt + separator + val;
+                                let currentText = customPrompt;
+                                if (!customPromptManuallySet && !customPrompt.trim()) {
+                                  const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
+                                  let defaultPrompt = parts.join(' | ');
+                                  if (!defaultPrompt) {
+                                    const fallbackParts = [formData.name, formData.personality, formData.situation].filter(p => p && p.trim());
+                                    defaultPrompt = fallbackParts.join(', ');
+                                  }
+                                  currentText = defaultPrompt;
+                                }
+                                const separator = currentText.length > 0 && !currentText.endsWith(', ') && !currentText.endsWith(',') ? ', ' : '';
+                                const newValue = currentText + separator + val;
                                 setCustomPrompt(newValue);
                                 customPromptRef.current = newValue;
                                 setCustomPromptManuallySet(true);
@@ -6863,7 +6960,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                               </div>
 
                               <GenerateTooltip $isVisible={showGenerateTooltip}>
-                                Наведитесь на готовое фото и нажмите "Добавить"
+                                {t('createCharacter.photo.addHint')}
                               </GenerateTooltip>
                             </div>
 
@@ -7149,7 +7246,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
               </LeftColumn>
 
               <RightColumn>
-                <ScrollableContent>
+                <StyledRightColumn>
                   <LivePreviewCard
                     animate={{ scale: formData.name ? [1, 1.02, 1] : 1 }}
                     transition={{ duration: 0.5, repeat: formData.name ? Infinity : 0, repeatDelay: 1 }}
@@ -7294,20 +7391,20 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                       </button>
                     )}
                   </div>
-                </ScrollableContent>
 
-                <TagSelector
-                  selectedTags={formData.tags || []}
-                  onChange={(newTags) => setFormData(prev => ({ ...prev, tags: newTags }))}
-                  style={{
-                    width: '100%',
-                    height: '200px',
-                    padding: '0 24px 24px 24px',
-                    marginTop: 'auto',
-                    borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-                    background: 'rgba(20, 20, 30, 0.5)'
-                  }}
-                />
+                  <TagSelector
+                    selectedTags={formData.tags || []}
+                    onChange={(newTags) => setFormData(prev => ({ ...prev, tags: newTags }))}
+                    style={{
+                      width: '100%',
+                      height: '200px',
+                      padding: '0 24px 24px 24px',
+                      marginTop: 'auto',
+                      borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+                      background: 'rgba(20, 20, 30, 0.5)'
+                    }}
+                  />
+                </StyledRightColumn>
               </RightColumn>
             </Form>
           </MainContent >
@@ -7592,7 +7689,10 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                         onClick={() => {
                           setIsVoiceSubscriptionModalOpen(false);
                           if (onShop) onShop();
-                          else window.location.href = '/shop';
+                          else {
+                            const currentLang = (i18n.language || 'ru').split('-')[0];
+                            navigate(`/${currentLang}/shop?tab=subscription`);
+                          }
                         }}
                       >
                         В магазин
@@ -7628,7 +7728,8 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                         if (onShop) {
                           onShop();
                         } else {
-                          window.location.href = '/shop';
+                          const currentLang = (i18n.language || 'ru').split('-')[0];
+                          navigate(`/${currentLang}/shop?tab=subscription`);
                         }
                       }}
                     >

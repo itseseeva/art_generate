@@ -58,6 +58,23 @@ const getApiBaseUrl = (): string => {
 
 const baseUrl = getApiBaseUrl();
 
+const getCdnUrl = (): string => {
+  const viteCdnDomain = import.meta.env.VITE_CDN_DOMAIN;
+
+  // В production используем CDN (статические файлы через CDN-домен)
+  if (viteCdnDomain && import.meta.env.PROD) {
+    return viteCdnDomain.endsWith('/') ? viteCdnDomain.slice(0, -1) : viteCdnDomain;
+  }
+
+  // В development используем относительный путь /media.
+  // Браузер запрашивает /media/xxx через localhost:5175,
+  // Vite proxy перенаправляет на localhost:8001/media/xxx,
+  // бэкенд проксирует файл из Yandex Storage.
+  return '/media';
+};
+
+const cdnUrl = getCdnUrl();
+
 // Логируем используемый BASE_URL для отладки (только в development)
 if (import.meta.env.DEV) {
 
@@ -120,6 +137,43 @@ export const API_CONFIG = {
   get GENERATE_IMAGE_FULL() { return this.BASE_URL + this.GENERATE_IMAGE; },
   get FALLBACK_SETTINGS_FULL() { return this.BASE_URL + this.FALLBACK_SETTINGS; },
   get CHAT_FULL() { return this.BASE_URL + this.CHAT; },
+  CDN_URL: cdnUrl,
+};
+
+// Функция для формирования URL медиафайла
+export const getMediaUrl = (path: string): string => {
+  if (!path) return '';
+
+  // Если это уже CDN URL, возвращаем как есть
+  if (API_CONFIG.CDN_URL && path.includes(API_CONFIG.CDN_URL)) {
+    return path;
+  }
+
+  let clearPath = path;
+
+  // Если это абсолютный URL, проверяем, не нужно ли его конвертировать в CDN
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    // Конвертируем старый /media/ прокси или любой другой домен с /media/
+    if (path.includes('/media/')) {
+      clearPath = path.split('/media/').pop() || path;
+    }
+    // Извлекаем object_key из Yandex Storage URL
+    else if (path.includes('.storage.yandexcloud.net/')) {
+      clearPath = path.split('.storage.yandexcloud.net/').pop() || path;
+    } else if (path.includes('storage.yandexcloud.net/')) {
+      const parts = path.split('storage.yandexcloud.net/')[1].split('/');
+      if (parts.length > 1) {
+        clearPath = parts.slice(1).join('/');
+      }
+    } else {
+      // Если это просто внешний URL (другой хост без /media/), возвращаем как есть
+      return path;
+    }
+  }
+
+  // Убираем ведущие слэши и префикс media/ если они остались в начале
+  const finalPath = clearPath.replace(/^\/?(media\/)?/, '');
+  return `${API_CONFIG.CDN_URL}/${finalPath}`;
 };
 
 // Вспомогательные функции для API запросов

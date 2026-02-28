@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
 import { authManager } from '../utils/auth';
 import { theme } from '../theme';
 import SplitText from './SplitText';
 import { AuthModal } from './AuthModal';
-import { API_CONFIG } from '../config/api';
+import { API_CONFIG, getMediaUrl } from '../config/api';
 import { LoadingSpinner } from './LoadingSpinner';
 import DarkVeil from '../../@/components/DarkVeil';
 import {
@@ -1178,12 +1178,12 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, onUpdate })
       });
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.detail || 'Ошибка обновления username');
+        throw new Error(error.detail || t('profile.updateUsernameError'));
       }
       setMessage({ text: t('profile.usernameUpdated'), error: false });
       onUpdate();
     } catch (error: any) {
-      setMessage({ text: error.message || 'Ошибка обновления username', error: true });
+      setMessage({ text: error.message || t('profile.updateUsernameError'), error: true });
     } finally {
       setIsLoading(false);
     }
@@ -1214,12 +1214,12 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, onUpdate })
       });
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.detail || 'Ошибка запроса смены пароля');
+        throw new Error(error.detail || t('profile.requestPasswordError'));
       }
       setPasswordChangeStep('code');
       setMessage({ text: t('profile.codeSent'), error: false });
     } catch (error: any) {
-      setMessage({ text: error.message || 'Ошибка запроса смены пароля', error: true });
+      setMessage({ text: error.message || t('profile.requestPasswordError'), error: true });
     } finally {
       setIsLoading(false);
     }
@@ -1239,7 +1239,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, onUpdate })
       });
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.detail || 'Ошибка подтверждения смены пароля');
+        throw new Error(error.detail || t('profile.confirmPasswordError'));
       }
       setMessage({ text: t('profile.passwordChanged'), error: false });
       setPasswordChangeStep('form');
@@ -1248,7 +1248,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ userInfo, onUpdate })
       setConfirmPassword('');
       setPasswordVerificationCode('');
     } catch (error: any) {
-      setMessage({ text: error.message || 'Ошибка подтверждения смены пароля', error: true });
+      setMessage({ text: error.message || t('profile.confirmPasswordError'), error: true });
     } finally {
       setIsLoading(false);
     }
@@ -1365,7 +1365,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const { t } = useTranslation();
   const { userId: routeUserId } = useParams<{ userId: string }>();
   // Use prop if available, otherwise use route param
-  const resolvedUserId = profileUserId || (routeUserId ? Number(routeUserId) : undefined);
+  // Определяем, является ли параметр числовым ID или юзернеймом
+  const isNumericId = routeUserId && /^\d+$/.test(routeUserId);
+  const resolvedUserId = profileUserId || (isNumericId ? Number(routeUserId) : undefined);
+  const resolvedUsername = profileUsername || (!isNumericId ? routeUserId : undefined);
   const [userInfo, setUserInfo] = useState<UserInfoResponse | null>(null);
   const [stats, setStats] = useState<SubscriptionStats | null>(null);
   const [isLoading, setIsLoading] = useState(() => {
@@ -1403,16 +1406,18 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   // 3. Если есть username, сравниваем ID загруженного пользователя с currentUserId
   const isViewingOwnProfile = useMemo(() => {
     // 1. Если нет ни ID, ни username в параметрах - это "/profile" (свой)
-    if (!resolvedUserId && !profileUsername) return true;
+    if (!resolvedUserId && !resolvedUsername) return true;
 
     // 2. Если есть ID, сравниваем с currentUserId
     if (resolvedUserId && currentUserId !== null && Number(resolvedUserId) === Number(currentUserId)) return true;
 
     // 3. Если есть username, сравниваем ID загруженного пользователя с currentUserId
-    if (profileUsername && currentUserId !== null && userInfo?.id === currentUserId) return true;
+    if (resolvedUsername && currentUserId !== null && userInfo?.id === currentUserId) return true;
 
     return false;
-  }, [resolvedUserId, profileUsername, currentUserId, userInfo?.id]);
+  }, [resolvedUserId, resolvedUsername, currentUserId, userInfo?.id]);
+  const navigate = useNavigate();
+  const { i18n } = useTranslation();
 
   // Загрузка избранных персонажей
   const loadFavorites = useCallback(async () => {
@@ -1452,7 +1457,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       // Если передан profileUserId, используем его (для чужого профиля)
       if (resolvedUserId) {
         targetUserId = resolvedUserId;
-      } else if (profileUsername) {
+      } else if (resolvedUsername) {
         // Если передан username, ждем загрузки userInfo, чтобы получить ID
         if (userInfo) {
           targetUserId = userInfo.id;
@@ -1508,7 +1513,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
         // Если использовали /my-characters, персонажи уже отфильтрованы
         // Если использовали общий эндпоинт, фильтруем по user_id или username
-        const myCharacters = (!resolvedUserId && !profileUsername && currentUserId === targetUserId)
+        const myCharacters = (!resolvedUserId && !resolvedUsername && currentUserId === targetUserId)
           ? charactersData  // Уже отфильтрованы
           : charactersData.filter((char: any) => {
             if (!char) return false;
@@ -1518,7 +1523,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             const matchesId = charUserId !== null && charUserId !== undefined && Number(charUserId) === Number(targetUserId);
 
             // Проверяем по Username (на случай если ID не совпадает или отсутствует в char)
-            const targetUsername = userInfo?.username || profileUsername;
+            const targetUsername = userInfo?.username || resolvedUsername;
             const matchesUsername = targetUsername && (
               (char.creator_username && char.creator_username.toLowerCase() === targetUsername.toLowerCase()) ||
               (char.author && char.author.toLowerCase() === targetUsername.toLowerCase())
@@ -1588,26 +1593,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 photoUrl = `/static/photos/${normalizedKey}/${photo.id}.png`;
               }
 
-              // Конвертируем старые Yandex.Cloud URL в прокси URL
-              if (photoUrl && photoUrl.includes('storage.yandexcloud.net/')) {
-                if (photoUrl.includes('.storage.yandexcloud.net/')) {
-                  // Формат: https://bucket-name.storage.yandexcloud.net/path/to/file
-                  const objectKey = photoUrl.split('.storage.yandexcloud.net/')[1];
-                  if (objectKey) {
-                    photoUrl = `${API_CONFIG.BASE_URL}/media/${objectKey}`;
-                  }
-                } else {
-                  // Формат: https://storage.yandexcloud.net/bucket-name/path/to/file
-                  const parts = photoUrl.split('storage.yandexcloud.net/')[1];
-                  if (parts) {
-                    // Пропускаем bucket-name и берем остальное
-                    const pathSegments = parts.split('/');
-                    if (pathSegments.length > 1) {
-                      const objectKey = pathSegments.slice(1).join('/');
-                      photoUrl = `${API_CONFIG.BASE_URL}/media/${objectKey}`;
-                    }
-                  }
-                }
+              // Используем централизованную функцию для формирования URL через CDN
+              if (photoUrl) {
+                photoUrl = getMediaUrl(photoUrl);
               }
 
               return photoUrl;
@@ -1711,16 +1699,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   }, []);
 
   const fetchUserInfo = useCallback(async () => {
-    // Если передан profileUserId, загружаем данные этого пользователя
-    // Если передан profileUsername, сначала пытаемся найти ID пользователя
+    // Если передан resolvedUserId, загружаем данные этого пользователя
+    // Если передан resolvedUsername, сначала пытаемся найти ID пользователя
     // Иначе загружаем данные текущего пользователя
 
     let url = `${API_CONFIG.BASE_URL}/api/v1/auth/me/`;
-    let targetId = profileUserId;
+    let targetId = resolvedUserId;
 
     if (targetId) {
       url = `${API_CONFIG.BASE_URL}/api/v1/auth/users/${targetId}/`;
-    } else if (profileUsername) {
+    } else if (resolvedUsername) {
       // Пытаемся найти пользователя по username через список персонажей (fallback method)
       // Так как прямого эндпоинта поиска по username может не быть, ищем через персонажей
       try {
@@ -1729,8 +1717,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           const characters = await response.json();
           // Ищем хотя бы одного персонажа этого автора
           const authorChar = characters.find((c: any) =>
-            (c.creator_username && c.creator_username.toLowerCase() === profileUsername.toLowerCase()) ||
-            (c.author && c.author.toLowerCase() === profileUsername.toLowerCase())
+            (c.creator_username && c.creator_username.toLowerCase() === resolvedUsername.toLowerCase()) ||
+            (c.author && c.author.toLowerCase() === resolvedUsername.toLowerCase())
           );
 
           if (authorChar) {
@@ -1750,7 +1738,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     if (!response.ok) {
       const errorText = await response.text();
       // Если поиск по username не удался и это был не "me" запрос
-      if (profileUsername && !targetId) {
+      if (resolvedUsername && !targetId) {
         throw new Error('Пользователь не найден');
       }
       throw new Error('Не удалось загрузить данные пользователя');
@@ -1764,13 +1752,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     setUserInfo(data as UserInfoResponse);
 
     // Если это свой профиль, сохраняем ID текущего пользователя
-    if (!profileUserId && !profileUsername) {
+    if (!resolvedUserId && !resolvedUsername) {
       const userId = data.id;
       setCurrentUserId(userId);
     }
 
     return data as UserInfoResponse;
-  }, [profileUserId, profileUsername]);
+  }, [resolvedUserId, resolvedUsername]);
 
   const fetchSubscriptionStats = useCallback(async () => {
     const response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/profit/stats/`);
@@ -1873,11 +1861,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   }, []);
 
   const verifyGalleryAccess = useCallback(async (): Promise<boolean> => {
-    if (!profileUserId) {
+    const targetId = resolvedUserId || userInfo?.id;
+    if (!targetId) {
       return false;
     }
     try {
-      const response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/auth/user-generated-photos/${profileUserId}/?limit=1`);
+      const response = await authManager.fetchWithAuth(`${API_CONFIG.BASE_URL}/api/v1/auth/user-generated-photos/${targetId}/?limit=1`);
 
       if (response.ok) {
         rememberUnlockedUserGallery(profileUserId);
@@ -1886,8 +1875,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       }
 
       if (response.status === 403) {
-
-        forgetUnlockedUserGallery(profileUserId);
+        forgetUnlockedUserGallery(targetId);
         setHasUnlockedGallery(false);
         return false;
       }
@@ -1898,14 +1886,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
       return false;
     }
-  }, [profileUserId]);
+  }, [resolvedUserId, userInfo?.id]);
 
 
   const handleOpenUserGallery = useCallback(async () => {
     // Определяем ID пользователя для галереи
-    // Если есть profileUserId - используем его
-    // Если нет, но есть profileUsername - используем userInfo?.id (ID загруженного пользователя)
-    const targetUserId = profileUserId || userInfo?.id;
+    // Если есть resolvedUserId - используем его
+    // Если нет, но есть resolvedUsername - используем userInfo?.id (ID загруженного пользователя)
+    const targetUserId = resolvedUserId || userInfo?.id;
 
     if (!targetUserId || isViewingOwnProfile) {
       // Открываем свою галерею
@@ -1999,7 +1987,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       setIsLoadingGallery(false);
     }
   }, [
-    profileUserId,
+    resolvedUserId,
     userInfo,
     isViewingOwnProfile,
     hasUnlockedGallery,
@@ -2053,14 +2041,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       const results = await Promise.allSettled([
         fetchUserInfo(),
         fetchSubscriptionStats(), // Всегда загружаем статистику текущего пользователя (нужна для проверки подписки при разблокировке галереи)
-        (profileUserId || profileUsername) ? Promise.resolve(null) : loadPhotosCount(), // Фото только для своего профиля
+        (resolvedUserId || resolvedUsername) ? Promise.resolve(null) : loadPhotosCount(), // Фото только для своего профиля
         isViewingOwnProfile ? fetchProfileStats() : Promise.resolve(null) // Расширенная статистика только для своего профиля
       ]);
 
       // Если это чужой профиль, загружаем количество сгенерированных фото
-      if (profileUserId && myUserId && profileUserId !== myUserId) {
+      const targetUserId = userInfo?.id || resolvedUserId;
+      if (targetUserId && myUserId && targetUserId !== myUserId) {
         try {
-          await loadGeneratedPhotosCount(profileUserId);
+          await loadGeneratedPhotosCount(targetUserId);
         } catch (error) {
 
         }
@@ -2093,7 +2082,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [fetchSubscriptionStats, fetchUserInfo, loadPhotosCount, profileUserId, currentUserId, loadGeneratedPhotosCount, fetchCurrentUserProfile, fetchProfileStats, isViewingOwnProfile]);
+  }, [fetchSubscriptionStats, fetchUserInfo, loadPhotosCount, resolvedUserId, resolvedUsername, currentUserId, loadGeneratedPhotosCount, fetchCurrentUserProfile, fetchProfileStats, isViewingOwnProfile]);
 
   // Загружаем персонажей пользователя (для своего и чужого профиля)
   useEffect(() => {
@@ -2326,7 +2315,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     } relative ${isViewingOwnProfile ? 'cursor-pointer' : ''}`}>
                     {userInfo?.avatar_url ? (
                       <img
-                        src={userInfo.avatar_url}
+                        src={getMediaUrl(userInfo.avatar_url)}
                         alt="Avatar"
                         className="w-full h-full object-cover"
                         onError={(e) => {
@@ -2597,7 +2586,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     appearance_ru: rawChar.appearance_ru || rawChar.character_appearance_ru,
                     appearance_en: rawChar.appearance_en || rawChar.character_appearance_en,
                     location_ru: rawChar.location_ru,
-                    location_en: rawChar.location_en
+                    location_en: rawChar.location_en,
+                    creator_username: rawChar.creator_username || userInfo?.username || 'anonymous'
                   };
 
                   // Проверяем, находится ли персонаж в избранном
@@ -2664,7 +2654,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         isOpen={showGalleryAccessModal}
         onClose={() => setShowGalleryAccessModal(false)}
         onGoToShop={() => {
-          window.location.href = '/shop?tab=subscription';
+          const currentLang = (i18n.language || 'ru').split('-')[0];
+          navigate(`/${currentLang}/shop?tab=subscription`);
         }}
       />
 

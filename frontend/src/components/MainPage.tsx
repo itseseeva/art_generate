@@ -11,7 +11,12 @@ import { AuthModal } from './AuthModal';
 import { PhotoGenerationPage } from './PhotoGenerationPage';
 import { Footer } from './Footer';
 // GlobalHeader import removed
-import { API_CONFIG } from '../config/api';
+import { API_CONFIG, getMediaUrl } from '../config/api';
+import {
+  getCharactersFromCache,
+  saveCharactersToCache,
+  invalidateCharactersCache
+} from '../hooks/useCharactersCache';
 import { authManager } from '../utils/auth';
 import '../styles/ContentArea.css';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -639,24 +644,8 @@ export const MainPage: React.FC<MainPageProps> = ({
             photoUrl = photo.startsWith('http') ? photo : `/static/photos/${normalizedKey}/${photo}.png`;
           }
           if (!photoUrl) return null;
-          if (photoUrl.includes('storage.yandexcloud.net/')) {
-            if (photoUrl.includes('.storage.yandexcloud.net/')) {
-              const objectKey = photoUrl.split('.storage.yandexcloud.net/')[1];
-              if (objectKey) photoUrl = `${API_CONFIG.BASE_URL}/media/${objectKey}`;
-            } else {
-              const parts = photoUrl.split('storage.yandexcloud.net/')[1];
-              if (parts) {
-                const pathSegments = parts.split('/');
-                if (pathSegments.length > 1) {
-                  photoUrl = `${API_CONFIG.BASE_URL}/media/${pathSegments.slice(1).join('/')}`;
-                }
-              }
-            }
-          }
-          if (photoUrl && photoUrl.includes('candygirlschat.com') && import.meta.env.DEV) {
-            photoUrl = `${API_CONFIG.BASE_URL}${photoUrl.replace(/https?:\/\/[^/]+/, '')}`;
-          }
-          return photoUrl;
+          // Используем getMediaUrl для конвертации любых ссылок (Yandex, /media/, etc.) в CDN
+          return getMediaUrl(photoUrl);
         })
         .filter((u): u is string => Boolean(u));
       if (urls.length > 0) photosMap[normalizedKey] = urls;
@@ -686,6 +675,8 @@ export const MainPage: React.FC<MainPageProps> = ({
         comments: Number(char.comments) || 0,
         is_nsfw: char.is_nsfw === true,
         creator_username: char.creator_username,
+        paid_album_photos_count: char.paid_album_photos_count || 0,
+        paid_album_preview_urls: char.paid_album_preview_urls || [],
         prompt: char.prompt || char.full_prompt || '',
 
         raw: char,
@@ -769,7 +760,17 @@ export const MainPage: React.FC<MainPageProps> = ({
       }
 
       // Загружаем всех персонажей (запрашиваем большой лимит, чтобы получить все)
-      const allBatch = await fetchCharactersFromApi(0, 10000, forceRefresh);
+      // 1. Сначала проверяем sessionStorage кэш
+      let allBatch = getCharactersFromCache(forceRefresh);
+
+      if (!allBatch) {
+        // 2. Кэш пустой или устарел — загружаем с API
+        allBatch = await fetchCharactersFromApi(0, 10000, forceRefresh);
+        // 3. Сохраняем свежие данные в кэш
+        if (allBatch.length > 0) {
+          saveCharactersToCache(allBatch);
+        }
+      }
 
       if (!allBatch.length) {
         setCharacters([]);
@@ -782,7 +783,15 @@ export const MainPage: React.FC<MainPageProps> = ({
         return;
       }
 
-      const photosMap = buildPhotosMapFromBatch(allBatch);
+      let photosMap = buildPhotosMapFromBatch(allBatch);
+      if (Object.keys(characterPhotos).length === 0) {
+        const extraPhotosMap = await fetchAdditionalPhotos();
+        for (const k of Object.keys(extraPhotosMap)) {
+          if (!photosMap[k] || photosMap[k].length === 0) {
+            photosMap[k] = extraPhotosMap[k];
+          }
+        }
+      }
       setCharacterPhotos((prev) => ({ ...prev, ...photosMap }));
       setCachedRawCharacters(allBatch);
 
@@ -823,17 +832,18 @@ export const MainPage: React.FC<MainPageProps> = ({
         return char.is_nsfw === true;
       });
 
+      // Сортируем чтобы персонажи с фото были на первой странице
+      const sortedAll = sortCharactersFunc(filteredAll);
+
       // Показываем первую страницу отфильтрованных персонажей
-      const firstPage = filteredAll.slice(0, PAGE_SIZE);
+      const firstPage = sortedAll.slice(0, PAGE_SIZE);
       displayedFromCacheCountRef.current = firstPage.length;
       setCharacters(firstPage);
       setHasMore(filteredAll.length > PAGE_SIZE);
 
       await loadCharacterRatings(firstPage, false);
 
-      if (Object.keys(characterPhotos).length === 0) {
-        await loadCharacterPhotos();
-      }
+
     } catch {
       setCharacters([]);
       setCachedRawCharacters([]);
@@ -862,8 +872,10 @@ export const MainPage: React.FC<MainPageProps> = ({
           return char.is_nsfw === true;
         });
 
+        const sortedCache = sortCharactersFunc(filteredCache);
+
         const start = displayedFromCacheCountRef.current;
-        const nextPage = filteredCache.slice(start, start + PAGE_SIZE);
+        const nextPage = sortedCache.slice(start, start + PAGE_SIZE);
 
         if (nextPage.length === 0) {
           setHasMore(false);
@@ -930,10 +942,10 @@ export const MainPage: React.FC<MainPageProps> = ({
 
   // Загрузка фото только из /photos и character-photos.json (без fetch всех персонажей).
   // Мержим в characterPhotos только если ключа ещё нет — main_photos из пагинированных ответов не перезаписываем.
-  const loadCharacterPhotos = async () => {
+  // Загрузка дополнительных фото (если их нет в main_photos)
+  const fetchAdditionalPhotos = async (): Promise<{ [key: string]: string[] }> => {
+    const photosMap: { [key: string]: string[] } = {};
     try {
-      const photosMap: { [key: string]: string[] } = {};
-
       try {
         const photosResponse = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/photos`);
         if (photosResponse.ok) {
@@ -941,7 +953,7 @@ export const MainPage: React.FC<MainPageProps> = ({
           for (const [key, photos] of Object.entries(apiPhotos)) {
             const normalizedKey = key.toLowerCase();
             if (Array.isArray(photos) && photos.length > 0) {
-              photosMap[normalizedKey] = photos as string[];
+              photosMap[normalizedKey] = (photos as string[]).map(getMediaUrl);
             }
           }
         }
@@ -957,7 +969,7 @@ export const MainPage: React.FC<MainPageProps> = ({
             const normalizedKey = key.toLowerCase();
             if (Array.isArray(photos) && photos.length > 0) {
               if (!photosMap[normalizedKey] || photosMap[normalizedKey].length === 0) {
-                photosMap[normalizedKey] = photos as string[];
+                photosMap[normalizedKey] = (photos as string[]).map(getMediaUrl);
               }
             }
           }
@@ -965,14 +977,56 @@ export const MainPage: React.FC<MainPageProps> = ({
       } catch {
         /* игнорируем */
       }
+    } catch {
+      /* игнорируем */
+    }
+    return photosMap;
+  };
 
-      setCharacterPhotos((prev) => {
-        const next = { ...prev };
-        for (const k of Object.keys(photosMap)) {
-          if (!next[k] || next[k].length === 0) next[k] = photosMap[k];
-        }
-        return next;
-      });
+  const sortCharactersFunc = useCallback((chars: Character[]) => {
+    return [...chars].sort((a, b) => {
+      const aHasPhotos = a.photos && a.photos.length > 0 ? 1 : 0;
+      const bHasPhotos = b.photos && b.photos.length > 0 ? 1 : 0;
+      if (aHasPhotos !== bHasPhotos) return bHasPhotos - aHasPhotos;
+
+      const isOriginal = (char: any) => {
+        const tags = char.tags || [];
+        return tags.some((t: any) => {
+          const name = typeof t === 'string' ? t : (t.name || '');
+          return name.toLowerCase() === 'original' || name.toLowerCase() === 'оригинальный';
+        });
+      };
+
+      const aOrig = isOriginal(a) ? 1 : 0;
+      const bOrig = isOriginal(b) ? 1 : 0;
+      if (aOrig !== bOrig) return bOrig - aOrig;
+
+      const aLikes = a.likes || 0;
+      const bLikes = b.likes || 0;
+      if (aLikes !== bLikes) return bLikes - aLikes;
+
+      const aMsgs = (a.comments || a.views || 0);
+      const bMsgs = (b.comments || b.views || 0);
+      return bMsgs - aMsgs;
+    });
+  }, []);
+
+  const loadCharacterPhotos = async () => {
+    try {
+      const photosMap = await fetchAdditionalPhotos();
+      if (Object.keys(photosMap).length > 0) {
+        setCharacterPhotos((prev) => {
+          const next = { ...prev };
+          let changed = false;
+          for (const k of Object.keys(photosMap)) {
+            if (!next[k] || next[k].length === 0) {
+              next[k] = photosMap[k];
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
+      }
     } catch {
       /* игнорируем */
     }
@@ -1026,10 +1080,10 @@ export const MainPage: React.FC<MainPageProps> = ({
   // Автоматическое обновление фотографий каждые 30 секунд
   React.useEffect(() => {
     const loadData = async () => {
-      // Всегда загружаем с принудительным обновлением при первой загрузке
-      // Сначала загружаем персонажей, потом фото
-      await loadCharacters(true); // forceRefresh = true
-      // Небольшая задержка для гарантии обновления кэша
+      // При первом открытии и page-refresh всегда грузим с API (forceRefresh=true),
+      // чтобы избежать конкуренции с contentMode-эффектом. 
+      // SessionStorage кэш применяется при SPA-навигации (переход на другую страницу и обратно).
+      await loadCharacters(true);
       await new Promise(resolve => setTimeout(resolve, 300));
       await loadCharacterPhotos();
     };
@@ -1045,12 +1099,11 @@ export const MainPage: React.FC<MainPageProps> = ({
       const customEvent = event as CustomEvent;
       const characterName = customEvent?.detail?.character_name;
 
-      // Даем время бэкенду сохранить изменения и очистить кэш
+      // Даем время бэкенду сохранить изменения
       await new Promise(resolve => setTimeout(resolve, 2000));
-      // Принудительно перезагружаем данные, игнорируя кэш
-      // Сначала загружаем персонажей, потом фото
-      await loadCharacters(true); // forceRefresh = true
-      // Небольшая задержка перед загрузкой фото, чтобы данные точно обновились
+      // Инвалидируем кэш перед перезагрузкой
+      invalidateCharactersCache();
+      await loadCharacters(true);
       await new Promise(resolve => setTimeout(resolve, 500));
       await loadCharacterPhotos();
     };
@@ -1058,10 +1111,11 @@ export const MainPage: React.FC<MainPageProps> = ({
     const handleCharacterCreated = async (event: Event) => {
       const customEvent = event as CustomEvent;
 
-      // Даем время бэкенду сохранить персонажа и очистить кэш (увеличена задержка)
+      // Даем время бэкенду сохранить персонажа
       await new Promise(resolve => setTimeout(resolve, 2500));
-      // Принудительно перезагружаем персонажей из API, игнорируя кэш
-      await loadCharacters(true); // forceRefresh = true
+      // Инвалидируем кэш и перезагружаем с API
+      invalidateCharactersCache();
+      await loadCharacters(true);
       await loadCharacterPhotos();
     };
 
@@ -1070,6 +1124,8 @@ export const MainPage: React.FC<MainPageProps> = ({
       if (now - lastCharactersUpdateRef.current < 2000) return;
       lastCharactersUpdateRef.current = now;
       await new Promise((r) => setTimeout(r, 500));
+      // Инвалидируем кэш при обновлении персонажа
+      invalidateCharactersCache();
       await loadCharacters(true);
     };
 
@@ -1407,7 +1463,7 @@ export const MainPage: React.FC<MainPageProps> = ({
         const rating = !isNaN(characterId) ? characterRatings[characterId] : null;
         return {
           ...character,
-          photos: characterPhotos[character.name.toLowerCase()] || [],
+          photos: characterPhotos[character.name.toLowerCase()] || (character as any).photos || [],
           likes: rating ? rating.likes : character.likes || 0,
           dislikes: rating ? rating.dislikes : character.dislikes || 0
         };
@@ -1620,6 +1676,7 @@ export const MainPage: React.FC<MainPageProps> = ({
                           onClick={handleCharacterClick}
                           isAuthenticated={isAuthenticated}
                           isAdmin={userInfo?.is_admin}
+                          isLocked={false}
                           onPhotoGeneration={onPhotoGeneration}
                           onPaidAlbum={(character) => {
                             if (onPaidAlbum) {

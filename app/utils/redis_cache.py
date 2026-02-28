@@ -30,6 +30,8 @@ logger = logging.getLogger(__name__)
 # Глобальный клиент Redis
 _redis_client: Optional[Redis] = None
 _redis_unavailable: bool = False  # Флаг недоступности Redis
+_redis_unavailable_since: Optional[float] = None  # Время, когда Redis стал недоступен
+REDIS_RETRY_INTERVAL: float = 30.0  # Через 30 секунд пробуем переподключиться
 
 
 async def get_redis_client() -> Optional[Redis]:
@@ -41,10 +43,21 @@ async def get_redis_client() -> Optional[Redis]:
     - Настроены оптимальные таймауты для production
     - Health check для автоматического восстановления соединений
     """
-    global _redis_client, _redis_unavailable
+    global _redis_client, _redis_unavailable, _redis_unavailable_since
     
-    if not REDIS_AVAILABLE or _redis_unavailable:
+    if not REDIS_AVAILABLE:
         return None
+    
+    # Circuit breaker: если Redis недоступен, пробуем снова через REDIS_RETRY_INTERVAL секунд
+    if _redis_unavailable:
+        import time
+        if _redis_unavailable_since and (time.monotonic() - _redis_unavailable_since) < REDIS_RETRY_INTERVAL:
+            return None
+        # Прошло достаточно времени — сбрасываем флаг и пробуем переподключиться
+        logger.info("[REDIS] Circuit breaker: пробуем переподключиться к Redis после паузы...")
+        _redis_unavailable = False
+        _redis_unavailable_since = None
+        _redis_client = None  # Форсируем создание нового клиента
     
     if _redis_client is None:
         try:
@@ -119,6 +132,8 @@ async def get_redis_client() -> Optional[Redis]:
                         pass
                 _redis_client = None
                 _redis_unavailable = True
+                import time
+                _redis_unavailable_since = time.monotonic()
                 return None
             except Exception as e:
                 error_msg = f"{type(e).__name__}: {str(e)}"
@@ -129,11 +144,15 @@ async def get_redis_client() -> Optional[Redis]:
                         pass
                 _redis_client = None
                 _redis_unavailable = True
+                import time
+                _redis_unavailable_since = time.monotonic()
                 return None
         except Exception as e:
             error_msg = f"{type(e).__name__}: {str(e)}"
             _redis_client = None
             _redis_unavailable = True
+            import time
+            _redis_unavailable_since = time.monotonic()
             return None
     
     return _redis_client
@@ -141,10 +160,13 @@ async def get_redis_client() -> Optional[Redis]:
 
 async def close_redis_client():
     """Закрывает соединение с Redis."""
-    global _redis_client
+    global _redis_client, _redis_unavailable, _redis_unavailable_since
     if _redis_client:
         await _redis_client.aclose()
         _redis_client = None
+    # Сбрасываем флаги при явном закрытии (например, при перезапуске сервера)
+    _redis_unavailable = False
+    _redis_unavailable_since = None
 
 
 async def cache_get(key: str, timeout: float = 0.3) -> Optional[Any]:
@@ -158,11 +180,13 @@ async def cache_get(key: str, timeout: float = 0.3) -> Optional[Any]:
     Returns:
         Значение из кэша или None
     """
-    global _redis_unavailable
+    global _redis_unavailable, _redis_unavailable_since
     try:
-        # Быстрая проверка: если Redis помечен как недоступный, сразу возвращаем None
+        # Быстрая проверка: если Redis помечен как недоступный — circuit breaker
         if _redis_unavailable:
-            return None
+            import time
+            if _redis_unavailable_since and (time.monotonic() - _redis_unavailable_since) < REDIS_RETRY_INTERVAL:
+                return None
         
         client = await get_redis_client()
         if not client:
@@ -176,10 +200,14 @@ async def cache_get(key: str, timeout: float = 0.3) -> Optional[Any]:
         except asyncio.TimeoutError:
             # При таймауте помечаем Redis как недоступный для быстрого fallback в будущем
             _redis_unavailable = True
+            import time
+            _redis_unavailable_since = time.monotonic()
             return None
         except Exception as e:
             # При ошибке помечаем Redis как недоступный
             _redis_unavailable = True
+            import time
+            _redis_unavailable_since = time.monotonic()
             return None
         
         # Пытаемся распарсить JSON
@@ -212,11 +240,13 @@ async def cache_set(
     Returns:
         True если успешно, False иначе
     """
-    global _redis_unavailable
+    global _redis_unavailable, _redis_unavailable_since
     try:
-        # Быстрая проверка: если Redis помечен как недоступный, сразу возвращаем False
+        # Быстрая проверка: если Redis помечен как недоступный — circuit breaker
         if _redis_unavailable:
-            return False
+            import time
+            if _redis_unavailable_since and (time.monotonic() - _redis_unavailable_since) < REDIS_RETRY_INTERVAL:
+                return False
         
         client = await get_redis_client()
         if not client:
@@ -249,10 +279,14 @@ async def cache_set(
         except asyncio.TimeoutError:
             # При таймауте помечаем Redis как недоступный для быстрого fallback в будущем
             _redis_unavailable = True
+            import time
+            _redis_unavailable_since = time.monotonic()
             return False
         except Exception as e:
             # При ошибке помечаем Redis как недоступный
             _redis_unavailable = True
+            import time
+            _redis_unavailable_since = time.monotonic()
             return False
         
     except Exception as e:

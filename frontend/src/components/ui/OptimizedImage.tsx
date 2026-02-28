@@ -26,7 +26,7 @@ const ImageContainer = styled.div<{ $isLoading: boolean; $hasLoaded: boolean }>`
   background: rgba(22, 33, 62, 0.3);
   border-radius: 8px;
   overflow: hidden;
-  
+
   ${props => props.$isLoading && !props.$hasLoaded && css`
     animation: ${pulse} 1.5s ease-in-out infinite;
   `}
@@ -56,7 +56,7 @@ const StyledImage = styled.img<{ $hasLoaded: boolean }>`
   opacity: ${props => props.$hasLoaded ? 1 : 0};
   transition: opacity 0.3s ease-in-out;
   background: rgba(22, 33, 62, 0.3);
-  
+
   ${props => props.$hasLoaded && css`
     animation: ${fadeIn} 0.3s ease-in-out;
   `}
@@ -88,133 +88,84 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
-  const [shouldLoad, setShouldLoad] = useState(eager || priority);
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const handleLoad = () => {
     setIsLoading(false);
     setHasLoaded(true);
-    if (onLoad) {
-      onLoad();
-    }
+    if (onLoad) onLoad();
   };
 
   const handleError = (e?: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    // Подавляем ошибки загрузки изображений в консоль
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
     setIsLoading(false);
     setHasError(true);
-    if (onError) {
-      onError();
-    }
+    if (onError) onError();
   };
 
-  // Сброс состояния при изменении src
+  // Сброс состояния при изменении src — изображение должно перезагружаться заново
   useEffect(() => {
+    if (!src) return;
     setIsLoading(true);
     setHasLoaded(false);
     setHasError(false);
   }, [src]);
 
-  // Устанавливаем fetchPriority напрямую в нативный элемент
+  // Устанавливаем fetchPriority для приоритетных изображений
   useEffect(() => {
-    if (imgRef.current && priority) {
+    if (imgRef.current && (priority || eager)) {
       imgRef.current.setAttribute('fetchpriority', 'high');
     }
-  }, [priority]);
+  }, [priority, eager]);
 
-  // Проверяем, загружено ли изображение уже (например, из кеша)
+  // Проверяем, загружено ли изображение уже (например, из браузерного кэша)
   useEffect(() => {
-    if (imgRef.current) {
-      const img = imgRef.current;
-      // Если изображение уже загружено (из кеша), сразу показываем его
-      if (img.complete && img.naturalWidth > 0) {
-        setIsLoading(false);
-        setHasLoaded(true);
-        if (onLoad) {
-          onLoad();
-        }
-      }
+    if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
+      setIsLoading(false);
+      setHasLoaded(true);
+      if (onLoad) onLoad();
     }
   }, [src, onLoad]);
 
-  // Intersection Observer для ленивой загрузки
-  useEffect(() => {
-    if (!containerRef.current || eager || priority || shouldLoad) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setShouldLoad(true);
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      {
-        rootMargin: '200px', // Начинаем загрузку за 200px до появления
-        threshold: 0.01
-      }
-    );
-
-    observer.observe(containerRef.current);
-
-    return () => {
-      if (containerRef.current) {
-        observer.unobserve(containerRef.current);
-      }
-    };
-  }, [eager, priority, shouldLoad]);
-
-  // Оптимизация: генерируем WebP fallback URL только для локальных файлов
-  const optimizedSrc = React.useMemo(() => {
-    // Отключаем WebP оптимизацию для прокси URL (/media/) так как изображения на Yandex.Cloud в формате PNG
-    if (src.includes('/media/') || src.includes('storage.yandexcloud.net')) {
-      return src;
-    }
-    
-    if (src.includes('generated') && !src.includes('.webp')) {
-      return src.replace(/\.(jpg|jpeg|png)$/i, '.webp');
-    }
-    return src;
-  }, [src]);
+  // Не рендерим img если src некорректный (пустой или это буква-аватарка)
+  const isValidSrc = Boolean(
+    src &&
+    src.length > 2 &&
+    (src.startsWith('/') || src.startsWith('http'))
+  );
 
   return (
-    <ImageContainer 
+    <ImageContainer
       ref={containerRef}
-      $isLoading={isLoading} 
+      $isLoading={isLoading}
       $hasLoaded={hasLoaded}
       className={className}
       style={style}
     >
-      {(isLoading || !shouldLoad) && !hasLoaded && !hasError && <Skeleton />}
-      {shouldLoad && src && (
-        <picture>
-          <source srcSet={optimizedSrc} type="image/webp" />
-          <StyledImage
-            ref={imgRef}
-            src={src}
-            alt={alt}
-            loading={eager || priority ? "eager" : "lazy"}
-            decoding="async"
-            sizes={sizes || "(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"}
-            $hasLoaded={hasLoaded}
-            onLoad={handleLoad}
-            onError={handleError}
-            style={{ 
-              display: hasError ? 'none' : 'block',
-              opacity: hasLoaded ? 1 : 0,
-              transition: 'opacity 0.3s ease-in-out',
-              willChange: hasLoaded ? 'auto' : 'opacity'
-            }}
-          />
-        </picture>
+      {isLoading && !hasLoaded && !hasError && <Skeleton />}
+      {isValidSrc && (
+        <StyledImage
+          ref={imgRef}
+          src={src}
+          alt={alt}
+          loading="eager"
+          decoding="async"
+          sizes={sizes || '(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw'}
+          $hasLoaded={hasLoaded}
+          onLoad={handleLoad}
+          onError={handleError}
+          style={{
+            display: hasError ? 'none' : 'block',
+            opacity: hasLoaded ? 1 : 0,
+            transition: 'opacity 0.3s ease-in-out',
+          }}
+        />
       )}
-      {hasError && (
+      {hasError && isValidSrc && (
         <div style={{
           position: 'absolute',
           top: 0,

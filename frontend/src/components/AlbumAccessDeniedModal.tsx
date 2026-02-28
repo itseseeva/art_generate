@@ -282,19 +282,19 @@ const SecondaryButton = styled.button`
   }
 `;
 
-interface GalleryAccessModalProps {
+interface AlbumAccessDeniedModalProps {
   isOpen: boolean;
   onClose: () => void;
   onGoToShop: () => void;
 }
 
-export const GalleryAccessModal: React.FC<GalleryAccessModalProps> = ({
+export const AlbumAccessDeniedModal: React.FC<AlbumAccessDeniedModalProps> = ({
   isOpen,
   onClose,
   onGoToShop
 }) => {
   const navigate = useNavigate();
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
 
   if (!isOpen) return null;
 
@@ -323,7 +323,7 @@ export const GalleryAccessModal: React.FC<GalleryAccessModalProps> = ({
         </IconContainer>
 
         <ModalHeader>
-          <h3>Доступ к галерее</h3>
+          <h3>Создание альбома</h3>
         </ModalHeader>
 
         <ModalSubtitle>
@@ -331,10 +331,14 @@ export const GalleryAccessModal: React.FC<GalleryAccessModalProps> = ({
         </ModalSubtitle>
 
         <Message>
-          Для просмотра галереи других пользователей необходима подписка <GlossyText>PREMIUM</GlossyText>.
+          Для создания платного альбома необходима подписка <GlossyText>STANDARD</GlossyText> или <GlossyText>PREMIUM</GlossyText>.
         </Message>
 
         <FeaturesList>
+          <FeatureItem>
+            <Crown strokeWidth={2.2} />
+            <span>Заработок с продажи альбомов (15%)</span>
+          </FeatureItem>
           <FeatureItem>
             <Crown strokeWidth={2.2} />
             <span>Доступ ко всем галереям пользователей</span>
@@ -350,10 +354,6 @@ export const GalleryAccessModal: React.FC<GalleryAccessModalProps> = ({
           <FeatureItem>
             <Crown strokeWidth={2.2} />
             <span>300 голосовых генераций</span>
-          </FeatureItem>
-          <FeatureItem>
-            <Crown strokeWidth={2.2} />
-            <span>Расширенная память персонажей</span>
           </FeatureItem>
           <FeatureItem>
             <Crown strokeWidth={2.2} />

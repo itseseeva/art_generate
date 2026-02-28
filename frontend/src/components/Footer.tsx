@@ -141,8 +141,10 @@ export const Footer: React.FC = () => {
   const currentYear = new Date().getFullYear();
   const isRu = i18n.language === 'ru';
 
+  const currentLang = i18n.language || 'ru';
+
   const getLangPath = (path: string) => {
-    return isRu ? `/ru${path}` : path;
+    return `/${currentLang}${path}`;
   };
 
   const seoDescription = isRu

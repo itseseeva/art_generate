@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import styled from 'styled-components';
+import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { theme } from '../theme';
 import { FiX as CloseIcon, FiPlus as PlusIcon, FiTrash2 as TrashIcon } from 'react-icons/fi';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToRussian } from '../utils/translate';
 import { OptimizedImage } from './ui/OptimizedImage';
-import { API_CONFIG } from '../config/api';
+import { API_CONFIG, getMediaUrl } from '../config/api';
 import { authManager } from '../utils/auth';
 import { PromptGlassModal } from './PromptGlassModal';
 import { LoadingSpinner } from './LoadingSpinner';
@@ -264,8 +265,10 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
   onShop,
   onCreateCharacter,
   onEditCharacters,
-  userId
+  userId: propUserId
 }) => {
+  const { userId: paramUserId } = useParams<{ userId: string }>();
+  const userId = propUserId || (paramUserId ? parseInt(paramUserId, 10) : undefined);
   const { t } = useTranslation();
   const [isPromptVisible, setIsPromptVisible] = useState(true);
   const [photos, setPhotos] = useState<UserPhoto[]>([]);
@@ -667,24 +670,12 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
             <>
               <GalleryGrid>
                 {photos.map((photo, index) => {
-                  let imageUrl = photo.image_url || (photo.image_filename ? `${API_CONFIG.BASE_URL}/paid_gallery/${photo.image_filename}` : null);
+                  let imageUrl = photo.image_url || (photo.image_filename ? `/paid_gallery/${photo.image_filename}` : null);
 
-                  // Конвертируем старые Yandex.Cloud URL в новые через прокси
-                  if (imageUrl && imageUrl.includes('.storage.yandexcloud.net/')) {
-                    // Извлекаем object_key из URL и создаем прокси URL
-                    if (imageUrl.includes('.storage.yandexcloud.net/')) {
-                      const objectKey = imageUrl.split('.storage.yandexcloud.net/')[1];
-                      imageUrl = `${API_CONFIG.BASE_URL}/media/${objectKey}`;
-                    } else if (imageUrl.includes('storage.yandexcloud.net/')) {
-                      const pathParts = imageUrl.split('storage.yandexcloud.net/')[1].split('/', 1);
-                      if (pathParts.length > 0) {
-                        const afterBucket = imageUrl.split('storage.yandexcloud.net/')[1].split('/', 1)[1];
-                        if (afterBucket) {
-                          imageUrl = `${API_CONFIG.BASE_URL}/media/${afterBucket}`;
-                        }
-                      }
-                    }
-                  }
+                  if (!imageUrl) return null;
+
+                  // Используем централизованную функцию для формирования URL через CDN
+                  imageUrl = getMediaUrl(imageUrl);
 
                   if (!imageUrl) {
 

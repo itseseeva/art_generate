@@ -139,7 +139,7 @@ export const TagSelector: React.FC<TagSelectorProps> = ({ selectedTags, onChange
               <motion.div key={category} variants={itemVariants} className="flex flex-col gap-3">
                 <h4 className="flex items-center gap-3 py-2 px-1">
                   <span className="text-[10px] font-bold text-cyan-400/80 uppercase tracking-[0.2em]">
-                    {t(`tags.categories.${category}`)}
+                    {t(`createCharacter.tags.categories.${category}`)}
                   </span>
                   <div className="h-[1px] flex-1 bg-gradient-to-r from-cyan-900/50 via-cyan-500/20 to-transparent" />
                 </h4>
@@ -181,7 +181,7 @@ export const TagSelector: React.FC<TagSelectorProps> = ({ selectedTags, onChange
                           )}
                         </AnimatePresence>
 
-                        <span className={isActive ? 'text-white' : ''}>{t(`tags.values.${tag.name}`, tag.name) as string}</span>
+                        <span className={isActive ? 'text-white' : ''}>{t(`createCharacter.tags.values.${tag.name}`, tag.name) as string}</span>
 
                         {/* Hover Glow Effect for non-active */}
                         {!isActive && (

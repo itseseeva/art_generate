@@ -666,18 +666,14 @@ async def like_character_direct(
     current_user = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Ставит лайк персонажу."""
+    """Ставит/снимает/переключает лайк персонажу."""
     from app.chat_bot.models.models import CharacterDB, CharacterRating
-    from sqlalchemy import select
-    from datetime import datetime
-    
-    
+    from sqlalchemy import select, func
     try:
         result = await db.execute(select(CharacterDB).where(CharacterDB.id == character_id))
-        character = result.scalar_one_or_none()
-        if not character:
+        if not result.scalar_one_or_none():
             raise HTTPException(status_code=404, detail="Character not found")
-        
+
         existing_result = await db.execute(
             select(CharacterRating).where(
                 CharacterRating.user_id == current_user.id,
@@ -685,44 +681,44 @@ async def like_character_direct(
             )
         )
         existing = existing_result.scalar_one_or_none()
-        
+
         if existing:
             if existing.is_like:
-                await db.delete(existing)
-                await db.commit()
-                # Инвалидируем кэш рейтингов
-                from app.utils.redis_cache import cache_delete, key_character_ratings
-                await cache_delete(key_character_ratings(character_id))
-                await cache_delete(key_character_ratings(character_id, current_user.id))
-                return {"success": True, "message": "Like removed", "user_rating": None}
+                await db.delete(existing)   # снимаем лайк
             else:
-                existing.is_like = True
-                existing.updated_at = datetime.utcnow()
-                await db.commit()
-                # Инвалидируем кэш рейтингов
-                from app.utils.redis_cache import cache_delete, key_character_ratings
-                await cache_delete(key_character_ratings(character_id))
-                await cache_delete(key_character_ratings(character_id, current_user.id))
-                return {"success": True, "message": "Changed from dislike to like", "user_rating": "like"}
-        else:
-            rating = CharacterRating(
-                user_id=current_user.id,
-                character_id=character_id,
-                is_like=True
-            )
-            db.add(rating)
+                existing.is_like = True     # переключаем с дизлайка
             await db.commit()
-            # Инвалидируем кэш рейтингов
-            from app.utils.redis_cache import cache_delete, key_character_ratings
-            await cache_delete(key_character_ratings(character_id))
-            await cache_delete(key_character_ratings(character_id, current_user.id))
-            return {"success": True, "message": "Character liked", "user_rating": "like"}
+        else:
+            db.add(CharacterRating(user_id=current_user.id, character_id=character_id, is_like=True))
+            await db.commit()
+
+        from app.utils.redis_cache import cache_delete, key_character_ratings
+        await cache_delete(key_character_ratings(character_id))
+        await cache_delete(key_character_ratings(character_id, current_user.id))
+
+        # Подсчёт голосов
+        likes_q = await db.execute(select(func.count()).select_from(CharacterRating).where(
+            CharacterRating.character_id == character_id, CharacterRating.is_like == True))
+        dislikes_q = await db.execute(select(func.count()).select_from(CharacterRating).where(
+            CharacterRating.character_id == character_id, CharacterRating.is_like == False))
+        likes = likes_q.scalar() or 0
+        dislikes = dislikes_q.scalar() or 0
+
+        # Актуальный голос
+        check = await db.execute(select(CharacterRating).where(
+            CharacterRating.user_id == current_user.id,
+            CharacterRating.character_id == character_id))
+        current_vote_row = check.scalar_one_or_none()
+        user_vote = ("like" if current_vote_row and current_vote_row.is_like
+                     else "dislike" if current_vote_row else None)
+
+        return {"success": True, "user_vote": user_vote, "likes": likes, "dislikes": dislikes}
     except HTTPException:
         raise
     except Exception as e:
         await db.rollback()
         logger.error(f"Error liking character: {e}")
-        raise HTTPException(status_code=500, detail=f"Error liking character: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/v1/characters/character-ratings/{character_id}/dislike")
@@ -731,18 +727,14 @@ async def dislike_character_direct(
     current_user = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Ставит дизлайк персонажу."""
+    """Ставит/снимает/переключает дизлайк персонажу."""
     from app.chat_bot.models.models import CharacterDB, CharacterRating
-    from sqlalchemy import select
-    from datetime import datetime
-    
-    
+    from sqlalchemy import select, func
     try:
         result = await db.execute(select(CharacterDB).where(CharacterDB.id == character_id))
-        character = result.scalar_one_or_none()
-        if not character:
+        if not result.scalar_one_or_none():
             raise HTTPException(status_code=404, detail="Character not found")
-        
+
         existing_result = await db.execute(
             select(CharacterRating).where(
                 CharacterRating.user_id == current_user.id,
@@ -750,44 +742,44 @@ async def dislike_character_direct(
             )
         )
         existing = existing_result.scalar_one_or_none()
-        
+
         if existing:
             if not existing.is_like:
-                await db.delete(existing)
-                await db.commit()
-                # Инвалидируем кэш рейтингов
-                from app.utils.redis_cache import cache_delete, key_character_ratings
-                await cache_delete(key_character_ratings(character_id))
-                await cache_delete(key_character_ratings(character_id, current_user.id))
-                return {"success": True, "message": "Dislike removed", "user_rating": None}
+                await db.delete(existing)   # снимаем дизлайк
             else:
-                existing.is_like = False
-                existing.updated_at = datetime.utcnow()
-                await db.commit()
-                # Инвалидируем кэш рейтингов
-                from app.utils.redis_cache import cache_delete, key_character_ratings
-                await cache_delete(key_character_ratings(character_id))
-                await cache_delete(key_character_ratings(character_id, current_user.id))
-                return {"success": True, "message": "Changed from like to dislike", "user_rating": "dislike"}
-        else:
-            rating = CharacterRating(
-                user_id=current_user.id,
-                character_id=character_id,
-                is_like=False
-            )
-            db.add(rating)
+                existing.is_like = False    # переключаем с лайка
             await db.commit()
-            # Инвалидируем кэш рейтингов
-            from app.utils.redis_cache import cache_delete, key_character_ratings
-            await cache_delete(key_character_ratings(character_id))
-            await cache_delete(key_character_ratings(character_id, current_user.id))
-            return {"success": True, "message": "Character disliked", "user_rating": "dislike"}
+        else:
+            db.add(CharacterRating(user_id=current_user.id, character_id=character_id, is_like=False))
+            await db.commit()
+
+        from app.utils.redis_cache import cache_delete, key_character_ratings
+        await cache_delete(key_character_ratings(character_id))
+        await cache_delete(key_character_ratings(character_id, current_user.id))
+
+        # Подсчёт голосов
+        likes_q = await db.execute(select(func.count()).select_from(CharacterRating).where(
+            CharacterRating.character_id == character_id, CharacterRating.is_like == True))
+        dislikes_q = await db.execute(select(func.count()).select_from(CharacterRating).where(
+            CharacterRating.character_id == character_id, CharacterRating.is_like == False))
+        likes = likes_q.scalar() or 0
+        dislikes = dislikes_q.scalar() or 0
+
+        # Актуальный голос
+        check = await db.execute(select(CharacterRating).where(
+            CharacterRating.user_id == current_user.id,
+            CharacterRating.character_id == character_id))
+        current_vote_row = check.scalar_one_or_none()
+        user_vote = ("like" if current_vote_row and current_vote_row.is_like
+                     else "dislike" if current_vote_row else None)
+
+        return {"success": True, "user_vote": user_vote, "likes": likes, "dislikes": dislikes}
     except HTTPException:
         raise
     except Exception as e:
         await db.rollback()
         logger.error(f"Error disliking character: {e}")
-        raise HTTPException(status_code=500, detail=f"Error disliking character: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/v1/characters/character-ratings/{character_id}")
@@ -1198,6 +1190,15 @@ try:
 except Exception as e:
     logger.error(f"[ERROR] Ошибка подключения роутера YooKassa: {e}")
     import traceback
+
+# Подключаем интеграцию NOWPayments (Crypto)
+try:
+    from app.nowpayments.router import router as nowpayments_router
+    app.include_router(nowpayments_router)
+except Exception as e:
+    logger.error(f"[ERROR] Ошибка подключения роутера NOWPayments: {e}")
+    import traceback
+    logger.error(f"Traceback: {traceback.format_exc()}")
     logger.error(f"Traceback: {traceback.format_exc()}")
 
 # Подключаем роутер истории чата
@@ -5367,6 +5368,14 @@ async def get_generation_status(
                         # Нормализуем URL (делаем всегда, не зависимо от real_prompt)
                         normalized_url = image_url.split('?')[0].split('#')[0]
                         
+                        # КРИТИЧНО: Конвертируем URL в CDN формат
+                        try:
+                            from app.services.yandex_storage import get_yandex_storage_service
+                            storage_service = get_yandex_storage_service()
+                            normalized_url = storage_service.convert_yandex_url_to_cdn(normalized_url)
+                        except Exception as cdn_err:
+                            logger.error(f"[CDN] Ошибка при конвертации URL в CDN: {cdn_err}")
+                        
                         # Извлекаем имя файла из URL
                         filename = None
                         if normalized_url:
@@ -5416,6 +5425,10 @@ async def get_generation_status(
                     logger.error(f"[PROMPT] Ошибка при обновлении промпта в истории: {e}")
                     import traceback
                     logger.error(traceback.format_exc())
+
+                # Add the prompt to the returned result for the frontend
+                if real_prompt and isinstance(result, dict):
+                    result["prompt"] = real_prompt
 
                 return {
                     "task_id": task_id,

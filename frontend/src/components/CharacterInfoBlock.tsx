@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { theme } from '../theme';
 import { ChevronDown, ChevronUp, MapPin, User, Sparkles, Brain } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { API_CONFIG } from '../config/api';
 
 import { translateToRussian } from '../utils/translate';
@@ -13,7 +14,7 @@ interface CharacterInfoBlockProps {
 }
 
 export const CharacterInfoBlock: React.FC<CharacterInfoBlockProps> = ({ character }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation('common');
   const [isExpanded, setIsExpanded] = useState(false);
   const [availableTags, setAvailableTags] = useState<any[]>([]);
   const { tChar } = useCharacterTranslation(character);
@@ -157,11 +158,15 @@ export const CharacterInfoBlock: React.FC<CharacterInfoBlockProps> = ({ characte
     };
   }, [character, description, displayPersonality, displaySituation, displayAppearance, displayLocation, tags, tChar]);
 
+  const navigate = useNavigate();
+
   const handleTagClick = (tag: { name: string; slug: string }) => {
     const slug = tag.slug;
     if (slug) {
-      window.history.pushState({ page: 'tags', slug }, '', `/tags/${slug}`);
-      window.dispatchEvent(new CustomEvent('navigate-to-tags', { detail: { slug } }));
+      const currentLang = i18n.language?.split('-')[0] || 'ru';
+      navigate(`/${currentLang}/tags/${slug}`);
+      // Если окно нужно закрыть, можно оставить отправку события
+      window.dispatchEvent(new CustomEvent('close-character-info'));
     }
   };
 
@@ -225,7 +230,11 @@ export const CharacterInfoBlock: React.FC<CharacterInfoBlockProps> = ({ characte
                   {tags.map((tag, idx) => {
                     let displayText = tag.name;
 
-                    if (Array.isArray(translatedTagsList) && Array.isArray(character.tags)) {
+                    // Попытка перевода тега через словарь common как в TagSelector
+                    const translatedTag = t(`createCharacter.tags.values.${tag.name}`, { ns: 'common', defaultValue: tag.name });
+                    if (translatedTag && translatedTag !== tag.name) {
+                      displayText = translatedTag;
+                    } else if (Array.isArray(translatedTagsList) && Array.isArray(character.tags)) {
                       const originalIndex = character.tags.indexOf(tag.name);
                       if (originalIndex !== -1 && translatedTagsList[originalIndex]) {
                         displayText = translatedTagsList[originalIndex];

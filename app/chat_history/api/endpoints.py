@@ -343,7 +343,7 @@ async def get_prompt_by_image(
             # Ищем по идентификатору файла (имя файла после /generated/), игнорируя домен.
             # Промпт к изображению доступен всем: ищем по всем записям (любой пользователь может видеть промпт к любому фото).
             # При нескольких совпадениях приоритет: запись текущего пользователя, затем по дате создания.
-            from sqlalchemy import case
+            from sqlalchemy import case, or_, not_
             order_criteria = [ImageGenerationHistory.created_at.desc()]
             if current_user:
                 order_criteria.insert(0, case((ImageGenerationHistory.user_id == user_id, 1), else_=0).desc())
@@ -351,7 +351,11 @@ async def get_prompt_by_image(
                 select(ImageGenerationHistory)
                 .where(
                     ImageGenerationHistory.image_url.is_not(None),
-                    ImageGenerationHistory.image_url != ""
+                    ImageGenerationHistory.image_url != "",
+                    or_(
+                        not_(ImageGenerationHistory.prompt.like("Генерация изображения%")),
+                        ImageGenerationHistory.admin_prompt.is_not(None)
+                    )
                 )
                 .order_by(*order_criteria)
             )

@@ -127,7 +127,7 @@ export const ImageGenerationModal: React.FC<ImageGenerationModalProps> = ({
                             {/* Header */}
                             <div className="mb-4 text-center">
                                 <h2 className="text-3xl font-bold mb-2 bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
-                                    Генерация фото персонажа
+                                    {t('createCharacter.imageModal.title')}
                                 </h2>
 
                             </div>
@@ -136,7 +136,7 @@ export const ImageGenerationModal: React.FC<ImageGenerationModalProps> = ({
                             <div className="mb-5">
                                 <div className="flex items-center gap-2 mb-4 text-gray-300 text-sm font-medium">
                                     <FiSettings className="w-4 h-4 text-purple-400" />
-                                    ВЫБЕРИТЕ СТИЛЬ
+                                    {t('createCharacter.imageModal.selectStyle')}
                                 </div>
 
                                 <div className="flex flex-wrap justify-center gap-4">
@@ -158,8 +158,8 @@ export const ImageGenerationModal: React.FC<ImageGenerationModalProps> = ({
                                         <div className="absolute bottom-0 left-0 p-4 w-full">
                                             <div className="flex items-center justify-between">
                                                 <div>
-                                                    <h3 className="text-white font-bold text-lg mb-0.5">Аниме + Реализм</h3>
-                                                    <p className="text-gray-300 text-xs">Сбалансированный стиль</p>
+                                                    <h3 className="text-white font-bold text-lg mb-0.5">{t('createCharacter.photo.styles.animeRealism')}</h3>
+                                                    <p className="text-gray-300 text-xs">{t('createCharacter.photo.styles.animeRealismDesc')}</p>
                                                 </div>
                                                 {selectedModel === 'anime-realism' && (
                                                     <div className="flex items-center justify-center transform scale-100 transition-transform">
@@ -188,8 +188,8 @@ export const ImageGenerationModal: React.FC<ImageGenerationModalProps> = ({
                                         <div className="absolute bottom-0 left-0 p-4 w-full">
                                             <div className="flex items-center justify-between">
                                                 <div>
-                                                    <h3 className="text-white font-bold text-lg mb-0.5">Аниме</h3>
-                                                    <p className="text-gray-300 text-xs">Классический 2D стиль</p>
+                                                    <h3 className="text-white font-bold text-lg mb-0.5">{t('createCharacter.photo.styles.anime')}</h3>
+                                                    <p className="text-gray-300 text-xs">{t('createCharacter.photo.styles.animeDesc')}</p>
                                                 </div>
                                                 {selectedModel === 'anime' && (
                                                     <div className="flex items-center justify-center transform scale-100 transition-transform">
@@ -206,7 +206,7 @@ export const ImageGenerationModal: React.FC<ImageGenerationModalProps> = ({
                             <div className="mb-4 flex-1 flex flex-col">
                                 <div className="flex items-center gap-2 mb-4 text-gray-300 text-sm font-medium">
                                     <Sparkles className="w-4 h-4 text-yellow-500" />
-                                    ОПИСАНИЕ ОБРАЗА
+                                    {t('createCharacter.imageModal.promptLabel')}
                                 </div>
 
                                 <div className="relative flex-1 min-h-[100px]">
@@ -216,7 +216,7 @@ export const ImageGenerationModal: React.FC<ImageGenerationModalProps> = ({
                                     <textarea
                                         value={imagePromptInput}
                                         onChange={(e) => setImagePromptInput(e.target.value)}
-                                        placeholder="Опишите желаемое изображение..."
+                                        placeholder={t('createCharacter.imageModal.promptPlaceholder')}
                                         className="w-full h-full min-h-[100px] bg-black/40 border border-white/10 rounded-xl pl-10 pr-4 py-4 text-gray-100 placeholder-gray-600 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/20 transition-all resize-none font-mono text-sm leading-relaxed"
                                     />
                                 </div>
@@ -225,7 +225,7 @@ export const ImageGenerationModal: React.FC<ImageGenerationModalProps> = ({
                             {/* Tags */}
                             <div className="mb-4">
                                 <div className="flex items-center justify-between mb-3">
-                                    <span className="text-gray-400 text-xs uppercase tracking-wider font-semibold">Помощники</span>
+                                    <span className="text-gray-400 text-xs uppercase tracking-wider font-semibold">{t('createCharacter.imageModal.helpers')}</span>
 
                                 </div>
 
@@ -280,7 +280,7 @@ export const ImageGenerationModal: React.FC<ImageGenerationModalProps> = ({
                                     className="px-6 py-3 rounded-xl text-gray-400 hover:text-white border border-transparent hover:border-white/10 hover:bg-white/5 transition-all text-sm font-medium flex items-center justify-center gap-2 group focus:outline-none focus:ring-0"
                                 >
                                     <FiRefreshCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
-                                    Сбросить
+                                    {t('createCharacter.imageModal.reset')}
                                 </button>
 
                                 <div className="flex-1 flex gap-4">
@@ -288,7 +288,7 @@ export const ImageGenerationModal: React.FC<ImageGenerationModalProps> = ({
                                         onClick={onClose}
                                         className="flex-1 px-6 py-3 rounded-xl text-gray-300 hover:text-white border border-white/10 hover:bg-white/5 transition-all text-sm font-medium focus:outline-none focus:ring-0"
                                     >
-                                        Отмена
+                                        {t('createCharacter.imageModal.cancel')}
                                     </button>
 
                                     <motion.button
@@ -302,11 +302,11 @@ export const ImageGenerationModal: React.FC<ImageGenerationModalProps> = ({
                                             }`}
                                     >
                                         {activeGenerationsCount >= generationQueueLimit ? (
-                                            'Очередь заполнена'
+                                            t('createCharacter.imageModal.queueFull')
                                         ) : (
                                             <>
                                                 <FiZap className="w-5 h-5 fill-current" />
-                                                СГЕНЕРИРОВАТЬ
+                                                {t('createCharacter.imageModal.generate')}
                                             </>
                                         )}
                                     </motion.button>

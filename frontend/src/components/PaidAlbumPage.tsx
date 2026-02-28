@@ -7,7 +7,7 @@ import { ErrorMessage } from './ErrorMessage';
 import { FiImage as ImageIcon } from 'react-icons/fi';
 import { fetchPromptByImage } from '../utils/prompt';
 import { translateToRussian } from '../utils/translate';
-import { API_CONFIG } from '../config/api';
+import { API_CONFIG, getMediaUrl } from '../config/api';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { PromptGlassModal } from './PromptGlassModal';
 import { useTranslation } from 'react-i18next';
@@ -314,6 +314,7 @@ interface PaidAlbumImage {
 
 interface PaidAlbumPageProps {
   character: {
+    id?: string | number;
     name: string;
     display_name?: string;
   } | null;
@@ -446,7 +447,9 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
       setError(null);
 
       try {
-        const encodedName = encodeURIComponent(character.name);
+        // Используем ID если доступен (надёжнее чем имя/display_name)
+        const identifier = character.id ?? character.name;
+        const encodedName = encodeURIComponent(String(identifier));
         const statusResponse = await authManager.fetchWithAuth(`/api/v1/paid-gallery/${encodedName}/status/`);
         if (statusResponse.ok) {
           const statusData = await statusResponse.json();
@@ -476,25 +479,8 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
             return null;
           }
 
-          // Конвертируем старые Yandex.Cloud URL в новые через прокси
-          if (imageUrl.includes('.storage.yandexcloud.net/')) {
-            // Извлекаем object_key из URL и создаем прокси URL
-            const objectKey = imageUrl.split('.storage.yandexcloud.net/')[1];
-            if (objectKey) {
-              imageUrl = `${API_CONFIG.BASE_URL}/media/${objectKey}`;
-            }
-          } else if (imageUrl.includes('storage.yandexcloud.net/')) {
-            const pathParts = imageUrl.split('storage.yandexcloud.net/')[1].split('/', 1);
-            if (pathParts.length > 0) {
-              const afterBucket = imageUrl.split('storage.yandexcloud.net/')[1].split('/', 1)[1];
-              if (afterBucket) {
-                imageUrl = `${API_CONFIG.BASE_URL}/media/${afterBucket}`;
-              }
-            }
-          } else if (!imageUrl.startsWith('http')) {
-            // Если это относительный путь, добавляем BASE_URL
-            imageUrl = imageUrl.startsWith('/') ? `${API_CONFIG.BASE_URL}${imageUrl}` : `${API_CONFIG.BASE_URL}/${imageUrl}`;
-          }
+          // Используем централизованную функцию для формирования URL через CDN
+          imageUrl = getMediaUrl(imageUrl);
 
           return {
             id: typeof img === 'string'
@@ -598,9 +584,6 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
             )}
             <ActionButton $variant="secondary" onClick={onBackToChat}>
               {t('album.backToChat')}
-            </ActionButton>
-            <ActionButton $variant="secondary" onClick={onBackToMain}>
-              {t('nav.home')}
             </ActionButton>
           </Actions>
         </Header>

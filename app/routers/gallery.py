@@ -68,10 +68,23 @@ class PaidAlbumPhotosRequest(BaseModel):
 
 
 async def _get_character_by_slug(db: AsyncSession, character_name: str) -> CharacterDB | None:
-    """Возвращает персонажа по имени или слагу."""
+    """Возвращает персонажа по имени, id или слагу."""
     slug = _character_slug(character_name)
     print(f"[DEBUG_GALLERY] Looking for: '{character_name}', generated slug: '{slug}'")
 
+    # 1. Поиск по числовому ID
+    try:
+        char_id = int(character_name)
+        stmt = select(CharacterDB).where(CharacterDB.id == char_id)
+        result = await db.execute(stmt)
+        character = result.scalar_one_or_none()
+        if character:
+            print(f"[DEBUG_GALLERY] Found by ID: {character.name}")
+            return character
+    except (ValueError, TypeError):
+        pass
+
+    # 2. Поиск по точному имени (case-insensitive)
     stmt = select(CharacterDB).where(CharacterDB.name.ilike(character_name))
     result = await db.execute(stmt)
     character = result.scalar_one_or_none()
@@ -79,6 +92,7 @@ async def _get_character_by_slug(db: AsyncSession, character_name: str) -> Chara
         print(f"[DEBUG_GALLERY] Found by name: {character.name}")
         return character
 
+    # 3. Поиск по slug
     print(f"[DEBUG_GALLERY] Not found by name. Searching by slug match...")
     stmt = select(CharacterDB)
     result = await db.execute(stmt)
@@ -87,13 +101,13 @@ async def _get_character_by_slug(db: AsyncSession, character_name: str) -> Chara
     
     for candidate in all_chars:
         cand_slug = _character_slug(candidate.name)
-        # print(f"[DEBUG_GALLERY] Checking '{candidate.name}' -> '{cand_slug}' vs '{slug}'")
         if cand_slug == slug:
             print(f"[DEBUG_GALLERY] Found by slug match: {candidate.name}")
             return candidate
             
     print("[DEBUG_GALLERY] Not found at all.")
     return None
+
 
 
 async def _is_album_unlocked(db: AsyncSession, user_id: int, character_slug: str) -> bool:

@@ -7,7 +7,7 @@ import ElectricBorder from './ElectricBorder';
 import { FiSettings, FiX as CloseIcon, FiZap, FiRefreshCw, FiCheck, FiChevronDown, FiEdit, FiTrash2, FiHeart, FiMessageSquare, FiLock, FiUnlock, FiImage, FiThumbsUp, FiThumbsDown, FiAlertTriangle, FiShield } from 'react-icons/fi';
 import { Sparkles } from 'lucide-react';
 import { authManager } from '../utils/auth';
-import { API_CONFIG } from '../config/api';
+import { API_CONFIG, getMediaUrl } from '../config/api';
 import { translateToRussian } from '../utils/translate';
 import { extractRolePlayingSituation } from '../utils/characterUtils';
 import { fetchPromptByImage } from '../utils/prompt';
@@ -16,7 +16,7 @@ import Switcher4 from './Switcher4';
 import { OptimizedImage } from './ui/OptimizedImage';
 import { PromptGlassModal } from './PromptGlassModal';
 import { useTranslation } from 'react-i18next';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 const CardContainer = styled.div<{ $isHovered?: boolean }>`
   background: rgba(22, 33, 62, 0.3);
@@ -301,7 +301,7 @@ const ActionButton = styled.button<{ $variant?: 'edit' | 'delete' | 'default' | 
     switch (props.$variant) {
       case 'danger': return 'rgba(220, 53, 69, 0.2)';
       case 'success': return 'rgba(40, 167, 69, 0.2)';
-      default: return 'rgba(255, 255, 255, 0.05)';
+      default: return 'rgba(80, 80, 80, 0.55)';
     }
   }};
   border: 2px solid ${props => {
@@ -1612,8 +1612,9 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   isRight = true, // Default to true (open to right)
   disableHover = false // Default to false
 }) => {
-  const { t, i18n } = useTranslation();
+  const { t, i18n } = useTranslation('common');
   const { tChar } = useCharacterTranslation(character);
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [isLockHovered, setIsLockHovered] = useState(false);
   // КРИТИЧЕСКИ ВАЖНО: если isFavoriteProp не передан, начинаем с false
@@ -1651,12 +1652,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     if (character.photos && character.photos.length > 0) {
       // Нормализуем первое фото-убеждаемся, что это абсолютный URL
       let firstPhoto = character.photos[0];
-      if (firstPhoto && !firstPhoto.startsWith('http')) {
-        if (firstPhoto.startsWith('/')) {
-          firstPhoto = `${API_CONFIG.BASE_URL || window.location.origin}${firstPhoto} `;
-        } else {
-          firstPhoto = `${API_CONFIG.BASE_URL || window.location.origin}/${firstPhoto}`;
-        }
+      if (firstPhoto) {
+        firstPhoto = getMediaUrl(firstPhoto);
       }
       setCurrentPhotoUrl(firstPhoto);
     } else {
@@ -2499,7 +2496,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                 )}
 
                 {/* Album Button */}
-                {onPaidAlbum && (
+                {onPaidAlbum && (character.paid_album_photos_count ?? 0) > 0 && (
                   <ActionButton
                     $variant="default"
                     title={t('characterCard.openAlbum', 'Open Album')}
@@ -2567,28 +2564,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                   <div className="absolute inset-0 z-0">
                     {(() => {
                       const normalizeUrl = (url: string) => {
-                        if (!url) return '';
-                        let processedUrl = url;
-                        if (url.includes('storage.yandexcloud.net/')) {
-                          if (url.includes('.storage.yandexcloud.net/')) {
-                            const objectKey = url.split('.storage.yandexcloud.net/')[1];
-                            if (objectKey) processedUrl = `${API_CONFIG.BASE_URL || ''}/media/${objectKey}`;
-                          } else {
-                            const parts = url.split('storage.yandexcloud.net/')[1];
-                            if (parts) {
-                              const pathSegments = parts.split('/');
-                              if (pathSegments.length > 1) {
-                                processedUrl = `${API_CONFIG.BASE_URL || ''}/media/${pathSegments.slice(1).join('/')}`;
-                              }
-                            }
-                          }
-                        }
-                        if (processedUrl.startsWith('http')) return processedUrl;
-                        const baseUrl = API_CONFIG.BASE_URL || window.location.origin;
-                        if (processedUrl.startsWith('/')) {
-                          return baseUrl ? `${baseUrl}${processedUrl}` : processedUrl;
-                        }
-                        return baseUrl ? `${baseUrl}/${processedUrl}` : `/${processedUrl}`;
+                        return getMediaUrl(url);
                       };
 
                       const rawPreviewPhotos = (lockedAlbumPhotos && lockedAlbumPhotos.length > 0)
@@ -2662,38 +2638,71 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                 <FiHeart />
               </FavoriteButton>
 
-              {/* Bottom Content Overlay (Name, Stats, Tags) - Hidden on hover overlay */}
-              {!(isHovered && situation) && (
-                <>
-                  <div style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    padding: '40px 12px 12px',
-                    background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 50%, transparent 100%)',
-                    zIndex: 2,
-                    pointerEvents: 'none'
+              {/* Bottom Content Overlay (Name, Stats, Username) */}
+              <div style={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                padding: '40px 12px 12px',
+                background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 50%, transparent 100%)',
+                zIndex: 2,
+                pointerEvents: 'none'
+              }}>
+                <StatsContainer>
+                  <StatItem>
+                    <FiMessageSquare size={12} />
+                    {formatCount(character.comments)}
+                  </StatItem>
+                  <div style={{ flex: 1 }} />
+                </StatsContainer>
+
+                <CharacterName style={{ pointerEvents: 'auto', marginTop: '4px', marginBottom: '2px', lineHeight: '1.2' }}>{tChar('name')}</CharacterName>
+                <RoleplayCreator
+                  href={`/${i18n.language}/profile/${character.creator_username || 'anonymous'}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    navigate(`/${i18n.language}/profile/${character.creator_username || 'anonymous'}`);
+                  }}
+                  style={{
+                    pointerEvents: 'auto',
+                    display: 'inline-block',
+                    fontSize: '0.55rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.02em',
+                    marginTop: '0px',
+                    marginLeft: '-2px',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    background: 'rgba(150, 150, 150, 0.1)',
+                    border: '1px solid rgba(150, 150, 150, 0.2)',
+                    color: '#ccc',
+                    textShadow: '0 0 5px rgba(150, 150, 150, 0.3)',
+                    boxShadow: '0 2px 10px rgba(0,0,0,0.5), inset 0 0 10px rgba(150, 150, 150, 0.1)',
+                    backdropFilter: 'blur(4px)',
+                  }}
+                >
+                  <span style={{
+                    color: '#e5e7eb',
+                    display: 'inline-block'
                   }}>
-                    <StatsContainer>
-                      <StatItem>
-                        <FiMessageSquare size={12} />
-                        {formatCount(character.comments)}
-                      </StatItem>
-                      <div style={{ flex: 1 }} />
-                    </StatsContainer>
+                    @{character.creator_username || 'anonymous'}
+                  </span>
+                </RoleplayCreator>
+              </div>
 
-                    <CharacterName style={{ pointerEvents: 'auto', marginTop: '4px' }}>{tChar('name')}</CharacterName>
-                  </div>
-
-                  <TagsContainerBottom $visible={isHovered}>
-                    {character.tags.slice(0, 3).map((tag, i) => (
+              {!(isHovered && situation) && (
+                <TagsContainerBottom $visible={isHovered}>
+                  {character.tags.slice(0, 3).map((tag, i) => {
+                    const tagName = typeof tag === 'string' ? tag : (tag as any).name;
+                    return (
                       <Tag key={i} onClick={(e) => e.stopPropagation()}>
-                        {typeof tag === 'string' ? tag : (tag as any).name}
+                        {t(`createCharacter.tags.values.${tagName}`, { ns: 'common', defaultValue: tagName })}
                       </Tag>
-                    ))}
-                  </TagsContainerBottom>
-                </>
+                    );
+                  })}
+                </TagsContainerBottom>
               )}
             </CardContent>
 
@@ -2711,30 +2720,26 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             <RoleplayText>{displaySituation || t('characterCard.noSituation')}</RoleplayText>
 
             {character.tags && character.tags.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: 'auto', marginBottom: '8px' }}>
-                {character.tags.slice(0, 3).map((tag, i) => (
-                  <span
-                    key={i}
-                    style={{
-                      fontSize: '10px',
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      background: 'rgba(255,255,255,0.1)',
-                      color: '#ccc'
-                    }}
-                  >
-                    {typeof tag === 'string' ? tag : (tag as any).name}
-                  </span>
-                ))}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: 'auto', marginBottom: '0' }}>
+                {character.tags.slice(0, 3).map((tag, i) => {
+                  const tagName = typeof tag === 'string' ? tag : (tag as any).name;
+                  return (
+                    <span
+                      key={i}
+                      style={{
+                        fontSize: '10px',
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        background: 'rgba(255,255,255,0.1)',
+                        color: '#ccc'
+                      }}
+                    >
+                      {t(`createCharacter.tags.values.${tagName}`, { ns: 'common', defaultValue: tagName })}
+                    </span>
+                  );
+                })}
               </div>
             )}
-
-            <RoleplayCreator
-              href={`/profile/${character.creator_username || 'anonymous'}`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              @{character.creator_username || 'anonymous'}
-            </RoleplayCreator>
           </RoleplayOverlay>
         )}
 

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { theme } from '../theme';
 import { authManager } from '../utils/auth';
-import { ShoppingBag, User, Coins, DollarSign, LogOut, LogIn, UserPlus, X, ClipboardList, CheckCircle, Crown, Home } from 'lucide-react';
+import { ShoppingBag, User, Coins, DollarSign, LogOut, X, ClipboardList, CheckCircle, Crown, Home } from 'lucide-react';
 import { generationTracker } from '../utils/generationTracker';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { SearchBar } from './SearchBar';
@@ -469,6 +469,70 @@ const AnimatedBorderButton = styled(motion.button)`
     }
     `;
 
+const headerBtnShimmer = keyframes`
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+`;
+
+const HeaderAuthButton = styled.button`
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.85);
+  padding: 0.38rem 1rem;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.18s ease, box-shadow 0.2s ease;
+  white-space: nowrap;
+  letter-spacing: 0.03em;
+  position: relative;
+  overflow: hidden;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      105deg,
+      transparent 40%,
+      rgba(255, 255, 255, 0.12) 50%,
+      transparent 60%
+    );
+    background-size: 200% 100%;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.11);
+    border-color: rgba(255, 255, 255, 0.32);
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+
+    &::after {
+      opacity: 1;
+      animation: ${headerBtnShimmer} 0.65s ease forwards;
+    }
+  }
+
+  &:active {
+    transform: translateY(0);
+    box-shadow: none;
+  }
+
+  &:focus { outline: none; }
+
+  @media (max-width: 768px) {
+    padding: 0.32rem 0.7rem;
+    font-size: 0.78rem;
+  }
+`;
+
+const LoginButton = HeaderAuthButton;
+const RegisterButton = HeaderAuthButton;
+
 export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   onShop,
   onLogin,
@@ -728,12 +792,12 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
 
         {!isAuthenticated && (
           <>
-            <ShopButton onClick={handleLogin} title={t('header.loginButton')}>
-              <LogIn size={20} />
-            </ShopButton>
-            <ShopButton onClick={handleRegister} title={t('header.registerButton')}>
-              <UserPlus size={20} />
-            </ShopButton>
+            <LoginButton onClick={handleLogin}>
+              {t('header.login')}
+            </LoginButton>
+            <RegisterButton onClick={handleRegister}>
+              {t('header.register')}
+            </RegisterButton>
           </>
         )}
 

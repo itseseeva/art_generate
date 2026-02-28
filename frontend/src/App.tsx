@@ -44,7 +44,6 @@ import { useSEO } from './hooks/useSEO';
 import { useIsMobile } from './hooks/useIsMobile';
 import { API_CONFIG } from './config/api';
 import { getFingerprintId } from './utils/fingerprint';
-import { ActionTooltip } from './components/ActionTooltip';
 import { BoosterOfferModal } from './components/BoosterOfferModal';
 
 const AppContainer = styled.div<{ $isMobile?: boolean }>`
@@ -120,8 +119,10 @@ const LanguageRedirect = () => {
   const targetLang = storedLang?.startsWith('en') ? 'en' :
     storedLang?.startsWith('ru') ? 'ru' :
       (browserLang === 'ru' ? 'ru' : 'en');
+  // Preserve the search query and hash
+  const toPath = `/${targetLang}${location.pathname === '/' ? '' : location.pathname}`;
 
-  return <Navigate to={`/${targetLang}${location.pathname === '/' ? '' : location.pathname}`} replace />;
+  return <Navigate to={{ pathname: toPath, search: location.search, hash: location.hash }} replace />;
 };
 
 function App() {
@@ -130,7 +131,7 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(!isMobile);
   const [selectedCharacter, setSelectedCharacter] = useState<any>(null);
   const [isLoadingCharacter, setIsLoadingCharacter] = useState(false);
   const [contentMode, setContentMode] = useState<'safe' | 'nsfw'>(() => {
@@ -214,11 +215,19 @@ function App() {
   const handleMyCharacters = () => navigateWithLang('/my-characters');
   const handleMessages = () => navigateWithLang('/messages');
   const handleBugReport = () => navigateWithLang('/bug-report');
-  const handleProfile = (userId?: number) => {
+  const handleProfile = (userId?: number | string) => {
     if (userId) {
       navigateWithLang(`/profile/${userId}`);
     } else {
       navigateWithLang('/profile');
+    }
+  };
+
+  const handleOpenUserGallery = (userId?: number | string) => {
+    if (userId) {
+      navigateWithLang(`/gallery/${userId}`);
+    } else {
+      navigateWithLang('/gallery');
     }
   };
   const handleShop = () => navigateWithLang('/shop');
@@ -244,6 +253,15 @@ function App() {
       navigateWithLang('/register');
     }
   };
+
+  const handleAdminLogs = () => navigateWithLang('/admin-logs');
+
+  useEffect(() => {
+    window.addEventListener('navigate-to-admin-logs', handleAdminLogs);
+    return () => {
+      window.removeEventListener('navigate-to-admin-logs', handleAdminLogs);
+    };
+  }, [currentLang, navigate]);
 
   const handeLoginWrapper = () => handleLogin(); // Wrapper for simple calls if needed, or usage of handleLogin is fine
 
@@ -446,14 +464,14 @@ function App() {
         setSelectedCharacter(fullCharacterData);
         // Используем setTimeout чтобы дать React время обновить состояние перед навигацией
         setTimeout(() => {
-          navigateWithLang('/edit-character');
+          navigateWithLang(`/edit-character?id=${character.id}`);
         }, 0);
       } else {
         console.error('[EDIT] Failed to load character data:', response.status);
         // Fallback: используем переданные данные, если загрузка не удалась
         setSelectedCharacter(character);
         setTimeout(() => {
-          navigateWithLang('/edit-character');
+          navigateWithLang(`/edit-character?id=${character.id}`);
         }, 0);
       }
     } catch (error) {
@@ -461,7 +479,7 @@ function App() {
       // Fallback: используем переданные данные при ошибке
       setSelectedCharacter(character);
       setTimeout(() => {
-        navigateWithLang('/edit-character');
+        navigateWithLang(`/edit-character?id=${character.id}`);
       }, 0);
     } finally {
       setIsLoadingCharacter(false);
@@ -524,7 +542,7 @@ function App() {
           onOwnProfile={() => handleProfile()}
           initialCharacter={selectedCharacter}
           onOpenPaidAlbum={handlePaidAlbum}
-          onOpenPaidAlbumBuilder={(char) => navigateWithLang(`/paid-album-builder/${char.id}`)}
+          onOpenPaidAlbumBuilder={(char) => navigateWithLang(`/paid-album-builder/${char.id || char.name}`)}
           onNavigate={(page, char) => {
             setSelectedCharacter(char);
             navigateWithLang(`/${page}/${char.id}`);
@@ -532,19 +550,19 @@ function App() {
           subscriptionType={userInfo?.subscription?.subscription_type || 'free'}
         />
       } />
-      <Route path="shop" element={<ShopPage onBackToMain={handleBackToMain} onProfile={handleProfile} onLogin={handleLogin} />} />
-      <Route path="profile" element={<ProfilePage onBackToMain={handleBackToMain} onLogout={handleLogout} onShop={handleShop} onCharacterSelect={handleCharacterSelect} />} />
-      <Route path="profile/:userId" element={<ProfilePage onBackToMain={handleBackToMain} onLogout={handleLogout} onShop={handleShop} onCharacterSelect={handleCharacterSelect} />} />
-      <Route path="photo-generation/:id" element={<PhotoGenerationPage3 character={selectedCharacter} onBackToMain={handleBackToMain} onShop={handleShop} onProfile={handleProfile} onChat={handleOpenChat} onPaidAlbumBuilder={(char) => navigateWithLang(`/paid-album-builder/${char.id}`)} />} />
+      <Route path="shop" element={<ShopPage onBackToMain={handleBackToMain} onProfile={handleProfile} onLogin={handleLogin} isAuthenticated={isAuthenticated} userInfo={userInfo} />} />
+      <Route path="profile" element={<ProfilePage onBackToMain={handleBackToMain} onLogout={handleLogout} onShop={handleShop} onCharacterSelect={handleCharacterSelect} onOpenUserGallery={handleOpenUserGallery} />} />
+      <Route path="profile/:userId" element={<ProfilePage onBackToMain={handleBackToMain} onLogout={handleLogout} onShop={handleShop} onCharacterSelect={handleCharacterSelect} onOpenUserGallery={handleOpenUserGallery} />} />
+      <Route path="photo-generation/:id" element={<PhotoGenerationPage3 character={selectedCharacter} onBackToMain={handleBackToMain} onShop={handleShop} onProfile={handleProfile} onChat={handleOpenChat} onPaidAlbumBuilder={(char) => navigateWithLang(`/paid-album-builder/${char.id || char.name}`)} />} />
       <Route path="paid-album/:id" element={<PaidAlbumPage character={selectedCharacter} onBackToMain={handleBackToMain} onBackToChat={handleBackToChat} onShop={handleShop} onProfile={handleProfile} canEditAlbum={canEditAlbum} />} />
-      <Route path="paid-album-builder/:id" element={<PaidAlbumBuilderPage character={selectedCharacter} onBackToMain={handleBackToMain} onShop={handleShop} onProfile={handleProfile} onBackToAlbum={handleBackToAlbum} canEditAlbum={canEditAlbum} />} />
+      <Route path="paid-album-builder/:id" element={<PaidAlbumBuilderPage character={selectedCharacter} onBackToMain={handleBackToMain} onBackToChat={handleBackToChat} onShop={handleShop} onProfile={handleProfile} onBackToAlbum={handleBackToAlbum} canEditAlbum={canEditAlbum} />} />
       <Route path="my-characters" element={<MyCharactersPage onBackToMain={handleBackToMain} onShop={handleShop} onProfile={handleProfile} onEditCharacters={handleEditCharacters} onCreateCharacter={handleCreateCharacter} onCharacterSelect={handleCharacterSelect} />} />
       <Route path="create-character" element={
         <CreateCharacterPage
           onBackToMain={handleBackToMain}
           onShop={handleShop}
           onProfile={handleProfile}
-          onOpenPaidAlbumBuilder={(char) => navigateWithLang(`/paid-album-builder/${char.id}`)}
+          onOpenPaidAlbumBuilder={(char) => navigateWithLang(`/paid-album-builder/${char.id || char.name}`)}
           onOpenChat={handleOpenChat}
           onLogin={handleLogin}
         />
@@ -557,7 +575,7 @@ function App() {
           onBackToMain={handleBackToMain}
           onShop={handleShop}
           onProfile={() => handleProfile()}
-          onOpenPaidAlbumBuilder={(char) => navigateWithLang(`/paid-album-builder/${char.id}`)}
+          onOpenPaidAlbumBuilder={(char) => navigateWithLang(`/paid-album-builder/${char.id || char.name}`)}
           onOpenChat={handleOpenChat}
           onLogin={handleLogin}
         />
@@ -566,6 +584,7 @@ function App() {
       <Route path="history" element={<HistoryPage onBackToMain={handleBackToMain} onShop={handleShop} onProfile={handleProfile} onCreateCharacter={handleCreateCharacter} onEditCharacters={handleEditCharacters} onOpenChat={handleOpenChat} />} />
       <Route path="messages" element={<MessagesPage onBackToMain={handleBackToMain} onShop={handleShop} onProfile={handleProfile} onCreateCharacter={handleCreateCharacter} onEditCharacters={handleEditCharacters} onOpenChat={handleOpenChat} />} />
       <Route path="gallery" element={<UserGalleryPage onBackToMain={handleBackToMain} onShop={handleShop} onProfile={handleProfile} />} />
+      <Route path="gallery/:userId" element={<UserGalleryPage onBackToMain={handleBackToMain} onShop={handleShop} onProfile={handleProfile} />} />
       <Route path="favorites" element={<FavoritesPage onBackToMain={handleBackToMain} onCharacterSelect={handleCharacterSelect} onShop={handleShop} onPhotoGeneration={handlePhotoGeneration} onPaidAlbum={handlePaidAlbum} onProfile={handleProfile} />} />
       <Route path="character-comments" element={
         <CharacterCommentsPage
@@ -612,7 +631,7 @@ function App() {
 
   const isFullWidthPage = ['/chat', '/create-character', '/edit-character'].some(path => {
     if (path === '/edit-character') {
-      return location.pathname === '/edit-character';
+      return location.pathname.includes('/edit-character') && !location.pathname.includes('/edit-characters');
     }
     return location.pathname.includes(path);
   });

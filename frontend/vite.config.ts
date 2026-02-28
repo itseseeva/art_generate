@@ -4,8 +4,8 @@ import path from 'path'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
-  // Загружаем переменные окружения
-  const env = loadEnv(mode, process.cwd(), '')
+  // Загружаем переменные окружения из корня проекта (на уровень выше)
+  const env = loadEnv(mode, path.resolve(__dirname, '../'), '')
 
   return {
     esbuild: {
@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => {
     },
     // Передаем DOMAIN из .env как VITE_DOMAIN
     define: {
-      'import.meta.env.DOMAIN': JSON.stringify(env.DOMAIN || ''),
+      'import.meta.env.VITE_CDN_DOMAIN': JSON.stringify(env.CDN_DOMAIN || ''),
     },
     server: {
       host: '0.0.0.0',  // Позволяет доступ с других устройств в сети

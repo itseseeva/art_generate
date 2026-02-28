@@ -155,7 +155,9 @@
         "chat": "Chat",
         "cancel": "Cancel",
         "open": "Open",
-        "return": "Return"
+        "return": "Return",
+        "save": "Save",
+        "confirm": "Confirm"
     },
     "language": {
         "ru": "Russian language",
@@ -444,7 +446,9 @@
         "noDescription": "No description available",
         "noSituation": "Role-playing situation not specified",
         "collapse": "Collapse",
-        "expand": "Expand"
+        "expand": "Expand",
+        "exclusiveContent": "Exclusive Content",
+        "getAccess": "Get Access to Intimate Photos"
     },
     "mainPage": {
         "loading": "Loading...",
@@ -695,7 +699,10 @@
         "images": "images",
         "thisWeek": "This week",
         "logout": "Logout",
-        "updateError": "Update Error"
+        "updateError": "Update Error",
+        "updateUsernameError": "Error updating username",
+        "requestPasswordError": "Error requesting password change",
+        "confirmPasswordError": "Error confirming password change"
     },
     "createCharacter": {
         "buttons": {
@@ -727,20 +734,45 @@
                 "nav": "Generation",
                 "title": "Photo Generation",
                 "description": "Generate photos for your character"
+            }
+        },
+        "voice": {
+            "label": "Character Voice",
+            "add": {
+                "label": "add your voice"
             },
-            "voice": {
-                "label": "Character Voice",
-                "add": {
-                    "label": "add your voice"
+            "custom": {
+                "show": "Show custom voices",
+                "hide": "Hide custom voices"
+            },
+            "premium": {
+                "notice": "Premium only"
+            },
+            "uploading": "Uploading..."
+        },
+        "modals": {
+            "voiceClone": {
+                "title": "Clone Your Voice",
+                "instructions": {
+                    "title": "How it works",
+                    "step1": "Upload a clear audio file (mp3, wav, ogg) with your voice.",
+                    "step2": "The audio must be at least 10 seconds long and contain clear speech.",
+                    "step3": "We will clone this voice and you can use it for your character."
                 },
-                "custom": {
-                    "show": "Show custom voices",
-                    "hide": "Hide custom voices"
-                },
-                "premium": {
-                    "notice": "Premium only"
-                },
-                "uploading": "Uploading..."
+                "uploadTitle": "Upload Audio File",
+                "uploadSubtitle": "mp3, wav, ogg (min 10 sec)",
+                "cloneBtn": "Clone Voice",
+                "loading": "Cloning...",
+                "status": {
+                    "valid": "Valid audio ({{duration}}s)",
+                    "invalid": "Audio too short ({{duration}}s, min 10s)"
+                }
+            },
+            "premium": {
+                "title": "Premium Feature",
+                "text": "This voice is available only for Premium subscribers.",
+                "button": "Upgrade to Premium",
+                "close": "Close"
             }
         },
         "form": {
@@ -800,7 +832,90 @@
                 "New": "New",
                 "Original": "Original",
                 "SFW": "SFW",
-                "Пользовательские": "Custom"
+                "Пользовательские": "Custom",
+                "Страстная и чувственная": "Passionate and Sensual",
+                "Доминирующая и властная": "Dominant and Powerful",
+                "Подчиняющаяся и покорная": "Submissive and Obedient",
+                "Игривая и кокетливая": "Playful and Flirtatious",
+                "Невинная, но жаждущая": "Innocent but Yearning",
+                "Опытная и развратная": "Experienced and Depraved",
+                "Ревнивая и собственница": "Jealous and Possessive",
+                "Соблазнительная и опасная": "Seductive and Dangerous",
+                "Нимфоманка": "Nymphomaniac",
+                "Извращенная и развратная": "Perverted and Depraved",
+                "Роковая женщина": "Femme Fatale",
+                "Стыдливая, но возбужденная": "Shy but Aroused",
+                "Агрессивная и требовательная": "Aggressive and Demanding",
+                "Развратная и пошлая": "Depraved and Vulgar",
+                "Манипулятивная и коварная": "Manipulative and Cunning",
+                "Страстная любовница": "Passionate Mistress",
+                "Доминирующая госпожа": "Dominant Mistress",
+                "Покорная рабыня": "Obedient Slave",
+                "Ненасытная и жадная": "Insatiable and Greedy",
+                "Извращенная фантазерка": "Perverted Dreamer",
+                "Соблазнительная блондинка": "Seductive Blonde",
+                "Страстная рыжая": "Passionate Redhead",
+                "Сексуальная брюнетка": "Sexy Brunette",
+                "Готическая соблазнительница": "Gothic Seductress",
+                "Спортивная красотка": "Athletic Beauty",
+                "Эльфийка-соблазнительница": "Elven Seductress",
+                "Киберпанк-соблазнительница": "Cyberpunk Seductress",
+                "Восточная красавица": "Eastern Beauty",
+                "Пышная красотка": "Curvy Beauty",
+                "Невинная студентка": "Innocent Student",
+                "Соседка-соблазнительница": "Seductive Neighbor",
+                "Медсестра-соблазнительница": "Seductive Nurse",
+                "Женщина-кошка": "Catwoman",
+                "Суккуб-соблазнительница": "Succubus Seductress",
+                "Падший ангел": "Fallen Angel",
+                "Секретарша": "Secretary",
+                "Пляжная красотка": "Beach Beauty",
+                "Стимпанк-соблазнительница": "Steampunk Seductress",
+                "Развратная принцесса": "Depraved Princess",
+                "Страстная спальня": "Passionate Bedroom",
+                "Ночной пляж": "Night Beach",
+                "Пентхаус": "Penthouse",
+                "Горячие источники": "Hot Springs",
+                "Кабинет директора": "Director's Office",
+                "Заброшенный особняк": "Abandoned Mansion",
+                "Личный самолет": "Private Jet",
+                "Лесная хижина": "Forest Cabin",
+                "VIP-сауна": "VIP Sauna",
+                "Космическая станция": "Space Station",
+                "Гримерка": "Dressing Room",
+                "Яхта в море": "Yacht at Sea",
+                "Подземелье замка": "Castle Dungeon",
+                "Оранжерея": "Greenhouse",
+                "Крыша дома": "Rooftop",
+                "Запретная библиотека": "Forbidden Library",
+                "Поезд-люкс": "Luxury Train",
+                "Палатка в горах": "Mountain Tent",
+                "Эротическая фотостудия": "Erotic Photo Studio",
+                "Тронный зал": "Throne Room",
+                "Ночной клуб": "Nightclub",
+                "Гараж": "Garage",
+                "Лифт": "Elevator",
+                "Кухня": "Kitchen",
+                "Страстная ночь": "Passionate Night",
+                "Первый день в офисе": "First Day at the Office",
+                "Разврат в купе": "Debauchery in the Compartment",
+                "Медицинский осмотр": "Medical Examination",
+                "Провалила экзамен": "Failed the Exam",
+                "Эротический массаж": "Erotic Massage",
+                "Застряли в лифте": "Stuck in the Elevator",
+                "Тренировка после закрытия": "Workout After Closing",
+                "Соседка за солью": "Neighbor Asking for Salt",
+                "Уборка по-взрослому": "Adult Cleaning",
+                "Горячая фотосессия": "Hot Photoshoot",
+                "Охотничий домик": "Hunting Lodge",
+                "Туалет клуба": "Club Bathroom",
+                "Таверна в пути": "Tavern on the Road",
+                "Секретный эксперимент": "Secret Experiment",
+                "Запретные полки": "Forbidden Shelves",
+                "Покои принцессы": "Princess's Chambers",
+                "Домашний вечер": "Evening at Home",
+                "Секс на ходу": "Quickie",
+                "Жаркая сауна": "Scorching Sauna"
             }
         },
         "photo": {
@@ -839,6 +954,7 @@
             "generate": "Generate",
             "generateMore": "Generate More",
             "warning": "Generation may take up to 30 seconds",
+            "addHint": "Hover over a finished photo and click \"Add\"",
             "progress": {
                 "text": "Generating...",
                 "step1": "Initializing",
@@ -846,8 +962,16 @@
                 "step3": "Finalizing"
             }
         },
-        "voice": {
-            "edit": "Edit"
+        "imageModal": {
+            "title": "Character Photo Generation",
+            "selectStyle": "SELECT STYLE",
+            "promptLabel": "IMAGE DESCRIPTION",
+            "helpers": "Helpers",
+            "reset": "Reset",
+            "cancel": "Cancel",
+            "generate": "GENERATE",
+            "queueFull": "Queue is full",
+            "promptPlaceholder": "Describe the desired image..."
         }
     },
     "howItWorks": {
@@ -1362,6 +1486,10 @@
             "label": "Fully Naked",
             "value": "fully naked, front view, spread legs, shaved pussy, big natural tits, model look, erotic pose"
         },
+        "animeStyle": {
+            "label": "Hentai Style",
+            "value": "hentai style, huge boobs, anime waifu, naked, squirt, blush, ahegao, very vulgar, uncensored"
+        },
         "anime": {
             "label": "Hentai",
             "value": "hentai style, huge boobs, anime waifu, naked, squirt, blush, ahegao, very vulgar, uncensored"
@@ -1406,6 +1534,10 @@
             "label": "Expensive Whore",
             "value": "expensive whore, diamonds on naked body, champagne, luxury interior, elite escort, inviting pose"
         },
+        "closeup": {
+            "label": "Pussy Close-up",
+            "value": "close up pussy, macro shot, clitoris, wetness, arousal, fingers, detailed, gynecology"
+        },
         "closeUp": {
             "label": "Pussy Close-up",
             "value": "close up pussy, macro shot, clitoris, wetness, arousal, fingers, detailed, gynecology"
@@ -1437,6 +1569,46 @@
         "romantic": {
             "label": "BDSM Light",
             "value": "bed with rose petals, sex toys, handcuffs, BDSM light, lace lingerie, passion, love"
+        }
+    },
+    "paidAlbum": {
+        "title": "Paid Album",
+        "subtitle": "Generate new images and select up to {{max}} photos for the character's paid album. If someone buys your album, you get 15%.",
+        "upgrade": {
+            "title": "Paid album unavailable",
+            "text": "Adding photos to the paid album is available only to Standard and Premium subscribers. Subscribe to earn 15% from sales.",
+            "btn": "Subscribe",
+            "dismiss": "Got it"
+        },
+        "generate": {
+            "title": "Image Generation",
+            "placeholder": "Describe the image you want to get...",
+            "hint": "Use a detailed description of appearance, surroundings and atmosphere. If left empty, the character's description will be used.",
+            "progress": "Generating...",
+            "btn": "Generate Photo",
+            "again": "Generate",
+            "remaining": "Photo generations remaining",
+            "upload": "Upload photo from computer",
+            "queue": "GENERATION QUEUE"
+        },
+        "recent": {
+            "title": "Fresh Images",
+            "empty": "Generated images will appear here"
+        },
+        "photo": {
+            "add": "Add",
+            "remove": "Remove"
+        },
+        "album": {
+            "title": "Album",
+            "photosLabel": "Photos in album",
+            "limitWarning": "Limit reached. Remove extra images before adding new ones.",
+            "loading": "Loading album...",
+            "empty": "Add the first images to the paid album"
+        },
+        "nav": {
+            "toChat": "Go to chat",
+            "toMain": "To main page"
         }
     }
 }

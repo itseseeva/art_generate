@@ -214,6 +214,43 @@ export const ShopPage: React.FC<any> = ({
     } catch (e) { console.error(e); }
   };
 
+  const handleCryptoPayment = async (plan: string) => {
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      setAuthMode('login');
+      setIsAuthModalOpen(true);
+      return;
+    }
+
+    try {
+      const basePrice = plan === 'premium' ? 1199 : 449;
+      const priceInfo = calculatePrice(basePrice);
+      const amount = priceInfo.total;
+      const description = `${plan.toUpperCase()} ${t('shop.subscription')} (${billingCycle.replace('_', ' ')})`;
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/nowpayments/create_payment/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          amount,
+          description,
+          plan,
+          months: CYCLE_MONTHS[billingCycle],
+          payment_type: 'subscription',
+        }),
+      });
+
+      if (!response.ok) throw new Error('Ошибка создания крипто-платежа');
+      const data = await response.json();
+      if (data.invoice_url) {
+        window.location.href = data.invoice_url;
+      }
+    } catch (e) { console.error(e); }
+  };
+
   const handleTestPayment = async (plan: string) => {
     const token = localStorage.getItem('authToken');
     if (!token) return;
@@ -243,6 +280,41 @@ export const ShopPage: React.FC<any> = ({
       if (response.ok) {
         const data = await response.json();
         window.location.href = data.confirmation_url;
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const handleTestCryptoPayment = async (plan: string) => {
+    const token = localStorage.getItem('authToken');
+    if (!token) return;
+
+    try {
+      const basePrice = plan === 'premium' ? 1199 : 449;
+      const priceInfo = calculatePrice(basePrice);
+      const amount = priceInfo.total;
+      const description = `[TEST] ${plan.toUpperCase()} ${t('shop.subscription')}`;
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/nowpayments/create_payment/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          amount,
+          description,
+          plan,
+          months: CYCLE_MONTHS[billingCycle],
+          payment_type: 'subscription',
+          is_test: true
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.invoice_url) {
+          window.location.href = data.invoice_url;
+        }
       }
     } catch (e) { console.error(e); }
   };
@@ -436,26 +508,48 @@ export const ShopPage: React.FC<any> = ({
               ))}
             </div>
 
-            <motion.button
-              whileHover={{ scale: 1.02, boxShadow: "0 0 20px rgba(245, 158, 11, 0.4)" }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => handleSubscriptionClick('standard')}
-              className="mt-6 w-full py-2.5 rounded-lg font-bold text-sm text-black bg-gradient-to-r from-amber-300 to-orange-400 shadow-lg shadow-amber-500/20 relative overflow-hidden group"
-            >
-              <div className="relative z-10 flex items-center justify-center gap-2">
-                <img src="/payment_images/pay_sbp.png?v=15" alt="SBP" className="w-5 h-5 object-contain" />
-                <span>{t('shop.buyFor')} {standardPrice.total}₽</span>
-              </div>
-              <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
-            </motion.button>
+            <div className="flex flex-col gap-2 mt-6">
+              <motion.button
+                whileHover={{ scale: 1.02, boxShadow: "0 0 20px rgba(245, 158, 11, 0.4)" }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleSubscriptionClick('standard')}
+                className="w-full py-2.5 rounded-lg font-bold text-sm text-black bg-gradient-to-r from-amber-300 to-orange-400 shadow-lg shadow-amber-500/20 relative overflow-hidden group"
+              >
+                <div className="relative z-10 flex items-center justify-center gap-2">
+                  <img src="/payment_images/pay_sbp.png?v=15" alt="SBP" className="w-5 h-5 object-contain" />
+                  <span>{t('shop.buyFor')} {standardPrice.total}₽</span>
+                </div>
+                <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleCryptoPayment('standard')}
+                className="w-full py-2.5 rounded-lg font-bold text-sm text-white bg-slate-800 border border-slate-700 shadow-lg relative overflow-hidden group hover:bg-slate-700 transition-colors"
+              >
+                <div className="relative z-10 flex items-center justify-center gap-2">
+                  <span className="text-lg">💰</span>
+                  <span>Crypto {standardPrice.total}₽</span>
+                </div>
+              </motion.button>
+            </div>
 
             {userInfo?.is_admin && (
-              <button
-                onClick={(e) => { e.stopPropagation(); handleTestPayment('standard'); }}
-                className="mt-2 w-full py-2 text-xs text-amber-500/70 hover:text-amber-500 border border-dashed border-amber-500/30 rounded-lg"
-              >
-                ADMIN TEST
-              </button>
+              <div className="flex flex-col gap-2 mt-2">
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleTestPayment('standard'); }}
+                  className="w-full py-2 text-xs text-amber-500/70 hover:text-amber-500 border border-dashed border-amber-500/30 rounded-lg"
+                >
+                  ADMIN TEST
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleTestCryptoPayment('standard'); }}
+                  className="w-full py-2 text-xs text-amber-500/70 hover:text-amber-500 border border-dashed border-amber-500/30 rounded-lg"
+                >
+                  ADMIN TEST CRYPTO
+                </button>
+              </div>
             )}
           </motion.div>
 
@@ -521,26 +615,48 @@ export const ShopPage: React.FC<any> = ({
                 ))}
               </div>
 
-              <motion.button
-                whileHover={{ scale: 1.02, boxShadow: "0 0 30px rgba(220, 38, 38, 0.5)" }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => handleSubscriptionClick('premium')}
-                className="mt-6 w-full py-2.5 rounded-lg font-bold text-sm text-white bg-gradient-to-r from-red-500 to-purple-600 shadow-xl shadow-red-500/30 relative overflow-hidden group"
-              >
-                <div className="relative z-10 flex items-center justify-center gap-2">
-                  <img src="/payment_images/pay_sbp.png?v=15" alt="SBP" className="w-5 h-5 object-contain brightness-0 invert" />
-                  <span>{t('shop.buyFor')} {premiumPrice.total}₽</span>
-                </div>
-                <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
-              </motion.button>
+              <div className="flex flex-col gap-2 mt-6">
+                <motion.button
+                  whileHover={{ scale: 1.02, boxShadow: "0 0 30px rgba(220, 38, 38, 0.5)" }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => handleSubscriptionClick('premium')}
+                  className="w-full py-2.5 rounded-lg font-bold text-sm text-white bg-gradient-to-r from-red-500 to-purple-600 shadow-xl shadow-red-500/30 relative overflow-hidden group"
+                >
+                  <div className="relative z-10 flex items-center justify-center gap-2">
+                    <img src="/payment_images/pay_sbp.png?v=15" alt="SBP" className="w-5 h-5 object-contain brightness-0 invert" />
+                    <span>{t('shop.buyFor')} {premiumPrice.total}₽</span>
+                  </div>
+                  <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
+                </motion.button>
+
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => handleCryptoPayment('premium')}
+                  className="w-full py-2.5 rounded-lg font-bold text-sm text-white bg-slate-800 border border-slate-700 shadow-lg relative overflow-hidden group hover:bg-slate-700 transition-colors"
+                >
+                  <div className="relative z-10 flex items-center justify-center gap-2">
+                    <span className="text-lg">💰</span>
+                    <span>Crypto {premiumPrice.total}₽</span>
+                  </div>
+                </motion.button>
+              </div>
 
               {userInfo?.is_admin && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleTestPayment('premium'); }}
-                  className="mt-2 w-full py-2 text-xs text-red-400/70 hover:text-red-400 border border-dashed border-red-500/30 rounded-lg"
-                >
-                  ADMIN TEST
-                </button>
+                <div className="flex flex-col gap-2 mt-2">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleTestPayment('premium'); }}
+                    className="w-full py-2 text-xs text-red-400/70 hover:text-red-400 border border-dashed border-red-500/30 rounded-lg"
+                  >
+                    ADMIN TEST
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleTestCryptoPayment('premium'); }}
+                    className="w-full py-2 text-xs text-red-400/70 hover:text-red-400 border border-dashed border-red-500/30 rounded-lg"
+                  >
+                    ADMIN TEST CRYPTO
+                  </button>
+                </div>
               )}
 
             </div>

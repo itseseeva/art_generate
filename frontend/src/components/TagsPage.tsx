@@ -138,7 +138,16 @@ const TagFilterBar = styled.div`
   background: rgba(15, 15, 15, 0.5);
   margin: 0;
   flex-shrink: 0;
+  width: 100%;
   
+  @media (min-width: 769px) {
+    margin-left: -226px;
+    margin-right: -226px;
+    width: calc(100% + 452px);
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+
   @media (max-width: 768px) {
     margin-top: 5%;
   }
@@ -326,7 +335,7 @@ export const TagsPage: React.FC<TagsPageProps> = ({
                             onClick={() => {
                                 if (tagObj.slug) {
                                     const currentLang = i18n.language || 'ru';
-                                    const path = currentLang === 'en' ? `/tags/${tagObj.slug}` : `/${currentLang}/tags/${tagObj.slug}`;
+                                    const path = `/${currentLang}/tags/${tagObj.slug}`;
                                     navigate(path);
                                 }
                             }}

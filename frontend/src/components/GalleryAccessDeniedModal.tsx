@@ -1,4 +1,6 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { theme } from '../theme';
 
@@ -56,11 +58,11 @@ const Button = styled.button<{ $isPrimary?: boolean }>`
   flex: 1;
   padding: ${theme.spacing.md};
   background: ${props => props.$isPrimary
-        ? 'rgba(100, 100, 100, 0.7)'
-        : 'rgba(60, 60, 60, 0.5)'};
+    ? 'rgba(100, 100, 100, 0.7)'
+    : 'rgba(60, 60, 60, 0.5)'};
   border: 1px solid ${props => props.$isPrimary
-        ? 'rgba(180, 180, 180, 0.6)'
-        : 'rgba(150, 150, 150, 0.3)'};
+    ? 'rgba(180, 180, 180, 0.6)'
+    : 'rgba(150, 150, 150, 0.3)'};
   border-radius: ${theme.borderRadius.md};
   color: ${theme.colors.text.primary};
   font-size: ${theme.fontSize.sm};
@@ -70,48 +72,56 @@ const Button = styled.button<{ $isPrimary?: boolean }>`
   
   &:hover {
     background: ${props => props.$isPrimary
-        ? 'rgba(120, 120, 120, 0.8)'
-        : 'rgba(80, 80, 80, 0.7)'};
+    ? 'rgba(120, 120, 120, 0.8)'
+    : 'rgba(80, 80, 80, 0.7)'};
     border-color: ${props => props.$isPrimary
-        ? 'rgba(200, 200, 200, 0.7)'
-        : 'rgba(180, 180, 180, 0.5)'};
+    ? 'rgba(200, 200, 200, 0.7)'
+    : 'rgba(180, 180, 180, 0.5)'};
   }
 `;
 
 interface GalleryAccessDeniedModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    onGoToShop: () => void;
+  isOpen: boolean;
+  onClose: () => void;
+  onGoToShop: () => void;
 }
 
 export const GalleryAccessDeniedModal: React.FC<GalleryAccessDeniedModalProps> = ({
-    isOpen,
-    onClose,
-    onGoToShop
+  isOpen,
+  onClose,
+  onGoToShop
 }) => {
-    if (!isOpen) return null;
+  const navigate = useNavigate();
+  const { i18n } = useTranslation();
 
-    const handleGoToShop = () => {
-        onGoToShop();
-        onClose();
-    };
+  if (!isOpen) return null;
 
-    return (
-        <ModalOverlay onClick={onClose}>
-            <ModalContent onClick={(e) => e.stopPropagation()}>
-                <ModalTitle>Недостаточно прав</ModalTitle>
-                <ModalMessage>
-                    Доступ к галереям других пользователей доступен только для подписчиков PREMIUM. Оформите подписку, чтобы получить доступ ко всем галереям.
-                </ModalMessage>
-                <ButtonContainer>
-                    <Button $isPrimary onClick={handleGoToShop}>
-                        Перейти в магазин
-                    </Button>
-                    <Button onClick={onClose}>
-                        Отмена
-                    </Button>
-                </ButtonContainer>
-            </ModalContent>
-        </ModalOverlay>
-    );
+  const handleGoToShop = () => {
+    const currentLang = i18n.language || 'ru';
+    onClose();
+    if (onGoToShop) {
+      onGoToShop();
+    } else {
+      navigate(`/${currentLang}/shop?tab=subscription`);
+    }
+  };
+
+  return (
+    <ModalOverlay onClick={onClose}>
+      <ModalContent onClick={(e) => e.stopPropagation()}>
+        <ModalTitle>Недостаточно прав</ModalTitle>
+        <ModalMessage>
+          Доступ к галереям других пользователей доступен только для подписчиков PREMIUM. Оформите подписку, чтобы получить доступ ко всем галереям.
+        </ModalMessage>
+        <ButtonContainer>
+          <Button $isPrimary onClick={handleGoToShop}>
+            Перейти в магазин
+          </Button>
+          <Button onClick={onClose}>
+            Отмена
+          </Button>
+        </ButtonContainer>
+      </ModalContent>
+    </ModalOverlay>
+  );
 };

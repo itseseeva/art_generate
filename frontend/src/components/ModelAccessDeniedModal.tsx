@@ -1,4 +1,6 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { theme } from '../theme';
 
@@ -55,11 +57,11 @@ const ButtonContainer = styled.div`
 const Button = styled.button<{ $isPrimary?: boolean }>`
   flex: 1;
   padding: ${theme.spacing.md};
-  background: ${props => props.$isPrimary 
-    ? 'rgba(100, 100, 100, 0.7)' 
+  background: ${props => props.$isPrimary
+    ? 'rgba(100, 100, 100, 0.7)'
     : 'rgba(60, 60, 60, 0.5)'};
-  border: 1px solid ${props => props.$isPrimary 
-    ? 'rgba(180, 180, 180, 0.6)' 
+  border: 1px solid ${props => props.$isPrimary
+    ? 'rgba(180, 180, 180, 0.6)'
     : 'rgba(150, 150, 150, 0.3)'};
   border-radius: ${theme.borderRadius.md};
   color: ${theme.colors.text.primary};
@@ -69,12 +71,12 @@ const Button = styled.button<{ $isPrimary?: boolean }>`
   transition: all 0.2s ease;
   
   &:hover {
-    background: ${props => props.$isPrimary 
-      ? 'rgba(120, 120, 120, 0.8)' 
-      : 'rgba(80, 80, 80, 0.7)'};
-    border-color: ${props => props.$isPrimary 
-      ? 'rgba(200, 200, 200, 0.7)' 
-      : 'rgba(180, 180, 180, 0.5)'};
+    background: ${props => props.$isPrimary
+    ? 'rgba(120, 120, 120, 0.8)'
+    : 'rgba(80, 80, 80, 0.7)'};
+    border-color: ${props => props.$isPrimary
+    ? 'rgba(200, 200, 200, 0.7)'
+    : 'rgba(180, 180, 180, 0.5)'};
   }
 `;
 
@@ -89,11 +91,19 @@ export const ModelAccessDeniedModal: React.FC<ModelAccessDeniedModalProps> = ({
   onClose,
   onGoToShop
 }) => {
+  const navigate = useNavigate();
+  const { i18n } = useTranslation();
+
   if (!isOpen) return null;
 
   const handleGoToShop = () => {
-    onGoToShop();
+    const currentLang = i18n.language || 'ru';
     onClose();
+    if (onGoToShop) {
+      onGoToShop();
+    } else {
+      navigate(`/${currentLang}/shop?tab=subscription`);
+    }
   };
 
   return (

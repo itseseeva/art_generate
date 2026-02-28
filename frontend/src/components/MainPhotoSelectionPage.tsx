@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { theme } from '../theme';
 import { authManager } from '../utils/auth';
@@ -60,7 +62,7 @@ const ActionButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   cursor: pointer;
   transition: ${theme.transition.fast};
 
-  ${({ $variant }) => 
+  ${({ $variant }) =>
     $variant === 'secondary'
       ? `
         background: transparent;
@@ -213,7 +215,7 @@ const OverlayActions = styled.div`
 `;
 
 const OverlayButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
-  background: ${({ $variant }) => 
+  background: ${({ $variant }) =>
     $variant === 'primary'
       ? 'rgba(129, 140, 248, 0.8)'
       : 'rgba(15, 23, 42, 0.7)'};
@@ -226,10 +228,10 @@ const OverlayButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   transition: ${theme.transition.fast};
 
   &:hover {
-    background: ${({ $variant }) => 
-      $variant === 'primary'
-        ? 'rgba(99, 102, 241, 0.9)'
-        : 'rgba(37, 47, 82, 0.9)'};
+    background: ${({ $variant }) =>
+    $variant === 'primary'
+      ? 'rgba(99, 102, 241, 0.9)'
+      : 'rgba(37, 47, 82, 0.9)'};
     border-color: rgba(255, 255, 255, 0.3);
   }
 
@@ -398,6 +400,8 @@ export const MainPhotoSelectionPage: React.FC<MainPhotoSelectionPageProps> = ({
   canCreatePaidAlbum,
   onUpgradeSubscription,
 }) => {
+  const { i18n } = useTranslation();
+  const navigate = useNavigate();
   const [availablePhotos, setAvailablePhotos] = useState<PhotoItem[]>([]);
   const [selectedPhotos, setSelectedPhotos] = useState<PhotoItem[]>([]);
   const [prompt, setPrompt] = useState('');
@@ -477,7 +481,7 @@ export const MainPhotoSelectionPage: React.FC<MainPhotoSelectionPageProps> = ({
         } else if (mainResponse.status === 404) {
           setSelectedPhotos([]);
         } else {
-          
+
           setSelectedPhotos([]);
         }
 
@@ -519,11 +523,11 @@ export const MainPhotoSelectionPage: React.FC<MainPhotoSelectionPageProps> = ({
         } else if (galleryResponse.status === 404) {
           setAvailablePhotos([]);
         } else {
-          
+
           setAvailablePhotos([]);
         }
       } catch (loadError) {
-        
+
         setError(loadError instanceof Error ? loadError.message : 'Не удалось загрузить фотографии');
       } finally {
         setIsLoading(false);
@@ -583,7 +587,7 @@ export const MainPhotoSelectionPage: React.FC<MainPhotoSelectionPageProps> = ({
         throw new Error(message);
       }
     } catch (toggleError) {
-      
+
       setSelectedPhotos(prevSelected);
       setError(toggleError instanceof Error ? toggleError.message : 'Не удалось обновить главные фотографии');
     } finally {
@@ -643,7 +647,7 @@ export const MainPhotoSelectionPage: React.FC<MainPhotoSelectionPageProps> = ({
       stopFakeProgress(100);
       window.dispatchEvent(new Event('balance-update'));
     } catch (generateError) {
-      
+
       setError(generateError instanceof Error ? generateError.message : 'Не удалось сгенерировать фото');
       stopFakeProgress(0);
     } finally {
@@ -698,7 +702,14 @@ export const MainPhotoSelectionPage: React.FC<MainPhotoSelectionPageProps> = ({
             Оформите подписку Standard или Premium, чтобы собирать платные альбомы и добавлять больше фото.
           </UpgradeText>
           <ActionButton
-            onClick={() => onUpgradeSubscription?.()}
+            onClick={() => {
+              if (onUpgradeSubscription) {
+                onUpgradeSubscription();
+              } else {
+                const currentLang = (i18n.language || 'ru').split('-')[0];
+                navigate(`/${currentLang}/shop`);
+              }
+            }}
             style={{ alignSelf: 'flex-start', padding: `${theme.spacing.sm} ${theme.spacing.md}`, fontSize: theme.fontSize.xs }}
           >
             Оформить подписку
@@ -740,7 +751,7 @@ export const MainPhotoSelectionPage: React.FC<MainPhotoSelectionPageProps> = ({
                       </span>
                       {isPending ? (
                         <SavingIndicator>
-                          <LoadingSpinner size="sm" variant="dots" />
+                          <LoadingSpinner size="sm" />
                           <span>Сохраняем...</span>
                         </SavingIndicator>
                       ) : (

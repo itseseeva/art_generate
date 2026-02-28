@@ -257,7 +257,7 @@ export const CreateCharacterModal: React.FC<CreateCharacterModalProps> = ({
     }
     
     if (userCoins < 10) {
-      setError(`Not enough coins! You have: ${userCoins}, need: 10 coins to create character.`);
+      setError(`Not enough coins! You have: ${userCoins}.`);
       return;
     }
 
@@ -267,7 +267,7 @@ export const CreateCharacterModal: React.FC<CreateCharacterModalProps> = ({
 
     try {
       await onCreateCharacter(formData);
-      setSuccess(`Character "${formData.name}" created successfully! Spent 10 coins.`);
+      setSuccess(`Character "${formData.name}"`);
       
       // Clear form
       setFormData({
@@ -398,7 +398,6 @@ export const CreateCharacterModal: React.FC<CreateCharacterModalProps> = ({
           </FormGroup>
           
           <CostSection>
-            <CostText>Cost: 10 coins</CostText>
             <UserCoinsInfo>You have: {userCoins} coins</UserCoinsInfo>
           </CostSection>
           
@@ -410,7 +409,7 @@ export const CreateCharacterModal: React.FC<CreateCharacterModalProps> = ({
               Cancel
             </Button>
             <Button type="submit" variant="primary" disabled={isLoading}>
-              {isLoading ? 'Creating...' : 'Create Character (10 coins)'}
+              {isLoading ? 'Creating...' : 'Create Character'}
             </Button>
           </ModalButtons>
         </Form>

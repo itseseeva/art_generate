@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useCharacterPrompts } from '../hooks/useCharacterPrompts';
 import { createPortal } from 'react-dom';
 import styled, { keyframes, css } from 'styled-components';
@@ -24,6 +24,7 @@ import { ErrorToast } from './ErrorToast';
 
 import { TagSelector } from './TagSelector';
 import { LoadingSpinner as GlobalSpinner } from './LoadingSpinner';
+import { AlbumAccessDeniedModal } from './AlbumAccessDeniedModal';
 
 const BackgroundWrapper = styled.div`
   position: fixed;
@@ -3747,45 +3748,58 @@ const GenerationProgressFill = styled.div<{ $progress: number }>`
 `;
 
 const PhotoList = styled.div`
-  display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
-  gap: ${theme.spacing.sm} !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: ${theme.spacing.md} !important;
+  justify-content: center !important;
   margin-top: ${theme.spacing.md};
   padding: ${theme.spacing.md};
   visibility: visible !important;
   opacity: 1 !important;
   width: 100% !important;
   box-sizing: border-box !important;
-  align-content: start !important;
-  grid-auto-rows: min-content !important;
 
   @media (max-width: 768px) {
-    grid-template-columns: repeat(2, 1fr) !important;
+    justify-content: center !important;
     padding: ${theme.spacing.xs};
-    gap: ${theme.spacing.xs} !important;
+    gap: ${theme.spacing.md} !important;
     margin-top: ${theme.spacing.sm};
   }
 `;
 
 const PhotoTile = styled.div`
   position: relative;
+  width: 231px !important;
+  height: 339px !important;
+  min-width: 231px !important;
+  max-width: 231px !important;
+  min-height: 339px !important;
+  max-height: 339px !important;
   border-radius: ${theme.borderRadius.lg};
   overflow: hidden;
   border: 2px solid rgba(120, 120, 120, 0.3);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   background: rgba(30, 30, 30, 0.95);
   transition: all 0.3s ease;
-  height: 300px;
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
   cursor: pointer;
   z-index: 1;
 
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
   @media (max-width: 768px) {
-    height: auto;
-    aspect-ratio: 2/3;
-    min-height: 120px;
+    width: calc(50% - ${theme.spacing.sm}) !important;
+    min-width: 140px !important;
+    max-width: none !important;
+    height: 220px !important;
+    min-height: 220px !important;
+    max-height: 220px !important;
     border-width: 1px;
     border-radius: ${theme.borderRadius.md};
   }
@@ -4571,7 +4585,61 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   onBackToEditList,
   onLogin
 }) => {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { t, i18n } = useTranslation();
+
+  const [localCharacter, setLocalCharacter] = useState<any>(initialCharacter);
+  const [isLoadingLocalCharacter, setIsLoadingLocalCharacter] = useState(false);
+  const [isAlbumAccessDeniedOpen, setIsAlbumAccessDeniedOpen] = useState(false);
+
+  // Синхронизируем локальное состояние с пропсом, если он меняется
+  useEffect(() => {
+    if (initialCharacter) {
+      setLocalCharacter(initialCharacter);
+    }
+  }, [initialCharacter]);
+
+  // Если мы в режиме редактирования, но персонаж не передан (например, обновили страницу),
+  // пробуем загрузить его по ID из URL. Если не получается — перенаправляем обратно на список.
+  useEffect(() => {
+    const fetchCharacterFromUrl = async () => {
+      if (mode === 'edit' && !localCharacter && !isLoadingLocalCharacter) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const characterId = urlParams.get('id');
+
+        if (characterId) {
+          setIsLoadingLocalCharacter(true);
+          try {
+            const response = await authManager.fetchWithAuth(
+              `${API_CONFIG.BASE_URL}/api/v1/characters/${encodeURIComponent(characterId)}/with-creator`
+            );
+            if (response.ok) {
+              const data = await response.json();
+              setLocalCharacter(data);
+              return; // Успешно загрузили
+            }
+          } catch (err) {
+            console.error('Failed to fetch character from URL', err);
+          } finally {
+            setIsLoadingLocalCharacter(false);
+          }
+        }
+
+        // Если дошли сюда, то загрузка не удалась или ID не было
+        console.warn('Edit mode activated without initialCharacter and could not load from URL. Redirecting...');
+        if (onBackToEditList) {
+          onBackToEditList();
+        } else {
+          const lang = i18n.language?.split('-')[0] || 'ru';
+          navigate(`/${lang}/edit-characters`, { replace: true });
+        }
+      }
+    };
+
+    fetchCharacterFromUrl();
+  }, [mode, localCharacter, onBackToEditList, navigate, i18n.language, isLoadingLocalCharacter]);
+
   const {
     names: NAME_PROMPTS,
     personality: PERSONALITY_PROMPTS,
@@ -4600,17 +4668,17 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
   // Initialize form data for Edit Mode
   useEffect(() => {
-    if (mode === 'edit' && initialCharacter) {
-      console.log('[EDIT_MODE] initialCharacter:', initialCharacter);
+    if (mode === 'edit' && localCharacter) {
+      console.log('[EDIT_MODE] localCharacter:', localCharacter);
 
       // API возвращает поля с суффиксами _ru/_en, нужно выбрать правильный язык
       // Приоритет: текущий язык интерфейса, затем противоположный язык, затем поле без суффикса
       const getField = (fieldName: string) => {
-        const ruField = initialCharacter[`${fieldName}_ru`];
-        const enField = initialCharacter[`${fieldName}_en`];
-        const plainField = initialCharacter[fieldName];
+        const ruField = localCharacter[`${fieldName}_ru`];
+        const enField = localCharacter[`${fieldName}_en`];
+        const plainField = localCharacter[fieldName];
 
-        console.log(`[EDIT_MODE] ${fieldName}: ru="${ruField}", en="${enField}", plain="${plainField}", character_appearance="${initialCharacter.character_appearance}"`);
+        console.log(`[EDIT_MODE] ${fieldName}: ru="${ruField}", en="${enField}", plain="${plainField}", character_appearance="${localCharacter.character_appearance}"`);
 
         // Для appearance также проверяем character_appearance (старое поле)
         if (fieldName === 'appearance') {
@@ -4618,9 +4686,9 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
           const currentLang = i18n.language?.split('-')[0] || 'ru'; // 'ru' или 'en'
 
           if (currentLang === 'ru') {
-            return ruField || enField || initialCharacter.character_appearance || plainField || '';
+            return ruField || enField || localCharacter.character_appearance || plainField || '';
           } else {
-            return enField || ruField || initialCharacter.character_appearance || plainField || '';
+            return enField || ruField || localCharacter.character_appearance || plainField || '';
           }
         }
 
@@ -4636,42 +4704,42 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       };
 
       const newFormData = {
-        name: initialCharacter.name || '',
+        name: localCharacter.name || '',
         personality: getField('personality'),
         situation: getField('situation'),
         instructions: getField('instructions'),
         style: getField('style'),
         appearance: getField('appearance'),
         location: getField('location'),
-        tags: initialCharacter.tags || []
+        tags: localCharacter.tags || []
       };
 
       console.log('[EDIT_MODE] newFormData:', newFormData);
 
       setFormData(newFormData);
-      setCreatedCharacterData(initialCharacter); // Treat existing character as 'created'
+      setCreatedCharacterData(localCharacter); // Treat existing character as 'created'
       setIsCharacterCreated(true);
 
       // Восстанавливаем режим NSFW
-      if (initialCharacter.is_nsfw) {
+      if (localCharacter.is_nsfw) {
         setCurrentContentMode('nsfw');
       } else {
         setCurrentContentMode('safe');
       }
 
       // Восстанавливаем голос
-      if (initialCharacter.voice_id) {
-        setSelectedVoiceId(initialCharacter.voice_id);
+      if (localCharacter.voice_id) {
+        setSelectedVoiceId(localCharacter.voice_id);
       }
-      if (initialCharacter.voice_url) {
-        setSelectedVoiceUrl(initialCharacter.voice_url);
+      if (localCharacter.voice_url) {
+        setSelectedVoiceUrl(localCharacter.voice_url);
       }
 
-      if (initialCharacter.avatar_url) {
+      if (localCharacter.avatar_url) {
         // Optionally set initial photo state if needed for visualization
       }
     }
-  }, [mode, initialCharacter, i18n.language]);
+  }, [mode, localCharacter, i18n.language]);
 
   const [tagInput, setTagInput] = useState('');
 
@@ -4970,6 +5038,13 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
   // Wizard state
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(() => {
+    const paramStep = new URLSearchParams(window.location.search).get('step');
+    if (paramStep) {
+      const parsed = parseInt(paramStep, 10);
+      if (!isNaN(parsed) && parsed >= 1 && parsed <= 4) {
+        return parsed as 1 | 2 | 3 | 4;
+      }
+    }
     const savedStep = localStorage.getItem('createCharacterStep');
     if (savedStep) {
       const parsed = parseInt(savedStep, 10);
@@ -4983,10 +5058,31 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   // Флаг инициализации формы, чтобы избежать перезаписи localStorage пустыми данными при монтировании
   const [isFormInitialized, setIsFormInitialized] = useState(false);
 
-  // Сохраняем шаг при изменении
+  // Синхронизация URL -> State (History Back/Forward)
   useEffect(() => {
+    const stepParam = searchParams.get('step');
+    if (stepParam) {
+      const parsed = parseInt(stepParam, 10);
+      setCurrentStep(prev => {
+        if (!isNaN(parsed) && parsed >= 1 && parsed <= 4 && parsed !== prev) {
+          return parsed as 1 | 2 | 3 | 4;
+        }
+        return prev;
+      });
+    }
+  }, [searchParams]);
+
+  // Синхронизация State -> URL (Нажатие "Далее" / "Назад" в интерфейсе) и localStorage
+  useEffect(() => {
+    setSearchParams(prev => {
+      if (prev.get('step') !== currentStep.toString()) {
+        prev.set('step', currentStep.toString());
+        return prev;
+      }
+      return prev;
+    }, { replace: false });
     localStorage.setItem('createCharacterStep', currentStep.toString());
-  }, [currentStep]);
+  }, [currentStep, setSearchParams]);
 
   // Сохраняем все данные формы при изменениях
   useEffect(() => {
@@ -5417,11 +5513,12 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       // КРИТИЧНО: Используем готовый метод из API_CONFIG для правильного формирования URL
       // Это гарантирует использование домена, а не IP адреса (избегает Mixed Content)
       // Determine if we are updating an existing character (Edit Mode or Post-Creation Update)
-      const isUpdate = (mode === 'edit' && initialCharacter?.id) || (mode === 'create' && isCharacterCreated && createdCharacterData?.name);
+      // Determine if we are updating an existing character (Edit Mode or Post-Creation Update)
+      const isUpdate = (mode === 'edit' && localCharacter?.id) || (mode === 'create' && isCharacterCreated && createdCharacterData?.name);
 
       // Use appropriate API endpoint and method
       // For updates, we use the character name or ID
-      const updateIdentifier = mode === 'edit' ? initialCharacter.id : createdCharacterData?.name;
+      const updateIdentifier = mode === 'edit' ? localCharacter?.id : createdCharacterData?.name;
 
       const apiUrl = isUpdate
         ? `${API_CONFIG.BASE_URL}/api/v1/characters/${updateIdentifier}`
@@ -5943,6 +6040,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
       if (!prompt) {
         const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
         prompt = parts.length > 0 ? parts.join(' | ') : '';
+        if (!prompt) {
+          const fallbackParts = [formData.name, formData.personality, formData.situation].filter(p => p && p.trim());
+          prompt = fallbackParts.join(', ');
+        }
       }
     }
 
@@ -6119,9 +6220,9 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         // Автоматически вставляем первую сгенерированную фотографию в карточку персонажа (только один раз за сессию)
         if (isFirstPhoto && createdCharacterData) {
           hasAutoAddedFirstPhotoRef.current = true;
-          const firstPhoto = { ...photo, isSelected: true };
+          const firstPhoto = { ...photo, prompt: currentPrompt, isSelected: true };
           // Сначала обновляем generatedPhotos с правильным isSelected
-          setGeneratedPhotos(prev => [...prev, { ...photo, isSelected: true }]);
+          setGeneratedPhotos(prev => [...prev, { ...photo, prompt: currentPrompt, isSelected: true }]);
           setSelectedPhotos([firstPhoto]);
           setPreviewPhotoIndex(0); // Устанавливаем индекс на первое фото
 
@@ -6191,7 +6292,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
           }
         } else {
           // Для последующих фото только добавляем в конец списка, не трогая selectedPhotos
-          setGeneratedPhotos(prev => [...prev, { ...photo, isSelected: false }]);
+          setGeneratedPhotos(prev => [...prev, { ...photo, prompt: currentPrompt, isSelected: false }]);
         }
 
         if (createdCharacterData && !isFirstPhoto) {
@@ -6334,6 +6435,16 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
             <h2>Ошибка инициализации</h2>
             <p>Не удалось загрузить форму. Пожалуйста, обновите страницу.</p>
           </div>
+        </MainContent>
+      </MainContainer>
+    );
+  }
+
+  if (mode === 'edit' && isLoadingLocalCharacter) {
+    return (
+      <MainContainer $isMobile={isMobile}>
+        <MainContent style={{ background: 'rgba(20, 20, 30, 0.9)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <GlobalSpinner size="large" />
         </MainContent>
       </MainContainer>
     );
@@ -8078,7 +8189,16 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                       </FormLabel>
                       <ModernTextarea
                         id="photo-prompt-unified"
-                        value={customPrompt}
+                        value={(() => {
+                          if (customPromptManuallySet || customPrompt.trim()) return customPrompt;
+                          const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
+                          let defaultPrompt = parts.join(' | ');
+                          if (!defaultPrompt) {
+                            const fallbackParts = [formData.name, formData.personality, formData.situation].filter(p => p && p.trim());
+                            defaultPrompt = fallbackParts.join(', ');
+                          }
+                          return defaultPrompt;
+                        })()}
                         onChange={(e) => {
                           const newValue = e.target.value;
                           setCustomPrompt(newValue);
@@ -8094,34 +8214,44 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         <PromptSuggestions
                           title={t('createCharacter.photo.prompt.helpers')}
                           prompts={[
-                            { label: 'Высокая детализация', value: 'высокая детализация, реализм, 8к разрешение' },
-                            { label: 'Киберпанк', value: 'стиль киберпанк, неоновое освещение, футуристично' },
-                            { label: 'Фэнтези', value: 'фэнтези стиль, магическая атмосфера' },
-                            { label: 'Портрет', value: 'крупный план, детальное лицо, выразительный взгляд' },
-                            { label: 'В полный рост', value: 'в полный рост, изящная поза' },
-                            { label: 'Аниме стиль', value: 'красивый аниме стиль, четкие линии, яркие цвета' },
-                            { label: 'Реализм', value: 'фотореалистично, натуральные текстуры кожи' },
-                            { label: 'Кинематографично', value: 'кинематографичный свет, глубокие тени, драматично' },
-                            { label: 'На пляже', value: 'на берегу океана, золотой песок, закатное солнце' },
-                            { label: 'В городе', value: 'на оживленной улице города, ночные огни, боке' },
-                            { label: 'В лесу', value: 'в сказочном лесу, лучи солнца сквозь листву' },
-                            { label: 'Офисный стиль', value: 'в строгом офисном костюме, деловая обстановка' },
-                            { label: 'Летнее платье', value: 'в легком летнем платье, летящая ткань' },
-                            { label: 'Вечерний свет', value: 'мягкий вечерний свет, теплые тона' },
-                            { label: 'Зима', value: 'зимний пейзаж, падающий снег, меховая одежда' },
-                            { label: 'Элегантный образ', value: 'элегантная поза, утонченный стиль, изысканность' },
-                            { label: 'Портрет крупным планом', value: 'крупный план лица, выразительный взгляд, детализированные черты' },
-                            { label: 'В парке', value: 'в городском парке, зеленая трава, солнечный свет' },
-                            { label: 'В кафе', value: 'в уютном кафе, теплая атмосфера, приятная обстановка' },
-                            { label: 'На природе', value: 'на природе, свежий воздух, красивые пейзажи' },
-                            { label: 'Вечерний наряд', value: 'в красивом вечернем наряде, элегантный стиль' },
-                            { label: 'Повседневный образ', value: 'в повседневной одежде, комфортный стиль' },
-                            { label: 'Спортивный стиль', value: 'в спортивной одежде, активный образ жизни' },
-                            { label: 'Романтичная атмосфера', value: 'романтичная обстановка, мягкое освещение, уют' }
+                            { label: t('photoPrompts.highDetail.label'), value: t('photoPrompts.highDetail.value') },
+                            { label: t('photoPrompts.cyberpunk.label'), value: t('photoPrompts.cyberpunk.value') },
+                            { label: t('photoPrompts.fantasy.label'), value: t('photoPrompts.fantasy.value') },
+                            { label: t('photoPrompts.portrait.label'), value: t('photoPrompts.portrait.value') },
+                            { label: t('photoPrompts.fullBody.label'), value: t('photoPrompts.fullBody.value') },
+                            { label: t('photoPrompts.anime.label'), value: t('photoPrompts.anime.value') },
+                            { label: t('photoPrompts.realism.label'), value: t('photoPrompts.realism.value') },
+                            { label: t('photoPrompts.cinematic.label'), value: t('photoPrompts.cinematic.value') },
+                            { label: t('photoPrompts.beach.label'), value: t('photoPrompts.beach.value') },
+                            { label: t('photoPrompts.city.label'), value: t('photoPrompts.city.value') },
+                            { label: t('photoPrompts.forest.label'), value: t('photoPrompts.forest.value') },
+                            { label: t('photoPrompts.office.label'), value: t('photoPrompts.office.value') },
+                            { label: t('photoPrompts.summerDress.label'), value: t('photoPrompts.summerDress.value') },
+                            { label: t('photoPrompts.eveningLight.label'), value: t('photoPrompts.eveningLight.value') },
+                            { label: t('photoPrompts.winter.label'), value: t('photoPrompts.winter.value') },
+                            { label: t('photoPrompts.elegant.label'), value: t('photoPrompts.elegant.value') },
+                            { label: t('photoPrompts.closeUp.label'), value: t('photoPrompts.closeUp.value') },
+                            { label: t('photoPrompts.park.label'), value: t('photoPrompts.park.value') },
+                            { label: t('photoPrompts.cafe.label'), value: t('photoPrompts.cafe.value') },
+                            { label: t('photoPrompts.nature.label'), value: t('photoPrompts.nature.value') },
+                            { label: t('photoPrompts.eveningOutfit.label'), value: t('photoPrompts.eveningOutfit.value') },
+                            { label: t('photoPrompts.casual.label'), value: t('photoPrompts.casual.value') },
+                            { label: t('photoPrompts.sport.label'), value: t('photoPrompts.sport.value') },
+                            { label: t('photoPrompts.romantic.label'), value: t('photoPrompts.romantic.value') }
                           ]}
                           onSelect={(val) => {
-                            const separator = customPrompt.length > 0 && !customPrompt.endsWith(', ') && !customPrompt.endsWith(',') ? ', ' : '';
-                            const newValue = customPrompt + separator + val;
+                            let currentText = customPrompt;
+                            if (!customPromptManuallySet && !customPrompt.trim()) {
+                              const parts = [formData.appearance, formData.location].filter(p => p && p.trim());
+                              let defaultPrompt = parts.join(' | ');
+                              if (!defaultPrompt) {
+                                const fallbackParts = [formData.name, formData.personality, formData.situation].filter(p => p && p.trim());
+                                defaultPrompt = fallbackParts.join(', ');
+                              }
+                              currentText = defaultPrompt;
+                            }
+                            const separator = currentText.length > 0 && !currentText.endsWith(', ') && !currentText.endsWith(',') ? ', ' : '';
+                            const newValue = currentText + separator + val;
                             setCustomPrompt(newValue);
                             customPromptRef.current = newValue;
                             setCustomPromptManuallySet(true);
@@ -8213,7 +8343,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                           <Step4GhostButton
                             as={motion.button}
                             type="button"
-                            disabled={!(generatedPhotos && generatedPhotos.length > 0)}
+                            disabled={!(mode === 'edit' || (generatedPhotos && generatedPhotos.length > 0))}
                             onClick={() => {
                               if (!createdCharacterData) return;
 
@@ -8252,14 +8382,11 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                                   : String(rawSubscriptionType).toLowerCase().trim();
                               }
 
-                              if (subscriptionType === 'standard' || subscriptionType === 'premium') {
-                                if (onOpenPaidAlbumBuilder) {
-                                  onOpenPaidAlbumBuilder(createdCharacterData);
-                                }
-                              } else {
-                                if (onOpenChat) {
-                                  onOpenChat(createdCharacterData);
-                                }
+                              // Отправляем событие для обновления списка персонажей
+                              window.dispatchEvent(new Event('character-updated'));
+
+                              if (onOpenChat) {
+                                onOpenChat(createdCharacterData);
                               }
                             }}
                             style={{
@@ -8267,17 +8394,17 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                               minWidth: 0,
                               height: '56px',
                               padding: isMobile ? '0' : '0 24px',
-                              opacity: (generatedPhotos && generatedPhotos.length > 0) ? 1 : 0.5,
-                              cursor: (generatedPhotos && generatedPhotos.length > 0) ? 'pointer' : 'not-allowed',
-                              background: isMobile ? 'transparent' : (generatedPhotos && generatedPhotos.length > 0) ? 'linear-gradient(135deg, rgba(234, 179, 8, 0.9), rgba(251, 191, 36, 0.9))' : 'rgba(60, 60, 80, 0.5)',
-                              borderColor: isMobile ? 'transparent' : (generatedPhotos && generatedPhotos.length > 0) ? 'rgba(251, 191, 36, 0.8)' : 'rgba(100, 100, 120, 0.3)',
-                              color: (generatedPhotos && generatedPhotos.length > 0) ? '#1a1a1a' : '#a0a0b0',
-                              boxShadow: isMobile ? 'none' : (generatedPhotos && generatedPhotos.length > 0) ? '0 0 20px rgba(234, 179, 8, 0.4)' : 'none'
+                              opacity: (mode === 'edit' || (generatedPhotos && generatedPhotos.length > 0)) ? 1 : 0.5,
+                              cursor: (mode === 'edit' || (generatedPhotos && generatedPhotos.length > 0)) ? 'pointer' : 'not-allowed',
+                              background: isMobile ? 'transparent' : (mode === 'edit' || (generatedPhotos && generatedPhotos.length > 0)) ? 'linear-gradient(135deg, rgba(234, 179, 8, 0.9), rgba(251, 191, 36, 0.9))' : 'rgba(60, 60, 80, 0.5)',
+                              borderColor: isMobile ? 'transparent' : (mode === 'edit' || (generatedPhotos && generatedPhotos.length > 0)) ? 'rgba(251, 191, 36, 0.8)' : 'rgba(100, 100, 120, 0.3)',
+                              color: (mode === 'edit' || (generatedPhotos && generatedPhotos.length > 0)) ? '#1a1a1a' : '#a0a0b0',
+                              boxShadow: isMobile ? 'none' : (mode === 'edit' || (generatedPhotos && generatedPhotos.length > 0)) ? '0 0 20px rgba(234, 179, 8, 0.4)' : 'none'
                             }}
                           >
                             {isMobile ? (
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                                <ArrowRight size={32} color={generatedPhotos && generatedPhotos.length > 0 ? "#FBBF24" : "rgba(255,255,255,0.3)"} />
+                                <ArrowRight size={32} color={(mode === 'edit' || (generatedPhotos && generatedPhotos.length > 0)) ? "#FBBF24" : "rgba(255,255,255,0.3)"} />
                                 <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>{t('createCharacter.buttons.continue')}</span>
                               </div>
                             ) : (
@@ -8308,7 +8435,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
 
                         <GenerateTooltip $isVisible={showGenerateTooltip}>
-                          Наведитесь на готовое фото и нажмите "Добавить"
+                          {t('createCharacter.photo.addHint')}
                         </GenerateTooltip>
                       </div>
 
@@ -8700,7 +8827,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                     <PreviewImageTags>
                       {formData.tags.map((tag, idx) => (
                         <PreviewTag key={`custom-${idx}`}>
-                          {tag}
+                          {t(`createCharacter.tags.values.${tag}`, tag)}
                         </PreviewTag>
                       ))}
                       {formData.personality && PERSONALITY_PROMPTS
@@ -8718,11 +8845,19 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                   </PreviewName>
                 </LivePreviewCard>
 
-                {/* Кнопка "Продолжить" */}
+                {/* Кнопки завершения создания */}
                 {generatedPhotos && generatedPhotos.length > 0 && createdCharacterData && (
-                  <div style={{ marginTop: '24px', marginBottom: '24px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <div style={{ marginTop: '24px', marginBottom: '24px', display: 'flex', gap: '12px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                     <ContinueButton
                       type="button"
+                      style={{
+                        background: 'rgba(60, 60, 80, 0.5)',
+                        border: '1px solid rgba(139, 92, 246, 0.5)',
+                        color: theme.colors.text.primary,
+                        boxShadow: 'none',
+                        flex: '1',
+                        minWidth: '200px'
+                      }}
                       onClick={async () => {
                         if (!createdCharacterData) return;
 
@@ -8733,7 +8868,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                               method: 'PUT',
                               headers: {
                                 'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                                'Authorization': `Bearer ${localStorage.getItem('authToken')}`
                               },
                               body: JSON.stringify({ tags: formData.tags })
                             });
@@ -8742,30 +8877,70 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                           }
                         }
 
-                        // Определяем тип подписки
-                        const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
-                        let subscriptionType = 'free';
-                        if (rawSubscriptionType) {
-                          subscriptionType = typeof rawSubscriptionType === 'string'
-                            ? rawSubscriptionType.toLowerCase().trim()
-                            : String(rawSubscriptionType).toLowerCase().trim();
-                        }
+                        // Отправляем событие для обновления списка персонажей
+                        window.dispatchEvent(new Event('character-updated'));
 
-                        // Если подписка Standard или Premium - открываем создание альбома
-                        if (subscriptionType === 'standard' || subscriptionType === 'premium') {
-                          if (onOpenPaidAlbumBuilder) {
-                            onOpenPaidAlbumBuilder(createdCharacterData);
-                          }
-                        } else {
-                          // Иначе открываем чат
-                          if (onOpenChat) {
-                            onOpenChat(createdCharacterData);
-                          }
+                        // Открываем чат
+                        if (onOpenChat) {
+                          onOpenChat(createdCharacterData);
                         }
                       }}
                     >
-                      {t('createCharacter.buttons.continue')}
+                      Перейти в чат
                     </ContinueButton>
+
+                    {mode === 'create' && (
+                      <ContinueButton
+                        type="button"
+                        style={{
+                          flex: '1',
+                          minWidth: '200px'
+                        }}
+                        onClick={async () => {
+                          if (!createdCharacterData) return;
+
+                          // Сохраняем теги, если они были изменены
+                          if (formData.tags && formData.tags.length > 0) {
+                            try {
+                              await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${createdCharacterData.id}`, {
+                                method: 'PUT',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+                                },
+                                body: JSON.stringify({ tags: formData.tags })
+                              });
+                            } catch (e) {
+                              console.error('Failed to save tags', e);
+                            }
+                          }
+
+                          // Определяем тип подписки
+                          const rawSubscriptionType = userInfo?.subscription?.subscription_type || userInfo?.subscription_type || userInfo?.subscription?.type;
+                          let subscriptionType = 'free';
+                          if (rawSubscriptionType) {
+                            subscriptionType = typeof rawSubscriptionType === 'string'
+                              ? rawSubscriptionType.toLowerCase().trim()
+                              : String(rawSubscriptionType).toLowerCase().trim();
+                          }
+
+                          // Отправляем событие для обновления списка персонажей
+                          window.dispatchEvent(new Event('character-updated'));
+
+                          // Если подписка Standard или Premium - открываем создание альбома
+                          if (subscriptionType === 'standard' || subscriptionType === 'premium') {
+                            if (onOpenPaidAlbumBuilder) {
+                              onOpenPaidAlbumBuilder(createdCharacterData);
+                            }
+                          } else {
+                            // Иначе показываем окно
+                            setIsAlbumAccessDeniedOpen(true);
+                          }
+                        }}
+                      >
+                        Создать платный альбом
+                      </ContinueButton>
+                    )}
                   </div>
                 )}
               </StyledRightColumn>
@@ -9029,7 +9204,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                     setShowPremiumModal(false);
                     setPremiumVoiceForModal(null);
                     if (onShop) onShop();
-                    else window.location.href = '/shop';
+                    else {
+                      const currentLang = (i18n.language || 'ru').split('-')[0];
+                      navigate(`/${currentLang}/shop?tab=subscription`);
+                    }
                   }}
                 >
                   {t('createCharacter.modals.premium.button')}
@@ -9056,6 +9234,19 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
         error={promptError}
       />
 
+      {/* Модальное окно отсутствия прав на создание альбома */}
+      <AlbumAccessDeniedModal
+        isOpen={isAlbumAccessDeniedOpen}
+        onClose={() => setIsAlbumAccessDeniedOpen(false)}
+        onGoToShop={() => {
+          if (onShop) {
+            onShop();
+          } else {
+            const currentLang = (i18n.language || 'ru').split('-')[0];
+            navigate(`/${currentLang}/shop?tab=subscription`);
+          }
+        }}
+      />
     </>
   );
 };

@@ -86,6 +86,7 @@ class YandexCloudStorageService:
         - YANDEX-KEY: ключ доступа
         - SECRET_KEY: секретный ключ
         - ENDPOINT_URL: URL эндпоинта
+        - CDN_DOMAIN: домен CDN для публичных URL (например https://static.candygirlschat.com)
         """
         # Загружаем переменные окружения из .env файла
         try:
@@ -93,6 +94,11 @@ class YandexCloudStorageService:
             load_dotenv()
         except ImportError:
             pass  # python-dotenv не установлен, используем системные переменные
+        
+        # CDN домен для отдачи медиафайлов
+        cdn_domain_raw = os.getenv("CDN_DOMAIN", "https://candygirlschat.com")
+        # Убираем trailing slash чтобы избежать двойных слэшей в URL
+        self.cdn_domain = cdn_domain_raw.rstrip("/")
         
         # Используем новые стандартные названия переменных
         # Fallback на старые для обратной совместимости
@@ -598,60 +604,77 @@ class YandexCloudStorageService:
     
     def get_public_url(self, object_key: str) -> str:
         """
-        Получает публичный URL файла через прокси Nginx.
+        Получает публичный URL файла через CDN.
         
         Args:
-            object_key: Ключ объекта
+            object_key: Ключ объекта в бакете (без ведущего слэша)
             
         Returns:
-            str: Публичный URL через домен candygirlschat.com
+            str: Публичный URL через CDN (например https://static.candygirlschat.com/path/to/file.webp)
         """
-        # Возвращаем путь через прокси Nginx, который перенаправляет на Yandex.Бакет
-        return f"https://candygirlschat.com/media/{object_key}"
+        # Убираем ведущий слэш из object_key если есть, чтобы не было двойных слэшей
+        clean_key = object_key.lstrip("/")
+        return f"{self.cdn_domain}/{clean_key}"
     
-    @staticmethod
-    def convert_yandex_url_to_proxy(url: str) -> str:
+    def convert_yandex_url_to_cdn(self, url: str) -> str:
         """
-        Преобразует старый URL Яндекс.Бакета в новый URL через прокси.
+        Преобразует старый URL Яндекс.Бакета или /media/ прокси в CDN URL.
         
         Args:
-            url: Старый URL (может быть уже новый или старый)
+            url: Старый URL (может быть yandexcloud.net, candygirlschat.com/media/ или уже CDN)
             
         Returns:
-            str: URL через прокси candygirlschat.com/media/
+            str: URL через CDN (https://static.candygirlschat.com/path/to/file)
         """
         if not url:
             return url
         
-        # Если URL уже использует прокси, возвращаем как есть
-        if 'candygirlschat.com/media/' in url:
+        # Если URL уже использует CDN домен, возвращаем как есть
+        cdn_host = self.cdn_domain.replace('https://', '').replace('http://', '')
+        if cdn_host in url:
             return url
         
-        # Извлекаем object_key из старого URL
+        # Конвертируем старый /media/ прокси → CDN
+        if 'candygirlschat.com/media/' in url:
+            object_key = url.split('candygirlschat.com/media/')[-1]
+            return f"{self.cdn_domain}/{object_key}"
+        
+        # Извлекаем object_key из Yandex Storage URL
         # Форматы: 
         # https://bucket-name.storage.yandexcloud.net/path/to/file
         # https://storage.yandexcloud.net/bucket-name/path/to/file
         if '.storage.yandexcloud.net/' in url:
-            # Формат: https://bucket-name.storage.yandexcloud.net/path/to/file
             object_key = url.split('.storage.yandexcloud.net/')[-1]
-            return f"https://candygirlschat.com/media/{object_key}"
+            return f"{self.cdn_domain}/{object_key}"
         elif 'storage.yandexcloud.net/' in url:
-            # Формат: https://storage.yandexcloud.net/bucket-name/path/to/file
-            # или: https://storage.yandexcloud.net/jfpohpdofnhd/generated/file.png
             parts = url.split('storage.yandexcloud.net/')
             if len(parts) > 1:
-                # Пропускаем bucket-name и берем остальное
                 path_parts = parts[1].split('/', 1)
                 if len(path_parts) > 1:
-                    # path_parts[0] - это bucket-name, path_parts[1] - это путь к файлу
                     object_key = path_parts[1]
-                    return f"https://candygirlschat.com/media/{object_key}"
-                elif len(path_parts) == 1:
-                    # Если нет слеша после bucket-name, значит весь путь после storage.yandexcloud.net/ это object_key
-                    # Но это маловероятно, оставляем как есть
-                    pass
+                    return f"{self.cdn_domain}/{object_key}"
         
         # Если не удалось распарсить, возвращаем как есть
+        return url
+    
+    @staticmethod
+    def convert_yandex_url_to_proxy(url: str) -> str:
+        """
+        Устаревший метод — используйте convert_yandex_url_to_cdn().
+        Оставлен для обратной совместимости.
+        """
+        if not url:
+            return url
+        cdn_domain = os.getenv("CDN_DOMAIN", "https://candygirlschat.com").rstrip("/")
+        if '.storage.yandexcloud.net/' in url:
+            object_key = url.split('.storage.yandexcloud.net/')[-1]
+            return f"{cdn_domain}/{object_key}"
+        elif 'storage.yandexcloud.net/' in url:
+            parts = url.split('storage.yandexcloud.net/')
+            if len(parts) > 1:
+                path_parts = parts[1].split('/', 1)
+                if len(path_parts) > 1:
+                    return f"{cdn_domain}/{path_parts[1]}"
         return url
     
     def get_presigned_url(self, object_key: str, expiration: int = 3600) -> str:

@@ -276,6 +276,51 @@ export const ShopModal: React.FC<ShopModalProps> = ({
     }
   };
 
+  const handleActivateCrypto = async (subscriptionType: string) => {
+    if (!isAuthenticated) {
+      setError(t('shop.errors.loginRequired'));
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // In ShopModal, the original code calls `onActivateSubscription(type)` 
+      // which acts as a wrapper. However we need to redirect to NOWPayments here.
+      // We will perform a direct fetch to create_payment.
+      const token = localStorage.getItem('authToken');
+
+      const billingCycle = 'monthly'; // Assume monthly inside Modal unless there's a state
+      const basePrice = subscriptionType === 'premium' ? 1299 : (subscriptionType === 'vip' ? 999 : 299);
+
+      const response = await fetch('/api/v1/nowpayments/create_payment/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          amount: basePrice,
+          description: `${subscriptionType.toUpperCase()} Subscription`,
+          plan: subscriptionType,
+          months: 1,
+          payment_type: 'subscription',
+        }),
+      });
+
+      if (!response.ok) throw new Error('Ошибка создания крипто-платежа');
+      const data = await response.json();
+      if (data.invoice_url) {
+        window.location.href = data.invoice_url;
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : t('shop.errors.activationError'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleClose = () => {
     if (!isLoading) {
       setError(null);
@@ -333,12 +378,21 @@ export const ShopModal: React.FC<ShopModalProps> = ({
                 <PlanFeature>{t('shop.plans.basic.features.characters')}</PlanFeature>
                 <PlanFeature>{t('shop.plans.basic.features.support')}</PlanFeature>
               </PlanFeatures>
-              <ActivateButton
-                onClick={() => handleActivateSubscription('basic')}
-                disabled={isLoading}
-              >
-                {isLoading ? t('shop.buttons.activating') : t('shop.buttons.activate')}
-              </ActivateButton>
+              <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
+                <ActivateButton
+                  onClick={() => handleActivateSubscription('basic')}
+                  disabled={isLoading}
+                >
+                  {isLoading ? t('shop.buttons.activating') : t('shop.buttons.activate')}
+                </ActivateButton>
+                <ActivateButton
+                  onClick={() => handleActivateCrypto('basic')}
+                  disabled={isLoading}
+                  style={{ background: '#1e293b', border: '1px solid #334155', color: '#fff' }}
+                >
+                  Crypto
+                </ActivateButton>
+              </div>
             </PlanCard>
 
             <PlanCard $isPopular $popularText={t('shop.popular')}>
@@ -351,12 +405,21 @@ export const ShopModal: React.FC<ShopModalProps> = ({
                 <PlanFeature>{t('shop.plans.premium.features.support')}</PlanFeature>
                 <PlanFeature>{t('shop.plans.premium.features.exclusive')}</PlanFeature>
               </PlanFeatures>
-              <ActivateButton
-                onClick={() => handleActivateSubscription('premium')}
-                disabled={isLoading}
-              >
-                {isLoading ? t('shop.buttons.activating') : t('shop.buttons.activate')}
-              </ActivateButton>
+              <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
+                <ActivateButton
+                  onClick={() => handleActivateSubscription('premium')}
+                  disabled={isLoading}
+                >
+                  {isLoading ? t('shop.buttons.activating') : t('shop.buttons.activate')}
+                </ActivateButton>
+                <ActivateButton
+                  onClick={() => handleActivateCrypto('premium')}
+                  disabled={isLoading}
+                  style={{ background: '#1e293b', border: '1px solid #334155', color: '#fff' }}
+                >
+                  Crypto
+                </ActivateButton>
+              </div>
             </PlanCard>
 
             <PlanCard>
@@ -369,12 +432,21 @@ export const ShopModal: React.FC<ShopModalProps> = ({
                 <PlanFeature>{t('shop.plans.vip.features.earlyAccess')}</PlanFeature>
                 <PlanFeature>{t('shop.plans.vip.features.custom')}</PlanFeature>
               </PlanFeatures>
-              <ActivateButton
-                onClick={() => handleActivateSubscription('vip')}
-                disabled={isLoading}
-              >
-                {isLoading ? t('shop.buttons.activating') : t('shop.buttons.activate')}
-              </ActivateButton>
+              <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
+                <ActivateButton
+                  onClick={() => handleActivateSubscription('vip')}
+                  disabled={isLoading}
+                >
+                  {isLoading ? t('shop.buttons.activating') : t('shop.buttons.activate')}
+                </ActivateButton>
+                <ActivateButton
+                  onClick={() => handleActivateCrypto('vip')}
+                  disabled={isLoading}
+                  style={{ background: '#1e293b', border: '1px solid #334155', color: '#fff' }}
+                >
+                  Crypto
+                </ActivateButton>
+              </div>
             </PlanCard>
           </SubscriptionPlans>
         </SubscriptionSection>

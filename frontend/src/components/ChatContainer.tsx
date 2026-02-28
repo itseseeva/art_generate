@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useParams, useLocation } from 'react-router-dom';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { theme } from '../theme';
@@ -15,7 +15,7 @@ import { PhotoGenerationHelpModal } from './PhotoGenerationHelpModal';
 import { extractRolePlayingSituation } from '../utils/characterUtils';
 import { authManager } from '../utils/auth';
 import { translateToEnglish } from '../utils/translate';
-import { FiUnlock, FiLock, FiSettings } from 'react-icons/fi';
+import { FiUnlock, FiLock, FiSettings, FiThumbsUp, FiThumbsDown } from 'react-icons/fi';
 import { Plus, Sparkles, FolderOpen } from 'lucide-react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { CharacterCard } from './CharacterCard';
@@ -344,15 +344,21 @@ const ChatContentWrapper = styled.div`
 const CharacterCardWrapper = styled.div`
   width: 100%;
   margin-top: ${theme.spacing.md};
-  padding-top: 0;
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  gap: ${theme.spacing.md};
-  flex-wrap: wrap;
   padding-left: 0;
-  
-  /* Ограничиваем ширину карточки, чтобы она была как на главной */
+`;
+
+// Обёртка карточки + кнопок голосования
+const CardVoteWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 231px;
+  flex-shrink: 0;
+
   > *:first-child {
     width: 231px;
     height: 339px;
@@ -724,6 +730,75 @@ const PaidAlbumError = styled.div`
   font-size: ${theme.fontSize.xs};
 `;
 
+const LikeDislikeRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 0 2px;
+`;
+
+const VoteBtn = styled.button<{ $active: boolean; $type: 'like' | 'dislike' }>`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 50px;
+  border: 1px solid ${props =>
+    props.$active
+      ? (props.$type === 'like' ? 'rgba(52, 211, 153, 0.5)' : 'rgba(248, 113, 113, 0.5)')
+      : 'rgba(255, 255, 255, 0.08)'};
+  background: ${props =>
+    props.$active
+      ? (props.$type === 'like'
+        ? 'rgba(52, 211, 153, 0.12)'
+        : 'rgba(248, 113, 113, 0.12)')
+      : 'rgba(255, 255, 255, 0.03)'};
+  color: ${props =>
+    props.$active
+      ? (props.$type === 'like' ? '#34d399' : '#f87171')
+      : 'rgba(255,255,255,0.35)'};
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  box-shadow: ${props =>
+    props.$active
+      ? (props.$type === 'like'
+        ? '0 0 10px rgba(52, 211, 153, 0.18)'
+        : '0 0 10px rgba(248, 113, 113, 0.18)')
+      : 'none'};
+
+  &:hover:not(:disabled) {
+    border-color: ${props =>
+    props.$type === 'like' ? 'rgba(52, 211, 153, 0.4)' : 'rgba(248, 113, 113, 0.4)'};
+    color: ${props => props.$type === 'like' ? '#34d399' : '#f87171'};
+  }
+
+  &:active:not(:disabled) { transform: scale(0.95); }
+
+  /* Блокировка после голосования */
+  &:disabled {
+    cursor: not-allowed;
+    opacity: ${props => props.$active ? 1 : 0.35};
+  }
+
+  /* Убираем браузерную обводку при клике/фокусе */
+  outline: none;
+  &:focus { outline: none; }
+  &:focus-visible {
+    outline: 2px solid ${props =>
+    props.$type === 'like' ? 'rgba(52, 211, 153, 0.6)' : 'rgba(248, 113, 113, 0.6)'};
+    outline-offset: 2px;
+  }
+
+  svg {
+    width: 12px;
+    height: 12px;
+    stroke-width: 2.5;
+  }
+`;
+
 interface Message {
   id: string;
   type: 'user' | 'assistant';
@@ -733,6 +808,7 @@ interface Message {
   generationTime?: number; // Время генерации изображения в секундах
   isGenerating?: boolean;
   progress?: number;
+  isPhotoPrompt?: boolean;
 }
 
 
@@ -967,8 +1043,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   onNavigate,
   subscriptionType = 'free'
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isMobile = useIsMobile();
+  const navigate = useNavigate(); // Adding useNavigate for SPA-friendly navigation if needed
+
   const [messages, setMessages] = useState<Message[]>([]);
   const isLoadingHistoryRef = useRef<string | null>(null); // Отслеживаем, для какого персонажа идет загрузка истории
   const lastLoadedCharacterRef = useRef<string | null>(null); // Отслеживаем последнего загруженного персонажа, чтобы избежать бесконечных запросов
@@ -1024,9 +1102,33 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
   const isLoadingFromUrlRef = useRef(false); // Флаг для отслеживания загрузки из URL
 
-  // Загружаем персонажа из API, если при обновлении страницы initialCharacter = null
+  // Загружаем персонажа из API при обновлении страницы или при навигации через поиск
   useEffect(() => {
-    if (currentCharacter || initialCharacter || !characterId) return;
+    if (!characterId) return;
+
+    // Проверяем, совпадает ли уже загруженный персонаж с URL
+    const isMatchingCurrent = currentCharacter && (
+      String(currentCharacter.id) === characterId ||
+      currentCharacter.slug === characterId ||
+      currentCharacter.name === characterId ||
+      currentCharacter.name === decodeURIComponent(characterId)
+    );
+
+    if (isMatchingCurrent) return;
+
+    // Проверяем, совпадает ли initialCharacter с URL
+    const isMatchingInitial = initialCharacter && (
+      String(initialCharacter.id) === characterId ||
+      initialCharacter.slug === characterId ||
+      initialCharacter.name === characterId ||
+      initialCharacter.name === decodeURIComponent(characterId)
+    );
+
+    if (isMatchingInitial) {
+      setCurrentCharacter(initialCharacter!);
+      return;
+    }
+
     if (isLoadingFromUrlRef.current) return;
     isLoadingFromUrlRef.current = true;
 
@@ -1077,11 +1179,101 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [modelInfo, setModelInfo] = useState<string>('Загрузка...');
   const [lockedAlbumPhotos, setLockedAlbumPhotos] = useState<string[]>([]);
+  const [localLikes, setLocalLikes] = useState<number>(0);
+  const [localDislikes, setLocalDislikes] = useState<number>(0);
+  const [userVote, setUserVote] = useState<'like' | 'dislike' | null>(null);
 
   // Сбрасываем sessionPrompt при смене персонажа
   useEffect(() => {
     setSessionPrompt(null);
   }, [currentCharacter?.id]);
+
+  // Загружаем рейтинг персонажа
+  useEffect(() => {
+    if (!currentCharacter?.id) return;
+    const charId = typeof currentCharacter.id === 'number'
+      ? currentCharacter.id
+      : parseInt(String(currentCharacter.id), 10);
+    if (isNaN(charId)) return;
+
+    setLocalLikes(currentCharacter.likes || 0);
+    setLocalDislikes(currentCharacter.dislikes || 0);
+
+    const fetchRatings = async () => {
+      try {
+        const res = await authManager.fetchWithAuth(API_CONFIG.GET_CHARACTER_RATINGS(charId));
+        if (res.ok) {
+          const data = await res.json();
+          setLocalLikes(data.likes ?? (currentCharacter.likes || 0));
+          setLocalDislikes(data.dislikes ?? (currentCharacter.dislikes || 0));
+          setUserVote(data.user_vote ?? null);
+        }
+      } catch (e) { }
+    };
+    fetchRatings();
+  }, [currentCharacter?.id]);
+
+  const handleVote = async (type: 'like' | 'dislike') => {
+    if (!isAuthenticated) {
+      setAuthMode('login');
+      setIsAuthModalOpen(true);
+      return;
+    }
+
+    const charId = typeof currentCharacter?.id === 'number'
+      ? currentCharacter.id
+      : parseInt(String(currentCharacter?.id), 10);
+    if (!currentCharacter || isNaN(charId)) return;
+
+    const prevVote = userVote;
+    const prevLikes = localLikes;
+    const prevDislikes = localDislikes;
+
+    // Оптимистичное обновление
+    if (userVote === type) {
+      // Снимаем голос (та же кнопка)
+      setUserVote(null);
+      if (type === 'like') setLocalLikes(l => Math.max(0, l - 1));
+      else setLocalDislikes(d => Math.max(0, d - 1));
+    } else if (userVote !== null) {
+      // Переключаем голос (другая кнопка)
+      setUserVote(type);
+      if (type === 'like') {
+        setLocalLikes(l => l + 1);
+        setLocalDislikes(d => Math.max(0, d - 1));
+      } else {
+        setLocalDislikes(d => d + 1);
+        setLocalLikes(l => Math.max(0, l - 1));
+      }
+    } else {
+      // Первый голос
+      setUserVote(type);
+      if (type === 'like') setLocalLikes(l => l + 1);
+      else setLocalDislikes(d => d + 1);
+    }
+
+    try {
+      const endpoint = type === 'like'
+        ? API_CONFIG.LIKE_CHARACTER(charId)
+        : API_CONFIG.DISLIKE_CHARACTER(charId);
+      const res = await authManager.fetchWithAuth(endpoint, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.likes !== undefined) setLocalLikes(data.likes);
+        if (data.dislikes !== undefined) setLocalDislikes(data.dislikes);
+        setUserVote(data.user_vote ?? null);
+      } else {
+        // Откат при любой ошибке
+        setUserVote(prevVote);
+        setLocalLikes(prevLikes);
+        setLocalDislikes(prevDislikes);
+      }
+    } catch (e) {
+      setUserVote(prevVote);
+      setLocalLikes(prevLikes);
+      setLocalDislikes(prevDislikes);
+    }
+  };
 
   // Загружаем выбранный голос из localStorage при смене персонажа
   useEffect(() => {
@@ -4598,75 +4790,98 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               {/* Карточка персонажа сразу после очереди */}
               {currentCharacter && (
                 <CharacterCardWrapper>
-                  <CharacterCard
-                    character={{
-                      id: currentCharacter.id,
-                      name: currentCharacter.name,
-                      description: currentCharacter.description || '',
-                      avatar: currentCharacter.avatar || currentCharacter.name.charAt(0).toUpperCase(),
-                      photos: characterPhotos,
-                      tags: [],
-                      author: creatorInfo?.username || 'Unknown',
-                      likes: currentCharacter.likes || 0,
-                      dislikes: currentCharacter.dislikes || 0,
-                      views: currentCharacter.views || 0,
-                      comments: currentCharacter.comments || 0
-                    }}
-                    onClick={() => { }}
-                    isAuthenticated={isAuthenticated}
-                    isFavorite={isCharacterFavorite}
-                    showRatings={true}
-                    disableHover={true}
-                    onFavoriteToggle={async () => {
-                      // Обновляем состояние избранного после переключения, загружая актуальное состояние с сервера
-                      if (currentCharacter?.id) {
-                        try {
-                          const characterId = typeof currentCharacter.id === 'number'
-                            ? currentCharacter.id
-                            : parseInt(currentCharacter.id, 10);
+                  <CardVoteWrapper>
+                    <CharacterCard
+                      character={{
+                        id: currentCharacter.id,
+                        name: currentCharacter.name,
+                        description: currentCharacter.description || '',
+                        avatar: currentCharacter.avatar || currentCharacter.name.charAt(0).toUpperCase(),
+                        photos: characterPhotos,
+                        tags: [],
+                        author: creatorInfo?.username || 'Unknown',
+                        creator_username: creatorInfo?.username || undefined,
+                        likes: currentCharacter.likes || 0,
+                        dislikes: currentCharacter.dislikes || 0,
+                        views: currentCharacter.views || 0,
+                        comments: currentCharacter.comments || 0
+                      }}
+                      onClick={() => { }}
+                      isAuthenticated={isAuthenticated}
+                      isFavorite={isCharacterFavorite}
+                      showRatings={false}
+                      disableHover={true}
+                      onFavoriteToggle={async () => {
+                        // Обновляем состояние избранного после переключения, загружая актуальное состояние с сервера
+                        if (currentCharacter?.id) {
+                          try {
+                            const characterId = typeof currentCharacter.id === 'number'
+                              ? currentCharacter.id
+                              : parseInt(currentCharacter.id, 10);
 
-                          if (!isNaN(characterId)) {
-                            const favoriteResponse = await authManager.fetchWithAuth(
-                              API_CONFIG.CHECK_FAVORITE(characterId)
-                            );
-                            if (favoriteResponse.ok) {
-                              const favoriteData = await favoriteResponse.json();
-                              setIsCharacterFavorite(favoriteData?.is_favorite || false);
+                            if (!isNaN(characterId)) {
+                              const favoriteResponse = await authManager.fetchWithAuth(
+                                API_CONFIG.CHECK_FAVORITE(characterId)
+                              );
+                              if (favoriteResponse.ok) {
+                                const favoriteData = await favoriteResponse.json();
+                                setIsCharacterFavorite(favoriteData?.is_favorite || false);
+                              }
                             }
-                          }
-                        } catch (error) {
+                          } catch (error) {
 
-                          // В случае ошибки просто переключаем состояние локально
+                            // В случае ошибки просто переключаем состояние локально
+                            setIsCharacterFavorite(!isCharacterFavorite);
+                          }
+                        } else {
                           setIsCharacterFavorite(!isCharacterFavorite);
                         }
-                      } else {
-                        setIsCharacterFavorite(!isCharacterFavorite);
-                      }
-                    }}
-                    onPhotoGeneration={() => {
-                      if (onOpenPaidAlbumBuilder && currentCharacter) {
-                        onOpenPaidAlbumBuilder(currentCharacter);
-                      }
-                    }}
-                    onPaidAlbum={() => {
-                      // Если данных еще нет, считаем заблокированным (для безопасности)
-                      const isLocked = !isPaidAlbumUnlocked && (paidAlbumStatus ? (paidAlbumStatus.photos_count || 0) > 0 : true);
-                      if (isLocked && normalizedSubscriptionType !== 'standard' && normalizedSubscriptionType !== 'premium') {
-                        handleUnlockPaidAlbum();
-                      } else {
-                        if (onOpenPaidAlbum && currentCharacter) {
-                          onOpenPaidAlbum(currentCharacter);
-                        } else {
-                          handleOpenPaidAlbumView();
+                      }}
+                      onPhotoGeneration={() => {
+                        if (onOpenPaidAlbumBuilder && currentCharacter) {
+                          onOpenPaidAlbumBuilder(currentCharacter);
                         }
-                      }
-                    }}
-                    isLocked={!isPaidAlbumUnlocked && (paidAlbumStatus ? (paidAlbumStatus.photos_count || 0) > 0 : true)}
-                    lockedAlbumPhotos={lockedAlbumPhotos}
-                    key={`card_${currentCharacter.id}_${isPaidAlbumUnlocked}_${!!paidAlbumStatus}`}
-                  />
+                      }}
+                      onPaidAlbum={() => {
+                        // Если данных еще нет, считаем заблокированным (для безопасности)
+                        const isLocked = !isPaidAlbumUnlocked && (paidAlbumStatus ? (paidAlbumStatus.photos_count || 0) > 0 : true);
+                        if (isLocked && normalizedSubscriptionType !== 'standard' && normalizedSubscriptionType !== 'premium') {
+                          handleUnlockPaidAlbum();
+                        } else {
+                          if (onOpenPaidAlbum && currentCharacter) {
+                            onOpenPaidAlbum(currentCharacter);
+                          } else {
+                            handleOpenPaidAlbumView();
+                          }
+                        }
+                      }}
+                      isLocked={!isPaidAlbumUnlocked && (paidAlbumStatus ? (paidAlbumStatus.photos_count || 0) > 0 : true)}
+                      lockedAlbumPhotos={lockedAlbumPhotos}
+                      key={`card_${currentCharacter.id}_${isPaidAlbumUnlocked}_${!!paidAlbumStatus}`}
+                    />
 
-                  {/* CharacterInfoBlock moved to ChatArea */}
+                    {/* Лайки / Дизлайки — простой ряд под карточкой */}
+                    <LikeDislikeRow>
+                      <VoteBtn
+                        $active={userVote === 'like'}
+                        $type="like"
+                        onClick={() => handleVote('like')}
+                        title={userVote === 'like' ? 'Снять лайк' : 'Нравится'}
+                      >
+                        <FiThumbsUp />
+                        {localLikes}
+                      </VoteBtn>
+                      <VoteBtn
+                        $active={userVote === 'dislike'}
+                        $type="dislike"
+                        onClick={() => handleVote('dislike')}
+                        title={userVote === 'dislike' ? 'Снять дизлайк' : 'Не нравится'}
+                      >
+                        <FiThumbsDown />
+                        {localDislikes}
+                      </VoteBtn>
+                    </LikeDislikeRow>
+                  </CardVoteWrapper>
 
                   {/* SEO JSON-LD */}
                   <script type="application/ld+json">
@@ -5079,6 +5294,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         characterId={currentCharacter?.id ? String(currentCharacter.id) : currentCharacter?.name || ''}
         userId={userInfo?.id}
         isAdmin={userInfo?.is_admin}
+        onShop={() => {
+          const currentLang = i18n.language?.split('-')[0] || 'ru';
+          navigate(`/${currentLang}/shop`);
+        }}
       />
 
 
