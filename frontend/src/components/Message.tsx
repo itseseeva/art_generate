@@ -8,7 +8,7 @@ import { fetchPromptByImage } from '../utils/prompt';
 import { translateToRussian } from '../utils/translate';
 import { CircularProgress } from './ui/CircularProgress';
 import { useIsMobile } from '../hooks/useIsMobile';
-import { API_CONFIG } from '../config/api';
+import { API_CONFIG, getMediaUrl } from '../config/api';
 import { authManager } from '../utils/auth';
 import { PromptGlassModal } from './PromptGlassModal';
 import { VoiceSelectorModal } from './VoiceSelectorModal';
@@ -1338,7 +1338,7 @@ const MessageComponent: React.FC<MessageProps> = ({
               style={{ cursor: hasValidImageUrl ? 'pointer' : 'default' }}
             >
               <MessageImage
-                src={hasValidImageUrl ? message.imageUrl : undefined}
+                src={hasValidImageUrl ? getMediaUrl(message.imageUrl!) : undefined}
                 alt="Generated image"
                 onClick={hasValidImageUrl ? handleImageClick : undefined}
                 onError={(e) => {
@@ -1383,7 +1383,7 @@ const MessageComponent: React.FC<MessageProps> = ({
         <PromptGlassModal
           isOpen={isFullscreen && !!message.imageUrl}
           onClose={handleCloseFullscreen}
-          imageUrl={message.imageUrl || ''}
+          imageUrl={message.imageUrl ? getMediaUrl(message.imageUrl) : ''}
           imageAlt="Fullscreen image"
           promptText={selectedPrompt}
           promptTextRu={selectedPromptRu}
@@ -1547,7 +1547,7 @@ const MessageComponent: React.FC<MessageProps> = ({
               }}
             >
               <MessageImage
-                src={message.imageUrl!}
+                src={getMediaUrl(message.imageUrl!)}
                 alt="Generated image"
                 onClick={handleImageClick}
                 style={{
@@ -1592,7 +1592,7 @@ const MessageComponent: React.FC<MessageProps> = ({
       <PromptGlassModal
         isOpen={isFullscreen && hasValidImageUrl}
         onClose={handleCloseFullscreen}
-        imageUrl={message.imageUrl || ''}
+        imageUrl={message.imageUrl ? getMediaUrl(message.imageUrl) : ''}
         imageAlt="Fullscreen image"
         promptText={selectedPrompt}
         promptTextRu={selectedPromptRu}

@@ -144,8 +144,8 @@ export const API_CONFIG = {
 export const getMediaUrl = (path: string): string => {
   if (!path) return '';
 
-  // Если это уже CDN URL, возвращаем как есть
-  if (API_CONFIG.CDN_URL && path.includes(API_CONFIG.CDN_URL)) {
+  // Если это уже CDN URL и он не пустой (для прода), возвращаем как есть
+  if (API_CONFIG.CDN_URL && import.meta.env.PROD && path.startsWith(API_CONFIG.CDN_URL)) {
     return path;
   }
 
@@ -154,12 +154,16 @@ export const getMediaUrl = (path: string): string => {
   // Если это абсолютный URL, проверяем, не нужно ли его конвертировать в CDN
   if (path.startsWith('http://') || path.startsWith('https://')) {
     // Конвертируем старый /media/ прокси или любой другой домен с /media/
+    // Это захватит https://cherrylust.art/media/... и превратит в ...
     if (path.includes('/media/')) {
-      clearPath = path.split('/media/').pop() || path;
+      // Берем всё, что после последнего /media/
+      const parts = path.split('/media/');
+      clearPath = parts[parts.length - 1] || path;
     }
     // Извлекаем object_key из Yandex Storage URL
     else if (path.includes('.storage.yandexcloud.net/')) {
-      clearPath = path.split('.storage.yandexcloud.net/').pop() || path;
+      const parts = path.split('.storage.yandexcloud.net/');
+      clearPath = parts[parts.length - 1] || path;
     } else if (path.includes('storage.yandexcloud.net/')) {
       const parts = path.split('storage.yandexcloud.net/')[1].split('/');
       if (parts.length > 1) {
@@ -173,7 +177,10 @@ export const getMediaUrl = (path: string): string => {
 
   // Убираем ведущие слэши и префикс media/ если они остались в начале
   const finalPath = clearPath.replace(/^\/?(media\/)?/, '');
-  return `${API_CONFIG.CDN_URL}/${finalPath}`;
+
+  // Если CDN_URL пустой (например в dev без env), используем /media
+  const baseUrl = API_CONFIG.CDN_URL || '/media';
+  return `${baseUrl}/${finalPath}`;
 };
 
 // Вспомогательные функции для API запросов

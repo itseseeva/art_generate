@@ -4,7 +4,7 @@ import styled, { keyframes, css } from 'styled-components';
 import { authManager } from '../utils/auth';
 import { theme } from '../theme';
 import '../styles/ContentArea.css';
-import { API_CONFIG } from '../config/api';
+import { API_CONFIG, getMediaUrl } from '../config/api';
 import { AuthModal } from './AuthModal';
 import { LoadingSpinner } from './LoadingSpinner';
 import { CircularProgress } from './ui/CircularProgress';
@@ -43,33 +43,11 @@ const isPremiumVoiceForStyle = (voiceName?: string): boolean => {
 };
 
 /**
- * Нормализует URL изображения для локальной разработки.
- * Заменяет продакшен домен (candygirlschat.com) на локальный API.
+ * Нормализует URL изображения через централизованную функцию getMediaUrl
  */
 const normalizeImageUrl = (url: string | undefined | null): string => {
   if (!url) return '';
-
-  // Если это локальный URL или не начинается с http - нормализуем
-  if (!url.startsWith('http')) {
-    const baseUrl = API_CONFIG.BASE_URL || '';
-    if (url.startsWith('/')) {
-      return `${baseUrl}${url}`;
-    }
-    return `${baseUrl}/${url}`;
-  }
-
-  // В development режиме заменяем продакшен домен на локальный
-  if (import.meta.env.DEV) {
-    // Заменяем candygirlschat.com на локальный бэкенд
-    if (url.includes('candygirlschat.com')) {
-      const baseUrl = API_CONFIG.BASE_URL || 'http://localhost:8001';
-      // Извлекаем путь после домена
-      const urlPath = url.replace(/https?:\/\/[^\/]+/, '');
-      return `${baseUrl}${urlPath}`;
-    }
-  }
-
-  return url;
+  return getMediaUrl(url);
 };
 
 
