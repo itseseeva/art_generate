@@ -4628,9 +4628,9 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         const getLocalizedDetails = (field: string, fallbackField?: string) => {
           const baseField = fallbackField || field;
           if (currentLang === 'ru') {
-            return characterData[`${field}_ru`] || characterData[baseField] || characterData[`${field}_en`] || '';
+            return characterData[`${field}_ru`] || characterData[`${field}_en`] || characterData[baseField] || '';
           } else {
-            return characterData[`${field}_en`] || characterData[baseField] || characterData[`${field}_ru`] || '';
+            return characterData[`${field}_en`] || characterData[`${field}_ru`] || characterData[baseField] || '';
           }
         };
 

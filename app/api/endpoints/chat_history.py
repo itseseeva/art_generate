@@ -166,6 +166,7 @@ async def get_history_stats(
 @router.get("/prompt-by-image")
 async def get_prompt_by_image(
     image_url: str,
+    character_name: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user: Optional[Users] = Depends(get_current_user_optional)
 ):
@@ -202,6 +203,8 @@ async def get_prompt_by_image(
             # 1.1 Точное совпадение URL
             log_debug(f"[PROMPT_DEBUG] 1. Searching ImageGenerationHistory by Exact URL...")
             hist_stmt = select(ImageGenerationHistory).where(ImageGenerationHistory.image_url == normalized_url)
+            if character_name:
+                hist_stmt = hist_stmt.where(ImageGenerationHistory.character_name == character_name)
             if current_user:
                 hist_stmt = hist_stmt.order_by(ImageGenerationHistory.user_id == user_id, ImageGenerationHistory.created_at.desc())
             else:
@@ -224,6 +227,8 @@ async def get_prompt_by_image(
                 if filename and '.' in filename:
                     log_debug(f"[PROMPT_DEBUG] 1. Searching ImageGenerationHistory by LIKE %{filename}...")
                     like_stmt = select(ImageGenerationHistory).where(ImageGenerationHistory.image_url.like(f"%{filename}"))
+                    if character_name:
+                        like_stmt = like_stmt.where(ImageGenerationHistory.character_name == character_name)
                     if current_user:
                         like_stmt = like_stmt.order_by(ImageGenerationHistory.user_id == user_id, ImageGenerationHistory.created_at.desc())
                     else:
@@ -263,26 +268,22 @@ async def get_prompt_by_image(
         # 2.1 Точное совпадение URL (User)
         if current_user:
             log_debug(f"[PROMPT_DEBUG] 2.1 Searching ChatHistory (Exact URL, User {user_id})...")
-            stmt = (
-                select(ChatHistory)
-                .where(
-                    ChatHistory.image_url == normalized_url,
-                    ChatHistory.user_id == user_id
-                )
-                .order_by(ChatHistory.created_at.desc())
-                .limit(1)
+            stmt = select(ChatHistory).where(
+                ChatHistory.image_url == normalized_url,
+                ChatHistory.user_id == user_id
             )
+            if character_name:
+                stmt = stmt.where(ChatHistory.character_name == character_name)
+            stmt = stmt.order_by(ChatHistory.created_at.desc()).limit(1)
             message = (await db.execute(stmt)).scalars().first()
         
         # 2.2 Точное совпадение URL (Global)
         if not message:
             log_debug(f"[PROMPT_DEBUG] 2.2 Searching ChatHistory (Exact URL, Global)...")
-            stmt = (
-                select(ChatHistory)
-                .where(ChatHistory.image_url == normalized_url)
-                .order_by(ChatHistory.created_at.desc())
-                .limit(1)
-            )
+            stmt = select(ChatHistory).where(ChatHistory.image_url == normalized_url)
+            if character_name:
+                stmt = stmt.where(ChatHistory.character_name == character_name)
+            stmt = stmt.order_by(ChatHistory.created_at.desc()).limit(1)
             message = (await db.execute(stmt)).scalars().first()
         
         # 2.3 По имени файла
@@ -298,49 +299,41 @@ async def get_prompt_by_image(
                     
                     # 2.3.1 User
                     if current_user:
-                        stmt = (
-                            select(ChatHistory)
-                            .where(
-                                ChatHistory.image_filename == filename,
-                                ChatHistory.user_id == user_id
-                            )
-                            .order_by(ChatHistory.created_at.desc())
-                            .limit(1)
+                        stmt = select(ChatHistory).where(
+                            ChatHistory.image_filename == filename,
+                            ChatHistory.user_id == user_id
                         )
+                        if character_name:
+                            stmt = stmt.where(ChatHistory.character_name == character_name)
+                        stmt = stmt.order_by(ChatHistory.created_at.desc()).limit(1)
                         message = (await db.execute(stmt)).scalars().first()
                     
                     # 2.3.2 Global
                     if not message:
-                        stmt = (
-                            select(ChatHistory)
-                            .where(ChatHistory.image_filename == filename)
-                            .order_by(ChatHistory.created_at.desc())
-                            .limit(1)
-                        )
+                        stmt = select(ChatHistory).where(ChatHistory.image_filename == filename)
+                        if character_name:
+                            stmt = stmt.where(ChatHistory.character_name == character_name)
+                        stmt = stmt.order_by(ChatHistory.created_at.desc()).limit(1)
                         message = (await db.execute(stmt)).scalars().first()
                     
                     # 2.3.3 LIKE Match (Legacy)
                     if not message:
                         log_debug(f"[PROMPT_DEBUG] 2.3.3 Searching ChatHistory (LIKE match)...")
                         if current_user:
-                            stmt = (
-                                select(ChatHistory)
-                                .where(
-                                    ChatHistory.image_url.like(f"%{filename}"),
-                                    ChatHistory.user_id == user_id
-                                )
-                                .order_by(ChatHistory.created_at.desc())
-                                .limit(1)
+                            stmt = select(ChatHistory).where(
+                                ChatHistory.image_url.like(f"%{filename}"),
+                                ChatHistory.user_id == user_id
                             )
+                            if character_name:
+                                stmt = stmt.where(ChatHistory.character_name == character_name)
+                            stmt = stmt.order_by(ChatHistory.created_at.desc()).limit(1)
                             message = (await db.execute(stmt)).scalars().first()
                         
                         if not message:
-                            stmt = (
-                                select(ChatHistory)
-                                .where(ChatHistory.image_url.like(f"%{filename}"))
-                                .order_by(ChatHistory.created_at.desc())
-                                .limit(1)
-                            )
+                            stmt = select(ChatHistory).where(ChatHistory.image_url.like(f"%{filename}"))
+                            if character_name:
+                                stmt = stmt.where(ChatHistory.character_name == character_name)
+                            stmt = stmt.order_by(ChatHistory.created_at.desc()).limit(1)
                             message = (await db.execute(stmt)).scalars().first()
                         
                     if message:
