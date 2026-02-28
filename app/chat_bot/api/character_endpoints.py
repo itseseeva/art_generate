@@ -1172,7 +1172,8 @@ async def create_character(character: CharacterCreate, db: AsyncSession = Depend
         # Автоматически переводим нового персонажа на английский
         try:
             from app.services.translation_service import auto_translate_and_save_character
-            await auto_translate_and_save_character(db_char, db, target_lang='en')
+            # Отключено по запросу
+            # await auto_translate_and_save_character(db_char, db, target_lang='en')
             logger.info(f"[CREATE] Персонаж {db_char.id} автоматически переведен на EN")
         except Exception as e:
             logger.warning(f"[CREATE] Не удалось перевести персонажа {db_char.id}: {e}")
@@ -2267,18 +2268,16 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                  result = await session.execute(stmt)
                  char = result.scalar_one_or_none()
                  if char:
-                     # Force translation to fill holes. 
-                     # We try to translate TO English (filling gaps from RU source)
-                     await auto_translate_and_save_character(char, session, target_lang='en')
+                     # Force translation to fill holes.                        # Отключено по запросу
+                     # await auto_translate_and_save_character(char, session, target_lang='en')
                      # And TO Russian (filling gaps from EN source)
                      await auto_translate_and_save_character(char, session, target_lang='ru')
                  else:
                      logger.warning(f"[BG_TASK] Character {char_id} not found for translation")
 
-        # Since background_tasks.add_task accepts coroutines in FastAPI:
-        background_tasks.add_task(background_mixed_translation, new_character.id)
-        
-        logger.info(f"Character {new_character.id} created. Scheduled mixed-language translation.")
+        # Отключено по запросу пользователя
+        # background_tasks.add_task(background_mixed_translation, new_character.id)
+        # logger.info(f"Character {new_character.id} created. Scheduled mixed-language translation.")
 
         # Инвалидируем кэш списка персонажей
         await cache_delete(key_characters_list())
@@ -2308,8 +2307,9 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
             "location": character.location
         }
         
-        background_tasks.add_task(translate_character_task, new_character.id, source_lang, original_data)
-        logger.info(f"[CREATE_CHAR] Scheduled translation task from {source_lang}")
+        # Отключено по запросу пользователя
+        # background_tasks.add_task(translate_character_task, new_character.id, source_lang, original_data)
+        # logger.info(f"[CREATE_CHAR] Scheduled translation task from {source_lang}")
 
         return CharacterInDB.model_validate(new_character)
         
@@ -3685,9 +3685,9 @@ async def update_user_character(
                             logger.info(f"[UPDATE_CHAR] Персонаж {char_id} успешно переведен в фоне на {target_lang}")
                         except Exception as e:
                             logger.warning(f"[UPDATE_CHAR] Ошибка фонового перевода персонажа {char_id}: {e}")
-                
-                background_tasks.add_task(run_translation_in_background, db_char.id)
-                logger.info(f"[UPDATE_CHAR] Задача перевода для персонажа {db_char.id} добавлена в фон")
+                # Отключено по запросу пользователя
+                # background_tasks.add_task(run_translation_in_background, db_char.id)
+                # logger.info(f"[UPDATE_CHAR] Задача перевода для персонажа {db_char.id} добавлена в фон")
             except Exception as e:
                 logger.warning(f"[UPDATE_CHAR] Не удалось добавить задачу перевода для персонажа {db_char.id}: {e}")
         

@@ -5988,7 +5988,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
     setIsLoadingPrompt(true);
 
     try {
-      const result = await fetchPromptByImage(photo.url);
+      const result = await fetchPromptByImage(photo.url, createdCharacterData?.name || formData.name);
       if (result.hasPrompt && (result.prompt || result.prompt_ru || result.prompt_en)) {
         setSelectedPrompt(result.prompt);
         setSelectedPromptRu(result.prompt_ru || null);

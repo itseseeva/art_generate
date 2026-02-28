@@ -1868,7 +1868,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
     for (const url of photoUrls) {
       try {
-        const { prompt } = await fetchPromptByImage(url);
+        const { prompt } = await fetchPromptByImage(url, character.name);
         photosWithPrompts.push({
           url,
           prompt: prompt || ''

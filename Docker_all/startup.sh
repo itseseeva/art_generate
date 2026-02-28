@@ -8,20 +8,6 @@ echo "🚀 Starting backend initialization..."
 echo "📦 Running database migrations..."
 alembic upgrade head
 
-# Проверяем, нужно ли выполнять переводы
-# Проверяем наличие файла-метки что переводы уже выполнены
-TRANSLATIONS_DONE_FILE="/app/.translations_done"
-
-if [ ! -f "$TRANSLATIONS_DONE_FILE" ]; then
-    echo "🌍 Running automatic translations (first time)..."
-    python force_retranslate.py
-    
-    # Создаем файл-метку чтобы не выполнять переводы при каждом перезапуске
-    touch "$TRANSLATIONS_DONE_FILE"
-    echo "✅ Translations completed and marked as done"
-else
-    echo "⏭️  Translations already done, skipping..."
-fi
 
 # Запускаем uvicorn
 echo "🎯 Starting uvicorn server..."

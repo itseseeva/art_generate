@@ -311,7 +311,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
     };
   }, []);
 
-  const handleOpenPhoto = async (imageUrl: string) => {
+  const handleOpenPhoto = async (imageUrl: string, characterName?: string | null) => {
     setSelectedPhoto(imageUrl);
     setIsPromptVisible(true);
     setSelectedPrompt(null);
@@ -321,7 +321,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
     setIsLoadingPrompt(true);
 
     try {
-      const result = await fetchPromptByImage(imageUrl);
+      const result = await fetchPromptByImage(imageUrl, characterName);
       if (result.hasPrompt && (result.prompt || result.prompt_ru || result.prompt_en)) {
         setSelectedPrompt(result.prompt);
         setSelectedPromptRu(result.prompt_ru || null);
@@ -693,7 +693,7 @@ export const UserGalleryPage: React.FC<UserGalleryPageProps> = ({
                   const shouldLoadEager = index < 12;
 
                   return (
-                    <GalleryImage key={photo.id} onClick={() => handleOpenPhoto(imageUrl)}>
+                    <GalleryImage key={photo.id} onClick={() => handleOpenPhoto(imageUrl, photo.character_name)}>
                       <OptimizedImage
                         src={imageUrl}
                         alt={photo.character_name}

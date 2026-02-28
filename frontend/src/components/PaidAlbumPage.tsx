@@ -364,7 +364,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
     setIsLoadingPrompt(true);
 
     try {
-      const result = await fetchPromptByImage(image.url);
+      const result = await fetchPromptByImage(image.url, character?.name);
       if (result.hasPrompt && (result.prompt || result.prompt_ru || result.prompt_en)) {
         setSelectedPrompt(result.prompt);
         setSelectedPromptRu(result.prompt_ru || null);

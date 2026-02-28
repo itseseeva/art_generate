@@ -5933,7 +5933,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
     }
 
     try {
-      const result = await fetchPromptByImage(photo.url);
+      const result = await fetchPromptByImage(photo.url, formData.name);
       if (result.hasPrompt && (result.prompt || result.prompt_ru || result.prompt_en)) {
         setSelectedPrompt(result.prompt);
         setSelectedPromptRu(result.prompt_ru || null);

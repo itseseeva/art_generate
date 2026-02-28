@@ -385,7 +385,8 @@ async def lifespan(app: FastAPI):
     logger.info("[INFO] Синхронизация персонажей отключена - используйте character_importer")
 
     # Запускаем проверку переводов в фоне (Critical for fixing Russian text issue)
-    asyncio.create_task(run_startup_translations())
+    # Отключено по запросу пользователя
+    # asyncio.create_task(run_startup_translations())
     
     # Инициализируем Redis кэш (не блокируем запуск приложения)
     # Redis будет подключен при первом использовании, если доступен
@@ -528,7 +529,8 @@ app.add_middleware(
 
 # Middleware для автоматического перевода персонажей - ОТКЛЮЧЕН из-за проблем
 # Проблемы: бесконечный цикл, Content-Length errors, race conditions
-# Используйте вместо этого скрипт translate_all_characters.py
+# Используйте вместо этого скрипт# Middleware для автоматического перевода на лету
+# Отключено по запросу пользователя (и было закомментировано ранее)
 # from app.middleware.character_translation import CharacterTranslationMiddleware
 # app.add_middleware(CharacterTranslationMiddleware)
 
@@ -1431,6 +1433,12 @@ async def assets(path: str):
 @app.get("/tags")
 @app.get("/tags/{path:path}")
 @app.get("/profile/{path:path}")
+@app.get("/ru")
+@app.get("/ru/")
+@app.get("/ru/{path:path}")
+@app.get("/en")
+@app.get("/en/")
+@app.get("/en/{path:path}")
 async def frontend_index(request: Request, db: AsyncSession = Depends(get_db)):
     """
     Сервирует index.html из папки frontend/dist с подстановкой метаданных персонажа (SEO).

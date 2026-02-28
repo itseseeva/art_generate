@@ -1295,7 +1295,7 @@ export const PhotoGenerationPage3: React.FC<PhotoGenerationPage3Props> = ({
     setIsLoadingPrompt(true);
 
     try {
-      const result = await fetchPromptByImage(imageUrl);
+      const result = await fetchPromptByImage(imageUrl, character?.name);
 
       if (result.hasPrompt && (result.prompt || result.prompt_ru || result.prompt_en)) {
         setSelectedPrompt(result.prompt);

@@ -1052,7 +1052,7 @@ const MessageComponent: React.FC<MessageProps> = ({
       setIsLoadingPrompt(true);
 
       try {
-        const result = await fetchPromptByImage(message.imageUrl);
+        const result = await fetchPromptByImage(message.imageUrl, characterName);
 
         if (result.hasPrompt && (result.prompt || result.prompt_ru || result.prompt_en)) {
           setSelectedPrompt(result.prompt);
