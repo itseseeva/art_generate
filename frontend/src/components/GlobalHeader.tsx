@@ -10,6 +10,7 @@ import { generationTracker } from '../utils/generationTracker';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { SearchBar } from './SearchBar';
 import { MenuToggle } from './ui/MenuToggle';
+import { getMediaUrl } from '../config/api';
 
 
 const HeaderContainer = styled.div`
@@ -816,7 +817,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
           <ProfileButton onClick={handleProfile} $isAuthenticated={isAuthenticated}>
             {userInfo?.avatar_url ? (
               <img
-                src={userInfo.avatar_url}
+                src={getMediaUrl(userInfo.avatar_url)}
                 alt={userInfo.username}
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';

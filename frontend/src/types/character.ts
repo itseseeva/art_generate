@@ -16,6 +16,7 @@ export interface Character {
     paid_album_preview_urls?: string[];
     prompt?: string;
     display_name?: string;
+    slug?: string;
     raw?: any;
 
     // Backend fields that might be present

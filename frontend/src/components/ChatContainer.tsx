@@ -19,7 +19,7 @@ import { FiUnlock, FiLock, FiSettings, FiThumbsUp, FiThumbsDown } from 'react-ic
 import { Plus, Sparkles, FolderOpen } from 'lucide-react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { CharacterCard } from './CharacterCard';
-import { API_CONFIG, api } from '../config/api';
+import { API_CONFIG, api, getMediaUrl } from '../config/api';
 import { ModelSelectorModal } from './ModelSelectorModal';
 import { ModelAccessDeniedModal } from './ModelAccessDeniedModal';
 import { generationTracker } from '../utils/generationTracker';
@@ -4906,7 +4906,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                 <CreatorInfoWrapper>
                   {creatorInfo.avatar_url ? (
                     <CreatorAvatar
-                      src={creatorInfo.avatar_url}
+                      src={getMediaUrl(creatorInfo.avatar_url)}
                       alt={creatorInfo.username || 'Создатель'}
                     />
                   ) : (
