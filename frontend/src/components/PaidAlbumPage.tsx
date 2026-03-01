@@ -354,6 +354,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
   const [selectedPromptEn, setSelectedPromptEn] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
+  const [characterNameReal, setCharacterNameReal] = useState<string>(character?.name || '');
 
   const handleOpenImage = async (image: PaidAlbumImage) => {
     setPreviewImage(image);
@@ -364,7 +365,7 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
     setIsLoadingPrompt(true);
 
     try {
-      const result = await fetchPromptByImage(image.url, character?.name);
+      const result = await fetchPromptByImage(image.url, character?.name || characterNameReal);
       if (result.hasPrompt && (result.prompt || result.prompt_ru || result.prompt_en)) {
         setSelectedPrompt(result.prompt);
         setSelectedPromptRu(result.prompt_ru || null);

@@ -4641,7 +4641,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
         let style = getLocalizedDetails('style');
 
         // 2. Fallback: Парсим промпт, если поля пустые (для старых персонажей)
-        const prompt = characterData?.prompt || '';
+        const prompt = characterData?.prompt || characterData?.description || '';
         if (prompt) {
           if (!personality) {
             const personalityMatch = prompt.match(/Personality and Character:\s*(.*?)(?=\n\nRole-playing Situation:|$)/s);

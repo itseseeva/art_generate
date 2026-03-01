@@ -2098,7 +2098,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
       if (response.ok) {
         const characterData = await response.json();
 
-        const situation = extractRolePlayingSituation(characterData.prompt || '');
+        const situation = extractRolePlayingSituation(characterData.prompt || characterData.description || '');
         setCharacterSituation(situation);
 
         // Обновляем currentCharacter с полными данными, включая id
@@ -4649,7 +4649,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               messages={uniqueMessages}
               isLoading={isLoading}
               isGeneratingImage={activeGenerations.size > 0}
-              characterSituation={characterSituation || tChar('situation') || (characterForRender ? extractRolePlayingSituation(characterForRender.prompt || characterForRender.raw?.prompt || '') : '')}
+              characterSituation={characterSituation || tChar('situation') || (characterForRender ? extractRolePlayingSituation(characterForRender.prompt || characterForRender.description || characterForRender.raw?.prompt || '') : '')}
               characterName={characterForRender?.name || ''}
               characterAvatar={characterPhotos && characterPhotos.length > 0 ? characterPhotos[0] : undefined}
               voiceUrl={(() => {
