@@ -343,7 +343,7 @@ async def get_prompt_by_image(
             # Ищем по идентификатору файла (имя файла после /generated/), игнорируя домен.
             # Промпт к изображению доступен всем: ищем по всем записям (любой пользователь может видеть промпт к любому фото).
             # При нескольких совпадениях приоритет: запись текущего пользователя, затем по дате создания.
-            from sqlalchemy import case, or_, not_
+            from sqlalchemy import case
             order_criteria = [ImageGenerationHistory.created_at.desc()]
             if current_user:
                 order_criteria.insert(0, case((ImageGenerationHistory.user_id == user_id, 1), else_=0).desc())
@@ -352,10 +352,9 @@ async def get_prompt_by_image(
                 .where(
                     ImageGenerationHistory.image_url.is_not(None),
                     ImageGenerationHistory.image_url != "",
-                    or_(
-                        not_(ImageGenerationHistory.prompt.like("Генерация изображения%")),
-                        ImageGenerationHistory.admin_prompt.is_not(None)
-                    )
+                    # Не фильтруем по тексту промпта — запись нужна для поиска по URL,
+                    # даже если промпт оказался дефолтным 'Генерация изображения'.
+                    # admin_prompt или перевод могут быть нормальными.
                 )
                 .order_by(*order_criteria)
             )
@@ -647,53 +646,6 @@ async def get_prompt_by_image(
         # Fallback для главной страницы: если URL из paid_gallery/static (не совпадает с БД),
         # и передан character_name — возвращаем последний известный промпт для этого персонажа.
 
-        # 4. Поиск в PaidAlbumPhoto по идентификатору файла (фото могут быть без записи в ChatHistory)
-        try:
-            from app.chat_bot.models.models import PaidAlbumPhoto
-            album_stmt = (
-                select(PaidAlbumPhoto)
-                .where(
-                    PaidAlbumPhoto.photo_url.is_not(None),
-                    PaidAlbumPhoto.photo_url != "",
-                    PaidAlbumPhoto.prompt.is_not(None),
-                    PaidAlbumPhoto.prompt != "",
-                )
-            )
-            album_records = (await db.execute(album_stmt)).scalars().all()
-            album_match = None
-            for rec in album_records:
-                rec_file_id = extract_file_identifier(rec.photo_url or "")
-                if rec_file_id == file_identifier and file_identifier:
-                    album_match = rec
-                    break
-            if album_match and album_match.prompt:
-                album_prompt = album_match.prompt
-                # Определяем язык и переводим
-                import re as _re
-                has_cyrillic = bool(_re.search(r'[а-яёА-ЯЁ]', album_prompt))
-                try:
-                    from deep_translator import GoogleTranslator
-                    if has_cyrillic:
-                        p_ru = album_prompt
-                        p_en = GoogleTranslator(source='ru', target='en').translate(album_prompt) if len(album_prompt) <= 4000 else album_prompt
-                    else:
-                        p_en = album_prompt
-                        p_ru = GoogleTranslator(source='en', target='ru').translate(album_prompt) if len(album_prompt) <= 4000 else album_prompt
-                except Exception:
-                    p_ru = album_prompt
-                    p_en = album_prompt
-                result = {
-                    "success": True,
-                    "prompt": p_ru,
-                    "prompt_ru": p_ru,
-                    "prompt_en": p_en,
-                    "character_name": character_name,
-                }
-                await cache_set(cache_key, result, ttl_seconds=TTL_IMAGE_METADATA, timeout=0.5)
-                return result
-        except Exception as album_err:
-            await db.rollback()
-            logger.warning(f"[PROMPT_DEBUG] Error searching PaidAlbumPhoto: {album_err}")
 
         if character_name and character_name.strip():
             # Расширенная логика fallback для любых статических/загруженных изображений

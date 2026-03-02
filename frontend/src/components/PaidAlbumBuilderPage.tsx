@@ -1869,7 +1869,8 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         height: 1216,
         steps: 20,
         cfg_scale: 4,
-        skip_chat_history: true  // Не сохраняем в ChatHistory для генераций со страницы альбома
+        // skip_chat_history убран: промпт должен сохраняться в ImageGenerationHistory
+        // чтобы его можно было получить при просмотре фото в альбоме
       })
     });
 
