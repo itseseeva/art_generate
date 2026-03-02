@@ -144,6 +144,21 @@ export const API_CONFIG = {
 export const getMediaUrl = (path: string): string => {
   if (!path) return '';
 
+  // ПЕРВЫЙ ПРИОРИТЕТ: принудительно конвертируем старый домен cherrylust.art в CDN.
+  // Это должно быть ДО любых других проверок, т.к. старый образ мог иметь
+  // CDN_URL=cherrylust.art и ранняя проверка ниже пропустит эти URL без замены.
+  if (path.includes('cherrylust.art/')) {
+    const cdnBase = API_CONFIG.CDN_URL || '/media';
+    let objectKey = path;
+    if (path.includes('/media/')) {
+      objectKey = path.split('/media/').pop() || path;
+    } else {
+      objectKey = path.split('cherrylust.art/').pop() || path;
+    }
+    objectKey = objectKey.replace(/^\/?(media\/)?/, '');
+    return `${cdnBase}/${objectKey}`;
+  }
+
   // Если это уже CDN URL и он не пустой (для прода), возвращаем как есть
   if (API_CONFIG.CDN_URL && import.meta.env.PROD && path.startsWith(API_CONFIG.CDN_URL)) {
     return path;
@@ -154,15 +169,8 @@ export const getMediaUrl = (path: string): string => {
   // Если это абсолютный URL, проверяем, не нужно ли его конвертировать в CDN
   if (path.startsWith('http://') || path.startsWith('https://')) {
     // Конвертируем старый /media/ прокси или любой другой домен с /media/
-    // Это захватит https://cherrylust.art/media/... и превратит в ...
     if (path.includes('/media/')) {
-      // Берем всё, что после последнего /media/
       const parts = path.split('/media/');
-      clearPath = parts[parts.length - 1] || path;
-    }
-    // Старый домен cherrylust.art без /media/ (например generated_images/...)
-    else if (path.includes('cherrylust.art/')) {
-      const parts = path.split('cherrylust.art/');
       clearPath = parts[parts.length - 1] || path;
     }
     // Извлекаем object_key из Yandex Storage URL
