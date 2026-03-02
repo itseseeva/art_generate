@@ -421,6 +421,7 @@ async def save_paid_gallery_photos(
                     character_id=character_db.id,
                     photo_id=photo_id,
                     photo_url=photo_url,
+                    prompt=photo.get("prompt")
                 )
             )
     
@@ -432,6 +433,62 @@ async def save_paid_gallery_photos(
         "count": len(unique_photos),
         "photos": unique_photos,
     }
+
+class SetAlbumPromptRequest(BaseModel):
+    image_url: str = Field(..., description="URL изображения в альбоме")
+    prompt: str = Field(..., description="Новый промпт")
+
+@router.post("/paid-gallery/{character}/set-prompt", response_model=dict)
+async def set_paid_gallery_prompt(
+    character: str,
+    payload: SetAlbumPromptRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: Users = Depends(get_current_user),
+) -> dict:
+    """Устанавливает промпт для конкретной фотографии в платном альбоме."""
+    character_db = await _get_character_by_slug(db, character)
+    if not character_db:
+        raise HTTPException(status_code=404, detail="Персонаж не найден")
+
+    is_owner = bool(character_db.user_id) and character_db.user_id == current_user.id
+    
+    if not current_user.is_admin and not is_owner:
+        raise HTTPException(status_code=403, detail="Изменять платный альбом может только создатель персонажа или админ")
+
+    from app.chat_bot.models.models import PaidAlbumPhoto
+    from sqlalchemy import update
+    
+    # Ищем фото по URL (или нормализованному URL)
+    search_url = payload.image_url
+    
+    # Обновляем промпт у найденного фото
+    stmt = (
+        update(PaidAlbumPhoto)
+        .where(
+            PaidAlbumPhoto.character_id == character_db.id,
+            PaidAlbumPhoto.photo_url == search_url
+        )
+        .values(prompt=payload.prompt)
+    )
+    result = await db.execute(stmt)
+    
+    if result.rowcount == 0:
+        # Попробуем найти по окончанию файла, если полный URL не совпал
+        file_name = search_url.split('/')[-1]
+        stmt_fallback = (
+            update(PaidAlbumPhoto)
+            .where(
+                PaidAlbumPhoto.character_id == character_db.id,
+                PaidAlbumPhoto.photo_url.like(f"%{file_name}")
+            )
+            .values(prompt=payload.prompt)
+        )
+        result_fallback = await db.execute(stmt_fallback)
+        if result_fallback.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Фотография не найдена в альбоме")
+
+    await db.commit()
+    return {"success": True, "message": "Промпт успешно обновлен"}
 
 
 @router.get("/paid-gallery/{character}")
@@ -482,6 +539,7 @@ async def list_paid_gallery(
                 "id": photo.photo_id,
                 "url": photo.photo_url,
                 "created_at": photo.created_at.isoformat() + "Z" if photo.created_at else None,
+                "prompt": photo.prompt,
             }
             for photo in db_photos
         ]

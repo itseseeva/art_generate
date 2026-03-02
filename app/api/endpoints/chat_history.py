@@ -240,24 +240,30 @@ async def get_prompt_by_image(
                     else:
                          log_debug(f"[PROMPT_DEBUG] NOT FOUND in ImageGenerationHistory (LIKE match).")
             
-            if hist_record and hist_record.prompt:
-                # Очищаем промпт от JSON
-                clean_prompt = hist_record.prompt
-                try:
-                    import json
-                    if clean_prompt.strip().startswith('{'):
-                         data = json.loads(clean_prompt)
-                         if isinstance(data, dict) and 'prompt' in data:
-                             clean_prompt = data['prompt']
-                except:
-                    pass
-                log_debug(f"[PROMPT_DEBUG] Returning prompt from ImageGenerationHistory.")
-                return {
-                    "success": True,
-                    "prompt": clean_prompt,
-                    "character_name": hist_record.character_name,
-                    "debug_logs": debug_logs
-                }
+            if hist_record:
+                clean_prompt = None
+                if getattr(hist_record, 'admin_prompt', None):
+                    clean_prompt = hist_record.admin_prompt
+                elif hist_record.prompt:
+                    clean_prompt = hist_record.prompt
+                    # Очищаем промпт от JSON
+                    try:
+                        import json
+                        if clean_prompt.strip().startswith('{'):
+                             data = json.loads(clean_prompt)
+                             if isinstance(data, dict) and 'prompt' in data:
+                                 clean_prompt = data['prompt']
+                    except:
+                        pass
+                
+                if clean_prompt is not None:
+                    log_debug(f"[PROMPT_DEBUG] Returning prompt from ImageGenerationHistory.")
+                    return {
+                        "success": True,
+                        "prompt": clean_prompt,
+                        "character_name": hist_record.character_name,
+                        "debug_logs": debug_logs
+                    }
         except Exception as e:
             await db.rollback()
             log_debug(f"[PROMPT_DEBUG] ERROR in ImageGenerationHistory search: {e}")

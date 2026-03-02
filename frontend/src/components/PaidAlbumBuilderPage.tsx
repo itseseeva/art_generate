@@ -1004,6 +1004,34 @@ const RemoveButton = styled.button`
   }
 `;
 
+const EditPromptButton = styled.button`
+  position: absolute;
+  top: 0.25rem;
+  left: 0.25rem;
+  width: 24px;
+  height: 24px;
+  background: rgba(139, 92, 246, 0.9);
+  border: none;
+  border-radius: 50%;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 2;
+
+  &:hover {
+    background: rgba(139, 92, 246, 1);
+    transform: scale(1.1);
+  }
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+`;
+
 // Modal Components (reused from original)
 const UpgradeOverlay = styled.div`
   position: fixed;
@@ -1408,6 +1436,7 @@ interface PaidAlbumImage {
   id: string;
   url: string;
   created_at?: string;
+  prompt?: string;
 }
 
 interface PaidAlbumBuilderPageProps {
@@ -1510,6 +1539,9 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
   const [isTagsExpanded, setIsTagsExpanded] = useState(false);
   const [promptLoadedFromDB, setPromptLoadedFromDB] = useState(false);
   const [addedPhotoId, setAddedPhotoId] = useState<string | null>(null);
+  const [isEditAdminPromptOpen, setIsEditAdminPromptOpen] = useState(false);
+  const [editingAdminPhoto, setEditingAdminPhoto] = useState<PaidAlbumImage | null>(null);
+  const [adminPromptValue, setAdminPromptValue] = useState('');
   const fakeProgressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fakeProgressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   type QueuedGeneration = { rawPrompt: string; model: 'anime-realism' | 'anime' | 'realism' };
@@ -1925,7 +1957,7 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
       const image = await generateSinglePhoto(effectivePrompt, model);
       stopFakeProgress(false);
       if (image) {
-        setGeneratedPhotos(prev => [image, ...prev]);
+        setGeneratedPhotos(prev => [{ ...image, prompt: rawPrompt }, ...prev]);
         try {
           const token = localStorage.getItem('authToken');
           if (token) {
@@ -2142,17 +2174,21 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
     setSelectedPromptEn(null);
     setPromptError(null);
     setIsPromptVisible(true);
-
-    // Загружаем промпт для изображения
     setIsLoadingPrompt(true);
+
     try {
-      const result = await fetchPromptByImage(photo.url, character?.name);
-      if (result.hasPrompt && (result.prompt || result.prompt_ru || result.prompt_en)) {
-        setSelectedPrompt(result.prompt);
-        setSelectedPromptRu(result.prompt_ru || null);
-        setSelectedPromptEn(result.prompt_en || null);
+      if (photo.prompt && photo.prompt.trim()) {
+        setSelectedPrompt(photo.prompt);
       } else {
-        setPromptError(result.errorMessage || 'Промпт недоступен для этого изображения');
+        // Fallback for generated photos or old photos without prompt
+        const result = await fetchPromptByImage(photo.url, character?.name);
+        if (result.hasPrompt && (result.prompt || result.prompt_ru || result.prompt_en)) {
+          setSelectedPrompt(result.prompt);
+          setSelectedPromptRu(result.prompt_ru || null);
+          setSelectedPromptEn(result.prompt_en || null);
+        } else {
+          setPromptError(result.errorMessage || 'Промпт недоступен для этого изображения');
+        }
       }
     } catch (error) {
       setPromptError('Не удалось загрузить промпт');
@@ -2655,6 +2691,20 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
                     onClick={() => handleOpenPreview(photo)}
                   >
                     <PhotoImage src={photo.url} alt={displayName} />
+                    {userInfo?.is_admin && (
+                      <EditPromptButton
+                        disabled={isSaving}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingAdminPhoto(photo);
+                          // Для платных фото используем сохраненный в самом фото промпт без fallback
+                          setAdminPromptValue(photo.prompt || '');
+                          setIsEditAdminPromptOpen(true);
+                        }}
+                      >
+                        <Settings size={14} />
+                      </EditPromptButton>
+                    )}
                     <RemoveButton
                       onClick={(e) => {
                         e.stopPropagation();
@@ -2701,6 +2751,83 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
         isLoading={isLoadingPrompt}
         error={promptError}
       />
+
+      {isEditAdminPromptOpen && editingAdminPhoto && (
+        <UpgradeOverlay onClick={() => setIsEditAdminPromptOpen(false)}>
+          <UpgradeModal onClick={(e) => e.stopPropagation()}>
+            <UpgradeTitle>Редактировать промпт</UpgradeTitle>
+            <PromptTextarea
+              value={adminPromptValue}
+              onChange={(e) => setAdminPromptValue(e.target.value)}
+              placeholder="Введите промпт для этого фото"
+              style={{ minHeight: '120px' }}
+            />
+            <UpgradeActions>
+              <PrimaryButton disabled={isSaving} onClick={async () => {
+                const newPrompt = adminPromptValue.trim();
+                const updatedPhoto = { ...editingAdminPhoto, prompt: newPrompt };
+                const updatedPhotos = selectedPhotos.map(p =>
+                  p.id === updatedPhoto.id ? updatedPhoto : p
+                );
+                setSelectedPhotos(updatedPhotos);
+
+                if (character?.name && editingAdminPhoto?.url) {
+                  setIsSaving(true);
+                  try {
+                    // Используем отдельный эндпоинт для сохранения промпта в альбоме
+                    const setPromptPromise = authManager.fetchWithAuth(
+                      `${API_CONFIG.BASE_URL}/api/v1/paid-gallery/${encodeURIComponent(character.name)}/set-prompt`,
+                      {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                          image_url: editingAdminPhoto.url,
+                          prompt: newPrompt || ''
+                        })
+                      }
+                    );
+
+                    // Также обновляем альбом, чтобы синхронизировать
+                    const saveAlbumPromise = authManager.fetchWithAuth(
+                      `/api/v1/paid-gallery/${encodeURIComponent(character.name)}/photos`,
+                      {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                          photos: updatedPhotos
+                        })
+                      }
+                    );
+
+                    const [promptRes, albumRes] = await Promise.all([setPromptPromise, saveAlbumPromise]);
+
+                    if (!promptRes.ok || !albumRes.ok) {
+                      throw new Error('Не удалось сохранить изменения');
+                    }
+                    setSuccess('Промпт сохранен');
+                    setIsEditAdminPromptOpen(false);
+                  } catch (e) {
+                    setError('Ошибка при сохранении промпта');
+                  } finally {
+                    setIsSaving(false);
+                  }
+                } else {
+                  setIsEditAdminPromptOpen(false);
+                }
+              }}>
+                {isSaving ? 'Сохранение...' : 'Сохранить'}
+              </PrimaryButton>
+              <GhostButton disabled={isSaving} onClick={() => setIsEditAdminPromptOpen(false)}>
+                Отмена
+              </GhostButton>
+            </UpgradeActions>
+          </UpgradeModal>
+        </UpgradeOverlay>
+      )}
     </PageContainer>
   );
 };

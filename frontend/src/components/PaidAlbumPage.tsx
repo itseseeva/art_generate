@@ -310,6 +310,7 @@ interface PaidAlbumImage {
   id: string;
   url: string;
   created_at?: string;
+  prompt?: string;
 }
 
 interface PaidAlbumPageProps {
@@ -365,13 +366,18 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
     setIsLoadingPrompt(true);
 
     try {
-      const result = await fetchPromptByImage(image.url, character?.name || characterNameReal);
-      if (result.hasPrompt && (result.prompt || result.prompt_ru || result.prompt_en)) {
-        setSelectedPrompt(result.prompt);
-        setSelectedPromptRu(result.prompt_ru || null);
-        setSelectedPromptEn(result.prompt_en || null);
+      if (image.prompt && image.prompt.trim()) {
+        setSelectedPrompt(image.prompt);
       } else {
-        setPromptError(result.errorMessage || t('auth.promptUnavailable'));
+        // Fallback to fetchPromptByImage if photo object doesn't have prompt
+        const result = await fetchPromptByImage(image.url, character?.name || characterNameReal);
+        if (result.hasPrompt && (result.prompt || result.prompt_ru || result.prompt_en)) {
+          setSelectedPrompt(result.prompt);
+          setSelectedPromptRu(result.prompt_ru || null);
+          setSelectedPromptEn(result.prompt_en || null);
+        } else {
+          setPromptError(result.errorMessage || t('auth.promptUnavailable'));
+        }
       }
     } catch (error) {
       setPromptError(t('auth.promptLoadError'));
@@ -488,7 +494,8 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
               ? img.split('/').pop()?.split('.')[0] || img
               : (img.id || imageUrl?.split('/').pop()?.split('.')[0] || `${Date.now()}-${Math.random()}`),
             url: imageUrl,
-            created_at: typeof img === 'object' && img.created_at ? img.created_at : new Date().toISOString()
+            created_at: typeof img === 'object' && img.created_at ? img.created_at : new Date().toISOString(),
+            prompt: typeof img === 'object' ? img.prompt : undefined
           };
         }).filter((img: any): img is PaidAlbumImage => img !== null);
         setImages(processedImages);

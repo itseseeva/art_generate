@@ -275,6 +275,9 @@ def _normalize_main_photos(
             generation_time = item.get("generation_time")
             if generation_time is not None:
                 normalized_entry["generation_time"] = generation_time
+            prompt = item.get("prompt")
+            if prompt is not None:
+                normalized_entry["prompt"] = prompt
         
         normalized.append(normalized_entry)
         if register:

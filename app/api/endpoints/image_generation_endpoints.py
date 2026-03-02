@@ -22,6 +22,7 @@ class SetAdminPromptRequest(BaseModel):
     """Запрос на установку админского промпта."""
     image_url: str = Field(..., description="URL изображения")
     admin_prompt: Optional[str] = Field(None, description="Промпт админа (если null, то удаляется)")
+    character_name: Optional[str] = Field(None, description="Имя персонажа для привязки если нет записи")
 
 
 @router.post("/set-admin-prompt/")
@@ -120,7 +121,7 @@ async def set_admin_prompt(
                     logger.info(f"[ADMIN PROMPT] Найдена запись в ChatHistory, создаем новую запись в ImageGenerationHistory")
                     record = ImageGenerationHistory(
                         user_id=chat_record.user_id,
-                        character_name=chat_record.character_name,
+                        character_name=request.character_name or chat_record.character_name,
                         image_url=normalized_url,
                         admin_prompt=request.admin_prompt if request.admin_prompt else None
                     )
@@ -135,7 +136,7 @@ async def set_admin_prompt(
                     logger.info(f"[ADMIN PROMPT] Запись не найдена нигде, создаем новую с минимальными данными")
                     record = ImageGenerationHistory(
                         user_id=current_user.id,  # Используем ID админа
-                        character_name="unknown",  # Дефолтное значение
+                        character_name=request.character_name or "unknown",  # Используем character_name
                         image_url=normalized_url,
                         admin_prompt=request.admin_prompt if request.admin_prompt else None
                     )

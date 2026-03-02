@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { theme } from '../theme';
 import ElectricBorder from './ElectricBorder';
 import { FiSettings, FiX as CloseIcon, FiZap, FiRefreshCw, FiCheck, FiChevronDown, FiEdit, FiTrash2, FiHeart, FiMessageSquare, FiLock, FiUnlock, FiImage, FiThumbsUp, FiThumbsDown, FiAlertTriangle, FiShield } from 'react-icons/fi';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Wand2 } from 'lucide-react';
 import { authManager } from '../utils/auth';
 import { API_CONFIG, getMediaUrl } from '../config/api';
 import { translateToRussian } from '../utils/translate';
@@ -1884,6 +1884,16 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
     return photosWithPrompts;
   };
 
+  const handleAdminEditPromptsClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!character.photos || character.photos.length === 0) return;
+    const photosToEdit = character.photos.slice(0, 3);
+    setIsEditPromptModalOpen(true);
+    setPromptSaveError(null);
+    const photosWithPrompts = await loadPromptsForPhotos(photosToEdit);
+    setEditingPhotos(photosWithPrompts);
+  };
+
   // Функция для сохранения админских промптов
   const handleSaveAdminPrompt = async () => {
     if (editingPhotos.length === 0) {
@@ -1905,7 +1915,8 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
             },
             body: JSON.stringify({
               image_url: photo.url,
-              admin_prompt: photo.prompt.trim() || null
+              admin_prompt: photo.prompt.trim() || null,
+              character_name: character.name
             })
           }
         )
@@ -2388,6 +2399,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   // Обработчик закрытия только промпта (оставляет фото открытым)
   const handleClosePrompt = () => {
     setIsPromptVisible(false);
+    setModalPhotoUrl(null);
   };
 
 
@@ -2471,6 +2483,14 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                     characterName={character.name}
                     isHovered={isHovered}
                     hideDots={true}
+                    onCurrentPhotoChange={(url) => {
+                      // Normalize the URL before passing to setCurrentPhotoUrl
+                      let normalizedUrl = url;
+                      if (normalizedUrl) {
+                        normalizedUrl = getMediaUrl(normalizedUrl);
+                      }
+                      setCurrentPhotoUrl(normalizedUrl);
+                    }}
                   />
                 ) : (
                   <OptimizedImage
@@ -2516,6 +2536,18 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                     </ActionButton>
                     <Tooltip>
                       {isNsfw ? 'Make Safe' : 'Make NSFW'}
+                    </Tooltip>
+                  </ActionButtonWithTooltip>
+                )}
+
+                {/* Edit Prompts Admin Button */}
+                {(isAdmin || userInfo?.is_admin) && character.photos && character.photos.length > 0 && (
+                  <ActionButtonWithTooltip onClick={handleAdminEditPromptsClick}>
+                    <ActionButton $variant="default">
+                      <Wand2 size={16} />
+                    </ActionButton>
+                    <Tooltip>
+                      Edit Prompts
                     </Tooltip>
                   </ActionButtonWithTooltip>
                 )}
