@@ -1295,7 +1295,19 @@ async def read_characters(
                                 "voice_id": voice_id_obj,
                                 "voice_url": voice_url_obj,
                                 "tags": tags_val if isinstance(tags_val, list) else [],
-                                "creator_username": getattr(char_data, 'creator_username', None)
+                                "creator_username": getattr(char_data, 'creator_username', None),
+                                "personality_ru": getattr(char_data, 'personality_ru', None),
+                                "personality_en": getattr(char_data, 'personality_en', None),
+                                "situation_ru": getattr(char_data, 'situation_ru', None),
+                                "situation_en": getattr(char_data, 'situation_en', None),
+                                "instructions_ru": getattr(char_data, 'instructions_ru', None),
+                                "instructions_en": getattr(char_data, 'instructions_en', None),
+                                "style_ru": getattr(char_data, 'style_ru', None),
+                                "style_en": getattr(char_data, 'style_en', None),
+                                "appearance_ru": getattr(char_data, 'appearance_ru', None),
+                                "appearance_en": getattr(char_data, 'appearance_en', None),
+                                "location_ru": getattr(char_data, 'location_ru', None),
+                                "location_en": getattr(char_data, 'location_en', None),
                             })
                     
                     if valid_characters:

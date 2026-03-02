@@ -165,6 +165,7 @@ class PaidAlbumPhoto(Base):
     character_id = Column(Integer, ForeignKey("characters.id", ondelete="CASCADE"), nullable=False, index=True)
     photo_id = Column(String(255), nullable=False)
     photo_url = Column(UTF8Text, nullable=False)
+    prompt = Column(UTF8Text, nullable=True)  # Промпт для этого фото (если известен)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class ChatSession(Base):

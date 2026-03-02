@@ -445,7 +445,7 @@ async def lifespan(app: FastAPI):
     
     logger.info("🎉 Приложение готово к работе!")
     logger.info("[INFO] Сервер должен быть готов принимать соединения")
-    
+
     from app.utils.http_client import http_client
     # Инициализируем глобальный HTTP клиент
     _ = http_client.get_client()
