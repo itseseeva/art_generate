@@ -2179,6 +2179,13 @@ export const PaidAlbumBuilderPage: React.FC<PaidAlbumBuilderPageProps> = ({
     try {
       if (photo.prompt && photo.prompt.trim()) {
         setSelectedPrompt(photo.prompt);
+        // Translate the prompt on-the-fly for the modal to display properly in either language
+        const [ruPrompt, enPrompt] = await Promise.all([
+          translateToRussian(photo.prompt),
+          translateToEnglish(photo.prompt)
+        ]);
+        setSelectedPromptRu(ruPrompt);
+        setSelectedPromptEn(enPrompt);
       } else {
         // Fallback for generated photos or old photos without prompt
         const result = await fetchPromptByImage(photo.url, character?.name);

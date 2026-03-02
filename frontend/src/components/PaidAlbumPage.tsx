@@ -6,7 +6,7 @@ import { LoadingSpinner } from './LoadingSpinner';
 import { ErrorMessage } from './ErrorMessage';
 import { FiImage as ImageIcon } from 'react-icons/fi';
 import { fetchPromptByImage } from '../utils/prompt';
-import { translateToRussian } from '../utils/translate';
+import { translateToRussian, translateToEnglish } from '../utils/translate';
 import { API_CONFIG, getMediaUrl } from '../config/api';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { PromptGlassModal } from './PromptGlassModal';
@@ -368,6 +368,13 @@ export const PaidAlbumPage: React.FC<PaidAlbumPageProps> = ({
     try {
       if (image.prompt && image.prompt.trim()) {
         setSelectedPrompt(image.prompt);
+        // Translate the prompt on-the-fly for the modal to display properly in either language
+        const [ruPrompt, enPrompt] = await Promise.all([
+          translateToRussian(image.prompt),
+          translateToEnglish(image.prompt)
+        ]);
+        setSelectedPromptRu(ruPrompt);
+        setSelectedPromptEn(enPrompt);
       } else {
         // Fallback to fetchPromptByImage if photo object doesn't have prompt
         const result = await fetchPromptByImage(image.url, character?.name || characterNameReal);
