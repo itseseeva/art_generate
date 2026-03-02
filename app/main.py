@@ -446,6 +446,16 @@ async def lifespan(app: FastAPI):
     logger.info("🎉 Приложение готово к работе!")
     logger.info("[INFO] Сервер должен быть готов принимать соединения")
 
+    # Инвалидируем кэш персонажей при каждом деплое чтобы гарантировать свежие bilingual-поля
+    try:
+        from app.utils.redis_cache import cache_delete, key_characters_list, cache_delete_pattern
+        await cache_delete(key_characters_list())
+        await cache_delete_pattern("characters:list:*")
+        await cache_delete_pattern("characters:single:*")
+        logger.info("[STARTUP] ✅ Кэш персонажей инвалидирован для применения обновлений полей")
+    except Exception as _cache_inv_err:
+        logger.warning(f"[STARTUP] Не удалось инвалидировать кэш персонажей: {_cache_inv_err}")
+
     from app.utils.http_client import http_client
     # Инициализируем глобальный HTTP клиент
     _ = http_client.get_client()
