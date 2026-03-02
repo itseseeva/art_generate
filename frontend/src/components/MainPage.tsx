@@ -682,18 +682,18 @@ export const MainPage: React.FC<MainPageProps> = ({
         raw: char,
         translations: char.translations,
         // Bilingual fields mapping
-        personality_ru: char.personality_ru,
-        personality_en: char.personality_en,
-        situation_ru: char.situation_ru,
-        situation_en: char.situation_en,
-        instructions_ru: char.instructions_ru,
-        instructions_en: char.instructions_en,
-        style_ru: char.style_ru,
-        style_en: char.style_en,
-        appearance_ru: char.appearance_ru || char.character_appearance_ru,
-        appearance_en: char.appearance_en || char.character_appearance_en,
-        location_ru: char.location_ru,
-        location_en: char.location_en
+        personality_ru: char.personality_ru || char.raw?.personality_ru,
+        personality_en: char.personality_en || char.raw?.personality_en,
+        situation_ru: char.situation_ru || char.raw?.situation_ru,
+        situation_en: char.situation_en || char.raw?.situation_en,
+        instructions_ru: char.instructions_ru || char.raw?.instructions_ru,
+        instructions_en: char.instructions_en || char.raw?.instructions_en,
+        style_ru: char.style_ru || char.raw?.style_ru,
+        style_en: char.style_en || char.raw?.style_en,
+        appearance_ru: char.appearance_ru || char.character_appearance_ru || char.raw?.appearance_ru || char.raw?.character_appearance_ru,
+        appearance_en: char.appearance_en || char.character_appearance_en || char.raw?.appearance_en || char.raw?.character_appearance_en,
+        location_ru: char.location_ru || char.raw?.location_ru,
+        location_en: char.location_en || char.raw?.location_en
       };
     });
   };

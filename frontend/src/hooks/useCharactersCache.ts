@@ -8,7 +8,7 @@
  * - Используется сжатая версия данных: только нужные поля (без raw).
  */
 
-const CACHE_KEY = 'characters_cache_v2';
+const CACHE_KEY = 'characters_cache_v3';
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 минут
 
 interface CharactersCacheEntry {

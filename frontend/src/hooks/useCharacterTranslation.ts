@@ -41,7 +41,9 @@ export function useCharacterTranslation(character: Character) {
             const translated = field_ru || field_en || (character.translations?.[currentLang]?.situation);
             if (translated) return translated as T;
 
-            const prompt = character.prompt || character.raw?.prompt || character.description || '';
+            const rawPrompt = character.raw?.prompt || character.raw?.full_prompt || '';
+            const prompt = character.prompt || rawPrompt || character.description || '';
+
             // Robust extraction: matches various English and Russian labels case-insensitively
             // Supports: Role-playing Situation, Roleplay Situation, Roleplay, Situation, Scenario and Russian equivalents
             // Also handles markdown like **Role-playing Situation** or [Roleplay]
