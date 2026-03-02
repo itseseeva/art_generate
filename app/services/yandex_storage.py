@@ -634,9 +634,15 @@ class YandexCloudStorageService:
         if cdn_host in url:
             return url
         
-        # Конвертируем старый /media/ прокси → CDN
-        if 'candygirlschat.com/media/' in url:
-            object_key = url.split('candygirlschat.com/media/')[-1]
+        # Конвертируем старые домены с /media/ → CDN
+        for old_domain in ['candygirlschat.com/media/', 'cherrylust.art/media/']:
+            if old_domain in url:
+                object_key = url.split(old_domain)[-1]
+                return f"{self.cdn_domain}/{object_key}"
+        
+        # Конвертируем старый домен cherrylust.art без /media/ → CDN
+        if 'cherrylust.art/' in url:
+            object_key = url.split('cherrylust.art/')[-1]
             return f"{self.cdn_domain}/{object_key}"
         
         # Извлекаем object_key из Yandex Storage URL
@@ -666,6 +672,13 @@ class YandexCloudStorageService:
         if not url:
             return url
         cdn_domain = os.getenv("CDN_DOMAIN", "https://candygirlschat.com").rstrip("/")
+        for old_domain in ['candygirlschat.com/media/', 'cherrylust.art/media/']:
+            if old_domain in url:
+                object_key = url.split(old_domain)[-1]
+                return f"{cdn_domain}/{object_key}"
+        if 'cherrylust.art/' in url:
+            object_key = url.split('cherrylust.art/')[-1]
+            return f"{cdn_domain}/{object_key}"
         if '.storage.yandexcloud.net/' in url:
             object_key = url.split('.storage.yandexcloud.net/')[-1]
             return f"{cdn_domain}/{object_key}"

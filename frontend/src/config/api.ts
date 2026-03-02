@@ -160,6 +160,11 @@ export const getMediaUrl = (path: string): string => {
       const parts = path.split('/media/');
       clearPath = parts[parts.length - 1] || path;
     }
+    // Старый домен cherrylust.art без /media/ (например generated_images/...)
+    else if (path.includes('cherrylust.art/')) {
+      const parts = path.split('cherrylust.art/');
+      clearPath = parts[parts.length - 1] || path;
+    }
     // Извлекаем object_key из Yandex Storage URL
     else if (path.includes('.storage.yandexcloud.net/')) {
       const parts = path.split('.storage.yandexcloud.net/');
