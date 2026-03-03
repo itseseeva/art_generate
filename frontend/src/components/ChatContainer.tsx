@@ -3623,7 +3623,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
             }
 
             // Очищаем content от [image:url] если он там есть
-            let cleanedContent = rawContent.replace(/\n?\[image:.*?\]/g, '').trim();
+            const cleanedContent = rawContent.replace(/\n?\[image:.*?\]/g, '').trim();
 
             // Проверяем, является ли это user-сообщением перед assistant-сообщением с изображением
             const isUserMessage = msg.type === 'user' || msg.role === 'user';

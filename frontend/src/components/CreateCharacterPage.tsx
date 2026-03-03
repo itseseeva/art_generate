@@ -8309,7 +8309,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                               <Zap size={18} />
                               {(() => {
                                 const hasGeneratedPhotos = generatedPhotos && generatedPhotos.length > 0;
-                                let buttonText = t('createCharacter.photo.generate');
+                                const buttonText = t('createCharacter.photo.generate');
 
                                 if (!userInfo) {
                                   return buttonText;

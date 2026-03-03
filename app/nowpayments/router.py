@@ -108,7 +108,7 @@ async def create_nowpayment(
         "price_currency": price_currency,
         "order_id": order_id,
         "order_description": payload.description,
-        "ipn_callback_url": f"{settings.DOMAIN.rstrip('/')}/api/v1/nowpayments/webhook/",
+        "ipn_callback_url": f"{settings.FRONTEND_URL.rstrip('/')}/api/v1/nowpayments/webhook/",
         "success_url": success_url,
         "cancel_url": cancel_url,
     }

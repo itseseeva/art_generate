@@ -349,6 +349,7 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
               views: char.views || 0,
               comments: char.comments || 0,
               prompt: char.prompt || char.full_prompt || '',
+              user_id: char.user_id,
               // Bilingual fields
               personality_ru: char.personality_ru,
               personality_en: char.personality_en,
@@ -566,7 +567,8 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
                       onPaidAlbum={onPaidAlbum}
                       isFavorite={isFavorite}
                       onFavoriteToggle={loadFavorites}
-                      onDelete={undefined}
+                      userInfo={userInfo}
+                      onDelete={async () => { await loadMyCharacters(); }}
                     />
                   );
                 })

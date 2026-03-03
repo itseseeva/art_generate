@@ -153,8 +153,19 @@ export const ShopPage: React.FC<any> = ({
   };
 
   // --- Business Logic ---
-  const calculatePrice = (basePrice: number) => {
+  const calculatePrice = (basePrice: number, isStandard1MonthOverride: boolean = false) => {
     const months = CYCLE_MONTHS[billingCycle];
+
+    if (isStandard1MonthOverride && billingCycle === 'monthly') {
+      return {
+        monthly: 150,
+        total: 150,
+        originalMonthly: basePrice,
+        originalTotal: basePrice,
+        discountPercent: Math.round(100 - (150 / basePrice) * 100)
+      };
+    }
+
     const discount = DISCOUNTS[billingCycle];
     const monthlyDiscounted = basePrice * (1 - discount);
     const roundedMonthly = Math.floor(monthlyDiscounted);
@@ -189,7 +200,7 @@ export const ShopPage: React.FC<any> = ({
 
     try {
       const basePrice = plan === 'premium' ? 1199 : 449;
-      const priceInfo = calculatePrice(basePrice);
+      const priceInfo = calculatePrice(basePrice, plan === 'standard');
       const amount = priceInfo.total;
       const description = `${plan.toUpperCase()} ${t('shop.subscription')} (${billingCycle.replace('_', ' ')})`;
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/kassa/create_payment/`, {
@@ -224,7 +235,7 @@ export const ShopPage: React.FC<any> = ({
 
     try {
       const basePrice = plan === 'premium' ? 1199 : 449;
-      const priceInfo = calculatePrice(basePrice);
+      const priceInfo = calculatePrice(basePrice, plan === 'standard');
       const amount = priceInfo.total;
       const description = `${plan.toUpperCase()} ${t('shop.subscription')} (${billingCycle.replace('_', ' ')})`;
 
@@ -257,7 +268,7 @@ export const ShopPage: React.FC<any> = ({
 
     try {
       const basePrice = plan === 'premium' ? 1199 : 449;
-      const priceInfo = calculatePrice(basePrice);
+      const priceInfo = calculatePrice(basePrice, plan === 'standard');
       const amount = priceInfo.total;
       const description = `[TEST] ${plan.toUpperCase()} ${t('shop.subscription')}`;
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/kassa/create_payment/`, {
@@ -290,7 +301,7 @@ export const ShopPage: React.FC<any> = ({
 
     try {
       const basePrice = plan === 'premium' ? 1199 : 449;
-      const priceInfo = calculatePrice(basePrice);
+      const priceInfo = calculatePrice(basePrice, plan === 'standard');
       const amount = priceInfo.total;
       const description = `[TEST] ${plan.toUpperCase()} ${t('shop.subscription')}`;
 
@@ -355,8 +366,8 @@ export const ShopPage: React.FC<any> = ({
   const renderSubscriptionContent = () => {
     const premiumBasePrice = 1199;
     const standardBasePrice = 449;
-    const premiumPrice = calculatePrice(premiumBasePrice);
-    const standardPrice = calculatePrice(standardBasePrice);
+    const premiumPrice = calculatePrice(premiumBasePrice, false);
+    const standardPrice = calculatePrice(standardBasePrice, true);
     const isYearly = billingCycle === 'yearly';
     const is6Months = billingCycle === '6_months';
 

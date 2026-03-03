@@ -12,8 +12,8 @@ def get_nowpayments_config(test_mode: bool = False) -> Dict[str, Any]:
     api_url = https://api-sandbox.nowpayments.io/v1
     """
     if test_mode:
-        api_key = settings.NOWPAYMENTS_API_KEY_TEST
-        ipn_secret = settings.NOWPAYMENTS_API_PUBLIC_KEY_TEST
+        api_key = settings.NOWPAYMENTS_API_KEY_TEST or settings.NOWPAYMENTS_API_KEY
+        ipn_secret = settings.NOWPAYMENTS_API_PUBLIC_KEY_TEST or settings.NOWPAYMENTS_API_PUBLIC_KEY
         base_url = "https://api-sandbox.nowpayments.io/v1"
     else:
         api_key = settings.NOWPAYMENTS_API_KEY

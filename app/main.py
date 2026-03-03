@@ -812,6 +812,59 @@ async def get_character_ratings_direct(
         logger.error(f"Error in get_character_ratings_direct: {e}")
         raise HTTPException(status_code=500, detail=f"Error getting character ratings: {str(e)}")
 
+@app.delete("/api/v1/characters/{character_id}")
+async def delete_character_direct(
+    character_id: int,
+    current_user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Удаляет персонажа по ID. Доступно только admin или владельцу персонажа."""
+    from app.chat_bot.models.models import CharacterDB
+    from sqlalchemy import select
+    try:
+        result = await db.execute(select(CharacterDB).where(CharacterDB.id == character_id))
+        character = result.scalar_one_or_none()
+
+        if not character:
+            raise HTTPException(status_code=404, detail="Персонаж не найден")
+
+        # Проверяем права: admin или владелец
+        is_admin = getattr(current_user, 'is_admin', False)
+        is_owner = character.user_id == current_user.id
+
+        if not is_admin and not is_owner:
+            raise HTTPException(
+                status_code=403,
+                detail="Нет прав для удаления персонажа"
+            )
+
+        await db.delete(character)
+        await db.commit()
+
+        # Инвалидируем кэш
+        try:
+            from app.utils.redis_cache import (
+                cache_delete, key_characters_list,
+                cache_delete_pattern
+            )
+            await cache_delete(key_characters_list())
+            await cache_delete_pattern("characters:list:*")
+            await cache_delete_pattern(f"characters:single:{character_id}*")
+            await cache_delete_pattern("characters:single:*")
+        except Exception as cache_err:
+            logger.warning(f"[WARNING] Ошибка инвалидации кэша при удалении персонажа: {cache_err}")
+
+        logger.info(f"[DELETE] Персонаж ID={character_id} удалён пользователем ID={current_user.id}")
+        return {"success": True, "message": "Персонаж успешно удалён", "character_id": character_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"[ERROR] Ошибка при удалении персонажа {character_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Ошибка удаления персонажа: {str(e)}")
+
+
 # Простой тестовый эндпоинт БЕЗ зависимостей для проверки работы сервера
 @app.get("/api/v1/test-ping")
 async def test_ping():

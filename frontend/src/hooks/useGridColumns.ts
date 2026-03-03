@@ -5,7 +5,7 @@ export const useGridColumns = (containerRef: RefObject<HTMLElement>, minCardWidt
 
     useLayoutEffect(() => {
         const handleResize = (entries: ResizeObserverEntry[]) => {
-            for (let entry of entries) {
+            for (const entry of entries) {
                 if (window.innerWidth <= 768) {
                     setColumnsCount(2); // Mobile view fixed 2 columns
                     continue;

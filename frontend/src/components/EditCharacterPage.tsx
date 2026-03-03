@@ -6845,7 +6845,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                         'realism': 'Реализм'
                                       };
                                       const currentModelName = modelDisplayNames[selectedModel] || selectedModel;
-                                      let buttonText = hasGeneratedPhotos ? `Сгенерировать ещё` : `Сгенерировать фото`;
+                                      const buttonText = hasGeneratedPhotos ? `Сгенерировать ещё` : `Сгенерировать фото`;
 
                                       // Получаем информацию об очереди для отображения на кнопке
                                       if (!userInfo) {

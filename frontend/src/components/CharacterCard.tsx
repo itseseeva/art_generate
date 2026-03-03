@@ -87,7 +87,7 @@ const ActionButtons = styled.div<{ $badgeCount: number }>`
   transform: translateY(-10px);
   transition: all ${theme.transition.fast};
   pointer-events: auto;
-  z-index: 1000;
+  z-index: 10010;
   
   ${CardContainer}: hover & {
     opacity: 1;
@@ -1483,6 +1483,144 @@ z-index: 10003;
 }
 `;
 
+const DeleteConfirmOverlay = styled(motion.div)`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  padding: 20px;
+`;
+
+const DeleteConfirmCard = styled(motion.div)`
+  background: linear-gradient(135deg, rgba(18, 18, 35, 0.98) 0%, rgba(25, 15, 40, 0.98) 100%);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 20px;
+  padding: 36px 32px 28px;
+  max-width: 420px;
+  width: 100%;
+  position: relative;
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 25px 60px rgba(0, 0, 0, 0.7),
+    0 0 40px rgba(239, 68, 68, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+`;
+
+const DeleteIconWrap = styled.div`
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(239, 68, 68, 0.25) 0%, rgba(239, 68, 68, 0.08) 70%);
+  border: 2px solid rgba(239, 68, 68, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+  margin-bottom: 4px;
+
+  svg {
+    width: 28px;
+    height: 28px;
+    color: #ef4444;
+  }
+`;
+
+const DeleteConfirmTitle = styled.h2`
+  color: #ffffff;
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0;
+  font-family: 'Inter', -apple-system, sans-serif;
+  letter-spacing: -0.02em;
+`;
+
+const DeleteConfirmText = styled.p`
+  color: rgba(200, 200, 220, 0.8);
+  font-size: 0.9rem;
+  margin: 0;
+  line-height: 1.6;
+  font-family: 'Inter', -apple-system, sans-serif;
+
+  span {
+    color: rgba(255, 255, 255, 0.95);
+    font-weight: 600;
+  }
+`;
+
+const DeleteConfirmButtons = styled.div`
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+  width: 100%;
+`;
+
+const DeleteCancelBtn = styled.button`
+  flex: 1;
+  padding: 12px 20px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Inter', -apple-system, sans-serif;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: #ffffff;
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+`;
+
+const DeleteConfirmBtn = styled.button<{ $loading?: boolean }>`
+  flex: 1;
+  padding: 12px 20px;
+  border-radius: 12px;
+  background: ${props => props.$loading ? 'rgba(239, 68, 68, 0.3)' : 'linear-gradient(135deg, rgba(239, 68, 68, 0.9) 0%, rgba(185, 28, 28, 0.9) 100%)'};
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: ${props => props.$loading ? 'not-allowed' : 'pointer'};
+  transition: all 0.2s ease;
+  font-family: 'Inter', -apple-system, sans-serif;
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  &:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 1) 0%, rgba(185, 28, 28, 1) 100%);
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.5);
+    transform: translateY(-1px);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+`;
+
 import { Character } from '../types/character';
 import { useCharacterTranslation } from '../hooks/useCharacterTranslation';
 
@@ -1672,6 +1810,32 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   const [likesCount, setLikesCount] = useState<number>(character.likes ?? 0);
   const [dislikesCount, setDislikesCount] = useState<number>(character.dislikes ?? 0);
   const [userRating, setUserRating] = useState<'like' | 'dislike' | null>(null);
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Функция для удаления персонажа
+  const handleDeleteConfirm = async () => {
+    if (!onDelete) return;
+    setIsDeleting(true);
+    try {
+      const response = await authManager.fetchWithAuth(
+        `${API_CONFIG.BASE_URL}/api/v1/characters/${character.id}`,
+        { method: 'DELETE' }
+      );
+      if (response.ok) {
+        setShowDeleteModal(false);
+        onDelete(character);
+      } else {
+        const data = await response.json().catch(() => ({}));
+        console.error('[DELETE] Ошибка удаления:', data.detail || response.status);
+      }
+    } catch (error) {
+      console.error('[DELETE] Ошибка сети:', error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Проверка на оригинальность персонажа
   const isOriginal = useMemo(() => {
@@ -2565,13 +2729,16 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                     <FiEdit />
                   </ActionButton>
                 )}
-                {showEditButton && onDelete && (
+
+                {/* Delete Button */}
+                {onDelete && (isAdmin || userInfo?.is_admin || (userInfo?.id && Number(userInfo.id) === Number(character.user_id))) && (
                   <ActionButton
                     $variant="delete"
-                    title={t('common.delete')}
+                    title={t('common.delete', 'Удалить')}
                     onClick={(e) => {
+                      e.preventDefault();
                       e.stopPropagation();
-                      onDelete(character);
+                      setShowDeleteModal(true);
                     }}
                   >
                     <FiTrash2 />
@@ -2883,6 +3050,74 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
         isLoading={isLoadingPrompt}
         error={promptError}
       />
+
+      {/* Delete Confirm Modal */}
+      {createPortal(
+        <AnimatePresence>
+          {showDeleteModal && (
+            <DeleteConfirmOverlay
+              key="delete-modal-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setShowDeleteModal(false);
+              }}
+            >
+              <DeleteConfirmCard
+                initial={{ opacity: 0, scale: 0.85, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.85, y: 20 }}
+                transition={{ type: 'spring', damping: 22, stiffness: 320 }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+              >
+                <DeleteIconWrap>
+                  <FiTrash2 />
+                </DeleteIconWrap>
+
+                <DeleteConfirmTitle>Удалить персонажа?</DeleteConfirmTitle>
+
+                <DeleteConfirmText>
+                  Вы уверены, что хотите удалить&nbsp;
+                  <span>{character.name}</span>?<br />
+                  Это действие невозможно отменить.
+                </DeleteConfirmText>
+
+                <DeleteConfirmButtons>
+                  <DeleteCancelBtn
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowDeleteModal(false);
+                    }}
+                    disabled={isDeleting}
+                  >
+                    Отмена
+                  </DeleteCancelBtn>
+                  <DeleteConfirmBtn
+                    $loading={isDeleting}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleDeleteConfirm();
+                    }}
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? 'Удаление...' : 'Удалить'}
+                  </DeleteConfirmBtn>
+                </DeleteConfirmButtons>
+              </DeleteConfirmCard>
+            </DeleteConfirmOverlay>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </>
   );
 };

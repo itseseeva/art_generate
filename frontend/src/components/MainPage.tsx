@@ -678,6 +678,7 @@ export const MainPage: React.FC<MainPageProps> = ({
         paid_album_photos_count: char.paid_album_photos_count || 0,
         paid_album_preview_urls: char.paid_album_preview_urls || [],
         prompt: char.prompt || char.full_prompt || '',
+        user_id: char.user_id,
 
         raw: char,
         translations: char.translations,
@@ -1293,52 +1294,21 @@ export const MainPage: React.FC<MainPageProps> = ({
     }
   };
 
-  // Обработчик удаления персонажа (для админов и создателей персонажей)
+  // Обработчик удаления персонажа (вызывается после успешного удаления в CharacterCard)
   const handleDeleteCharacter = async (character: Character) => {
     const characterName = character.name || (character as any).raw?.name;
     if (!characterName) {
-
       return;
     }
 
-    if (!confirm(`Вы уверены, что хотите удалить персонажа "${characterName}"?`)) {
-      return;
-    }
+    // Удаление уже выполнено в компоненте CharacterCard
+    // Нам нужно только обновить локальное состояние
+    await loadCharacters(true);
 
-    try {
-      const token = localStorage.getItem('authToken');
-      if (!token) {
-
-        return;
-      }
-
-      // КРИТИЧНО: Используем ID для удаления, если он доступен
-      const identifier = character.id?.toString() || characterName;
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${encodeURIComponent(identifier)}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-
-        // Обновляем список персонажей
-        await loadCharacters(true);
-        // Отправляем событие для обновления других страниц
-        window.dispatchEvent(new CustomEvent('character-deleted', {
-          detail: { characterName }
-        }));
-      } else {
-        const errorData = await response.json().catch(() => ({ detail: 'Неизвестная ошибка' }));
-
-        alert(`Ошибка удаления персонажа: ${errorData.detail || 'Неизвестная ошибка'}`);
-      }
-    } catch (error) {
-
-      alert('Ошибка при удалении персонажа. Попробуйте позже.');
-    }
+    // Отправляем событие для обновления других страниц
+    window.dispatchEvent(new CustomEvent('character-deleted', {
+      detail: { characterName }
+    }));
   };
 
   // Проверяем, может ли пользователь удалить персонажа (админ или создатель)
