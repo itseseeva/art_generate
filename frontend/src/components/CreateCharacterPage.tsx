@@ -8418,10 +8418,16 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
                                 const limit = subscriptionStats?.images_limit ??
                                   subscriptionStats?.monthly_photos ??
+                                  userInfo?.subscription?.images_limit ??
+                                  userInfo?.subscription?.monthly_photos ??
                                   (subType === 'standard' || subType === 'premium' ? 300 : 5);
+
                                 const used = subscriptionStats?.images_used ??
                                   subscriptionStats?.used_photos ??
+                                  userInfo?.subscription?.images_used ??
+                                  userInfo?.subscription?.used_photos ??
                                   0;
+
                                 return Math.max(0, limit - used);
                               })()}
                             </LimitValue>
