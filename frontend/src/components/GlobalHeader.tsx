@@ -7,7 +7,6 @@ import { theme } from '../theme';
 import { authManager } from '../utils/auth';
 import { ShoppingBag, User, Coins, DollarSign, LogOut, X, ClipboardList, CheckCircle, Crown, Home } from 'lucide-react';
 import { generationTracker } from '../utils/generationTracker';
-import { LanguageSwitcher } from './LanguageSwitcher';
 import { SearchBar } from './SearchBar';
 import { MenuToggle } from './ui/MenuToggle';
 import { getMediaUrl } from '../config/api';
@@ -782,14 +781,12 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
               >
                 <Crown size={16} className="drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
               </motion.div>
-              <span className="font-sans font-medium tracking-tight text-white/90 text-sm whitespace-nowrap">
+              <span className="font-sans font-medium tracking-tight text-white/90 text-[0px] md:text-sm whitespace-nowrap hidden md:block">
                 {t('header.changePlan')}
               </span>
             </div>
           </AnimatedBorderButton>
         )}
-
-        <LanguageSwitcher />
 
         {!isAuthenticated && (
           <>
