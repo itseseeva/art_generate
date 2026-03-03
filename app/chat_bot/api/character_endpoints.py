@@ -3303,16 +3303,27 @@ async def toggle_character_nsfw(
         )
     
     try:
-        # Находим персонажа
+        # Декодируем имя на всякий случай
+        from urllib.parse import unquote
+        decoded_name = unquote(character_name)
+        
+        # Находим персонажа без учета регистра
         result = await db.execute(
-            select(CharacterDB).where(CharacterDB.name == character_name)
+            select(CharacterDB).where(CharacterDB.name.ilike(decoded_name))
         )
         db_char = result.scalar_one_or_none()
+        
+        # Если не найдено по имени, пробуем по ID, если это число
+        if not db_char and decoded_name.isdigit():
+            result = await db.execute(
+                select(CharacterDB).where(CharacterDB.id == int(decoded_name))
+            )
+            db_char = result.scalar_one_or_none()
         
         if not db_char:
             raise HTTPException(
                 status_code=404,
-                detail=f"Character '{character_name}' not found"
+                detail=f"Character '{decoded_name}' not found"
             )
         
         # Переключаем флаг

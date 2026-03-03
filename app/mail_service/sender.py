@@ -211,6 +211,7 @@ class EmailSender:
         self.username = EMAIL_HOST_USER
         self.password = EMAIL_HOST_PASSWORD
         self.use_tls = EMAIL_USE_TLS
+        self.from_email = DEFAULT_FROM_EMAIL or self.username
     
     def send_verification_email(self, to_email: str, verification_code: str) -> bool:
         """
@@ -239,7 +240,8 @@ class EmailSender:
         try:
             # Create message
             msg = MIMEMultipart()
-            msg['From'] = self.username
+            # Используем DEFAULT_FROM_EMAIL с красивым именем
+            msg['From'] = f"Candy Girls Chat Support <{self.from_email}>"
             msg['To'] = to_email
             msg['Subject'] = "Подтверждение email - Cherry Lust"
             
@@ -325,7 +327,8 @@ class EmailSender:
         try:
             # Создаем сообщение
             msg = MIMEMultipart()
-            msg['From'] = self.username
+            # Используем DEFAULT_FROM_EMAIL с красивым именем
+            msg['From'] = f"Candy Girls Chat Support <{self.from_email}>"
             msg['To'] = to_email
             msg['Subject'] = "Восстановление пароля - Cherry Lust"
             
