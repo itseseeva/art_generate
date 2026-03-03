@@ -1473,6 +1473,7 @@ async def read_characters(
                 "tags": tags_list,
                 "likes": likes_map.get(char.id, 0),
                 "comments": messages_map.get(char.id, 0),
+                "total_messages_count": getattr(char, 'total_messages_count', 0) or 0,
                 "creator_username": username_map.get(char.id),
                 "paid_album_photos_count": album_counts_map.get(char.id, 0),
                 "paid_album_preview_urls": [process_url(u) for u in album_previews_map.get(char.id, [])],
@@ -2436,6 +2437,7 @@ async def read_character(character_name: str, db: AsyncSession = Depends(get_db)
             "appearance_en": db_char.appearance_en,
             "location_ru": db_char.location_ru,
             "location_en": db_char.location_en,
+            "total_messages_count": getattr(db_char, 'total_messages_count', 0) or 0,
         }
 
         await cache_set(cache_key, char_data, ttl_seconds=TTL_CHARACTER)
