@@ -4806,6 +4806,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                         views: currentCharacter.views || 0,
                         comments: currentCharacter.comments || 0
                       }}
+                      totalMessages={messages.length}
                       onClick={() => { }}
                       isAuthenticated={isAuthenticated}
                       isFavorite={isCharacterFavorite}
