@@ -1646,7 +1646,6 @@ interface CharacterCardProps {
   isAdmin?: boolean; // New prop for admin features
   isRight?: boolean; // Direction of the roleplay popup (default: true)
   disableHover?: boolean; // Disable hover overlay
-  totalMessages?: number; // Реальное количество сообщений в чате (для отображения вместо comments)
 }
 
 // Компонент слайд-шоу
@@ -1750,7 +1749,6 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   isAdmin = false, // Default to false
   isRight = true, // Default to true (open to right)
   disableHover = false, // Default to false
-  totalMessages, // Реальное количество сообщений в чате
 }) => {
   const { t, i18n } = useTranslation('common');
   const { tChar } = useCharacterTranslation(character);
@@ -2854,11 +2852,9 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                   <StatItem>
                     <FiMessageSquare size={12} />
                     {formatCount(
-                      ((character as any).total_messages_count ?? 0) > 0
+                      (character as any).total_messages_count !== undefined && (character as any).total_messages_count !== null
                         ? (character as any).total_messages_count
-                        : totalMessages !== undefined && totalMessages > 0
-                          ? totalMessages
-                          : (character.comments || 0)
+                        : (character.comments || 0)
                     )}
                   </StatItem>
                   <div style={{ flex: 1 }} />

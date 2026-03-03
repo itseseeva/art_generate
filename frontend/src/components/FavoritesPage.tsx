@@ -259,6 +259,7 @@ export const FavoritesPage: React.FC<FavoritesPageProps> = ({
             dislikes: char.dislikes || 0,
             views: char.views || 0,
             comments: char.comments || 0,
+            total_messages_count: char.total_messages_count || 0,
             prompt: char.prompt || char.full_prompt || '',
             // Bilingual fields
             personality_ru: char.personality_ru,

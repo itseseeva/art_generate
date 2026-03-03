@@ -391,6 +391,7 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
             dislikes: char.dislikes || 0,
             views: char.views || 0,
             comments: char.comments || 0,
+            total_messages_count: char.total_messages_count || 0,
             personality_ru: char.personality_ru,
             personality_en: char.personality_en,
             situation_ru: char.situation_ru,

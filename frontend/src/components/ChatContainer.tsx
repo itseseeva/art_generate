@@ -2130,6 +2130,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           dislikes: characterData.dislikes !== undefined ? characterData.dislikes : ((currentCharacter as any).dislikes || 0),
           views: characterData.views !== undefined ? characterData.views : (currentCharacter.views || 0),
           comments: characterData.comments !== undefined ? characterData.comments : (currentCharacter.comments || 0),
+          total_messages_count: characterData.total_messages_count !== undefined ? characterData.total_messages_count : ((currentCharacter as any).total_messages_count || 0),
           translations: characterData.translations,
           prompt: characterData.prompt || '',
           raw: characterData // Сохраняем raw данные для правильной работы с именем
@@ -2152,6 +2153,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           dislikes: characterData.dislikes || 0,
           views: characterData.views || 0,
           comments: characterData.comments || 0,
+          total_messages_count: characterData.total_messages_count || 0,
           tags: characterData.tags || [],
           author: characterData.author || 'Unknown',
           translations: characterData.translations,
@@ -3181,6 +3183,21 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           if (originalMessage.trim()) next.used_messages = (next.used_messages ?? 0) + 1;
           if (generateImage) next.used_photos = (next.used_photos ?? 0) + 1;
           return next;
+        });
+      }
+
+      // Оптимистичное обновление счетчика сообщений персонажа для карточки
+      if (!generateImage && originalMessage.trim()) {
+        setCurrentCharacter(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            total_messages_count: (prev.total_messages_count || 0) + 1,
+            raw: {
+              ...(prev.raw || {}),
+              total_messages_count: ((prev.raw as any)?.total_messages_count || 0) + 1
+            }
+          };
         });
       }
 
@@ -4807,7 +4824,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                         comments: currentCharacter.comments || 0,
                         total_messages_count: (currentCharacter as any).total_messages_count
                       }}
-                      totalMessages={messages.length}
                       onClick={() => { }}
                       isAuthenticated={isAuthenticated}
                       isFavorite={isCharacterFavorite}

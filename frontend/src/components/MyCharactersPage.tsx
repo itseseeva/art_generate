@@ -348,6 +348,7 @@ export const MyCharactersPage: React.FC<MyCharactersPageProps> = ({
               dislikes: char.dislikes || 0,
               views: char.views || 0,
               comments: char.comments || 0,
+              total_messages_count: char.total_messages_count || 0,
               prompt: char.prompt || char.full_prompt || '',
               user_id: char.user_id,
               // Bilingual fields

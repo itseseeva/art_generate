@@ -2571,6 +2571,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     likes: Number(rawChar.likes) || 0,
                     views: Number(rawChar.views) || 0,
                     comments: Number(rawChar.comments) || 0,
+                    total_messages_count: rawChar.total_messages_count || 0,
                     is_nsfw: rawChar.is_nsfw === true,
                     raw: rawChar,
                     // Bilingual fields and translations

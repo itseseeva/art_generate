@@ -289,6 +289,7 @@ export const TagsPage: React.FC<TagsPageProps> = ({
                             photos: photos,
                             likes: Number(char.likes) || 0,
                             comments: Number(char.comments) || 0,
+                            total_messages_count: char.total_messages_count || 0,
                             views: Number(char.views) || 0,
                             creator_username: char.creator_username,
                             raw: char,

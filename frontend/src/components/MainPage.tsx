@@ -677,6 +677,7 @@ export const MainPage: React.FC<MainPageProps> = ({
         creator_username: char.creator_username,
         paid_album_photos_count: char.paid_album_photos_count || 0,
         paid_album_preview_urls: char.paid_album_preview_urls || [],
+        total_messages_count: char.total_messages_count || 0,
         prompt: char.prompt || char.full_prompt || '',
         user_id: char.user_id,
 

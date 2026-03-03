@@ -107,6 +107,7 @@ export interface CharacterWithHistory {
   mode?: 'safe' | 'nsfw';
   lastMessageAt?: string | null;
   messageCount?: number;
+  total_messages_count?: number;
   raw?: any;
   // Bilingual fields
   personality_ru?: string;
@@ -250,6 +251,7 @@ const buildCharacterData = (
     mode: source?.is_nsfw ? 'nsfw' : 'safe',
     lastMessageAt: entry.last_message_at ?? null,
     messageCount: entry.message_count,
+    total_messages_count: source?.total_messages_count || 0,
     raw: source,
     // Preserving bilingual fields from source
     personality_ru: source?.personality_ru,
