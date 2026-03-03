@@ -700,34 +700,37 @@ export const MainPage: React.FC<MainPageProps> = ({
     });
   };
 
-  // Загрузка рейтингов персонажей. merge: true — мержить в существующие, иначе заменить.
+  // Загрузка рейтингов персонажей (параллельно для скорости).
+  // merge: true — мержить в существующие, иначе заменить.
   const loadCharacterRatings = async (
     charactersList: Character[],
     merge: boolean = false
   ) => {
-    const ratings: { [key: number]: { likes: number; dislikes: number } } = {};
+    const validChars = charactersList
+      .map(char => ({
+        char,
+        characterId: typeof char.id === 'number' ? char.id : parseInt(char.id, 10)
+      }))
+      .filter(({ characterId }) => !isNaN(characterId));
 
-    for (const char of charactersList) {
-      const characterId = typeof char.id === 'number' ? char.id : parseInt(char.id, 10);
-      if (isNaN(characterId)) continue;
+    const results = await Promise.allSettled(
+      validChars.map(({ characterId }) =>
+        fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.GET_CHARACTER_RATINGS(characterId)}`, {
+          headers: { 'Cache-Control': 'no-cache' }
+        }).then(res => res.ok ? res.json() : null)
+      )
+    );
 
-      try {
-        const response = await fetch(
-          `${API_CONFIG.BASE_URL}${API_CONFIG.GET_CHARACTER_RATINGS(characterId)}`,
-          { headers: { 'Cache-Control': 'no-cache' } }
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          ratings[characterId] = {
-            likes: data.likes || 0,
-            dislikes: data.dislikes || 0
-          };
-        }
-      } catch {
-        /* игнорируем */
+    const ratings: { [key: number]: { likes: number, dislikes: number } } = {};
+    results.forEach((result, idx) => {
+      if (result.status === 'fulfilled' && result.value) {
+        const { characterId } = validChars[idx];
+        ratings[characterId] = {
+          likes: result.value.likes || 0,
+          dislikes: result.value.dislikes || 0
+        };
       }
-    }
+    });
 
     if (merge) {
       setCharacterRatings((prev) => ({ ...prev, ...ratings }));
@@ -786,15 +789,25 @@ export const MainPage: React.FC<MainPageProps> = ({
       }
 
       let photosMap = buildPhotosMapFromBatch(allBatch);
-      if (Object.keys(characterPhotos).length === 0) {
-        const extraPhotosMap = await fetchAdditionalPhotos();
-        for (const k of Object.keys(extraPhotosMap)) {
-          if (!photosMap[k] || photosMap[k].length === 0) {
-            photosMap[k] = extraPhotosMap[k];
-          }
-        }
-      }
+      // Сразу обновляем стейт с извлеченными фото
       setCharacterPhotos((prev) => ({ ...prev, ...photosMap }));
+
+      // Асинхронно догружаем старые фото, не блокируя рендер
+      if (Object.keys(characterPhotos).length === 0) {
+        fetchAdditionalPhotos().then(extraPhotosMap => {
+          setCharacterPhotos(prev => {
+            const newMap = { ...prev };
+            let hasChanges = false;
+            for (const k of Object.keys(extraPhotosMap)) {
+              if (!newMap[k] || newMap[k].length === 0) {
+                newMap[k] = extraPhotosMap[k];
+                hasChanges = true;
+              }
+            }
+            return hasChanges ? newMap : prev;
+          });
+        }).catch(() => { });
+      }
       setCachedRawCharacters(allBatch);
 
       // Удаляем дубликаты по ID и имени
@@ -843,7 +856,7 @@ export const MainPage: React.FC<MainPageProps> = ({
       setCharacters(firstPage);
       setHasMore(filteredAll.length > PAGE_SIZE);
 
-      await loadCharacterRatings(firstPage, false);
+      loadCharacterRatings(firstPage, false);
 
 
     } catch {
@@ -888,7 +901,7 @@ export const MainPage: React.FC<MainPageProps> = ({
         setCharacters((prev) => [...prev, ...nextPage]);
         setHasMore(displayedFromCacheCountRef.current < filteredCache.length);
 
-        await loadCharacterRatings(nextPage, true);
+        loadCharacterRatings(nextPage, true);
         return;
       }
 
@@ -934,7 +947,7 @@ export const MainPage: React.FC<MainPageProps> = ({
       setCharacters((prev) => [...prev, ...formatted]);
       setHasMore(uniqueBatch.length === PAGE_SIZE);
 
-      await loadCharacterRatings(formatted, true);
+      loadCharacterRatings(formatted, true);
     } catch {
       setHasMore(false);
     } finally {
