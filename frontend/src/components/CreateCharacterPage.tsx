@@ -5084,23 +5084,9 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     localStorage.setItem('createCharacterStep', currentStep.toString());
   }, [currentStep, setSearchParams]);
 
-  // Сохраняем все данные формы при изменениях
+  // Сохранение было отключено, чтобы не перезаписывать данные других персонажей
   useEffect(() => {
-    // Не сохраняем данные, пока форма не инициализирована (данные не загружены восстановылены)
-    if (!isFormInitialized) return;
-
-    try {
-      const dataToSave = {
-        ...formData,
-
-        selectedVoiceId,
-        selectedVoiceUrl,
-        contentMode: currentContentMode
-      };
-      localStorage.setItem('createCharacterFormData', JSON.stringify(dataToSave));
-    } catch (error) {
-      console.error('Failed to save character creation data:', error);
-    }
+    // Временно оставляем пустой хук или можем его удалить
   }, [formData, selectedVoiceId, selectedVoiceUrl, currentContentMode]);
 
 
@@ -5271,8 +5257,12 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       // В режиме редактирования не восстанавливаем данные из localStorage,
       // чтобы не перезаписать данные из initialCharacter
       if (mode !== 'edit') {
+        const isRestore = searchParams.get('restore') === 'true';
+        const hasAuthToken = localStorage.getItem('authToken');
         const savedFormData = localStorage.getItem('createCharacterFormData');
-        if (savedFormData) {
+
+        // Восстанавливаем данные только если не авторизованы ИЛИ есть явный флаг restore
+        if (savedFormData && (!hasAuthToken || isRestore)) {
           try {
             const parsed = JSON.parse(savedFormData);
             setFormData(parsed);
@@ -5299,7 +5289,8 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
             setCurrentStep(1);
           }
         } else {
-          // Если нет сохранённых данных формы, это новый процесс - очищаем шаг
+          // Если нет сохранённых данных формы или мы не должны их загружать, это новый процесс - очищаем данные
+          localStorage.removeItem('createCharacterFormData');
           localStorage.removeItem('createCharacterStep');
           setCurrentStep(1);
         }
@@ -5379,13 +5370,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     const newFormData = { ...formData, [name]: value };
     setFormData(newFormData);
 
-    // Сохраняем данные в localStorage при каждом изменении (включая теги)
-    try {
-      const dataToSave = { ...newFormData };
-      localStorage.setItem('createCharacterFormData', JSON.stringify(dataToSave));
-    } catch (error) {
-    }
-
+    // Постоянное сохранение данных отключено
     setError(null);
     setSuccess(null);
 
@@ -5481,11 +5466,16 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
         // Перенаправляем на страницу входа с возвратом на создание персонажа
         // Используем SPA навигацию если доступна, иначе полный редирект
+        const restoreParam = '?restore=true';
+        const spaRedirectUrl = window.location.pathname.includes('?')
+          ? window.location.pathname + window.location.search + '&restore=true'
+          : window.location.pathname + restoreParam;
+
         if (onLogin) {
-          onLogin(window.location.pathname + window.location.search);
+          onLogin(spaRedirectUrl);
         } else {
           // Fallback: полный редирект
-          window.location.href = '/login?redirect=/create-character';
+          window.location.href = `/login?redirect=${encodeURIComponent(spaRedirectUrl)}`;
         }
         return;
       }
@@ -8421,9 +8411,14 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                             </AnimatedIcon>
                             <LimitValue $warning={(subscriptionStats?.images_limit || 0) - (subscriptionStats?.images_used || 0) <= 5}>
                               {(() => {
+                                const rawSub = userInfo?.subscription?.subscription_type ||
+                                  userInfo?.subscription?.type ||
+                                  userInfo?.subscription_type;
+                                const subType = typeof rawSub === 'string' ? rawSub.toLowerCase().trim() : '';
+
                                 const limit = subscriptionStats?.images_limit ??
                                   subscriptionStats?.monthly_photos ??
-                                  (userInfo?.subscription_type === 'standard' || userInfo?.subscription_type === 'premium' ? 300 : 5);
+                                  (subType === 'standard' || subType === 'premium' ? 300 : 5);
                                 const used = subscriptionStats?.images_used ??
                                   subscriptionStats?.used_photos ??
                                   0;
