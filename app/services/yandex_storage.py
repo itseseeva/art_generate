@@ -671,7 +671,7 @@ class YandexCloudStorageService:
         """
         if not url:
             return url
-        cdn_domain = os.getenv("CDN_DOMAIN", "https://candygirlschat.com").rstrip("/")
+        cdn_domain = os.getenv("CDN_DOMAIN", "https://static.candygirlschat.com").rstrip("/")
         for old_domain in ['candygirlschat.com/media/', 'cherrylust.art/media/']:
             if old_domain in url:
                 object_key = url.split(old_domain)[-1]
@@ -684,6 +684,7 @@ class YandexCloudStorageService:
             return f"{cdn_domain}/{object_key}"
         elif 'storage.yandexcloud.net/' in url:
             parts = url.split('storage.yandexcloud.net/')
+
             if len(parts) > 1:
                 path_parts = parts[1].split('/', 1)
                 if len(path_parts) > 1:
