@@ -2853,7 +2853,13 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                 <StatsContainer>
                   <StatItem>
                     <FiMessageSquare size={12} />
-                    {formatCount(totalMessages !== undefined ? totalMessages : (character.comments || 0))}
+                    {formatCount(
+                      (character as any).total_messages_count !== undefined
+                        ? (character as any).total_messages_count
+                        : totalMessages !== undefined
+                          ? totalMessages
+                          : (character.comments || 0)
+                    )}
                   </StatItem>
                   <div style={{ flex: 1 }} />
                 </StatsContainer>

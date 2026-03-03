@@ -10,6 +10,7 @@ export interface Character {
     dislikes?: number;
     views?: number;
     comments?: number;
+    total_messages_count?: number;
     is_nsfw?: boolean;
     creator_username?: string;
     paid_album_photos_count?: number;

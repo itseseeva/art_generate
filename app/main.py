@@ -2616,6 +2616,28 @@ async def increment_message_counter_async(user_id: int) -> None:
         # Не прерываем выполнение, если счетчик не обновился
 
 
+async def increment_character_message_counter_async(character_id: int) -> None:
+    """Атомарно увеличивает глобальный счётчик сообщений персонажа.
+    
+    Считает все сообщения от всех пользователей.
+    Никогда не уменьшается (в т.ч. при удалении истории).
+    """
+    try:
+        async with async_session_maker() as db:
+            from app.chat_bot.models.models import CharacterDB
+            from sqlalchemy import update
+            
+            # Атомарный инкремент через SQL (безопасно при конкурентных запросах)
+            await db.execute(
+                update(CharacterDB)
+                .where(CharacterDB.id == character_id)
+                .values(total_messages_count=CharacterDB.total_messages_count + 1)
+            )
+            await db.commit()
+    except Exception as e:
+        logger.error(f"[CHARACTER_COUNTER] Ошибка увеличения счётчика для character_id={character_id}: {e}")
+
+
 async def process_chat_history_storage(
     subscription_type: Optional[str],
     user_id: Optional[str],
@@ -2640,6 +2662,15 @@ async def process_chat_history_storage(
         # Увеличиваем счетчик сообщений асинхронно (не блокируем сохранение истории)
         if user_id_int:
             asyncio.create_task(increment_message_counter_async(user_id_int))
+        
+        # Увеличиваем глобальный счётчик сообщений персонажа (все пользователи, не сбрасывается)
+        if character_data and character_data.get("id"):
+            character_id = character_data.get("id")
+            try:
+                character_id_int = int(character_id)
+                asyncio.create_task(increment_character_message_counter_async(character_id_int))
+            except (ValueError, TypeError):
+                pass
         
         await _write_chat_history(
             user_id=user_id,

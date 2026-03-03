@@ -114,6 +114,7 @@ class CharacterDB(Base):
     voice_url = Column(String(500), nullable=True, default=None)  # URL для образца голоса (TTS)
     voice_id = Column(String(100), nullable=True, default=None)  # ID голоса из папки default_character_voices
     tags = Column(JSON, nullable=True, default=list)  # Список тегов (имена из character_available_tags)
+    total_messages_count = Column(Integer, nullable=False, server_default='0', default=0)  # Глобальный счётчик всех сообщений (всех пользователей, не сбрасывается при удалении истории)
     # DEPRECATED: translations = Column(JSON, nullable=True, default={})  # Переводы полей (name, description, etc.)
     # face_image removed (IP-Adapter removed)
     
