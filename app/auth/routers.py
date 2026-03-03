@@ -744,7 +744,11 @@ async def get_current_user_info(
                 "max_message_length": subscription.max_message_length,
                 "used_photos": subscription.used_photos,
                 "activated_at": subscription.activated_at,
-                "expires_at": subscription.expires_at
+                "expires_at": subscription.expires_at,
+                "images_limit": getattr(subscription, "images_limit", 0),
+                "images_used": getattr(subscription, "images_used", 0),
+                "voice_limit": getattr(subscription, "voice_limit", 0),
+                "voice_used": getattr(subscription, "voice_used", 0)
             }
         
         return UserResponse(

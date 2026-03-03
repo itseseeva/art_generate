@@ -4778,7 +4778,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
 
   const loadSubscriptionStats = async () => {
     try {
-      const response = await authManager.fetchWithAuth('/api/v1/subscription/stats');
+      const response = await authManager.fetchWithAuth('/api/v1/subscription/stats/');
       if (response.ok) {
         const stats = await response.json();
         setSubscriptionStats(stats);
