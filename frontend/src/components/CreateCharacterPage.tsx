@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useCharacterPrompts } from '../hooks/useCharacterPrompts';
@@ -9,7 +9,7 @@ import { theme } from '../theme';
 import '../styles/ContentArea.css';
 import { AuthModal } from './AuthModal';
 import { translateToEnglish } from '../utils/translate';
-import { API_CONFIG } from '../config/api';
+import { API_CONFIG, getMediaUrl } from '../config/api';
 import { motion, AnimatePresence } from 'motion/react';
 import { CircularProgress } from './ui/CircularProgress';
 import { FiX as CloseIcon, FiClock, FiImage, FiSettings, FiCheckCircle, FiCpu } from 'react-icons/fi';
@@ -4735,8 +4735,20 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         setSelectedVoiceUrl(localCharacter.voice_url);
       }
 
-      if (localCharacter.avatar_url) {
-        // Optionally set initial photo state if needed for visualization
+      // Инициализируем selectedPhotos из главных фото персонажа
+      if (localCharacter.photos && Array.isArray(localCharacter.photos) && localCharacter.photos.length > 0) {
+        const mainPhotos = localCharacter.photos
+          .filter((p: any) => p && (typeof p === 'string' ? p : p?.url))
+          .map((p: any, idx: number) => ({
+            id: (typeof p === 'string' ? undefined : p?.id)?.toString() ?? `main_${idx}`,
+            url: getMediaUrl(typeof p === 'string' ? p : (p?.url || '')),
+            generationTime: typeof p === 'object' ? p?.generation_time ?? null : null,
+          }))
+          .filter((p: any) => p.url)
+          .slice(0, MAX_MAIN_PHOTOS);
+        if (mainPhotos.length > 0) {
+          setSelectedPhotos(mainPhotos);
+        }
       }
     }
   }, [mode, localCharacter, i18n.language]);
@@ -5027,7 +5039,59 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     selectedModelRef.current = selectedModel;
   }, [selectedModel]);
 
+  // Загружаем ранее сгенерированные фото при переходе на шаг 4
+  const fetchExistingPhotos = useCallback(async (characterName: string) => {
+    if (!characterName) return;
+    try {
+      const token = localStorage.getItem('authToken');
+      const headers: HeadersInit = { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
+      const cacheBuster = `?t=${Date.now()}`;
+      const url = `${API_CONFIG.BASE_URL}/api/v1/characters/${encodeURIComponent(characterName)}/photos/${cacheBuster}`;
+      const response = await fetch(url, { headers });
+      if (!response.ok) return;
+
+      const photos = await response.json();
+      if (!Array.isArray(photos) || photos.length === 0) return;
+
+      const formattedPhotos = photos
+        .map((photo: any, index: number) => ({
+          id: photo.id?.toString() ?? `photo_${index}_${Date.now()}`,
+          url: getMediaUrl(photo.url),
+          isSelected: Boolean(photo.is_main),
+          created_at: photo.created_at ?? null,
+          generationTime: photo.generation_time ?? null,
+          prompt: photo.prompt ?? null,
+        }))
+        .filter((p: any) => p.url)
+        .filter((p: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.url === p.url) === i);
+
+      setGeneratedPhotos(prev => {
+        // Мёрджим: новые фото из API добавляем к уже сгенерированным в этой сессии
+        const existingUrls = new Set(prev.map((p: any) => p.url));
+        const newOnes = formattedPhotos.filter((p: any) => !existingUrls.has(p.url));
+        if (newOnes.length === 0) return prev;
+        // Ранее загруженные фото ставим в конец (новые сгенерированные - в начало)
+        return [...prev, ...newOnes];
+      });
+
+      // Инициализируем selectedPhotos главными фото если они ещё не выбраны
+      const mainPhotos = formattedPhotos.filter((p: any) => p.isSelected);
+      if (mainPhotos.length > 0) {
+        setSelectedPhotos(prev => {
+          if (prev.length > 0) return prev; // уже выбраны — не перезаписываем
+          return mainPhotos.slice(0, MAX_MAIN_PHOTOS).map((p: any) => ({
+            id: p.id,
+            url: p.url,
+            generationTime: p.generationTime,
+          }));
+        });
+      }
+    } catch (err) {
+      // Игнорируем ошибки — фото просто не загрузятся
+    }
+  }, []);
 
   // Убрали пошаговое скрытие полей - всё доступно сразу
   // const [showPersonality, setShowPersonality] = useState(false);
@@ -5071,6 +5135,13 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       });
     }
   }, [searchParams]);
+
+  // При переходе на шаг 4 загружаем ранее сгенерированные фото (только в режиме редактирования)
+  useEffect(() => {
+    if (mode === 'edit' && currentStep === 4 && createdCharacterData?.name) {
+      fetchExistingPhotos(createdCharacterData.name);
+    }
+  }, [mode, currentStep, createdCharacterData?.name, fetchExistingPhotos]);
 
   // Синхронизация State -> URL (Нажатие "Далее" / "Назад" в интерфейсе) и localStorage
   useEffect(() => {
@@ -8540,57 +8611,63 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         </div>
 
                         <PhotoList>
-                          {generatedPhotos.map((photo, index) => {
-                            if (!photo || !photo.url) return null;
-                            const isSelected = selectedPhotos.some(p => p.id === photo.id || p.url === photo.url);
+                          {[...generatedPhotos]
+                            .sort((a, b) => {
+                              const aSelected = selectedPhotos.some(p => p.id === a.id || p.url === a.url) ? 0 : 1;
+                              const bSelected = selectedPhotos.some(p => p.id === b.id || p.url === b.url) ? 0 : 1;
+                              return aSelected - bSelected;
+                            })
+                            .map((photo, index) => {
+                              if (!photo || !photo.url) return null;
+                              const isSelected = selectedPhotos.some(p => p.id === photo.id || p.url === photo.url);
 
-                            return (
-                              <PhotoTile key={`${photo?.id || `photo-${index}`}-${index}`}>
-                                <PhotoImage
-                                  src={photo.url}
-                                  alt={`Photo ${index + 1}`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (photo) openPhotoModal(photo);
-                                  }}
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = 'none';
-                                  }}
-                                />
-                                <GenerationTimer>
-                                  ⏱ {photo.generationTime !== undefined && photo.generationTime !== null && photo.generationTime > 0
-                                    ? (photo.generationTime < 60
-                                      ? `${Math.round(photo.generationTime)}с`
-                                      : `${Math.round(photo.generationTime / 60)}м ${Math.round(photo.generationTime % 60)}с`)
-                                    : '—'}
-                                </GenerationTimer>
-                                <PhotoOverlay
-                                  data-overlay-action
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <PhotoOverlayButton
-                                    type="button"
-                                    $variant={isSelected ? 'remove' : 'add'}
-                                    disabled={!isSelected && isLimitReached}
-                                    onPointerDown={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      const idOrUrl = photo?.id || photo?.url;
-                                      if (!idOrUrl) return;
-                                      if (!isSelected && isLimitReached) return;
-                                      togglePhotoSelection(idOrUrl);
-                                    }}
+                              return (
+                                <PhotoTile key={`${photo?.id || `photo-${index}`}-${index}`}>
+                                  <PhotoImage
+                                    src={photo.url}
+                                    alt={`Photo ${index + 1}`}
                                     onClick={(e) => {
-                                      e.preventDefault();
                                       e.stopPropagation();
+                                      if (photo) openPhotoModal(photo);
                                     }}
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                    }}
+                                  />
+                                  <GenerationTimer>
+                                    ⏱ {photo.generationTime !== undefined && photo.generationTime !== null && photo.generationTime > 0
+                                      ? (photo.generationTime < 60
+                                        ? `${Math.round(photo.generationTime)}с`
+                                        : `${Math.round(photo.generationTime / 60)}м ${Math.round(photo.generationTime % 60)}с`)
+                                      : '—'}
+                                  </GenerationTimer>
+                                  <PhotoOverlay
+                                    data-overlay-action
+                                    onClick={(e) => e.stopPropagation()}
                                   >
-                                    {isSelected ? t('createCharacter.photo.buttons.remove') : <><Plus size={12} /> {t('createCharacter.photo.buttons.add')}</>}
-                                  </PhotoOverlayButton>
-                                </PhotoOverlay>
-                              </PhotoTile>
-                            );
-                          }).filter(Boolean)}
+                                    <PhotoOverlayButton
+                                      type="button"
+                                      $variant={isSelected ? 'remove' : 'add'}
+                                      disabled={!isSelected && isLimitReached}
+                                      onPointerDown={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        const idOrUrl = photo?.id || photo?.url;
+                                        if (!idOrUrl) return;
+                                        if (!isSelected && isLimitReached) return;
+                                        togglePhotoSelection(idOrUrl);
+                                      }}
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                      }}
+                                    >
+                                      {isSelected ? t('createCharacter.photo.buttons.remove') : <><Plus size={12} /> {t('createCharacter.photo.buttons.add')}</>}
+                                    </PhotoOverlayButton>
+                                  </PhotoOverlay>
+                                </PhotoTile>
+                              );
+                            }).filter(Boolean)}
                         </PhotoList>
 
                       </div>

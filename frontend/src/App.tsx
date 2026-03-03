@@ -562,7 +562,10 @@ function App() {
           onBackToMain={handleBackToMain}
           onShop={handleShop}
           onProfile={handleProfile}
-          onOpenPaidAlbumBuilder={(char) => navigateWithLang(`/paid-album-builder/${char.id || char.name}`)}
+          onOpenPaidAlbumBuilder={(char) => {
+            setSelectedCharacter(char);
+            navigateWithLang(`/paid-album-builder/${char.id || char.name}`);
+          }}
           onOpenChat={handleOpenChat}
           onLogin={handleLogin}
         />
@@ -575,7 +578,10 @@ function App() {
           onBackToMain={handleBackToMain}
           onShop={handleShop}
           onProfile={() => handleProfile()}
-          onOpenPaidAlbumBuilder={(char) => navigateWithLang(`/paid-album-builder/${char.id || char.name}`)}
+          onOpenPaidAlbumBuilder={(char) => {
+            setSelectedCharacter(char);
+            navigateWithLang(`/paid-album-builder/${char.id || char.name}`);
+          }}
           onOpenChat={handleOpenChat}
           onLogin={handleLogin}
         />

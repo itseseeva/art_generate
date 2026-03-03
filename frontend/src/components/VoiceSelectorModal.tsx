@@ -3,7 +3,7 @@ import styled, { keyframes, css } from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { theme } from '../theme';
 import { FiX } from 'react-icons/fi';
-import { API_CONFIG } from '../config/api';
+import { API_CONFIG, getMediaUrl } from '../config/api';
 import { authManager } from '../utils/auth';
 
 // Функция для проверки премиальных голосов (права доступа)
@@ -21,13 +21,31 @@ const isPremiumVoiceForStyle = (voiceName?: string): boolean => {
   return name.includes('мита') || name.includes('meet') || name === 'мика';
 };
 
-// Функция для получения пути к фото голоса
-const getVoicePhotoPath = (voiceName: string): string => {
+// Список голосов у которых есть дефолтное фото
+const DEFAULT_VOICE_PHOTOS: Record<string, string> = {
+  'мита': '/default_voice_photo/Мита.png',
+  'mita': '/default_voice_photo/Мита.png',
+  'катя': '/default_voice_photo/Катя.png',
+  'katya': '/default_voice_photo/Катя.png',
+  'ника': '/default_voice_photo/Ника.png',
+  'nika': '/default_voice_photo/Ника.png',
+  'кристина': '/default_voice_photo/Кристина.png',
+  'kristina': '/default_voice_photo/Кристина.png',
+  'настя': '/default_voice_photo/Настя.png',
+  'nastya': '/default_voice_photo/Настя.png',
+  'даша': '/default_voice_photo/Даша.png',
+  'dasha': '/default_voice_photo/Даша.png',
+};
+
+// Функция для получения пути к фото дефолтного голоса
+const getVoicePhotoPath = (voiceName: string): string | null => {
   // Убираем расширение если есть и нормализуем имя
-  const normalizedName = voiceName.replace(/\.(mp3|wav|ogg)$/i, '');
-  // В Vite файлы из public доступны по корневому пути
-  // Пробуем сначала .png, так как файлы в формате PNG
-  return `/default_voice_photo/${normalizedName}.png`;
+  const normalizedName = voiceName.replace(/\.(mp3|wav|ogg)$/i, '').toLowerCase().trim();
+  // Ищем по ключевым словам в имени
+  for (const [key, path] of Object.entries(DEFAULT_VOICE_PHOTOS)) {
+    if (normalizedName.includes(key)) return path;
+  }
+  return null; // Нет дефолтного фото — покажем SVG-плейсхолдер
 };
 
 const ModalOverlay = styled.div`
@@ -888,9 +906,9 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
                 const defaultPlaceholder = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9InJnYmEoNjAsIDYwLCA2MCwgMC4zKSIvPgo8cGF0aCBkPSJNMzAgNDBDMzAgMzUuMDI5IDM0LjAyOSAzMSAzOSAzMUg0MUM0NS45NzEgMzEgNTAgMzUuMDI5IDUwIDQwQzUwIDQ0Ljk3MSA0NS45NzEgNDkgNDEgNDlIMzlDMzQuMDI5IDQ5IDMwIDQ0Ljk3MSAzMCA0MFoiIGZpbGw9InJnYmEoMTUwLCAxNTAsIDE1MCwgMC41KSIvPgo8L3N2Zz4K';
                 const photoPath = voice.is_user_voice
                   ? (voice.photo_url
-                    ? (voice.photo_url.startsWith('http') ? voice.photo_url : `${API_CONFIG.BASE_URL}${voice.photo_url}`)
+                    ? getMediaUrl(voice.photo_url)
                     : defaultPlaceholder)
-                  : getVoicePhotoPath(voice.name);
+                  : (getVoicePhotoPath(voice.name) ?? defaultPlaceholder);
 
                 return (
                   <VoiceCard
@@ -938,15 +956,9 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
                           $isSelected={isSelectedInModal}
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
-                            const normalizedName = voice.name.replace(/\.(mp3|wav|ogg)$/i, '');
-                            const extensions = ['.png', '.jpg', '.jpeg', '.webp'];
-                            let currentIndex = extensions.findIndex(ext => target.src.includes(ext));
-                            if (currentIndex === -1) currentIndex = 0;
-                            if (currentIndex < extensions.length - 1) {
-                              target.src = `/default_voice_photo/${normalizedName}${extensions[currentIndex + 1]}`;
-                            } else {
-                              target.src = defaultPlaceholder;
-                            }
+                            // Если фото не загрузилось — показываем SVG-плейсхолдер
+                            target.onerror = null;
+                            target.src = defaultPlaceholder;
                           }}
                         />
                         <VoiceCheckmark

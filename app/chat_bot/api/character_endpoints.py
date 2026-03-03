@@ -3752,23 +3752,22 @@ async def delete_character(
         if not db_char:
             raise HTTPException(status_code=404, detail=f"Персонаж '{decoded_name}' не найден")
         
-        # Явно удаляем связанные записи перед удалением персонажа
-        # (хотя каскадное удаление должно работать автоматически)
-        # Это гарантирует, что все связанные данные будут удалены
+        # Явно удаляем связанные записи перед удалением персонажа.
+        # Порядок важен: сначала chat_messages, потом chat_sessions, потом characters.
+        # FK chat_messages.session_id -> chat_sessions.id не имеет ondelete=CASCADE в БД,
+        # поэтому удаляем сообщения явно через subquery.
         
-        # Удаляем все сессии чата с этим персонажем
-        sessions_result = await db.execute(
-            select(ChatSession).where(ChatSession.character_id == db_char.id)
-        )
-        sessions = sessions_result.scalars().all()
-        
-        for session in sessions:
-            # Удаляем все сообщения из сессии
-            await db.execute(
-                delete(ChatMessageDB).where(ChatMessageDB.session_id == session.id)
+        await db.execute(
+            delete(ChatMessageDB).where(
+                ChatMessageDB.session_id.in_(
+                    select(ChatSession.id).where(ChatSession.character_id == db_char.id)
+                )
             )
-            # Удаляем саму сессию
-            await db.delete(session)
+        )
+        await db.execute(
+            delete(ChatSession).where(ChatSession.character_id == db_char.id)
+        )
+        await db.flush()
         
         # Удаляем персонажа (каскадное удаление удалит остальные связанные записи)
         await db.delete(db_char)
@@ -4277,14 +4276,14 @@ async def get_character_photos(
             SELECT id, user_id, character_name, image_url, created_at
             FROM user_gallery
             WHERE user_id = :user_id 
-              AND character_name = :character_name 
+              AND LOWER(character_name) = LOWER(:character_name) 
               AND image_url IS NOT NULL 
               AND image_url != ''
             ORDER BY created_at DESC
             """)
             result_gallery = await db.execute(query_gallery, {
                 "user_id": owner_user_id,
-                "character_name": character_name
+                "character_name": actual_character_name
             })
             rows_gallery = result_gallery.fetchall()
             logger.info(f"Found {len(rows_gallery)} photos in UserGallery for character {character_name}, owner user_id={owner_user_id}")
@@ -4316,7 +4315,7 @@ async def get_character_photos(
             
             image_history_query = select(ImageGenerationHistory).where(
                 ImageGenerationHistory.user_id == owner_user_id,
-                ImageGenerationHistory.character_name == character_name,
+                ImageGenerationHistory.character_name.ilike(actual_character_name),
                 ImageGenerationHistory.image_url.isnot(None),
                 ImageGenerationHistory.image_url != '',
                 ~ImageGenerationHistory.image_url.like('pending:%')
