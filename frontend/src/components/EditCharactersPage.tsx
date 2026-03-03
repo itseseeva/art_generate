@@ -323,80 +323,38 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
   const [authCheckComplete, setAuthCheckComplete] = useState(false);
   const [characterPhotos, setCharacterPhotos] = useState<{ [key: string]: string[] }>({});
   const [favoriteCharacterIds, setFavoriteCharacterIds] = useState<Set<number>>(new Set());
-  const [characterRatings, setCharacterRatings] = useState<{ [key: number]: { likes: number, dislikes: number } }>({});
+  const [characterRatings, setCharacterRatings] = useState<{ [key: number]: { likes: number, dislikes: number } }>({})
 
-  // Загрузка фото персонажей
-  const loadCharacterPhotos = async (userId: number, isAdmin: boolean = false) => {
-    if (!userId) {
-      return {};
-    }
-
-    try {
-      // Используем force_refresh=true чтобы получить актуальный список после редактирования
-      const charactersResponse = await authManager.fetchWithAuth(`/api/v1/characters/?force_refresh=true&_t=${Date.now()}`);
-
-      if (charactersResponse.ok) {
-        const charactersData = await charactersResponse.json();
-
-        const photosMap: { [key: string]: string[] } = {};
-
-        // Для админов загружаем всех персонажей, для обычных пользователей - только своих
-        const myCharacters = isAdmin
-          ? charactersData
-          : charactersData.filter((char: any) => char.user_id === userId);
-
-        for (const char of myCharacters) {
-
-          if (!char.main_photos) {
-
-            continue;
-          }
-
-          try {
-            const rawValue = typeof char.main_photos === 'string'
-              ? JSON.parse(char.main_photos)
-              : char.main_photos;
-
-            const normalized = Array.isArray(rawValue) ? rawValue : [];
-            const photoUrls = normalized
-              .map((entry: any) => {
-                if (!entry) {
-                  return null;
-                }
-
-                if (typeof entry === 'string') {
-                  return entry;
-                }
-
-                if (typeof entry === 'object') {
-                  return entry.url || entry.photo_url || null;
-                }
-
-                return null;
-              })
-              .filter((url): url is string => Boolean(url) && url.startsWith('http'));
-
-
-            photosMap[char.name.toLowerCase()] = photoUrls;
-          } catch (e) {
-
-          }
-        }
-
-
-        setCharacterPhotos(photosMap);
-        return photosMap;
-      } else {
-
-        return {};
-      }
-    } catch (error) {
-
-      return {};
-    }
+  // Удаление персонажа без перезагрузки страницы
+  const handleCharacterDelete = (deletedCharacter: Character) => {
+    setCharacters(prev => prev.filter(c => c.id !== deletedCharacter.id));
   };
 
-  // Загрузка персонажей пользователя
+  // Вспомогательная функция для извлечения фото из данных персонажей (без отдельного запроса)
+  const extractPhotosMap = (myCharacters: any[]): { [key: string]: string[] } => {
+    const photosMap: { [key: string]: string[] } = {};
+    for (const char of myCharacters) {
+      if (!char.main_photos) continue;
+      try {
+        const rawValue = typeof char.main_photos === 'string'
+          ? JSON.parse(char.main_photos)
+          : char.main_photos;
+        const normalized = Array.isArray(rawValue) ? rawValue : [];
+        const photoUrls = normalized
+          .map((entry: any) => {
+            if (!entry) return null;
+            if (typeof entry === 'string') return entry;
+            if (typeof entry === 'object') return entry.url || entry.photo_url || null;
+            return null;
+          })
+          .filter((url): url is string => Boolean(url) && url.startsWith('http'));
+        photosMap[char.name.toLowerCase()] = photoUrls;
+      } catch (e) { }
+    }
+    return photosMap;
+  };
+
+  // Загрузка персонажей пользователя (один запрос к API)
   const loadMyCharacters = async (userId: number, isAdmin: boolean = false) => {
     if (!userId) {
       return;
@@ -404,9 +362,8 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
 
     try {
       setIsLoading(true);
-      const photosMap = await loadCharacterPhotos(userId, isAdmin); // Загружаем фото
 
-      // Используем force_refresh=true чтобы получить актуальный список после редактирования
+      // Один запрос — получаем всё сразу
       const response = await authManager.fetchWithAuth(`/api/v1/characters/?force_refresh=true&_t=${Date.now()}`);
 
       if (response.ok) {
@@ -416,10 +373,14 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
           ? charactersData
           : charactersData.filter((char: any) => char.user_id === userId);
 
+        // Извлекаем фото из тех же данных (без второго запроса)
+        const photosMap = extractPhotosMap(myCharacters);
+        setCharacterPhotos(photosMap);
+
         const formattedCharacters: Character[] = myCharacters.map((char: any) => {
           const isOwnCharacter = char.user_id === userId;
           return {
-            id: char.id ? char.id.toString() : char.name, // Используем id если есть, иначе имя как fallback
+            id: char.id ? char.id.toString() : char.name,
             name: char.name,
             description: char.character_appearance || 'No description available',
             avatar: char.name.charAt(0).toUpperCase(),
@@ -430,7 +391,6 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
             dislikes: char.dislikes || 0,
             views: char.views || 0,
             comments: char.comments || 0,
-            // Bilingual fields
             personality_ru: char.personality_ru,
             personality_en: char.personality_en,
             situation_ru: char.situation_ru,
@@ -447,49 +407,49 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
           };
         });
 
-        // Загружаем рейтинги для всех персонажей
-        await loadCharacterRatings(formattedCharacters);
-
+        // Показываем персонажей сразу, рейтинги догружаем в фоне
         setCharacters(formattedCharacters);
         setIsAuthenticated(true);
-      } else {
 
+        // Рейтинги загружаем параллельно (не блокируем отображение)
+        loadCharacterRatings(formattedCharacters);
+      } else {
         setIsAuthenticated(false);
       }
     } catch (error) {
-
       setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Загрузка рейтингов персонажей
+  // Загрузка рейтингов персонажей (параллельно для скорости)
   const loadCharacterRatings = async (charactersList: Character[]) => {
+    const validChars = charactersList
+      .map(char => ({
+        char,
+        characterId: typeof char.id === 'number' ? char.id : parseInt(char.id, 10)
+      }))
+      .filter(({ characterId }) => !isNaN(characterId));
+
+    const results = await Promise.allSettled(
+      validChars.map(({ characterId }) =>
+        fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.GET_CHARACTER_RATINGS(characterId)}`, {
+          headers: { 'Cache-Control': 'no-cache' }
+        }).then(res => res.ok ? res.json() : null)
+      )
+    );
+
     const ratings: { [key: number]: { likes: number, dislikes: number } } = {};
-
-    for (const char of charactersList) {
-      const characterId = typeof char.id === 'number' ? char.id : parseInt(char.id, 10);
-      if (isNaN(characterId)) continue;
-
-      try {
-        const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.GET_CHARACTER_RATINGS(characterId)}`, {
-          headers: {
-            'Cache-Control': 'no-cache'
-          }
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          ratings[characterId] = {
-            likes: data.likes || 0,
-            dislikes: data.dislikes || 0
-          };
-        }
-      } catch (error) {
-        // Игнорируем ошибки
+    results.forEach((result, idx) => {
+      if (result.status === 'fulfilled' && result.value) {
+        const { characterId } = validChars[idx];
+        ratings[characterId] = {
+          likes: result.value.likes || 0,
+          dislikes: result.value.dislikes || 0
+        };
       }
-    }
+    });
 
     setCharacterRatings(ratings);
   };
@@ -654,6 +614,7 @@ export const EditCharactersPage: React.FC<EditCharactersPageProps> = ({
                     showEditButton={false}
                     isFavorite={isFavorite}
                     onFavoriteToggle={loadFavorites}
+                    onDelete={handleCharacterDelete}
                     isRight={(i + 1) % columnsCount !== 0}
                   />
                 );
