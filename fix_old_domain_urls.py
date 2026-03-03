@@ -199,7 +199,34 @@ async def main():
     except Exception as e:
         print(f"   ⚠️  paid_album_photos: {e}")
 
+    # 7. Таблица users — поле avatar_url (аватары пользователей)
+    print("\n📋 Обновляем users.avatar_url...")
+    try:
+        cols = await conn.fetch(
+            "SELECT column_name FROM information_schema.columns WHERE table_name='users'"
+        )
+        col_names = [c["column_name"] for c in cols]
+        avatar_col = next((c for c in ["avatar_url", "avatar", "photo_url"] if c in col_names), None)
+        if avatar_col:
+            rows = await conn.fetch(
+                f"SELECT id, {avatar_col} FROM users WHERE {avatar_col} LIKE '%{OLD_DOMAIN}%'"
+            )
+            print(f"   Найдено: {len(rows)} пользователей")
+            for row in rows:
+                new_url = convert_url(row[avatar_col])
+                await conn.execute(
+                    f"UPDATE users SET {avatar_col} = $1 WHERE id = $2",
+                    new_url, row["id"]
+                )
+            total_updated += len(rows)
+            print(f"   ✅ Обновлено: {len(rows)}")
+        else:
+            print(f"   ⚠️  Колонка с аватаром не найдена. Есть: {col_names}")
+    except Exception as e:
+        print(f"   ⚠️  users: {e}")
+
     await conn.close()
+
     print(f"\n🎉 Готово! Всего обновлено {total_updated} записей.")
     print(f"   Все URL {OLD_DOMAIN} заменены на {CDN_DOMAIN}")
 
