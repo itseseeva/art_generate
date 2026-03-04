@@ -48,7 +48,18 @@ const LeftSection = styled.div`
   @media (max-width: 768px) {
     margin-left: 5px;
   }
-  `;
+`;
+
+const LogoImage = styled.img`
+  height: 58px;
+  cursor: pointer;
+  object-fit: contain;
+  margin-left: 10px;
+
+  @media (max-width: 768px) {
+    transform: translateX(-15%);
+  }
+`;
 
 
 
@@ -186,7 +197,13 @@ const ShopButton = styled.button`
   height: 20px;
     }
   }
-  `;
+`;
+
+const HomeButton = styled(ShopButton)`
+  @media (max-width: 768px) {
+    display: none !important;
+  }
+`;
 
 
 const ProfileButton = styled.div<{ $isAuthenticated?: boolean }>`
@@ -729,10 +746,9 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     <HeaderContainer>
       <LeftSection>
         <MenuToggle toggle={onToggle} isOpen={isOpen} />
-        <img
+        <LogoImage
           src="/photo_2026-03-04_04-32-16-removebg-preview.png"
           alt="Logo"
-          style={{ height: '58px', cursor: 'pointer', objectFit: 'contain', marginLeft: '10px' }}
           onClick={handleHome}
         />
         {leftContent}
@@ -763,9 +779,9 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
 
       <RightSection>
         <SearchBar />
-        <ShopButton onClick={handleHome} title={t('common.home')}>
+        <HomeButton onClick={handleHome} title={t('common.home')}>
           <Home size={20} />
-        </ShopButton>
+        </HomeButton>
         {isAuthenticated && userInfo?.is_admin && (
           <ShopButton
             onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-admin-logs'))}

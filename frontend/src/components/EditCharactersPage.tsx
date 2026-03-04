@@ -196,7 +196,7 @@ const MainContent = styled.div`
 
 const CharactersGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(231px, 231px));
   gap: 8px;
   margin-top: ${theme.spacing.lg};
   padding: 16px ${theme.spacing.sm} ${theme.spacing.xs};

@@ -43,7 +43,7 @@ const CharactersGrid = styled.div`
   padding: ${theme.spacing.xs} ${theme.spacing.sm};
   overflow-y: auto;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(231px, 231px));
   gap: 8px;
   align-content: start;
   width: 100%;

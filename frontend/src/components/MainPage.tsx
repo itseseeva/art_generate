@@ -174,7 +174,7 @@ const CharactersGrid = styled.div`
   padding: 16px ${theme.spacing.sm} ${theme.spacing.xs}; /* Добавил padding-top для scale эффекта */
   overflow: visible;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(231px, 231px));
   gap: 8px;
   align-content: start;
   width: 100%;
@@ -228,9 +228,9 @@ const floatAnimation = keyframes`
 const CreateCharacterCardWrapper = styled.div`
   position: relative;
   height: 339px;
-  width: 100%;
-  min-width: 203px;
-  /* Как у CharacterCard: одна ячейка в сетке, на мобильных компактнее */
+  width: 231px;
+  min-width: 231px;
+  max-width: 231px;
   background: rgba(255, 255, 255, 0.03);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -246,7 +246,7 @@ const CreateCharacterCardWrapper = styled.div`
   }
 
   @media (min-width: 769px) {
-    min-width: 203px;
+    min-width: 231px;
   }
   
   &:hover {
@@ -1510,12 +1510,12 @@ export const MainPage: React.FC<MainPageProps> = ({
         }
 
         const width = entry.contentRect.width;
-        // Min width 230px + gap 8px = 238px
-        const cols = Math.floor(width / (230 + 8));
+        // Min width 231px + gap 8px = 239px
+        const cols = Math.floor(width / (231 + 8));
         // Если ширина большая, но помещается N колонок c учетом gap
-        // Grid auto-fill: ширина элемента >= 230px.
+        // Grid auto-fill: ширина элемента >= 231px.
         // Точная логика CSS grid: floor((availWidth + gap) / (minWidth + gap))
-        const calculated = Math.floor((width + 8) / 238);
+        const calculated = Math.floor((width + 8) / 239);
         setColumnsCount(Math.max(1, calculated));
       }
     };

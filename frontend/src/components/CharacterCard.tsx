@@ -28,9 +28,10 @@ const CardContainer = styled.div<{ $isHovered?: boolean }>`
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  height: 339px; /* Increased by 5% */
-  width: 100%;
-  min-width: 203px; /* Reduced by 5% */
+  height: 339px;
+  width: 231px;
+  min-width: 231px;
+  max-width: 231px;
   border: 2px solid transparent;
   
   &:hover {
@@ -1646,6 +1647,7 @@ interface CharacterCardProps {
   isAdmin?: boolean; // New prop for admin features
   isRight?: boolean; // Direction of the roleplay popup (default: true)
   disableHover?: boolean; // Disable hover overlay
+  hidePromptIcon?: boolean; // Hide explicit prompt "Sparkles" icon
 }
 
 // Компонент слайд-шоу
@@ -1749,6 +1751,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   isAdmin = false, // Default to false
   isRight = true, // Default to true (open to right)
   disableHover = false, // Default to false
+  hidePromptIcon = false, // Default to false
 }) => {
   const { t, i18n } = useTranslation('common');
   const { tChar } = useCharacterTranslation(character);
@@ -2669,7 +2672,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
               {/* Action Buttons */}
               <ActionButtons $badgeCount={0}>
                 {/* Prompt Button */}
-                {character.photos && character.photos.length > 0 && (
+                {character.photos && character.photos.length > 0 && !hidePromptIcon && (
                   <ActionButton
                     $variant="default" // Или добавить свой вариант, если нужно
                     title={t('characterCard.showPrompt', 'Show Prompt')}

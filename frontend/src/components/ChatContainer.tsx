@@ -4834,6 +4834,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                       isFavorite={isCharacterFavorite}
                       showRatings={false}
                       disableHover={true}
+                      hidePromptIcon={true}
                       onFavoriteToggle={async () => {
                         // Обновляем состояние избранного после переключения, загружая актуальное состояние с сервера
                         if (currentCharacter?.id) {

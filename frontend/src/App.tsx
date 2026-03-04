@@ -334,14 +334,22 @@ function App() {
       throw new Error(error.detail || t('auth.verifyError'));
     }
 
+    const data = await response.json();
+    authManager.setTokens(data.access_token, data.refresh_token);
+    await checkAuth();
+
     // Preserve redirect param
     const searchParams = new URLSearchParams(location.search);
     const redirect = searchParams.get('redirect');
     if (redirect) {
-      navigateWithLang(`/login?redirect=${encodeURIComponent(redirect)}`);
-    } else {
-      navigateWithLang('/login');
+      const targetPath = decodeURIComponent(redirect);
+      if (targetPath.startsWith('/')) {
+        navigate(targetPath);
+        return;
+      }
     }
+
+    navigateWithLang('/');
   };
 
   const handleGoogleLogin = () => {
