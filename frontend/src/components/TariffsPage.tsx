@@ -394,7 +394,8 @@ interface SubscriptionStats {
 }
 
 export const TariffsPage: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const currentLang = (i18n.language || 'ru').split('-')[0];
   const [stats, setStats] = useState<SubscriptionStats | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -405,6 +406,14 @@ export const TariffsPage: React.FC = () => {
   const [selectedCreditPackage, setSelectedCreditPackage] = useState<{ id: string, price: number, credits: number } | null>(null);
   const [creditPackages, setCreditPackages] = useState<Array<{ id: string; name: string; credits: number; price: number; price_per_credit: number; description: string }>>([]);
   const [isLoadingPackages, setIsLoadingPackages] = useState(false);
+
+  const exchangeRate = 77;
+  const formatPrice = (rubles: number) => {
+    if (currentLang === 'en') {
+      return `$${(rubles / exchangeRate).toFixed(2)}`;
+    }
+    return `${rubles}₽`;
+  };
 
   useEffect(() => {
     checkAuth();
@@ -626,6 +635,75 @@ export const TariffsPage: React.FC = () => {
     }
   };
 
+  const handleNowPaymentsPayment = async (subscriptionType: string) => {
+    if (!userInfo?.id) return;
+    try {
+      const amount = subscriptionType === 'premium' ? 1199 : 449;
+      const description = subscriptionType === 'premium'
+        ? 'Оплата подписки PREMIUM на 30 дней'
+        : 'Оплата подписки STANDARD на 30 дней';
+
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/nowpayments/create_payment/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          amount,
+          description,
+          plan: subscriptionType,
+          payment_type: 'subscription',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Ошибка создания крипто-платежа');
+      }
+
+      const data = await response.json();
+      if (data.invoice_url) {
+        window.location.href = data.invoice_url;
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleNowPaymentsCreditTopUp = async (packageId: string, price: number, credits: number) => {
+    if (!userInfo?.id) return;
+    try {
+      const description = `Покупка ${credits} кредитов`;
+      const token = localStorage.getItem('authToken');
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/nowpayments/create_payment/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          amount: price,
+          description,
+          package_id: packageId,
+          payment_type: 'topup',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Ошибка создания крипто-платежа');
+      }
+
+      const data = await response.json();
+      if (data.invoice_url) {
+        window.location.href = data.invoice_url;
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const loadCreditPackages = async () => {
     try {
       setIsLoadingPackages(true);
@@ -700,7 +778,7 @@ export const TariffsPage: React.FC = () => {
 
           <Card $highlight>
             <PlanName>{t('tariffs.plans.standard.name')}</PlanName>
-            <Price>150₽ <span>{t('tariffs.perMonth')}</span></Price>
+            <Price>{formatPrice(449)} <span>{t('tariffs.perMonth')}</span></Price>
             <FeatureList>
               <Feature>{t('tariffs.plans.standard.features.credits')}</Feature>
               <Feature>{t('tariffs.plans.standard.features.photos')}</Feature>
@@ -732,17 +810,24 @@ export const TariffsPage: React.FC = () => {
                   <PaymentLogo src="/payment_images/карты.png?v=11" alt="Банковские карты" />
                   Банковские карты
                 </PaymentButton>
-                <PaymentButton onClick={() => handleYooKassaPayment('standard', 'sbp')}>
-                  <PaymentLogo src="/payment_images/pay_sbp.png?v=12" alt="СБП" />
-                  СБП
-                </PaymentButton>
+                {currentLang === 'en' ? (
+                  <PaymentButton onClick={() => handleNowPaymentsPayment('standard')}>
+                    <span style={{ fontSize: '1.4rem', marginRight: '8px', marginLeft: '8px' }}>💰</span>
+                    Crypto
+                  </PaymentButton>
+                ) : (
+                  <PaymentButton onClick={() => handleYooKassaPayment('standard', 'sbp')}>
+                    <PaymentLogo src="/payment_images/pay_sbp.png?v=12" alt="СБП" />
+                    СБП
+                  </PaymentButton>
+                )}
               </PaymentButtonsContainer>
             )}
           </Card>
 
           <Card>
             <PlanName>{t('tariffs.plans.premium.name')}</PlanName>
-            <Price>1199₽ <span>{t('tariffs.perMonth')}</span></Price>
+            <Price>{formatPrice(1199)} <span>{t('tariffs.perMonth')}</span></Price>
             <FeatureList>
               <Feature>{t('tariffs.plans.premium.features.credits')}</Feature>
               <Feature>{t('tariffs.plans.premium.features.photos')}</Feature>
@@ -776,10 +861,17 @@ export const TariffsPage: React.FC = () => {
                   <PaymentLogo src="/payment_images/карты.png?v=11" alt="Банковские карты" />
                   Банковские карты
                 </PaymentButton>
-                <PaymentButton onClick={() => handleYooKassaPayment('premium', 'sbp')}>
-                  <PaymentLogo src="/payment_images/pay_sbp.png?v=12" alt="СБП" />
-                  СБП
-                </PaymentButton>
+                {currentLang === 'en' ? (
+                  <PaymentButton onClick={() => handleNowPaymentsPayment('premium')}>
+                    <span style={{ fontSize: '1.4rem', marginRight: '8px', marginLeft: '8px' }}>💰</span>
+                    Crypto
+                  </PaymentButton>
+                ) : (
+                  <PaymentButton onClick={() => handleYooKassaPayment('premium', 'sbp')}>
+                    <PaymentLogo src="/payment_images/pay_sbp.png?v=12" alt="СБП" />
+                    СБП
+                  </PaymentButton>
+                )}
               </PaymentButtonsContainer>
             )}
           </Card>
@@ -864,10 +956,17 @@ export const TariffsPage: React.FC = () => {
                               <PaymentLogo src="/payment_images/карты.png?v=11" alt="Банковские карты" />
                               Банковские карты
                             </PaymentButton>
-                            <PaymentButton onClick={() => handleYooKassaCreditTopUp(pkg.id, pkg.price, pkg.credits, 'sbp')}>
-                              <PaymentLogo src="/payment_images/pay_sbp.png?v=12" alt="СБП" />
-                              СБП
-                            </PaymentButton>
+                            {currentLang === 'en' ? (
+                              <PaymentButton onClick={() => handleNowPaymentsCreditTopUp(pkg.id, pkg.price, pkg.credits)}>
+                                <span style={{ fontSize: '1.4rem', marginRight: '8px', marginLeft: '8px' }}>💰</span>
+                                Crypto
+                              </PaymentButton>
+                            ) : (
+                              <PaymentButton onClick={() => handleYooKassaCreditTopUp(pkg.id, pkg.price, pkg.credits, 'sbp')}>
+                                <PaymentLogo src="/payment_images/pay_sbp.png?v=12" alt="СБП" />
+                                СБП
+                              </PaymentButton>
+                            )}
                           </PaymentButtonsContainer>
                         )}
                       </PackageCard>

@@ -27,10 +27,10 @@ def generate_verification_email_html(verification_code: str) -> str:
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="dark light">
     <meta name="supported-color-schemes" content="dark light">
-    <title>Подтверждение email - Cherry Lust</title>
+    <title>Подтверждение email - Candy Girls Chat</title>
     <!--[if mso]>
     <style type="text/css">
-        body, table, td, div, p, h1 {{ font-family: Arial, sans-serif !important; }}
+        body, table, td, div, p, h1 { font-family: Arial, sans-serif !important; }
     </style>
     <![endif]-->
 </head>
@@ -49,8 +49,8 @@ def generate_verification_email_html(verification_code: str) -> str:
                         <td align="center" style="padding: 40px 20px 20px 20px;">
                             <table role="presentation" cellspacing="0" cellpadding="0" border="0">
                                 <tr>
-                                    <td align="center" style="background: linear-gradient(135deg, #d946ef, #8b5cf6); border-radius: 12px; padding: 12px 24px;">
-                                        <span style="color: #ffffff; font-family: 'Inter', Arial, sans-serif; font-size: 24px; font-weight: 800; text-align: center; letter-spacing: -0.5px; text-decoration: none;">Cherry Lust</span>
+                                    <td align="center" style="border-radius: 12px; padding: 12px 24px;">
+                                        <img src="https://candygirlschat.com/unnamed__16_-removebg-preview.png" alt="Candy Girls Chat" width="180" style="display: block; max-width: 100%; height: auto; border: 0;" />
                                     </td>
                                 </tr>
                             </table>
@@ -64,7 +64,7 @@ def generate_verification_email_html(verification_code: str) -> str:
                                 Подтвердите ваш email
                             </h1>
                             <p style="margin: 0 0 40px 0; color: #94a3b8; font-size: 18px; line-height: 1.6; text-align: center;">
-                                Приятно видеть вас в Cherry Lust! Для завершения регистрации или входа в аккаунт, пожалуйста, используйте этот код подтверждения:
+                                Приятно видеть вас в Candy Girls Chat! Для завершения регистрации или входа в аккаунт, пожалуйста, используйте этот код подтверждения:
                             </p>
                             
                             <!-- Блок с кодом -->
@@ -86,11 +86,11 @@ def generate_verification_email_html(verification_code: str) -> str:
                     <tr>
                         <td align="center" style="padding: 32px 40px; background-color: #0f172a; border-top: 1px solid #334155; font-family: 'Inter', Arial, sans-serif;">
                             <p style="margin: 0 0 8px 0; color: #94a3b8; font-size: 14px; text-align: center; font-weight: 600;">
-                                С любовью, команда Cherry Lust
+                                С любовью, команда Candy Girls Chat
                             </p>
                             <p style="margin: 0; color: #475569; font-size: 12px; text-align: center;">
                                 Это автоматическое системное сообщение.<br>
-                                © 2024 Cherry Lust. Все права защищены.
+                                © 2024 Candy Girls Chat. Все права защищены.
                             </p>
                         </td>
                     </tr>
@@ -119,10 +119,10 @@ def generate_password_reset_email_html(verification_code: str) -> str:
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="dark light">
     <meta name="supported-color-schemes" content="dark light">
-    <title>Восстановление пароля - Cherry Lust</title>
+    <title>Восстановление пароля - Candy Girls Chat</title>
     <!--[if mso]>
     <style type="text/css">
-        body, table, td, div, p, h1 {{ font-family: Arial, sans-serif !important; }}
+        body, table, td, div, p, h1 { font-family: Arial, sans-serif !important; }
     </style>
     <![endif]-->
 </head>
@@ -141,8 +141,8 @@ def generate_password_reset_email_html(verification_code: str) -> str:
                         <td align="center" style="padding: 40px 20px 20px 20px;">
                             <table role="presentation" cellspacing="0" cellpadding="0" border="0">
                                 <tr>
-                                    <td align="center" style="background: linear-gradient(135deg, #d946ef, #8b5cf6); border-radius: 12px; padding: 12px 24px;">
-                                        <span style="color: #ffffff; font-family: 'Inter', Arial, sans-serif; font-size: 24px; font-weight: 800; text-align: center; letter-spacing: -0.5px; text-decoration: none;">Cherry Lust</span>
+                                    <td align="center" style="border-radius: 12px; padding: 12px 24px;">
+                                        <img src="https://candygirlschat.com/unnamed__16_-removebg-preview.png" alt="Candy Girls Chat" width="180" style="display: block; max-width: 100%; height: auto; border: 0;" />
                                     </td>
                                 </tr>
                             </table>
@@ -178,11 +178,11 @@ def generate_password_reset_email_html(verification_code: str) -> str:
                     <tr>
                         <td align="center" style="padding: 32px 40px; background-color: #0f172a; border-top: 1px solid #334155; font-family: 'Inter', Arial, sans-serif;">
                             <p style="margin: 0 0 8px 0; color: #94a3b8; font-size: 14px; text-align: center; font-weight: 600;">
-                                С любовью, команда Cherry Lust
+                                С любовью, команда Candy Girls Chat
                             </p>
                             <p style="margin: 0; color: #475569; font-size: 12px; text-align: center;">
                                 Это автоматическое системное сообщение.<br>
-                                © 2024 Cherry Lust. Все права защищены.
+                                © 2024 Candy Girls Chat. Все права защищены.
                             </p>
                         </td>
                     </tr>
@@ -243,13 +243,13 @@ class EmailSender:
             # Используем DEFAULT_FROM_EMAIL с красивым именем
             msg['From'] = f"Candy Girls Chat Support <{self.from_email}>"
             msg['To'] = to_email
-            msg['Subject'] = "Подтверждение email - Cherry Lust"
+            msg['Subject'] = "Подтверждение email - Candy Girls Chat"
             
             # Создаем HTML-тело письма
             html_body = generate_verification_email_html(verification_code)
             
             # Создаем текстовую версию для клиентов без поддержки HTML
-            text_body = f"""Подтверждение email - Cherry Lust
+            text_body = f"""Подтверждение email - Candy Girls Chat
 
 Здравствуйте!
 
@@ -260,10 +260,10 @@ class EmailSender:
 Важно:
 - Код действителен в течение 24 часов
 - Не передавайте код третьим лицам
-- Если вы не регистрировались в Cherry Lust, проигнорируйте это письмо
+- Если вы не регистрировались в Candy Girls Chat, проигнорируйте это письмо
 
 С уважением,
-Команда Cherry Lust
+Команда Candy Girls Chat
 
 Это автоматическое письмо, пожалуйста, не отвечайте на него"""
             
@@ -330,13 +330,13 @@ class EmailSender:
             # Используем DEFAULT_FROM_EMAIL с красивым именем
             msg['From'] = f"Candy Girls Chat Support <{self.from_email}>"
             msg['To'] = to_email
-            msg['Subject'] = "Восстановление пароля - Cherry Lust"
+            msg['Subject'] = "Восстановление пароля - Candy Girls Chat"
             
             # Создаем HTML-тело письма
             html_body = generate_password_reset_email_html(verification_code)
             
             # Создаем текстовую версию для клиентов без поддержки HTML
-            text_body = f"""Восстановление пароля - Cherry Lust
+            text_body = f"""Восстановление пароля - Candy Girls Chat
 
 Здравствуйте!
 
@@ -350,7 +350,7 @@ class EmailSender:
 - Если вы не запрашивали восстановление пароля, проигнорируйте это письмо
 
 С уважением,
-Команда Cherry Lust
+Команда Candy Girls Chat
 
 Это автоматическое письмо, пожалуйста, не отвечайте на него"""
             

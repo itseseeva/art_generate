@@ -74,7 +74,7 @@ const PageContainer = styled.div<{ $isMobile?: boolean; $isSidebarOpen?: boolean
   overflow-x: hidden;
   overflow-y: auto;
   position: relative;
-  padding-top: ${(p) => (p.$isMobile ? '45px' : '55px')};
+  padding-top: ${(p) => (p.$isMobile ? '52px' : '63px')};
   padding-left: ${(p) => (!p.$isMobile && (p.$isSidebarOpen || !p.$isFullWidth) ? '226px' : '0')};
   padding-right: ${(p) => (!p.$isMobile && !p.$isFullWidth ? '226px' : '0')};
   scroll-behavior: smooth;

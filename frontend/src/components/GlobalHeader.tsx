@@ -27,14 +27,14 @@ const HeaderContainer = styled.div`
   left: 0;
   right: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  height: 55px;
+  height: 63px;
   overflow: visible;
 
   @media (max-width: 768px) {
     padding: 0.15rem 1rem;
-  height: 45px;
+    height: 52px;
   }
-  `;
+`;
 
 const LeftSection = styled.div`
   display: flex;
@@ -729,6 +729,12 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     <HeaderContainer>
       <LeftSection>
         <MenuToggle toggle={onToggle} isOpen={isOpen} />
+        <img
+          src="/photo_2026-03-04_04-32-16-removebg-preview.png"
+          alt="Logo"
+          style={{ height: '58px', cursor: 'pointer', objectFit: 'contain', marginLeft: '10px' }}
+          onClick={handleHome}
+        />
         {leftContent}
         <div id="header-left-portal" style={{ display: 'flex', alignItems: 'center' }} />
       </LeftSection>

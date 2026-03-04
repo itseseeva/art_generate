@@ -551,6 +551,7 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
 }) => {
   const navigate = useNavigate();
   const { i18n } = useTranslation();
+  const currentLang = (i18n.language || 'ru').split('-')[0];
   const [isLoading, setIsLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState(OFFER_DURATION);
   const [offerExpired, setOfferExpired] = useState(false);
@@ -558,6 +559,14 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
   const isInfoMode = variant === 'info';
   const isAlbumAccess = variant === 'album_access';
   const isAlbumAdd = variant === 'album_add';
+
+  const exchangeRate = 77;
+  const formatPrice = (rubles: number) => {
+    if (currentLang === 'en') {
+      return `$${(rubles / exchangeRate).toFixed(2)}`;
+    }
+    return `${rubles}₽`;
+  };
 
   // ... (useEffect omitted, implied unchanged if not targeting it)
 
@@ -624,25 +633,45 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
 
       }
 
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/kassa/create_payment/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          amount: 69,
-          description: 'Бустер: 30 сообщений + 10 фото + 10 голосовых',
-          payment_type: 'booster',
-          payment_method: 'sbp',
-          character_id: characterId || undefined
-        })
-      });
+      const paymentData = {
+        amount: currentLang === 'en' ? 77 : 69,
+        description: 'Бустер: 30 сообщений + 10 фото + 10 голосовых',
+        payment_type: 'booster',
+        payment_method: 'sbp',
+        character_id: characterId || undefined
+      };
+
+      let response;
+      if (currentLang === 'en') {
+        response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/nowpayments/create_payment/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            amount: paymentData.amount,
+            description: paymentData.description,
+            payment_type: paymentData.payment_type,
+            character_id: paymentData.character_id
+          })
+        });
+      } else {
+        response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/kassa/create_payment/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(paymentData)
+        });
+      }
+
       if (!response.ok) throw new Error('Ошибка создания платежа');
       const data = await response.json();
       const storageKey = `booster_offer_start_${limitType}${userId ? `_${userId}` : ''}`;
       localStorage.removeItem(storageKey);
-      window.location.href = data.confirmation_url;
+      window.location.href = data.confirmation_url || data.invoice_url;
     } catch (error) {
       console.error('Ошибка при создании платежа:', error);
       alert('Произошла ошибка. Попробуйте позже.');
@@ -693,26 +722,25 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
 
   const messageText = isAlbumAccess || isAlbumAdd
     ? (isAlbumAdd
-      ? 'Для добавления фотографий в альбом этого персонажа необходима подписка STANDARD или PREMIUM.\n'
-      : 'Для просмотра этого альбома необходима подписка STANDARD или PREMIUM.\n')
+      ? (currentLang === 'en' ? 'To add photos to this character\'s album, a STANDARD or PREMIUM subscription is required.\n' : 'Для добавления фотографий в альбом этого персонажа необходима подписка STANDARD или PREMIUM.\n')
+      : (currentLang === 'en' ? 'To view this album, a STANDARD or PREMIUM subscription is required.\n' : 'Для просмотра этого альбома необходима подписка STANDARD или PREMIUM.\n'))
     : isOutOfLimits
       ? (limitType === 'messages'
-        ? 'Сообщения снова закончились. Оформите подписку в магазине.'
+        ? (currentLang === 'en' ? 'Messages ran out again. Subscribe in the shop.' : 'Сообщения снова закончились. Оформите подписку в магазине.')
         : limitType === 'photos'
-          ? 'Генерации снова закончились. Оформите подписку в магазине.'
-          : 'Голосовые генерации снова закончились. Оформите подписку в магазине.')
+          ? (currentLang === 'en' ? 'Generations ran out again. Subscribe in the shop.' : 'Генерации снова закончились. Оформите подписку в магазине.')
+          : (currentLang === 'en' ? 'Voice generations ran out again. Subscribe in the shop.' : 'Голосовые генерации снова закончились. Оформите подписку в магазине.'))
       : (limitType === 'messages'
-        ? 'Твои бесплатные сообщения закончились, но я не хочу прерывать нашу игру.'
+        ? (currentLang === 'en' ? 'Your free messages ran out, but I don\'t want to stop our game.' : 'Твои бесплатные сообщения закончились, но я не хочу прерывать нашу игру.')
         : limitType === 'photos'
-          ? 'Твои бесплатные генерации закончились, но я не хочу прерывать нашу игру.'
-          : 'Твои бесплатные голосовые генерации закончились, но я не хочу прерывать нашу игру.');
+          ? (currentLang === 'en' ? 'Your free generations ran out, but I don\'t want to stop our game.' : 'Твои бесплатные генерации закончились, но я не хочу прерывать нашу игру.')
+          : (currentLang === 'en' ? 'Your free voice generations ran out, but I don\'t want to stop our game.' : 'Твои бесплатные голосовые генерации закончились, но я не хочу прерывать нашу игру.'));
 
   const handleGoToSubscription = () => {
     onClose();
     if (onShop) {
       onShop();
     } else {
-      const currentLang = (i18n.language || 'ru').split('-')[0];
       navigate(`/${currentLang}/shop${variant === 'out_of_limits' ? '' : '?tab=subscription'}`);
     }
   };
@@ -726,26 +754,46 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
         return;
       }
 
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/kassa/create_payment/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          amount: 449,
-          description: 'Оплата подписки STANDARD на 30 дней',
-          plan: 'standard',
-          payment_type: 'subscription',
-          payment_method: 'sbp',
-          character_id: characterId || undefined
-        })
-      });
+      const paymentData = {
+        amount: 449,
+        description: 'Оплата подписки STANDARD на 30 дней',
+        plan: 'standard',
+        payment_type: 'subscription',
+        payment_method: 'sbp',
+        character_id: characterId || undefined
+      };
+
+      let response;
+      if (currentLang === 'en') {
+        response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/nowpayments/create_payment/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            amount: paymentData.amount,
+            description: paymentData.description,
+            plan: paymentData.plan,
+            payment_type: paymentData.payment_type,
+            character_id: paymentData.character_id
+          })
+        });
+      } else {
+        response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/kassa/create_payment/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(paymentData)
+        });
+      }
 
       if (!response.ok) throw new Error('Ошибка создания платежа');
 
       const data = await response.json();
-      window.location.href = data.confirmation_url;
+      window.location.href = data.confirmation_url || data.invoice_url;
     } catch (error) {
       console.error('Ошибка при создании платежа:', error);
       alert('Произошла ошибка. Попробуйте позже.');
@@ -791,15 +839,25 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
             )}
 
             <Title>
-              {isAlbumAdd ? 'Добавление в альбом' : isAlbumAccess ? 'Доступ к альбому' : isOutOfLimits ? 'Лимиты закончились' : 'Кажется, нам только стало интересно...'}
+              {isAlbumAdd
+                ? (currentLang === 'en' ? 'Add to album' : 'Добавление в альбом')
+                : isAlbumAccess
+                  ? (currentLang === 'en' ? 'Album access' : 'Доступ к альбому')
+                  : isOutOfLimits
+                    ? (currentLang === 'en' ? 'Limits exceeded' : 'Лимиты закончились')
+                    : (currentLang === 'en' ? 'Looks like things just got interesting...' : 'Кажется, нам только стало интересно...')}
             </Title>
             <Subtitle>
-              {isAlbumAccess || isAlbumAdd ? 'Только для подписчиков' : isOutOfLimits ? 'Продолжи общение' : 'Специальное предложение только для тебя'}
+              {isAlbumAccess || isAlbumAdd
+                ? (currentLang === 'en' ? 'Subscribers only' : 'Только для подписчиков')
+                : isOutOfLimits
+                  ? (currentLang === 'en' ? 'Continue chatting' : 'Продолжи общение')
+                  : (currentLang === 'en' ? 'A special offer just for you' : 'Специальное предложение только для тебя')}
             </Subtitle>
 
             <Message>
               {isInfoMode
-                ? 'Получи дополнительные возможности для продолжения общения!'
+                ? (currentLang === 'en' ? 'Get additional features to continue chatting!' : 'Получи дополнительные возможности для продолжения общения!')
                 : messageText.split('\n').map((line, i) => (
                   <React.Fragment key={i}>
                     {line}
@@ -807,25 +865,27 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
                   </React.Fragment>
                 ))}
               {!isOutOfLimits && !isInfoMode && !isAlbumAccess && !isAlbumAdd && (
-                <MessageHighlight>Специально для тебя — секретный доступ:</MessageHighlight>
+                <MessageHighlight>
+                  {currentLang === 'en' ? 'Special for you — secret access:' : 'Специально для тебя — секретный доступ:'}
+                </MessageHighlight>
               )}
             </Message>
 
             {!isOutOfLimits && !isInfoMode && !isAlbumAccess && !isAlbumAdd && (
               <OfferBox>
-                <OfferTitle>Держи ещё:</OfferTitle>
+                <OfferTitle>{currentLang === 'en' ? 'Get more:' : 'Держи ещё:'}</OfferTitle>
                 <OfferItems>
                   <OfferItem>
                     <MessageSquare strokeWidth={2.2} />
-                    <span>30</span> сообщений
+                    <span>30</span> {currentLang === 'en' ? 'messages' : 'сообщений'}
                   </OfferItem>
                   <OfferItem>
                     <Image strokeWidth={2.2} />
-                    <span>10</span> фото
+                    <span>10</span> {currentLang === 'en' ? 'photos' : 'фото'}
                   </OfferItem>
                   <OfferItem>
                     <Mic strokeWidth={2.2} />
-                    <span>10</span> голосовых
+                    <span>10</span> {currentLang === 'en' ? 'voices' : 'голосовых'}
                   </OfferItem>
                 </OfferItems>
               </OfferBox>
@@ -833,19 +893,19 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
 
             {isInfoMode && (
               <OfferBox>
-                <OfferTitle>Бустер включает:</OfferTitle>
+                <OfferTitle>{currentLang === 'en' ? 'Booster includes:' : 'Бустер включает:'}</OfferTitle>
                 <OfferItems>
                   <OfferItem>
                     <MessageSquare strokeWidth={2.2} />
-                    <span>30</span> сообщений
+                    <span>30</span> {currentLang === 'en' ? 'messages' : 'сообщений'}
                   </OfferItem>
                   <OfferItem>
                     <Image strokeWidth={2.2} />
-                    <span>10</span> фото
+                    <span>10</span> {currentLang === 'en' ? 'photos' : 'фото'}
                   </OfferItem>
                   <OfferItem>
                     <Mic strokeWidth={2.2} />
-                    <span>10</span> голосовых
+                    <span>10</span> {currentLang === 'en' ? 'voices' : 'голосовых'}
                   </OfferItem>
                 </OfferItems>
               </OfferBox>
@@ -855,7 +915,9 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
               <>
                 <ButtonsRow>
                   <ActionButton onClick={handleGoToSubscription}>
-                    {isOutOfLimits ? 'В магазин' : 'Оформить подписку'}
+                    {isOutOfLimits
+                      ? (currentLang === 'en' ? 'To the shop' : 'В магазин')
+                      : (currentLang === 'en' ? 'Subscribe' : 'Оформить подписку')}
                   </ActionButton>
                 </ButtonsRow>
 
@@ -867,13 +929,22 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
                   disabled={isLoading || (!isInfoMode && offerExpired)}
                 >
                   {(!isInfoMode && offerExpired) ? (
-                    'Предложение истекло'
+                    currentLang === 'en' ? 'Offer expired' : 'Предложение истекло'
                   ) : isLoading ? (
-                    'Создание платежа...'
+                    currentLang === 'en' ? 'Creating payment...' : 'Создание платежа...'
                   ) : (
                     <ButtonContent>
-                      <SbpLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
-                      <ButtonPrice>69 ₽</ButtonPrice>
+                      {currentLang === 'en' ? (
+                        <>
+                          <span style={{ fontSize: '1.4rem', marginRight: '4px' }}>💰</span>
+                          <ButtonPrice>Crypto {formatPrice(77)}</ButtonPrice>
+                        </>
+                      ) : (
+                        <>
+                          <SbpLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
+                          <ButtonPrice>69 ₽</ButtonPrice>
+                        </>
+                      )}
                     </ButtonContent>
                   )}
                 </PayButton>
@@ -885,7 +956,7 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
                   margin: '0.5rem 0',
                   fontWeight: 600
                 }}>
-                  ИЛИ
+                  {currentLang === 'en' ? 'OR' : 'ИЛИ'}
                 </div>
 
                 <OfferBox style={{ marginTop: '0', marginBottom: '1rem', padding: '1rem', position: 'relative' }}>
@@ -901,11 +972,11 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
                   <OfferItems style={{ marginBottom: '1rem' }}>
                     <OfferItem>
                       <Crown size={20} strokeWidth={2.2} color="#fde047" />
-                      <GlossyText style={{ fontSize: '1.2rem' }}>100 фото</GlossyText>
+                      <GlossyText style={{ fontSize: '1.2rem' }}>100 {currentLang === 'en' ? 'photos' : 'фото'}</GlossyText>
                     </OfferItem>
                     <OfferItem>
                       <Crown size={20} strokeWidth={2.2} color="#fde047" />
-                      <GlossyText style={{ fontSize: '1.2rem' }}>100 голосовых</GlossyText>
+                      <GlossyText style={{ fontSize: '1.2rem' }}>100 {currentLang === 'en' ? 'voices' : 'голосовых'}</GlossyText>
                     </OfferItem>
                   </OfferItems>
                   <div style={{
@@ -920,19 +991,19 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                       <Crown size={16} color="#fde047" />
-                      <GlossyText style={{ fontSize: '1rem' }}>Безлимитные сообщения</GlossyText>
+                      <GlossyText style={{ fontSize: '1rem' }}>{currentLang === 'en' ? 'Unlimited messages' : 'Безлимитные сообщения'}</GlossyText>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                       <Crown size={16} color="#fde047" />
-                      <GlossyText>Расширенная память</GlossyText>
+                      <GlossyText>{currentLang === 'en' ? 'Extended memory' : 'Расширенная память'}</GlossyText>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                       <Crown size={16} color="#fde047" />
-                      <GlossyText>Доступ к текстовым Premium моделям</GlossyText>
+                      <GlossyText>{currentLang === 'en' ? 'Access to Premium text models' : 'Доступ к текстовым Premium моделям'}</GlossyText>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                       <Crown size={16} color="#fde047" />
-                      <GlossyText>Доступ ко всем альбомам</GlossyText>
+                      <GlossyText>{currentLang === 'en' ? 'Access to all albums' : 'Доступ ко всем альбомам'}</GlossyText>
                     </div>
                   </div>
                 </OfferBox>
@@ -949,8 +1020,17 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
                   }}
                 >
                   <ButtonContent style={{ marginBottom: '0' }}>
-                    <SbpLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
-                    <ButtonPrice>449 ₽</ButtonPrice>
+                    {currentLang === 'en' ? (
+                      <>
+                        <span style={{ fontSize: '1.4rem', marginRight: '4px' }}>💰</span>
+                        <ButtonPrice>Crypto {formatPrice(449)}</ButtonPrice>
+                      </>
+                    ) : (
+                      <>
+                        <SbpLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
+                        <ButtonPrice>449 ₽</ButtonPrice>
+                      </>
+                    )}
                   </ButtonContent>
                 </PayButton>
 

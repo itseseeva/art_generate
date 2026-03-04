@@ -73,7 +73,17 @@ export const ShopPage: React.FC<any> = ({
   onRegister,
   onLogout
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const currentLang = (i18n.language || 'ru').split('-')[0];
+  const exchangeRate = 77; // 1 USD = 77 RUB
+
+  const formatPrice = (rubles: number) => {
+    if (currentLang === 'en') {
+      return `$${(rubles / exchangeRate).toFixed(2)}`;
+    }
+    return `${rubles}₽`;
+  };
+
   // --- State ---
   const [viewMode, setViewMode] = useState<'subscription' | 'credits'>(() => {
     if (typeof window !== 'undefined') {
@@ -158,11 +168,11 @@ export const ShopPage: React.FC<any> = ({
 
     if (isStandard1MonthOverride && billingCycle === 'monthly') {
       return {
-        monthly: 150,
-        total: 150,
+        monthly: 449,
+        total: 449,
         originalMonthly: basePrice,
         originalTotal: basePrice,
-        discountPercent: Math.round(100 - (150 / basePrice) * 100)
+        discountPercent: Math.round(100 - (449 / basePrice) * 100)
       };
     }
 
@@ -361,6 +371,37 @@ export const ShopPage: React.FC<any> = ({
     } catch (e) { console.error(e); }
   };
 
+  const handleCryptoCreditPayment = async (pkg: any) => {
+    if (!isAuthenticated) {
+      setAuthMode('login');
+      setIsAuthModalOpen(true);
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/nowpayments/create_payment/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          amount: pkg.price,
+          description: `${t('shop.buy')} ${pkg.credits} ${t('shop.creditsLower')}`,
+          package_id: pkg.id,
+          payment_type: 'topup',
+        }),
+      });
+
+      if (!response.ok) throw new Error('Ошибка создания крипто-платежа');
+      const data = await response.json();
+      if (data.invoice_url) {
+        window.location.href = data.invoice_url;
+      }
+    } catch (e) { console.error(e); }
+  };
+
   // --- Render Helpers ---
 
   const renderSubscriptionContent = () => {
@@ -475,11 +516,11 @@ export const ShopPage: React.FC<any> = ({
             <div className="mb-4">
               <h3 className="text-xl font-bold text-amber-400 mb-1">{t('tariffs.plans.standard.name')}</h3>
               <div className="flex items-baseline gap-1">
-                <span className="text-3xl font-bold text-white">{standardPrice.monthly}₽</span>
+                <span className="text-3xl font-bold text-white">{formatPrice(standardPrice.monthly)}</span>
                 <span className="text-gray-400 text-xs">/{t('shop.perMonth')}</span>
               </div>
               {billingCycle !== 'monthly' && (
-                <p className="text-xs text-gray-500 line-through mt-1">{standardPrice.originalMonthly}₽/{t('shop.perMonth')}</p>
+                <p className="text-xs text-gray-500 line-through mt-1">{formatPrice(standardPrice.originalMonthly)}/{t('shop.perMonth')}</p>
               )}
             </div>
 
@@ -520,18 +561,20 @@ export const ShopPage: React.FC<any> = ({
             </div>
 
             <div className="flex flex-col gap-2 mt-6">
-              <motion.button
-                whileHover={{ scale: 1.02, boxShadow: "0 0 20px rgba(245, 158, 11, 0.4)" }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => handleSubscriptionClick('standard')}
-                className="w-full py-2.5 rounded-lg font-bold text-sm text-black bg-gradient-to-r from-amber-300 to-orange-400 shadow-lg shadow-amber-500/20 relative overflow-hidden group"
-              >
-                <div className="relative z-10 flex items-center justify-center gap-2">
-                  <img src="/payment_images/pay_sbp.png?v=15" alt="SBP" className="w-5 h-5 object-contain" />
-                  <span>{t('shop.buyFor')} {standardPrice.total}₽</span>
-                </div>
-                <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
-              </motion.button>
+              {currentLang !== 'en' && (
+                <motion.button
+                  whileHover={{ scale: 1.02, boxShadow: "0 0 20px rgba(245, 158, 11, 0.4)" }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => handleSubscriptionClick('standard')}
+                  className="w-full py-2.5 rounded-lg font-bold text-sm text-black bg-gradient-to-r from-amber-300 to-orange-400 shadow-lg shadow-amber-500/20 relative overflow-hidden group"
+                >
+                  <div className="relative z-10 flex items-center justify-center gap-2">
+                    <img src="/payment_images/pay_sbp.png?v=15" alt="SBP" className="w-5 h-5 object-contain" />
+                    <span>{t('shop.buyFor')} {formatPrice(standardPrice.total)}</span>
+                  </div>
+                  <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
+                </motion.button>
+              )}
 
               <motion.button
                 whileHover={{ scale: 1.02 }}
@@ -541,7 +584,7 @@ export const ShopPage: React.FC<any> = ({
               >
                 <div className="relative z-10 flex items-center justify-center gap-2">
                   <span className="text-lg">💰</span>
-                  <span>Crypto {standardPrice.total}₽</span>
+                  <span>Crypto {formatPrice(standardPrice.total)}</span>
                 </div>
               </motion.button>
             </div>
@@ -582,11 +625,11 @@ export const ShopPage: React.FC<any> = ({
                   <h3 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-purple-400">{t('tariffs.plans.premium.name')}</h3>
                 </div>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-3xl font-bold text-white">{premiumPrice.monthly}₽</span>
+                  <span className="text-3xl font-bold text-white">{formatPrice(premiumPrice.monthly)}</span>
                   <span className="text-gray-400 text-xs">/{t('shop.perMonth')}</span>
                 </div>
                 {billingCycle !== 'monthly' && (
-                  <p className="text-xs text-gray-500 line-through mt-1">{premiumPrice.originalMonthly}₽/{t('shop.perMonth')}</p>
+                  <p className="text-xs text-gray-500 line-through mt-1">{formatPrice(premiumPrice.originalMonthly)}/{t('shop.perMonth')}</p>
                 )}
               </div>
 
@@ -627,18 +670,20 @@ export const ShopPage: React.FC<any> = ({
               </div>
 
               <div className="flex flex-col gap-2 mt-6">
-                <motion.button
-                  whileHover={{ scale: 1.02, boxShadow: "0 0 30px rgba(220, 38, 38, 0.5)" }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => handleSubscriptionClick('premium')}
-                  className="w-full py-2.5 rounded-lg font-bold text-sm text-white bg-gradient-to-r from-red-500 to-purple-600 shadow-xl shadow-red-500/30 relative overflow-hidden group"
-                >
-                  <div className="relative z-10 flex items-center justify-center gap-2">
-                    <img src="/payment_images/pay_sbp.png?v=15" alt="SBP" className="w-5 h-5 object-contain brightness-0 invert" />
-                    <span>{t('shop.buyFor')} {premiumPrice.total}₽</span>
-                  </div>
-                  <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
-                </motion.button>
+                {currentLang !== 'en' && (
+                  <motion.button
+                    whileHover={{ scale: 1.02, boxShadow: "0 0 30px rgba(220, 38, 38, 0.5)" }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => handleSubscriptionClick('premium')}
+                    className="w-full py-2.5 rounded-lg font-bold text-sm text-white bg-gradient-to-r from-red-500 to-purple-600 shadow-xl shadow-red-500/30 relative overflow-hidden group"
+                  >
+                    <div className="relative z-10 flex items-center justify-center gap-2">
+                      <img src="/payment_images/pay_sbp.png?v=15" alt="SBP" className="w-5 h-5 object-contain brightness-0 invert" />
+                      <span>{t('shop.buyFor')} {formatPrice(premiumPrice.total)}</span>
+                    </div>
+                    <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
+                  </motion.button>
+                )}
 
                 <motion.button
                   whileHover={{ scale: 1.02 }}
@@ -648,7 +693,7 @@ export const ShopPage: React.FC<any> = ({
                 >
                   <div className="relative z-10 flex items-center justify-center gap-2">
                     <span className="text-lg">💰</span>
-                    <span>Crypto {premiumPrice.total}₽</span>
+                    <span>Crypto {formatPrice(premiumPrice.total)}</span>
                   </div>
                 </motion.button>
               </div>
@@ -704,7 +749,7 @@ export const ShopPage: React.FC<any> = ({
               <div className="mb-4">
                 <h3 className="text-xl font-bold text-purple-300">{pkg.name}</h3>
                 <div className="mt-2 flex items-baseline gap-1">
-                  <span className="text-3xl font-bold text-white">{pkg.price}₽</span>
+                  <span className="text-3xl font-bold text-white">{formatPrice(pkg.price)}</span>
                 </div>
                 <p className="text-sm text-gray-400 mt-1">{pkg.credits} {t('shop.credits')}</p>
               </div>
@@ -724,12 +769,24 @@ export const ShopPage: React.FC<any> = ({
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={(e) => { e.stopPropagation(); handleCreditPayment(pkg, 'sbp'); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  currentLang === 'en' ? handleCryptoCreditPayment(pkg) : handleCreditPayment(pkg, 'sbp');
+                }}
                 className="w-full py-3 rounded-xl font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 shadow-lg shadow-purple-500/20 relative overflow-hidden"
               >
                 <div className="flex items-center justify-center gap-2 relative z-10">
-                  <img src="/payment_images/pay_sbp.png?v=15" alt="SBP" className="w-5 h-5 object-contain brightness-0 invert" />
-                  <span>{t('shop.buy')}</span>
+                  {currentLang === 'en' ? (
+                    <>
+                      <span className="text-lg">💰</span>
+                      <span>Crypto</span>
+                    </>
+                  ) : (
+                    <>
+                      <img src="/payment_images/pay_sbp.png?v=15" alt="SBP" className="w-5 h-5 object-contain brightness-0 invert" />
+                      <span>{t('shop.buy')}</span>
+                    </>
+                  )}
                 </div>
               </motion.button>
             </motion.div>

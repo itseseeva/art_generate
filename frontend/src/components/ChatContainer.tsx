@@ -4783,7 +4783,12 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
               }}
               disabled={isLoading && activeGenerations.size === 0}
               disableImageGeneration={activeGenerations.size >= getGenerationQueueLimit}
-              placeholder={`Напишите сообщение ${tChar('name') || characterForRender?.name || 'персонажу'}...`}
+              placeholder={(() => {
+                const lang = typeof window !== 'undefined' ? (localStorage.getItem('i18nextLng') || 'ru').split('-')[0] : 'ru';
+                const charName = tChar('name') || characterForRender?.name || 'character';
+                const charNameRu = tChar('name') || characterForRender?.name || 'персонажу';
+                return lang === 'en' ? `Write a message to ${charName}...` : `Напишите сообщение ${charNameRu}...`;
+              })()}
               hasMessages={messages.length > 0}
             />
           </ChatMessagesArea>
