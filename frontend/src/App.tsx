@@ -343,7 +343,7 @@ function App() {
     const redirect = searchParams.get('redirect');
     if (redirect) {
       const targetPath = decodeURIComponent(redirect);
-      if (targetPath.startsWith('/')) {
+      if (targetPath.startsWith('/') && !targetPath.includes('/register') && !targetPath.includes('/login')) {
         navigate(targetPath);
         return;
       }
