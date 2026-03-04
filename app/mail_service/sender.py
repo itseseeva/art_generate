@@ -30,7 +30,7 @@ def generate_verification_email_html(verification_code: str) -> str:
     <title>Подтверждение email - Candy Girls Chat</title>
     <!--[if mso]>
     <style type="text/css">
-        body, table, td, div, p, h1 { font-family: Arial, sans-serif !important; }
+        body, table, td, div, p, h1 {{ font-family: Arial, sans-serif !important; }}
     </style>
     <![endif]-->
 </head>
@@ -122,7 +122,7 @@ def generate_password_reset_email_html(verification_code: str) -> str:
     <title>Восстановление пароля - Candy Girls Chat</title>
     <!--[if mso]>
     <style type="text/css">
-        body, table, td, div, p, h1 { font-family: Arial, sans-serif !important; }
+        body, table, td, div, p, h1 {{ font-family: Arial, sans-serif !important; }}
     </style>
     <![endif]-->
 </head>
