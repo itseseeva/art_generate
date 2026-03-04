@@ -236,7 +236,7 @@ const ProfileButton = styled.div<{ $isAuthenticated?: boolean }>`
   }
 
     &:hover {
-      border - color: rgba(168, 85, 247, 0.8);
+      border-color: rgba(168, 85, 247, 0.8);
     background: rgba(139, 92, 246, 0.2);
     box-shadow: 0 0 25px rgba(139, 92, 246, 0.5), 0 0 40px rgba(168, 85, 247, 0.3), inset 0 0 15px rgba(139, 92, 246, 0.2);
     transform: scale(1.08);
@@ -297,10 +297,10 @@ const slideIn = keyframes`
 
 const pulse = keyframes`
     0%, 100% {
-      box - shadow: 0 0 0 0 rgba(76, 175, 80, 0.7), 0 4px 20px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7), 0 4px 20px rgba(0, 0, 0, 0.5);
   }
     50% {
-      box - shadow: 0 0 0 10px rgba(76, 175, 80, 0), 0 4px 20px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 0 0 10px rgba(76, 175, 80, 0), 0 4px 20px rgba(0, 0, 0, 0.5);
   }
     `;
 
@@ -336,7 +336,7 @@ const Notification = styled.div`
     animation: ${pulse} 2s infinite;
 
     @media (max-width: 768px) {
-      min - width: auto;
+      min-width: auto;
     max-width: none;
     padding: 0.6rem 0.8rem;
   }
@@ -366,7 +366,7 @@ const NotificationMessage = styled.div`
     max-width: 180px;
 
     @media (max-width: 768px) {
-      max - width: none;
+      max-width: none;
     white-space: normal;
   }
     `;
@@ -434,8 +434,8 @@ interface GlobalHeaderProps {
 }
 
 const borderMove = keyframes`
-    0% {background - position: 0% 50%; }
-    100% {background - position: 400% 50%; }
+    0% {background-position: 0% 50%; }
+    100% {background-position: 400% 50%; }
     `;
 
 const AnimatedBorderButton = styled(motion.button)`

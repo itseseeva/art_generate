@@ -67,6 +67,28 @@ const ExternalFooterLink = styled.a`
   }
 `;
 
+const SocialLink = styled.a`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: rgba(255, 255, 255, 0.7);
+  text-decoration: none;
+  transition: all 0.2s;
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  background: transparent;
+
+  &:hover {
+    color: #fff;
+    transform: translateY(-2px);
+  }
+`;
+
+const SocialIcon = styled.img`
+  width: 24px;
+  height: 24px;
+`;
+
 const TagsSection = styled.div`
   display: flex;
   flex-wrap: wrap;
@@ -155,6 +177,11 @@ export const Footer: React.FC = () => {
     <FooterContainer>
       <FooterContent>
         <TopSection>
+          <SocialLink href="https://t.me/candygirlschat" target="_blank" rel="noopener noreferrer">
+            <SocialIcon src="/264a2a2875bf2e37a037f22c170b1b98.jpg" alt="Telegram" />
+            <span>{t('footer.telegram', 'Telegram')}</span>
+          </SocialLink>
+          <span>|</span>
           <FooterLink to={getLangPath("/how-it-works")}>{t('footer.howItWorks', 'How it works')}</FooterLink>
           <span>|</span>
           <FooterLink to={getLangPath("/about")}>{t('footer.about', 'About us')}</FooterLink>
