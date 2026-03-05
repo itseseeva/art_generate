@@ -13,6 +13,11 @@ export function useCharacterTranslation(character: Character) {
         const field_ru = (character as any)[`${field}_ru`];
         const field_en = (character as any)[`${field}_en`];
 
+        // ДИАГНОСТИКА — убери после нахождения проблемы
+        if (field === 'name') {
+            console.log(`[tChar] id=${character.id} name="${(character as any).name}" lang="${currentLang}" name_ru="${(character as any).name_ru}" name_en="${(character as any).name_en}"`);
+        }
+
         if (currentLang === 'ru' && field_ru) return field_ru as T;
         if (currentLang === 'en' && field_en) return field_en as T;
 

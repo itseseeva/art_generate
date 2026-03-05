@@ -139,6 +139,8 @@ class CharacterConfig(BaseModel):
     # Основные характеристики
     id: int = Field(..., description="ID персонажа в базе данных")
     name: str = Field(..., description="Уникальное имя персонажа")
+    name_ru: Optional[str] = Field(None, description="Имя на русском (для отображения)")
+    name_en: Optional[str] = Field(None, description="Name in English (for display)")
     
     # Единый промпт в формате Alpaca
     prompt: Optional[str] = Field(

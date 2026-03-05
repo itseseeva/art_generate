@@ -84,6 +84,8 @@ class CharacterDB(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, index=True, nullable=False)
     display_name = Column(String(200), nullable=True, default=None)  # Display name
+    name_ru = Column(String(200), nullable=True, default=None)  # Имя на русском (для отображения)
+    name_en = Column(String(200), nullable=True, default=None)  # Name in English (for display)
     description = Column(UTF8Text, nullable=True, default=None)  # Character description (RU)
     # DEPRECATED: description_en = Column(UTF8Text, nullable=True, default=None)  # Character description (EN)
     

@@ -1222,7 +1222,7 @@ async def read_characters(
         # Пытаемся получить из кэша (cache_get уже имеет внутренний таймаут)
         # Используем разумный таймаут, чтобы не блокировать запросы слишком долго
         # DISABLED CACHE FOR DEBUGGING TRANSLATIONS
-        cached_characters = None # if force_refresh else await cache_get(cache_key, timeout=2.0)
+        cached_characters = None if force_refresh else await cache_get(cache_key, timeout=2.0)
         
         if cached_characters is not None:
             try:
@@ -1271,7 +1271,9 @@ async def read_characters(
                                     "appearance_ru": char_data.get('appearance_ru'),
                                     "appearance_en": char_data.get('appearance_en'),
                                     "location_ru": char_data.get('location_ru'),
-                                    "location_en": char_data.get('location_en')
+                                    "location_en": char_data.get('location_en'),
+                                    "name_ru": char_data.get('name_ru'),
+                                    "name_en": char_data.get('name_en'),
                                 }
                                 valid_characters.append(valid_char)
                         elif hasattr(char_data, 'id') and hasattr(char_data, 'name'):
@@ -1311,6 +1313,8 @@ async def read_characters(
                                 "appearance_en": getattr(char_data, 'appearance_en', None),
                                 "location_ru": getattr(char_data, 'location_ru', None),
                                 "location_en": getattr(char_data, 'location_en', None),
+                                "name_ru": getattr(char_data, 'name_ru', None),
+                                "name_en": getattr(char_data, 'name_en', None),
                             })
                     
                     if valid_characters:
@@ -1398,7 +1402,7 @@ async def read_characters(
                         .order_by(PaidAlbumPhoto.character_id, PaidAlbumPhoto.created_at.desc())
                     )
                     all_photos = photos_result.scalars().all()
-                    logger.info(f"Retrieved {len(all_photos)} paid album photos for {len(ids_with_albums)} characters")
+                    logger.debug(f"Retrieved {len(all_photos)} paid album photos for {len(ids_with_albums)} characters")
                     for photo in all_photos:
                         if photo.character_id not in album_previews_map:
                             album_previews_map[photo.character_id] = []
@@ -1406,7 +1410,7 @@ async def read_characters(
                             album_previews_map[photo.character_id].append(photo.photo_url)
                     
                     for cid in ids_with_albums:
-                        logger.info(f"Character {cid}: count={album_counts_map.get(cid)}, previews={len(album_previews_map.get(cid, []))}")
+                        logger.debug(f"Character {cid}: count={album_counts_map.get(cid)}, previews={len(album_previews_map.get(cid, []))}")
             
             logger.debug(f"Retrieved {len(characters)} characters and their stats from database")
             if len(characters) > 0:
@@ -1490,6 +1494,8 @@ async def read_characters(
                 "appearance_en": char.appearance_en,
                 "location_ru": char.location_ru,
                 "location_en": char.location_en,
+                "name_ru": char.name_ru,
+                "name_en": char.name_en,
             }
             characters_data.append(char_dict)
         
@@ -2291,11 +2297,16 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                  else:
                      logger.warning(f"[BG_TASK] Character {char_id} not found for translation")
 
-        # Отключено по запросу пользователя
+        # Отключено по запросу пользователя (заменено на Celery)
         # background_tasks.add_task(background_mixed_translation, new_character.id)
-        # logger.info(f"Character {new_character.id} created. Scheduled mixed-language translation.")
 
-        # Инвалидируем кэш списка персонажей
+        # Запускаем Celery задачу перевода имени и полей персонажа
+        try:
+            from app.tasks.translation_tasks import translate_character_names_task
+            translate_character_names_task.delay(new_character.id)
+            logger.info(f"[CREATE_CHAR] Celery задача перевода поставлена в очередь для персонажа {new_character.id}")
+        except Exception as celery_err:
+            logger.warning(f"[CREATE_CHAR] Не удалось поставить задачу перевода в очередь: {celery_err}")
         await cache_delete(key_characters_list())
         await cache_delete_pattern("characters:list:*")
         logger.info(f"[CACHE] Инвалидирован кэш списка персонажей после создания {character.name}")
@@ -2437,6 +2448,8 @@ async def read_character(character_name: str, db: AsyncSession = Depends(get_db)
             "appearance_en": db_char.appearance_en,
             "location_ru": db_char.location_ru,
             "location_en": db_char.location_en,
+            "name_ru": db_char.name_ru,
+            "name_en": db_char.name_en,
             "total_messages_count": getattr(db_char, 'total_messages_count', 0) or 0,
         }
 

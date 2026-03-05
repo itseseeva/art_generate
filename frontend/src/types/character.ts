@@ -17,6 +17,8 @@ export interface Character {
     paid_album_preview_urls?: string[];
     prompt?: string;
     display_name?: string;
+    name_ru?: string;   // Имя на русском (локализованное)
+    name_en?: string;   // Name in English (localized)
     slug?: string;
     raw?: any;
 

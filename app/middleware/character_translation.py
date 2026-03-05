@@ -77,46 +77,65 @@ class CharacterTranslationMiddleware(BaseHTTPMiddleware):
                 async with async_session_maker() as db:
                     for char_data in characters:
                         try:
-                            # Проверяем, нужен ли автоперевод (нет bilingual полей для целевого языка)
+                            # Проверяем, нужен ли автоперевод
                             char_id = char_data.get("id")
-                            
-                            # Проверяем наличие полей для целевого языка
-                            has_target_translation = (
-                                (target_lang == "ru" and char_data.get("description_ru")) or
-                                (target_lang == "en" and char_data.get("description_en"))
-                            )
-                            
-                            if not char_id or has_target_translation:
-                                continue  # Уже есть перевод
-                            
+                            if not char_id:
+                                continue
+
                             # Загружаем персонажа из БД
                             result = await db.execute(
                                 select(CharacterDB).where(CharacterDB.id == char_id)
                             )
                             character = result.scalar_one_or_none()
-                            
-                            if character:
-                                # Автоматически переводим и сохраняем
-                                was_translated = await auto_translate_and_save_character(
-                                    character, db, target_lang
+
+                            if not character:
+                                continue
+
+                            # ВСЕГДА добавляем name_ru/name_en из БД в ответ
+                            before_name_ru = char_data.get("name_ru")
+                            before_name_en = char_data.get("name_en")
+                            if character.name_ru:
+                                char_data["name_ru"] = character.name_ru
+                            if character.name_en:
+                                char_data["name_en"] = character.name_en
+                            # ДИАГНОСТИКА: логируем только первых 3 персонажей чтобы не спамить
+                            if char_id in [characters[0].get("id") if characters else None,
+                                           characters[1].get("id") if len(characters) > 1 else None,
+                                           characters[2].get("id") if len(characters) > 2 else None]:
+                                logger.info(
+                                    f"[NAME_DEBUG] char_id={char_id} name='{char_data.get('name')}' "
+                                    f"db.name_ru='{character.name_ru}' db.name_en='{character.name_en}' "
+                                    f"before_ru='{before_name_ru}' before_en='{before_name_en}' "
+                                    f"after_ru='{char_data.get('name_ru')}' after_en='{char_data.get('name_en')}'"
                                 )
-                                
-                                if was_translated:
-                                    # Обновляем данные в ответе из новых полей
-                                    char_data["name_ru"] = character.name_ru
-                                    char_data["name_en"] = character.name_en
-                                    char_data["description_ru"] = character.description_ru
-                                    char_data["description_en"] = character.description_en
-                                    char_data["personality_ru"] = character.personality_ru
-                                    char_data["personality_en"] = character.personality_en
-                                    char_data["situation_ru"] = character.situation_ru
-                                    char_data["situation_en"] = character.situation_en
-                                    
-                                    logger.info(f"[AUTO-TRANSLATE] ✓ Персонаж {char_id} переведен на {target_lang}")
-                        
+
+                            # Проверяем нужен ли дополнительный перевод
+                            has_target_translation = (
+                                (target_lang == "ru" and char_data.get("personality_ru")) or
+                                (target_lang == "en" and char_data.get("personality_en"))
+                            )
+
+                            if has_target_translation:
+                                continue  # Основные поля уже переведены
+
+                            # Автоматически переводим и сохраняем недостающие поля
+                            was_translated = await auto_translate_and_save_character(
+                                character, db, target_lang
+                            )
+
+                            if was_translated:
+                                # Обновляем данные в ответе из новых полей
+                                char_data["name_ru"] = character.name_ru
+                                char_data["name_en"] = character.name_en
+                                char_data["personality_ru"] = character.personality_ru
+                                char_data["personality_en"] = character.personality_en
+                                char_data["situation_ru"] = character.situation_ru
+                                char_data["situation_en"] = character.situation_en
+
+                                logger.info(f"[AUTO-TRANSLATE] ✓ Персонаж {char_id} переведен на {target_lang}")
+
                         except Exception as e:
                             logger.error(f"[AUTO-TRANSLATE] Ошибка перевода персонажа {char_data.get('id')}: {e}")
-                            # Продолжаем с остальными персонажами
                             continue
             
             # Формируем новый ответ с обновленными данными

@@ -388,6 +388,9 @@ interface Character {
   is_nsfw?: boolean;
   creator_username?: string;
   prompt?: string;
+  display_name?: string;
+  name_ru?: string;   // Локализованное имя RU
+  name_en?: string;   // Localized name EN
   translations?: {
     [lang: string]: {
       name?: string;
@@ -680,6 +683,9 @@ export const MainPage: React.FC<MainPageProps> = ({
         total_messages_count: char.total_messages_count || 0,
         prompt: char.prompt || char.full_prompt || '',
         user_id: char.user_id,
+        // Локализованные имена — ключевые поля для useCharacterTranslation.tChar('name')
+        name_ru: char.name_ru || undefined,
+        name_en: char.name_en || undefined,
 
         raw: char,
         translations: char.translations,

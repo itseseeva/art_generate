@@ -180,8 +180,10 @@ async def auto_translate_and_save_character(character, db, target_lang: str = 'e
                 # Check main fields
                 if not character.situation_en or not character.personality_en:
                     missing_fields = True
+                # Имя — тоже нужно перевести если отсутствует
+                if not character.name_en:
+                    missing_fields = True
                 # Check optional fields: if source exists but target doesn't
-                # Note: character.character_appearance/location are legacy/common fields that might hold the source text
                 if (character.character_appearance or character.appearance_ru) and not character.appearance_en:
                     missing_fields = True
                 if (character.location or character.location_ru) and not character.location_en:
@@ -189,13 +191,15 @@ async def auto_translate_and_save_character(character, db, target_lang: str = 'e
             elif target_lang == 'ru':
                 if not character.situation_ru or not character.personality_ru:
                     missing_fields = True
+                # Имя — тоже нужно перевести если отсутствует
+                if not character.name_ru:
+                    missing_fields = True
                 if (character.character_appearance or character.appearance_en) and not character.appearance_ru:
                     missing_fields = True
                 if (character.location or character.location_en) and not character.location_ru:
                     missing_fields = True
             
             if not missing_fields:
-                # logger.info(f"Skipping translation for {character.id}, all fields present in {target_lang}")
                 return False
         
         logger.info(f"[AUTO-TRANSLATE] Processing character {character.id} ({character.name}) -> {target_lang} (Force={force})")
@@ -270,16 +274,19 @@ async def auto_translate_and_save_character(character, db, target_lang: str = 'e
 
         # Save to DB
         if target_lang == 'en':
+            # Сохраняем имя на EN только если ещё не задано вручную
+            if not character.name_en and final_common.get('name'):
+                character.name_en = final_common['name']
             character.personality_en = trans_personality
             character.situation_en = trans_situation
             character.instructions_en = trans_instructions
             character.style_en = trans_style
             character.appearance_en = trans_appearance
             character.location_en = trans_location
-            # We don't overwrite name/description as they are usually shared or specific columns?
-            # description is RU only in model? "description = Column(UTF8Text... RU)"
-            # There is no description_en anymore.
         elif target_lang == 'ru':
+            # Сохраняем имя на RU только если ещё не задано вручную
+            if not character.name_ru and final_common.get('name'):
+                character.name_ru = final_common['name']
             character.personality_ru = trans_personality
             character.situation_ru = trans_situation
             character.instructions_ru = trans_instructions

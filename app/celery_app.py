@@ -125,7 +125,8 @@ celery_app = Celery(
         "app.tasks.cache_tasks",
         "app.tasks.chat_tasks",
         "app.tasks.periodic_tasks",
-        "app.tasks.runpod_tasks"
+        "app.tasks.runpod_tasks",
+        "app.tasks.translation_tasks",  # Задачи перевода персонажей
     ],
     # Оптимизация импортов для ускорения запуска
     autodiscover_tasks=False,  # Отключаем автодискавери для ускорения
@@ -197,6 +198,7 @@ celery_app.conf.update(
         "app.tasks.chat_tasks.save_chat_history_async_task": {"queue": "low_priority"},
         "app.tasks.cache_tasks.clear_cache_task": {"queue": "low_priority"},
         "app.tasks.cache_tasks.clear_characters_cache_task": {"queue": "low_priority"},
+        "app.tasks.translation_tasks.translate_character_names_task": {"queue": "low_priority"},
     },
     
     # Настройки retry

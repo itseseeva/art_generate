@@ -4816,7 +4816,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                     <CharacterCard
                       character={{
                         id: currentCharacter.id,
-                        name: currentCharacter.name,
+                        name: tChar('name') || currentCharacter.name,
                         description: currentCharacter.description || '',
                         avatar: currentCharacter.avatar || currentCharacter.name.charAt(0).toUpperCase(),
                         photos: characterPhotos,
@@ -4912,8 +4912,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
                     {JSON.stringify({
                       "@context": "https://schema.org",
                       "@type": "CreativeWork",
-                      "name": `Чат с ИИ ${currentCharacter.name}`,
-                      "description": currentCharacter.description || `Виртуальный чат с персонажем ${currentCharacter.name}`,
+                      "name": `Чат с ИИ ${tChar('name') || currentCharacter.name}`,
+                      "description": currentCharacter.description || `Виртуальный чат с персонажем ${tChar('name') || currentCharacter.name}`,
                       "image": currentCharacter.avatar,
                       "author": {
                         "@type": "Organization",

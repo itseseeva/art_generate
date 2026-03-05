@@ -8,6 +8,8 @@ export interface SearchResult {
     display_name: string;
     avatar_url?: string;
     description?: string;
+    name_ru?: string;
+    name_en?: string;
 }
 
 export const useSearch = () => {

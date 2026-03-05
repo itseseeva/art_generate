@@ -310,7 +310,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               <Message
                 key={message.id}
                 message={message}
-                characterName={characterName}
+                characterName={tChar('name') || characterName}
                 characterAvatar={characterAvatar}
                 voiceUrl={voiceUrl}
                 userAvatar={userAvatar}

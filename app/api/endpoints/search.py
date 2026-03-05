@@ -22,6 +22,8 @@ class SearchResult(BaseModel):
     display_name: str # display_name or username
     avatar_url: Optional[str] = None
     description: Optional[str] = None # Short description
+    name_ru: Optional[str] = None
+    name_en: Optional[str] = None
 
 @router.get("/", response_model=List[SearchResult])
 async def search(
@@ -47,7 +49,9 @@ async def search(
             .where(
                 or_(
                     CharacterDB.name.ilike(query_str),
-                    CharacterDB.display_name.ilike(query_str)
+                    CharacterDB.display_name.ilike(query_str),
+                    CharacterDB.name_en.ilike(query_str),
+                    CharacterDB.name_ru.ilike(query_str),
                 )
             )
             .limit(limit)
@@ -90,10 +94,12 @@ async def search(
             results.append(SearchResult(
                 id=char.id,
                 type='character',
-                name=char.name, # This is often used as slug
+                name=char.name,
                 display_name=char.display_name or char.name,
                 avatar_url=avatar_url,
-                description=char.description[:100] + '...' if char.description else None
+                description=char.description[:100] + '...' if char.description else None,
+                name_ru=char.name_ru,
+                name_en=char.name_en,
             ))
             
     except Exception as e:

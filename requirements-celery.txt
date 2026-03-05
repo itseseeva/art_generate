@@ -28,3 +28,6 @@ boto3>=1.34.0
 # Работа с изображениями (без GPU)
 Pillow>=10.0.0
 
+# Перевод персонажей (нужен для translation_tasks)
+python-slugify>=8.0.0
+deep-translator>=1.11.0

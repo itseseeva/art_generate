@@ -249,7 +249,13 @@ export const SearchBar: React.FC = () => {
                                         {!result.avatar_url && <FiUser color="rgba(255,255,255,0.5)" />}
                                     </Avatar>
                                     <ResultInfo>
-                                        <ResultName>{result.display_name || result.name}</ResultName>
+                                        <ResultName>
+                                            {result.type === 'character'
+                                                ? (i18n.language?.startsWith('en')
+                                                    ? (result.name_en || result.display_name || result.name)
+                                                    : (result.name_ru || result.display_name || result.name))
+                                                : (result.display_name || result.name)}
+                                        </ResultName>
                                         <ResultType>
                                             {result.type === 'character' ? t('search.character', 'Персонаж') : t('search.user', 'Пользователь')}
                                         </ResultType>
