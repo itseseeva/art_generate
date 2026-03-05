@@ -43,6 +43,10 @@ services:
     build:
       context: ..
       dockerfile: Docker_all/Dockerfile.backend
+      args:
+        - VITE_API_URL=https://${DOMAIN:-candygirlschat.com}
+        - VITE_DOMAIN=${DOMAIN:-candygirlschat.com}
+        - VITE_CDN_DOMAIN=${CDN_DOMAIN:-https://static.candygirlschat.com}
     container_name: art_generation_backend
     restart: always
     networks:

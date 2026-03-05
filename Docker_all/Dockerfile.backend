@@ -1,9 +1,23 @@
 # --- Stage 1: Build Frontend (for SEO template) ---
 FROM node:20-alpine as frontend-builder
+
 WORKDIR /app
+
+# Копируем файлы зависимостей
 COPY frontend/package*.json ./
 RUN npm install
+
+# Копируем весь фронтенд
 COPY frontend/ .
+
+# Аргументы сборки для Vite (подставляем домен из .env)
+ARG VITE_API_URL
+ARG VITE_DOMAIN
+ARG VITE_CDN_DOMAIN
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_DOMAIN=$VITE_DOMAIN
+ENV VITE_CDN_DOMAIN=$VITE_CDN_DOMAIN
+
 RUN npm run build
 
 # --- Stage 2: Build dependencies ---
