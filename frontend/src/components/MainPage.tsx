@@ -1552,7 +1552,7 @@ export const MainPage: React.FC<MainPageProps> = ({
                   const slug = tagObj.slug;
                   if (slug) {
                     const currentLang = i18n.language || 'ru';
-                    const path = currentLang === 'en' ? `/tags/${slug}` : `/${currentLang}/tags/${slug}`;
+                    const path = `/${currentLang}/tags/${slug}`;
                     navigate(path);
                   } else {
                     toggleTag(tagObj.name);

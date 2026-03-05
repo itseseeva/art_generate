@@ -1,7 +1,7 @@
 """add_name_ru_en_to_characters
 
 Revision ID: abc456def789
-Revises: 52260f036abb
+Revises: d4e5f6a7b8c9
 Create Date: 2026-03-04 06:13:00.000000
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'abc456def789'
-down_revision: Union[str, Sequence[str], None] = '52260f036abb'
+down_revision: Union[str, Sequence[str], None] = 'd4e5f6a7b8c9'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
