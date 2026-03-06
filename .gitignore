@@ -317,3 +317,11 @@ venv/
 !frontend/public/**/*.svg
 !frontend/public/**/*.webp
 !frontend/public/**/*.ico
+
+# Исключаем папку дефолтных фото голосов из игнорирования
+!app/default_voice_photos/
+!app/default_voice_photos/**
+!app/default_voice_photos/**/*.png
+!app/default_voice_photos/**/*.jpg
+!app/default_voice_photos/**/*.jpeg
+!app/default_voice_photos/**/*.webp

@@ -71,6 +71,11 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
+        '/default_voice_photo': {
+          target: 'http://localhost:8001',
+          changeOrigin: true,
+          secure: false,
+        },
         '/avatars': {
           target: 'http://localhost:8001',
           changeOrigin: true,
