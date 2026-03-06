@@ -887,10 +887,9 @@ async def update_user_voice_photo(
         
         logger.info(f"[VOICE PHOTO] Фото голоса обновлено для пользователя {current_user.id}, голос {voice_id}, URL: {cloud_url}")
         
-        # Инвалидируем кэш доступных голосов
-        await cache_delete(key_available_voices(current_user.id))
-        if user_voice.is_public:
-            await cache_delete_pattern("voices:available:*")  # Публичные голоса видны всем
+        # Инвалидируем ВСЕ ключи кэша для available-voices (все языки и варианты)
+        # Важно: удаляем паттерном, т.к. ключ включает user_id + lang
+        await cache_delete_pattern("voices:available:*")
         
         return {
             "status": "success",

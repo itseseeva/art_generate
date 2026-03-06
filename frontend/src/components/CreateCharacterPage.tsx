@@ -8056,16 +8056,27 @@ ${formData.style.trim()}`;
                                                       });
 
                                                       if (response.ok) {
-                                                        const token = localStorage.getItem('authToken');
-                                                        const voicesResponse = await fetch(`/api/v1/characters/available-voices?lang=${(localStorage.getItem('i18nextLng') || 'ru').split('-')[0]}`, {
-                                                          headers: {
-                                                            'Authorization': `Bearer ${token}`
-                                                          }
-                                                        });
-                                                        if (voicesResponse.ok) {
-                                                          const voicesData = await voicesResponse.json();
-                                                          setAvailableVoices(voicesData);
+                                                        const result = await response.json();
+
+                                                        // Немедленно применяем новый photo_url прямо в стейте для мгновенного обновления UI
+                                                        if (result.photo_url) {
+                                                          setAvailableVoices(prev => prev.map(v =>
+                                                            (String(v.user_voice_id) === String(editingVoice.user_voice_id) ||
+                                                              String(v.id) === String(editingVoice.id))
+                                                              ? { ...v, photo_url: result.photo_url }
+                                                              : v
+                                                          ));
                                                         }
+
+                                                        // Также обновляем полный список с сервера (асинхронно)
+                                                        const tkn = localStorage.getItem('authToken');
+                                                        const _lang = (localStorage.getItem('i18nextLng') || 'ru').split('-')[0];
+                                                        fetch(`/api/v1/characters/available-voices?lang=${_lang}`, {
+                                                          headers: { 'Authorization': `Bearer ${tkn}` }
+                                                        }).then(r => r.ok ? r.json() : null).then(data => {
+                                                          if (data) setAvailableVoices(data);
+                                                        }).catch(() => { });
+
                                                         setPhotoPreview(null);
                                                         setEditingVoicePhotoId(null);
                                                         setPhotoUpdateCounter(prev => prev + 1);

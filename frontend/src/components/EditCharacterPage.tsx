@@ -6926,16 +6926,26 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                                                           });
 
                                                           if (response.ok) {
-                                                            const _lang = i18n.language?.split('-')[0] || 'ru';
-                                                            const voicesResponse = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/available-voices?lang=${_lang}`, {
-                                                              headers: {
-                                                                'Authorization': `Bearer ${token}`
-                                                              }
-                                                            });
-                                                            if (voicesResponse.ok) {
-                                                              const voicesData = await voicesResponse.json();
-                                                              setAvailableVoices(voicesData);
+                                                            const result = await response.json();
+
+                                                            // Немедленно применяем новый photo_url прямо в стейте для мгновенного обновления UI
+                                                            if (result.photo_url) {
+                                                              setAvailableVoices(prev => prev.map(v =>
+                                                                (String(v.user_voice_id) === String(editingVoice.user_voice_id) ||
+                                                                  String(v.id) === String(editingVoice.id))
+                                                                  ? { ...v, photo_url: result.photo_url }
+                                                                  : v
+                                                              ));
                                                             }
+
+                                                            // Также обновляем полный список с сервера (асинхронно, без блокировки)
+                                                            const _lang = i18n.language?.split('-')[0] || 'ru';
+                                                            fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/available-voices?lang=${_lang}`, {
+                                                              headers: { 'Authorization': `Bearer ${token}` }
+                                                            }).then(r => r.ok ? r.json() : null).then(data => {
+                                                              if (data) setAvailableVoices(data);
+                                                            }).catch(() => { });
+
                                                             setPhotoPreview(null);
                                                             setEditingVoicePhotoId(null);
                                                             setPhotoUpdateCounter(prev => prev + 1);
