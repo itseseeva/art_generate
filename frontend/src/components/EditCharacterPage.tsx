@@ -3864,12 +3864,13 @@ const MAX_MAIN_PHOTOS = 3;
 /**
  * Получает путь к фотографии голоса по его имени
  */
-const getVoicePhotoPath = (voiceName: string): string => {
+const getVoicePhotoPath = (voiceName: string, t: number = 0): string => {
   // Убираем расширение если есть и нормализуем имя
   const normalizedName = voiceName.replace(/\.(mp3|wav|ogg)$/i, '');
   // В Vite файлы из public доступны по корневому пути
   // Пробуем сначала .png, так как файлы в формате PNG
-  return `/default_voice_photo/${normalizedName}.png`;
+  const url = `/default_voice_photo/${normalizedName}.png`;
+  return t ? `${url}?t=${t}` : url;
 };
 
 const BackButtonStyled = styled(motion.button)`
@@ -4046,8 +4047,9 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const [editingVoiceId, setEditingVoiceId] = useState<string | null>(null); // ID голоса, который редактируется
   const [editedVoiceNames, setEditedVoiceNames] = useState<{ [key: string]: string }>({}); // Редактируемые имена голосов
   const [editingVoicePhotoId, setEditingVoicePhotoId] = useState<string | null>(null); // ID голоса, фото которого редактируется
+  const [photoUpdateCounter, setPhotoUpdateCounter] = useState(0); // Счётчик для обхода кэша фото
   const [uploadingPhotoVoiceId, setUploadingPhotoVoiceId] = useState<string | null>(null); // ID голоса, фото которого загружается
-  const [photoPreview, setPhotoPreview] = useState<{ url: string, x: number, y: number, voiceId: string } | null>(null); // Превью фото для редактирования позиции
+  const [photoPreview, setPhotoPreview] = useState<{ url: string, x: number, y: number, scale: number, voiceId: string } | null>(null); // Превью фото для редактирования позиции
   const [isDraggingPhoto, setIsDraggingPhoto] = useState(false);
   const [dragStart, setDragStart] = useState<{ x: number, y: number, photoX: number, photoY: number, element: HTMLElement } | null>(null);
   const [isVoiceCloneModalOpen, setIsVoiceCloneModalOpen] = useState(false);
@@ -6507,7 +6509,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                               const isSelected = String(formData.voice_id || '') === String(voice.id || '');
                               const audioUrl = voice.preview_url || voice.url;
                               const isPlaying = playingVoiceUrl !== null && (playingVoiceUrl === audioUrl || playingVoiceUrl === voice.url || playingVoiceUrl === voice.preview_url);
-                              const photoPath = getVoicePhotoPath(voice.name);
+                              const photoPath = getVoicePhotoPath(voice.name, photoUpdateCounter);
 
                               return (
                                 <VoicePhotoWrapper key={voice.id}>
@@ -6691,27 +6693,338 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                             const isUserVoice = editingVoice.is_user_voice || false;
                             const photoPath = isUserVoice
                               ? (editingVoice.photo_url ? (editingVoice.photo_url.startsWith('http') ? editingVoice.photo_url : `${API_CONFIG.BASE_URL}${editingVoice.photo_url}`) : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9InJnYmEoNjAsIDYwLCA2MCwgMC4zKSIvPgo8cGF0aCBkPSJNMzAgNDBDMzAgMzUuMDI5IDM0LjAyOSAzMSAzOSAzMUg0MUM0NS45NzEgMzEgNTAgMzUuMDI5IDUwIDQwQzUwIDQ0Ljk3MSA0NS45NzEgNDkgNDEgNDlIMzlDMzQuMDI5IDQ5IDMwIDQ0Ljk3MSAzMCA0MFoiIGZpbGw9InJnYmEoMTUwLCAxNTAsIDE1MCwgMC41KSIvPgo8L3N2Zz4K')
-                              : getVoicePhotoPath(editingVoice.name);
+                              : getVoicePhotoPath(editingVoice.name, photoUpdateCounter);
                             const currentEditedName = editedVoiceNames[editingVoice.id] ?? editingVoice.name;
 
                             return createPortal(
                               <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: '24px' }} onClick={() => setEditingVoicePhotoId(null)}>
                                 <div style={{ background: 'rgba(30,30,30,0.95)', border: '1px solid rgba(139,92,246,0.6)', borderRadius: '12px', padding: '24px', width: '100%', maxWidth: '420px', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
                                   <h3 style={{ color: '#e4e4e7', marginBottom: '20px', fontSize: '18px' }}>Редактировать голос</h3>
-                                  <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-                                    <div style={{ width: '120px', height: '120px', borderRadius: '50%', overflow: 'hidden', border: '3px solid rgba(139,92,246,0.6)' }}><img src={photoPath} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div>
-                                    <input type="file" accept="image/*" id="voice-photo-input" style={{ display: 'none' }} onChange={async (e) => {
-                                      const file = e.target.files?.[0]; if (!file || !isUserVoice) return;
-                                      const token = localStorage.getItem('authToken'); const fd = new FormData(); fd.append('photo_file', file);
-                                      const res = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${editingVoice.user_voice_id}/photo`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${token}` }, body: fd });
-                                      if (res.ok) {
-                                        const _lang = i18n.language?.split('-')[0] || 'ru';
-                                        const vr = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/available-voices?lang=${_lang}`, { headers: { 'Authorization': `Bearer ${token}` } });
-                                        if (vr.ok) setAvailableVoices(await vr.json());
-                                        setEditingVoicePhotoId(null);
-                                      }
-                                    }} />
-                                    {isUserVoice && <label htmlFor="voice-photo-input" style={{ padding: '8px 16px', background: 'rgba(139, 92, 246, 0.8)', borderRadius: '6px', cursor: 'pointer', color: 'white' }}>Изменить фото</label>}
+                                  {/* Редактирование фото */}
+                                  <div style={{ marginBottom: '20px' }}>
+                                    <label style={{ display: 'block', color: '#e4e4e7', marginBottom: '8px', fontSize: '14px' }}>
+                                      Фото голоса
+                                    </label>
+                                    {photoPreview && photoPreview.url && (photoPreview.voiceId === editingVoice.id || photoPreview.voiceId === String(editingVoice.id) || photoPreview.voiceId === String(editingVoice.user_voice_id)) ? (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center', width: '100%' }}>
+                                        <div
+                                          style={{
+                                            width: '120px',
+                                            height: '120px',
+                                            borderRadius: '50%',
+                                            overflow: 'hidden',
+                                            border: '3px solid rgba(139, 92, 246, 0.6)',
+                                            position: 'relative',
+                                            cursor: 'move',
+                                            userSelect: 'none',
+                                            margin: '0 auto',
+                                            touchAction: 'none'
+                                          }}
+                                          onMouseDown={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setIsDraggingPhoto(true);
+                                            setDragStart({
+                                              x: e.clientX,
+                                              y: e.clientY,
+                                              photoX: photoPreview.x,
+                                              photoY: photoPreview.y,
+                                              element: e.currentTarget
+                                            });
+                                          }}
+                                          onWheel={(e) => {
+                                            if (photoPreview) {
+                                              const scaleChange = e.deltaY > 0 ? -0.1 : 0.1;
+                                              let newScale = photoPreview.scale + scaleChange;
+                                              newScale = Math.max(0.5, Math.min(newScale, 3));
+                                              setPhotoPreview(prev => prev ? { ...prev, scale: newScale } : null);
+                                            }
+                                          }}
+                                        >
+                                          <img
+                                            src={photoPreview.url}
+                                            alt="Preview"
+                                            draggable="false"
+                                            style={{
+                                              position: 'absolute',
+                                              top: '50%',
+                                              left: '50%',
+                                              minWidth: '100%',
+                                              minHeight: '100%',
+                                              width: 'auto',
+                                              height: 'auto',
+                                              maxWidth: '200%',
+                                              maxHeight: '200%',
+                                              transform: `translate(calc(-50% + ${photoPreview.x}px), calc(-50% + ${photoPreview.y}px)) scale(${photoPreview.scale})`,
+                                              pointerEvents: 'none',
+                                              userSelect: 'none',
+                                              objectFit: 'cover'
+                                            }}
+                                          />
+                                        </div>
+                                        <div style={{ width: '100%', maxWidth: '200px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                          <span style={{ color: '#888', fontSize: '12px' }}>Масштаб:</span>
+                                          <input
+                                            type="range"
+                                            min="0.5"
+                                            max="3"
+                                            step="0.05"
+                                            value={photoPreview.scale}
+                                            onChange={(e) => {
+                                              const newScale = parseFloat(e.target.value);
+                                              setPhotoPreview(prev => prev ? { ...prev, scale: newScale } : null);
+                                            }}
+                                            style={{ flex: 1, accentColor: '#8b5cf6' }}
+                                          />
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                                          <input
+                                            type="file"
+                                            accept="image/png,image/jpeg,image/jpg,image/webp"
+                                            onChange={(e) => {
+                                              const file = e.target.files?.[0];
+                                              if (file) {
+                                                const reader = new FileReader();
+                                                reader.onload = (event) => {
+                                                  setPhotoPreview({
+                                                    url: event.target?.result as string,
+                                                    x: 0,
+                                                    y: 0,
+                                                    scale: 1,
+                                                    voiceId: String(editingVoice.id || editingVoice.user_voice_id)
+                                                  });
+                                                };
+                                                reader.readAsDataURL(file);
+                                              }
+                                            }}
+                                            style={{ display: 'none' }}
+                                            id={`photo-reload-input-edit-${editingVoice.id || editingVoice.user_voice_id}`}
+                                          />
+                                          <label
+                                            htmlFor={`photo-reload-input-edit-${editingVoice.id || editingVoice.user_voice_id}`}
+                                            style={{
+                                              padding: '8px 16px',
+                                              background: 'rgba(139, 92, 246, 0.8)',
+                                              border: '1px solid rgba(139, 92, 246, 0.6)',
+                                              borderRadius: '6px',
+                                              color: 'white',
+                                              cursor: 'pointer',
+                                              fontSize: '14px',
+                                              fontWeight: '500'
+                                            }}
+                                          >
+                                            Загрузить фото
+                                          </label>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              setPhotoPreview(null);
+                                              setEditingVoicePhotoId(null);
+                                            }}
+                                            style={{
+                                              padding: '8px 16px',
+                                              background: 'rgba(100, 100, 100, 0.8)',
+                                              border: '1px solid rgba(100, 100, 100, 0.6)',
+                                              borderRadius: '6px',
+                                              color: 'white',
+                                              cursor: 'pointer',
+                                              fontSize: '14px'
+                                            }}
+                                          >
+                                            Отмена
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={async (e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              if (photoPreview && (editingVoice.user_voice_id || editingVoice.id)) {
+                                                try {
+                                                  const canvas = document.createElement('canvas');
+                                                  const ctx = canvas.getContext('2d');
+                                                  const size = 200;
+                                                  canvas.width = size;
+                                                  canvas.height = size;
+
+                                                  const img = new Image();
+                                                  img.crossOrigin = 'anonymous';
+                                                  img.onload = async () => {
+                                                    const previewSize = 114;
+                                                    const finalSize = size;
+                                                    const scale = finalSize / previewSize;
+
+                                                    let domW = img.width;
+                                                    let domH = img.height;
+
+                                                    const maxDim = previewSize * 2;
+                                                    if (domW > maxDim || domH > maxDim) {
+                                                      const maxScale = Math.min(maxDim / domW, maxDim / domH);
+                                                      domW *= maxScale;
+                                                      domH *= maxScale;
+                                                    }
+
+                                                    const minDim = previewSize;
+                                                    if (domW < minDim || domH < minDim) {
+                                                      const minScale = Math.max(minDim / domW, minDim / domH);
+                                                      domW *= minScale;
+                                                      domH *= minScale;
+                                                    }
+
+                                                    const imgW = domW * scale * photoPreview.scale;
+                                                    const imgH = domH * scale * photoPreview.scale;
+
+                                                    const baseX = (finalSize - imgW) / 2;
+                                                    const baseY = (finalSize - imgH) / 2;
+
+                                                    const offsetX = photoPreview.x * scale;
+                                                    const offsetY = photoPreview.y * scale;
+
+                                                    ctx.beginPath();
+                                                    ctx.arc(finalSize / 2, finalSize / 2, finalSize / 2, 0, Math.PI * 2);
+                                                    ctx.clip();
+
+                                                    ctx.drawImage(img, baseX + offsetX, baseY + offsetY, imgW, imgH);
+
+                                                    canvas.toBlob(async (blob) => {
+                                                      if (blob) {
+                                                        setUploadingPhotoVoiceId(String(editingVoice.id || editingVoice.user_voice_id));
+                                                        try {
+                                                          const formData = new FormData();
+                                                          formData.append('photo_file', blob, 'voice_photo.png');
+                                                          const token = localStorage.getItem('authToken');
+
+                                                          let photoUrl = '';
+                                                          if (editingVoice.user_voice_id) {
+                                                            photoUrl = `${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${editingVoice.user_voice_id}/photo`;
+                                                          } else if (isAdmin) {
+                                                            photoUrl = `${API_CONFIG.BASE_URL}/api/v1/characters/default-voice/${editingVoice.id}/photo`;
+                                                          } else {
+                                                            alert('Нет прав на обновление этого фото');
+                                                            setUploadingPhotoVoiceId(null);
+                                                            return;
+                                                          }
+
+                                                          const response = await fetch(photoUrl, {
+                                                            method: 'PATCH',
+                                                            headers: {
+                                                              'Authorization': `Bearer ${token}`
+                                                            },
+                                                            body: formData
+                                                          });
+
+                                                          if (response.ok) {
+                                                            const _lang = i18n.language?.split('-')[0] || 'ru';
+                                                            const voicesResponse = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/available-voices?lang=${_lang}`, {
+                                                              headers: {
+                                                                'Authorization': `Bearer ${token}`
+                                                              }
+                                                            });
+                                                            if (voicesResponse.ok) {
+                                                              const voicesData = await voicesResponse.json();
+                                                              setAvailableVoices(voicesData);
+                                                            }
+                                                            setPhotoPreview(null);
+                                                            setEditingVoicePhotoId(null);
+                                                            setPhotoUpdateCounter(prev => prev + 1);
+                                                          } else {
+                                                            const error = await response.json();
+                                                            alert('Ошибка обновления фото: ' + (error.detail || 'Неизвестная ошибка'));
+                                                          }
+                                                        } catch (err) {
+                                                          alert('Не удалось обновить фото. Проверьте консоль для деталей.');
+                                                        } finally {
+                                                          setUploadingPhotoVoiceId(null);
+                                                        }
+                                                      }
+                                                    }, 'image/png');
+                                                  };
+                                                  img.src = photoPreview.url;
+                                                } catch (err) {
+                                                  alert('Не удалось обработать фото');
+                                                }
+                                              }
+                                            }}
+                                            style={{
+                                              padding: '8px 16px',
+                                              background: 'rgba(255, 215, 0, 0.8)',
+                                              border: '1px solid rgba(255, 215, 0, 0.6)',
+                                              borderRadius: '6px',
+                                              color: '#1a1a1a',
+                                              cursor: 'pointer',
+                                              fontSize: '14px',
+                                              fontWeight: '500'
+                                            }}
+                                          >
+                                            Сохранить
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center', width: '100%' }}>
+                                        <div
+                                          style={{
+                                            width: '120px',
+                                            height: '120px',
+                                            borderRadius: '50%',
+                                            overflow: 'hidden',
+                                            border: '3px solid rgba(139, 92, 246, 0.6)',
+                                            position: 'relative',
+                                            margin: '0 auto'
+                                          }}
+                                        >
+                                          <img
+                                            src={photoPath}
+                                            alt={editingVoice.name}
+                                            style={{
+                                              width: '100%',
+                                              height: '100%',
+                                              objectFit: 'cover',
+                                              objectPosition: 'center'
+                                            }}
+                                          />
+                                        </div>
+                                        <input
+                                          type="file"
+                                          accept="image/png,image/jpeg,image/jpg,image/webp"
+                                          onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                              const reader = new FileReader();
+                                              reader.onload = (event) => {
+                                                setPhotoPreview({
+                                                  url: event.target?.result as string,
+                                                  x: 0,
+                                                  y: 0,
+                                                  scale: 1,
+                                                  voiceId: String(editingVoice.id || editingVoice.user_voice_id)
+                                                });
+                                              };
+                                              reader.readAsDataURL(file);
+                                            }
+                                          }}
+                                          style={{ display: 'none' }}
+                                          id={`photo-input-edit-${editingVoice.id || editingVoice.user_voice_id}`}
+                                        />
+                                        {(isUserVoice || isAdmin) && (
+                                          <label
+                                            htmlFor={`photo-input-edit-${editingVoice.id || editingVoice.user_voice_id}`}
+                                            style={{
+                                              padding: '8px 16px',
+                                              background: 'rgba(139, 92, 246, 0.8)',
+                                              border: '1px solid rgba(139, 92, 246, 0.6)',
+                                              borderRadius: '6px',
+                                              color: 'white',
+                                              cursor: 'pointer',
+                                              fontSize: '14px'
+                                            }}
+                                          >
+                                            Изменить фото
+                                          </label>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                   <div style={{ marginBottom: '20px' }}>
                                     <label style={{ display: 'block', color: '#e4e4e7', marginBottom: '8px', fontSize: '14px' }}>Название</label>

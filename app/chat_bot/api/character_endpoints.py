@@ -1063,6 +1063,64 @@ async def rename_default_voice(
         raise HTTPException(status_code=500, detail=f"Ошибка при переименовании дефолтного голоса: {str(e)}")
 
 
+@router.patch("/default-voice/{voice_id}/photo")
+async def update_default_voice_photo(
+    voice_id: str,
+    photo_file: UploadFile = File(..., description="Фото голоса (PNG, JPG, JPEG, WEBP)"),
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Обновление фото дефолтного голоса. Доступно только админам."""
+    try:
+        from app.config.paths import BASE_DIR
+        
+        if not current_user.is_admin:
+            raise HTTPException(status_code=403, detail="Только администраторы могут изменять фото дефолтных голосов")
+        
+        # Получаем имя без расширения
+        voice_name = voice_id.replace('.mp3', '').replace('.wav', '')
+        
+        # Проверка типа файла
+        allowed_types = ["image/png", "image/jpeg", "image/jpg", "image/webp"]
+        if photo_file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Неподдерживаемый тип файла. Разрешены: PNG, JPG, JPEG, WEBP."
+            )
+            
+        photo_data = await photo_file.read()
+        
+        if len(photo_data) == 0:
+            raise HTTPException(status_code=400, detail="Файл пустой")
+            
+        # Папка default_voice_photo во фронтенде (в папке public)
+        frontend_dir = BASE_DIR / "frontend" / "public" / "default_voice_photo"
+        if not frontend_dir.exists():
+            frontend_dir.mkdir(parents=True, exist_ok=True)
+            
+        # Сохраняем всегда как .png, т.к. фронтенд так ожидает (getVoicePhotoPath)
+        photo_path = frontend_dir / f"{voice_name}.png"
+        
+        with open(photo_path, "wb") as f:
+            f.write(photo_data)
+            
+        logger.info(f"[DEFAULT VOICE PHOTO] Фото дефолтного голоса {voice_name} обновлено админом {current_user.id}")
+        
+        # Инвалидируем кэш доступных голосов
+        await cache_delete_pattern("voices:available:*")
+        
+        return {
+            "status": "success",
+            "message": "Фото дефолтного голоса успешно обновлено",
+            "voice_id": voice_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[DEFAULT VOICE PHOTO] Ошибка при обновлении фото: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Ошибка при обновлении фото: {str(e)}")
+
+
 @router.post("/upload-voice")
 async def upload_voice(
     voice_file: UploadFile = File(..., description="Аудио файл голоса (MP3, WAV)"),

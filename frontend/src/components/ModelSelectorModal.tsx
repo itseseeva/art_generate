@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import styled, { keyframes, css } from 'styled-components';
 import { motion, AnimatePresence } from 'motion/react';
 import { theme } from '../theme';
@@ -215,32 +216,32 @@ interface ModelSelectorModalProps {
   onOpenPremiumModal?: () => void;
 }
 
-const AVAILABLE_MODELS = [
+const getAvailableModels = (t: any) => [
   {
     id: 'sao10k/l3-euryale-70b',
     name: 'L3 Euryale 70B',
-    subtitle: '«Мастер темного фэнтези и глубокого погружения»',
-    features: 'Эта модель обучена специально для того, чтобы быть максимально «человечной» в диалогах. У неё один из лучших показателей понимания контекста персонажа.',
-    style: 'Она пишет очень выразительно, уделяя внимание не только действиям, но и внутренним переживаниям, запахам и атмосфере.',
-    forWho: 'Идеально, если ты хочешь долгого развития сюжета, где важна психология и «химия» между персонажами. Она реже других моделей «ломает» образ героя.',
+    subtitle: t('chat.modelSelector.models.euryale.subtitle'),
+    features: t('chat.modelSelector.models.euryale.features'),
+    style: t('chat.modelSelector.models.euryale.style'),
+    forWho: t('chat.modelSelector.models.euryale.forWho'),
     isPremium: false
   },
   {
     id: 'thedrummer/cydonia-24b-v4.1',
     name: 'Cydonia 24B v4.1',
-    subtitle: '«Новый стандарт ролевого взаимодействия»',
-    features: 'Эта модель значительно умнее классических аналогов. Она обладает великолепной логикой и способна удерживать сложнейшие сюжетные линии.',
-    style: 'Художественный, глубокий и последовательный стиль. Великолепно справляется с описанием окружения и нюансов поведения.',
-    forWho: 'Для тех, кто ищет баланс между скоростью и высочайшим качеством повествования. Идеально для длительных ролевых сессий.',
+    subtitle: t('chat.modelSelector.models.cydonia.subtitle'),
+    features: t('chat.modelSelector.models.cydonia.features'),
+    style: t('chat.modelSelector.models.cydonia.style'),
+    forWho: t('chat.modelSelector.models.cydonia.forWho'),
     isPremium: false
   },
   {
     id: 'deepseek/deepseek-chat-v3-0324',
     name: 'DeepSeek Chat v3',
-    subtitle: '«Новейшая версия от DeepSeek»',
-    features: 'Современная мультимодальная модель с высокой скоростью генерации и отличным пониманием контекста. Оптимизирована для естественных диалогов.',
-    style: 'Сбалансированный стиль с акцентом на естественность и живость общения. Хорошо справляется как с легкими беседами, так и с глубокими темами.',
-    forWho: 'Для тех, кто ценит быстрые и качественные ответы. Отлично подходит для динамичных диалогов и ситуаций, где важна скорость реакции.',
+    subtitle: t('chat.modelSelector.models.deepseek.subtitle'),
+    features: t('chat.modelSelector.models.deepseek.features'),
+    style: t('chat.modelSelector.models.deepseek.style'),
+    forWho: t('chat.modelSelector.models.deepseek.forWho'),
     isPremium: true
   }
 ];
@@ -273,9 +274,12 @@ export const ModelSelectorModal: React.FC<ModelSelectorModalProps> = ({
   isPremium = false,
   onOpenPremiumModal
 }) => {
+  const { t } = useTranslation();
   const [premiumWarningId, setPremiumWarningId] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  const AVAILABLE_MODELS = getAvailableModels(t);
 
   const handleSelect = (modelId: string) => {
     const model = AVAILABLE_MODELS.find(m => m.id === modelId);
@@ -292,7 +296,7 @@ export const ModelSelectorModal: React.FC<ModelSelectorModalProps> = ({
   return (
     <ModalOverlay onClick={onClose}>
       <ModalContent onClick={(e) => e.stopPropagation()}>
-        <ModalTitle>Выберите нейросеть</ModalTitle>
+        <ModalTitle>{t('chat.modelSelector.title')}</ModalTitle>
         <ModelList>
           {AVAILABLE_MODELS.map((model) => (
             <StyledModelOption
@@ -302,19 +306,19 @@ export const ModelSelectorModal: React.FC<ModelSelectorModalProps> = ({
               onClick={() => handleSelect(model.id)}
             >
               {model.isPremium && (
-                <PremiumBadge>Только для Premium</PremiumBadge>
+                <PremiumBadge>{t('chat.modelSelector.premiumBadge')}</PremiumBadge>
               )}
               <ModelName>{model.name}</ModelName>
               <ModelSubtitle>{model.subtitle}</ModelSubtitle>
               <ModelDescription>
                 <ModelSection>
-                  <ModelSectionTitle>Особенности</ModelSectionTitle> {model.features}
+                  <ModelSectionTitle>{t('chat.modelSelector.features')}</ModelSectionTitle> {model.features}
                 </ModelSection>
                 <ModelSection>
-                  <ModelSectionTitle>Стиль</ModelSectionTitle> {model.style}
+                  <ModelSectionTitle>{t('chat.modelSelector.style')}</ModelSectionTitle> {model.style}
                 </ModelSection>
                 <ModelSection>
-                  <ModelSectionTitle>Для кого</ModelSectionTitle> {model.forWho}
+                  <ModelSectionTitle>{t('chat.modelSelector.forWho')}</ModelSectionTitle> {model.forWho}
                 </ModelSection>
               </ModelDescription>
               <AnimatePresence>
@@ -325,14 +329,14 @@ export const ModelSelectorModal: React.FC<ModelSelectorModalProps> = ({
                     exit={{ opacity: 0, y: 30 }}
                     transition={{ duration: 0.2, ease: "easeOut" }}
                   >
-                    Только для Premium подписчиков!
+                    {t('chat.modelSelector.premiumWarning')}
                   </PremiumWarning>
                 )}
               </AnimatePresence>
             </StyledModelOption>
           ))}
         </ModelList>
-        <CloseButton onClick={onClose}>Назад к чату</CloseButton>
+        <CloseButton onClick={onClose}>{t('chat.modelSelector.backToChat')}</CloseButton>
       </ModalContent>
     </ModalOverlay>
   );

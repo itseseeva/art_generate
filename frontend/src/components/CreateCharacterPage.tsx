@@ -4562,12 +4562,10 @@ const MAX_MAIN_PHOTOS = 3;
 /**
  * Получает путь к фотографии голоса по его имени
  */
-const getVoicePhotoPath = (voiceName: string): string => {
-  // Убираем расширение если есть и нормализуем имя
+const getVoicePhotoPath = (voiceName: string, t: number = 0): string => {
   const normalizedName = voiceName.replace(/\.(mp3|wav|ogg)$/i, '');
-  // В Vite файлы из public доступны по корневому пути
-  // Пробуем сначала .png, так как файлы в формате PNG
-  return `/default_voice_photo/${normalizedName}.png`;
+  const url = `/default_voice_photo/${normalizedName}.png`;
+  return t ? `${url}?t=${t}` : url;
 };
 
 export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
@@ -4913,8 +4911,9 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [editingVoiceId, setEditingVoiceId] = useState<string | null>(null); // ID голоса, который редактируется
   const [editedVoiceNames, setEditedVoiceNames] = useState<{ [key: string]: string }>({}); // Редактируемые имена голосов
   const [editingVoicePhotoId, setEditingVoicePhotoId] = useState<string | null>(null); // ID голоса, фото которого редактируется
+  const [photoUpdateCounter, setPhotoUpdateCounter] = useState(0); // Счётчик для обхода кэша фото
   const [uploadingPhotoVoiceId, setUploadingPhotoVoiceId] = useState<string | null>(null); // ID голоса, фото которого загружается
-  const [photoPreview, setPhotoPreview] = useState<{ url: string, x: number, y: number, voiceId: string } | null>(null); // Превью фото для редактирования позиции
+  const [photoPreview, setPhotoPreview] = useState<{ url: string, x: number, y: number, scale: number, voiceId: string } | null>(null); // Превью фото для редактирования позиции
   const [isDraggingPhoto, setIsDraggingPhoto] = useState(false);
   const [dragStart, setDragStart] = useState<{ x: number, y: number, photoX: number, photoY: number, element: HTMLElement } | null>(null);
   const [isVoiceCloneModalOpen, setIsVoiceCloneModalOpen] = useState(false);
@@ -5523,10 +5522,10 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     try {
       const token = localStorage.getItem('authToken');
       if (!token) {
-        // Сохраняем текущий шаг перед редиректом
+        // Сохраняем текущий шаг перед редиреком
         localStorage.setItem('createCharacterStep', '3');
 
-        // Сохраняем все данные формы перед редиректом
+        // Сохраняем все данные формы перед редиреком
         try {
           const dataToSave = {
             ...formData,
@@ -5571,6 +5570,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         location: formData.location?.trim() || null,
         is_nsfw: currentContentMode === 'nsfw',
         tags: formData.tags,
+        voice_id: selectedVoiceId || null,
         voice_url: selectedVoiceUrl || null
       };
 
@@ -5766,7 +5766,9 @@ ${formData.style.trim()}`;
         prompt: full_prompt,
         character_appearance: formData.appearance?.trim() || null,
         location: formData.location?.trim() || null,
-        is_nsfw: currentContentMode === 'nsfw'
+        is_nsfw: currentContentMode === 'nsfw',
+        voice_id: selectedVoiceId || null,
+        voice_url: selectedVoiceUrl || null
       };
 
 
@@ -6948,7 +6950,7 @@ ${formData.style.trim()}`;
                             ? (voice.photo_url
                               ? (voice.photo_url.startsWith('http') ? voice.photo_url : `${API_CONFIG.BASE_URL}${voice.photo_url}`)
                               : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9InJnYmEoNjAsIDYwLCA2MCwgMC4zKSIvPgo8cGF0aCBkPSJNMzAgNDBDMzAgMzUuMDI5IDM0LjAyOSAzMSAzOSAzMUg0MUM0NS45NzEgMzEgNTAgMzUuMDI5IDUwIDQwQzUwIDQ0Ljk3MSA0NS45NzEgNDkgNDEgNDlIMzlDMzQuMDI5IDQ5IDMwIDQ0Ljk3MSAzMCA0MFoiIGZpbGw9InJnYmEoMTUwLCAxNTAsIDE1MCwgMC41KSIvPgo8L3N2Zz4K')
-                            : getVoicePhotoPath(voice.name);
+                            : getVoicePhotoPath(voice.name, photoUpdateCounter);
                           const isEditingName = editingVoiceId === voice.id;
                           const editedName = editedVoiceNames[voice.id] || voice.name;
                           const isEditingPhoto = editingVoicePhotoId === voice.id || editingVoicePhotoId === String(voice.id);
@@ -7403,7 +7405,7 @@ ${formData.style.trim()}`;
                                     ? (voice.photo_url
                                       ? (voice.photo_url.startsWith('http') ? voice.photo_url : `${API_CONFIG.BASE_URL}${voice.photo_url}`)
                                       : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9InJnYmEoNjAsIDYwLCA2MCwgMC4zKSIvPgo8cGF0aCBkPSJNMzAgNDBDMzAgMzUuMDI5IDM0LjAyOSAzMSAzOSAzMUg0MUM0NS45NzEgMzEgNTAgMzUuMDI5IDUwIDQwQzUwIDQ0Ljk3MSA0NS45NzEgNDkgNDEgNDlIMzlDMzQuMDI5IDQ5IDMwIDQ0Ljk3MSAzMCA0MFoiIGZpbGw9InJnYmEoMTUwLCAxNTAsIDE1MCwgMC41KSIvPgo8L3N2Zz4K')
-                                    : getVoicePhotoPath(voice.name);
+                                    : getVoicePhotoPath(voice.name, photoUpdateCounter);
                                   const isEditingName = editingVoiceId === (voice.id || voice.user_voice_id) || editingVoiceId === String(voice.id || voice.user_voice_id);
                                   const editedName = editedVoiceNames[voice.id || voice.user_voice_id] || voice.name;
                                   const isEditingPhoto = editingVoicePhotoId === (voice.id || voice.user_voice_id) || editingVoicePhotoId === String(voice.id || voice.user_voice_id);
@@ -7782,7 +7784,7 @@ ${formData.style.trim()}`;
                           ? (editingVoice.photo_url
                             ? (editingVoice.photo_url.startsWith('http') ? editingVoice.photo_url : `${API_CONFIG.BASE_URL}${editingVoice.photo_url}`)
                             : defaultPlaceholder)
-                          : getVoicePhotoPath(editingVoice.name);
+                          : getVoicePhotoPath(editingVoice.name, photoUpdateCounter);
                         const editedName = editedVoiceNames[editingVoice.id] !== undefined ? editedVoiceNames[editingVoice.id] : editingVoice.name;
 
                         const modalContent = (
@@ -7856,6 +7858,14 @@ ${formData.style.trim()}`;
                                           element: e.currentTarget
                                         });
                                       }}
+                                      onWheel={(e) => {
+                                        if (photoPreview) {
+                                          const scaleChange = e.deltaY > 0 ? -0.1 : 0.1;
+                                          let newScale = photoPreview.scale + scaleChange;
+                                          newScale = Math.max(0.5, Math.min(newScale, 3));
+                                          setPhotoPreview(prev => prev ? { ...prev, scale: newScale } : null);
+                                        }
+                                      }}
                                     >
                                       <img
                                         src={photoPreview.url}
@@ -7871,11 +7881,26 @@ ${formData.style.trim()}`;
                                           height: 'auto',
                                           maxWidth: '200%',
                                           maxHeight: '200%',
-                                          transform: `translate(calc(-50% + ${photoPreview.x}px), calc(-50% + ${photoPreview.y}px))`,
+                                          transform: `translate(calc(-50% + ${photoPreview.x}px), calc(-50% + ${photoPreview.y}px)) scale(${photoPreview.scale})`,
                                           pointerEvents: 'none',
                                           userSelect: 'none',
                                           objectFit: 'cover'
                                         }}
+                                      />
+                                    </div>
+                                    <div style={{ width: '100%', maxWidth: '200px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <span style={{ color: '#888', fontSize: '12px' }}>Масштаб:</span>
+                                      <input
+                                        type="range"
+                                        min="0.5"
+                                        max="3"
+                                        step="0.05"
+                                        value={photoPreview.scale}
+                                        onChange={(e) => {
+                                          const newScale = parseFloat(e.target.value);
+                                          setPhotoPreview(prev => prev ? { ...prev, scale: newScale } : null);
+                                        }}
+                                        style={{ flex: 1, accentColor: '#8b5cf6' }}
                                       />
                                     </div>
                                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -7891,6 +7916,7 @@ ${formData.style.trim()}`;
                                                 url: event.target?.result as string,
                                                 x: 0,
                                                 y: 0,
+                                                scale: 1,
                                                 voiceId: String(editingVoice.id || editingVoice.user_voice_id)
                                               });
                                             };
@@ -7915,123 +7941,6 @@ ${formData.style.trim()}`;
                                       >
                                         Загрузить фото
                                       </label>
-                                      {editingVoice.user_voice_id && (
-                                        <button
-                                          type="button"
-                                          onClick={async (e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            if (photoPreview && editingVoice.user_voice_id) {
-                                              try {
-                                                const canvas = document.createElement('canvas');
-                                                const ctx = canvas.getContext('2d');
-                                                const size = 200;
-                                                canvas.width = size;
-                                                canvas.height = size;
-
-                                                const img = new Image();
-                                                img.crossOrigin = 'anonymous';
-                                                img.onload = async () => {
-                                                  const previewSize = 114;
-                                                  const finalSize = size;
-                                                  const scale = finalSize / previewSize;
-
-                                                  // Calculate effective DOM dimensions based on CSS constraints
-                                                  let domW = img.width;
-                                                  let domH = img.height;
-
-                                                  // Max constraint (200%)
-                                                  const maxDim = previewSize * 2;
-                                                  if (domW > maxDim || domH > maxDim) {
-                                                    const maxScale = Math.min(maxDim / domW, maxDim / domH);
-                                                    domW *= maxScale;
-                                                    domH *= maxScale;
-                                                  }
-
-                                                  // Min constraint (100%) - wins over max
-                                                  const minDim = previewSize;
-                                                  if (domW < minDim || domH < minDim) {
-                                                    const minScale = Math.max(minDim / domW, minDim / domH);
-                                                    domW *= minScale;
-                                                    domH *= minScale;
-                                                  }
-
-                                                  const imgW = domW * scale;
-                                                  const imgH = domH * scale;
-
-                                                  const baseX = (finalSize - imgW) / 2;
-                                                  const baseY = (finalSize - imgH) / 2;
-
-                                                  const offsetX = photoPreview.x * scale;
-                                                  const offsetY = photoPreview.y * scale;
-
-                                                  ctx.beginPath();
-                                                  ctx.arc(finalSize / 2, finalSize / 2, finalSize / 2, 0, Math.PI * 2);
-                                                  ctx.clip();
-
-                                                  ctx.drawImage(img, baseX + offsetX, baseY + offsetY, imgW, imgH);
-
-                                                  canvas.toBlob(async (blob) => {
-                                                    if (blob && editingVoice.user_voice_id) {
-                                                      setUploadingPhotoVoiceId(String(editingVoice.id || editingVoice.user_voice_id));
-                                                      try {
-                                                        const formData = new FormData();
-                                                        formData.append('photo_file', blob, 'voice_photo.png');
-                                                        const token = localStorage.getItem('authToken');
-                                                        const photoUrl = `${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${editingVoice.user_voice_id}/photo`;
-                                                        const response = await fetch(photoUrl, {
-                                                          method: 'PATCH',
-                                                          headers: {
-                                                            'Authorization': `Bearer ${token}`
-                                                          },
-                                                          body: formData
-                                                        });
-
-                                                        if (response.ok) {
-                                                          const token = localStorage.getItem('authToken');
-                                                          const voicesResponse = await fetch(`/api/v1/characters/available-voices?lang=${(localStorage.getItem('i18nextLng') || 'ru').split('-')[0]}`, {
-                                                            headers: {
-                                                              'Authorization': `Bearer ${token}`
-                                                            }
-                                                          });
-                                                          if (voicesResponse.ok) {
-                                                            const voicesData = await voicesResponse.json();
-                                                            setAvailableVoices(voicesData);
-                                                          }
-                                                          setPhotoPreview(null);
-                                                          setEditingVoicePhotoId(null);
-                                                        } else {
-                                                          const error = await response.json();
-                                                          alert('Ошибка обновления фото: ' + (error.detail || 'Неизвестная ошибка'));
-                                                        }
-                                                      } catch (err) {
-                                                        alert('Не удалось обновить фото. Проверьте консоль для деталей.');
-                                                      } finally {
-                                                        setUploadingPhotoVoiceId(null);
-                                                      }
-                                                    }
-                                                  }, 'image/png');
-                                                };
-                                                img.src = photoPreview.url;
-                                              } catch (err) {
-                                                alert('Не удалось обработать фото');
-                                              }
-                                            }
-                                          }}
-                                          style={{
-                                            padding: '8px 16px',
-                                            background: 'rgba(255, 215, 0, 0.8)',
-                                            border: '1px solid rgba(255, 215, 0, 0.6)',
-                                            borderRadius: '6px',
-                                            color: '#1a1a1a',
-                                            cursor: 'pointer',
-                                            fontSize: '14px',
-                                            fontWeight: '500'
-                                          }}
-                                        >
-                                          Сохранить
-                                        </button>
-                                      )}
                                       <button
                                         type="button"
                                         onClick={(e) => {
@@ -8051,6 +7960,133 @@ ${formData.style.trim()}`;
                                         }}
                                       >
                                         Отмена
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={async (e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          if (photoPreview && (editingVoice.user_voice_id || editingVoice.id)) {
+                                            try {
+                                              const canvas = document.createElement('canvas');
+                                              const ctx = canvas.getContext('2d');
+                                              const size = 200;
+                                              canvas.width = size;
+                                              canvas.height = size;
+
+                                              const img = new Image();
+                                              img.crossOrigin = 'anonymous';
+                                              img.onload = async () => {
+                                                const previewSize = 114;
+                                                const finalSize = size;
+                                                const scale = finalSize / previewSize;
+
+                                                // Calculate effective DOM dimensions based on CSS constraints
+                                                let domW = img.width;
+                                                let domH = img.height;
+
+                                                // Max constraint (200%)
+                                                const maxDim = previewSize * 2;
+                                                if (domW > maxDim || domH > maxDim) {
+                                                  const maxScale = Math.min(maxDim / domW, maxDim / domH);
+                                                  domW *= maxScale;
+                                                  domH *= maxScale;
+                                                }
+
+                                                // Min constraint (100%) - wins over max
+                                                const minDim = previewSize;
+                                                if (domW < minDim || domH < minDim) {
+                                                  const minScale = Math.max(minDim / domW, minDim / domH);
+                                                  domW *= minScale;
+                                                  domH *= minScale;
+                                                }
+
+                                                const imgW = domW * scale * photoPreview.scale;
+                                                const imgH = domH * scale * photoPreview.scale;
+
+                                                const baseX = (finalSize - imgW) / 2;
+                                                const baseY = (finalSize - imgH) / 2;
+
+                                                const offsetX = photoPreview.x * scale;
+                                                const offsetY = photoPreview.y * scale;
+
+                                                ctx.beginPath();
+                                                ctx.arc(finalSize / 2, finalSize / 2, finalSize / 2, 0, Math.PI * 2);
+                                                ctx.clip();
+
+                                                ctx.drawImage(img, baseX + offsetX, baseY + offsetY, imgW, imgH);
+
+                                                canvas.toBlob(async (blob) => {
+                                                  if (blob) {
+                                                    setUploadingPhotoVoiceId(String(editingVoice.id || editingVoice.user_voice_id));
+                                                    try {
+                                                      const formData = new FormData();
+                                                      formData.append('photo_file', blob, 'voice_photo.png');
+                                                      const token = localStorage.getItem('authToken');
+
+                                                      let photoUrl = '';
+                                                      if (editingVoice.user_voice_id) {
+                                                        photoUrl = `${API_CONFIG.BASE_URL}/api/v1/characters/user-voice/${editingVoice.user_voice_id}/photo`;
+                                                      } else if (isAdmin) {
+                                                        photoUrl = `${API_CONFIG.BASE_URL}/api/v1/characters/default-voice/${editingVoice.id}/photo`;
+                                                      } else {
+                                                        alert('Нет прав на обновление этого фото');
+                                                        setUploadingPhotoVoiceId(null);
+                                                        return;
+                                                      }
+
+                                                      const response = await fetch(photoUrl, {
+                                                        method: 'PATCH',
+                                                        headers: {
+                                                          'Authorization': `Bearer ${token}`
+                                                        },
+                                                        body: formData
+                                                      });
+
+                                                      if (response.ok) {
+                                                        const token = localStorage.getItem('authToken');
+                                                        const voicesResponse = await fetch(`/api/v1/characters/available-voices?lang=${(localStorage.getItem('i18nextLng') || 'ru').split('-')[0]}`, {
+                                                          headers: {
+                                                            'Authorization': `Bearer ${token}`
+                                                          }
+                                                        });
+                                                        if (voicesResponse.ok) {
+                                                          const voicesData = await voicesResponse.json();
+                                                          setAvailableVoices(voicesData);
+                                                        }
+                                                        setPhotoPreview(null);
+                                                        setEditingVoicePhotoId(null);
+                                                        setPhotoUpdateCounter(prev => prev + 1);
+                                                      } else {
+                                                        const error = await response.json();
+                                                        alert('Ошибка обновления фото: ' + (error.detail || 'Неизвестная ошибка'));
+                                                      }
+                                                    } catch (err) {
+                                                      alert('Не удалось обновить фото. Проверьте консоль для деталей.');
+                                                    } finally {
+                                                      setUploadingPhotoVoiceId(null);
+                                                    }
+                                                  }
+                                                }, 'image/png');
+                                              };
+                                              img.src = photoPreview.url;
+                                            } catch (err) {
+                                              alert('Не удалось обработать фото');
+                                            }
+                                          }
+                                        }}
+                                        style={{
+                                          padding: '8px 16px',
+                                          background: 'rgba(255, 215, 0, 0.8)',
+                                          border: '1px solid rgba(255, 215, 0, 0.6)',
+                                          borderRadius: '6px',
+                                          color: '#1a1a1a',
+                                          cursor: 'pointer',
+                                          fontSize: '14px',
+                                          fontWeight: '500'
+                                        }}
+                                      >
+                                        Сохранить
                                       </button>
                                     </div>
                                   </div>
@@ -8090,6 +8126,7 @@ ${formData.style.trim()}`;
                                               url: event.target?.result as string,
                                               x: 0,
                                               y: 0,
+                                              scale: 1,
                                               voiceId: String(editingVoice.id || editingVoice.user_voice_id)
                                             });
                                           };
@@ -9041,6 +9078,7 @@ ${formData.style.trim()}`;
                               location: formData.location?.trim() || null,
                               is_nsfw: currentContentMode === 'nsfw',
                               tags: formData.tags,
+                              voice_id: selectedVoiceId || null,
                               voice_url: selectedVoiceUrl || null
                             };
 
@@ -9092,6 +9130,7 @@ ${formData.style.trim()}`;
                                 location: formData.location?.trim() || null,
                                 is_nsfw: currentContentMode === 'nsfw',
                                 tags: formData.tags,
+                                voice_id: selectedVoiceId || null,
                                 voice_url: selectedVoiceUrl || null
                               };
 

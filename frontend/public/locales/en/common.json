@@ -554,7 +554,36 @@
         "invalidResponse": "Invalid server response",
         "characterIdError": "Failed to determine character identifier",
         "characterWithIdNotFound": "Character with ID \"{{id}}\" not found. It may have been deleted.",
-        "loadCharacterErrorWithId": "Failed to load character: {{error}}"
+        "loadCharacterErrorWithId": "Failed to load character: {{error}}",
+        "modelSelector": {
+            "title": "Select AI Model",
+            "features": "Features",
+            "style": "Style",
+            "forWho": "For Whom",
+            "premiumBadge": "Premium Only",
+            "premiumWarning": "Premium subscribers only!",
+            "backToChat": "Back to chat",
+            "models": {
+                "euryale": {
+                    "subtitle": "\"Master of dark fantasy and deep immersion\"",
+                    "features": "This model is specially trained to be as \"human\" as possible in dialogues. It has one of the best character context understanding scores.",
+                    "style": "It writes very expressively, paying attention not only to actions, but also to inner experiences, smells and atmosphere.",
+                    "forWho": "Ideal if you want long plot development where psychology and \"chemistry\" between characters are important. It breaks the character's persona less often than other models."
+                },
+                "cydonia": {
+                    "subtitle": "\"New standard of roleplay interaction\"",
+                    "features": "This model is significantly smarter than classic analogs. It has excellent logic and is capable of holding complex storylines.",
+                    "style": "Artistic, deep and consistent style. Excellently handles environment descriptions and behavioral nuances.",
+                    "forWho": "For those looking for a balance between speed and highest narrative quality. Ideal for long roleplay sessions."
+                },
+                "deepseek": {
+                    "subtitle": "\"Latest version from DeepSeek\"",
+                    "features": "Modern multimodal model with high generation speed and excellent context understanding. Optimized for natural dialogues.",
+                    "style": "Balanced style with emphasis on naturalness and lively communication. Handles both light conversations and deep topics well.",
+                    "forWho": "For those who value fast and quality responses. Great for dynamic dialogues and situations where reaction speed is important."
+                }
+            }
+        }
     },
     "shop": {
         "specialOffer": "Special Offer",
